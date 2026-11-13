@@ -152,6 +152,7 @@ class DriveStream(object):
         self.ahead_blocks=None   # a fixed read-ahead (remote_media.Foreground); None keeps the rules below
         self.wide=False          # the local-copy path's re-package (prepare_downloads): READ_AHEAD_WIDE at full speed
         self.wide_items=set()    # F2/F3: Drive files a re-package lane reads now (prepare_cloud widens them per file)
+        self.external={}         # F1: files read from another server (an AllDebrid link) through the same block cache
         self.blocks = _Blocks(self._fetch,keep,block_size)
         stream = self
 
@@ -249,16 +250,20 @@ class DriveStream(object):
     def _fetch(self, item, start, end):
         """Bytes start..end of a Drive file, read whole, and the file's size; transient failures retried."""
         renewed=False
+        outside=self.external.get(item)   # F1: with_link(action) runs action(link), renewing an expired link once
         for attempt in range(3):
-            access=self.token()
-            request = urllib.request.Request(API + '/' + urllib.parse.quote(item, safe='') + '?alt=media',
+            access='' if outside else self.token()
+            request = None if outside else urllib.request.Request(API + '/' + urllib.parse.quote(item, safe='') + '?alt=media',
                                              headers={'Authorization':'Bearer '+access,'Range':'bytes=%d-%d'%(start,end)})
             began = time.monotonic()
             with self.metric_lock:
                 self.metrics['http_requests']+=1
                 if attempt:self.metrics['http_retries']+=1
             try:
-                upstream = self.open_url(request, 20)
+                if outside:
+                    upstream = outside(lambda link: self.open_url(urllib.request.Request(link, headers={'Range':'bytes=%d-%d'%(start,end)}), 20))
+                else:
+                    upstream = self.open_url(request, 20)
                 try:
                     status = getattr(upstream, 'status', None) or upstream.getcode()
                     with self.metric_lock:self.metrics.update(last_status=status,range_start=start,range_bytes=end-start+1)
@@ -296,7 +301,7 @@ class DriveStream(object):
             except urllib.error.HTTPError as error:
                 with self.metric_lock:self.metrics.update(last_status=error.code,http_errors=self.metrics['http_errors']+1)
                 error.close()
-                if error.code==401 and self.refresh_token is not None and not renewed and attempt<2:
+                if error.code==401 and not outside and self.refresh_token is not None and not renewed and attempt<2:
                     self.refresh_token(access);renewed=True
                 elif error.code not in (429, 500, 502, 503, 504) or attempt == 2:
                     raise
@@ -315,6 +320,12 @@ class DriveStream(object):
         with self.blocks.lock:metrics.update(cache_hits=self.blocks.hits,cache_misses=self.blocks.misses,cache_waits=self.blocks.waits)
         return dict(metrics,read_bytes=self.bytes_read,last_read=self.last_read,read_error=self.last_problem)
 
+    def add_external(self, key, with_link):
+        """F1: serve a file that lives on another server under this key (url(key) reads it). with_link(action) calls
+        action(link) with a working link (debrid_drive renews an expired AllDebrid link there)."""
+        self.external[str(key)] = with_link
+        return self.url(key)
+
     def widen(self, item_id):
         self.wide_items.add(item_id)
 
@@ -328,6 +339,7 @@ class DriveStream(object):
 
     def forget(self, item_id):
         self.allowed.discard(str(item_id))
+        self.external.pop(str(item_id), None)
         self.blocks.forget(str(item_id))
 
     def close(self):

@@ -72,6 +72,7 @@ def offset_lookup(profile):
     return lookup
 
 
+READY_TRIES = 3     # F1: starts of the made-ready-while-copying path per file before a plain copy
 BUSY_LANES = 4      # beside a conversion (was 2: on the owner's Wi-Fi the conversion used a fraction of the line)
 START_LANES = 3
 CELLULAR_LANES = 2  # mobile data: E16's crawl (four lanes at ~0.2 MB/s each timed out)
@@ -842,7 +843,7 @@ def kick_on_new_link(state, link, clock=time.time):
 
 
 def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=default_open, keep_going=lambda: True,
-         clock=time.time, on_done=lambda job: None, cancelled=lambda: set(), forget=lambda info_hash: None, log=lambda text: None,
+         clock=time.time, on_done=lambda job: None, cancelled=lambda: set(), forget=lambda info_hash: None, log=lambda text: None, ready_copy=None,
          link=link_now):
     """Move the oldest unfinished job on by one step. Returns seconds until the next step is worth trying
     (None when nothing is queued). cancelled(): info hashes the owner cancelled (long press in Notifications);
@@ -1082,10 +1083,26 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     with guard:
                         entry['session'] = dict(session)
                     commit()
-                result = drive.upload_stream(open_source, size, name, parent, session,
-                                             keep, going, progress,activity=activity)
-                if int(result.get('size') or size) != size:
-                    raise RuntimeError('Google Drive has a different size for %s' % name)
+                # F1 (PR #24): a file that would only need a re-package is made ready on its way (debrid_ready): no second
+                # trip through the phone. Not for a copy already under way, and at most READY_TRIES starts per file.
+                result = None
+                if ready_copy is not None and not entry.get('plain') and not session.get('url'):
+                    with guard:
+                        entry['ready_tries'] = entry.get('ready_tries', 0) + 1
+                        attempt_ready = entry['ready_tries'] <= READY_TRIES
+                    if attempt_ready:
+                        result = ready_copy(with_source, name, size, parent, going, progress,
+                                            '%s:%s' % (hash_, entry.get('path') or name))
+                    if result is None:
+                        with guard:
+                            entry['plain'] = True
+                    else:
+                        name = result.get('name') or name
+                if result is None:
+                    result = drive.upload_stream(open_source, size, name, parent, session,
+                                                 keep, going, progress,activity=activity)
+                    if int(result.get('size') or size) != size:
+                        raise RuntimeError('Google Drive has a different size for %s' % name)
                 with guard:
                     entry.update(done=True, drive_id=result.get('id', ''), drive_name=name)
                     entry['session'] = {}

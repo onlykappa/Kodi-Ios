@@ -119,3 +119,7 @@ msgstr ""
 msgctxt "#32029"
 msgid "Copy downloads to Google Drive only on Wi-Fi"
 msgstr ""
+
+msgctxt "#32030"
+msgid "Make downloads ready while they copy"
+msgstr ""

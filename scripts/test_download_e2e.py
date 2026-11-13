@@ -253,7 +253,7 @@ class SeasonDownload(unittest.TestCase):
                 delay = debrid_drive.step(self.profile, self.debrid, self.drive, keep_going=going, clock=lambda: self.clock[0],
                                           cancelled=lambda: transfer_control.cancelled_copies(self.profile),
                                           forget=lambda h: transfer_control.clear_cancelled(self.profile, h),
-                                          log=self.log.append)
+                                          log=self.log.append, ready_copy=getattr(self, 'ready_copy', None))
             titles += self.cards()
             if delay is None:
                 return n, titles
@@ -386,6 +386,36 @@ class SeasonDownload(unittest.TestCase):
         self.assertEqual(len(paths), 1)
         self.assertTrue(paths[0].startswith('Kodi Downloads/Movies/'), paths)
         self.assertFalse([p for ps in self.on_drive().values() for p in ps if 'sample' in p.lower() or 'Making Of' in p])
+
+    def test_a_file_made_ready_on_its_way_is_not_copied_again(self):
+        # F1 (PR #24): the copier hands a fresh file to ready_copy; what it returns is the Drive file. A file it declines
+        # (None) is copied plainly and never offered again.
+        debrid_drive.location(self.profile).write_text(json.dumps({'jobs': []}))
+        h = 'f2' * 20
+        self.debrid.add_torrent(h, [('Show.S01E01.1080p.mkv', 4 * PIECE), ('Show.S01E02.1080p.mkv', 5 * PIECE)])
+        debrid_drive.queue(self.profile, {'id': h, 'name': 'Show S01'}, 'season', 'Show', season='1')
+        offered = []
+
+        def ready_copy(with_link, name, size, parent, going, progress, key):
+            offered.append(name)
+            if 'E02' in name:
+                return None
+            progress(size, size)
+            ident = self.server.put_file(parent, name.rsplit('.', 1)[0] + '.mp4', b'ready' * 10)
+            return {'id': ident, 'name': name.rsplit('.', 1)[0] + '.mp4', 'size': 50}
+        self.ready_copy = ready_copy
+        self.run_queue()
+        job = debrid_drive.load(self.profile)['jobs'][0]
+        self.assertEqual(job['status'], 'done')
+        files = {os.path.basename(f['path']): f for f in job['files']}
+        self.assertEqual(sorted(offered), sorted(o for o in offered if 'E01' in o) + sorted(o for o in offered if 'E02' in o))
+        self.assertEqual(len([o for o in offered if 'E02' in o]), 1)                 # declined once, then plain
+        self.assertTrue(files['Show.S01E01.1080p.mkv']['drive_name'].endswith('.mp4'))
+        self.assertTrue(files['Show.S01E02.1080p.mkv']['plain'])
+        self.assertTrue(files['Show.S01E02.1080p.mkv']['drive_name'].endswith('.mkv'))
+        names = [p for ps in self.on_drive().values() for p in ps]
+        self.assertEqual(len([p for p in names if 'E01' in p or 'S01E01' in p]), 1, names)   # once, as the ready .mp4
+        self.assertEqual(len([p for p in names if 'E02' in p]), 1, names)
 
     def test_up_next_goes_episode_by_episode(self):
         snap = work_state.build({'debrid': debrid_drive.load(self.profile), 'prep': {}, 'show_names': {TMDB: SHOW}}, self.clock[0])

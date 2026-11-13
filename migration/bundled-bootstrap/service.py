@@ -482,7 +482,16 @@ def drive_uploads(monitor,home,profile):
      remember_shows([job])
      driveupload.invalidate_library(str(profile/'addon_data/service.kodi.ios.bootstrap'))
      prepare_downloads.request_check(profile)   # preparation for Kodi and AirPlay picks it up from Drive
-    delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),
+    def ready_copy(with_link,name,size,parent,going,progress,key):
+     # F1 (PR #24): made ready while it copies, with the preparation queue's converter and Drive stream. None: plain copy.
+     try:q=preparation
+     except NameError:return None
+     addon=xbmcaddon.Addon()
+     if q is None or not addon.getSettingBool('prepare_downloads') or not addon.getSettingBool('prepare_while_copying'):return None
+     import debrid_ready,slowdown
+     return debrid_ready.copy(q,profile,with_link,name,size,parent,going,progress,key,
+                              log=lambda text:xbmc.log('Kodi iOS AllDebrid: '+diagnostics.redact(text),xbmc.LOGINFO),hold=slowdown.holding)
+    delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),ready_copy=ready_copy,
                             keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not wifi_only_hold(),on_done=done,
                             cancelled=lambda:transfer_control.cancelled_copies(profile),
                             forget=lambda h:transfer_control.clear_cancelled(profile,h),
