@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Upscale and Library mockups</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt,
+     tokens from portrait.py / pages.py (§4.3), the style of ai-upscale-settings-mockups.html. -->
+<style>
+:root{--bg:#000;--s1:#1c1c1e;--s2:#2c2c2e;--grey:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);--sep:rgba(235,235,245,.16);
+ --blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a;--purple:#bf5af2}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro{max-width:1180px;margin:0 auto 10px}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:880px;margin-bottom:8px}
+.board{max-width:1180px;margin:30px auto 0;padding-top:16px;border-top:1px solid #26272b}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board>p{color:var(--grey);font-size:14px;line-height:1.5;max-width:880px;margin-bottom:16px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.4;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:44px 14px 16px;font-size:14px}
+.nb{color:var(--blue-text);font-size:15px;font-weight:600;margin-bottom:4px}
+.ps h3{font-size:30px;font-weight:800;margin-bottom:12px;letter-spacing:-.01em}
+.sh{color:var(--grey);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:14px 6px 6px}
+.grp{background:var(--s1);border-radius:12px;overflow:hidden}
+.pr{position:relative;display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 12px}
+.pr+.pr::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.pr .t{flex:1;min-width:0}.pr .t b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .t span{display:block;color:var(--grey);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .v{color:var(--grey);font-size:14px;white-space:nowrap}
+.go{color:var(--dim);font-size:17px;font-weight:600}
+.ico{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:15px}
+.tile{width:30px;height:44px;border-radius:5px;flex:none}
+.toggle{flex:none;width:46px;height:28px;border-radius:14px;background:#39393d;position:relative}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:#fff}
+.toggle.on{background:var(--green)}.toggle.on::after{left:20px}
+.foot{color:var(--grey);font-size:12px;margin:6px 6px 0;line-height:1.35}
+.thin{height:4px;border-radius:2px;background:rgba(235,235,245,.2);overflow:hidden;margin-top:6px}.thin i{display:block;height:100%;background:var(--blue)}
+.chip{font-size:11px;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap}
+.chip.g{background:rgba(48,209,88,.18);color:var(--green)}.chip.b{background:rgba(10,132,255,.2);color:var(--blue-text)}
+.chip.n{background:rgba(235,235,245,.12);color:var(--grey)}
+.status{background:var(--s1);border-radius:12px;padding:12px;display:flex;gap:12px;align-items:center}
+.status .t b{font-size:15px}.status .t span{color:var(--grey);font-size:12.5px;display:block;margin-top:2px}
+.seg{display:flex;background:var(--s2);border-radius:9px;padding:2px;margin:0 0 8px}
+.seg div{flex:1;text-align:center;padding:6px 0;border-radius:7px;font-size:13px;font-weight:600;color:var(--grey)}.seg div.on{background:#636366;color:#fff}
+.btn{margin-top:12px;height:46px;border-radius:23px;background:#fff;color:#000;display:grid;place-items:center;font-weight:700;font-size:15.5px}
+.red{color:var(--red);text-align:center;font-weight:600;font-size:15px;margin-top:12px}
+.hero{display:flex;gap:12px;align-items:center;margin-bottom:6px}
+.hero i{width:58px;height:84px;border-radius:7px;flex:none}
+.hero b{display:block;font-size:22px;font-weight:800}.hero span{color:var(--grey);font-size:13px}
+.slider{background:var(--s1);border-radius:12px;padding:12px}
+.slider .row{display:flex;justify-content:space-between;align-items:baseline}.slider .row b{font-size:15px}.slider .row span{color:var(--blue-text);font-weight:700}
+.track{position:relative;height:4px;background:rgba(235,235,245,.25);border-radius:2px;margin:16px 6px 8px}
+.track i{position:absolute;left:0;top:0;bottom:0;width:100%;background:var(--blue);border-radius:2px}
+.track em{position:absolute;top:-10px;right:-12px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--grey)}.ticks .on{color:#fff;font-weight:700}
+.sum{background:var(--s1);border-radius:14px;padding:10px;margin-bottom:8px}
+.sum .row{display:flex;gap:6px}.sum .row div{flex:1;background:var(--s2);border-radius:10px;padding:8px 9px}
+.sum .row b{display:block;font-size:18px}.sum .row span{color:var(--grey);font-size:11px}
+.sum p{color:var(--grey);font-size:12px;margin-top:9px;line-height:1.35}
+.seg2{display:flex;background:var(--s1);border-radius:10px;padding:2px;margin:2px 0 4px}
+.seg2 div{flex:1;text-align:center;padding:7px 0;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--grey)}.seg2 div.on{background:#636366;color:#fff}
+.lst{background:var(--s1);border-radius:14px;overflow:hidden}
+.pb2{position:relative;display:flex;gap:11px;align-items:center;padding:9px 10px}
+.pb2+.pb2::before{content:"";position:absolute;top:0;left:58px;right:0;height:1px;background:var(--sep)}
+.post{width:38px;height:56px;border-radius:6px;flex:none;position:relative}
+.post .badge{position:absolute;right:-5px;bottom:-5px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;border:2px solid var(--s1)}
+.pb2 .t{flex:1;min-width:0}.pb2 .t b{display:block;font-size:14.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb2 .t span{display:block;color:var(--grey);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb2 .t em{display:block;font-style:normal;font-size:11.5px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act{flex:none;border-radius:14px;padding:6px 11px;font-size:12.5px;font-weight:700;background:var(--s2);color:var(--blue-text)}
+.btn2{height:46px;border-radius:23px;background:#fff;color:#000;display:grid;place-items:center;font-weight:700;font-size:15px;margin-top:12px}
+.redl{color:var(--red);text-align:center;font-weight:600;font-size:14.5px;margin-top:12px}
+.asheet{position:absolute;left:10px;right:10px;bottom:14px}
+.asheet .box{background:rgba(44,44,46,.98);border-radius:14px;overflow:hidden;margin-bottom:8px}
+.asheet .hd{padding:13px 14px 11px;text-align:center}.asheet .hd b{display:block;font-size:13.5px}.asheet .hd span{display:block;color:var(--grey);font-size:12px;margin-top:3px;line-height:1.35}
+.asheet .o{border-top:1px solid var(--sep);padding:13px;text-align:center;font-size:16px;color:var(--blue-text)}
+.asheet .o.d{color:var(--red)}
+.asheet .c{background:rgba(44,44,46,.98);border-radius:14px;padding:13px;text-align:center;font-size:16px;font-weight:700;color:var(--blue-text)}
+.dimall{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.alert{position:absolute;left:34px;right:34px;top:260px;background:rgba(44,44,46,.98);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.7)}
+.alert .h{padding:16px 14px 12px;text-align:center}.alert .h b{display:block;font-size:16px}.alert .h span{display:block;color:var(--grey);font-size:12.5px;margin-top:4px;line-height:1.35}
+.alert .o{border-top:1px solid var(--sep);padding:11px;text-align:center;font-size:15px;color:var(--blue-text)}
+.alert .o.d{color:var(--red);font-weight:600}.alert .o.c{font-weight:600}
+.empty{text-align:center;margin-top:120px}.empty .ic2{width:64px;height:64px;border-radius:50%;background:rgba(48,209,88,.18);color:var(--green);display:grid;place-items:center;font-size:30px;font-weight:800;margin:0 auto 14px}
+.empty b{display:block;font-size:19px}.empty span{display:block;color:var(--grey);font-size:13px;margin-top:6px;line-height:1.4;padding:0 18px}
+.notes2{max-width:1180px;margin:30px auto 0;color:#b4b4ba;font-size:14px;line-height:1.55}
+.shl{display:flex;justify-content:space-between;align-items:baseline;margin:14px 6px 6px}
+.shl .sh{margin:0}.shl a{color:var(--blue-text);font-size:13px;font-weight:600;text-decoration:none}
+.work{background:var(--s1);border-radius:14px;padding:11px;display:flex;gap:11px;align-items:center}
+.work .post{width:46px;height:66px}
+.work .t{flex:1;min-width:0}.work .t b{display:block;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.work .t span{display:block;color:var(--grey);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.round{flex:none;width:34px;height:34px;border-radius:50%;background:var(--s2);display:grid;place-items:center;font-size:13px;font-weight:800;color:#fff}
+.lane{display:flex;gap:10px;align-items:center;padding:9px 11px}
+.lane+.lane{border-top:1px solid var(--sep)}
+.lane .post{width:30px;height:44px;border-radius:5px}
+.lane .t{flex:1;min-width:0}.lane .t b{display:block;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lane .t span{display:block;color:var(--grey);font-size:11.5px;margin-top:1px}
+.pct{color:var(--grey);font-size:12px;font-weight:600;flex:none}
+.caps{display:flex;gap:8px;margin-top:10px}.caps div{flex:1;height:38px;border-radius:19px;display:grid;place-items:center;font-weight:700;font-size:14px}
+.caps .s{background:var(--s2);color:#fff}.caps .r{background:var(--s2);color:var(--red)}
+.big{background:var(--s1);border-radius:16px;padding:14px}
+.big .top{display:flex;gap:12px}.big .post{width:64px;height:92px;border-radius:8px}
+.big .top b{display:block;font-size:17px;font-weight:800;line-height:1.2}.big .top span{display:block;color:var(--grey);font-size:12.5px;margin-top:4px;line-height:1.35}
+.stats{display:flex;justify-content:space-between;color:var(--grey);font-size:12px;margin-top:6px}
+.stages{margin-top:12px}.stages div{display:flex;gap:8px;align-items:center;font-size:13px;padding:3px 0}
+.stages i{width:16px;height:16px;border-radius:50%;flex:none;display:grid;place-items:center;font-style:normal;font-size:10px;font-weight:800}
+.stages .done i{background:rgba(48,209,88,.18);color:var(--green)}.stages .now i{background:rgba(10,132,255,.25);color:var(--blue-text)}.stages .next{color:var(--grey)}.stages .next i{background:var(--s2)}
+.sheet{position:absolute;left:0;right:0;bottom:0;top:120px;background:var(--s2);border-radius:22px 22px 0 0;padding:8px 14px 16px}
+.grab{width:36px;height:5px;border-radius:3px;background:rgba(235,235,245,.3);margin:0 auto 10px}
+.sheet .hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.sheet .hdr b{font-size:17px}
+.x{width:30px;height:30px;border-radius:50%;background:rgba(118,118,128,.24);display:grid;place-items:center;color:var(--grey);font-weight:800;font-size:13px}
+.minus{flex:none;width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;display:grid;place-items:center;font-weight:900;font-size:15px;line-height:1}
+.hand{color:var(--grey);font-size:16px;flex:none}
+</style></head><body>
+<div class="intro"><span class="mk">MOCKUP</span><h1>AI Upscale, Library status lanes, Download problems</h1>
+<p>Owner (2026-11-13): "Seems we need a better page for the Ai upscaler. It wont allow me to cancel anything or open whats being done and overall looks poor" · "I want a clear by the 'cancelled by you' under download problems so i can remove that list" · and the open item from F2: each preparation lane needs its own card on Library status.</p>
+<p>Evidence class: mockup (APPLE-UI-POLICY §9), not a Kodi render. Tokens from portrait.py / pages.py (§4.3); posters are placeholder colour. Nothing here is built until you approve it.</p></div>
+
+<section class="board"><div class="n">A · AI UPSCALE PAGE</div><h2>What is being made comes first, and you can stop it</h2>
+<p>Today the page opens on settings, "Making now" is a plain row with no actions, the queue is one "6 more waiting" row, and shows can appear twice (Phony: some episodes matched TMDb, some only by name). The new order: what is happening (with Pause and Cancel), what is next, then which shows and the settings. Tapping the card opens board B.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Settings</div><h3>AI Upscale</h3>
+  <div class="sh">Making now</div>
+  <div class="work"><div class="post" style="background:linear-gradient(160deg,#5b2a20,#1a0c09)"></div>
+   <div class="t"><b>Hell House LLC Origins · E1</b><span>To 4K · 12 % · 1 h 40 min left</span><div class="thin"><i style="width:12%"></i></div></div>
+   <div class="round">❚❚</div></div>
+  <div class="shl"><div class="sh">Up next · 6</div><a>Edit</a></div>
+  <div class="grp">
+   <div class="pr"><div class="tile" style="background:linear-gradient(160deg,#5b2a20,#1a0c09)"></div><div class="t"><b>Hell House LLC Origins · E2</b><span>1080p → 4K UHD · about 2 h</span></div></div>
+   <div class="pr"><div class="tile" style="background:linear-gradient(160deg,#c9a04a,#3b2a10)"></div><div class="t"><b>Phony · S1 E1</b><span>1080p → 4K UHD · about 1 h 10 min</span></div></div>
+   <div class="pr"><div class="t"><b style="color:var(--blue-text);font-weight:600">Show all 6</b></div><div class="go">›</div></div>
+  </div>
+  <div class="sh">Shows and movies</div>
+  <div class="grp">
+   <div class="pr"><div class="tile" style="background:linear-gradient(160deg,#c9a04a,#3b2a10)"></div><div class="t"><b>Phony</b><span>5 episodes · 0 of 5 ready</span></div><div class="v">4K</div><div class="go">›</div></div>
+   <div class="pr"><div class="tile" style="background:linear-gradient(160deg,#5b2a20,#1a0c09)"></div><div class="t"><b>Hell House LLC Origins</b><span>4 episodes · making 1</span></div><div class="v">4K</div><div class="go">›</div></div>
+   <div class="pr"><div class="tile" style="background:linear-gradient(160deg,#2b4d6b,#0b1620)"></div><div class="t"><b>Lanterns</b><span>8 episodes · not upscaled</span></div><div class="v">Off</div><div class="go">›</div></div>
+  </div>
+ </div></div><div class="cap"><b>A1 · Top of the page:</b> the card's ❚❚ pauses (▶ resumes); tap the card for details and Cancel. One row per show (the duplicate is merged).</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps" style="padding-top:20px">
+  <div class="sh">Settings</div>
+  <div class="grp">
+   <div class="pr"><div class="t"><b>Upscale new downloads</b><span>720p and 1080p only</span></div><div class="toggle on"></div></div>
+   <div class="pr"><div class="t"><b>Upscale to</b></div><div class="v">4K UHD</div><div class="go">›</div></div>
+   <div class="pr"><div class="t"><b>Only while charging</b></div><div class="toggle on"></div></div>
+  </div>
+  <div class="foot">Copies are made in the background and play on the TV with AirPlay. The original stays for the phone and older TVs. About 2.5× the size on Google Drive.</div>
+  <div class="sh">This iPhone</div>
+  <div class="grp"><div class="pr"><div class="ico" style="background:rgba(191,90,242,.2);color:var(--purple)">✦</div><div class="t"><b>Ready</b><span>Apple's AI super resolution · iOS 26</span></div><div class="go">›</div></div></div>
+  <div class="sh">Space</div>
+  <div class="grp"><div class="pr"><div class="t"><b>AI copies on Google Drive</b><span>3 copies · 7.4 GB</span></div><div class="go">›</div></div></div>
+  <div class="redl">Cancel All Upscaling</div>
+  <div class="foot" style="text-align:center">Stops the copy being made and empties Up next. Copies already made stay.</div>
+ </div></div><div class="cap"><b>A2 · Scrolled down:</b> the settings and the iPhone's AI status move below the work. "AI copies on Google Drive" opens Free Up Space › AI Upscale copies. Cancel All asks first.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Settings</div><h3>AI Upscale</h3>
+  <div class="sh">Making now</div>
+  <div class="work"><div class="post" style="background:linear-gradient(160deg,#5b2a20,#1a0c09)"></div>
+   <div class="t"><b>Hell House LLC Origins · E1</b><span>Waiting for a charger</span><div class="thin"><i style="width:12%;background:#8e8e93"></i></div></div>
+   <div class="round">▶</div></div>
+  <div class="foot">Paused copies carry on from where they stopped. Plug in to carry on, or turn off "Only while charging".</div>
+  <div class="shl"><div class="sh">Up next · 6</div><a>Edit</a></div>
+  <div class="grp"><div class="pr"><div class="t"><b>Hell House LLC Origins · E2</b><span>Waiting</span></div></div></div>
+ </div></div><div class="cap"><b>A3 · Waiting or paused:</b> the bar turns grey and the line says why in plain words (charger, battery, heat, Drive space, paused by you).</div></div>
+</div></section>
+
+<section class="board"><div class="n">B · OPEN WHAT'S BEING MADE</div><h2>Details, Pause and Cancel for one copy; edit the queue</h2>
+<p>B1 is the sheet the Making now card opens. B2 is "Up next › Edit": remove copies you don't want, drag to reorder. Cancelling never touches the original video.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Settings</div><h3>AI Upscale</h3>
+  <div class="dimall"></div>
+  <div class="sheet"><div class="grab"></div>
+   <div class="hdr"><b>Making now</b><div class="x">✕</div></div>
+   <div class="big"><div class="top"><div class="post" style="background:linear-gradient(160deg,#5b2a20,#1a0c09)"></div>
+    <div><b>Hell House LLC Origins: The Carmichael Manor</b><span>Episode 1 · 1080p → 4K UHD<br>On charger · phone cool</span></div></div>
+    <div class="thin" style="height:5px;margin-top:14px"><i style="width:12%"></i></div>
+    <div class="stats"><span>12 % · 5 min of 44 made</span><span>about 1 h 40 min left</span></div>
+    <div class="stages"><div class="done"><i>✓</i>AI model ready</div><div class="now"><i>●</i>Making the 4K copy</div><div class="next"><i></i>Saving to Google Drive · 2.4 GB</div></div>
+    <div class="caps"><div class="s">Pause</div><div class="r">Cancel Copy</div></div>
+   </div>
+   <div class="foot">Cancel stops this copy and removes it from Up next. The original stays and plays as before.</div>
+  </div>
+ </div></div><div class="cap"><b>B1 · The copy's sheet:</b> what it is, how far, why it is slow or waiting, and Pause / Cancel. ✕ closes (status sheet, §4.7).</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb" style="display:flex;justify-content:space-between"><span>‹ AI Upscale</span><span style="font-weight:700">Done</span></div><h3>Up next</h3>
+  <div class="grp">
+   <div class="pr"><div class="minus">–</div><div class="tile" style="background:linear-gradient(160deg,#5b2a20,#1a0c09)"></div><div class="t"><b>Hell House LLC Origins · E2</b><span>about 2 h</span></div><div class="hand">≡</div></div>
+   <div class="pr"><div class="minus">–</div><div class="tile" style="background:linear-gradient(160deg,#5b2a20,#1a0c09)"></div><div class="t"><b>Hell House LLC Origins · E3</b><span>about 2 h</span></div><div class="hand">≡</div></div>
+   <div class="pr"><div class="minus">–</div><div class="tile" style="background:linear-gradient(160deg,#c9a04a,#3b2a10)"></div><div class="t"><b>Phony · S1 E1</b><span>about 1 h 10 min</span></div><div class="hand">≡</div></div>
+   <div class="pr"><div class="minus">–</div><div class="tile" style="background:linear-gradient(160deg,#c9a04a,#3b2a10)"></div><div class="t"><b>Phony · S1 E2</b><span>about 1 h 10 min</span></div><div class="hand">≡</div></div>
+  </div>
+  <div class="foot">A removed copy is not made again until you choose the show's size again. Drag ≡ to change the order.</div>
+  <div class="redl">Remove All From Up Next</div>
+ </div></div><div class="cap"><b>B2 · Edit Up next:</b> the same – / ≡ pattern as Library status' Edit order. Done is right here because editing is a task (§4.7).</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Settings</div><h3>AI Upscale</h3>
+  <div class="dimall"></div>
+  <div class="alert"><div class="h"><b>Cancel this copy?</b><span>Hell House LLC Origins · E1 stops at 12 % and leaves Up next. The original video stays as it is.</span></div>
+   <div class="o d">Cancel Copy</div><div class="o c">Keep Making It</div></div>
+ </div></div><div class="cap"><b>B3 · Cancel asks first:</b> the alert style used across the app; "Cancel All Upscaling" asks the same way with the count.</div></div>
+</div></section>
+
+<section class="board"><div class="n">C · DOWNLOAD PROBLEMS</div><h2>Clear beside "Cancelled by you"</h2>
+<p>The Cancelled list (62 today) sits under the two you can fix; Clear is now right on its heading in the All view too, not only in the Cancelled filter. It asks first and changes nothing on Google Drive.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3 style="font-size:26px">Download problems</h3>
+  <div class="sum"><div class="row"><div><b style="color:var(--blue-text)">2</b><span>Can try again</span></div><div><b style="color:var(--orange)">0</b><span>New source</span></div><div><b>62</b><span>Cancelled</span></div></div></div>
+  <div class="seg2"><div class="on">All</div><div>Retry</div><div>Source</div><div>Cancelled</div></div>
+  <div class="sh">Can try again · 2</div>
+  <div class="lst">
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#28506e,#0e1c28)"></div><div class="t"><b>Fall 2 Deadpoint</b><span>Movie</span><em style="color:var(--orange)">AllDebrid blocked the sign-in</em></div><div class="act">Retry</div></div>
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#1d3a5f,#0a1420)"></div><div class="t"><b>Inception</b><span>Movie</span><em style="color:var(--orange)">AllDebrid was busy</em></div><div class="act">Retry</div></div>
+  </div>
+  <div class="shl"><div class="sh">Cancelled by you · 62</div><a>Clear</a></div>
+  <div class="lst">
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#a5521c,#2c160a)"></div><div class="t"><b>Naruto Shippuden The Movie</b><span>Movie</span><em style="color:var(--grey)">Cancelled yesterday</em></div><div class="act">Restart</div></div>
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#7a4b1e,#25160a)"></div><div class="t"><b>Naruto Shippuden · S1 E6</b><span>Episode</span><em style="color:var(--grey)">Cancelled yesterday</em></div><div class="act">Restart</div></div>
+  </div>
+ </div></div><div class="cap"><b>C1 · Clear on the heading:</b> blue text link (4FA8FF), right-aligned on the section heading; a 118-unit touch area.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3 style="font-size:26px">Download problems</h3>
+  <div class="dimall"></div>
+  <div class="alert"><div class="h"><b>Clear 62 cancelled downloads?</b><span>They leave this list. Videos already on Google Drive stay, and nothing is downloaded again.</span></div>
+   <div class="o d">Clear</div><div class="o c">Cancel</div></div>
+ </div></div><div class="cap"><b>C2 · Asks first:</b> the approved alert (board C2 of the Download problems mockup).</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3 style="font-size:26px">Download problems</h3>
+  <div class="sum"><div class="row"><div><b style="color:var(--blue-text)">2</b><span>Can try again</span></div><div><b style="color:var(--orange)">0</b><span>New source</span></div><div><b>0</b><span>Cancelled</span></div></div></div>
+  <div class="seg2"><div class="on">All</div><div>Retry</div><div>Source</div><div>Cancelled</div></div>
+  <div class="sh">Can try again · 2</div>
+  <div class="lst">
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#28506e,#0e1c28)"></div><div class="t"><b>Fall 2 Deadpoint</b><span>Movie</span><em style="color:var(--orange)">AllDebrid blocked the sign-in</em></div><div class="act">Retry</div></div>
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#1d3a5f,#0a1420)"></div><div class="t"><b>Inception</b><span>Movie</span><em style="color:var(--orange)">AllDebrid was busy</em></div><div class="act">Retry</div></div>
+  </div>
+ </div></div><div class="cap"><b>C3 · After Clear:</b> the section is gone; only what can still be fixed is left. Hash-named rows (45e2c1e0…) get the show's name or "Unnamed download".</div></div>
+</div></section>
+
+<section class="board"><div class="n">D · LIBRARY STATUS</div><h2>One card per preparation lane (F2)</h2>
+<p>Up to three videos are now prepared at once. "Working on now" keeps its big card for the first and adds a compact row per extra lane, each with its own bar and percentage, the same rows the copy lanes use. Long press on any of them gives Pause / Cancel, as today.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3>Library status</h3>
+  <div class="sh">Working on now · 3</div>
+  <div class="work"><div class="post" style="background:linear-gradient(160deg,#1d3a5f,#0a1420)"></div>
+   <div class="t"><b>Inception (2010)</b><span>Faster start · 6.1 MB/s · 18 min</span><div class="thin"><i style="width:41%"></i></div></div><div class="pct">41 %</div></div>
+  <div class="grp" style="margin-top:8px">
+   <div class="lane"><div class="post" style="background:linear-gradient(160deg,#7a4b1e,#25160a)"></div><div class="t"><b>Naruto Shippuden · S1 E6</b><span>Faster start · 4.8 MB/s</span><div class="thin"><i style="width:63%"></i></div></div><div class="pct">63 %</div></div>
+   <div class="lane"><div class="post" style="background:linear-gradient(160deg,#7a4b1e,#25160a)"></div><div class="t"><b>Naruto Shippuden · S1 E7</b><span>Faster start · 5.2 MB/s</span><div class="thin"><i style="width:22%"></i></div></div><div class="pct">22 %</div></div>
+  </div>
+  <div class="sh">Downloading to Google Drive · 2</div>
+  <div class="grp"><div class="lane"><div class="post" style="background:linear-gradient(160deg,#7a4b1e,#25160a)"></div><div class="t"><b>Naruto Shippuden · S1 E12</b><span>Made ready on the way · 7.9 MB/s</span><div class="thin"><i style="width:35%"></i></div></div><div class="pct">35 %</div></div></div>
+ </div></div><div class="cap"><b>D1 · Three at once:</b> the heading counts them once; the main card stays the approved one. A copy being made ready on its way (F1) says so on its line.</div></div>
+</div></section>
+
+<div class="notes2"><h3 style="color:#fff;font-size:16px;margin:16px 0 6px">Notes</h3><ul>
+<li style="margin:3px 0 3px 18px">Kodi skin XML with the existing helpers: Settings grouped rows and section headings (status_ui), the Library status work card and copy-lane rows, the thin progress bar (§4.7), the round pause control (118-unit touch area, ~92 drawn), the status sheet with ✕, the red text action and the standard alert. No new colours, radii or button styles; the heading link uses the text blue 4FA8FF.</li>
+<li style="margin:3px 0 3px 18px">AI Upscale data already exists: upscale_queue (copies, status, error/reason, estimate), upscale_cloud progress, picture settings. New behaviour: pause / cancel one copy, remove from Up next, Cancel All, and merging a show's TMDb and name-only groups.</li>
+<li style="margin:3px 0 3px 18px">Cancel and Remove never touch the original video. Clear on Download problems only empties that list.</li>
+<li style="margin:3px 0 3px 18px">Numbers and titles are examples; artwork is placeholder colour.</li>
+</ul></div>
+</body></html>
