@@ -364,3 +364,12 @@ list with posters, "Downloading to Google Drive" then "Preparing for Kodi and Ai
 waiting rows saying why, Edit with – / ≡ remove and reorder, "Cancel All Downloads to Drive" as a red action at the
 bottom) and board F (Favourites: one large title, the empty state, the Library's poster grid with All / Movies / Shows).
 The notification details mockup (G–H) is not yet approved.
+
+## DEC-046 — Notification details mockup approved, on condition that text fits (2026-11-13)
+
+Owner, on docs/design/notification-detail-mockups.html: "ensure text fits and its not just ... otherwise i approve and you
+can code it all in". Approved scope: boards G (a problem with a fix: plain "What happened", "nothing was lost" when true,
+the fixes as one primary capsule and rows, Technical details behind a link with a facts table and short log lines, Copy
+Details / Share Log; a Fix button on problem rows in the Notifications list) and H (good news in one line with no log;
+a vague problem with plain words, Run Setup Again / Share the log / Restart Kodi; a warning that fixes itself). Condition:
+titles and lines wrap to a second line instead of ending in "…" (the list rows and the sheet).
