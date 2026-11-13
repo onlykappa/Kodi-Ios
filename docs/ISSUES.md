@@ -3107,3 +3107,22 @@ Fixes:
   for renamed jobs that are not finished too, and trashes the old folder once it is empty.
 - Library status: a flat purple speed graph under a conversion with no speed yet; it now shows only beside a speed.
 - Up next: "Naruto Shippuden · S1 E1 · Naruto Shi…": a one-episode job's title already names the episode.
+
+## ISSUE-193 — End-to-end check of season downloads: wrong file from absolute-numbered packs, removals undone, folders per release name (owner request, build 328) — FIXED on host
+
+Owner: "before u push ipa ensure the show download system fully works". The desktop rig cannot reach AllDebrid or
+Drive, so scripts/test_download_e2e.py runs the real queue, lanes, retries, naming, duplicate and Drive checks, rehome
+and the status cards against a fake AllDebrid and a fake Drive that speaks Drive's HTTP (resumable sessions, folders,
+moves, Trash), on the owner's situation: a complete-series pack named by absolute number with 32 episode jobs from an
+old build titled by hash, episode 2 already on Drive in a hash folder, episode 6 asked for from two more torrents, a slow
+link (timeouts with part kept, lost answers after Drive took the bytes, dropped connections), a conversion beside it and
+the app closed mid-copy. It found three bugs the unit tests did not:
+1. alldebrid.pick for an episode found no S01E06 in "Naruto Shippuden Episode 006 ….mkv" and copied the pack's
+   largest file (its film) as "S01E01" for every episode: likely the 4-6 GB "episodes" on the phone. Fix: absolute
+   numbers count as season 1 episodes; with several videos and none matching, nothing is copied (the job says so).
+2. Jobs removed as duplicates or already on Drive came back at the next save (save merges jobs found on disk), so the
+   ISSUE-189/190 removals never held. Fix: removed jobs are remembered (state['removed']) and never merged back.
+3. A show's folder came from each release's file name ("Show/…", "Naruto Shippuuden/…"): the two-Naruto folders. Fix:
+   an episode with its show's title goes into that show's folder.
+Result: 4 scenarios (the owner's season, Pick Better Versions, a new Build Season, Up next order) × 20 fault patterns:
+80 of 80 pass. Evidence class: host simulation, not the phone.

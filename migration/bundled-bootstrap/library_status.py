@@ -242,6 +242,23 @@ def run(args=()):
    else:self.finish()
   def onAction(self,action):
    if action.getId() in BACK:self.go_back()
+   # Owner (build 328): "holding down on the show that is converting should show a cancel button": the same choices as
+   # the conversion card's long press in Notifications (transfer_control.menu).
+   elif action.getId() in (101,117) and self.getFocusId() in (library_page.WORK,library_page.WORK+100):self.conversion_menu()
+  def conversion_menu(self):
+   import work_state,transfer_control
+   conv=work_state.job(self.view.get('model'),'conv')
+   row=next((r for r in self.view['rows']['preparing'] if conv and r['title']==conv['title']),None)
+   if not row:return
+   rows=transfer_control.menu('conv',{'id':row.get('id')},conv_paused=transfer_control.paused(profile,'conv'))
+   rows=[r for r in rows if r[1]!='speed']
+   pick=dialog.contextmenu([label for label,_ in rows])
+   if pick<0:return
+   if rows[pick][1]=='toggle':transfer_control.set_paused(profile,'conv',not transfer_control.paused(profile,'conv'))
+   elif dialog.yesno('Cancel conversion','Stop converting %s? It stays in your library as it is and plays on this iPhone. '
+                     'Library status can convert it later for Play on TV.'%row['title'],nolabel='Keep Converting',yeslabel='Stop'):
+    prepare_downloads.request(profile,'keep',row['id'])
+   self.refresh(force=True)
   def cancel_all(self):
    # Every queued AllDebrid -> Drive copy goes, after one question (the heading's Cancel All and the copy's sheet).
    import transfer_control

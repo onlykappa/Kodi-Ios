@@ -66,7 +66,10 @@ def save(profile, state, enqueue=False):
         fcntl.flock(lock,fcntl.LOCK_EX)
         current=load(profile)
         key=lambda j:(j['hash'],str(j.get('season','')),str(j.get('episode','')),j.get('added',0))
-        pending={key(j):j for j in current.get('jobs',[])}
+        # Jobs this process removed on purpose (a duplicate, an episode already on Drive) stay removed: the merge below
+        # brings back only jobs another process queued (end-to-end check: removed jobs came back at every save).
+        gone={tuple(k) for k in state.get('removed') or []}
+        pending={key(j):j for j in current.get('jobs',[]) if key(j) not in gone}
         for index,job in enumerate(state.get('jobs',[])):
             old=pending.pop(key(job),{})
             if enqueue and old:
@@ -107,7 +110,14 @@ def _queue(profile, torrent, kind, title='', season='', episode='', now=None, ep
     h = info_hash(torrent)
     if not h:
         raise ValueError('torrent without an info-hash')
+    try:
+        import transfer_control
+        leaving = transfer_control.cancelled_copies(profile)
+    except Exception:
+        leaving = set()
     for job in state['jobs']:
+        if str(job.get('hash', '')).lower() in leaving:
+            continue   # being cancelled (Pick Better Versions): never stands in for the new pick
         same_torrent = job['hash'] == h
         # Owner screenshots (build 325): episode 6 waited three times and episode 2 twice, each from another torrent.
         # An episode already waiting or copying is not queued again from a different version.
@@ -258,6 +268,28 @@ def one_spelling(state):
     return changed
 
 
+def repick_plan(state, title, tmdb=''):
+    """Owner (build 328): episodes already queued with oversized versions get a better pick. The show's waiting
+    episode jobs that have copied nothing: (info hashes to cancel, [(season, episode)]). A torrent that also holds an
+    episode already copying, or done, is left alone."""
+    key = show_match(title)
+    mine = lambda j: (tmdb and str(j.get('show_tmdb') or '') == str(tmdb)) or (key and show_match(j.get('title') or '') == key)
+    busy = {str(j.get('hash', '')).lower() for j in state.get('jobs', []) if _started(j) or j.get('status') == 'done'}
+    hashes, episodes = set(), set()
+    for job in state.get('jobs', []):
+        if job.get('status') in ('done', 'failed') or job.get('kind') != 'episode' or not mine(job):
+            continue
+        h = str(job.get('hash', '')).lower()
+        if h in busy or _started(job):
+            continue
+        try:
+            episodes.add((int(job.get('season') or 0), int(job.get('episode') or 0)))
+        except (TypeError, ValueError):
+            continue
+        hashes.add(h)
+    return sorted(hashes), sorted(e for e in episodes if e[1])
+
+
 def show_names(profile):
     """{tmdb id: name} the Library has cached (drive-library-art.json 'show:ID'); no network."""
     try:
@@ -322,8 +354,7 @@ def drop_duplicates(state):
         if loser is first:
             keep[key] = job
         dropped.append(loser)
-    if dropped:
-        state['jobs'] = [j for j in state['jobs'] if all(j is not d for d in dropped)]
+    forget_jobs(state, dropped)
     return dropped
 
 
@@ -334,6 +365,16 @@ def show_match(title):
     text = unicodedata.normalize('NFKD', str(title or '')).encode('ascii', 'ignore').decode().lower()
     text = re.sub(r'[^a-z0-9]+', '', re.sub(r'\b(19|20)\d\d\b', '', text))
     return re.sub(r'(.)\1+', r'\1', text)
+
+
+def forget_jobs(state, jobs):
+    """Remove jobs from the queue for good: save() never merges them back from disk."""
+    if not jobs:
+        return
+    state['jobs'] = [j for j in state['jobs'] if all(j is not d for d in jobs)]
+    removed = state.setdefault('removed', [])
+    removed += [[j['hash'], str(j.get('season', '')), str(j.get('episode', '')), j.get('added', 0)] for j in jobs]
+    del removed[:-500]
 
 
 def drive_episodes(profile):
@@ -371,8 +412,7 @@ def drop_on_drive(state, on_drive):
             continue
         if key[0] and key[2] and key in on_drive:
             dropped.append(job)
-    if dropped:
-        state['jobs'] = [j for j in state['jobs'] if all(j is not d for d in dropped)]
+    forget_jobs(state, dropped)
     return dropped
 
 
@@ -439,7 +479,10 @@ def rehome(drive, job, log=lambda text: None):
 def folders(kind, name, title=''):
     """Drive › Kodi Downloads › Movies, or › TV Shows › <show> (from the file's name, else the show's title)."""
     parts = driveupload.drive_folders(name, '/')
-    if parts[1] == 'Movies' and kind in ('episode', 'season') and title:
+    # End-to-end check (scripts/test_download_e2e.py): the show's folder came from each release's file name, so
+    # "Naruto.Shippuden.S01E06…" and "Naruto Shippuuden - 002" made two shows (owner screenshot, build 327). An episode
+    # with its show's title goes into that show's folder whatever the release calls it.
+    if kind in ('episode', 'season') and title and not is_hash(title):
         parts = [TOP, 'TV Shows', title]
     return parts
 

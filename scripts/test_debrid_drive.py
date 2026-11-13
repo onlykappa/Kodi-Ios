@@ -209,6 +209,24 @@ class HashNamedJobs(unittest.TestCase):
    self.assertEqual((job['title'],len(debrid_drive.load(p)['jobs'])),('Naruto Shippūden',1))
 
 class Duplicates(unittest.TestCase):
+ def test_pick_better_versions_plan(self):
+  # Owner (build 328): episodes already queued with oversized versions get a better pick; copies under way stay.
+  started={'path':'a','done':False,'session':{'url':'u'}}
+  state={'jobs':[{'hash':'a'*40,'title':'Naruto Shippuden','kind':'episode','season':'1','episode':'3','status':'copying','files':[started]},
+                 {'hash':'a'*40,'title':'Naruto Shippuden','kind':'episode','season':'1','episode':'4','status':'copying','files':[]},
+                 {'hash':'b'*40,'title':'Naruto Shippuuden','kind':'episode','season':'1','episode':'5','status':'new','files':[]},
+                 {'hash':'c'*40,'title':'Naruto Shippuden','kind':'episode','season':'1','episode':'6','status':'new','files':[]},
+                 {'hash':'d'*40,'title':'Lanterns','kind':'episode','season':'1','episode':'1','status':'new','files':[]}]}
+  hashes,episodes=debrid_drive.repick_plan(state,'Naruto Shippūden')
+  self.assertEqual((hashes,episodes),(['b'*40,'c'*40],[(1,5),(1,6)]))   # E4 shares a torrent with E3, already copying
+ def test_a_cancelled_job_never_stands_in_for_the_new_pick(self):
+  import transfer_control
+  with tempfile.TemporaryDirectory() as p:
+   debrid_drive.queue(p,{'id':'1'*40,'name':'Naruto S01E06 huge'},'episode','Naruto',season='1',episode='6',show_tmdb='9')
+   transfer_control.cancel_copy(p,'1'*40)
+   debrid_drive.queue(p,{'id':'2'*40,'name':'Naruto S01E06 web'},'episode','Naruto',season='1',episode='6',show_tmdb='9')
+   self.assertEqual(len(debrid_drive.load(p)['jobs']),2)
+
  def test_one_title_per_show(self):
   # Owner screenshot (build 327): "Naruto Shippuden" (poster) and "Naruto Shippuuden" (none) as two shows.
   state={'jobs':[{'hash':'1'*40,'title':'Naruto Shippuden','kind':'episode','show_tmdb':'31910','status':'copying','files':[]},

@@ -13,6 +13,24 @@ def run(argv):
     import season_sources
     a = library_repair.args(argv[1:])
     tries = [a['quality'], None] if a.get('quality') else [None]
+    if a.get('cancel'):
+        # Pick Better Versions: the old picks leave the queue first (the copy loop drops cancelled hashes), so the new
+        # pick is never taken for the episode already waiting.
+        import time
+        import xbmcvfs
+        import debrid_drive
+        import transfer_control
+        profile = xbmcvfs.translatePath('special://profile/')
+        hashes = [h for h in a['cancel'].split(';') if h]
+        for h in hashes:
+            transfer_control.cancel_copy(profile, h)
+        monitor = xbmc.Monitor()
+        for _ in range(90):
+            waiting = [j for j in debrid_drive.load(profile).get('jobs', [])
+                       if str(j.get('hash', '')).lower() in hashes and j.get('status') not in ('done', 'failed')]
+            if not waiting or monitor.waitForAbort(1):
+                break
+        xbmc.log('Kodi iOS repair: %d old picks cancelled before picking again' % len(hashes), xbmc.LOGINFO)
     dialog = xbmcgui.Dialog()
     home = xbmcgui.Window(10000)
     found = missed = 0

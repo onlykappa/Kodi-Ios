@@ -475,4 +475,14 @@ class ReplacementStopsTheConversion(unittest.TestCase):
   self.assertIn("prepare_downloads.request(profile, 'replace', replaced)",src)
   self.assertIn("setProperty('KodiIOS.Replacing'",(BOOT/'library_status.py').read_text())
 
+class LongPressCancel(unittest.TestCase):
+ def test_holding_the_working_card_offers_cancel(self):
+  # Owner (build 328): "holding down on the show that is converting should show a cancel button".
+  src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/library_status.py').read_text()
+  self.assertIn("elif action.getId() in (101,117) and self.getFocusId() in (library_page.WORK,library_page.WORK+100):self.conversion_menu()",src)
+  self.assertIn("prepare_downloads.request(profile,'keep',row['id'])",src)
+  import sys;sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'))
+  import transfer_control
+  self.assertIn(('Cancel conversion','cancel'),transfer_control.menu('conv',{'id':'d1'}))
+
 if __name__=='__main__':unittest.main()

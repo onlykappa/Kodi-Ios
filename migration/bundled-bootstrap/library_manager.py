@@ -368,10 +368,12 @@ def run():
         del sheet
         return playing
 
-    def more_entries(rows):
-        """Board B round 2's ••• menu: Find Missing Episodes always; Repair All Problems only when there is one."""
+    def more_entries(rows, repick=0):
+        """Board B round 2's ••• menu: Find Missing Episodes always; Repair All Problems only when there is one; Pick
+        Better Versions when episodes wait with a version not started yet (owner, build 328)."""
         problems = [r for r in rows if r.get('repair')]
-        return [('find', 'Find Missing Episodes')] + ([('repair_all', 'Repair All Problems (%d)' % len(problems))] if problems else [])
+        return ([('find', 'Find Missing Episodes')] + ([('repair_all', 'Repair All Problems (%d)' % len(problems))] if problems else []) +
+                ([('repick', 'Pick Better Versions (%d)' % repick)] if repick else []))
 
     class Show(xbmcgui.WindowXML):
         """Board B: one show. Season chips switch the episodes; Repair and ••• come with L5, the episode sheet with L4."""
@@ -391,7 +393,10 @@ def run():
                         pass
 
         def more(self):
-            entries = more_entries(self.episodes)
+            import debrid_drive
+            tmdb_id = (self.data.get('tmdb') or {}).get(self.show['id'], '')
+            hashes, waiting = debrid_drive.repick_plan(debrid_drive.load(profile), self.show['title'], tmdb_id)
+            entries = more_entries(self.episodes, len(waiting))
             pick = xbmcgui.Dialog().contextmenu([label for _, label in entries])
             if pick < 0:
                 return
@@ -405,6 +410,19 @@ def run():
                 season = self.season if self.season is not None else (self.seasons[0] if self.seasons else 1)
                 xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,download,kind=season,tmdb=%s,tvshow.tmdb_id=%s,season=%d,title=%s)' % (
                     tmdb, tmdb, season or 1, self.show['title'].replace(',', ' ')))
+            elif what == 'repick':
+                if not tmdb:
+                    xbmcgui.Dialog().ok('Pick Better Versions', 'This show has no TMDb match yet, so its episodes cannot be looked up again.')
+                    return
+                if not xbmcgui.Dialog().yesno('Pick Better Versions', '%d waiting episodes are looked up again and the best version '
+                                              'for your quality and a sensible size is queued instead. Episodes already copying '
+                                              'are not touched.' % len(waiting), nolabel='Cancel', yeslabel='Pick Again'):
+                    return
+                import library_repair
+                rows = [{'season': s_, 'episode': e_} for s_, e_ in waiting]
+                xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,library_repair_page,%s)' % ','.join(
+                    library_repair.script_args(tmdb, self.show['title'], rows, library_repair.qualities(self.episodes)[0]) +
+                    ['cancel=%s' % ';'.join(hashes)]))
             elif what == 'repair_all':
                 problems = [r for r in self.episodes if r.get('repair')]
                 for row in [r for r in problems if r.get('id')]:   # a preparation problem: prepared again

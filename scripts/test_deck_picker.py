@@ -247,6 +247,29 @@ class SmallerEpisodes(unittest.TestCase):
   self.assertEqual(dp.auto_choose([huge,big8],want)['idx'],1)     # no conversion beats size
   self.assertEqual(dp.auto_choose([huge],want)['idx'],0)          # still taken when it is the only one
 
+class BestOverall(unittest.TestCase):
+ """Owner (build 328): "pick the genuine best options based off size and the quality i pick not just the smallest"."""
+ def mk(self,i,seeds,size,name,tag='WebDL H.264'):
+  return dp.parse_item('1080p (%d / 0) [%s] %s - Torrentio\n%s\nicon.png'%(seeds,size,tag,name),i)
+ def test_the_right_size_for_the_length_then_the_better_source(self):
+  # A 23-minute 1080p episode: 2.5-10 Mbit/s is 0.4-1.6 GB (H.264).
+  starved=self.mk(0,300,'180 MB','Naruto.Shippuden.S01E03.1080p.WEB.x264')               # 1 Mbit/s: too little picture
+  web=self.mk(1,40,'900 MB','Naruto.Shippuden.S01E03.1080p.WEB-DL.x264')
+  bluray=self.mk(2,25,'1.3 GB','Naruto.Shippuden.S01E03.1080p.BluRay.x264','BluRay H.264')
+  remux=self.mk(3,500,'4.6 GB','Naruto.Shippuden.S01E03.1080p.BluRay.REMUX','BluRay H.264')
+  want={'quality':'1080p','strict_quality':True,'runtime':23}
+  self.assertEqual([dp.size_fit(x,23) for x in (starved,web,bluray,remux)],[2,0,0,2])
+  self.assertEqual(dp.auto_choose([starved,web,bluray,remux],want)['idx'],2)               # Blu-ray at a good size
+  self.assertEqual(dp.auto_choose([starved,web,remux],want)['idx'],1)                      # not the smallest, not the biggest
+ def test_hevc_is_judged_by_its_own_bitrate_and_seeds_still_matter(self):
+  hevc=self.mk(0,30,'400 MB','Naruto.Shippuden.S01E03.1080p.WEB.x265','WebDL H.265')      # 2.4 Mbit/s HEVC: fine
+  self.assertEqual(dp.size_fit(hevc,23),0)
+  dead=self.mk(1,2,'1.2 GB','Naruto.Shippuden.S01E03.1080p.BluRay.x264','BluRay H.264')
+  self.assertEqual(dp.auto_choose([hevc,dead],{'quality':'1080p','strict_quality':True,'runtime':23})['idx'],0)
+ def test_runtime_reaches_the_pick(self):
+  src=(ROOT/'migration/bundled-bootstrap/resources/lib/season_sources.py').read_text()
+  self.assertIn("runtime=episode_minutes(tmdb,season,episode)",src)
+
 class Lanes(unittest.TestCase):
  def test_each_episode_finds_its_own_lane(self):
   import json,time as t
