@@ -115,6 +115,9 @@ class WideReadAhead(unittest.TestCase):
   src=(LIB/'prepare_downloads.py').read_text()
   self.assertIn("if self.stream:self.stream.wide=bool(before.get('copy_video'))",src)
   self.assertIn("if self.stream:self.stream.wide=False",src)
+  cloud=(LIB/'prepare_cloud.py').read_text()   # the path the phone runs (native outputs)
+  self.assertIn("if q.stream:q.stream.wide=bool(before.get('copy_video'))",cloud)
+  self.assertIn("if q.stream:q.stream.wide=False",cloud)
 
 
 class DownloadCap(unittest.TestCase):

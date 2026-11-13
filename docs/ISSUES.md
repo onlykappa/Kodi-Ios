@@ -3375,6 +3375,8 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Cause:** drive_stream already fetched READ_AHEAD = 4 blocks (8 MB each) in parallel, and Drive serves one connection at about 1.5 MB/s on that line, so a read ran at about 4 × 1.5 MB/s. A re-package only moves bytes (picture copied), so its speed is the blocks in flight.
 - **Fix:** `drive_stream.ahead_count(playback, slowed, wide)`: READ_AHEAD_WIDE = 8 blocks when the job is a re-package (`prepare_downloads` sets `stream.wide` from the probe's `copy_video`, cleared at each job start). Playback (2), a video / AirPlay playing (1) and the owner's pause (0) are unchanged; 8 blocks stay inside KEEP (24 blocks, 192 MB). Real conversions keep 4 (CPU-bound).
 - **Retest:** test_slowdown WideReadAhead; test_conversion_speed's read-ahead check updated. Phone: the once-a-minute `Drive reads:` line during a re-package should rise toward the copy speed (needs the owner's log). test_conversion_speed's AV1Speed / QuickFirst failures predate this (native-source text checks; that file is not in the CI list).
+- **Follow-up (same day):** the first commit set `stream.wide` only in `prepare_downloads.process_one`'s local-copy path; the phone runs `prepare_cloud.process_one` (native outputs), so it had no effect there. Now set in prepare_cloud after the probe and cleared at each job start; test_slowdown checks both paths.
+
 ## ISSUE-210 — F5: the picker did not prefer files that need no preparation (PR #24 roadmap) — fixed in code
 
 - Seen: owner log 68d43660 (build 356, via the PR #24 roadmap): Naruto Shippuuden S1 E5 (index at the end) and Inception (MKV)

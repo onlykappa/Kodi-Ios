@@ -36,6 +36,7 @@ def process_one(q, keep_going):
     if not candidates:return False
     candidates.sort(key=lambda pair:prep.order_key(*pair))   # build 182: quick (repack only) before re-encodes
     slot,job = candidates[0];item = job['source'];last = [0]
+    if q.stream:q.stream.wide=False
     job.pop('space',None)
     # Build 177: time left and pace come from this attempt only. The old job['eta_mark'] outlived stopped attempts,
     # so a restart measured from hours earlier ("about 46 h 28 min", owner screenshot).
@@ -140,6 +141,9 @@ def process_one(q, keep_going):
                 if q.skip_compatible(slot,job,item,before):
                     q.state.pop('current',None);q.commit();return True
                 q.log('preparation: %s — codec %s, %sx%s, %s-bit, HDR=%s, copy=%s, audio work=%s'%(drivelibrary.display_title(item['name']),before.get('codec'),before.get('width'),before.get('height'),before.get('bit_depth'),before.get('hdr'),before.get('copy_video'),before.get('audio_work_bytes')))
+                # F3 (ISSUE-211): a re-package (picture copied) reads Drive with more blocks in flight; a real conversion
+                # keeps the usual few. This is the path the phone runs (native outputs), not prepare_downloads' local one.
+                if q.stream:q.stream.wide=bool(before.get('copy_video'))
                 progress('Opening conversion tracks',None)
                 parent=q.drive.folder([driveupload.TOP,'.Preparation'])
                 def on_file(track,result):outputs[track]=result;q.commit()
