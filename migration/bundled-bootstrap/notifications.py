@@ -71,7 +71,11 @@ def message_properties(items,filter_key,now=None):
   glyph,tint=ICON.get(i.get('kind'),ICON['info']) if i else ('','')
   # Build 194 (board 5): one grouped card; the tile is the kind's colour at 18 %, its glyph the full colour.
   pos='' if not i else 'only' if len(shown)==1 else 'first' if n==1 else 'last' if n==len(shown) else 'mid'
-  props.update({'msg.%d.title'%n:i.get('title',''),'msg.%d.text'%n:i.get('text',''),'msg.%d.ago'%n:notices.ago(i['time'],now) if i else '',
+  import notice_help
+  help_=notice_help.explain(i) if i else {'title':'','line':'','fixes':[],'good':True}
+  fixable=bool(i and i.get('kind')=='problem' and help_['fixes'] and help_['fixes'][0][2] not in ('share_log',))
+  props.update({'msg.%d.fix'%n:'Fix' if fixable else ''})
+  props.update({'msg.%d.title'%n:help_['title'] if i else '','msg.%d.text'%n:(help_['line'] or i.get('text','')) if i else '','msg.%d.ago'%n:notices.ago(i['time'],now) if i else '',
                 'msg.%d.icon'%n:glyph,'msg.%d.tint'%n:('2E'+tint[2:]) if tint else '','msg.%d.glyph'%n:('FF'+tint[2:]) if tint else '',
                 'msg.%d.pos'%n:pos,'msg.%d.unread'%n:'true' if i and not i.get('was_read') else ''})
  return props,shown
@@ -89,10 +93,22 @@ def detail_properties(item,records,now=None):
  import time as _time
  glyph,tint=ICON.get(item.get('kind'),ICON['info'])
  worst=next((r for level in ('error','fatal','warning') for r in reversed(records) if r['level']==level),None)
- props={'title':item.get('title',''),'text':item.get('text',''),'icon':glyph,'tint':tint,
+ props={'title':item.get('title',''),'icon':glyph,'tint':tint,
         'ago':' · '.join(x for x in (KIND_WORDS.get(item.get('kind'),'Kodi iOS'),notices.ago(item['time'],now) if item.get('time') else '') if x),
-        'summary':short(notices.plain_record(worst)) if worst else short(item.get('text','')),'nolog':'' if records else NO_LOG,
-        'action.label':'Open' if item.get('action') else ''}
+        'nolog':'' if records else NO_LOG}
+ # DEC-046 (boards G/H): plain words, "nothing was lost", the fixes, Technical details' facts.
+ import notice_help
+ help_=notice_help.explain(item)
+ props.update(title=help_['title'],happened=help_['happened'],safe=help_['safe'],good='true' if help_['good'] else '',
+              tint=('FF30D158' if help_['good'] else 'FFFF9F0A' if help_['warn'] else tint))
+ if help_['good']:props['icon']='circle-check.png'
+ for n in range(3):
+  label,sub,action=help_['fixes'][n] if n<len(help_['fixes']) else ('','','')
+  props.update({'fix%d.label'%n:label,'fix%d.action'%n:action})
+  if n:props['fix%d.sub'%n]=sub   # the white capsule (fix 0) has no second line
+ props['tech.available']='' if help_['good'] and not records else 'true'
+ for n,(label,value) in enumerate((notice_help.facts(item,[{'text':notices.plain_record(r)} for r in records])+[('','')]*5)[:5]):
+  props.update({'fact%d.label'%n:label,'fact%d.value'%n:value})
  rows=[]
  for r in reversed(records):     # newest first, as the messages are
   count=r.get('count',1)
@@ -131,7 +147,12 @@ def run():
   def onAction(self,action):
    if action.getId() in BACK:self.close()
   def onClick(self,control):
-   if control==notice_page.ACTION and self.props.get('action.label'):self.chosen=True;self.close()
+   fix={notice_page.ACTION:0,notice_page.FIX1:1,notice_page.FIX2:2}.get(control)
+   if fix is not None and self.props.get('fix%d.action'%fix):
+    self.chosen=self.props['fix%d.action'%fix];self.close()
+   elif control==notice_page.TECH:self.setProperty('tech','true')
+   elif control==notice_page.TECH+100:self.setProperty('tech','')
+   elif control==notice_page.SHARE:self.chosen='share_log';self.close()
    elif control==notice_page.LOG:
     index=self.getControl(notice_page.LOG).getSelectedPosition()
     if 0<=index<len(self.rows):xbmcgui.Dialog().textviewer(self.rows[index][1],self.rows[index][0])
@@ -260,8 +281,29 @@ def run():
    self.refresh()
   def finish(self):
    self.stop.set();self.guard.close()
+  def run_fix(self,item,action):
+   """DEC-046: a fix from the sheet or the row's Fix button: the notice's own action, a page, or retry the copies."""
+   import notice_help
+   if not action:return
+   if action=='notice':
+    if item.get('action'):self.finish();xbmc.executebuiltin(item['action'])
+    return
+   if action=='retry_copies':
+    import debrid_drive
+    n=debrid_drive.retry_failed(profile)
+    xbmcgui.Dialog().notification('Kodi iOS','%d download%s back in line'%(n,'' if n==1 else 's') if n else 'Nothing to try again',xbmcgui.NOTIFICATION_INFO,3000)
+    return
+   builtin=notice_help.FIX_ACTIONS.get(action)
+   if builtin:self.finish();xbmc.executebuiltin(builtin)
   def onClick(self,control):
    if control==9001:self.finish()
+   elif 9600<control<=9600+ROWS:
+    # DEC-046 board G3: a problem row's Fix button runs its main fix.
+    n=control-9600
+    if n<=len(self.shown):
+     import notice_help
+     fixes=notice_help.explain(self.shown[n-1])['fixes']
+     if fixes:self.run_fix(self.shown[n-1],fixes[0][2])
    elif control==9002:
     notices.clear(profile);self.items=[];self.show_messages()
    elif 9101<=control<9101+len(FILTER_KEYS):
@@ -295,8 +337,7 @@ def run():
     sheet=Detail(notice_page.SHEET,home,'Default','1080i')
     sheet.setup(*detail_properties(item,records_for(profile,item,log_path)))
     sheet.doModal();chosen=sheet.chosen;del sheet
-    if chosen and item.get('action'):
-     self.finish();xbmc.executebuiltin(item['action'])
+    self.run_fix(item,chosen)
 
  page=Page('IOSNotifications.xml',home,'Default','1080i')
  page.doModal();page.stop.set() if hasattr(page,'stop') else None

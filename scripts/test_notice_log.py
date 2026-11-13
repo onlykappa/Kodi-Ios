@@ -92,7 +92,8 @@ class Sheet(unittest.TestCase):
   for n in (notice_page.CLOSE,notice_page.ACTION,notice_page.LOG,notice_page.DIM):self.assertIn(str(n),ids)
   boot=load('notifications_props',BOOT/'notifications.py')
   props,_=boot.detail_properties({'kind':'problem','title':'t','time':BASE},[])
-  for k in props:self.assertIn('Window().Property(%s)'%k,self.xml,k)
+  for k in props:
+   if not k.endswith('.action'):self.assertIn('Window().Property(%s)'%k,self.xml,k)   # .action: which fix the controller runs
   self.assertIn('ListItem.Property(level)',self.xml)
  def test_log_rows_wrap_and_open_the_complete_record(self):
   boxes=[c for c in self.tree.iter('control') if c.get('type')=='textbox']
@@ -101,7 +102,7 @@ class Sheet(unittest.TestCase):
  def test_closes_with_a_cross_and_fits_the_screen(self):
   self.assertIn('close_cross.png',self.xml);self.assertNotIn('>Done<',self.xml)
   listing=[c for c in self.tree.iter('control') if c.get('id')==str(notice_page.LOG)][0]
-  top=portrait.HEIGHT-1780+640+64
+  top=portrait.HEIGHT-1780+870+64   # DEC-046: under the facts table in Technical details
   self.assertLessEqual(top+int(listing.findtext('height')),portrait.HEIGHT-170)
  def test_registered_and_pill_hidden(self):
   self.assertIn('notice_page.files(ns)',(LIB/'portrait.py').read_text())
@@ -132,8 +133,11 @@ class TapAMessage(unittest.TestCase):
   def look(w):seen.update(props=dict(w.props),rows=[(i.label,i.label2,i.getProperty('level')) for i in w.getControl(notice_page.LOG).items])
   kodi,ran=self.run_page([('IOSNotifications.xml',lambda w:w.onClick(9501)),(notice_page.SHEET,look),(notice_page.SHEET,lambda w:w.onClick(notice_page.CLOSE)),
                           ('IOSNotifications.xml',lambda w:w.onClick(9001))])
-  self.assertEqual(seen['props']['summary'],'RuntimeError: No valid addon id could be obtained. (library_status.py, line 39)')
-  self.assertEqual(seen['props']['nolog'],'');self.assertEqual(seen['props']['action.label'],'')
+  # DEC-046 board H2: the vague setup problem in plain words, with something to do; the raw lines stay in Technical details.
+  self.assertEqual(seen['props']['title'],'Setup and repair stopped')
+  self.assertEqual((seen['props']['fix0.label'],seen['props']['fix1.label']),('Run Setup Again','Share the log'))
+  self.assertEqual(seen['props']['safe'],'Everything that was already set up still works.')
+  self.assertEqual(seen['props']['nolog'],'');self.assertEqual(seen['props']['tech.available'],'true')
   self.assertEqual(seen['rows'],[('RuntimeError: No valid addon id could be obtained. (library_status.py, line 39)',
                                   time.strftime('%H:%M:%S',time.localtime(BASE+9.02))+' · Error · 3 times','error')])
   self.assertEqual(ran,[]);self.assertTrue(all(w.closed for w in kodi.windows))
@@ -142,7 +146,7 @@ class TapAMessage(unittest.TestCase):
   seen={}
   kodi,ran=self.run_page([('IOSNotifications.xml',lambda w:w.onClick(9501)),(notice_page.SHEET,lambda w:seen.update(dict(w.props))),
                           (notice_page.SHEET,lambda w:w.onClick(notice_page.ACTION))])
-  self.assertEqual(seen['action.label'],'Open');self.assertEqual(seen['nolog'],'Kodi wrote nothing else about this around that time.')
+  self.assertEqual(seen['fix0.label'],'Open');self.assertEqual(seen['nolog'],'Kodi wrote nothing else about this around that time.')
   self.assertEqual(ran,['RunScript(service.kodi.ios.bootstrap,check_updates)'])
  def test_the_dimmed_page_and_back_close_it(self):
   notices.add(self.profile,'general','TMDbHelper','Trakt authorized',now=BASE+2)
@@ -150,5 +154,44 @@ class TapAMessage(unittest.TestCase):
                           ('IOSNotifications.xml',lambda w:w.onClick(9501)),(notice_page.SHEET,lambda w:w.onAction(type('A',(),{'getId':lambda s:92})())),
                           ('IOSNotifications.xml',lambda w:w.onClick(9001))])
   self.assertEqual(len([w for w in kodi.windows if w.xml==notice_page.SHEET]),2);self.assertEqual(ran,[])
+
+class Explained(unittest.TestCase):
+ """DEC-046: what each notice means, in plain words, with its fixes (notice_help)."""
+ def test_the_owners_three_screenshots(self):
+  import notice_help as nh
+  kept=nh.explain({'kind':'problem','title':'Video preparation paused','text':'Naruto Shippuuden · S1 E16: This file has tracks MP4 cannot preserve; original retained'})
+  self.assertEqual((kept['title'],kept['line']),("Couldn't prepare Naruto Shippuuden · S1 E16","It has a track an MP4 can't keep"))
+  self.assertTrue(kept['safe'].startswith('Nothing was lost'));self.assertEqual(kept['fixes'][0][0],'Find Another Version')
+  trakt=nh.explain({'kind':'general','title':'TMDbHelper','text':'Trakt authorized in 1.886s'})
+  self.assertEqual((trakt['title'],trakt['good'],trakt['fixes'][0][2]),('Trakt connected',True,'accounts'))
+  setup=nh.explain({'kind':'problem','title':'Kodi iOS Automatic Setup and Repair','text':'Check the log for more information.'})
+  self.assertEqual((setup['title'],setup['fixes'][0][2],setup['fixes'][1][2]),('Setup and repair stopped','setup','share_log'))
+ def test_copies_and_unknown_problems(self):
+  import notice_help as nh
+  blocked=nh.explain({'kind':'problem','title':"Couldn't download to Google Drive",'text':'Fall 2 Deadpoint: AllDebrid blocked the sign-in'})
+  self.assertEqual((blocked['title'],blocked['warn'],blocked['fixes'][0][2]),('Fall 2 Deadpoint is waiting',True,'accounts'))
+  other=nh.explain({'kind':'problem','title':'Kodi iOS Something odd','text':'ValueError: bad thing; original retained'})
+  self.assertEqual((other['title'],other['happened'],other['fixes'][0][2]),('Something odd','bad thing','share_log'))
+  action=nh.explain({'kind':'update','title':'Build 160 is ready','text':'Tap to install','action':'RunScript(x)'})
+  self.assertEqual(action['fixes'][0],('Open','Where this happened','notice'))
+ def test_facts_read_the_failure_line(self):
+  import notice_help as nh
+  line='preparation: failed for X: This file has tracks MP4 cannot preserve; phase=Step 3 of 3 · Opening conversion tracks; video={"audio_tracks": 2, "codec": "h264", "height": 480, "other_image_subtitles": 1, "subtitle_tracks": 1}'
+  f=dict(nh.facts({'time':BASE},[{'text':line}]))
+  self.assertEqual((f['Step'],f['Video'],f['Subtitles']),('Opening conversion tracks','480p H.264 · 2 audio · 1 subtitle','DVD picture subtitles'))
+ def test_rows_wrap_and_problems_have_a_fix(self):
+  xml=notifications_skin_page()
+  self.assertIn('id="9601"',xml);self.assertNotIn('$INFO[Window().Property(msg.1.title)]</label><font>p_pill</font><textcolor>FFFFFFFF</textcolor><scroll>false',xml)
+  boot=load('notifications_rows',BOOT/'notifications.py')
+  props,_=boot.message_properties([{'kind':'problem','title':'Video preparation paused','text':'Naruto Shippuuden · S1 E16: This file has tracks MP4 cannot preserve','time':BASE},
+                                   {'kind':'general','title':'TMDbHelper','text':'Trakt authorized in 1.886s','time':BASE}],'all',now=BASE+60)
+  self.assertEqual((props['msg.1.title'],props['msg.1.fix'],props['msg.2.title'],props['msg.2.fix']),
+                   ("Couldn't prepare Naruto Shippuuden · S1 E16",'Fix','Trakt connected',''))
+
+
+def notifications_skin_page():
+ import notifications_skin
+ return notifications_skin.page(type('PortraitTokens',(),portrait.__dict__))
+
 
 if __name__=='__main__':unittest.main()
