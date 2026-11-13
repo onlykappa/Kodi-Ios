@@ -827,11 +827,40 @@ def seed_bucket(item):
     return 0 if seeds >= 20 else 1 if seeds >= 5 else 2
 
 
+# ISSUE-231 (owner, build 374: "I selected 1080p ... 480p is ass"): a pack labelled 1080p held 640x480 DVD episodes
+# ("Naruto Shippuden Episode 001 Homecoming.mkv", 262 MB) and a few uploader upscales ("..._2.25x_1920x1080_alq-10").
+# With a quality chosen (strict), a version whose own name says a lower quality, that is an upscale of a lower one, or whose
+# file is far too small for the quality, is never picked.
+SD_NAME = re.compile(r'(?i)(?<![0-9a-z])(240p|360p|480p|576p|dvd(?:rip|5|9)?|sdtv|sd)(?![0-9a-z])')
+UPSCALED_NAME = re.compile(r'(?i)(\d(?:\.\d+)?x[ _.-]+\d{3,4}x\d{3,4}|(?<![a-z])alq(?![a-z])|waifu2x|real-?esrgan|topaz|upscal)')
+HIGH = (u'720p', u'1080p', u'1440p', u'4k')
+
+
+def below_quality(item, quality, minutes=0):
+    """Why this version is not really `quality` ('' when it may be). Only for 720p and above."""
+    if quality not in HIGH:
+        return u''
+    text = _all(item)
+    if SD_NAME.search(text):
+        return u'its name says SD'
+    if UPSCALED_NAME.search(text):
+        return u'an upscale of a lower quality'
+    size = float(item.get('size') or 0)
+    if minutes and size > 0 and not item.get('multi'):
+        low = BITRATE.get(quality, (2.5, 10.0))[0] * (1.0 if codec(item) == u'H.264' else 0.6)   # unknown codec: as lenient as HEVC
+        mbps = size * 8192.0 / (minutes * 60.0)
+        if mbps < low / 1.5:
+            return u'too small for %s (%.1f Mbit/s)' % (quality, mbps)
+    return u''
+
+
 def auto_choose(kept, want):
     """The version closest to the first pick: its quality (else the nearest lower, then higher), its HDR kind and
     codec, never AV1 when avoidable, seeds, then the size nearest the first pick's. None when nothing has seeds."""
     if want.get('strict_quality'):
-        kept = [p for p in kept if p['quality'] == want.get('quality') and not is_bad(p)]
+        minutes_ = int(want.get('runtime') or 0)
+        kept = [p for p in kept if p['quality'] == want.get('quality') and not is_bad(p)
+                and not below_quality(p, want.get('quality'), minutes_)]
     if not kept:
         return None
     order = {q: n for n, q in enumerate(QUALITY_ORDER)}

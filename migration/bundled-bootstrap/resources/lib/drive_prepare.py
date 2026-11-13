@@ -226,6 +226,10 @@ class Sink:
         # Retain the preceding anchor, including a slow first piece, so its confirmed speed is measurable.
         old=[m for m in self.marks if now-m[0]>20]
         self.marks[:] = old[-1:]+[m for m in self.marks if now-m[0]<=20]
+        hook = getattr(self, 'on_confirmed', None)   # ISSUE-232: the page's card follows the upload once the movie is made
+        if hook:
+            try:hook()
+            except Exception:pass
 
     def _uploader(self, t, track=0):
         """A track's pieces, in order, to Drive. Errors are kept and raised in the converter's thread."""

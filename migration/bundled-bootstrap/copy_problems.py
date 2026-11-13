@@ -18,7 +18,8 @@ ACTION = {'retry': 'Retry', 'source': 'Find', 'cancelled': 'Restart', 'prepare':
 TINT = {'retry': 'orange', 'source': 'red', 'cancelled': 'grey', 'prepare': 'orange'}   # a video that plays as it is is never red
 
 # (words in the error, the plain reason, the group). The first match wins; the raw error stays in kodi.log.
-PLAIN = (('cannot read', 'AllDebrid was busy', 'retry'),
+PLAIN = (('not the quality you picked', 'Not the quality you picked', 'source'),
+         ('cannot read', 'AllDebrid was busy', 'retry'),
          ('too many', 'AllDebrid is full · it waits its turn', 'retry'),
          ('right now', "AllDebrid can't fetch it right now", 'retry'),
          ('download link', "AllDebrid hasn't given the link yet", 'retry'),

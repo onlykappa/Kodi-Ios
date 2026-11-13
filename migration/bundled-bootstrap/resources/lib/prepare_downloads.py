@@ -86,6 +86,15 @@ def space_reason(probe):
 WRITE=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_char_p,ctypes.POINTER(ctypes.c_ubyte),ctypes.c_int,ctypes.c_void_p)
 CALLBACK=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_double,ctypes.c_double,ctypes.c_void_p)
 
+# ISSUE-231: the smallest picture that is really each quality (width or height, so 4:3 1440x1080 and scope 1920x800 count).
+MIN_PICTURE={'720p':(1200,700),'1080p':(1700,1000),'1440p':(2300,1350),'4k':(3400,2000)}
+def below_wanted(probe,quality):
+ """Whether a probed picture is clearly lower than the quality the owner chose."""
+ need=MIN_PICTURE.get(str(quality or '').lower())
+ if not need or not isinstance(probe,dict):return False
+ try:w,h=int(probe.get('width') or 0),int(probe.get('height') or 0)
+ except (TypeError,ValueError):return False
+ return w>0 and h>0 and w<need[0] and h<need[1]
 CAPABILITIES='preparation-capabilities.json'
 def save_capabilities(profile,**flags):
  """What the converter can do (the service knows; the Library pages run in another interpreter and read this file)."""

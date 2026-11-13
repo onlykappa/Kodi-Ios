@@ -167,7 +167,8 @@ def route(url,quiet=False,request_id=None):
         job = debrid_drive.queue(profile, {'id':choice['hash'], 'name':name}, kind,
                                  show_title or info.get('title') or drivelibrary.display_title(name),
                                  choice.get('season') or info.get('season') or tracked.get('season') or '',
-                                 choice.get('episode') or info.get('episode') or '', watch=mode == 1,show_tmdb=tracked.get('tmdb'))
+                                 choice.get('episode') or info.get('episode') or '', watch=mode == 1,show_tmdb=tracked.get('tmdb'),
+                                 quality=((auto or {}).get('profile') or {}).get('quality') if (auto or {}).get('profile',{}).get('strict_quality') else '')
         try:
             import xbmc,diagnostics,transfer_control
             # Roadmap B.11: this runs in Elementum's interpreter; join the app's session so the line names the build.

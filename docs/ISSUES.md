@@ -3525,3 +3525,17 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **"Control 9110 in window 13002 has been asked to focus, but it can't":** the AI Upscale show page's default control was its size segments, which show only after the page fills them; its default is now Back (the window id could not be mapped from the source, so this is the best match; pending a log check).
 - **Retest:** test_drive_prepare (FinalCheck, MobileData, LearnedPieceSize), test_compatibility_filter, test_work_state, test_upscale_cloud, test_upscale_page. Device checks pending.
 
+## ISSUE-231 — A season built at 1080p came in at 480p (owner, build 374) — fixed in code
+
+- **Owner:** "why does it say Naruto is in 480p? I selected 1080 … 480p is ass, I never selected it."
+- **Cause:** the automatic season pick took every episode from "Naruto Shippuden (001-500) [Complete Series + Movies (1080p)]". The 1080p is the pack's label: most of its files are 640x480 DVD episodes ("Naruto Shippuden Episode 001 Homecoming.mkv", 262 MB) and a few are the uploader's own upscales ("…_2.25x_1920x1080_alq-10"). The picker trusted the label; nothing checked each file.
+- **Fix, before the download** (deck_picker `below_quality`, strict quality 720p and above): a version whose own name says SD (480p, 576p, DVD, SD…), that is an upscale of a lower quality (a "2.25x_1920x1080" scale, alq, waifu2x, ESRGAN, Topaz, "upscaled"), or whose file is far too small for the quality (bitrate under a third of the quality's floor; HEVC and unknown codecs judged leniently so small HEVC anime encodes still count) is never picked. A file named only "Episode 001" cannot be judged by name, so:
+- **Fix, after the copy** (prepare_cloud, before any preparation): the copy job now remembers the quality chosen (automatic strict picks only); when the probed picture is clearly lower (1080p needs 1700 wide or 1000 high, so 4:3 and scope 1080p count), the copy ends failed "Not the quality you picked: 640x480, you chose 1080p" (Download problems, Find), the file goes to Google Drive's Trash (30 days), it is not prepared, the owner is told once, and the next automatic search for that episode leaves that version out.
+- **Retest:** test_season_quality (new, in import-review.yml). Phone proof: a fresh Naruto season at 1080p.
+
+## ISSUE-232 — A read-back during a dropped connection counted as a failed file; the card froze while the made movie uploaded (owner log 47e2276a, build 374) — fixed in code
+
+- **Seen:** 9 Naruto episodes prepared in 22 min (done 28 → 37) with r55. E10's final read-back failed while Drive dropped the connection 7 times (-1005) and read "Prepared Drive file validation failed" (its 6th try). After the last unit, the card read "Making it start faster · 78.7 %" for 6 min while the made movie went up at ~1.3 MB/s.
+- **Fix:** a read-back that fails while the Drive stream reports a read problem is network trouble (waits 15 s to 5 min, no attempt counted). Once every unit is made, each confirmed upload piece updates the card: "Uploading to Google Drive · N%" and what is left (`Sink.on_confirmed`).
+- **Retest:** test_season_quality `UploadAndReadBack`.
+

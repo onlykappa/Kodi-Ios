@@ -207,6 +207,27 @@ def problem_title(job):
     return title or 'Unnamed download'
 
 
+def wanted_quality(state, drive_id):
+    """ISSUE-231: (the copy job, the quality the owner chose) for a file on Drive, or (None, '')."""
+    for job in state.get('jobs', []):
+        if any(str(f.get('drive_id') or '') == str(drive_id) for f in job.get('files') or []):
+            return job, str(job.get('quality') or '')
+    return None, ''
+
+
+def refuse_low_quality(profile, drive_id, why, clock=time.time):
+    """The copy of this file is not the quality the owner chose: its job ends 'failed' with the reason, so Download problems
+    lists it (Find Another Version) and the next automatic search for the episode leaves that version out
+    (episode_watch_runtime's excluded_names). Returns the job or None."""
+    state = load(profile)
+    job, _ = wanted_quality(state, drive_id)
+    if job is None:
+        return None
+    job.update(status='failed', error=why, finished=clock(), low_quality=True)
+    save(profile, state)
+    return job
+
+
 def problem_key(job):
     """Which copy a problem row is, steady while the service saves the list (indexes can move)."""
     return '%s:%s:%s:%s' % (job.get('hash', ''), job.get('season', ''), job.get('episode', ''), job.get('added', 0))
@@ -321,15 +342,15 @@ def info_hash(torrent):
     return ''
 
 
-def queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False,show_tmdb=None):
+def queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False,show_tmdb=None,quality=''):
     # Serialize the read/deduplicate/save transaction across the foreground picker and opening watcher.
     target=location(profile);target.parent.mkdir(parents=True,exist_ok=True)
     with open(str(target)+'.enqueue.lock','a') as guard:
         fcntl.flock(guard,fcntl.LOCK_EX)
-        return _queue(profile,torrent,kind,title,season,episode,now,episodes,watch,show_tmdb)
+        return _queue(profile,torrent,kind,title,season,episode,now,episodes,watch,show_tmdb,quality)
 
 
-def _queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False,show_tmdb=None):
+def _queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False,show_tmdb=None,quality=''):
     """Add a Download to the queue (once per torrent and episode). Returns the job."""
     state = load(profile)
     h = info_hash(torrent)
@@ -367,6 +388,7 @@ def _queue(profile, torrent, kind, title='', season='', episode='', now=None, ep
            'status': 'new', 'files': [], 'watch_requested':(time.time() if watch else 0),
            'added': time.time() if now is None else now}
     if show_tmdb:job['show_tmdb']=str(show_tmdb)
+    if quality:job['quality']=str(quality)   # ISSUE-231: the quality the owner chose (an automatic pick); checked once on Drive
     state['jobs'].append(job)
     save(profile, state, enqueue=True)
     return job

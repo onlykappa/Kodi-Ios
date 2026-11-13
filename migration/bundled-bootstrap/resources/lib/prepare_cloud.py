@@ -221,6 +221,25 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
                     if prep.streamable_video(before):job.pop('audit',None)
                     else:job['audit']=True
                     q.commit()
+                # ISSUE-231 (owner: "I selected 1080p ... 480p is ass"): an automatic pick that turns out lower than the
+                # quality chosen is not kept: its copy ends 'failed' (Download problems, and the next search leaves that
+                # version out), the file goes to Drive's Trash (30 days), and it is not prepared.
+                try:
+                    import debrid_drive
+                    _,wanted=debrid_drive.wanted_quality(debrid_drive.load(q.profile),item['id'])
+                except Exception:
+                    wanted=''
+                if wanted and prep.below_wanted(before,wanted):
+                    why='Not the quality you picked: %sx%s, you chose %s'%(before.get('width'),before.get('height'),wanted)
+                    debrid_drive.refuse_low_quality(q.profile,item['id'],why)
+                    try:drive_prepare.bin(q.drive,item['id'])
+                    except Exception as error:q.log('preparation: %s could not go to the Trash: %s'%(drivelibrary.display_title(item['name']),error))
+                    job.update(status='superseded',error=why);q.state['last_scan']=0
+                    driveupload.invalidate_library(str(prep.location(q.profile).parent))
+                    q.log('preparation: %s — %s; moved to Google Drive\'s Trash, another version will be looked for'%(drivelibrary.display_title(item['name']),why))
+                    q.notify('problem','Not the quality you picked','%s is %sx%s, not %s. It went to Google Drive\'s Trash; another version will be looked for.'%(
+                        drivelibrary.display_title(item['name']),before.get('width'),before.get('height'),wanted))
+                    drop_card();q.commit();return True
                 if q.skip_compatible(slot,job,item,before):
                     drop_card();q.commit();return True
                 q.log('preparation: %s — codec %s, %sx%s, %s-bit, HDR=%s, copy=%s, audio work=%s'%(drivelibrary.display_title(item['name']),before.get('codec'),before.get('width'),before.get('height'),before.get('bit_depth'),before.get('hdr'),before.get('copy_video'),before.get('audio_work_bytes')))
@@ -237,6 +256,18 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
                     spool=str(resume_store.folder(q.profile)) if resumes else None,checkpoint=checkpoint,
                     keep_pieces=resumes and not (job.get('probe') or {}).get('copy_video'),
                     on_checkpoint=lambda cp:resume_store.save(q.profile,slot,identity,cp))
+                # ISSUE-232 (owner log 47e2276a: "Making it start faster · 78.7%" for 6 minutes while the made movie went up
+                # at ~1.3 MB/s): once every unit is made, each confirmed piece updates the card with the upload's share.
+                ticks={'at':0.0}
+                def upload_tick():
+                    if not getattr(sink,'made_all',False) or q.clock()-ticks['at']<2:return
+                    ticks['at']=q.clock();c=card()
+                    if not c or not sink.made:return
+                    done=min(1.0,float(sink.sent)/sink.made);left=max(0,sink.made-sink.sent)/1048576.0
+                    c.update(stage='Step 3 of 3 · Uploading to Google Drive · %d%%'%int(100*done),updated=q.clock(),
+                             detail='%s left to upload'%('%.1f GB'%(left/1024) if left>=1024 else '%.0f MB'%left))
+                    q.commit()
+                sink.on_confirmed=upload_tick
                 attempt['sink']=sink
                 if runtime:
                     runtime.stats=lambda:dict(original_stats() or {},**sink.stats())
@@ -344,7 +375,13 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
         job['retry_after']=0;return False
     except Exception as error:
         import debrid_drive
-        if not isinstance(error,VerifyFailed) and debrid_drive.network_error(error) and 'source changed' not in str(error).lower():
+        # ISSUE-232 (owner log 47e2276a, build 374: E10's final read-back failed while Drive dropped the connection 7 times,
+        # and read "Prepared Drive file validation failed", its 6th try): a read-back that failed while the Drive stream
+        # had a read problem is network trouble, not a bad file.
+        read_trouble=False
+        try:read_trouble='validation failed' in str(error).lower() and bool((q.stream.stats() if q.stream else {}).get('read_error'))
+        except Exception:pass
+        if not isinstance(error,VerifyFailed) and (debrid_drive.network_error(error) or read_trouble) and 'source changed' not in str(error).lower():
             # ISSUE-198 (owner log b3c5d6eb, build 350: Drive reads stopped for 5 minutes, then "Source read:
             # Input/output error"): network trouble is not the video's fault. It waits (15 s up to 5 min), carries on
             # from its last mark (resume_store) and never counts toward the long back-off.
