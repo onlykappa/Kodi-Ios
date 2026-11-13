@@ -1,5 +1,24 @@
 # Performance and quality progress
 
+## HANDOFF FOR THE NEXT AGENT (2026-11-13, build-319 feedback) — read this first
+
+Branch claude/trusting-euler-kgug98, draft PR #22. Everything is pushed. Owner logs read: c4f05d90, 5a03a391 and
+3b94b426 (the last two are one session; 3b94b426 is the longer). Fixed on the host since build 319:
+- Owner: the file manager belongs on Settings › Library (Movies / TV Shows rows there open library_manager); the Home
+  Library tab is back to the Downloaded Movies / TV Shows poster grid. Changed Custom_NNNN windows now trigger a skin
+  reload (build 319 showed the old Library hub until restart).
+- ISSUE-186 AirPlay of an Umbrella stream: a slow source (0.6 MB/s for a 3.5 MB/s movie) was taken for a TV that
+  cannot decode the picture and restarted in compat mode (long wait, broken sound). KodiAirPlay r52 staged:
+  kr_remux_video_waiting() blocks that restart while the TV waits for a video segment. NEXT STEP: when airplay-ios
+  publishes kodi-airplay-r52, download the zip, check its sha256 against the release notes, pin it in
+  migration/airplay-ios/source-lock.json (sha256, source_commit, verified_run, pin_note; drop staged_note) as was done
+  for r51 (commit f9c54e6), then let import-review build the IPA.
+- ISSUE-187 Library status Up next in episode order (prepare_downloads.line_key).
+- ISSUE-188 season copies: Drive's late bytes after a timeout are no longer "Invalid Drive confirmed position"; a
+  failed episode is tried again twice in the same turn; hash-named jobs borrow their show's title from a sibling job.
+Still open from the owner's screenshots: the same episode listed twice in Up next (two releases of episode 6) —
+needs a log with the season's source picks.
+
 ## HANDOFF FOR THE NEXT AGENT (2026-11-12, mockup pages + background freeze) — read this first
 
 Branch claude/trusting-euler-kgug98, draft PR #22. Everything is pushed; nothing is kept only locally.
