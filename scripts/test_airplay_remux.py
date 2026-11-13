@@ -195,6 +195,28 @@ class SlowSource(unittest.TestCase):
   self.assertLess(guard,build.index('playerNote(@"the TV takes audio segments but no video ones'))
   self.assertIn('} else if (!warned && external && externalTicks >= 30 && player.timeControlStatus',build)
 
+class SlowSourceNote(unittest.TestCase):
+ def test_a_slow_stream_is_told_once(self):
+  # E18 / ISSUE-186 (owner log 3b94b426): segment 0 in 18 s, segment 1 in 39 s of source reading.
+  sys.path.insert(0,str(ROOT/'migration/bundled-bootstrap/resources/lib'))
+  import airplay
+  class W:
+   def __init__(self):self.p={}
+   def getProperty(self,k):return self.p.get(k,'')
+   def setProperty(self,k,v):self.p[k]=v
+  w=W()
+  fast='copy: video segment 3 in 900 ms, source I/O 800 ms, result 0'
+  slow0='copy: video segment 0 in 17977 ms, source I/O 17957 ms, result 0'
+  slow1='copy: video segment 1 in 39128 ms, source I/O 35055 ms, result -5'
+  self.assertFalse(airplay.slow_source([fast],w,1000))
+  self.assertFalse(airplay.slow_source([slow0],w,1000))              # one slow segment is not yet a pattern
+  self.assertTrue(airplay.slow_source([slow1],w,1005))
+  self.assertFalse(airplay.slow_source([slow1],w,1010))              # told once
+  w2=W()
+  self.assertTrue(airplay.slow_source(['player: the TV is waiting for a video segment the source has not delivered yet (slow source, not the codec)'],w2,5))
+  self.assertTrue(airplay.slow_source([slow0,slow1],w,1000+4000))    # a new session an hour later
+  self.assertIn("slow_note(lines))},daemon=True).start()",(ROOT/'migration/bundled-bootstrap/service.py').read_text())
+
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()

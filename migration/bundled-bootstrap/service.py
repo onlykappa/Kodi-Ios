@@ -341,9 +341,15 @@ def run():
   lib=airplay.cached_load(path)
   if lib is not None and hasattr(lib,'kodi_airplay_log'):
    import library_tools,airplay_diagnostics
+   def slow_note(lines):
+    # E18: a stream too slow for AirPlay says so once, instead of a long silent wait.
+    if airplay.slow_source(lines,xbmcgui.Window(10000),time.time()):
+     notices.note('problem','AirPlay: this stream is too slow',airplay.SLOW_TEXT)
+     xbmcgui.Dialog().notification('AirPlay',airplay.SLOW_TEXT,xbmcgui.NOTIFICATION_WARNING,10000)
    threading.Thread(target=airplay_diagnostics.watch,args=(lib,profile,xbmcgui.Window(10000),lambda m:xbmc.log(m,xbmc.LOGINFO),monitor.waitForAbort),daemon=True).start()
    threading.Thread(target=airplay.relay,args=(lib,lambda m:xbmc.log(m,xbmc.LOGINFO),monitor.waitForAbort),
-                    kwargs={'keep':lambda lines:(library_tools.note_airplay(profile,lines),airplay.activity(lines,xbmcgui.Window(10000),time.time()))},daemon=True).start()
+                    kwargs={'keep':lambda lines:(library_tools.note_airplay(profile,lines),airplay.activity(lines,xbmcgui.Window(10000),time.time()),
+                                                  slow_note(lines))},daemon=True).start()
  except Exception as error:xbmc.log('Kodi iOS AirPlay log unavailable: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
  # Stays running for the rest of the session: Apple's AirPlay button in the top-right corner during playback.
  try:

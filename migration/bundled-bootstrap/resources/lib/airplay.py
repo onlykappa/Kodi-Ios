@@ -272,6 +272,30 @@ def back_to_kodi(at,player=None,log=None):
   return True
  except Exception:return False
 
+SLOW_SOURCE='KodiIOS.AirPlaySlowSource'
+SLOW_TEXT='This stream reaches the phone slower than the movie plays. Give it time, or play a Google Drive copy or a smaller version on the TV.'
+def slow_source(lines,window,now,io_limit_ms=12000):
+ """E18 (ISSUE-186, owner: "took a long time to load then audio was all messed up"): True once per AirPlay session when
+ the source is too slow for the movie: KodiAirPlay r52's "slow source, not the codec", or two video segments whose
+ source reads took longer than io_limit_ms (a segment is about 6 s of film). The count lives on Window(home)."""
+ import re
+ seen=0
+ for line in lines or ():
+  text=str(line)
+  if 'slow source, not the codec' in text:seen+=2
+  m=re.search(r'copy: video segment \d+ in \d+ ms, source I/O (\d+) ms',text)
+  if m and int(m.group(1))>io_limit_ms:seen+=1
+ if not seen:return False
+ try:
+  state=json.loads(window.getProperty(SLOW_SOURCE) or '{}')
+ except ValueError:state={}
+ if now-float(state.get('at') or 0)>3600:state={'at':now,'count':0,'told':False}   # a new session after an hour
+ state['count']=int(state.get('count') or 0)+seen
+ tell=state['count']>=2 and not state.get('told')
+ if tell:state['told']=True
+ window.setProperty(SLOW_SOURCE,json.dumps(state))
+ return tell
+
 def relay(lib,write,wait,every=5,keep=None):
  """Writes the framework's AirPlay log into kodi.log every few seconds until wait(seconds) reports Kodi is closing.
  keep(lines): also hands them on (library_tools.note_airplay keeps the last Play on TV for the AirPlay check)."""
