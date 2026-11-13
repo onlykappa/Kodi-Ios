@@ -216,10 +216,23 @@ def episode_label(name):
     return 'S%02dE%02d' % (int(m.group(1)), int(m.group(2))) if m else _title(base.rsplit('.', 1)[0])
 
 
+def _in_line(jobs):
+    """The order the copier takes them in (debrid_drive.in_line): episode order within a show."""
+    try:
+        import debrid_drive
+        return debrid_drive.in_line(jobs)
+    except Exception:
+        return jobs
+
+
 def _copy_next(debrid):
     """What the AllDebrid → Drive copy does after the file it copies now (owner, build 205: a whole season showed as
     one download): the season's other episodes, then the other jobs, [{'kind', 'title', 'line'}] in that order."""
-    jobs = [j for j in (debrid or {}).get('jobs') or [] if j.get('status') not in ('done', 'failed')]
+    copying = {str(c.get('job')) for c in ((debrid or {}).get('lanes') or {}).values() if c.get('job')}
+    jobs = _in_line([j for j in (debrid or {}).get('jobs') or [] if j.get('status') not in ('done', 'failed')])
+    # A job a lane copies now is on its own card, not in Up next (owner, build 329: four copies, one card).
+    lead = jobs[:1]
+    jobs = lead + [j for j in jobs[1:] if '%s:%s:%s' % (j.get('hash', ''), j.get('season', ''), j.get('episode', '')) not in copying]
     out = []
     for n, job in enumerate(jobs):
         title = _download_title(job)
@@ -246,7 +259,7 @@ def _copy(debrid, now):
     fresh = lambda c: max(float(c.get('updated') or 0), float(c.get('phase_at') or 0))
     lanes = [c for c in ((debrid or {}).get('current'), (debrid or {}).get('current_also')) if c]
     current = max(lanes, key=fresh) if lanes else {}
-    jobs = [j for j in (debrid or {}).get('jobs') or [] if j.get('status') not in ('done', 'failed')]
+    jobs = _in_line([j for j in (debrid or {}).get('jobs') or [] if j.get('status') not in ('done', 'failed')])
     if not jobs:
         return None
     job = jobs[0]

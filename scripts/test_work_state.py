@@ -232,6 +232,29 @@ class FreshLane(unittest.TestCase):
   card=ws._copy({'jobs':[job],'current':stale,'current_also':live},NOW)
   self.assertEqual(card['pct'],50);self.assertNotIn('wait',card)
 
+class FourLanes(unittest.TestCase):
+ def test_every_copy_has_its_card_and_up_next_starts_at_one(self):
+  # Owner screenshot (build 329): four copies ran, Library status showed one ("1 working"); Up next read E3, E1, E4.
+  import debrid_drive,notices,tempfile,json,os,time
+  now=time.time()
+  jobs=[{'hash':'h%d'%n,'title':'Naruto Shippuden','kind':'episode','season':'1','episode':str(n),'status':'copying' if n<=4 else 'new','files':[]}
+        for n in (3,1,4,2,5,7,6)]
+  lanes={str(i):{'name':'Naruto Shippuden','file':'Naruto Shippuden S01E%02d - x.mkv'%n,'count':1,'sent':10,'total':100,'stage':'copying',
+                 'updated':now-3,'job':'h%d:1:%d'%(n,n),'rate':1000} for i,n in enumerate((1,2,3,4))}
+  self.assertEqual([j['episode'] for j in debrid_drive.in_line(jobs)],['1','2','3','4','5','6','7'])
+  with tempfile.TemporaryDirectory() as p:
+   d=os.path.join(p,'addon_data','service.kodi.ios.bootstrap');os.makedirs(d)
+   json.dump({'jobs':jobs,'lanes':lanes},open(os.path.join(d,'debrid-drive.json'),'w'))
+   self.assertEqual(len(debrid_drive.uploads(p,now=now)),4)
+   cards=[u['title'] for u in notices.uploads(p) if u['source']=='debrid']
+   self.assertEqual(cards,['Naruto Shippuden · S1 E1','Naruto Shippuden · S1 E2','Naruto Shippuden · S1 E3','Naruto Shippuden · S1 E4'])
+   self.assertEqual(debrid_drive.uploads(p,now=now+3600),[])                      # quiet lanes leave
+  waiting=[c['title'] for c in ws._copy_next({'jobs':jobs,'lanes':lanes})]
+  self.assertEqual(waiting,['Naruto Shippuden · S1 E5','Naruto Shippuden · S1 E6','Naruto Shippuden · S1 E7'])
+ def test_library_status_writes_only_what_changed(self):
+  src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/library_status.py').read_text()
+  self.assertIn("if seen.get(key)==value:return",src);self.assertIn("self.bar(library_page.DOWN_BARS+n,r.get('pct') or 0)",src)
+
 class SeasonQueue(unittest.TestCase):
  """Owner (build 205): "i went to download a entire season and it seems only 1 thing is downloading? it should show a
  que of the episodes". The log: one AllDebrid job for the whole Lanterns season pack (8.4 GB)."""

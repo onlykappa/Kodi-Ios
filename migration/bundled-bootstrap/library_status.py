@@ -160,8 +160,23 @@ def run(args=()):
    self.stop.set();self.guard.close()
 
  class Page(xbmcgui.WindowXMLDialog):
+  # Owner (build 329): "scrolling is just not smooth like it doesnt scroll far with my scrolls". Every 2 s refresh
+  # wrote ~1,130 window properties (141 pooled rows x 8) and every bar, each taking Kodi's GUI lock while the finger
+  # or the glide moved the list. Only what changed is written now.
+  def setProperty(self,key,value):
+   value=str(value)
+   seen=self.__dict__.setdefault('_props',{})
+   if seen.get(key)==value:return
+   seen[key]=value
+   xbmcgui.WindowXMLDialog.setProperty(self,key,value)
+  def bar(self,ident,value):
+   seen=self.__dict__.setdefault('_bars',{});value=float(value or 0)
+   if seen.get(ident)==value:return
+   seen[ident]=value
+   self.guard.percent(ident,value)
   def onInit(self):
    import live_window
+   self.__dict__.pop('_props',None);self.__dict__.pop('_bars',None);self.__dict__.pop('_segments',None)   # a new window: write everything once
    self.guard=live_window.Guard(self)   # ISSUE-123: controls only while this page is open
    self.offset=0;self.graphs=transfer_history.GraphCache('spark');self.filter=getattr(self,'filter','all');self.checking=0;self.shown=None;self.view=None
    self.stop=threading.Event();self.busy=threading.Lock()
@@ -202,7 +217,7 @@ def run(args=()):
     self.setProperty('work.metrics',work_state.metrics_line(conv))
     self.setProperty('work.ring',library_rows.ring_name(conv.get('pct')))
     self.setProperty('work.percent','' if conv.get('indeterminate') else '%d%%'%float(conv.get('pct') or 0))
-    for n in (0,1):self.guard.percent(library_page.WORK_BAR+n,0 if conv.get('indeterminate') else float(conv.get('pct') or 0))
+    for n in (0,1):self.bar(library_page.WORK_BAR+n,0 if conv.get('indeterminate') else float(conv.get('pct') or 0))
     self.setProperty('work.poster',poster(conv))
     graph=''
     if conv:
@@ -223,10 +238,13 @@ def run(args=()):
                   poster=poster(r) if r and key=='down' else '')
       for k,v in values.items():self.setProperty('%s.%d.%s'%(key,n,k),v)
       if key=='down':
-       self.guard.percent(library_page.DOWN_BARS+n,r.get('pct') or 0)
+       self.bar(library_page.DOWN_BARS+n,r.get('pct') or 0)
     # The segmented summary bar: one segment per count, 8-unit gaps (Kodi cannot size these from a property).
     for n,(x,width) in enumerate(library_rows.segments([int(props.get('count.'+k) or 0) for k in ('ready','working','next','kept')],
                                                       library_page.BAR_W,library_page.BAR_GAP)):
+     placed=self.__dict__.setdefault('_segments',{})
+     if placed.get(n)==(x,width):continue
+     placed[n]=(x,width)
      def segment(n=n,x=x,width=width):
       c=self.guard.control(library_page.SEGMENTS+n);c.setPosition(p_side+library_page.BAR_X+x,library_page.BAR_Y);c.setWidth(max(0,width))
       c.setVisible(width>0)

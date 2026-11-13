@@ -253,7 +253,12 @@ def uploads(profile):
    else:
     line='  ·  '.join(x for x in ('%d%%'%progress,'%s of %s'%(size_text(d.get('sent',0)),size_text(d['total'])),speed,eta) if x)
     short=' · '.join(x for x in ('%d%%'%progress,speed,eta) if x)
-   out.append({'title':drivelibrary.display_title(d.get('name','')),'folder':d.get('folder',''),'progress':progress,'line':line,
+   title=drivelibrary.display_title(d.get('name',''))
+   if d.get('file') and int(d.get('count') or 0)<=1 and ' · S' not in title:
+    import re as _re
+    m=_re.search(r'(?i)\bS(\d{1,2})[ ._-]?E(\d{1,3})\b',str(d['file']))   # four lanes of one show: each card names its episode
+    if m:title='%s · S%d E%d'%(title,int(m.group(1)),int(m.group(2)))
+   out.append({'title':title,'folder':d.get('folder',''),'progress':progress,'line':line,
                'short':short,'source':'debrid','hash':copy_hash,'sent':d.get('sent',0),'total':d['total'],'rate':rate,'eta':eta,'stage':d.get('stage','')})
  except Exception as error:_quiet('notices:debrid',error)
  return out

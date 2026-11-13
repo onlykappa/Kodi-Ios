@@ -636,8 +636,9 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             log('%s: moving into its show folder failed (%s)' % (job_.get('title'), type(error).__name__))
         else:
             save(profile, state)
-    jobs = [j for j in state['jobs'] if j['status'] not in ('done', 'failed')]
+    jobs = in_line([j for j in state['jobs'] if j['status'] not in ('done', 'failed')])
     if not jobs:
+        state.pop('lanes', None)
         if state.pop('current', None) is not None:
             save(profile, state)
         return None
@@ -705,6 +706,9 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
 
             def show(slot, fields):
                 with guard:
+                    # Owner screenshot (build 329): four copies ran, Library status showed one ("1 working"). Every lane is
+                    # kept here for the pages (uploads()); 'current' / 'current_also' stay for the older readers.
+                    state.setdefault('lanes', {})[str(slot)] = dict(fields, slot=slot)
                     key = key_for(slot)
                     # rate_own: each lane's speed; rate: what the pages show, both lanes on the shown upload ('current').
                     fields = dict(fields, slot=slot)
@@ -727,6 +731,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             def release(slot):
                 with guard:
                     extra.pop(slot, None)
+                    (state.get('lanes') or {}).pop(str(slot), None)
                     if (state.get('current') or {}).get('slot') == slot:
                         state.pop('current', None)
                         if state.get('current_also'):
@@ -772,6 +777,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     parent = drive.folder(parts)
 
                 marks = []
+                lane_job = '%s:%s:%s' % (owner.get('hash', ''), owner.get('season', ''), owner.get('episode', ''))
 
                 def progress(sent, total):
                     # Owner (build 170): the speed and the time left, measured over the last ~20 s.
@@ -787,7 +793,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     # and a piece that went up resets the tries (six AllDebrid 500s made a later timeout wait 210 s).
                     # Owner (build 205: "i went to download a entire season and it seems only 1 thing is downloading"):
                     # which file of the job this is, so the pages name the episode and count the season.
-                    show(slot, {'name': job_title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying',
+                    show(slot, {'name': job_title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying', 'job': lane_job,
                                         'rate_own': rate, 'eta_s': (total - sent) / rate if rate else 0, 'updated': now,
                                         'file': name, 'index': owner['files'].index(entry) + 1, 'count': len(owner['files'])})
                     with guard:
@@ -802,7 +808,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     now=clock()
                     with guard:
                         current=dict((state.get(key_for(slot)) if key_for(slot) else extra.get(slot)) or {})
-                    current.update(name=job_title,folder=parts[-1],file=name,index=owner['files'].index(entry)+1,
+                    current.update(name=job_title,folder=parts[-1],file=name,index=owner['files'].index(entry)+1,job=lane_job,
                                    count=len(owner['files']),sent=sent,total=total,stage='copying',phase=phase,phase_at=now)
                     if phase=='paused_playback':current.update(rate_own=0,eta_s=0)
                     show(slot,current)
@@ -867,6 +873,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             with guard:
                 state.pop('current', None)
                 state.pop('current_also', None)
+                state.pop('lanes', None)
             # Owner log 7698974a (build 325): four copies at ~0.2 MB/s each while a conversion read and wrote Drive on
             # the same connection; every piece timed out at 20 s and halved. Two lanes while a conversion runs.
             lanes = min(lanes_for(len(todo)), BUSY_LANES if converting() else LANES)
@@ -933,12 +940,34 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     return 5
 
 
-def uploads(profile):
-    """The copy in progress, for the Uploading card, the activity pill and Library status (as notices.uploads)."""
-    current = load(profile).get('current')
+def uploads(profile, now=None):
+    """The copies in progress, one per lane, for the Uploading card, the activity pill and Library status (as
+    notices.uploads); a lane quiet for ten minutes is left out."""
+    state = load(profile)
+    now = time.time() if now is None else now
+    lanes = [c for _, c in sorted((state.get('lanes') or {}).items(), key=lambda kv: int(kv[0]))
+             if c.get('total') and now - max(float(c.get('updated') or 0), float(c.get('phase_at') or 0)) < 600]
+    if lanes:
+        return lanes
+    current = state.get('current')
     if not current or not current.get('total'):
         return []
     return [current]
+
+
+def in_line(jobs):
+    """Owner screenshot (build 329): Up next read E3, E1, E4. Shows keep the order they were asked for; within a show
+    the episodes go in season and episode order."""
+    first = {}
+    for n, job in enumerate(jobs):
+        first.setdefault(show_match(job.get('title') or job.get('name') or ''), n)
+    def key(job):
+        try:
+            number = (int(job.get('season') or 0), int(job.get('episode') or 0))
+        except (TypeError, ValueError):
+            number = (0, 0)
+        return (first[show_match(job.get('title') or job.get('name') or '')], number)
+    return sorted(jobs, key=key)
 
 
 def renamed(profile, old_id, new_id):
