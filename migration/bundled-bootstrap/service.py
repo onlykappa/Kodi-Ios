@@ -256,6 +256,17 @@ def run():
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),
                   kwargs={'on_open':lambda:cache_tune.apply(xbmc,str(profile),lambda text:xbmc.log(text,xbmc.LOGINFO)),
                           'probe':lambda:{'media':xbmc.getCondVisibility('Player.HasMedia'),'video':xbmc.getCondVisibility('Player.HasVideo')}},daemon=True).start()
+ # DEC-039 V2: each video starts with its own Saturation (Picture menu: this video, its show, or the default).
+ def saturation_loop():
+  import picture,picture_page
+  sync=picture.SaturationSync()
+  while not monitor.waitForAbort(2):
+   try:
+    playing=xbmc.getCondVisibility('Player.HasVideo')
+    command=sync.step(playing,picture_page.playing_media(xbmc,xbmcgui.Window(10000)) if playing else {},picture.load(str(profile)) if playing else {})
+    if command:xbmc.executebuiltin(command)
+   except Exception as error:xbmc.log('Kodi iOS picture: saturation not set (%s)'%type(error).__name__,xbmc.LOGWARNING)
+ threading.Thread(target=saturation_loop,daemon=True).start()
  # Roadmap 3.5: one performance line a minute (list runs, opens, Drive proxy requests and seeks), only when something happened.
  import perf_summary,drive_proxy
  threading.Thread(target=perf_summary.watch,args=(xbmcgui.Window(10000),open_timing.take,

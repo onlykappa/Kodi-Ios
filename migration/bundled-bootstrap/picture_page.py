@@ -87,6 +87,8 @@ def run():
 
         def save(self, settings):
             picture.save(profile, settings)
+            # V2 (Kodi r32): the saturation changes the picture at once; older Kodi builds ignore the unknown built-in.
+            xbmc.executebuiltin(picture.builtin(picture.resolve(settings, media)[1]['saturation']))
             self.draw()
 
         def onAction(self, action):

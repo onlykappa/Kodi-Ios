@@ -3,7 +3,7 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "build_tag": "kodi-ios-portrait-r31",
+  "build_tag": "kodi-ios-portrait-r32",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
     "tag": "kodi-ios-portrait-r31",
@@ -20,5 +20,6 @@
   },
   "verified_run": 43256323634,
   "source_commit": "8affdb81cb0e2b4f6158ee7200a27fa0b175dda8",
-  "patch_sha256": "9e9426b95ed54bbee997cc6e9211430f31893db06c0b694c47f286d633e59f8c"
+  "patch_sha256": "9aabed41268d269c80bc5ed62e9455c4dd2d1597a4d20de8fe5bc96befb8fc93",
+  "staged_patch_note": "r32 staged (DEC-039 V2, owner 2026-11-13): r31 plus Saturation from the Picture menu (SetVideoSaturation(n) built-in, a luma-preserving saturation folded into the GLES YUV-to-RGB matrix). Built by a manual kodi-ios-portrait run on PR #22 (the owner asked for no IPA until the build-325 bugs are in); executable_release moves to r32 once its digests are checked."
 }

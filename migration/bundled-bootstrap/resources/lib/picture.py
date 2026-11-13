@@ -195,3 +195,29 @@ def own_pictures(data):
                      'movie': key.startswith('movie:'), 'updated': entry.get('updated', 0)})
     rows.sort(key=lambda row: -row['updated'])
     return rows
+
+
+def builtin(value):
+    """DEC-039 V2: the Kodi built-in that sets the picture's saturation (Kodi r32, kodi-21.3-portrait.patch)."""
+    return 'SetVideoSaturation(%d)' % clamp_saturation(value)
+
+
+class SaturationSync:
+    """Sends the right saturation to Kodi once per video: when a video starts (or another one does), the saturation
+    resolve() gives for it; a video with none set gets 0, so a show's +20 never stays on the next film.
+    step(playing, media, data) returns the built-in to run, or None when nothing changed."""
+
+    def __init__(self):
+        self.key = None
+        self.sent = None
+
+    def step(self, playing, media, data):
+        if not playing:
+            self.key = None
+            return None
+        key = (video_key(media), show_key(media))
+        value = resolve(data, media)[1]['saturation']
+        if key == self.key and value == self.sent:
+            return None
+        self.key, self.sent = key, value
+        return builtin(value)
