@@ -67,4 +67,24 @@ class Season(unittest.TestCase):
   self.assertIn("mode = auto.get('mode', 0) if auto is not None else ask(dialog, 'Save to Google Drive'",text)
   self.assertIn("existing = None if auto is not None else existing_url(profile,choice)",text)
 
+class NeedsNoWork(unittest.TestCase):
+ """F5 (PR #24, ISSUE-210): same quality, the file that needs no preparation first; never below the chosen quality."""
+ want={'quality':'1080p','strict_quality':True}
+ def pick(self,*names,quality='1080p'):
+  kept=[item(i,n,quality,2.0+i,50) for i,n in enumerate(names)]
+  return dp.auto_choose(kept,self.want)['idx']
+ def test_mp4_beats_mkv_of_the_same_quality(self):
+  self.assertEqual(self.pick('Show.S01E02.1080p.WEB.x264.mkv','Show.S01E02.1080p.WEB.x264.mp4'),1)
+  self.assertEqual(dp.prep_cost(item(0,'Show.S01E02.1080p.x264.m4v','1080p',2))[0],0)
+ def test_h264_and_hevc_before_10bit_or_av1(self):
+  # H.264 and HEVC pictures are copied as they are (no re-encode), so they cost the same; Hi10P and AV1 are re-encoded.
+  names=['Show.S01E02.1080p.AV1.mkv','Show.S01E02.1080p.10bit.x264.mkv','Show.S01E02.1080p.HEVC.mkv','Show.S01E02.1080p.x264.mkv']
+  self.assertIn(self.pick(*names),(2,3))
+  self.assertEqual(self.pick(*names[:3]),2)
+  self.assertEqual(dp.prep_cost(item(0,names[2],'1080p',2)),dp.prep_cost(item(0,names[3],'1080p',2)))
+  self.assertEqual(dp.prep_cost(item(0,names[0],'1080p',2))[1],2);self.assertEqual(dp.prep_cost(item(0,names[1],'1080p',2))[1],2)
+ def test_a_lower_quality_mp4_never_beats_the_chosen_quality_mkv(self):
+  kept=[item(0,'Show.S01E02.720p.x264.mp4','720p',1.0,500),item(1,'Show.S01E02.1080p.HEVC.mkv','1080p',2.0,5)]
+  self.assertEqual(dp.auto_choose(kept,{'quality':'1080p'})['idx'],1)
+
 if __name__=='__main__':unittest.main()

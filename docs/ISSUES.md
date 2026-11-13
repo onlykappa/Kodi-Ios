@@ -3375,3 +3375,19 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Cause:** drive_stream already fetched READ_AHEAD = 4 blocks (8 MB each) in parallel, and Drive serves one connection at about 1.5 MB/s on that line, so a read ran at about 4 × 1.5 MB/s. A re-package only moves bytes (picture copied), so its speed is the blocks in flight.
 - **Fix:** `drive_stream.ahead_count(playback, slowed, wide)`: READ_AHEAD_WIDE = 8 blocks when the job is a re-package (`prepare_downloads` sets `stream.wide` from the probe's `copy_video`, cleared at each job start). Playback (2), a video / AirPlay playing (1) and the owner's pause (0) are unchanged; 8 blocks stay inside KEEP (24 blocks, 192 MB). Real conversions keep 4 (CPU-bound).
 - **Retest:** test_slowdown WideReadAhead; test_conversion_speed's read-ahead check updated. Phone: the once-a-minute `Drive reads:` line during a re-package should rise toward the copy speed (needs the owner's log). test_conversion_speed's AV1Speed / QuickFirst failures predate this (native-source text checks; that file is not in the CI list).
+## ISSUE-210 — F5: the picker did not prefer files that need no preparation (PR #24 roadmap) — fixed in code
+
+- Seen: owner log 68d43660 (build 356, via the PR #24 roadmap): Naruto Shippuuden S1 E5 (index at the end) and Inception (MKV)
+  were queued for a re-package that reads the whole file back from Drive at 3 to 8 MB/s. Whether an equal-quality MP4 was on
+  offer for them is not in the log.
+- Cause: `deck_picker.auto_choose` ranked by quality, HDR, codec, AV1, size and seeds, never by container, so among releases of
+  the same quality an MKV could win over an MP4 that lands ready to play.
+- Fix: `deck_picker.prep_cost` = (container: .mp4 / .m4v / .mov 0, anything else 1; picture: H.264 and HEVC 0, because
+  preparation keeps their packets, 10-bit H.264 and AV1 2, reusing `slow_to_prepare` / `converts_for_tv`). It sits in the
+  `auto_choose` score after the no-conversion and heavy-file terms and before size fit, seeds and source, so quality and the
+  rule "Episodes without your quality are not downloaded in a lower one" come first; wording unchanged. (A first version
+  ranked HEVC below H.264; that broke test_deck_picker's "seeds still matter" case, and HEVC is not re-encoded, so it was
+  dropped.)
+- Retest: test_auto_season NeedsNoWork (MP4 beats MKV; H.264 = HEVC before Hi10P / AV1; a lower-quality MP4 never beats the
+  chosen-quality MKV); test_deck_picker, test_season_sources, test_season_sheet, test_source_match, test_download_e2e pass.
+  Phone: the next Build Season log should show fewer `repack` preparations when MP4 releases exist.
