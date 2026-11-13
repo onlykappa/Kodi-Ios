@@ -2,20 +2,21 @@
 
 ## HANDOFF (2026-11-13, PR #24 roadmap on claude/epic-cannon-i2elgw) — read this first
 
-Branch claude/epic-cannon-i2elgw = PR #23's branch (claude/trusting-euler-kgug98, fa80d3d) plus, one commit each, no IPA:
-- ISSUE-209 Continue Watching › long press › Remove from Continue Watching (owner request; progress kept, back when played).
-- ISSUE-211 F3: a re-package reads Drive with 8 blocks in flight (drive_stream.ahead_count; READ_AHEAD stays 4 otherwise).
-- ISSUE-210 F5: picker prefers MP4 / no re-encode at the same quality (deck_picker.prep_cost; HEVC costs the same as H.264).
-- ISSUE-212 Up next: "convert" only for a real re-encode, "prepare" until a job is read, "faster start" for re-packages.
-Open from the PR #24 roadmap:
-- F2 (several re-packages at once) and F1 (re-package during the copy) need native work first: kr_prepare.c keeps per-run
-  state in globals (marks_on, up_box_*, audio/subtitle_languages), so two convert_to calls at once are not safe. Stage a
-  KodiAirPlay build (source-lock zero sha, airplay-ios.yml) that moves those into the per-run context, then F2's queue lanes.
-- F4 (priority share copies vs next-to-watch preparation): wants the `network` snapshot numbers from a device log first.
-- F6 needs the owner's answer: may episodes not yet prepared start slower on the TV, or must all be ready before watching?
-- 13-minute gap before preparation: copies already call request_check on done (service.py debrid_loop); log 68d43660 is
-  needed to see why the check found nothing (it was sent to another session).
-Owner rule for this batch: no IPA until the roadmap items and the owner's addition are all done.
+Branch claude/epic-cannon-i2elgw = PR #23's branch (fa80d3d) plus, one commit each, no IPA built (owner: one IPA when
+the roadmap and the owner's additions are done; they are now done in code):
+- ISSUE-209 Continue Watching › long press › Remove from Continue Watching (progress kept, back when played again).
+- ISSUE-210 F5 picker prefers MP4 / no re-encode at the same quality. ISSUE-212 Up next says prepare / faster start / convert.
+- ISSUE-211 F3 wide Drive read-ahead for re-packages (on the prepare_cloud path the phone runs).
+- ISSUE-213 F6 answer: everything prepared before watching; preparation goes on while a video plays (waits only while it
+  buffers); first library check at app start (build-356 log 7249de4d: 12.5 min late).
+- ISSUE-214 F2 up to three re-packages at once (two extra lanes; native parallel test passes in airplay-remux CI).
+- ISSUE-215 F1 a download that only needs a re-package is made ready while it copies (debrid_ready.py; setting
+  "Make downloads ready while they copy", default on; falls back to the plain copy).
+- ISSUE-216 F4 next-to-watch (Continue Watching + 3) prepared first; copies drop to 2 lanes while one is prepared.
+- airplay-remux transport test fixed (ISSUE-214 note); test_conversion_speed expectations current.
+Next: the owner's go for the one IPA (Run workflow on import-review.yml, branch claude/epic-cannon-i2elgw), then a
+phone log: look for `made ready while it copies`, 2-3 `preparation: … opening Drive file` together, `prep_read_mb_s`,
+`copy_lanes`. Open UI item: extra preparation lanes have no card of their own on Library status (mockup first).
 
 ## HANDOFF (2026-11-13, reliability PR) — read this first
 
