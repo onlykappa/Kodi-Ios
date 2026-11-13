@@ -461,6 +461,13 @@ def resume_requested(profile,requests=None,state=None):
  transfer_control.set_paused(profile,'conv',False)
  return True
 
+FORGIVEN=('blocked','kept_told','repack_failed','image_subs_retried','hdr_retried')
+def forgive(job):
+ """ISSUE-226 / P1 (owner log a1729c16: Repair and Repair All did nothing for Naruto): an owner's Try Again or Start now
+ clears what kept a video out of the queue ('blocked' skips every queue filter) and the one-time tries and notices, so it
+ is tried again and says what happened. Whether the converter can do it now is the converter's answer, not a flag's."""
+ for name in FORGIVEN:job.pop(name,None)
+
 def apply_to(state,requests,now):
  """Apply owner requests to a queue state (the service for real; the page on a copy, so a tap shows at once).
  next: prepare it first once it can run; retry: try a paused one now; keep / prepare: keep it as it is, or put it
@@ -472,8 +479,8 @@ def apply_to(state,requests,now):
   if action=='next':job['priority']=now
   # Owner (build 178): "start conversion now ... will override any current conversions": first in line, and
   # interrupts() stops the running one for it.
-  elif action=='now':job['priority']=now+10**9;job.update(retry_after=0);job.pop('kept',None)
-  elif action=='retry':job.update(retry_after=0,attempts=0);job.pop('error',None);job['status']='waiting'
+  elif action=='now':job['priority']=now+10**9;job.update(retry_after=0);job.pop('kept',None);forgive(job)
+  elif action=='retry':job.update(retry_after=0,attempts=0);job.pop('error',None);job['status']='waiting';forgive(job)
   elif action=='keep':job['kept']=True
   elif action=='replace':job.update(kept=True,replacing=now)   # build 186: a version without conversion is on its way
   elif action=='prepare':job.pop('kept',None)

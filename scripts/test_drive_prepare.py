@@ -232,6 +232,24 @@ class Queue(unittest.TestCase):
   job=self.q.state['jobs']['slot'];self.assertTrue(job['blocked'])
   self.assertEqual(notes,[('info','Kept as it is',"Film still plays in Kodi as it is; it has DVD picture subtitles or a second video track an MP4 can't keep, so it isn't made ready for AirPlay.")])
   self.assertEqual(self.d.files['source']['data'],b'original')
+ def test_repair_puts_a_kept_video_back_in_the_queue(self):
+  # ISSUE-226 / P1 (owner log a1729c16): Repair and Repair All sent a retry that left blocked=True, so nothing started.
+  notes=[];self.q.notify=lambda kind,title,text:notes.append((kind,title,text))
+  def refused(*args,**kwargs):raise RuntimeError('This file has tracks MP4 cannot preserve; original retained')
+  self.n.convert_to=refused
+  self.assertFalse(self.q.process_one())
+  job=self.q.state['jobs']['slot'];self.assertTrue(job['blocked']);self.assertTrue(job['kept_told'])
+  job.update(image_subs_retried=True,hdr_retried=True,repack_failed=True)
+  queued=lambda:[s for s,j in self.q.state['jobs'].items() if j.get('status') not in ('done','superseded') and not j.get('blocked') and not j.get('kept')]
+  self.assertEqual(queued(),[])
+  prep.request(self.tmp.name,'retry','source');self.assertTrue(self.q.apply_requests())
+  self.assertEqual(queued(),['slot'])                                                    # the queue picks it again
+  for name in prep.FORGIVEN:self.assertNotIn(name,self.q.state['jobs']['slot'])
+  ran=[];self.n.convert_to=lambda *a,**k:ran.append(1) or (_ for _ in ()).throw(RuntimeError('This file has tracks MP4 cannot preserve; original retained'))
+  self.assertFalse(self.q.process_one());self.assertEqual(ran,[1])                      # it really ran again
+  self.assertEqual(len(notes),2)                                                         # and said so again
+  prep.request(self.tmp.name,'now','source');self.q.apply_requests()
+  self.assertEqual([j.get('blocked') for j in self.q.state['jobs'].values()],[None])     # Start now clears it too
  def test_failed_faster_start_is_not_retried_for_ever(self):
   # Build-192 log 13:55:08: Fall 2's re-pack failed at 22 % on "MP4 packet: Invalid argument"; each retry restarts at 0 %.
   notes=[];self.q.notify=lambda kind,title,text:notes.append((kind,title,text))
