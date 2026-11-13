@@ -282,6 +282,23 @@ class WifiOnly(unittest.TestCase):
   self.assertIn('id="copy_wifi_only"',(root/'resources/settings.xml').read_text())
   self.assertIn("and not wifi_only_hold(),on_done=done,",(root/'service.py').read_text())
 
+class TimeLeft(unittest.TestCase):
+ def test_every_copy_left_counts_over_all_lanes(self):
+  # E17: "about 16 min to go" with 31 episodes waiting; "84 h" from a starved conversion rate.
+  M=1024**2
+  jobs=[{'hash':'h%d'%n,'title':'Naruto','kind':'episode','season':'1','episode':str(n),'status':'copying' if n<=4 else 'new',
+         'files':[{'path':'Naruto S01E%02d.mkv'%n,'drive_name':'Naruto S01E%02d.mkv'%n,'size':280*M,'done':False}] if n<=8 else []}
+        for n in range(1,32)]
+  lanes={str(i):{'name':'Naruto','file':'Naruto S01E%02d.mkv'%n,'count':1,'sent':140*M,'total':280*M,'stage':'copying',
+                 'updated':NOW-2,'job':'h%d:1:%d'%(n,n),'rate':90*1024,'rate_own':90*1024} for i,n in enumerate((1,2,3,4))}
+  debrid={'jobs':jobs,'lanes':lanes}
+  left=ws.copy_bytes_left(debrid)
+  self.assertAlmostEqual(left/M,4*140+4*280+23*280,delta=1)                  # unlisted jobs count as the average file
+  snap=ws.build({'debrid':debrid},NOW);snap['copy_left']=left
+  text=ws.remaining_text(snap)
+  self.assertTrue(text.startswith('about 6 h'),text)                    # ~8.1 GB at 0.35 MB/s: about 6 h 25 min, not 16 min
+  self.assertIsNone(ws.copy_bytes_left({'jobs':[{'status':'new','files':[]}]}))
+
 class SeasonQueue(unittest.TestCase):
  """Owner (build 205): "i went to download a entire season and it seems only 1 thing is downloading? it should show a
  que of the episodes". The log: one AllDebrid job for the whole Lanterns season pack (8.4 GB)."""

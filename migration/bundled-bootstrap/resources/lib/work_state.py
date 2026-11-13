@@ -492,7 +492,9 @@ def current(profile, now=None):
     now=time.time() if now is None else now
     state=load(profile,now) or build({},now)
     paused={k:transfer_control.paused(profile,k) for k in transfer_control.KINDS}
-    copies=build({'debrid':debrid_drive.load(profile),'paused':paused,'slow':state.get('slow',''),'show_names':show_names(profile)},now)
+    debrid=debrid_drive.load(profile)
+    copies=build({'debrid':debrid,'paused':paused,'slow':state.get('slow',''),'show_names':show_names(profile)},now)
+    state=dict(state,copy_left=copy_bytes_left(debrid))
     jobs=[j for j in state.get('jobs',[]) if j.get('kind')!='copy']+copies['jobs']
     nexts=state.get('next') or [];drive_next=copies['drive_next'];needs=state.get('needs') or []
     moving=[j for j in jobs if j['state'] in MOVING]
@@ -584,6 +586,31 @@ def align(prep_state, state):
     return dict(prep_state, current=current)
 
 
+def copy_bytes_left(debrid):
+    """E17: bytes still to copy to Drive across every unfinished job (Drive's confirmed position for a file under way;
+    jobs AllDebrid has not listed yet count as the average file seen). None when nothing is known."""
+    jobs = [j for j in (debrid or {}).get('jobs') or [] if j.get('status') not in ('done', 'failed')]
+    lanes = {str(c.get('file')): float(c.get('sent') or 0) for c in ((debrid or {}).get('lanes') or {}).values()}
+    sizes, left, unknown = [], 0.0, 0
+    for job in jobs:
+        files = [f for f in job.get('files') or [] if not f.get('done')]
+        if not job.get('files'):
+            unknown += 1
+            continue
+        for f in files:
+            size = float(f.get('size') or 0)
+            sizes.append(size)
+            sent = max([v for k, v in lanes.items() if k and (k == f.get('drive_name') or k.endswith(str(f.get('path', '')).rsplit('/', 1)[-1]))] or [0])
+            left += max(0.0, size - sent)
+        sizes += [float(f.get('size') or 0) for f in job.get('files') or [] if f.get('done')]
+    if unknown:
+        known = [x for x in sizes if x > 0]
+        if not known:
+            return None
+        left += unknown * sum(known) / len(known)
+    return left if jobs else 0.0
+
+
 def remaining_text(state):
     """One queue estimate for the summary and Queue, from the published model only.
 
@@ -598,10 +625,18 @@ def remaining_text(state):
     seconds = float((conv or {}).get('eta_s') or 0)
     rate = float((conv or {}).get('rate') or 0)
     if nexts:
-        if rate <= 0 or any(not j.get('size') for j in nexts):
+        if (rate <= 0 or any(not j.get('size') for j in nexts)) and not state.get('copy_left'):
             return ''
-        seconds += sum(float(j['size']) / rate for j in nexts)
-    seconds = max([seconds] + [float(j.get('eta_s') or 0) for j in state.get('jobs') or []])
+        if rate > 0 and all(j.get('size') for j in nexts):
+            seconds += sum(float(j['size']) / rate for j in nexts)
+    # E17 (owner screenshots: "about 84 h 40 min" from a starved conversion rate; "about 16 min" with 31 episodes waiting,
+    # counting the copy under way only): copies are the bytes left in every waiting and running copy over all lanes'
+    # speed together; conversions run beside them, so the longer of the two.
+    copy_rate = sum(float(j.get('rate') or 0) for j in state.get('jobs') or [] if j.get('kind') == 'copy' and j.get('state') in MOVING)
+    copies = (float(state['copy_left']) / copy_rate) if state.get('copy_left') and copy_rate > 0 else 0.0
+    if conv and rate < 64 * 1024 and copies:
+        seconds = float((conv or {}).get('eta_s') or 0) if not nexts else 0.0   # a starved read rate says nothing about the queue
+    seconds = max([seconds, copies] + [float(j.get('eta_s') or 0) for j in state.get('jobs') or []])
     if seconds <= 0:
         return ''
     m = max(1, int(seconds // 60))
