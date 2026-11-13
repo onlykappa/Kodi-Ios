@@ -253,6 +253,31 @@ def _copy_next(debrid):
     return out
 
 
+def _copies(debrid, now):
+    """Owner screenshot (build 329): four copies ran, the status showed one ("1 working"). One card per lane that
+    copies now (debrid_drive's 'lanes', each with the job it copies), else the single card _copy() makes:
+    [(card, owner job)]."""
+    debrid = debrid or {}
+    jobs = _in_line([j for j in debrid.get('jobs') or [] if j.get('status') not in ('done', 'failed')])
+    if not jobs:
+        return []
+    by_key = {'%s:%s:%s' % (j.get('hash', ''), j.get('season', ''), j.get('episode', '')): j for j in jobs}
+    fresh = lambda c: now - max(float(c.get('updated') or 0), float(c.get('phase_at') or 0)) < 600
+    lanes = [c for _, c in sorted((debrid.get('lanes') or {}).items(), key=lambda kv: int(kv[0]))
+             if c.get('total') and fresh(c) and by_key.get(str(c.get('job')))]
+    if len(lanes) > 1:
+        out = []
+        for lane in lanes:
+            owner = by_key[str(lane['job'])]
+            card = _copy({'jobs': [owner], 'current': lane}, now)
+            if card:
+                out.append((card, owner))
+        if out:
+            return out
+    card = _copy(debrid, now)
+    return [(card, jobs[0])] if card else []
+
+
 def _copy(debrid, now):
     """The AllDebrid → Drive copy, or None."""
     # Owner (build 325): the card sat at "no answer for 23 min" while other lanes copied; show the lane that moved last.
@@ -347,9 +372,7 @@ def build(inp, now):
     conv = _conversion(inp.get('prep'), inp.get('runtime'), now)
     if conv:
         add(conv, held=conv.pop('held', False) or (paused.get('conv') and conv['kind'] != 'check'))
-    copy = _copy(inp.get('debrid'), now)
-    if copy:
-        owner=next(j for j in inp['debrid']['jobs'] if j.get('status') not in ('done','failed'))
+    for copy, owner in _copies(inp.get('debrid'), now):
         copy['id']='debrid:%s:%s:%s'%(owner.get('hash',''),owner.get('season',''),owner.get('episode',''))
         playback_held=copy.pop('playback_held',False)
         add(copy, held=bool(paused.get('up')), wait=copy.pop('wait', ''))

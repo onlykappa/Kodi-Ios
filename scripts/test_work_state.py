@@ -251,6 +251,16 @@ class FourLanes(unittest.TestCase):
    self.assertEqual(debrid_drive.uploads(p,now=now+3600),[])                      # quiet lanes leave
   waiting=[c['title'] for c in ws._copy_next({'jobs':jobs,'lanes':lanes})]
   self.assertEqual(waiting,['Naruto Shippuden · S1 E5','Naruto Shippuden · S1 E6','Naruto Shippuden · S1 E7'])
+ def test_the_status_model_has_a_card_per_lane(self):
+  jobs=[{'hash':'h%d'%n,'title':'Naruto Shippuden','kind':'episode','season':'1','episode':str(n),'status':'copying','files':[]} for n in (1,2,3,4,5)]
+  lanes={str(i):{'name':'Naruto Shippuden','file':'Naruto Shippuden S01E%02d.mkv'%n,'count':1,'sent':10,'total':100,'stage':'copying',
+                 'updated':NOW-2,'job':'h%d:1:%d'%(n,n),'rate':1000,'rate_own':1000} for i,n in enumerate((1,2,3,4))}
+  snap=ws.build({'debrid':{'jobs':jobs,'lanes':lanes}},NOW)
+  copies=[j for j in snap['jobs'] if j['kind']=='copy']
+  self.assertEqual([j['title'] for j in copies],['Naruto Shippuden · S1 E%d'%n for n in (1,2,3,4)])
+  self.assertEqual(len({j['id'] for j in copies}),4)
+  one=ws.build({'debrid':{'jobs':jobs,'lanes':{'0':lanes['0']},'current':lanes['0']}},NOW)   # one lane: one card, as before
+  self.assertEqual(len([j for j in one['jobs'] if j['kind']=='copy']),1)
  def test_library_status_writes_only_what_changed(self):
   src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/library_status.py').read_text()
   self.assertIn("if seen.get(key)==value:return",src);self.assertIn("self.bar(library_page.DOWN_BARS+n,r.get('pct') or 0)",src)
