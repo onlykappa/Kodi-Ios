@@ -168,7 +168,12 @@ def route(url,quiet=False,request_id=None):
                                  show_title or info.get('title') or drivelibrary.display_title(name),
                                  choice.get('season') or info.get('season') or tracked.get('season') or '',
                                  choice.get('episode') or info.get('episode') or '', watch=mode == 1,show_tmdb=tracked.get('tmdb'),
-                                 quality=((auto or {}).get('profile') or {}).get('quality') if (auto or {}).get('profile',{}).get('strict_quality') else '')
+                                 quality=((auto or {}).get('profile') or {}).get('quality') if (auto or {}).get('profile',{}).get('strict_quality') and not (auto or {}).get('_fallback') else '')
+        if auto is not None and auto.get('_fallback') and (auto.get('profile') or {}).get('quality'):
+            # ISSUE-236: the owner chose a quality nothing has; the best that exists was taken, and they are told once.
+            notices.note('info', 'No %s version' % auto['profile']['quality'],
+                         '%s: no real %s version exists, so the best available was downloaded.' % (
+                             job['title'] + (' · S%s E%s' % (job.get('season'), job.get('episode')) if job.get('episode') else ''), auto['profile']['quality']))
         try:
             import xbmc,diagnostics,transfer_control
             # Roadmap B.11: this runs in Elementum's interpreter; join the app's session so the line names the build.
@@ -285,6 +290,7 @@ def auto_season(window, now=None, choice=None, request_id=None):
                 if why:
                     reasons.append(why)
                     continue
+                wanted['_fallback'] = bool(selected.get('fallback'))   # ISSUE-236: nothing was really the chosen quality
             return wanted
         except Exception:
             continue

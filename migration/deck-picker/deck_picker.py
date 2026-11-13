@@ -857,10 +857,20 @@ def below_quality(item, quality, minutes=0):
 def auto_choose(kept, want):
     """The version closest to the first pick: its quality (else the nearest lower, then higher), its HDR kind and
     codec, never AV1 when avoidable, seeds, then the size nearest the first pick's. None when nothing has seeds."""
+    fallback = False
+    lower = set(want.get('lower_names') or ())   # versions a copy already found lower than chosen (ISSUE-236)
     if want.get('strict_quality'):
         minutes_ = int(want.get('runtime') or 0)
-        kept = [p for p in kept if p['quality'] == want.get('quality') and not is_bad(p)
-                and not below_quality(p, want.get('quality'), minutes_)]
+        real = [p for p in kept if p['quality'] == want.get('quality') and not is_bad(p)
+                and not below_quality(p, want.get('quality'), minutes_) and p['name'] not in lower]
+        if real:
+            kept = real
+        else:
+            # ISSUE-236 (owner: "only grab the lower quality if it's the absolute only one available"): nothing is really
+            # the chosen quality, so the best of what exists is taken, the nearest quality first, versions already found
+            # lower last, and the pick says so (the copy is then not refused, and the owner is told).
+            kept = [p for p in kept if not is_bad(p)]
+            fallback = True
     if not kept:
         return None
     order = {q: n for n, q in enumerate(QUALITY_ORDER)}
@@ -877,12 +887,14 @@ def auto_choose(kept, want):
         hdr = next((t for t in tags if t in HDR_TAGS), u'')
         # Owner log 15e6cbc4: one episode of a season build was taken from a 500-episode "Complete Series" pack (the
         # most seeds); whole-series packs come last, used only when nothing else has the episode.
-        return (is_bad(it), it['seeds'] <= 0, bool(WHOLE_SERIES.search(_s(it.get('name')))), bool(it.get('multi')), distance,
+        return (is_bad(it), it['seeds'] <= 0, it['name'] in lower, bool(WHOLE_SERIES.search(_s(it.get('name')))), bool(it.get('multi')), distance,
                 hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
                 slow_to_prepare(it), converts_for_tv(it), too_heavy(it), prep_cost(it), size_fit(it, minutes), seed_bucket(it),
                 SOURCE_RANK.get(source_type(it), 3), abs(it['size'] - size) if size else -size_step(it), -it['seeds'])
     best = min(dedupe(kept), key=score)
-    return None if best['seeds'] <= 0 else best
+    if best['seeds'] <= 0:
+        return None
+    return dict(best, fallback=True) if fallback else best
 
 
 def remember(item, title, path=None, now=None):
@@ -1105,11 +1117,13 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
         return show_list(title, usable, [], sm, u'Full season packs', count_label(len(usable), len(usable)))
     if auto is not None and exp and exp.get('episode') and automatic_matches(auto,exp):
         failed=set(auto.get('excluded_names') or [])
-        best = auto_choose([p for p in kept if p['name'] not in failed], auto.get('profile') or {})
+        best = auto_choose([p for p in kept if p['name'] not in failed],
+                           dict(auto.get('profile') or {}, lower_names=auto.get('lower_names') or []))
         try:
             import json
             _auto_result(auto, {'episode': exp.get('episode'), 'found': bool(best),
                                 'quality': best['quality'] if best else u'', 'name': best['name'] if best else u'',
+                                'fallback': bool(best and best.get('fallback')),
                                 'request_id':auto.get('request_id')})
         except Exception:
             pass

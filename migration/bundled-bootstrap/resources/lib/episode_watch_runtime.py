@@ -61,7 +61,11 @@ def pass_once(profile,window,keep_going,log):
   request={'request_id':ident,'target':target,'profile':show['preference'],'mode':0,'until':time.time()+600}
   request['excluded_names']=[j['name'] for j in debrid_drive.load(profile).get('jobs',[])
    if j.get('show_tmdb')==show['tmdb'] and str(j.get('season'))==str(target['season']) and str(j.get('episode'))==str(target['episode'])
-   and j.get('status')=='failed' and 'cancel' not in str(j.get('error','')).lower()][-20:]
+   and j.get('status')=='failed' and 'cancel' not in str(j.get('error','')).lower() and not j.get('low_quality')][-20:]
+  # ISSUE-236: versions found lower than the quality chosen are tried only when nothing else exists (deck_picker fallback).
+  request['lower_names']=[j['name'] for j in debrid_drive.load(profile).get('jobs',[])
+   if j.get('show_tmdb')==show['tmdb'] and str(j.get('season'))==str(target['season']) and str(j.get('episode'))==str(target['episode'])
+   and j.get('low_quality')][-20:]
   window.clearProperty(watch.RESULT);window.clearProperty('KodiIOS.AutoPick.Queued')
   window.setProperty(watch.AUTO,json.dumps(request))
   queued=False

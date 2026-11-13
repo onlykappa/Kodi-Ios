@@ -41,7 +41,27 @@ class BeforeTheDownload(unittest.TestCase):
         best = dp.auto_choose([dict(upscale, seeds=500), dict(dvd, seeds=400), dict(real, seeds=5)],
                               {'quality': '1080p', 'strict_quality': True, 'runtime': 23})
         self.assertEqual(best['name'], real['name'])                                     # fewer seeds, but really 1080p
-        self.assertIsNone(dp.auto_choose([upscale, dvd], {'quality': '1080p', 'strict_quality': True, 'runtime': 23}))
+        # ISSUE-236 (owner: "only grab the lower quality if it's the absolute only one available"): with nothing really
+        # 1080p, the best that exists is taken and marked as a fallback.
+        only = dp.auto_choose([upscale, dvd], {'quality': '1080p', 'strict_quality': True, 'runtime': 23})
+        self.assertTrue(only['fallback'])
+
+    def test_a_version_found_lower_after_its_copy_is_used_only_when_nothing_else_exists(self):
+        pack = item('Naruto Shippuden (001-500) [Complete Series + Movies (1080p)]/Naruto Shippuden Episode 001 Homecoming.mkv', 0.26, seeds=232)
+        real720 = item('Naruto.Shippuden.S01E01.720p.WEB.x264.mkv', 0.6, quality='720p', tags='x264', seeds=4)
+        want = {'quality': '1080p', 'strict_quality': True, 'runtime': 23}
+        self.assertEqual(dp.auto_choose([pack, real720], want)['name'], pack['name'])          # its name and size pass: tried first
+        self.assertFalse(dp.auto_choose([pack, real720], want).get('fallback'))
+        lower = dict(want, lower_names=[pack['name']])                                          # its copy was 640x480
+        best = dp.auto_choose([pack, real720], lower)
+        self.assertEqual((best['name'], best['fallback']), (real720['name'], True))             # the next best, said so
+        best = dp.auto_choose([pack], lower)
+        self.assertEqual((best['name'], best['fallback']), (pack['name'], True))                # the absolute only one: taken
+        rt = (LIB / 'episode_watch_runtime.py').read_text()
+        self.assertIn("request['lower_names']", rt);self.assertIn("and not j.get('low_quality')][-20:]", rt)
+        cloud = (LIB / 'elementum_cloud.py').read_text()
+        self.assertIn("wanted['_fallback'] = bool(selected.get('fallback'))", cloud)
+        self.assertIn("and not (auto or {}).get('_fallback')", cloud)
 
 
 class AfterTheCopy(unittest.TestCase):
