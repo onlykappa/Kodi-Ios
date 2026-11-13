@@ -22,7 +22,7 @@ import prepare_downloads  # noqa: E402
 import transfer_history  # noqa: E402
 import work_state  # noqa: E402
 
-SCENARIOS = ('running', 'airplay', 'paused', 'network', 'queued', 'idle', 'stale', 'long')
+SCENARIOS = ('running', 'airplay', 'paused', 'network', 'queued', 'idle', 'stale', 'long', 'lanes')
 GB = 1024 ** 3
 MB = 1024 ** 2
 LONG_TITLE = 'A.Very.Long.Movie.Title.That.Goes.On.And.On.Past.Sixty.Characters.2026.1080p.mkv'
@@ -127,6 +127,11 @@ def scenario(name, now):
         prep['jobs'] = {}
     if name == 'paused':
         prep['current']['paused'] = True
+    if name == 'lanes':   # DEC-044 board D / F2: two more re-packages beside the main one
+        prep['lanes'] = {'2': {'title': 'Naruto.Shippuden.S01E06.1080p.mkv', 'running': True, 'updated': now, 'progress': 63,
+                               'kind': 'repack', 'stage': 'Step 3 of 3 · Making it start faster', 'rate': 4.8 * MB},
+                         '3': {'title': 'Naruto.Shippuden.S01E07.1080p.mkv', 'running': True, 'updated': now, 'progress': 22,
+                               'kind': 'repack', 'stage': 'Step 3 of 3 · Making it start faster', 'rate': 5.2 * MB}}
     debrid = debrid_state(now, copying)
     built = work_state.build({'prep': prep, 'runtime': {}, 'debrid': debrid, 'phone': [], 'torrents': [], 'paused': paused,
                               'slow': slow, 'needs': needs, 'network': network}, now if name != 'stale' else now - 60)

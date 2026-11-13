@@ -211,6 +211,16 @@ def run(args=()):
     import work_state
     conv=work_state.job(model,'conv') or {}
     for k in ('title','line','step','state'):self.setProperty('work.'+k,str(conv.get(k,'')))
+    # DEC-044 board D: the extra preparation lanes (F2), each its own row; the card's eyebrow counts them all.
+    lanes=[j for j in model.get('jobs') or [] if j.get('lane')][:library_page.LANES]
+    self.lanes=lanes
+    self.setProperty('work.eyebrow','WORKING ON NOW · %d'%(1+len(lanes)) if lanes else 'WORKING ON NOW')
+    for n in range(library_page.LANES):
+     j=lanes[n] if n<len(lanes) else {}
+     values={'title':j.get('title',''),'pct':'%d%%'%int(j.get('pct') or 0) if j else '','sub':j.get('line') or j.get('step',''),
+             'tint':'4DEBEBF5' if j.get('state') in ('paused','stale') else 'FFBF5AF2'}
+     for k,v in values.items():self.setProperty('lane.%d.%s'%(n,k),str(v))
+     if j:self.bar(library_page.LANE_BARS+n,float(j.get('pct') or 0))
     # Board 2: slowed by AirPlay still moves, so the ring keeps the job's colour; paused or stale turns it grey.
     self.setProperty('work.tint',str(conv.get('tint') if conv.get('state')=='slowed' else conv.get('tint_now','')))
     speed,left=library_rows.speed_left(conv)
@@ -277,12 +287,16 @@ def run(args=()):
     if held:
      if time.time()-getattr(self,'menu_done',0)<1.5:return
      if held=='conv':self.conversion_menu()
+     elif isinstance(held,dict) and held.get('lane_title'):self.conversion_menu(held['lane_title'])
      else:self.transfer_menu(held)
      self.menu_done=time.time();return
    if code in BACK:self.go_back()
   def held_row(self,control):
    """'conv' for the Working on now card, a Downloading / Up next transfer row, or None (not a card to hold)."""
    if control in (library_page.WORK,library_page.WORK+100):import work_state;return 'conv' if work_state.job((self.view or {}).get('model'),'conv') else None
+   if library_page.LANE<=control<library_page.LANE+library_page.LANES:
+    lanes=getattr(self,'lanes',[]);n=control-library_page.LANE
+    return {'lane_title':lanes[n]['title']} if n<len(lanes) else None
    for key,base,slots,_ in library_page.POOLS:
     if key in ('down','next') and base<=control<base+slots:
      rows=getattr(self,'pools',{}).get(key,[])
@@ -309,9 +323,9 @@ def run(args=()):
                                          nolabel='Keep',yeslabel='Stop'):
     transfer_control.cancel_copy(profile,item['hash'])
    self.refresh(force=True)
-  def conversion_menu(self):
+  def conversion_menu(self,title=None):
    import work_state
-   conv=work_state.job(self.view.get('model'),'conv')
+   conv=work_state.job(self.view.get('model'),'conv') if title is None else {'title':title}
    row=next((r for r in self.view['rows']['preparing'] if conv and r['title']==conv['title']),None)
    if not row:return
    rows=transfer_control.menu('conv',{'id':row.get('id')},conv_paused=transfer_control.paused(profile,'conv'))
@@ -341,6 +355,11 @@ def run(args=()):
    elif control==library_page.NEED:
     need=((self.view.get('model') or {}).get('needs') or [{}])[0]
     if need.get('action'):self.finish();xbmc.executebuiltin(need['action'])
+   elif library_page.LANE<=control<library_page.LANE+library_page.LANES:
+    lanes=getattr(self,'lanes',[]);n=control-library_page.LANE
+    if n<len(lanes):
+     row=next((r for r in self.view['rows']['preparing'] if r['title']==lanes[n]['title']),None)
+     if row:self.open_item({'kind':'row','row':row})
    elif control in (library_page.WORK,library_page.WORK+100):
     import work_state
     conv=work_state.job(self.view.get('model'),'conv')

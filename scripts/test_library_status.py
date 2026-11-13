@@ -481,6 +481,31 @@ def kodi_of(w):return w._kodi
 def press(code):return lambda w:w.onAction(type('A',(),{'getId':lambda self:code})())
 def focus(n):return lambda w:w.setFocusId(n)
 
+class PreparationLanes(unittest.TestCase):
+ """DEC-044 board D: "Working on now · N", the main card plus a row per extra preparation lane (F2)."""
+ setUp,tearDown,run_page=TapEveryButton.setUp,TapEveryButton.tearDown,TapEveryButton.run_page
+ def test_each_lane_has_its_own_row_and_the_card_counts_them(self):
+  import time as _t
+  state=prep.load(self.profile);now=_t.time()
+  state['lanes']={'2':{'title':'Naruto.Shippuden.S01E06.mkv','running':True,'updated':now+3600,'progress':63,'stage':'Step 3 of 3 · Making it start faster'},
+                  '3':{'title':'Naruto.Shippuden.S01E07.mkv','running':True,'updated':now+3600,'progress':22}}
+  prep.save(self.profile,state)
+  seen={}
+  kodi=self.run_page([(library_page.WINDOW,lambda w:seen.update(dict(w.props))),(library_page.WINDOW,tap(library_page.BACK))])
+  self.assertEqual(seen['work.eyebrow'],'WORKING ON NOW · 3')
+  self.assertEqual((seen['lane.0.pct'],seen['lane.1.pct']),('63%','22%'))
+  self.assertIn('S1 E6',seen['lane.0.title'].replace('S01E06','S1 E6'))
+  self.assertEqual(seen['lane.0.tint'],'FFBF5AF2')
+ def test_without_lanes_the_card_reads_as_before(self):
+  seen={}
+  self.run_page([(library_page.WINDOW,lambda w:seen.update(dict(w.props))),(library_page.WINDOW,tap(library_page.BACK))])
+  self.assertEqual((seen['work.eyebrow'],seen['lane.0.title']),('WORKING ON NOW',''))
+ def test_the_rows_are_drawn(self):
+  xml=library_page.page(portrait)
+  for n in range(library_page.LANES):self.assertIn('id="%d"'%(library_page.LANE+n),xml);self.assertIn('id="%d"'%(library_page.LANE_BARS+n),xml)
+  self.assertIn("Window().Property(work.eyebrow)",xml)
+
+
 class LongPressCancel(unittest.TestCase):
  """Owner (build 328): "holding down on the show that is converting should show a cancel button"; build 347: "holding
  down anything on the library status sends me out of the page ... ensure if i hold down on a download or transfer it
