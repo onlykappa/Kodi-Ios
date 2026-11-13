@@ -10,6 +10,7 @@ import upscale_page as up
 import upscale_queue as uq
 
 BACK = (9, 10, 92, 110)
+LONG = (101, 117)   # right click, context menu: a long press
 SUMMARY = 'KodiIOS.UpscaleSummary'
 
 
@@ -18,7 +19,7 @@ def model(profile):
     import upscale_cloud
     import drivelibrary
     settings = picture.load(profile)
-    data = uq.load(profile)
+    data = uq.preview(profile, uq.load(profile))   # ISSUE-228: a cancel shows at once, before the service applies it
     groups = up.library(prepare_downloads.load(profile), upscale_cloud.media_lookup(profile, drivelibrary.parse), data)
     return settings, data, groups, up.rows(settings, data, groups, data.get('engine') or {})
 
@@ -110,8 +111,49 @@ def run():
             self.stop = True
             xbmcgui.WindowXMLDialog.close(self)
 
+        def hold_menu(self):
+            """ISSUE-228 (owner: "if I hold down on a movie that is downloading it closes out the setting, I want the option to
+            cancel it instead of only pausing"): a long press is a right click, which Kodi turns into "previous menu" and
+            closed the page. On the copy being made it now opens Pause / Resume, Cancel This Copy and Cancel All Upscaling; on
+            an Up next row, Make Next / Remove. False when nothing is held (a real back then closes the page)."""
+            focus = self.getFocusId()
+            card = self.view['making'] or {}
+            if focus in (mp.MAKING, mp.MAKING_PAUSE) and card:
+                labels = ['Resume' if card.get('paused') else 'Pause', 'Cancel This Copy', 'Cancel All Upscaling']
+                pick = dialog.contextmenu(labels)
+                if pick == 0:
+                    uq.set_paused(profile, not card.get('paused'))
+                elif pick == 1 and dialog.yesno('Cancel this copy?', '%s stops and leaves Up next. The original video stays as it is.'
+                                                % card.get('title', 'This copy'), nolabel='Keep Making It', yeslabel='Cancel Copy'):
+                    uq.cancel(profile, [card['key']])
+                elif pick == 2:
+                    self.cancel_all()
+                self.fill()
+                return True
+            if mp.NEXT <= focus < mp.NEXT + mp.NEXT_SLOTS and focus - mp.NEXT < len(self.view['next']):
+                row_menu(self.view['next'], focus - mp.NEXT)
+                self.fill()
+                return True
+            return False
+
+        def cancel_all(self):
+            card = self.view['making'] or {}
+            waiting = len(self.view['next']) + (0 if card.get('running') or not card else 1)
+            if dialog.yesno('Cancel all upscaling?', 'The copy being made stops and %d waiting leave Up next. Copies already made '
+                            'stay, and the original videos are not touched.' % max(0, waiting),
+                            nolabel='Keep Making Them', yeslabel='Cancel All'):
+                uq.cancel_all(profile)
+
         def onAction(self, action):
-            if action.getId() in BACK:
+            import time
+            code = action.getId()
+            if code in LONG or code == 10:
+                if time.time() - getattr(self, 'menu_done', 0) < 1.5:   # one long press can arrive as both actions
+                    return
+                if self.hold_menu():
+                    self.menu_done = time.time()
+                    return
+            if code in BACK:
                 self.close()
 
         def onClick(self, control):
@@ -158,12 +200,7 @@ def run():
                 xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,library_manager,freeup)')
                 return
             elif control == mp.CANCEL_ALL:
-                count = (1 if card.get('running') else 0) + len(self.view['next']) + (0 if card.get('running') or not card else 1)
-                if not dialog.yesno('Cancel all upscaling?', 'The copy being made stops and %d waiting leave Up next. Copies already made '
-                                    'stay, and the original videos are not touched.' % max(0, count - (1 if card.get('running') else 0)),
-                                    nolabel='Keep Making Them', yeslabel='Cancel All'):
-                    return
-                uq.cancel_all(profile)
+                self.cancel_all()
             else:
                 return
             self.fill()
@@ -251,7 +288,7 @@ def run():
         def order(self, keys):
             uq.reorder(profile, keys)
             data = uq.load(profile)
-            if uq.apply_control(profile, data):   # shown at once; the service would apply it on its next pass too
+            if uq.apply_control(profile, data, keep=True):   # shown at once; the service would apply it on its next pass too
                 uq.save(profile, data)
 
         def onClick(self, control):
@@ -266,7 +303,7 @@ def run():
                     return
                 uq.cancel(profile, [keys[n]])
                 data = uq.load(profile)
-                if uq.apply_control(profile, data):
+                if uq.apply_control(profile, data, keep=True):
                     uq.save(profile, data)
             elif mp.MOVE <= control < mp.MOVE + mp.EDIT_SLOTS and control - mp.MOVE < len(keys):
                 n = control - mp.MOVE
@@ -282,7 +319,7 @@ def run():
                     return
                 uq.cancel(profile, keys)
                 data = uq.load(profile)
-                if uq.apply_control(profile, data):
+                if uq.apply_control(profile, data, keep=True):
                     uq.save(profile, data)
             else:
                 return

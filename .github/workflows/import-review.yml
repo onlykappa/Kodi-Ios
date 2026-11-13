@@ -152,6 +152,7 @@ jobs:
           python3 -B scripts/test_download_e2e.py
           python3 -B scripts/test_upscale_e2e.py
           python3 -B scripts/test_upscale_cloud.py
+          python3 -B scripts/test_upscale_cancel.py
           python3 -B scripts/test_upscale_page.py
           python3 -B scripts/test_ios_remove.py
           python3 -B scripts/test_source_match.py

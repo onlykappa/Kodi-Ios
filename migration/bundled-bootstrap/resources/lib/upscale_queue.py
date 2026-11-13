@@ -209,9 +209,17 @@ def cancelling(profile, original):
     return bool(found.get('cancel_all')) or str(original) in found['cancel']
 
 
-def apply_control(profile, data, clock=time.time):
-    """The page's requests, applied to the copies (the service, once per pass). Returns True when data changed."""
+RUNNING = [False]   # set by service.py while an AI Upscale copy is being made (the copy handles a cancel itself)
+
+
+def has_pending(profile):
+    """A Pause-page request (cancel, cancel all, a new order) the service has not applied yet."""
     found = control(profile)
+    return bool(found['cancel'] or found.get('cancel_all') or found['order'])
+
+
+def _apply(found, data, clock):
+    """The control requests applied to the copies in `data`. Returns (changed, anything_was_asked)."""
     copies = data.get('copies', {})
     changed = False
     gone = set(found['cancel'])
@@ -229,10 +237,27 @@ def apply_control(profile, data, clock=time.time):
             if key in copies:
                 copies[key]['order'] = n
                 changed = True
-    if gone or found['order'] or found.get('cancel_all'):
+    return changed, bool(gone or found['order'] or found.get('cancel_all'))
+
+
+def apply_control(profile, data, clock=time.time, keep=False):
+    """The page's requests, applied to the copies (the service, once per pass). Returns True when data changed.
+    keep: the requests stay for the service (a page shows the result at once but must not consume a request the copy
+    being made still has to see: ISSUE-228, "cancel all upscaling isn't working")."""
+    found = control(profile)
+    changed, asked = _apply(found, data, clock)
+    if asked and not keep:
         found.update(cancel=[], order=[], cancel_all=False)
         _write_control(profile, found)
     return changed
+
+
+def preview(profile, data, clock=time.time):
+    """`data` as it will be once the service applies the page's requests (a copy; nothing is saved or consumed)."""
+    import copy
+    shown = copy.deepcopy(data)
+    _apply(control(profile), shown, clock)
+    return shown
 
 
 def revive(data, originals):

@@ -274,6 +274,18 @@ def run():
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),daemon=True).start()
  # Build 193: one status model for every page and the bell (work_state.py), every 2 s, with the reason stored.
  import work_state,slowdown
+ # ISSUE-228 (owner: "cancel all upscaling isn't working"): the page's cancel / cancel all / order requests were applied only
+ # when the worker next reached an AI Upscale pass, which waits behind every preparation. They are applied within seconds
+ # here, except while a copy is being made (that copy sees the request itself and stops).
+ def upscale_control():
+  import upscale_queue
+  while not monitor.waitForAbort(2):
+   try:
+    if not upscale_queue.RUNNING[0] and upscale_queue.has_pending(profile):
+     data=upscale_queue.load(profile)
+     if upscale_queue.apply_control(profile,data):upscale_queue.save(profile,data)
+   except Exception as error:diagnostics.log_exception(xbmc,'upscale_control',error)
+ threading.Thread(target=upscale_control,daemon=True).start()
  def work_inputs():
   import debrid_drive,prepare_downloads,preparation_runtime
   phone=[u for u in notices.uploads(profile) if u.get('source')=='phone']
@@ -684,10 +696,11 @@ def drive_uploads(monitor,home,profile):
           data=upscale_queue.load(profile);upscale_queue.save(profile,upscale_queue.recover(data));preparation.upscale_recovered=True
          try:
           preparation.upscaling=True   # F2: no re-package lane starts beside an AI Upscale copy (it changes converter settings)
+          import upscale_queue;upscale_queue.RUNNING[0]=True
           try:
            # ISSUE-227: an owner's Repair / Try Again stops it (its copy starts again later) so the repair is applied at once.
            if upscale_cloud.process_one(preparation,lambda:converting() and not prepare_downloads.wakes_work(profile),media_for=upscale_cloud.media_lookup(profile,drivelibrary.parse)):delay=2
-          finally:preparation.upscaling=False
+          finally:preparation.upscaling=False;upscale_queue.RUNNING[0]=False
          except Exception as error:
           diagnostics.log_exception(xbmc,'upscale',error)
        finally:preparation.busy=False
