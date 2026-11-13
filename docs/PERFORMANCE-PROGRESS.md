@@ -1,5 +1,25 @@
 # Performance and quality progress
 
+## HANDOFF FOR THE NEXT AGENT (2026-11-13, overnight run) — read this first
+
+Branch claude/trusting-euler-kgug98, draft PR #22. Everything is pushed. Builds: pushes only run tests; the one IPA is
+built by Run workflow on import-review (or the build-ipa label). Pinned: Kodi r32 (Saturation), AirPlay r52.
+Done tonight (host tests, desktop Kodi rig where it is a page, host simulations; phone checks pending for all):
+- Library status: a card per copy lane, Up next in episode order without the copies under way, change-only property
+  writes (scrolling), time left over every copy and all lanes (ISSUE-195, E17).
+- V2 Saturation: Kodi r32 built from 61510d7, digests checked, pinned.
+- V3 Settings › AI Upscale › one show (IOSUpscaleShow.xml): size capsules, episodes with chips, make the rest, Remove
+  the copies (service bins them). Rig-checked.
+- L6 Select and delete (IOSLibrarySelect.xml) from a show's Select; L8 Free Up Space (IOSLibraryFreeUp.xml) from the
+  storage card, Review opens L6 ticked. Rig-checked.
+- V1 Picture menu checked in the landscape rig (1311x603); its AI Upscale part needs a playing video (phone).
+- AI Upscale end to end (scripts/test_upscale_e2e.py) and downloads end to end (scripts/test_download_e2e.py: shows,
+  season 2 of absolute packs (ISSUE-194), movies) in CI.
+- Check Drive for problems (Settings › Library), Copy only on Wi-Fi (Transfer settings), lanes that follow the link,
+  AirPlay says when a stream is too slow, runs beside a conversion are not learned from.
+Left for the phone: everything above on the device; the scroll feel; Saturation on screen; a season copying on Wi-Fi
+versus cellular (log); Pick Better Versions for Naruto episodes 5-6.
+
 ## HANDOFF FOR THE NEXT AGENT (2026-11-13, build-319 feedback) — read this first
 
 Branch claude/trusting-euler-kgug98, draft PR #22. Everything is pushed. Owner logs read: c4f05d90, 5a03a391 and

@@ -3136,3 +3136,21 @@ alldebrid.pick (episodes and season lists), and waits instead of failing while T
 absolute number from TMDb when Elementum did not and, for season 2+, takes only that number. Retest:
 test_download_e2e test_season_two_of_an_absolute_pack / test_season_two_waits_when_tmdb_is_unknown, test_source_match
 LaterSeasonAbsolute.
+
+## ISSUE-195 — Library status: one card for four copies, Up next out of order, slow scrolling, wrong time left (build 329, owner screenshots) — FIXED on host
+
+- Four copies ran, one card ("1 working"): only 'current' / 'current_also' were saved and read. Every lane is kept
+  (state 'lanes', with the job it copies); work_state._copies makes a card per lane; notices.uploads names each
+  episode. Up next leaves out the episodes being copied and goes in episode order (debrid_drive.in_line, which the
+  copier also follows). Rig: four cards, Working 4, Up next from E5.
+- Scrolling "doesnt scroll far": the page rewrote ~1,130 window properties every 2 s (141 pooled rows x 8) plus every
+  bar, each taking Kodi's GUI lock. Only changed values are written now. Phone check needed (the rig cannot fling).
+- "About 16 min to go" with 31 waiting / "84 h": see E17 (work_state.copy_bytes_left).
+Also from the same round: the picker (source_match) hid a file named after its pack ("[uP] … Vol.01 (…) [uP] … - 005")
+as the wrong title, so episodes 5-6 got 4 GB upscaled copies (4a3ab1f).
+
+## Build pipeline (2026-11-13)
+
+- import-review builds the IPA only on Run workflow or the build-ipa label; every push runs the tests (owner: "one new
+  build with everything not 1000").
+- kodi-ios-portrait skips its one-hour build when the locked release exists from the same patch (a check job).
