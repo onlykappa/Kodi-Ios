@@ -820,12 +820,22 @@ def favourites_page(p):
  rows=''.join('<control type="group"><width>%d</width><height>%d</height><visible>!String.IsEmpty(Window().Property(fav.%d.title))</visible>%s</control>'%(
    p.WIDTH,row_h,3*r+1,''.join(favourite_cell(p,3*r+c+1,p.SIDE+c*(cw+p.GAP),0,cw,ch) for c in range(cols)))
    for r in range(favourites_rows.MAX//cols))
- empty=('<control type="group"><width>%d</width><height>240</height><visible>String.IsEmpty(Window().Property(fav.1.title))</visible>'%p.WIDTH+
-  p.label(p.SIDE,40,w,160,favourites_rows.EMPTY,'p_h3',p.WHITE,'center')+'</control>')
+ # DEC-045 board F1: the star in a yellow-tinted disc, what is empty, and how to add one (policy §6).
+ empty=('<control type="group"><width>%d</width><height>560</height><visible>String.IsEmpty(Window().Property(count)) | String.IsEqual(Window().Property(count),0)</visible>'%p.WIDTH+
+  p.image(p.WIDTH//2-86,180,172,172,p.MEDIA+'avatar_s.png','29FFD60A')+p.icon(p.WIDTH//2-66,200,132,'star.png','FFFFD60A')+
+  p.label(p.SIDE,390,w,70,favourites_rows.EMPTY,'p_h3',p.WHITE,'center')+
+  p.label(p.SIDE+60,470,w-120,60,favourites_rows.EMPTY_LINE,'p_foot',p.GREY,'center','<wrapmultiline>true</wrapmultiline>')+'</control>')
+ none=('<control type="group"><width>%d</width><height>160</height><visible>!String.IsEmpty(Window().Property(none))</visible>'%p.WIDTH+
+  p.label(p.SIDE,40,w,60,'$INFO[Window().Property(none)]','p_foot',p.GREY,'center')+'</control>')
+ import importlib.util as _u,os as _os
+ _sp=_u.spec_from_file_location('notifications_skin',_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),'notifications_skin.py'))
+ ns=_u.module_from_spec(_sp);_sp.loader.exec_module(ns)
+ chips=('<control type="group"><width>%d</width><height>130</height><visible>!String.IsEmpty(Window().Property(chips))</visible>'%p.WIDTH+
+  ns.segmented(p,favourites_rows.FILTERS,y=0,base=9020)+'</control>')
  lst=('<control type="grouplist" id="9300"><left>0</left><top>200</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
       '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%p.WIDTH+
       p.label(p.SIDE,0,w,130,favourites_rows.TITLE,'p_large',p.WHITE,'left','<scroll>false</scroll>')+
-      spacer(14)+rows+empty+footer(p,favourites_rows.FOOT,130)+spacer(160)+'</control>')
+      spacer(14)+chips+rows+none+empty+spacer(160)+'</control>')
  has='!String.IsEmpty(Window().Property(fav.1.title))';editing='!String.IsEmpty(Window().Property(editing))'
  # Edit and Done are text buttons in the header's right corner, in the accent blue like Cancel and Done in the sheets.
  edit=('<control type="button" id="9010"><left>%d</left><top>36</top><width>240</width><height>108</height><label>Edit</label>'
@@ -835,7 +845,7 @@ def favourites_page(p):
  done=('<control type="button" id="9011"><left>%d</left><top>36</top><width>240</width><height>108</height><label>Done</label>'
   '<font>p_btn</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny>'
   '<texturefocus /><texturenofocus /><visible>%s</visible><ondown>9300</ondown></control>')%(p.WIDTH-p.SIDE-240,p.ACCENT,p.ACCENT,editing)
- page='<controls>'+p.backdrop()+lst+header(p,[('','Close')],[(favourites_rows.TITLE,'')])+edit+done+'</controls>'
+ page='<controls>'+p.backdrop()+lst+header(p,[('','Close')],[])+edit+done+'</controls>'   # DEC-045 F: one title (the large one)
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9001</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
 
