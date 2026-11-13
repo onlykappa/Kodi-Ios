@@ -12,9 +12,10 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', 'lib'))
 import debrid_drive
 
-GROUPS = (('retry', 'Can try again'), ('source', 'Need a new source'), ('cancelled', 'Cancelled by you'))
-ACTION = {'retry': 'Retry', 'source': 'Find', 'cancelled': 'Restart'}
-TINT = {'retry': 'orange', 'source': 'red', 'cancelled': 'grey'}
+GROUPS = (('retry', 'Can try again'), ('source', 'Need a new source'), ('prepare', 'Preparing for Kodi and AirPlay'),
+          ('cancelled', 'Cancelled by you'))
+ACTION = {'retry': 'Retry', 'source': 'Find', 'cancelled': 'Restart', 'prepare': 'Find'}
+TINT = {'retry': 'orange', 'source': 'red', 'cancelled': 'grey', 'prepare': 'orange'}   # a video that plays as it is is never red
 
 # (words in the error, the plain reason, the group). The first match wins; the raw error stays in kodi.log.
 PLAIN = (('cannot read', 'AllDebrid was busy', 'retry'),
@@ -32,8 +33,37 @@ PLAIN = (('cannot read', 'AllDebrid was busy', 'retry'),
          ('source changed', 'The source changed while copying', 'source'))
 
 
+PREP_PLAIN = (('tracks mp4 cannot preserve', "DVD subtitles can't be kept"),
+              ('without changing hdr', "Its HDR picture can't be copied"),
+              ('rpu remapping', "Its Dolby Vision can't be copied"))
+
+
+def prep_problems(state, caps=None, profile_work=None):
+    """Preparation problems as page entries (kind 'prepare'): the same shape as debrid_drive.problems() plus 'id'."""
+    import drivelibrary
+    import library_files as lf
+    import prepare_downloads
+    out = []
+    for p in prepare_downloads.preparation_problems(state):
+        error = p['error']
+        low = error.lower()
+        reason = next((words for key, words in PREP_PLAIN if key in low), '')
+        if not reason:
+            reason = ('Stopped · it will try again' if not p['blocked'] else (error.split(': ', 1)[-1].split('; ')[0][:50] or 'Kept as it is'))
+        info = drivelibrary.parse(p['name'])
+        what_ = 'Episode' if info.get('season') else 'Movie'
+        retryable = not prepare_downloads.cannot_prepare(error, caps or {})
+        out.append({'kind': 'prepare', 'title': drivelibrary.display_title(p['name']), 'reason': reason, 'error': error, 'id': p['id'],
+                    'name': p['name'], 'key': 'prep:' + p['id'], 'job_kind': 'episode' if info.get('season') else 'movie',
+                    'sub': ' · '.join(x for x in (what_, lf.size_text(p['size'])) if x), 'blocked': p['blocked'],
+                    'retryable': retryable, 'finished': 0, 'hash': '', 'index': -1})
+    return out
+
+
 def plain(problem):
     """(short reason, group) for a debrid_drive.problems() entry."""
+    if problem['kind'] == 'prepare':
+        return problem['reason'], 'prepare'
     if problem['kind'] == 'cancelled':
         return 'Cancelled', 'cancelled'
     if problem['kind'] == 'network':
@@ -80,7 +110,7 @@ def model(found, filter_='all', now=None, slots=40, poster=lambda problem: ''):
         groups[group].append(dict(p, why=reason, group=group))
     props = {'filter': filter_, 'sum.any': 'true' if found else '', 'empty': '' if found else 'true',
              'sum.retry': str(len(groups['retry'])), 'sum.source': str(len(groups['source'])),
-             'sum.cancelled': str(len(groups['cancelled'])), 'retry.label': '', 'clear.label': '', 'foot': '', 'more': '', 'none': ''}
+             'sum.prepare': str(len(groups['prepare'])), 'sum.cancelled': str(len(groups['cancelled'])), 'retry.label': '', 'clear.label': '', 'foot': '', 'more': '', 'none': ''}
     entries = []
     shown = [key for key, _ in GROUPS if filter_ in ('all', key)]
     for key, title in GROUPS:
@@ -110,14 +140,19 @@ def model(found, filter_='all', now=None, slots=40, poster=lambda problem: ''):
             continue
         when = ago(e.get('finished'), now)
         props[k + 'title'] = e['title']
-        props[k + 'sub'] = what(e)
+        props[k + 'sub'] = e.get('sub') or what(e)
         props[k + 'why'] = ('Cancelled %s' % when) if e['group'] == 'cancelled' and when else e['why']
         props[k + 'whyc'] = TINT[e['group']]
-        props[k + 'act'] = ACTION[e['group']]
+        props[k + 'act'] = ('Retry' if e.get('retryable') else 'Find') if e['group'] == 'prepare' else ACTION[e['group']]
         props[k + 'pos'] = e['pos']
         props[k + 'poster'] = poster(e)
     if groups['retry'] and filter_ in ('all', 'retry'):
         props['retry.label'] = 'Retry %d' % len(groups['retry'])
+    again = [p for p in groups['prepare'] if p.get('retryable')]
+    if again and filter_ == 'prepare':
+        props['retry.label'] = 'Try Again %d' % len(again)
+    if groups['prepare'] and filter_ == 'prepare':
+        props['foot'] = ('These are on Google Drive and play in Kodi. Preparing only makes them fast to open and ready for AirPlay.')
     if groups['cancelled'] and filter_ == 'cancelled':
         props['foot'] = ('Cancelled copies stay listed so you can restart them. Clearing removes them from this list only; '
                          'nothing on Google Drive changes.')
@@ -131,6 +166,13 @@ def sheet(problem):
     """The choice sheet for a row (board C1): the whole reason and every choice. Returns (spec, actions)."""
     group = problem['group']
     rows, actions = [], []
+    if group == 'prepare':
+        # Board E2: nothing is deleted, so nothing is red.
+        rows = [{'label': 'Find Another Version'}, {'label': 'Try Again'}, {'label': 'Keep as It Is'}]
+        why = ("It has DVD picture subtitles or a second video track an MP4 can't keep, so it isn't made ready for AirPlay. "
+               if 'cannot preserve' in str(problem.get('error') or '') else '%s. ' % problem['why'])
+        return {'heading': problem['title'], 'sub': (why + 'Nothing was lost: it is on Google Drive and still plays in Kodi.')[:220],
+                'rows': rows}, ['find', 'retry', 'keep']
     if group != 'cancelled':
         rows.append({'label': 'Find Another Source'});actions.append('find')
     rows.append({'label': 'Restart' if group == 'cancelled' else 'Try This Source Again'});actions.append('retry')
@@ -167,11 +209,15 @@ def run():
 
     class Page(xbmcgui.WindowXML):
         def onInit(self):
-            self.filter = 'all'
+            self.filter = 'prepare' if 'prepare' in sys.argv[1:] else 'all'   # Library status › Review opens the Prepare filter
             self.draw()
 
         def draw(self):
-            self.found = debrid_drive.problems(debrid_drive.load(profile))
+            import prepare_downloads
+            self.caps = prepare_downloads.capabilities(profile)
+            # What the owner asked for shows at once (the service applies it at its next pass).
+            queue = prepare_downloads.apply_to(prepare_downloads.load(profile), prepare_downloads.pending_requests(profile), time.time())
+            self.found = debrid_drive.problems(debrid_drive.load(profile)) + prep_problems(queue, self.caps)
             props, self.entries = model(self.found, self.filter, poster=poster)
             for key, value in props.items():
                 self.setProperty(key, str(value))
@@ -179,7 +225,26 @@ def run():
         def note(self, text):
             xbmcgui.Dialog().notification('Download problems', text, xbmcgui.NOTIFICATION_INFO, 3000)
 
+        def act_prepare(self, action, problem):
+            import prepare_downloads
+            if action == 'retry':
+                why = prepare_downloads.cannot_prepare(problem.get('error'), self.caps)
+                if why:   # P6: not tried again for nothing
+                    if xbmcgui.Dialog().yesno('Can\'t be prepared yet', "This video can't be made ready for AirPlay yet: %s.\nIt still plays in Kodi as it is." % why,
+                                              nolabel='OK', yeslabel='Find Another Version'):
+                        self.act('find', problem)
+                    return
+                prepare_downloads.request(profile, 'retry', problem['id'])
+                self.note('Preparing it again')
+            elif action == 'keep':
+                prepare_downloads.request(profile, 'keep', problem['id'])
+                self.note('Kept as it is')
+            elif action == 'find':
+                xbmc.executebuiltin('ActivateWindow(Videos,%s,return)' % search_path(problem))
+
         def act(self, action, problem):
+            if problem.get('kind') == 'prepare':
+                return self.act_prepare(action, problem)
             if action == 'retry':
                 if problem['group'] == 'cancelled':   # the cancel request would stop it again
                     import transfer_control
@@ -197,6 +262,12 @@ def run():
                 self.close();return
             if page.FILTER0 <= control < page.FILTER0 + len(page.FILTERS):
                 self.filter = page.FILTERS[control - page.FILTER0][0]
+            elif control == page.RETRY and self.filter == 'prepare':
+                import prepare_downloads
+                again = [p for p in self.found if p.get('kind') == 'prepare' and p.get('retryable')]
+                for p in again:
+                    prepare_downloads.request(profile, 'retry', p['id'])
+                self.note('%d back in line' % len(again))
             elif control == page.RETRY:
                 keys = {e['key'] for e in self.entries if e.get('group') == 'retry'}
                 if self.filter == 'all':   # every one that can try again, not only those with a slot
@@ -213,7 +284,8 @@ def run():
                 e = self.entries[control - page.ACT] if control - page.ACT < len(self.entries) else {}
                 if 'title' not in e:
                     return
-                self.act({'retry': 'retry', 'source': 'find', 'cancelled': 'retry'}[e['group']], e)
+                self.act({'retry': 'retry', 'source': 'find', 'cancelled': 'retry',
+                          'prepare': 'retry' if e.get('retryable') else 'find'}[e['group']], e)
             elif page.ROW <= control < page.ROW + page.SLOTS:
                 e = self.entries[control - page.ROW] if control - page.ROW < len(self.entries) else {}
                 if 'title' not in e:

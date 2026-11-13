@@ -457,6 +457,43 @@ class DownloadProblemsPage(unittest.TestCase):
   self.assertEqual(cp.sheet(dict(found[3],why='Cancelled',group='cancelled'))[1],['retry','remove'])
   self.assertIn("R(9459,'Download problems','RunScript(service.kodi.ios.bootstrap,copy_problems)'",(root/'resources/lib/settings_page.py').read_text())
   self.assertIn("'copy_problems'",(root/'default.py').read_text())
+ def test_preparation_problems_are_listed_with_the_copy_problems(self):
+  # ISSUE-226 / P4 (approved board E): Naruto says problems on its show page and in Library status, so Download problems lists them.
+  import prepare_downloads as prep
+  root,cp=self.load()
+  dvd='This file has tracks MP4 cannot preserve; original retained'
+  state={'jobs':{'a':{'source':{'id':'a','name':'Naruto Shippuuden S01E09.mkv','size':300*1024**2},'status':'waiting','blocked':True,'error':dvd},
+                 'b':{'source':{'id':'b','name':'Naruto Shippuuden S01E10.mkv','size':200*1024**2},'status':'waiting','blocked':True,'error':dvd},
+                 'c':{'source':{'id':'c','name':'Fall.2.2026.mkv','size':3*1024**3},'status':'failed','error':'Drive file check: HTTP 500'},
+                 'd':{'source':{'id':'d','name':'Kept.2020.mkv'},'status':'waiting','blocked':True,'error':dvd,'kept':True},
+                 'e':{'source':{'id':'e','name':'Slow.2019.mkv'},'status':'waiting','blocked':True,'repack_failed':True,'error':'MP4 packet: x'},
+                 'f':{'source':{'id':'f','name':'Done.2018.mkv'},'status':'done'}}}
+  self.assertEqual(sorted(p['id'] for p in prep.preparation_problems(state)),['a','b','c'])   # kept, done and repack_failed are not problems
+  need=prep.problem_need(state)
+  self.assertEqual((need['title'],need['button']),("2 can't be made ready",'Review'));self.assertIn('copy_problems,prepare',need['action'])
+  self.assertIsNone(prep.problem_need({'jobs':{}}))
+  found=cp.prep_problems(state,{})
+  props,entries=cp.model(found+[{'title':'Heat','reason':'Cancelled','kind':'cancelled','job_kind':'movie','key':'h','error':'Cancelled'}],'all',now=1000,slots=12)
+  self.assertEqual((props['sum.prepare'],props['sum.cancelled']),('3','1'))
+  heads=[props['row.%d.head'%n] for n in range(12) if props['row.%d.head'%n]]
+  self.assertEqual(heads,['PREPARING FOR KODI AND AIRPLAY · 3','CANCELLED BY YOU · 1'])
+  props,entries=cp.model(found,'prepare',now=1000,slots=12)
+  self.assertEqual((props['row.1.title'],props['row.1.act'],props['row.1.why']),('Fall 2 (2026)','Retry','Stopped · it will try again'))   # line order
+  self.assertEqual((props['row.2.title'],props['row.2.sub'],props['row.2.why'],props['row.2.act'],props['row.2.whyc']),
+                   ('Naruto Shippuuden · S1 E9','Episode · 300 MB',"DVD subtitles can't be kept",'Find','orange'))
+  self.assertEqual(props['retry.label'],'Try Again 1');self.assertIn('play in Kodi',props['foot'])
+  props,_=cp.model(cp.prep_problems(state,{'dvd_subs':True}),'prepare',now=1000)
+  self.assertEqual(props['retry.label'],'Try Again 3')                                 # a converter that keeps them: all can retry
+  spec,actions=cp.sheet(dict([f for f in found if f['id']=='a'][0],why="DVD subtitles can't be kept",group='prepare'))
+  self.assertEqual(actions,['find','retry','keep']);self.assertEqual([r['label'] for r in spec['rows']],['Find Another Version','Try Again','Keep as It Is'])
+  self.assertIn('Nothing was lost',spec['sub']);self.assertFalse(any(r.get('tint') for r in spec['rows']))
+ def test_the_page_has_four_tiles_and_five_filters(self):
+  import portrait,copy_problems_page as page
+  xml=page.page(portrait)
+  self.assertEqual(len(page.FILTERS),5);self.assertIn('id="%d"'%(page.FILTER0+4),xml);self.assertIn('Not ready',xml)
+  root,_=self.load()
+  self.assertIn("'prepare' in sys.argv[1:]",(root/'copy_problems.py').read_text())
+  self.assertIn('prepare_downloads.problem_need(prep)',(root/'service.py').read_text())
  def test_retry_and_remove_one_problem_by_its_key(self):
   with tempfile.TemporaryDirectory() as p:
    state={'jobs':[{'hash':'a'*40,'title':'A','kind':'movie','status':'failed','error':'Problem: x','added':1},

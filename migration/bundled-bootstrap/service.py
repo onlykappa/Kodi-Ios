@@ -277,10 +277,13 @@ def run():
  def work_inputs():
   import debrid_drive,prepare_downloads,preparation_runtime
   phone=[u for u in notices.uploads(profile) if u.get('source')=='phone']
-  return {'prep':prepare_downloads.load(profile),'runtime':preparation_runtime.read(profile),'debrid':debrid_drive.load(profile),
+  prep=prepare_downloads.load(profile);flags=work_state.flags(profile)
+  need=prepare_downloads.problem_need(prep)   # board E3: videos that can't be made ready, with Review
+  if need:flags=dict(flags,needs=list(flags['needs'])+[need])
+  return {'prep':prep,'runtime':preparation_runtime.read(profile),'debrid':debrid_drive.load(profile),
           'phone':phone,'torrents':notices.downloads(),
           'paused':{k:transfer_control.paused(profile,k) for k in transfer_control.KINDS},'slow':slowdown.reason(),
-          **work_state.flags(profile)}
+          **flags}
  threading.Thread(target=work_state.publish,args=(profile,work_inputs,monitor.waitForAbort),
                   kwargs={'set_property':window.setProperty,'log':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGWARNING)},daemon=True).start()
  # A torrent whose real name turns out to be another film (owner, build 156: Fall 2022 → Fall.2.Deadpoint.2026) is

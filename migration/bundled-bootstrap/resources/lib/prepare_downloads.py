@@ -101,6 +101,25 @@ def cannot_prepare(problem,supported=None):
  if KEPT_TRACKS in str(problem or '') and not (supported or {}).get('dvd_subs'):
   return "it has DVD picture subtitles or a second video track an MP4 can't keep"
  return ''
+def preparation_problems(state):
+ """ISSUE-226 / P4: videos on Drive that could not be made ready for Kodi and AirPlay: [{'id','name','error','blocked','size'}].
+ blocked: kept as they are (a track an MP4 can't keep, HDR it can't copy); not blocked: stopped, tried again by itself. A
+ video the owner kept, one that is done, and one whose faster start failed (it plays; repack_failed) are not problems."""
+ out=[]
+ for job in ((state or {}).get('jobs') or {}).values():
+  if job.get('repack_failed') or job.get('kept') or job.get('status') in ('done','superseded'):continue
+  if not (job.get('blocked') or job.get('status')=='failed'):continue
+  source=job.get('source') or {}
+  out.append({'id':str(source.get('id') or ''),'name':str(source.get('name') or ''),'error':str(job.get('error') or ''),
+              'blocked':bool(job.get('blocked')),'size':int(source.get('size') or 0)})
+ return sorted(out,key=lambda p:line_key(p['name']))
+def problem_need(state):
+ """The Library status 'Needs you' entry (board E3): how many videos can't be made ready. None when there are none."""
+ n=sum(1 for p in preparation_problems(state) if p['blocked'])
+ if not n:return None
+ return {'key':'prep_problems','title':'%d can\'t be made ready'%n if n>1 else '1 can\'t be made ready',
+         'text':'They play in Kodi; they just aren\'t made ready for AirPlay. Review them to try again, keep them as they are or find another version.',
+         'button':'Review','action':'RunScript(service.kodi.ios.bootstrap,copy_problems,prepare)'}
 def location(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap'/FILE
 def load(profile):return drivelibrary.load_json(str(location(profile)),{'jobs':{},'sessions':{},'last_scan':0})
 def save(profile,state):drivelibrary.save_json(str(location(profile)),state)

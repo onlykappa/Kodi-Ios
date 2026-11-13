@@ -1,6 +1,6 @@
 """Settings › Library › Download problems (owner-approved mockup, docs/design/download-problems-mockups.html).
 
-Draws IOSDownloadProblems.xml: back, large title, the summary card (can try again · need a new source · cancelled),
+Draws IOSDownloadProblems.xml: back, large title, the summary card (try again · new source · not ready · cancelled),
 the segmented filter, then pooled slots that are either a section header or a problem row (poster, title, one grey
 line, a short reason in its colour, one action capsule), the white Retry button, the red Clear Cancelled link and
 the empty state. copy_problems.py fills it. Kodi skin XML, portrait units (2.687 per pt); existing helpers only:
@@ -8,7 +8,7 @@ status_ui cards, rows and text, notifications_skin's segmented control, portrait
 """
 WINDOW = 'IOSDownloadProblems.xml'
 BACK, RETRY, CLEAR = 9001, 9010, 9011
-FILTERS = (('all', 'All'), ('retry', 'Retry'), ('source', 'Source'), ('cancelled', 'Cancelled'))
+FILTERS = (('all', 'All'), ('retry', 'Retry'), ('source', 'Source'), ('prepare', 'Prepare'), ('cancelled', 'Cancelled'))
 FILTER0 = 9101
 ROW, ACT, SLOTS, ROW_H, HEAD_H = 9200, 9400, 40, 204, 118
 HEAD_CLEAR = 9500   # DEC-044 board C: Clear on the "Cancelled by you" heading, one id per slot
@@ -18,10 +18,10 @@ WHY = (('orange', 'FFFF9F0A'), ('red', 'FFFF453A'), ('grey', '99EBEBF5'))
 
 def _summary(p, u):
     S, w = p.SIDE, p.WIDTH - 2 * p.SIDE
-    tw = (w - 2 * u.PAD - 2 * 21) // 3
+    tw = (w - 2 * u.PAD - 3 * 21) // 4
     b = u.card(p, S, 0, w, 300)
-    for n, (key, label, tint) in enumerate((('sum.retry', 'Can try again', p.ACCENT), ('sum.source', 'New source', u.ORANGE),
-                                           ('sum.cancelled', 'Cancelled', p.WHITE))):
+    for n, (key, label, tint) in enumerate((('sum.retry', 'Try again', p.ACCENT), ('sum.source', 'Source', u.ORANGE),
+                                           ('sum.prepare', 'Not ready', u.ORANGE), ('sum.cancelled', 'Cancelled', p.WHITE))):
         x = S + u.PAD + n * (tw + 21)
         b += u.card(p, x, u.PAD, tw, 160, u.SURF2)
         b += u.text(p, x + 26, u.PAD + 14, tw - 40, 64, u.P(key), 'p_h2', tint)
@@ -33,7 +33,9 @@ def _summary(p, u):
 def _slot(p, u, n):
     S, w, M = p.SIDE, p.WIDTH - 2 * p.SIDE, p.MEDIA
     k = 'row.%d.' % n
-    head = u.text(p, S + 26, 40, w - 52 - 260, 60, u.P(k + 'head'), 'p_foot_b', p.GREY)
+    # The heading has the room Clear needs only when it carries Clear (a long heading such as "Preparing for Kodi and AirPlay").
+    head = ('<control type="group"><visible>%s</visible>%s</control>' % (u.has(k + 'headclear'), u.text(p, S + 26, 40, w - 52 - 260, 60, u.P(k + 'head'), 'p_foot_b', p.GREY)) +
+            '<control type="group"><visible>%s</visible>%s</control>' % (u.neg(u.has(k + 'headclear')), u.text(p, S + 26, 40, w - 52, 60, u.P(k + 'head'), 'p_foot_b', p.GREY)))
     # Board C (DEC-044): the Cancelled section's heading carries Clear (blue text, 118-unit hit area).
     head += '<control type="group"><visible>%s</visible>%s</control>' % (
         u.has(k + 'headclear'), u.link(p, HEAD_CLEAR + n, S + w - 260, 10, 234, 118, u.P(k + 'headclear')))
