@@ -225,7 +225,10 @@ class PortraitTests(unittest.TestCase):
   for name in own:(self.skin/'1080i'/name).write_text('<window>patched</window>')
   self.assertEqual(portrait.refresh_if_needed(self.skin,self.profile),[])
  def test_reload_only_for_what_kodi_already_read(self):
-  self.assertFalse(portrait.needs_reload(['portrait/Custom_1105_Search.xml','portrait/MyVideoNav.xml']))
+  self.assertFalse(portrait.needs_reload(['portrait/MyVideoNav.xml','portrait/IOSLibraryFiles.xml']))
+  # Build 319: a changed custom window (the Library tab's Custom_1103_Hub) kept its old layout until the next start.
+  self.assertTrue(portrait.needs_reload(['portrait/Custom_1103_Hub.xml']))
+  self.assertTrue(portrait.needs_reload(['portrait/Custom_1105_Search.xml','portrait/MyVideoNav.xml']))
   for path in ('portrait/Font.xml','portrait/Includes.xml','portrait/Home.xml','portrait/DialogBusy.xml','extras/portrait/glass.png','addon.xml'):
    self.assertTrue(portrait.needs_reload(['portrait/MyVideoNav.xml',path]),path)
   self.assertTrue(portrait.needs_reload(['portrait/Custom_1105_Search.xml'],lambda c:c=='Window.IsVisible(Custom_1105_Search.xml)'))
@@ -240,7 +243,7 @@ class PortraitTests(unittest.TestCase):
   portrait.build(self.skin,self.profile);ran=[];xbmc=X()
   real=portrait.refresh_if_needed
   try:
-   portrait.refresh_if_needed=lambda skin,profile:['portrait/Custom_1105_Search.xml']
+   portrait.refresh_if_needed=lambda skin,profile:['portrait/IOSLibraryFiles.xml']
    portrait.refresh_skin(xbmc,ran.append,self.skin,self.profile);self.assertNotIn('ReloadSkin()',ran)
    self.assertIn('no reload needed',xbmc.logs[-1])
    portrait.refresh_if_needed=lambda skin,profile:['portrait/Font.xml','portrait/Custom_1105_Search.xml']
@@ -295,7 +298,7 @@ class PortraitTests(unittest.TestCase):
   self.assertFalse(portrait.in_progress({'label':'Popular','path':'plugin://x/?info=popular'}))
  def test_library_and_search_pages(self):
   lib=(self.skin/'portrait/Custom_1103_Hub.xml').read_text()
-  self.assertIn('RunScript(service.kodi.ios.bootstrap,library_manager,movie)',lib);self.assertIn('RunScript(service.kodi.ios.bootstrap,library_manager,tv)',lib)  # DEC-043: the file manager (board A)
+  self.assertIn('plugin://plugin.video.kodi.ios.watch/?action=library&amp;type=movie',lib);self.assertIn('plugin://plugin.video.kodi.ios.watch/?action=library&amp;type=tv',lib)  # owner: Home keeps the poster grid
   search=self.read('portrait/Custom_1105_Search.xml')
   self.assertIsNone(search.find('onload[.="RunScript(script.skinvariables)"]'))
   self.assertEqual(len(search.findall(".//control[@id='5100']/content/item")),len(portrait.CATEGORIES))

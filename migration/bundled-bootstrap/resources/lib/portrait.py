@@ -88,9 +88,8 @@ def titled_page(title,path):
 # Library: Kodi's own library together with the downloads kept in Google Drive › Kodi Downloads (owner, 2026-11-02:
 # "this needs to be linked to library, not gear to Drive"); the watch add-on lists both (ios_library.py).
 LIBRARY_PAGE='plugin://plugin.video.kodi.ios.watch/?action=library&type='
-# DEC-043 board A: the Library's rows open the file manager (library_manager.py), each on its own side of the switch.
-LIBRARY=[('Movies','film.png','RunScript(service.kodi.ios.bootstrap,library_manager,movie)'),
-         ('TV Shows','tv.png','RunScript(service.kodi.ios.bootstrap,library_manager,tv)')]
+# Owner (build 319): the Home Library tab keeps the poster grid; the file manager (DEC-043) opens from Settings › Library.
+LIBRARY=[('Movies','film.png',titled_page('Movies',LIBRARY_PAGE+'movie')),('TV Shows','tv.png',titled_page('TV Shows',LIBRARY_PAGE+'tv'))]
 TMDB='plugin://plugin.video.themoviedb.helper/'
 SEARCH_ACTION='ActivateWindow(Videos,%s?info=search&tmdb_type=multi,return)'%TMDB
 # Search page categories (TMDb TV genres) with their tile gradients.
@@ -1799,6 +1798,10 @@ def needs_reload(changed,visible=lambda condition:False):
  for path in changed:
   folder,_,name=path.rpartition('/')
   if folder not in (FOLDER,'1080i') or not name.endswith('.xml') or name in LOADED_AT_START:return True
+  # Build 319 (owner: "library is just sending me to my downloaded stuff"): Kodi registers the skin's custom windows
+  # (Custom_NNNN_*.xml, e.g. the Library tab's 1103/1104 hub) when the skin loads and keeps that layout, so a changed one
+  # showed its old buttons until the next start. They need a reload like the files loaded at start.
+  if name.startswith('Custom_'):return True
   if visible('Window.IsVisible(%s)'%name):return True
  return False
 
