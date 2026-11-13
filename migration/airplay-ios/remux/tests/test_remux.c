@@ -1703,6 +1703,44 @@ static long long bytes_to_open(const char *path) {
     AVIOContext *pb=f?f->pb:NULL;avformat_close_input(&f);if(pb){av_freep(&pb->buffer);avio_context_free(&pb);}
     fclose(c.f);return r<0?-1:c.bytes;
 }
+// F2 (PR #24 roadmap): several re-packages (picture copied, only the container and index move) at once, each on its own
+// thread as the add-on's preparation lanes run them, over HTTP like Drive. Each must finish, validate and keep the
+// original packets exactly as one run alone does. CHECK runs on the main thread only (its counters are not atomic).
+typedef struct {char input[1024],base[1024],err[512];int r,calls,bad;} parallel_run;
+static int parallel_progress(int stage,double done,double total,void *ctx) {
+    parallel_run *run=ctx;run->calls++;if(!(stage>=0 && stage<=4 && isfinite(done) && total>0))run->bad++;return 1;
+}
+static void *parallel_prepare(void *arg) {
+    parallel_run *run=arg;test_prepare_sink sink={0};sink.base=run->base;
+    run->r=kodi_airplay_prepare_to(run->input,preparation_write,&sink,parallel_progress,run,run->err,sizeof run->err);
+    for(int n=0;n<65;n++)if(sink.files[n])fclose(sink.files[n]);
+    return NULL;
+}
+static void test_preparation_parallel(const char *http_base) {
+    const char *files[]={"h264_aac_srt.mkv","hevc_ac3_ass.mkv","long_seek.mkv"};enum{N=3};
+    parallel_run runs[N];pthread_t threads[N];int started[N]={0};
+    {char drain[16384];while(kr_remux_log(drain,sizeof drain)>0){}}
+    for(int i=0;i<N;i++){
+        memset(&runs[i],0,sizeof runs[i]);
+        snprintf(runs[i].input,sizeof runs[i].input,"%s/%s",http_base,files[i]);
+        snprintf(runs[i].base,sizeof runs[i].base,"%s/parallel-prepared-%d",fixture_dir,i);
+        char output[1100];snprintf(output,sizeof output,"%s.mp4",runs[i].base);unlink(output);
+    }
+    for(int i=0;i<N;i++)started[i]=pthread_create(&threads[i],NULL,parallel_prepare,&runs[i])==0;
+    for(int i=0;i<N;i++)if(started[i])pthread_join(threads[i],NULL);
+    for(int i=0;i<N;i++){
+        CHECK(started[i] && runs[i].r==0,"F2: re-package %s beside two others: %s",files[i],runs[i].err);
+        if(!started[i] || runs[i].r)continue;
+        char remote[1200],output[1100],local[1100],err[512]="";
+        snprintf(remote,sizeof remote,"%s/parallel-prepared-%d.mp4",http_base,i);
+        snprintf(output,sizeof output,"%s.mp4",runs[i].base);snprintf(local,sizeof local,"%s/%s",fixture_dir,files[i]);
+        CHECK(kodi_airplay_verify(runs[i].input,remote,err,sizeof err)==0,"F2: parallel output validates for %s: %s",files[i],err);
+        uint8_t a[16],b[16];int aw,ah,an,bw,bh,bn;
+        CHECK(video_digest(local,a,&aw,&ah,&an)==0 && video_digest(output,b,&bw,&bh,&bn)==0 && !memcmp(a,b,16),
+              "F2: parallel re-package keeps the original packets for %s",files[i]);
+        CHECK(runs[i].calls>0 && !runs[i].bad,"F2: progress reported and bounded for %s (%d calls, %d bad)",files[i],runs[i].calls,runs[i].bad);
+    }
+}
 static void test_preparation_resume(const char *work,const char *http_base) {
     struct {const char *file;int same;} cases[]={{"long_seek.mkv",1},{"long_pgs.mkv",1},{"h264_ac3_dts_srt.mkv",0},{"resume_av1_hdr.mkv",0}};
     kodi_airplay_prepare_keep_image_subs(1);kr_video_set_encoder("mpeg4");kodi_airplay_prepare_marks(1);
@@ -2211,7 +2249,7 @@ int main(int argc, char **argv) {
         printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
     if (argc > 3 && !strcmp(argv[3], "--prepare-only")) {
-        test_preparation(work);test_audio_languages(work);test_preparation_http(argv[2],work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+        test_preparation(work);test_audio_languages(work);test_preparation_http(argv[2],work);test_preparation_stream(work,argv[2]);test_preparation_parallel(argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
     if (argc > 3 && !strcmp(argv[3], "--resume-only")) {
         test_preparation_resume(work,argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
@@ -2229,7 +2267,7 @@ int main(int argc, char **argv) {
         return failures ? 1 : 0;
     }
     test_preparation(work);test_audio_languages(work);
-    if (argc > 2){test_startup_cancel(argv[2]);test_prepared_indexed_open(argv[2],work);test_preparation_http(argv[2], work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);}
+    if (argc > 2){test_startup_cancel(argv[2]);test_prepared_indexed_open(argv[2],work);test_preparation_http(argv[2], work);test_preparation_stream(work,argv[2]);test_preparation_parallel(argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);}
     fixture fx[] = {
         { "h264_aac_srt.mkv", "avc1.42C0", "mp4a.40.2", 1, 1, 0, 0, "Hello from SRT" },
         { "hevc_ac3_ass.mkv", "hvc1.2.4.L", "ac-3", 1, 1, 1, 0, "Hello from ASS" },
