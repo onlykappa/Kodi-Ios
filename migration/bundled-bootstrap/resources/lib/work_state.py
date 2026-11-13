@@ -332,6 +332,20 @@ def _copy(debrid, now):
             'pct':0,'indeterminate':True,'queued':True,'rate':0.0,'eta_s':0,'tint':BLUE,'hash':job.get('hash','')}
 
 
+def next_what(job):
+    """Up next's word for a waiting job (PR #24 roadmap ticket, build-356 screenshot: re-packages read "Convert · 4.3 GB").
+    'faster start' for a known re-package (the picture is copied), 'convert' only when the probe says the picture is
+    re-encoded, 'prepare' while it is not known yet (a job is read when its turn comes)."""
+    if job.get('repack'):
+        return 'faster start'
+    probe = job.get('probe') or {}
+    if probe and probe.get('copy_video') is False:
+        return 'convert'
+    if probe.get('copy_video'):
+        return 'faster start'
+    return 'prepare'
+
+
 def _next(prep, running_name):
     """Up next, in the order the queue picks: [{'title', 'what', 'size', 'id'}]."""
     try:
@@ -344,7 +358,7 @@ def _next(prep, running_name):
             and (j.get('source') or {}).get('name') not in (running_name, _title(running_name) if running_name else None)]
     jobs.sort(key=lambda pair: order(*pair))
     return [{'id': str((j.get('source') or {}).get('id', '')), 'title': _title((j.get('source') or {}).get('name', '')),
-             'what': 'faster start' if j.get('repack') else 'convert', 'size': int((j.get('source') or {}).get('size') or 0)}
+             'what': next_what(j), 'size': int((j.get('source') or {}).get('size') or 0)}
             for _, j in jobs]
 
 

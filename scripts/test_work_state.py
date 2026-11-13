@@ -119,7 +119,13 @@ class Build192Causes(unittest.TestCase):
   prep={'jobs':{'a':job('Fall.2.mkv',repack=True,size=16.9*GB),'b':job('Scary.Movie.2026.mkv'),'c':job('Kept.mkv',kept=True),
                 'd':job('Blocked.mkv',blocked=True),'e':job('Done.mkv',status='done')}}
   s=ws.build({'prep':prep},NOW)
-  self.assertEqual([(n['title'],n['what']) for n in s['next']],[('Scary Movie (2026)','convert'),('Fall 2','faster start')])
+  self.assertEqual([(n['title'],n['what']) for n in s['next']],[('Scary Movie (2026)','prepare'),('Fall 2','faster start')])
+ def test_up_next_says_convert_only_when_the_picture_is_re_encoded(self):
+  # PR #24 ticket (build-356 screenshot: re-packages read "Convert · 4.3 GB"): not read yet says prepare.
+  self.assertEqual(ws.next_what({'repack':True}),'faster start')
+  self.assertEqual(ws.next_what({'probe':{'copy_video':True}}),'faster start')
+  self.assertEqual(ws.next_what({'probe':{'copy_video':False}}),'convert')
+  self.assertEqual(ws.next_what({}),'prepare')
 
 class InstantCancel(unittest.TestCase):
  """ISSUE-208 (owner: "deleting the download queue is also slow as hell, it needs to be instant")."""

@@ -3391,3 +3391,9 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - Retest: test_auto_season NeedsNoWork (MP4 beats MKV; H.264 = HEVC before Hi10P / AV1; a lower-quality MP4 never beats the
   chosen-quality MKV); test_deck_picker, test_season_sources, test_season_sheet, test_source_match, test_download_e2e pass.
   Phone: the next Build Season log should show fewer `repack` preparations when MP4 releases exist.
+
+## ISSUE-212 — Up next called every unread job "Convert", most of them re-packages (PR #24 roadmap ticket, build-356 screenshot) — fixed in code
+- **Seen:** Library status Up next: 25 rows "Convert · 0.2–4.3 GB" while the log showed them to be re-packages (picture copied, only the container / index moved).
+- **Cause:** `job['repack']` is set only when a job is read (`skip_compatible`, at its turn), so every job not yet read fell to "convert".
+- **Fix:** `work_state.next_what(job)`: "faster start" for a known re-package (repack, or a probe with `copy_video`), "convert" only when the probe says the picture is re-encoded, "prepare" while it is not known yet. Used by Up next (work_state._next → Library status, bell) and the Transfers page (transfers.queue_lists). Wording only, no new colours, tokens or helpers (APPLE-UI-POLICY).
+- **Retest:** test_work_state (next_what cases, Up next list), test_repack_label (prepare for an unread job), test_library_status.

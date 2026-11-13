@@ -317,7 +317,7 @@ class TapEveryButton(unittest.TestCase):
   self.assertEqual((sheet['action1.label'],sheet['action2.label'],sheet['action3.label']),('Start converting now','Prepare next','Keep as it is'))
   self.assertEqual((sheet['action2.colour'],sheet['action3.colour']),('FFFFFFFF','FFFF453A'))
   self.assertEqual(prep.pending_requests(self.profile),[{'action':'next','id':'w1'}])
-  waiting=[r for r in seen[0] if r[1]=='waiting'];self.assertEqual(waiting[0][0],'w1');self.assertTrue(waiting[0][2].startswith('convert'))
+  waiting=[r for r in seen[0] if r[1]=='waiting'];self.assertEqual(waiting[0][0],'w1');self.assertTrue(waiting[0][2].startswith('prepare'))
   self.assertIn(('note','Prepare next: Fall (2022)'),kodi.notes)
   queue=prep.Queue.__new__(prep.Queue);queue.profile=self.profile;queue.clock=lambda:7000;queue.state=prep.load(self.profile);queue.commit=lambda:None
   self.assertTrue(queue.apply_requests());self.assertEqual(queue.state['jobs']['a']['priority'],7000);self.assertEqual(prep.pending_requests(self.profile),[])
