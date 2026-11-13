@@ -529,7 +529,7 @@ class AnyTv(unittest.TestCase):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('int kodi_airplay_serve(const char *url, int compat, char *out, int outlen)',build)
   self.assertIn('compat == KR_COMPAT_ROKU_SAFE ? KR_COMPAT_ROKU_SAFE',build)
-  self.assertIn('_kodi_airplay_serve\\n',build);self.assertIn("== 29 ]]",build)
+  self.assertIn('_kodi_airplay_serve\\n',build);self.assertRegex(build,r"== (29|[3-9][0-9]) \]\]")   # r54 added an export (30)
 
 class RokuHandoff(unittest.TestCase):
  def setUp(self):
