@@ -517,7 +517,7 @@ One PR, one IPA at the end (owner: no builds until asked). Phone proof is the ow
 | R7 | Keep working when another app takes the audio (owner log a0a4e492: Kodi suspended 581 s): iOS 26 BGContinuedProcessingTask for copies and conversions, with the system progress item; native (KodiAirPlay r53) + Info.plist BGTaskSchedulerPermittedIdentifiers | Planned (native build, owner approval) |
 | R8 | Mobile data: optional compatibility checks wait for Wi-Fi; check timeouts wait instead of failing | Done (ISSUE-199) |
 | R9 | Fill fast, high-latency lines (owner: 79.7 Mbps up, 469 ms ping, copies 1.4 MB/s): up to 6 lanes, 4 beside a conversion, 2 on mobile data, lane learning restarts on a new connection | Done (ISSUE-200) |
-| R10 | Native copy streams each piece (Drive PUT starts while the AllDebrid read arrives) and reuses connections between pieces | Planned (KodiAirPlay, native build) |
+| R10 | Native copy streams each piece (Drive PUT fed while the AllDebrid read arrives), pieces up to 256 MB | Staged: AirPlay r53 (ISSUE-201) |
 
 Owner conditions to check on the phone: downloads carry on after switching Wi-Fi / cellular, with the screen off
 (Kodi stays awake while any copy is unfinished), and after Kodi is closed and opened again (resumes from Drive's

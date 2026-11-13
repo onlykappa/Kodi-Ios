@@ -290,7 +290,8 @@ class Drive(object):
   gate=slowdown.Gate(keep_going=keep_going);chunks=StreamChunks(getattr(copy_to,'max',None),cap=getattr(copy_to,'max',None))
   # Owner log 4beafff6 (build 314): from 1 MB the pieces took the first minute to reach 16 MB; they start at 8 MB (the
   # size every framework takes) and still halve on a timeout.
-  chunks.current=min(chunks.limit,8*1024*1024)
+  # r53 (ISSUE-201): a streamed piece holds no memory and pays its round trips once, so it starts at 32 MB.
+  chunks.current=min(chunks.limit,(32 if getattr(copy_to,'streams',False) else 8)*1024*1024)
   failures=0;pace=Pace()
   while offset<size:
    if not keep_going():raise Stop()

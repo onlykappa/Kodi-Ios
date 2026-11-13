@@ -70,6 +70,11 @@ def copier(lib):
         if not 0<=used.value<=BODY_MAX:raise ConnectionError('Invalid native copy receipt')
         return status,parse_headers(headers.value.decode('utf-8','replace')),body.raw[:used.value]
     copy.max=largest
+    # r53 (ISSUE-201): the framework streams each piece (Drive PUT fed while the AllDebrid GET arrives).
+    streams=getattr(lib,'kodi_http_copy_streams',None)
+    if streams is not None:
+        streams.argtypes=[];streams.restype=ctypes.c_int
+    copy.streams=bool(streams is not None and streams()==1)
     return copy
 
 

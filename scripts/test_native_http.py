@@ -37,6 +37,9 @@ class Native(unittest.TestCase):
   self.assertEqual(seen[-1],(big,32.0))                        # a 32 MB piece gets 32 s, not 20
   old=native_http.copier(types.SimpleNamespace(kodi_http_copy=fn))
   self.assertEqual(old.max,8*1024*1024)
+  self.assertFalse(old.streams)
+  streamed=native_http.copier(types.SimpleNamespace(kodi_http_copy=fn,kodi_http_copy_max=lambda:256*1024*1024,kodi_http_copy_streams=lambda:1))
+  self.assertEqual((streamed.max,streamed.streams),(256*1024*1024,True))   # r53 (ISSUE-201)
   with self.assertRaises(ValueError):old('s',{},'d',{},0,big,10*big)
   chunks=driveupload.StreamChunks(big,cap=big);chunks.current=chunks.minimum
   for _ in range(15):chunks.observe(chunks.current,2.0,0)   # three fast pieces per doubling: 1 to 32 MB

@@ -1,15 +1,15 @@
 {
   "framework_release": {
+    "tag": "kodi-airplay-r53",
+    "asset": "KodiAirPlay.framework.zip",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "previous": {
     "tag": "kodi-airplay-r52",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "084b7672700448aeff983a4cac39e2a6e0025f3930d003c21e96a63e91bf71b9"
   },
-  "previous": {
-    "tag": "kodi-airplay-r51",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "55f6d2f6b77dc1b922c2f29375accc54bf80116c7e0c515dc3dc3a6e10b453ab"
-  },
   "source_commit": "eeb76027c86cb71b9dd75e70180b46c9744e84f1",
   "verified_run": 43359694650,
-  "pin_note": "r52 (no compat restart while the TV waits for a video segment from a slow source; ISSUE-186) pinned from airplay-ios run 43359694650 (eeb7602): release zip downloaded, sha256 matches the release notes and the asset digest; arm64 Mach-O containing the slow-source note."
+  "staged_note": "r53 staged (ISSUE-201: AllDebrid-to-Drive pieces stream, the Drive PUT fed while the AllDebrid GET arrives; pieces up to 256 MB; kodi_http_copy_streams): built and published by airplay-ios on PR #23; sha256, source_commit and verified_run are pinned from that run."
 }

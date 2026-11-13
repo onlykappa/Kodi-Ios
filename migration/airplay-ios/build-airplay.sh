@@ -885,10 +885,94 @@ static NSString *httpField(const char *fields,NSString *key) {
             return [[line substringFromIndex:colon.location+1] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
     } return nil;
 }
-// r50 (owner log 31996cd8, a 182/101 Mbps line at ~2.8 MB/s): pieces up to 32 MB, so the wait for AllDebrid's
-// first byte and Drive's answer is paid four times less often. Python asks kodi_http_copy_max (absent: 8 MB).
-#define KODI_HTTP_COPY_MAX (32*1024*1024)
+// r53 (owner logs a0a4e492 + Speedtest, 115 Mbps up, copies at 1.4 MB/s; ISSUE-201): one piece used to be read
+// whole from AllDebrid, then sent whole to Drive, then waited for Drive's answer: each side idle more than half the
+// time. Now the piece streams: the Drive PUT starts at once and reads from a 1 MB pipe that the AllDebrid GET fills
+// as its bytes arrive, so a lane runs at the slower side's speed instead of well under both. Nothing larger than the
+// pipe is held in memory, so pieces may be large (256 MB): the per-piece round trips nearly vanish. Python asks
+// kodi_http_copy_max (absent: 8 MB) and kodi_http_copy_streams (absent: the piece is read then sent).
+#define KODI_HTTP_COPY_MAX (256*1024*1024)
 __attribute__((visibility("default"))) int kodi_http_copy_max(void) { return KODI_HTTP_COPY_MAX; }
+__attribute__((visibility("default"))) int kodi_http_copy_streams(void) { return 1; }
+@interface KodiCopyLeg : NSObject
+@property (nonatomic) BOOL isPut;
+@property (nonatomic) long long offset, want, total, seen;
+@property (nonatomic, strong) NSOutputStream *sink;
+@property (nonatomic, strong) NSInputStream *source;
+@property (nonatomic) BOOL gaveSource;
+@property (nonatomic, strong) NSHTTPURLResponse *response;
+@property (nonatomic, strong) NSMutableData *body;
+@property (nonatomic, strong) NSError *error;
+@property (nonatomic, strong) NSString *problem;
+@property (nonatomic, strong) dispatch_semaphore_t done;
+@end
+@implementation KodiCopyLeg
+@end
+@interface KodiCopyDelegate : NSObject <NSURLSessionDataDelegate>
+@property (nonatomic, strong) KodiCopyLeg *get, *put;
+@end
+@implementation KodiCopyDelegate
+- (KodiCopyLeg *)legFor:(NSURLSessionTask *)task { return [task.taskDescription isEqualToString:@"put"] ? self.put : self.get; }
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response
+        newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest *))completionHandler {
+    // Only the GET follows redirects (AllDebrid's link to its file server): https only, and the source's
+    // credentials never travel to another host.
+    NSURL *old=task.originalRequest.URL, *next=request.URL;
+    if ([task.taskDescription isEqualToString:@"put"] || ![next.scheme isEqualToString:@"https"] && [old.scheme isEqualToString:@"https"]) {
+        completionHandler(nil); return;
+    }
+    NSMutableURLRequest *r=[request mutableCopy];
+    if (![old.host isEqualToString:next.host]) { [r setValue:nil forHTTPHeaderField:@"Authorization"]; [r setValue:nil forHTTPHeaderField:@"Cookie"]; }
+    completionHandler(r);
+}
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)task didReceiveResponse:(NSURLResponse *)response
+        completionHandler:(void (^)(NSURLSessionResponseDisposition))completionHandler {
+    KodiCopyLeg *leg=[self legFor:task];
+    leg.response=[response isKindOfClass:NSHTTPURLResponse.class] ? (NSHTTPURLResponse *)response : nil;
+    if (!leg.isPut) {
+        long long first=-1,last=-1,size=-1; int parsed=0; NSInteger status=leg.response.statusCode;
+        NSString *range=leg.response.allHeaderFields[@"Content-Range"] ?: [leg.response valueForHTTPHeaderField:@"Content-Range"];
+        const char *span=range.UTF8String ?: "";
+        BOOL exact=status==206 && sscanf(span,"bytes %lld-%lld/%lld%n",&first,&last,&size,&parsed)==3 && !span[parsed] &&
+                   first==leg.offset && last==leg.offset+leg.want-1 && size==leg.total;
+        if (!(exact || (status==200 && leg.offset==0 && leg.want==leg.total))) {
+            leg.problem=status>=300 ? @"source refused the range" : @"source answered another range";
+            completionHandler(NSURLSessionResponseCancel); return;
+        }
+    }
+    completionHandler(NSURLSessionResponseAllow);
+}
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)task didReceiveData:(NSData *)data {
+    KodiCopyLeg *leg=[self legFor:task];
+    if (leg.isPut) { if (leg.body.length+data.length<=1024*1024) [leg.body appendData:data]; return; }
+    if (leg.seen+(long long)data.length>leg.want) { leg.problem=@"source sent more than asked"; [task cancel]; return; }
+    // Blocks this copy's own delegate queue until the PUT has room: the download never runs ahead of the upload by
+    // more than the pipe.
+    __block BOOL ok=YES;
+    [data enumerateByteRangesUsingBlock:^(const void *bytes, NSRange range, BOOL *stop) {
+        const uint8_t *p=bytes; NSUInteger left=range.length;
+        while (left) {
+            NSInteger wrote=[leg.sink write:p maxLength:left];
+            if (wrote<=0) { ok=NO; *stop=YES; return; }
+            p+=wrote; left-=(NSUInteger)wrote;
+        }
+    }];
+    if (!ok) { leg.problem=@"upload stopped taking the piece"; [task cancel]; return; }
+    leg.seen+=(long long)data.length;
+}
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task
+        needNewBodyStream:(void (^)(NSInputStream *))completionHandler {
+    KodiCopyLeg *leg=self.put;
+    if (leg.gaveSource) { completionHandler(nil); return; }   // a stream cannot be read twice: the PUT fails, Python asks Drive
+    leg.gaveSource=YES; completionHandler(leg.source);
+}
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
+    KodiCopyLeg *leg=[self legFor:task];
+    if (error && !leg.error) leg.error=error;
+    if (!leg.isPut) [leg.sink close];   // the PUT sees the end of its body (short if the GET stopped early)
+    dispatch_semaphore_signal(leg.done);
+}
+@end
 // One resumable piece stays entirely native. Python keeps only status, offsets and the upload receipt.
 __attribute__((visibility("default"))) int kodi_http_copy(const char *source,const char *source_headers,
         const char *target,const char *target_headers,long long offset,int count,long long total,double timeout,
@@ -898,44 +982,69 @@ __attribute__((visibility("default"))) int kodi_http_copy(const char *source,con
         if(out_headers && headers_size>0)out_headers[0]=0;
         if(out_body && body_size>0)out_body[0]=0;
         if(!source || !target || offset<0 || count<=0 || count>KODI_HTTP_COPY_MAX || total<=0 || offset>total || count>total-offset)return -1;
-        uint8_t *bytes=malloc((size_t)count); if(!bytes)return -1;
-        double deadline=NSProcessInfo.processInfo.systemUptime+fmin(180.0,timeout>0?timeout:20.0);
-        NSString *url=[NSString stringWithUTF8String:source];
-        NSMutableString *readHeaders=[NSMutableString stringWithUTF8String:source_headers ?: ""];
-        [readHeaders appendFormat:@"\nRange: bytes=%lld-%lld\nAccept-Encoding: identity\n",offset,offset+count-1];
-        char fields[65536]="";int got=0,status=-1;
-        for(int hop=0;hop<6;hop++) {
-            double left=deadline-NSProcessInfo.processInfo.systemUptime; if(left<=0)break;
-            status=kodi_http_send("GET",url.UTF8String,readHeaders.UTF8String,NULL,0,left,fields,sizeof fields,(char *)bytes,count,&got);
-            if(source_status)*source_status=status;
-            if(status!=301 && status!=302 && status!=303 && status!=307 && status!=308)break;
-            NSString *location=httpField(fields,@"Location");
-            NSURL *old=[NSURL URLWithString:url],*next=location ? [[NSURL URLWithString:location relativeToURL:old] absoluteURL] : nil;
-            if(!next || !([next.scheme isEqualToString:@"http"] || [next.scheme isEqualToString:@"https"]) ||
-                ([old.scheme isEqualToString:@"https"] && ![next.scheme isEqualToString:@"https"])) {status=-1;break;}
-            if(![old.host isEqualToString:next.host] || ![old.scheme isEqualToString:next.scheme] || !((old.port==nil && next.port==nil) || [old.port isEqual:next.port])) {
-                NSMutableString *safe=[NSMutableString string];
-                for(NSString *line in [readHeaders componentsSeparatedByString:@"\n"]) {
-                    NSString *lower=line.lowercaseString;
-                    if(![lower hasPrefix:@"authorization:"] && ![lower hasPrefix:@"cookie:"] && ![lower hasPrefix:@"host:"])
-                        [safe appendFormat:@"%@\n",line];
-                } readHeaders=safe;
+        NSURL *from=[NSURL URLWithString:[NSString stringWithUTF8String:source]], *to=[NSURL URLWithString:[NSString stringWithUTF8String:target]];
+        if(!from || !to || !([from.scheme isEqualToString:@"https"] || [from.scheme isEqualToString:@"http"]) || ![to.scheme isEqualToString:@"https"])return -1;
+        double budget=fmin(900.0,timeout>0?timeout:20.0);
+        CFReadStreamRef readStream=NULL; CFWriteStreamRef writeStream=NULL;
+        CFStreamCreateBoundPair(kCFAllocatorDefault,&readStream,&writeStream,1024*1024);
+        if(!readStream || !writeStream){ if(readStream)CFRelease(readStream); if(writeStream)CFRelease(writeStream); return -1; }
+        NSInputStream *pipeIn=(__bridge_transfer NSInputStream *)readStream; NSOutputStream *pipeOut=(__bridge_transfer NSOutputStream *)writeStream;
+        [pipeOut open];
+        KodiCopyLeg *get=[KodiCopyLeg new], *put=[KodiCopyLeg new];
+        get.offset=offset; get.want=count; get.total=total; get.sink=pipeOut; get.done=dispatch_semaphore_create(0);
+        put.isPut=YES; put.source=pipeIn; put.body=[NSMutableData data]; put.done=dispatch_semaphore_create(0);
+        KodiCopyDelegate *delegate=[KodiCopyDelegate new]; delegate.get=get; delegate.put=put;
+        NSURLSessionConfiguration *c=[NSURLSessionConfiguration ephemeralSessionConfiguration];
+        c.timeoutIntervalForRequest=60; c.timeoutIntervalForResource=budget; c.waitsForConnectivity=NO; c.URLCache=nil; c.HTTPCookieStorage=nil;
+        NSOperationQueue *queue=[NSOperationQueue new]; queue.maxConcurrentOperationCount=1;   // this copy's callbacks, in order
+        NSURLSession *session=[NSURLSession sessionWithConfiguration:c delegate:delegate delegateQueue:queue];
+        void (^headersFrom)(NSMutableURLRequest *, const char *)=^(NSMutableURLRequest *request, const char *text) {
+            if (!text) return;
+            for (NSString *line in [[NSString stringWithUTF8String:text] componentsSeparatedByString:@"\n"]) {
+                NSRange colon=[line rangeOfString:@":"]; if (colon.location==NSNotFound) continue;
+                NSString *name=[[line substringToIndex:colon.location] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+                NSString *value=[[line substringFromIndex:colon.location+1] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+                if (name.length) [request setValue:value forHTTPHeaderField:name];
             }
-            url=next.absoluteString;
+        };
+        NSMutableURLRequest *up=[NSMutableURLRequest requestWithURL:to];
+        up.HTTPMethod=@"PUT"; up.cachePolicy=NSURLRequestReloadIgnoringLocalCacheData; headersFrom(up,target_headers);
+        [up setValue:[NSString stringWithFormat:@"%d",count] forHTTPHeaderField:@"Content-Length"];
+        [up setValue:[NSString stringWithFormat:@"bytes %lld-%lld/%lld",offset,offset+count-1,total] forHTTPHeaderField:@"Content-Range"];
+        NSMutableURLRequest *down=[NSMutableURLRequest requestWithURL:from];
+        down.cachePolicy=NSURLRequestReloadIgnoringLocalCacheData; headersFrom(down,source_headers);
+        [down setValue:[NSString stringWithFormat:@"bytes=%lld-%lld",offset,offset+count-1] forHTTPHeaderField:@"Range"];
+        [down setValue:@"identity" forHTTPHeaderField:@"Accept-Encoding"];
+        NSURLSessionUploadTask *putTask=[session uploadTaskWithStreamedRequest:up]; putTask.taskDescription=@"put";
+        NSURLSessionDataTask *getTask=[session dataTaskWithRequest:down]; getTask.taskDescription=@"get";
+        [putTask resume]; [getTask resume];
+        dispatch_time_t until=dispatch_time(DISPATCH_TIME_NOW,(int64_t)(budget*NSEC_PER_SEC));
+        long late=dispatch_semaphore_wait(get.done,until);
+        if (late) { [getTask cancel]; [putTask cancel]; [session invalidateAndCancel];
+            if(out_body && body_size>0)snprintf(out_body,body_size,"piece deadline reached"); return -1; }
+        if(source_status)*source_status=get.response ? (int)get.response.statusCode : -1;
+        if (get.problem || get.error || get.seen!=count) {
+            // A short or refused source: the PUT ends with less than it announced and fails; Python asks Drive what it kept.
+            [putTask cancel]; dispatch_semaphore_wait(put.done,dispatch_time(DISPATCH_TIME_NOW,5*NSEC_PER_SEC));
+            [session invalidateAndCancel];
+            if(out_body && body_size>0)snprintf(out_body,body_size,"%s",(get.problem ?: @"source range was not read completely").UTF8String);
+            return -1;
         }
-        long long first=-1,last=-1,size=-1;int parsed=0;
-        NSString *range=httpField(fields,@"Content-Range");const char *span=range.UTF8String ?: "";
-        BOOL exact=status==206 && sscanf(span,"bytes %lld-%lld/%lld%n",&first,&last,&size,&parsed)==3 && !span[parsed] &&
-                   first==offset && last==offset+count-1 && size==total;
-        if(!(exact || (status==200 && offset==0 && count==total)) || got!=count) {
-            free(bytes);if(out_body && body_size>0)snprintf(out_body,body_size,"source range was not read completely");return -1;
+        late=dispatch_semaphore_wait(put.done,until);
+        [session finishTasksAndInvalidate];
+        if (late) { [putTask cancel]; if(out_body && body_size>0)snprintf(out_body,body_size,"Drive answer deadline reached"); return -1; }
+        if (put.error || !put.response) { if(out_body && body_size>0)snprintf(out_body,body_size,"upload failed (%ld)",(long)put.error.code); return -1; }
+        if (out_headers && headers_size>0) {
+            NSMutableString *text=[NSMutableString string];
+            for (id key in put.response.allHeaderFields) [text appendFormat:@"%@: %@\n",key,put.response.allHeaderFields[key]];
+            if ([text lengthOfBytesUsingEncoding:NSUTF8StringEncoding]>=(NSUInteger)headers_size) return -1;
+            snprintf(out_headers,headers_size,"%s",text.UTF8String ?: "");
         }
-        double left=deadline-NSProcessInfo.processInfo.systemUptime;
-        if(left<=0){free(bytes);return -1;}
-        NSMutableString *writeHeaders=[NSMutableString stringWithUTF8String:target_headers ?: ""];
-        [writeHeaders appendFormat:@"\nContent-Range: bytes %lld-%lld/%lld\n",offset,offset+count-1,total];
-        status=kodi_http_send("PUT",target,writeHeaders.UTF8String,bytes,count,left,out_headers,headers_size,out_body,body_size,used);
-        free(bytes);return status;
+        if (out_body && put.body.length) {
+            NSUInteger n=MIN(put.body.length,(NSUInteger)body_size);
+            memcpy(out_body,put.body.bytes,n); if(used)*used=(int)n;
+        }
+        return (int)put.response.statusCode;
     }
 }
 __attribute__((visibility("default"))) int kodi_http_reads(void) { return 1; }
@@ -1252,7 +1361,7 @@ xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$
 OBJS+=("$WORK/kr_upscale.o")
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
 printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n_kodi_airplay_serve_segmented\n' > "$WORK/exports"
-printf '_kodi_http_copy_max\n_kodi_http_copy\n_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
+printf '_kodi_http_copy_max\n_kodi_http_copy_streams\n_kodi_http_copy\n_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
 printf '_kodi_airplay_prepare_upscale\n_kodi_airplay_upscale_support\n_kodi_airplay_upscale_model\n_kodi_device_state\n' >> "$WORK/exports"   # r48
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \

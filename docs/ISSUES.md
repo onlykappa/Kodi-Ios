@@ -3242,3 +3242,18 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   the VPN, shows how close six lanes get to ~14 MB/s. If the phone uses a VPN, copies are limited by it.
 - **Open (native, ROADMAP R10):** within a piece, start the Drive PUT while the AllDebrid read is still arriving (one
   streamed pass instead of read-then-send) and keep the connections open between pieces (no new handshake per piece).
+
+## ISSUE-201 — One copy lane uses well under the line: read-then-send pieces (owner: "drastically speed up downloads") — staged (AirPlay r53)
+
+- **Cause:** kodi_http_copy read a whole piece from AllDebrid into memory, then sent it to Drive, then waited for
+  Drive's answer: each side idle more than half the time, and pieces capped at 32 MB by the memory they held.
+- **Research:** a server-side relay (Cloudflare Worker / VPS) would skip the phone, but AllDebrid is reported to refuse
+  datacenter IPs and to flag several IPs at once (ElfHosted docs, a Trustpilot report); rclone confirms a plain URL
+  always passes through the copying machine. The phone stays the copier; the known-good pattern is streaming the
+  download straight into Drive's resumable upload (Node.js stream → resumable gists, rclone's chunked Drive upload).
+- **Fix (r53):** each piece streams: the PUT starts at once and reads a 1 MB pipe (CFStreamCreateBoundPair) that the
+  GET fills as bytes arrive (back-pressure: the GET waits when the pipe is full); a short or refused source ends the
+  PUT short and Python asks Drive what it kept (existing path). Pieces up to 256 MB, starting at 32 MB when the
+  framework streams (kodi_http_copy_streams). Redirects: https only, no source credentials to another host.
+- **Retest:** test_native_http (streams flag, 256 MB limit); the native code compiles in the airplay-ios run (macOS);
+  phone proof: the next log's "Drive copy native" pieces (size, seconds) and the network line (MB/s per lane).
