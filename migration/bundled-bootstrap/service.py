@@ -659,6 +659,10 @@ def drive_uploads(monitor,home,profile):
       # first; the explicit inspection (its request stays) runs once none is ready to start.
       if not preparation.inspection_deferred():
        preparation.scan(can_prepare,force=bool(count) or not getattr(preparation,'checked_at_start',False))
+      elif preparation.marker_time()!=getattr(preparation,'listed_for',None):
+       # ISSUE-234: a Refresh lists Drive at once (once per request); its inspection waits for the queue.
+       preparation.listed_for=preparation.marker_time()
+       preparation.scan(can_prepare,force=True,listing_only=True)
       preparation.checked_at_start=True
       # Build 169 made preparation wait for AllDebrid copies; with copies at 6-8 MB/s (build-169 log) both run at once
       # again, so conversion never sits paused behind an hour-long download.

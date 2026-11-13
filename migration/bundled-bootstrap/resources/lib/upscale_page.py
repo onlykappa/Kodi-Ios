@@ -29,13 +29,17 @@ def summary(settings, engine=None):
     a phone with no AI engine (or no iOS 26 model) says 'Unavailable', because nothing can be made there."""
     if engine and (not engine.get('upscales') or engine.get('model') == -1):
         return 'Unavailable'
+    # ISSUE-235 (owner: "this still says On · 4K" with Upscale new downloads off): it was on for shows set to a size (the
+    # log made 4K copies of Phony). The row now says what is on: new downloads, every show, or how many shows.
     downloads = settings.get('downloads', {})
     if downloads.get('prepare'):
-        return 'On \u00b7 %s' % short(downloads.get('size') if downloads.get('size') in picture.LABELS else '4K UHD')
-    sizes = [e.get('upscale') for e in list(settings.get('shows', {}).values()) + [settings.get('default', {})]
-             if isinstance(e, dict) and e.get('upscale') in picture.LABELS]
+        return 'New downloads \u00b7 %s' % short(downloads.get('size') if downloads.get('size') in picture.LABELS else '4K UHD')
+    default = settings.get('default', {})
+    if isinstance(default, dict) and default.get('upscale') in picture.LABELS:
+        return 'All shows \u00b7 %s' % short(default['upscale'])
+    sizes = [e.get('upscale') for e in settings.get('shows', {}).values() if isinstance(e, dict) and e.get('upscale') in picture.LABELS]
     if sizes:
-        return 'On \u00b7 %s' % short(max(sizes, key=picture.LABELS.index))
+        return '%d show%s \u00b7 %s' % (len(sizes), '' if len(sizes) == 1 else 's', short(max(sizes, key=picture.LABELS.index)))
     return 'Off'
 
 

@@ -3539,3 +3539,24 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Fix:** a read-back that fails while the Drive stream reports a read problem is network trouble (waits 15 s to 5 min, no attempt counted). Once every unit is made, each confirmed upload piece updates the card: "Uploading to Google Drive · N%" and what is left (`Sink.on_confirmed`).
 - **Retest:** test_season_quality `UploadAndReadBack`.
 
+## ISSUE-233 — Deleting videos mid-conversion left them in the preparation queue, failing every minute (owner log 1ae21097, build 374) — fixed in code
+
+- **Owner:** "deleting stuff seems to bug out if it's mid conversion."
+- **Seen:** Naruto was deleted around 15:14 while E24 converted; then every deleted episode (E10, E23, E25-E32) was opened again and failed "Drive video is unavailable or incomplete" (32 times by 15:20, attempts 1, 2, 3 …), each counted as a problem and holding the converter.
+- **Cause:** neither delete path (Library › select and Delete, `library_delete.delete`; the long-press Remove, `ios_remove`) told the preparation queue, and a trashed or missing source counted as an ordinary failure.
+- **Fix:** both delete paths ask the queue to forget the deleted videos (`prepare_downloads.forget`, a whole show folder included); a forget stops the running conversion of a deleted video (`interrupts`); a source that is trashed or gone (`SourceGone`: 404 or trashed) leaves the queue quietly instead of failing and retrying.
+- **Retest:** test_season_quality `DeletedMidConversion`.
+- **Also seen, not fixed:** an AI Upscale copy (Phony S1 E2, 1920x1080 to 4K) failed after 2 min with "video conversion: encode: Generic error in an external library" (the next copy carried on); "EXCEPTION: Window id does not exist" after a page closed (14:57, 15:14).
+
+## ISSUE-234 — Library status Refresh did nothing while videos waited (owner: "library status doesn't really refresh, it's awful") — fixed in code
+
+- **Cause:** ISSUE-230 made an inspecting check wait while any video was ready to prepare. That deferred the whole check, including the Drive listing, so with a season in the queue a Refresh listed nothing (new, removed or changed videos stayed as they were) and the page sat on "Checking…" until it gave up after 5 minutes.
+- **Fix:** while the inspection waits, the Drive listing runs at once, once per Refresh (`scan(listing_only=True)`): the page shows new and removed videos and "checked just now"; the per-video inspection keeps its request and runs when the queue is idle.
+- **Retest:** test_season_quality `RefreshLists`. Phone check pending.
+
+## ISSUE-235 — Settings › AI Upscale still read "On · 4K" with Upscale new downloads off (owner screenshot, build 374) — fixed in code
+
+- **Cause:** the row was right that something was on: a show was set to 4K (the log made 4K copies of Phony at 15:15-15:20). "On" did not say what.
+- **Fix:** the row says what is on: "New downloads · 4K", "All shows · 4K", "1 show · 4K" / "N shows · 4K", "Off", or "Unavailable".
+- **Retest:** test_upscale_page.
+

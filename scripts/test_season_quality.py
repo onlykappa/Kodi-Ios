@@ -102,5 +102,52 @@ class UploadAndReadBack(unittest.TestCase):
         self.assertIn('(debrid_drive.network_error(error) or read_trouble)', cloud)
 
 
+class DeletedMidConversion(unittest.TestCase):
+    """ISSUE-233 (owner log 1ae21097: "deleting stuff seems to bug out if it's mid conversion"): after Naruto was deleted, 32
+    "Drive video is unavailable or incomplete" failures came back every minute for the deleted episodes."""
+    def test_a_deleted_video_is_gone_not_failed(self):
+        class D:
+            def __init__(self, status, body):self.status, self.body = status, body
+            def call(self, *a, **k):return self.status, {}, json.dumps(self.body).encode()
+        with self.assertRaises(prep.SourceGone):prep.metadata(D(200, {'id': 'x', 'trashed': True, 'md5Checksum': 'm', 'size': '5'}), 'x')
+        with self.assertRaises(prep.SourceGone):prep.metadata(D(404, {}), 'x')
+        with self.assertRaises(RuntimeError) as other:prep.metadata(D(500, {}), 'x')
+        self.assertNotIsInstance(other.exception, prep.SourceGone)                        # Drive trouble is still retried
+
+    def test_deleting_takes_videos_out_of_the_queue_and_stops_the_running_one(self):
+        with tempfile.TemporaryDirectory() as p:
+            state = {'jobs': {'a': {'source': {'id': 'a', 'name': 'N.S01E24.mkv', 'parents': ['show']}, 'status': 'waiting'},
+                              'b': {'source': {'id': 'b', 'name': 'N.S01E25.mkv', 'parents': ['show']}, 'status': 'failed', 'error': 'x'},
+                              'c': {'source': {'id': 'c', 'name': 'Other.mkv', 'parents': ['other']}, 'status': 'waiting'}},
+                     'current': {'running': True, 'title': 'N.S01E24.mkv'}}
+            prep.save(p, state)
+            with mock.patch.object(prep, 'running_id', return_value='a'):
+                self.assertEqual(prep.forget(p, folder_id='show'), 2)                      # a whole show folder
+                self.assertTrue(prep.interrupts(p))                                         # the running conversion stops
+            shown = prep.apply_to(prep.load(p), prep.pending_requests(p), 1)
+            self.assertEqual({k: j['status'] for k, j in shown['jobs'].items()}, {'a': 'superseded', 'b': 'superseded', 'c': 'waiting'})
+            self.assertEqual([x['id'] for x in prep.preparation_problems(shown)], [])         # not listed as problems
+        cloud = (LIB / 'prepare_cloud.py').read_text()
+        self.assertIn('except prep.SourceGone as error:', cloud)
+        self.assertIn('prepare_downloads.forget(profile, removed)', (ROOT / 'migration/bundled-bootstrap/library_manager.py').read_text())
+        self.assertIn('prepare_downloads.forget(', (ROOT / 'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_remove.py').read_text())
+
+
+class RefreshLists(unittest.TestCase):
+    """ISSUE-234 (owner: "library status doesn't really refresh, it's awful"): with videos waiting, a Refresh's inspection is
+    deferred (ISSUE-230), and nothing was listed at all, so the page sat on "Checking…"."""
+    def test_a_refresh_lists_at_once_and_keeps_the_inspection_for_later(self):
+        src = (LIB / 'prepare_downloads.py').read_text()
+        self.assertIn('if listing_only and inspection:', src);self.assertIn('inspection=False;self.inspection_pending=True', src)
+        service = (ROOT / 'migration/bundled-bootstrap/service.py').read_text()
+        self.assertIn("preparation.scan(can_prepare,force=True,listing_only=True)", service)
+        self.assertIn("preparation.marker_time()!=getattr(preparation,'listed_for',None)", service)
+        with tempfile.TemporaryDirectory() as p:
+            q = prep.Queue.__new__(prep.Queue);q.profile = p
+            self.assertEqual(q.marker_time(), 0.0)
+            prep.request_check(p, inspect=True)
+            self.assertGreater(q.marker_time(), 0)
+
+
 if __name__ == '__main__':
     unittest.main()

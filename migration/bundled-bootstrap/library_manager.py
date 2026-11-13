@@ -483,6 +483,11 @@ def run():
             removed, failed = ld.delete(self.items, self.picked, with_ai, lambda i: drivelibrary.trash(drive, i), state_dir, ups,
                                         log=lambda t: xbmc.log(t, xbmc.LOGWARNING))
             upscale_queue.save(profile, ups)
+            try:   # ISSUE-233: deleted videos leave the preparation queue (a conversion of one stops)
+                import prepare_downloads
+                prepare_downloads.forget(profile, removed)
+            except Exception as error:
+                xbmc.log('Kodi iOS delete: preparation queue not updated (%s)' % type(error).__name__, xbmc.LOGWARNING)
             self.removed = removed
             if failed:
                 dialog.ok('Could not delete everything', '%d could not be moved to the Trash: %s. Try again in a moment.' % (

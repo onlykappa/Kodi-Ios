@@ -138,6 +138,10 @@ def run(params):
             drive,_=lib.client()
             if not drive:raise RuntimeError('not signed in')
             lib.trash(drive,params['drive'])
+            try:   # ISSUE-233: the deleted video (or every video of a deleted show folder) leaves the preparation queue
+                import prepare_downloads
+                prepare_downloads.forget(xbmcvfs.translatePath('special://profile/'),[params['drive']],folder_id=params['drive'])
+            except Exception as error:xbmc.log('Kodi iOS Remove: preparation queue not updated: '+type(error).__name__,xbmc.LOGWARNING)
             path=os.path.join(state,'drive-library.json')
             lib.save_json(path,forget_listing(lib.load_json(path,{}),params['drive']))
         except Exception as error:

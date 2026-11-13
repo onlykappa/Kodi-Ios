@@ -129,6 +129,18 @@ def problem_need(state):
  return {'key':'prep_problems','title':'%d can\'t be made ready'%n if n>1 else '1 can\'t be made ready',
          'text':'They play in Kodi; they just aren\'t made ready for AirPlay. Review them to try again, keep them as they are or find another version.',
          'button':'Review','action':'RunScript(service.kodi.ios.bootstrap,copy_problems,prepare)'}
+def forget(profile,item_ids=(),folder_id=''):
+ """ISSUE-233 (owner: "deleting stuff seems to bug out if it's mid conversion"): videos deleted from the Library leave the
+ preparation queue at once; a conversion of one of them stops. folder_id: every queued video in that Drive folder (a
+ show removed as a whole)."""
+ ids={str(i) for i in item_ids if i}
+ if folder_id:
+  for job in (load(profile).get('jobs') or {}).values():
+   source=job.get('source') or {}
+   if str(folder_id) in [str(x) for x in source.get('parents') or ()] or str(folder_id)==str(source.get('folderId') or ''):
+    ids.add(str(source.get('id') or ''))
+ for item_id in sorted(i for i in ids if i):request(profile,'forget',item_id)
+ return len(ids)
 def location(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap'/FILE
 def load(profile):return drivelibrary.load_json(str(location(profile)),{'jobs':{},'sessions':{},'last_scan':0})
 def save(profile,state):drivelibrary.save_json(str(location(profile)),state)
@@ -161,11 +173,15 @@ def playback_ready(profile,item):
 def repack_due(item):
  """Prepared in an older layout: plays, but Kodi opens it slowly; it is re-packed when nothing else waits."""
  return ready(item) and (item.get('appProperties') or {}).get(PROPERTY)!=PROFILE
+class SourceGone(RuntimeError):
+ """ISSUE-233: the video was deleted (Drive's Trash) or no longer exists: its preparation is dropped, not retried."""
 def metadata(drive,item_id):
  status,headers,body=drive.call('GET',driveupload.API+'/'+urllib.parse.quote(str(item_id),safe='')+'?fields=id,name,size,md5Checksum,version,mimeType,appProperties,trashed,parents')
+ if status==404:raise SourceGone('Drive video was removed')
  if status!=200:raise RuntimeError('Drive file check: HTTP %d'%status)
  item=json.loads(body)
- if item.get('trashed') or not item.get('id') or not item.get('md5Checksum') or int(item.get('size') or 0)<=0:
+ if item.get('trashed'):raise SourceGone('Drive video was moved to the Trash')
+ if not item.get('id') or not item.get('md5Checksum') or int(item.get('size') or 0)<=0:
   raise RuntimeError('Drive video is unavailable or incomplete')
  item['_etag']=headers.get('ETag') or headers.get('etag') or ''
  return item
@@ -536,6 +552,7 @@ def apply_to(state,requests,now):
   elif action=='now':job['priority']=now+10**9;job.update(retry_after=0);job.pop('kept',None);forgive(job)
   elif action=='retry':job.update(retry_after=0,attempts=0);job.pop('error',None);job['status']='waiting';forgive(job)
   elif action=='keep':job['kept']=True
+  elif action=='forget':job['status']='superseded';job['forgotten']=now;job.pop('priority',None)   # ISSUE-233: deleted
   elif action=='replace':job.update(kept=True,replacing=now)   # build 186: a version without conversion is on its way
   elif action=='prepare':job.pop('kept',None)
   elif action in MOVES:
@@ -741,7 +758,7 @@ def interrupts(profile):
  if not asked:return False
  running=running_id(load(profile))
  return any((r.get('action')=='now' and str(r.get('id'))!=running) or (r.get('action') in ('keep','replace') and (not running or str(r.get('id'))==running))
-            for r in asked)
+            for r in asked) or any(r.get('action')=='forget' and str(r.get('id'))==running for r in asked)   # ISSUE-233: deleted mid-conversion
 
 def summary(state,now=time.time):
  """Plain-words status for Settings › Library › Check library for conversion."""
@@ -847,11 +864,15 @@ class Queue:
   with self.lock:
    return any(job.get('status') not in ('done','superseded') and not job.get('blocked') and not job.get('kept')
               and job.get('retry_after',0)<=self.clock() for job in self.state['jobs'].values())
- def scan(self,keep_going=lambda:True,force=False,beside=False):
+ def marker_time(self):
+  """When the pending check request was made (0 when none), to list once per request."""
+  try:return float(json.loads((location(self.profile).parent/RESCAN).read_text()).get('time') or 0)
+  except (OSError,ValueError,AttributeError,TypeError):return 0.0
+ def scan(self,keep_going=lambda:True,force=False,beside=False,listing_only=False):
   """beside: a check while a movie converts (build 191). Its progress goes to state['checking'], not the converting
   card, and the movie being converted (and its source file) is never dropped or replaced."""
   if not self.scanning.acquire(blocking=not beside):return
-  try:self._scan(keep_going,force,beside)
+  try:self._scan(keep_going,force,beside,listing_only)
   except BaseException:
    # Build 193 (build-192 log, 12:57-13:09): a check that failed (Drive sign-in refused) left "Checking downloaded videos"
    # running, so every page showed a check in progress while nothing could run.
@@ -865,7 +886,7 @@ class Queue:
    if beside:
     with self.lock:self.state.pop('checking',None)
     self.commit()
- def _scan(self,keep_going,force,beside):
+ def _scan(self,keep_going,force,beside,listing_only=False):
   requested=location(self.profile).parent/'airplay-preparation-rescan'
   if not force and not requested.exists() and self.clock()-self.state.get('last_scan',0)<300:return
   with check_request(self.profile):
@@ -874,6 +895,11 @@ class Queue:
   try:request=json.loads(requested_text);inspection=bool(request.get('inspect'));asked_at=float(request.get('time') or 0)
   except (ValueError,AttributeError,TypeError):inspection=False;asked_at=0.0
   self.inspection_pending=False
+  if listing_only and inspection:
+   # ISSUE-234 (owner: "library status doesn't really refresh, it's awful"): while videos wait to be prepared, a Refresh's
+   # inspection waits for them (ISSUE-230) and nothing at all was listed, so the page sat on "Checking…". The Drive listing
+   # (new, removed and changed videos) runs at once; the inspection keeps its request and runs when the queue is idle.
+   inspection=False;self.inspection_pending=True
   status={'title':'Movies and shows','stage':'Checking downloaded videos','progress':0,'queued':0,'running':True,'updated':self.clock()}
   converting=running_id(self.state) if beside else ''
   with self.lock:self.state['checking' if beside else 'current']=status

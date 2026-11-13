@@ -373,6 +373,13 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
     except driveupload.Stop:
         if job.get('status')!='committing':job['status']='paused'
         job['retry_after']=0;return False
+    except prep.SourceGone as error:
+        # ISSUE-233 (owner log 1ae21097: 32 "Drive video is unavailable or incomplete" failures, retried every minute, after
+        # Naruto was deleted mid-conversion): a deleted video leaves the queue quietly.
+        job.update(status='superseded',forgotten=q.clock());job.pop('error',None)
+        clear_temps();resume_store.clear(q.profile,slot);drop_card();q.commit()
+        q.log('preparation: %s — %s; left out of the queue'%(drivelibrary.display_title(item['name']),error))
+        return True
     except Exception as error:
         import debrid_drive
         # ISSUE-232 (owner log 47e2276a, build 374: E10's final read-back failed while Drive dropped the connection 7 times,
