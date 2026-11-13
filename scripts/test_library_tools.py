@@ -15,6 +15,7 @@ import transfer_history as th
 import test_library_status as ls
 portrait=load('portrait_tools',LIB/'portrait.py')
 ltp=load('library_tools_page_t',LIB/'library_tools_page.py')
+qp=load('queue_page_t',LIB/'queue_page.py')   # DEC-045 board E: the Queue page
 library_page=load('library_page_tools',LIB/'library_page.py')
 GB=1024**3;MB=1024**2
 
@@ -78,7 +79,13 @@ class QueueView(unittest.TestCase):
   for k in props:
    # now.pct fills the running job's bar through Control.setPercent (tool_windows: Kodi leaves a property-bound bar empty).
    if k not in ('line.count','now.pct') and not k.endswith('.tone'):self.assertIn('Window().Property(%s)'%k,xml,k)
-  self.assertIn('id="%d"'%ltp.QBAR,xml);self.assertIn('self.guard.percent(page.QBAR',(LIB/'tool_windows.py').read_text())
+  self.assertIn('id="%d"'%ltp.QBAR,xml)
+  # DEC-045 board E: the Queue now opens queue_page's window; every row's bar is set through the guard.
+  tw=(LIB/'tool_windows.py').read_text();self.assertIn('show(Queue, qp.WINDOW)',tw);self.assertIn('self.guard.percent(bars + n',tw)
+  q=qp.page(portrait)
+  for ident in (qp.BACK,qp.EDIT,qp.CANCEL_ALL,qp.DRIVE_ROW,qp.DRIVE_MINUS+qp.DRIVE_SLOTS-1,qp.PREP_ROW,qp.PREP_MINUS,qp.PREP_MOVE+qp.PREP_SLOTS-1):
+   self.assertIn('id="%d"'%ident,q)
+  self.assertNotIn('Previous',q)   # one scrolling list
   self.assertEqual(lt.queue_properties(lt.queue_view({'rows':{}}))['empty'],'Nothing is waiting to be converted.')
  def test_more_than_fit(self):
   line=[{'id':str(n),'title':'T%d'%n,'state':'waiting','sub':'x · y'} for n in range(13)]
@@ -279,16 +286,15 @@ class TapEveryButton(unittest.TestCase):
   self.tmp=tempfile.TemporaryDirectory();self.profile=self.tmp.name;prep.save(self.profile,queue_state())
  def tearDown(self):self.tmp.cleanup()
  def test_paused_downloads_are_visible_and_all_drive_pages_are_reachable(self):
+  # DEC-045 board E: one scrolling list, no Previous / More pages; every copy to Drive is on it.
   import debrid_drive,transfer_control
   for n in range(5):
    debrid_drive.queue(self.profile,{'id':'%040x'%(n+1),'name':'Sample.Movie.%d.1080p'%n},'movie','Sample Movie %d'%n)
   transfer_control.set_paused(self.profile,'up',True)
   seen=[]
-  snap=lambda w:seen.append([w.getProperty('drive.%d.title'%n) for n in range(1,4)])
-  self.run_status([(library_page.WINDOW,ls.tap(library_page.EDIT)),
-   (ltp.QUEUE,snap),(ltp.QUEUE,ls.tap(ltp.QNEXT)),(ltp.QUEUE,snap),
-   (ltp.QUEUE,ls.tap(ltp.BACK)),(library_page.WINDOW,ls.tap(library_page.BACK))])
-  self.assertEqual([title for page in seen for title in page if title],['Sample Movie %d'%n for n in range(5)])
+  snap=lambda w:seen.append([w.getProperty('drive.%d.title'%n) for n in range(qp.DRIVE_SLOTS)])
+  self.run_status([(library_page.WINDOW,ls.tap(library_page.EDIT)),(qp.WINDOW,snap),(qp.WINDOW,ls.tap(qp.BACK)),(library_page.WINDOW,ls.tap(library_page.BACK))])
+  self.assertEqual(sorted(t for t in seen[0] if t),['Sample Movie %d'%n for n in range(5)])
   self.assertTrue(transfer_control.paused(self.profile,'up'))
  def run_status(self,script):
   kodi=ls.FakeKodi(self.profile,script)
@@ -297,20 +303,24 @@ class TapEveryButton(unittest.TestCase):
    load('library_status_tools',BOOT/'library_status.py').run([])
   return kodi
  def test_edit_order_moves_a_video_down_and_up(self):
+  # DEC-045 board E2: Edit, then the lines icon: Move to Top / Up / Down (Kodi cannot drag rows).
   seen=[]
-  snap=lambda w:seen.append([w.getProperty('line.%d.title'%n) for n in range(1,5)])
+  def titles(w):return [w.getProperty('prep.%d.title'%n) for n in range(6)]
+  def first_line(w):return next(n for n in range(qp.PREP_SLOTS) if w.getProperty('prep.%d.movable'%n))
+  def move(nth,pick):
+   def go(w):
+    ls.kodi_of(w).picks=[pick];w.onClick(qp.PREP_MOVE+first_line(w)+nth)
+   return go
   open_waiting=lambda w:w.set_filter('waiting')
   kodi=self.run_status([(library_page.WINDOW,open_waiting),(library_page.WINDOW,ls.tap(library_page.EDIT)),
-                        (ltp.QUEUE,snap),(ltp.QUEUE,ls.tap(ltp.DOWN+1)),(ltp.QUEUE,snap),(ltp.QUEUE,ls.tap(ltp.UP+2)),(ltp.QUEUE,ls.tap(ltp.UP+1)),
-                        (ltp.QUEUE,ls.tap(ltp.UP+4)),(ltp.QUEUE,snap),(ltp.QUEUE,lambda w:seen.append(w.getProperty('now.title'))),
-                        (ltp.QUEUE,ls.tap(ltp.BACK)),(library_page.WINDOW,lambda w:seen.append(ls.TapEveryButton.page_rows(None,w))),
-                        (library_page.WINDOW,ls.tap(library_page.BACK)),(library_page.WINDOW,ls.tap(library_page.BACK))])
-  self.assertEqual(seen[0],['Alpha (2020)','Bravo (2020)','Charlie (2020)','Delta (2020)'])
-  self.assertEqual(seen[1][:2],['Bravo (2020)','Alpha (2020)'])
-  self.assertEqual(seen[2],['Alpha (2020)','Bravo (2020)','Delta (2020)','Charlie (2020)'])   # ▲ on the top one: nothing
-  self.assertEqual(seen[3],'Inception (2020)')
-  waiting=[r[0] for r in seen[4] if r[1]=='waiting'];self.assertEqual(waiting,['w1','w2','w4','w3'])   # Library status agrees
-  self.assertEqual([(r['action'],r['id']) for r in prep.pending_requests(self.profile)],[('down','w1'),('up','w1'),('up','w4')])
+                        (qp.WINDOW,lambda w:seen.append(titles(w))),(qp.WINDOW,ls.tap(qp.EDIT)),
+                        (qp.WINDOW,lambda w:seen.append(w.getProperty('editing'))),
+                        (qp.WINDOW,move(0,2)),(qp.WINDOW,move(1,1)),(qp.WINDOW,move(3,0)),
+                        (qp.WINDOW,ls.tap(qp.BACK)),(library_page.WINDOW,ls.tap(library_page.BACK)),(library_page.WINDOW,ls.tap(library_page.BACK))])
+  self.assertEqual(seen[0][0],'Inception (2020)')                                  # the one being prepared, with its bar
+  self.assertEqual([t for t in seen[0][1:5]],['Alpha (2020)','Bravo (2020)','Charlie (2020)','Delta (2020)'])
+  self.assertEqual(seen[1],'true')
+  self.assertEqual([(r['action'],r['id']) for r in prep.pending_requests(self.profile)],[('down','w1'),('up','w1'),('next','w4')])   # the list refreshes after each move
   self.assertFalse(prep.interrupts(self.profile));self.assertTrue(all(w.closed for w in kodi.windows))
  def test_history_from_transfers(self):
   now=time.time()
