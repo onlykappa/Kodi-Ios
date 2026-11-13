@@ -3,7 +3,7 @@
 Requests use the existing Elementum picker and cloud redirect interception. Scans never select/download media.
 Only a queue receipt counts as success. No credentials or source URLs are persisted.
 """
-import datetime,json,time,uuid,urllib.parse
+import datetime,json,time,uuid,urllib.parse,urllib.request
 import episode_watch as watch
 import elementum_download as dl
 
@@ -117,13 +117,33 @@ def pending_episodes(profile,tmdb,season,numbers):
     except (TypeError,ValueError):pass
  return have.intersection(numbers)
 
-def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=None,cancel=None,timeout=None,lane=''):
+def episode_minutes(tmdb,season,episode,cache_path=None,key=None,get=None):
+ """The episode's length in minutes from TMDb (the Library's season cache, fetched once when missing); 0 when
+ unknown. The automatic pick judges a file's size by it (deck_picker.size_fit, owner build 328: "the genuine best
+ options based off size and the quality i pick")."""
+ if not episode:return 0
+ import drivelibrary
+ try:
+  if cache_path is None:
+   import xbmcvfs
+   cache_path=xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/drive-library-art.json')
+   key=drivelibrary.tmdb_key(xbmcvfs.translatePath('special://home/addons/plugin.video.themoviedb.helper'))
+  cache=drivelibrary.load_json(cache_path,{});known='season:%s:%s'%(tmdb,int(season)) in cache
+  get=get or (lambda url:urllib.request.urlopen(url,timeout=10).read())
+  found=drivelibrary.season(tmdb,int(season),key,cache,get)
+  if found and not known:drivelibrary.save_json(cache_path,cache)
+  return int((found.get(str(int(episode))) or {}).get('runtime') or 0)
+ except Exception:
+  return 0
+
+def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=None,cancel=None,timeout=None,lane='',title=''):
  import elementum_cloud
  if watch.active_request(home,lane=lane):raise RuntimeError('Another episode search is running. Try again when it finishes.')
  ident=uuid.uuid4().hex
- target={'tmdb':str(tmdb),'season':int(season),'episode':int(episode) if episode else None}
+ # title: the show's name for the download's folder (owner screenshot, build 314: Drive folders named after the torrent hash).
+ target={'tmdb':str(tmdb),'season':int(season),'episode':int(episode) if episode else None,'title':str(title or '')}
  wanted={'request_id':ident,'target':target,'purpose':purpose,'mode':0,'until':time.time()+600,
-         'profile':{'quality':quality,'strict_quality':True} if quality else {}}
+         'profile':dict({'quality':quality,'strict_quality':True} if quality else {},runtime=episode_minutes(tmdb,season,episode))}
  watch.canceled(home,target,clear=True)
  home.clearProperty(watch.RESULT+lane);home.clearProperty('KodiIOS.AutoPick.Queued'+lane)
  home.setProperty(watch.AUTO+lane,json.dumps(wanted));result={}
@@ -278,7 +298,7 @@ def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,se
  def lookup(n,purpose,q=None,lane='',timeout=None):
   if search:return search(n,purpose,q)
   return request(home,tmdb,season,n,purpose,q,cancel=lambda:halt['stop'] or bool(card and card.canceled),
-                 timeout=timeout or (LANE_SECONDS if purpose=='scan' else 120),lane=lane)
+                 timeout=timeout or (LANE_SECONDS if purpose=='scan' else 120),lane=lane,title=title)
  # Board B3 (DEC-041): three episodes (start, middle, end) are looked up in every quality while the sheet shows the
  # check card, so a quality nobody has is greyed and one is recommended. Their answers are kept for the build below.
  checked={}

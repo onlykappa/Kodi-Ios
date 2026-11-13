@@ -429,6 +429,11 @@ def upscaled_path(path,params,profile,xbmc=None):
   if not original:return path
   media={'tmdb':params.get('tmdb_id',''),'type':'movie' if params.get('kind')=='movie' else 'tv',
          'show':params.get('show') or params.get('title',''),'drive_id':original}
+  # V1: the Picture menu over this video reads which download plays (picture_menu.MEDIA_PROPERTY).
+  try:
+   import xbmcgui,json as _json
+   xbmcgui.Window(10000).setProperty('KodiIOS.PictureMedia',_json.dumps(dict(media,title=params.get('title',''))))
+  except Exception:pass
   wanted=picture.resolve(picture.load(profile),media)[1]['upscale']
   data=upscale_queue.load(profile)
   copy,label=upscale_queue.choose(data,original,wanted,lambda item_id:True)
@@ -633,12 +638,8 @@ def _directory(handle,params):
   if resume.get('position') and not info.get('resume_prompt'):tag.setResumePoint(resume['position'],resume.get('total',0))
   if not is_folder:li.setProperty('IsPlayable','true')
   xbmcplugin.addDirectoryItem(handle,path,li,isFolder=is_folder)
- # Always offer refresh, including an empty Library; Kodi ignores this non-media action in playlists.
- if not show_page:
-  refresh=xbmcgui.ListItem(label='Refresh Library',offscreen=True)
-  refresh.setArt({'icon':'DefaultFolder.png'});refresh.setProperty('IsPlayable','false')
-  clean={k:v for k,v in params.items() if k in ('type','folder','show','year','local','loose','merge','season')}
-  xbmcplugin.addDirectoryItem(handle,page_url(dict(clean,fresh='1')),refresh,isFolder=True)
+ # ISSUE-197 (owner, build 347): no "Refresh Library" card among the shows and movies: the page's header has a refresh
+ # button and the long-press menu keeps Refresh Library.
  content='seasons' if show_page and params.get('season') is None else ('episodes' if episodes else ('movies' if kind=='movie' else 'tvshows'))
  xbmcplugin.setContent(handle,content)
  xbmcplugin.setPluginCategory(handle,show or ('Downloaded Movies' if kind=='movie' else 'Downloaded TV Shows'))

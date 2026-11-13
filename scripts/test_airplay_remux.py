@@ -172,6 +172,51 @@ class AirPlayLog(unittest.TestCase):
   ci=(ROOT/'.github/workflows/airplay-remux.yml').read_text()
   self.assertIn('tests/upscale_host.py',ci)
 
+class BackgroundRetry(unittest.TestCase):
+ def test_r51_silence_is_tried_again_after_an_interruption(self):
+  # Owner log ed63fe73 (build 317): iOS interrupted the silent audio and never said it ended; the framework refused
+  # every restart for 62 minutes while the add-on asked every second, and copies crawled.
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  keep=build.split('static void keepUpdate(void) {',1)[1].split('__attribute__((visibility("default"))) void kodi_background_keep',1)[0]
+  for needle in ('KEEP_FIRST_RETRY_S','KEEP_RETRY_S','keepRetriedAt=now;keepInterrupted=NO;retrying=YES','if(retrying && !playing){keepInterrupted=YES'):
+   self.assertIn(needle,keep)
+  self.assertNotIn('if(keepInterrupted){atomic_store(&keepState,-2);return;}',keep)
+  self.assertIn('keepInterruptedAt=NSProcessInfo.processInfo.systemUptime',build)
+
+class SlowSource(unittest.TestCase):
+ def test_r52_a_slow_source_is_not_taken_for_sound_only(self):
+  # Owner log 3b94b426 (build 319, Umbrella stream): video segment 1 took 39 s; the TV had asked for it all along, and
+  # the sound-only check restarted an H.264 movie in compat mode (a long wait, then broken sound).
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  src=ROOT/'migration/airplay-ios/remux/src'
+  self.assertIn('int kr_remux_video_waiting(void);',(src/'kr_remux.h').read_text())
+  self.assertIn('int kr_remux_video_waiting(void) { return atomic_load(&demand[R_VCOPY]) + atomic_load(&demand[R_VCOMPAT]); }',(src/'kr_remux.c').read_text())
+  guard=build.index('externalTicks >= 30 && kr_remux_video_waiting() > 0')
+  self.assertLess(guard,build.index('playerNote(@"the TV takes audio segments but no video ones'))
+  self.assertIn('} else if (!warned && external && externalTicks >= 30 && player.timeControlStatus',build)
+
+class SlowSourceNote(unittest.TestCase):
+ def test_a_slow_stream_is_told_once(self):
+  # E18 / ISSUE-186 (owner log 3b94b426): segment 0 in 18 s, segment 1 in 39 s of source reading.
+  sys.path.insert(0,str(ROOT/'migration/bundled-bootstrap/resources/lib'))
+  import airplay
+  class W:
+   def __init__(self):self.p={}
+   def getProperty(self,k):return self.p.get(k,'')
+   def setProperty(self,k,v):self.p[k]=v
+  w=W()
+  fast='copy: video segment 3 in 900 ms, source I/O 800 ms, result 0'
+  slow0='copy: video segment 0 in 17977 ms, source I/O 17957 ms, result 0'
+  slow1='copy: video segment 1 in 39128 ms, source I/O 35055 ms, result -5'
+  self.assertFalse(airplay.slow_source([fast],w,1000))
+  self.assertFalse(airplay.slow_source([slow0],w,1000))              # one slow segment is not yet a pattern
+  self.assertTrue(airplay.slow_source([slow1],w,1005))
+  self.assertFalse(airplay.slow_source([slow1],w,1010))              # told once
+  w2=W()
+  self.assertTrue(airplay.slow_source(['player: the TV is waiting for a video segment the source has not delivered yet (slow source, not the codec)'],w2,5))
+  self.assertTrue(airplay.slow_source([slow0,slow1],w,1000+4000))    # a new session an hour later
+  self.assertIn("slow_note(lines))},daemon=True).start()",(ROOT/'migration/bundled-bootstrap/service.py').read_text())
+
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()

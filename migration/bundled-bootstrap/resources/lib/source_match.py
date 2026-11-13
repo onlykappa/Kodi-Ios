@@ -359,7 +359,9 @@ def _check_one(name, exp, keys):
         elif info['complete']:
             ok = True
         elif kind == 'anime' and info['absolute'] is not None:
-            ok = info['absolute'] in (exp.get('absolute'), episode)
+            # Season 2+ with its absolute number known: only that number (S2E13 is "045", never "013").
+            ok = (info['absolute'] == exp['absolute'] if exp.get('absolute') and (season or 1) > 1
+                  else info['absolute'] in (exp.get('absolute'), episode))
             if not ok:
                 reasons.append(u'wrong episode')
                 continue
@@ -413,6 +415,14 @@ def check(name, exp, result=None):
         parts = [p for p in re.split(r'[/\\]', _s(name)) if p.strip()]
         if len(parts) > 1:
             ok2, _ = _check_one(parts[-1], exp, keys)
+            if ok2:
+                return True, u''
+        # Owner log fffb3cd8 (build 329): "[uP] Naruto Shippuden - Vol.01 (BDRip …) [uP] Naruto Shippuden - 005 (…).mkv"
+        # (the pack's name and its file joined by a space) was hidden as "wrong title", so episode 5 fell back to a 4 GB
+        # upscaled copy. A file name that starts again with a [group] tag is checked from there.
+        text = _s(parts[-1] if parts else name)
+        for at in [m.start() for m in re.finditer(r'\[', text) if m.start() > 0][::-1]:
+            ok2, _ = _check_one(text[at:], exp, keys)
             if ok2:
                 return True, u''
     return ok, reason
@@ -640,6 +650,12 @@ def _enrich_show(exp, key, get):
     _add_titles(exp, [a.get('title') for a in ((details.get('alternative_titles') or {}).get('results') or ())])
     _add_titles(exp, [(t.get('data') or {}).get('name') for t in ((details.get('translations') or {}).get('translations') or ())])
     exp['show_year'] = exp.get('show_year') or _int(details.get('first_air_date'))
+    # Absolute-numbered anime packs: season N episode E is absolute (episodes of seasons 1..N-1) + E.
+    if exp.get('absolute') is None and exp.get('season') and exp.get('episode') and int(exp['season']) > 1:
+        counts = {int(x.get('season_number') or 0): int(x.get('episode_count') or 0) for x in details.get('seasons') or ()}
+        before = [counts.get(n) for n in range(1, int(exp['season']))]
+        if before and all(before):
+            exp['absolute'] = sum(before) + int(exp['episode'])
     if not exp.get('countries'):
         exp['countries'] = sorted(set(_s(c).upper() for c in details.get('origin_country') or ()))
 

@@ -204,14 +204,15 @@ class Workers(unittest.TestCase):
   with tempfile.TemporaryDirectory() as p:
    debrid_drive.queue(p,{'id':H},'movie','Fall (2022)')
    class Flaky(FakeDrive):
-    def __init__(self):super().__init__();self.fail=True
+    # ISSUE-188: a failed copy is tried again RETRIES_IN_RUN times in the same turn; fail once more than that.
+    def __init__(self):super().__init__();self.fail=debrid_drive.RETRIES_IN_RUN+1
     def call(self,method,url,body=None,headers=None):
-     if self.fail and method=='PUT':self.fail=False;raise ConnectionError('reset')
+     if self.fail and method=='PUT':self.fail-=1;raise ConnectionError('reset')
      return super().call(method,url,body,headers)
    drive=Flaky();clock=[NOW]
    step=lambda:debrid_drive.step(p,FakeAPI(),drive,open_url=lambda u,o:io.BytesIO(b'abc'[o:]),clock=lambda:clock[0])
    step()                                     # add: copying
-   self.assertEqual(step(),30)                # the first piece fails: retry in 30 s
+   self.assertEqual(step(),30)                # the piece fails every try this turn: retry in 30 s
    j=debrid_drive.load(p)['jobs'][0];self.assertEqual((j['tries'],j['retry_at']),(1,NOW+30))
    self.assertEqual(ws.build({'debrid':debrid_drive.load(p)},NOW)['jobs'][0]['line'],'Waiting for the network · trying again in a moment')
    seen=[]
@@ -221,6 +222,82 @@ class Workers(unittest.TestCase):
    finally:debrid_drive.save=orig
    self.assertTrue(any(c.get('updated')==NOW for c in seen))
    j=debrid_drive.load(p)['jobs'][0];self.assertEqual(j['status'],'done');self.assertEqual(j.get('tries'),0)
+
+class FreshLane(unittest.TestCase):
+ def test_the_card_shows_the_lane_that_moved_last(self):
+  # Owner screenshot (build 325): "Waiting for Google Drive · no answer for 23 min" while other lanes copied.
+  job={'hash':'a'*40,'title':'Naruto','kind':'season','season':'1','status':'copying','files':[{'path':'S/Naruto.S01E06.mkv'},{'path':'S/Naruto.S01E07.mkv'}]}
+  stale={'stage':'copying','sent':0,'total':100,'updated':NOW-23*60,'file':'Naruto.S01E06.mkv','count':2,'index':1}
+  live={'stage':'copying','sent':50,'total':100,'updated':NOW-5,'file':'Naruto.S01E07.mkv','count':2,'index':2}
+  card=ws._copy({'jobs':[job],'current':stale,'current_also':live},NOW)
+  self.assertEqual(card['pct'],50);self.assertNotIn('wait',card)
+
+class FourLanes(unittest.TestCase):
+ def test_every_copy_has_its_card_and_up_next_starts_at_one(self):
+  # Owner screenshot (build 329): four copies ran, Library status showed one ("1 working"); Up next read E3, E1, E4.
+  import debrid_drive,notices,tempfile,json,os,time
+  now=time.time()
+  jobs=[{'hash':'h%d'%n,'title':'Naruto Shippuden','kind':'episode','season':'1','episode':str(n),'status':'copying' if n<=4 else 'new','files':[]}
+        for n in (3,1,4,2,5,7,6)]
+  lanes={str(i):{'name':'Naruto Shippuden','file':'Naruto Shippuden S01E%02d - x.mkv'%n,'count':1,'sent':10,'total':100,'stage':'copying',
+                 'updated':now-3,'job':'h%d:1:%d'%(n,n),'rate':1000} for i,n in enumerate((1,2,3,4))}
+  self.assertEqual([j['episode'] for j in debrid_drive.in_line(jobs)],['1','2','3','4','5','6','7'])
+  with tempfile.TemporaryDirectory() as p:
+   d=os.path.join(p,'addon_data','service.kodi.ios.bootstrap');os.makedirs(d)
+   json.dump({'jobs':jobs,'lanes':lanes},open(os.path.join(d,'debrid-drive.json'),'w'))
+   self.assertEqual(len(debrid_drive.uploads(p,now=now)),4)
+   cards=[u['title'] for u in notices.uploads(p) if u['source']=='debrid']
+   self.assertEqual(cards,['Naruto Shippuden · S1 E1','Naruto Shippuden · S1 E2','Naruto Shippuden · S1 E3','Naruto Shippuden · S1 E4'])
+   self.assertEqual(debrid_drive.uploads(p,now=now+3600),[])                      # quiet lanes leave
+  waiting=[c['title'] for c in ws._copy_next({'jobs':jobs,'lanes':lanes})]
+  self.assertEqual(waiting,['Naruto Shippuden · S1 E5','Naruto Shippuden · S1 E6','Naruto Shippuden · S1 E7'])
+ def test_the_status_model_has_a_card_per_lane(self):
+  jobs=[{'hash':'h%d'%n,'title':'Naruto Shippuden','kind':'episode','season':'1','episode':str(n),'status':'copying','files':[]} for n in (1,2,3,4,5)]
+  lanes={str(i):{'name':'Naruto Shippuden','file':'Naruto Shippuden S01E%02d.mkv'%n,'count':1,'sent':10,'total':100,'stage':'copying',
+                 'updated':NOW-2,'job':'h%d:1:%d'%(n,n),'rate':1000,'rate_own':1000} for i,n in enumerate((1,2,3,4))}
+  snap=ws.build({'debrid':{'jobs':jobs,'lanes':lanes}},NOW)
+  copies=[j for j in snap['jobs'] if j['kind']=='copy']
+  self.assertEqual([j['title'] for j in copies],['Naruto Shippuden · S1 E%d'%n for n in (1,2,3,4)])
+  self.assertEqual(len({j['id'] for j in copies}),4)
+  one=ws.build({'debrid':{'jobs':jobs,'lanes':{'0':lanes['0']},'current':lanes['0']}},NOW)   # one lane: one card, as before
+  self.assertEqual(len([j for j in one['jobs'] if j['kind']=='copy']),1)
+ def test_library_status_writes_only_what_changed(self):
+  src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/library_status.py').read_text()
+  self.assertIn("if seen.get(key)==value:return",src);self.assertIn("self.bar(library_page.DOWN_BARS+n,r.get('pct') or 0)",src)
+
+class WifiOnly(unittest.TestCase):
+ def test_copies_wait_for_wifi_and_the_card_says_so(self):
+  # E15: Copy downloads to Google Drive only on Wi-Fi; on cellular the copies wait.
+  import debrid_drive,tempfile
+  with tempfile.TemporaryDirectory() as p:
+   debrid_drive.queue(p,{'id':'a'*40,'name':'Fall'},'movie','Fall (2022)')
+   debrid_drive.hold(p,'wifi')
+   snap=ws.build({'debrid':debrid_drive.load(p)},NOW)
+   copy=[j for j in snap['jobs'] if j['kind']=='copy'][0]
+   self.assertIn('Waiting for Wi-Fi',copy['line']+copy.get('why',''))
+   debrid_drive.hold(p,'')
+   self.assertNotIn('hold',debrid_drive.load(p))
+   self.assertEqual(len(debrid_drive.load(p)['jobs']),1)               # the queue is untouched
+  root=Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap'
+  self.assertIn('id="copy_wifi_only"',(root/'resources/settings.xml').read_text())
+  self.assertIn("and not wifi_only_hold(),on_done=done,",(root/'service.py').read_text())
+
+class TimeLeft(unittest.TestCase):
+ def test_every_copy_left_counts_over_all_lanes(self):
+  # E17: "about 16 min to go" with 31 episodes waiting; "84 h" from a starved conversion rate.
+  M=1024**2
+  jobs=[{'hash':'h%d'%n,'title':'Naruto','kind':'episode','season':'1','episode':str(n),'status':'copying' if n<=4 else 'new',
+         'files':[{'path':'Naruto S01E%02d.mkv'%n,'drive_name':'Naruto S01E%02d.mkv'%n,'size':280*M,'done':False}] if n<=8 else []}
+        for n in range(1,32)]
+  lanes={str(i):{'name':'Naruto','file':'Naruto S01E%02d.mkv'%n,'count':1,'sent':140*M,'total':280*M,'stage':'copying',
+                 'updated':NOW-2,'job':'h%d:1:%d'%(n,n),'rate':90*1024,'rate_own':90*1024} for i,n in enumerate((1,2,3,4))}
+  debrid={'jobs':jobs,'lanes':lanes}
+  left=ws.copy_bytes_left(debrid)
+  self.assertAlmostEqual(left/M,4*140+4*280+23*280,delta=1)                  # unlisted jobs count as the average file
+  snap=ws.build({'debrid':debrid},NOW);snap['copy_left']=left
+  text=ws.remaining_text(snap)
+  self.assertTrue(text.startswith('about 6 h'),text)                    # ~8.1 GB at 0.35 MB/s: about 6 h 25 min, not 16 min
+  self.assertIsNone(ws.copy_bytes_left({'jobs':[{'status':'new','files':[]}]}))
 
 class SeasonQueue(unittest.TestCase):
  """Owner (build 205): "i went to download a entire season and it seems only 1 thing is downloading? it should show a
@@ -247,7 +324,7 @@ class SeasonQueue(unittest.TestCase):
   self.assertEqual(ws.episode_label('Show.S1E7.mkv'),'S01E07');self.assertEqual(ws.episode_label('folder/show 2x05.mp4'),'S02E05')
  def test_debrid_drive_records_which_file(self):
   text=(LIB/'debrid_drive.py').read_text()
-  self.assertIn("'file': name, 'index': job['files'].index(entry) + 1, 'count': len(job['files'])",text)
+  self.assertIn("'file': name, 'index': owner['files'].index(entry) + 1, 'count': len(owner['files'])",text)
 
 
 class NoTorrentIds(unittest.TestCase):

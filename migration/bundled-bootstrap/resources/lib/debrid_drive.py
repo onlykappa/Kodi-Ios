@@ -21,7 +21,92 @@ import driveupload
 import transfer_history
 
 FILE = 'debrid-drive.json'
-LANES = 3   # most episodes of one season uploaded at once (ISSUE-164; Roadmap 1F.4: 3 since the build-252 log, ~3.3 MB/s per lane)
+# Most files copied at once (ISSUE-164; Roadmap 1F.4). Owner log 4beafff6 (build 314, a 101 Mbps upload): three copies
+# ran at ~2.4 MB/s each, 7.2 MB/s together, each held by its own connection; a fourth adds a quarter more.
+LANES = 4
+# A file whose copy failed goes back in line this many times in the same turn before it waits for the next one.
+RETRIES_IN_RUN = 2
+
+
+OFFSET = [lambda job: None]   # set by step(): tmdb, season -> episodes before that season (TMDb, cached)
+
+
+def offset_for(job):
+    """Episodes before the job's season, for absolute-numbered packs (season 1: 0; unknown: None)."""
+    try:
+        season = int(job.get('season') or 0)
+    except (TypeError, ValueError):
+        return None
+    if season <= 1:
+        return 0
+    if job.get('offset') is not None:
+        return int(job['offset'])
+    value = OFFSET[0](job)
+    if value is not None:
+        job['offset'] = int(value)
+    return value
+
+
+def offset_lookup(profile):
+    """job -> episodes before its season, from TMDb's season sizes (TMDb Helper's key), cached in drive-library-art.json."""
+    import drivelibrary
+    try:
+        import xbmcvfs
+        key = drivelibrary.tmdb_key(xbmcvfs.translatePath('special://home/addons/plugin.video.themoviedb.helper'))
+    except Exception:
+        key = ''
+    path = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap', 'drive-library-art.json')
+
+    def lookup(job):
+        tmdb = str(job.get('show_tmdb') or '')
+        if not tmdb:
+            return None
+        cache = drivelibrary.load_json(path, {})
+        known = 'counts:%s' % tmdb in cache
+        counts = drivelibrary.season_counts(tmdb, key, cache, lambda url: urllib.request.urlopen(url, timeout=15).read(), cached_only=not key)
+        if counts and not known:
+            drivelibrary.save_json(path, cache)
+        return drivelibrary.absolute_offset(counts, job.get('season'))
+    return lookup
+
+
+BUSY_LANES = 2
+START_LANES = 2
+GAIN = 1.15   # one more lane is kept only when it copies at least 15 % more in total
+
+
+def lane_plan(state):
+    """E16 (owner logs 7698974a / ec3b0956: four lanes on a ~0.4 MB/s link each crawled and timed out): how many lanes
+    the next run uses. Starts at START_LANES; tries one more while the last addition paid off (GAIN); otherwise the
+    count that copied fastest. state['lane_speeds']: {lanes: bytes per second, smoothed}."""
+    speeds = {int(k): float(v) for k, v in (state.get('lane_speeds') or {}).items()}
+    now = int(state.get('lanes_now') or START_LANES)
+    if not speeds or now not in speeds:
+        return max(1, min(LANES, now))
+    below = speeds.get(now - 1)
+    if now < LANES and (now + 1) not in speeds and (below is None or speeds[now] >= GAIN * below):
+        return now + 1
+    best = max(speeds.values())
+    return min(n for n, rate in speeds.items() if rate * GAIN >= best)   # the fewest lanes within 15 % of the best
+
+
+def learn_lanes(state, lanes, sent, seconds):
+    """Record what a run with this many lanes copied (runs under a minute or a few MB say nothing)."""
+    if seconds < 60 or sent < 8 * 1024 * 1024:
+        return
+    speeds = state.setdefault('lane_speeds', {})
+    rate = sent / float(seconds)
+    old = speeds.get(str(lanes))
+    speeds[str(lanes)] = rate if old is None else 0.5 * float(old) + 0.5 * rate
+    state['lanes_now'] = lanes
+
+
+def converting():
+    """Whether a conversion (prepare_downloads) is running now; set by step() for this turn."""
+    return bool(CONVERTING[0]())
+
+
+CONVERTING = [lambda: False]
 
 
 def lanes_for(files_left):
@@ -51,7 +136,10 @@ def save(profile, state, enqueue=False):
         fcntl.flock(lock,fcntl.LOCK_EX)
         current=load(profile)
         key=lambda j:(j['hash'],str(j.get('season','')),str(j.get('episode','')),j.get('added',0))
-        pending={key(j):j for j in current.get('jobs',[])}
+        # Jobs this process removed on purpose (a duplicate, an episode already on Drive) stay removed: the merge below
+        # brings back only jobs another process queued (end-to-end check: removed jobs came back at every save).
+        gone={tuple(k) for k in state.get('removed') or []}
+        pending={key(j):j for j in current.get('jobs',[]) if key(j) not in gone}
         for index,job in enumerate(state.get('jobs',[])):
             old=pending.pop(key(job),{})
             if enqueue and old:
@@ -92,10 +180,30 @@ def _queue(profile, torrent, kind, title='', season='', episode='', now=None, ep
     h = info_hash(torrent)
     if not h:
         raise ValueError('torrent without an info-hash')
+    try:
+        import transfer_control
+        leaving = transfer_control.cancelled_copies(profile)
+    except Exception:
+        leaving = set()
     for job in state['jobs']:
-        if job['hash'] == h and job.get('season','')==str(season or '') and job.get('episode', '') == str(episode or '') and job['status'] not in ('done', 'failed'):
+        if str(job.get('hash', '')).lower() in leaving:
+            continue   # being cancelled (Pick Better Versions): never stands in for the new pick
+        same_torrent = job['hash'] == h
+        # Owner screenshots (build 325): episode 6 waited three times and episode 2 twice, each from another torrent.
+        # An episode already waiting or copying is not queued again from a different version.
+        same_episode = (kind == 'episode' and episode and job.get('kind') == 'episode' and show_tmdb and
+                        str(job.get('show_tmdb') or '') == str(show_tmdb) and job.get('season', '') == str(season or '') and
+                        job.get('episode', '') == str(episode or ''))
+        if (same_episode or (same_torrent and job.get('season','')==str(season or '') and job.get('episode', '') == str(episode or ''))) and job['status'] not in ('done', 'failed'):
             changed=False
             if show_tmdb and not job.get('show_tmdb'):job['show_tmdb']=str(show_tmdb);changed=True
+            # Owner (build 325): jobs queued by older builds kept their hash as the title; a new request names them.
+            if title and not is_hash(title) and is_hash(job.get('title') or job.get('name')):
+                job.setdefault('moved_from', job.get('title') or job['name'])
+                job['title'] = title
+                if is_hash(job.get('name')):
+                    job['name'] = str(torrent.get('name') or title)
+                changed=True
             if watch:job['watch_requested']=time.time();changed=True
             if changed:save(profile,state,enqueue=True)
             return job
@@ -128,10 +236,323 @@ def order_season(profile, show_tmdb, season):
         return True
 
 
+def is_hash(text):
+    """A torrent info-hash (40 hex or 32 base32), not a name."""
+    import re
+    text = str(text or '').strip()
+    return bool(re.fullmatch(r'[0-9a-fA-F]{40}|[A-Z2-7]{32}', text))
+
+
+EPISODE_MARK = None
+
+
+def title_from_name(name):
+    """The show's name from a release or file name: 'Naruto Shippuden Episode 006 Mission…' -> 'Naruto Shippuden',
+    'Naruto.Shippuuden.-.002.[1080p].mkv' -> 'Naruto Shippuuden', 'Show.S01E04.mkv' -> 'Show'. '' for a hash."""
+    import re
+    import drivelibrary
+    global EPISODE_MARK
+    if EPISODE_MARK is None:
+        EPISODE_MARK = re.compile(r'(?i)(\bS\d{1,2}\s*E\d{1,4}\b|\bepisode\s*\d{1,4}\b|\bep\.?\s*\d{1,4}\b|\bE\d{2,4}\b|\s[-–]\s*\d{1,4}\b|\b\d{1,2}x\d{2,3}\b|\bseason\s*\d)')
+    base = str(name or '').rsplit('/', 1)[-1]
+    if not base or is_hash(base) or is_hash(base.rsplit('.', 1)[0]):
+        return ''
+    text = re.sub(r'\[[^\]]*\]|\([^)]*\)', ' ', re.sub(r'\.(mkv|mp4|avi|m4v|ts|webm)$', '', base, flags=re.I))
+    text = re.sub(r'[._]+', ' ', text)
+    mark = EPISODE_MARK.search(text)
+    title = text[:mark.start()] if mark and mark.start() > 0 else drivelibrary.parse(base)['title']
+    title = re.sub(r'\s{2,}', ' ', re.sub(r'[\s\-–(]+$', '', title)).strip()
+    return '' if not title or is_hash(title) else title
+
+
+def retitle(profile, state, plans=None, names=None, lookup=None):
+    """Jobs named after their info-hash take their show's title. Where from, in order: the season plan (episode_watch,
+    by TMDb id); another job of the same show; the show's name cached by the Library (names: {tmdb id: name}); TMDb
+    itself (lookup(tmdb id) -> name, owner build 325); the release or file name. Returns [(job, old title)]."""
+    if plans is None:
+        try:
+            import episode_watch
+            plans = episode_watch.load(profile).get('shows', {})
+        except Exception:
+            plans = {}
+    changed = []
+    # Owner (build 319: an "ee34425d5595…" card in Downloaded TV Shows): with no saved season plan for the show, a job
+    # takes the title another job of the same show (same TMDb id) already has.
+    known = {}
+    for other in state.get('jobs', []):
+        if other.get('show_tmdb') and other.get('title') and not is_hash(other.get('title')):
+            known.setdefault(str(other['show_tmdb']), other['title'])
+    names = names or {}
+    for job in state.get('jobs', []):
+        old = job.get('title') or ''
+        if not (is_hash(old) or is_hash(job.get('name')) or not old):
+            continue
+        tmdb = str(job.get('show_tmdb') or '')
+        title = ((plans.get(tmdb) or {}).get('title') or known.get(tmdb) or names.get(tmdb) or '') if tmdb else ''
+        if not title and tmdb and lookup:
+            try:
+                title = lookup(tmdb) or ''
+            except Exception:
+                title = ''
+            if title:
+                known[tmdb] = title
+        if not title:
+            for source in [job.get('name')] + [f.get('path') for f in job.get('files') or []]:
+                title = title_from_name(source)
+                if title:
+                    break
+        if not title or title == old:
+            continue
+        job['title'] = title
+        if is_hash(job.get('name')):
+            job['name'] = '%s S%02dE%02d' % (title, int(job.get('season') or 0), int(job.get('episode') or 0)) \
+                if job.get('season') and job.get('episode') else title
+        job.setdefault('moved_from', old)
+        changed.append((job, old))
+    return changed
+
+
+def one_spelling(state):
+    """Owner screenshot (build 327): "Naruto Shippuden" and "Naruto Shippuuden" were two shows, one without a poster:
+    titles from different release names. Jobs of one show (show_match) take one title: the one a job with a TMDb id has,
+    else the most common; files already copied move from the other spelling's folder (rehome). Returns [(job, old)]."""
+    import collections
+    groups = collections.defaultdict(list)
+    for job in state.get('jobs', []):
+        title = job.get('title') or ''
+        if job.get('kind') in ('episode', 'season') and title and not is_hash(title):
+            groups[show_match(title)].append(job)
+    changed = []
+    for jobs in groups.values():
+        titles = collections.Counter(j['title'] for j in jobs)
+        if len(titles) < 2:
+            continue
+        tmdb = collections.Counter(j['title'] for j in jobs if j.get('show_tmdb'))
+        best = (tmdb or titles).most_common(1)[0][0]
+        for job in jobs:
+            if job['title'] != best:
+                old = job['title']
+                job.setdefault('moved_from', old)
+                job['title'] = best
+                changed.append((job, old))
+    return changed
+
+
+def repick_plan(state, title, tmdb=''):
+    """Owner (build 328): episodes already queued with oversized versions get a better pick. The show's waiting
+    episode jobs that have copied nothing: (info hashes to cancel, [(season, episode)]). A torrent that also holds an
+    episode already copying, or done, is left alone."""
+    key = show_match(title)
+    mine = lambda j: (tmdb and str(j.get('show_tmdb') or '') == str(tmdb)) or (key and show_match(j.get('title') or '') == key)
+    busy = {str(j.get('hash', '')).lower() for j in state.get('jobs', []) if _started(j) or j.get('status') == 'done'}
+    hashes, episodes = set(), set()
+    for job in state.get('jobs', []):
+        if job.get('status') in ('done', 'failed') or job.get('kind') != 'episode' or not mine(job):
+            continue
+        h = str(job.get('hash', '')).lower()
+        if h in busy or _started(job):
+            continue
+        try:
+            episodes.add((int(job.get('season') or 0), int(job.get('episode') or 0)))
+        except (TypeError, ValueError):
+            continue
+        hashes.add(h)
+    return sorted(hashes), sorted(e for e in episodes if e[1])
+
+
+def show_names(profile):
+    """{tmdb id: name} the Library has cached (drive-library-art.json 'show:ID'); no network."""
+    try:
+        import work_state
+        return work_state.show_names(profile)
+    except Exception:
+        return {}
+
+
+LOOKED_UP = {}
+
+
+def show_lookup(profile):
+    """tmdb id -> the show's name from TMDb (TMDb Helper's key), cached in drive-library-art.json so the Library and
+    the pages find the name and poster too. None when there is no key."""
+    import drivelibrary
+    try:
+        import xbmcvfs
+        key = drivelibrary.tmdb_key(xbmcvfs.translatePath('special://home/addons/plugin.video.themoviedb.helper'))
+    except Exception:
+        return None
+    if not key:
+        return None
+    path = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap', 'drive-library-art.json')
+
+    def lookup(tmdb_id):
+        if time.time() - LOOKED_UP.get(str(tmdb_id), 0) < 600:   # a failed lookup waits ten minutes
+            return ''
+        LOOKED_UP[str(tmdb_id)] = time.time()
+        cache = drivelibrary.load_json(path, {})
+        found = drivelibrary.show_details(tmdb_id, key, cache, lambda url: urllib.request.urlopen(url, timeout=15).read())
+        if found:
+            drivelibrary.save_json(path, cache)
+        return found.get('name', '')
+    return lookup
+
+
+def _started(job):
+    return any(f.get('done') or (f.get('session') or {}).get('url') for f in job.get('files') or [])
+
+
+def drop_duplicates(state):
+    """Owner (build 325): the same episode waited several times, each from another torrent. Among the jobs not done,
+    one per show, season and episode stays (the one already copying, else the oldest); the others leave the queue if
+    they have not copied anything yet. Returns the jobs removed."""
+    import drivelibrary
+    keep, dropped = {}, []
+    for job in state.get('jobs', []):
+        if job.get('status') in ('done', 'failed') or job.get('kind') != 'episode' or not job.get('episode') or not job.get('season'):
+            continue
+        show = str(job.get('show_tmdb') or '') or drivelibrary.show_key(job.get('title') or '')
+        if not show or is_hash(job.get('title') or ''):
+            continue
+        key = (show, str(int(job['season'])), str(int(job['episode'])))
+        first = keep.get(key)
+        if first is None:
+            keep[key] = job
+            continue
+        loser = job if _started(first) or not _started(job) else first
+        if _started(loser):
+            continue
+        if loser is first:
+            keep[key] = job
+        dropped.append(loser)
+    forget_jobs(state, dropped)
+    return dropped
+
+
+def show_match(title):
+    """One key for the spellings of a show: 'Naruto Shippūden', 'Naruto Shippuden' and 'Naruto Shippuuden' match."""
+    import re
+    import unicodedata
+    text = unicodedata.normalize('NFKD', str(title or '')).encode('ascii', 'ignore').decode().lower()
+    text = re.sub(r'[^a-z0-9]+', '', re.sub(r'\b(19|20)\d\d\b', '', text))
+    return re.sub(r'(.)\1+', r'\1', text)
+
+
+def forget_jobs(state, jobs):
+    """Remove jobs from the queue for good: save() never merges them back from disk."""
+    if not jobs:
+        return
+    state['jobs'] = [j for j in state['jobs'] if all(j is not d for d in jobs)]
+    removed = state.setdefault('removed', [])
+    removed += [[j['hash'], str(j.get('season', '')), str(j.get('episode', '')), j.get('added', 0)] for j in jobs]
+    del removed[:-500]
+
+
+def drive_episodes(profile):
+    """{(show key, season, episode)} of every episode file the Library has listed on Drive (drive-library.json, no
+    network). Names with only a number ('Naruto Shippuuden - 002') count as season 1."""
+    import drivelibrary
+    import prepare_downloads
+    cache = drivelibrary.load_json(str(location(profile).parent / 'drive-library.json'), {})
+    found = set()
+    for slot, hit in cache.items():
+        if not slot.startswith('tv:') or slot == 'tv:':
+            continue
+        for e in (hit or {}).get('entries') or []:
+            show, season, episode = prepare_downloads.line_key(e.get('name') or '')[:3]
+            if e.get('season') and e.get('episode'):
+                season, episode = int(e['season']), int(e['episode'])
+            name = e.get('show') or title_from_name(e.get('name') or '') or show
+            if episode:
+                found.add((show_match(name), int(season or 1), int(episode)))
+    return found
+
+
+def drop_on_drive(state, on_drive):
+    """Owner (build 325): "Naruto Shippuuden - 002" was on Drive and converting while S1 E2 waited to be copied again.
+    A waiting episode job that has not copied anything leaves the queue when that episode is already on Drive."""
+    dropped = []
+    if not on_drive:
+        return dropped
+    for job in state.get('jobs', []):
+        if job.get('status') in ('done', 'failed') or job.get('kind') != 'episode' or _started(job):
+            continue
+        try:
+            key = (show_match(job.get('title') or title_from_name(job.get('name'))), int(job.get('season') or 0), int(job.get('episode') or 0))
+        except (TypeError, ValueError):
+            continue
+        if key[0] and key[2] and key in on_drive:
+            dropped.append(job)
+    forget_jobs(state, dropped)
+    return dropped
+
+
+def conversion_running(profile, now):
+    try:
+        import prepare_downloads
+        current = prepare_downloads.load(profile).get('current') or {}
+    except Exception:
+        return False
+    return bool(current.get('running')) and now - float(current.get('updated') or 0) < 300
+
+
+def episode_name(job, name):
+    """The Drive name of an episode's file: the original when it says its season and episode, else '<show> S01E02 -
+    <original>' (owner screenshot, build 314: "Naruto Shippuuden - 002 [1080p].mkv" gave the Library no episode)."""
+    import drivelibrary
+    info = drivelibrary.parse(name)
+    if info.get('season') and info.get('episode'):
+        return name
+    if job.get('kind') != 'episode' or not job.get('season') or not job.get('episode') or not job.get('title') or is_hash(job['title']):
+        return name
+    return '%s S%02dE%02d - %s' % (job['title'], int(job['season']), int(job['episode']), name)
+
+
+def rehome(drive, job, log=lambda text: None):
+    """Files a job already copied into a folder named after the hash move into the show's folder; the empty hash folder
+    goes to Drive's Trash. Returns how many files moved."""
+    old = job.get('moved_from')
+    if not old:
+        return 0
+    moved = 0
+    import json as _json
+    import urllib.parse as _p
+    wrong = drive.folder([TOP, 'TV Shows', old])
+    for f in job.get('files') or []:
+        if not f.get('drive_id') or f.get('rehomed'):
+            continue
+        right = drive.folder(folders(job['kind'], f.get('drive_name') or f.get('path') or '', job.get('title') or ''))
+        if right == wrong:
+            continue
+        named = episode_name(job, f.get('drive_name') or os.path.basename(f.get('path') or ''))
+        status, _, _ = drive.call('PATCH', driveupload.API + '/' + _p.quote(str(f['drive_id']), safe='') + '?addParents=' +
+                                  _p.quote(right, safe='') + '&removeParents=' + _p.quote(wrong, safe=''),
+                                  _json.dumps({'name': named}).encode(), {'Content-Type': 'application/json'})
+        if status == 200:
+            f['rehomed'] = True
+            f['drive_name'] = named
+            moved += 1
+        else:
+            log('%s: could not move it into %s (HTTP %s)' % (f.get('drive_name') or f.get('path'), job.get('title'), status))
+    if all(f.get('rehomed') or not f.get('drive_id') for f in job.get('files') or []):
+        try:
+            status, _, body = drive.call('GET', driveupload.API + '?q=' + _p.quote("'%s' in parents and trashed=false" % wrong) +
+                                         '&fields=files(id)&pageSize=1')
+            if status == 200 and not _json.loads(body or b'{}').get('files'):
+                drive.call('PATCH', driveupload.API + '/' + _p.quote(wrong, safe=''), _json.dumps({'trashed': True}).encode(),
+                           {'Content-Type': 'application/json'})
+        except Exception:
+            pass
+        job.pop('moved_from', None)
+    return moved
+
+
 def folders(kind, name, title=''):
     """Drive › Kodi Downloads › Movies, or › TV Shows › <show> (from the file's name, else the show's title)."""
     parts = driveupload.drive_folders(name, '/')
-    if parts[1] == 'Movies' and kind in ('episode', 'season') and title:
+    # End-to-end check (scripts/test_download_e2e.py): the show's folder came from each release's file name, so
+    # "Naruto.Shippuden.S01E06…" and "Naruto Shippuuden - 002" made two shows (owner screenshot, build 327). An episode
+    # with its show's title goes into that show's folder whatever the release calls it.
+    if kind in ('episode', 'season') and title and not is_hash(title):
         parts = [TOP, 'TV Shows', title]
     return parts
 
@@ -235,7 +656,7 @@ def companions(state, later, api, clock, log=lambda text: None):
                     continue
             if not other.get('files'):
                 chosen = alldebrid.pick(api.files(other['magnet']), other['kind'], other.get('season'), other.get('episode'),
-                                        other.get('episodes'))
+                                        other.get('episodes'), offset=offset_for(other))
                 if not chosen:
                     continue
                 other['files'] = [{'path': p, 'size': s, 'link': l, 'session': {}, 'done': False} for p, s, l in chosen]
@@ -261,8 +682,34 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             save(profile, state)
             transfer_history.failed(profile, 'up', job.get('title') or job['name'], 'cancelled by you', clock())
             forget(job['hash'])
-    jobs = [j for j in state['jobs'] if j['status'] not in ('done', 'failed')]
+    # Owner screenshot (build 314): Build Season jobs named after their hash; give them the show's title and move what
+    # was already copied into the show's folder.
+    renamed = retitle(profile, state, names=show_names(profile), lookup=show_lookup(profile)) + one_spelling(state)
+    dropped = drop_duplicates(state) + drop_on_drive(state, drive_episodes(profile))
+    CONVERTING[0] = lambda: conversion_running(profile, clock())
+    OFFSET[0] = offset_lookup(profile)
+    for job_ in dropped:
+        log('%s S%sE%s: already on Drive or downloading from another version; this one is removed' % (
+            job_.get('title') or job_['name'], job_.get('season'), job_.get('episode')))
+    if dropped:
+        save(profile, state)
+    if renamed:
+        for job_, old in renamed:
+            log('%s: named after its show (was %s)' % (job_['title'], old[:12]))
+        save(profile, state)
+    # Owner screenshot (build 327): an empty "3c90db2e05…" folder stayed in the Library while its show's episodes were
+    # still copying (into the show's folder); a renamed job moves what it has and trashes the old folder once empty.
+    for job_ in [j for j in state['jobs'] if j.get('moved_from') and j['status'] != 'failed']:
+        try:
+            if rehome(drive, job_, log):
+                driveupload.invalidate_library(str(location(profile).parent))   # the Library lists the show again
+        except Exception as error:
+            log('%s: moving into its show folder failed (%s)' % (job_.get('title'), type(error).__name__))
+        else:
+            save(profile, state)
+    jobs = in_line([j for j in state['jobs'] if j['status'] not in ('done', 'failed')])
     if not jobs:
+        state.pop('lanes', None)
         if state.pop('current', None) is not None:
             save(profile, state)
         return None
@@ -293,9 +740,13 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         if job['status'] == 'copying':
             if not job['files']:
                 try:
-                    chosen = alldebrid.pick(api.files(job['magnet']), job['kind'], job.get('season'), job.get('episode'), job.get('episodes'))
+                    chosen = alldebrid.pick(api.files(job['magnet']), job['kind'], job.get('season'), job.get('episode'), job.get('episodes'),
+                                            offset=offset_for(job))
                 except alldebrid.TooMany as many:
                     raise alldebrid.Problem(str(many))
+                if not chosen and int(job.get('season') or 0) > 1 and offset_for(job) is None:
+                    # An absolute-numbered pack needs TMDb's season sizes; without them, try again later (not a failure).
+                    raise RuntimeError('Waiting for TMDb to say where season %s starts' % job.get('season'))
                 if not chosen:
                     raise alldebrid.Problem('This version has no video for season %s. Pick a season pack.' % job.get('season')
                                             if job.get('kind') == 'season' and job.get('season') else 'This torrent has no video file.')
@@ -330,6 +781,9 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
 
             def show(slot, fields):
                 with guard:
+                    # Owner screenshot (build 329): four copies ran, Library status showed one ("1 working"). Every lane is
+                    # kept here for the pages (uploads()); 'current' / 'current_also' stay for the older readers.
+                    state.setdefault('lanes', {})[str(slot)] = dict(fields, slot=slot)
                     key = key_for(slot)
                     # rate_own: each lane's speed; rate: what the pages show, both lanes on the shown upload ('current').
                     fields = dict(fields, slot=slot)
@@ -352,6 +806,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             def release(slot):
                 with guard:
                     extra.pop(slot, None)
+                    (state.get('lanes') or {}).pop(str(slot), None)
                     if (state.get('current') or {}).get('slot') == slot:
                         state.pop('current', None)
                         if state.get('current_also'):
@@ -386,21 +841,24 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                         return action(source_link[0])
                 def open_source(offset):return with_source(lambda source:open_url(source,offset))
                 if callable(getattr(drive,'copy_piece',None)):
-                    def copy_to(target,headers,offset,count,total):
-                        return with_source(lambda source:drive.copy_piece(source,{},target,headers,offset,count,total,20))
+                    def copy_to(target,headers,offset,count,total,timeout=20):
+                        return with_source(lambda source:drive.copy_piece(source,{},target,headers,offset,count,total,timeout))
                     copy_to.max=getattr(drive.copy_piece,'max',8*1024*1024)
                     open_source.copy_to=copy_to
-                name = os.path.basename(name or entry['path'])
+                name = episode_name(owner, os.path.basename(name or entry['path']))
                 size = size or entry['size']
                 parts = folders(owner['kind'], name, owner.get('title') if owner['kind'] != 'movie' else '')
                 with guard:   # two uploads must not both create the season's folder
                     parent = drive.folder(parts)
 
                 marks = []
+                lane_job = '%s:%s:%s' % (owner.get('hash', ''), owner.get('season', ''), owner.get('episode', ''))
 
                 def progress(sent, total):
                     # Owner (build 170): the speed and the time left, measured over the last ~20 s.
                     now = clock()
+                    with guard:   # E16: this run's confirmed bytes, for the lane count of the next run
+                        moved.setdefault(id(entry), [sent, sent])[1] = sent
                     marks.append((now, sent))
                     # Build 207 (build-206 log: pieces 20-30 s apart): the window always keeps the piece before, or a
                     # slow copy read 0 MB/s on every page between pieces (no graph, Peak and Average 0.0).
@@ -412,7 +870,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     # and a piece that went up resets the tries (six AllDebrid 500s made a later timeout wait 210 s).
                     # Owner (build 205: "i went to download a entire season and it seems only 1 thing is downloading"):
                     # which file of the job this is, so the pages name the episode and count the season.
-                    show(slot, {'name': job_title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying',
+                    show(slot, {'name': job_title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying', 'job': lane_job,
                                         'rate_own': rate, 'eta_s': (total - sent) / rate if rate else 0, 'updated': now,
                                         'file': name, 'index': owner['files'].index(entry) + 1, 'count': len(owner['files'])})
                     with guard:
@@ -427,7 +885,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     now=clock()
                     with guard:
                         current=dict((state.get(key_for(slot)) if key_for(slot) else extra.get(slot)) or {})
-                    current.update(name=job_title,folder=parts[-1],file=name,index=owner['files'].index(entry)+1,
+                    current.update(name=job_title,folder=parts[-1],file=name,index=owner['files'].index(entry)+1,job=lane_job,
                                    count=len(owner['files']),sent=sent,total=total,stage='copying',phase=phase,phase_at=now)
                     if phase=='paused_playback':current.update(rate_own=0,eta_s=0)
                     show(slot,current)
@@ -455,14 +913,27 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                             entry = todo.pop(0) if todo else None
                         if entry is None:
                             return
-                        if entry[0] is job:
-                            copy(entry, slot)
-                            continue
                         try:
                             copy(entry, slot)
+                            continue
                         except driveupload.Stop:
                             raise
-                        except Exception as error:   # a companion's problem stays its own; it carries on in its own turn
+                        except Exception as error:
+                            # Owner log 3b94b426 (build 319): a lane whose episode failed once ended there, and one lane
+                            # copied the season alone for hours. The episode goes back in line (its Drive session kept)
+                            # up to RETRIES_IN_RUN times before it is left for the next turn.
+                            with guard:
+                                retried[id(entry[1])] = retried.get(id(entry[1]), 0) + 1
+                                again = retried[id(entry[1])] <= RETRIES_IN_RUN
+                                if again:
+                                    todo.append(entry)
+                            if again:
+                                log('%s: %s; trying it again after the others (%d of %d)' % (
+                                    entry[0].get('title') or entry[0]['name'], type(error).__name__, retried[id(entry[1])], RETRIES_IN_RUN))
+                                continue
+                            if entry[0] is job:
+                                raise
+                            # A companion's problem stays its own; it carries on in its own turn.
                             with guard:
                                 other = entry[0]
                                 other['tries'] = other.get('tries', 0) + 1
@@ -473,17 +944,36 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 finally:
                     release(slot)
 
-            lanes = lanes_for(len(todo))
-            if lanes == 1:
-                worker(0)
-            else:
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=lanes) as pool:
-                    running = [pool.submit(worker, slot) for slot in range(lanes)]
-                    problems = [f.exception() for f in running]
-                for problem in problems:
-                    if problem is not None:
-                        raise problem
+            retried = {}
+            # Owner screenshot (build 325): "Waiting for Google Drive · no answer for 23 min" at 0 % while other copies
+            # moved: the card was a lane of an earlier run (saved in the state), and the new lanes never wrote over it.
+            with guard:
+                state.pop('current', None)
+                state.pop('current_also', None)
+                state.pop('lanes', None)
+            # Owner log 7698974a (build 325): four copies at ~0.2 MB/s each while a conversion read and wrote Drive on
+            # the same connection; every piece timed out at 20 s and halved. Two lanes while a conversion runs.
+            # E16: as many lanes as the link rewards (lane_plan), never more than files, and two beside a conversion.
+            busy = converting()
+            lanes = min(lanes_for(len(todo)), lane_plan(state), BUSY_LANES if busy else LANES)
+            moved = {}
+            began = clock()
+            try:
+                if lanes == 1:
+                    worker(0)
+                else:
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=lanes) as pool:
+                        running = [pool.submit(worker, slot) for slot in range(lanes)]
+                        problems = [f.exception() for f in running]
+                    for problem in problems:
+                        if problem is not None:
+                            raise problem
+            finally:
+                # E19: a run beside a conversion shares the link with it (and is capped), so it says nothing about lanes.
+                if not busy and not converting():
+                    with guard:
+                        learn_lanes(state, lanes, sum(b - a for a, b in moved.values()), clock() - began)
             for other in group[1:]:
                 if all(e['done'] for e in other['files']):
                     other['status'] = 'done'
@@ -537,12 +1027,47 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     return 5
 
 
-def uploads(profile):
-    """The copy in progress, for the Uploading card, the activity pill and Library status (as notices.uploads)."""
-    current = load(profile).get('current')
+def hold(profile, reason):
+    """Why copies wait outside the queue's own rules ('wifi': Copy only on Wi-Fi while on cellular), or '' to go on.
+    Kept in the state for the pages (work_state shows "Waiting for Wi-Fi")."""
+    state = load(profile)
+    if (state.get('hold') or '') == (reason or ''):
+        return
+    if reason:
+        state['hold'] = reason
+    else:
+        state.pop('hold', None)
+    save(profile, state)
+
+
+def uploads(profile, now=None):
+    """The copies in progress, one per lane, for the Uploading card, the activity pill and Library status (as
+    notices.uploads); a lane quiet for ten minutes is left out."""
+    state = load(profile)
+    now = time.time() if now is None else now
+    lanes = [c for _, c in sorted((state.get('lanes') or {}).items(), key=lambda kv: int(kv[0]))
+             if c.get('total') and now - max(float(c.get('updated') or 0), float(c.get('phase_at') or 0)) < 600]
+    if lanes:
+        return lanes
+    current = state.get('current')
     if not current or not current.get('total'):
         return []
     return [current]
+
+
+def in_line(jobs):
+    """Owner screenshot (build 329): Up next read E3, E1, E4. Shows keep the order they were asked for; within a show
+    the episodes go in season and episode order."""
+    first = {}
+    for n, job in enumerate(jobs):
+        first.setdefault(show_match(job.get('title') or job.get('name') or ''), n)
+    def key(job):
+        try:
+            number = (int(job.get('season') or 0), int(job.get('episode') or 0))
+        except (TypeError, ValueError):
+            number = (0, 0)
+        return (first[show_match(job.get('title') or job.get('name') or '')], number)
+    return sorted(jobs, key=key)
 
 
 def renamed(profile, old_id, new_id):

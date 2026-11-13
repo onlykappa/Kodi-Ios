@@ -216,10 +216,23 @@ def episode_label(name):
     return 'S%02dE%02d' % (int(m.group(1)), int(m.group(2))) if m else _title(base.rsplit('.', 1)[0])
 
 
+def _in_line(jobs):
+    """The order the copier takes them in (debrid_drive.in_line): episode order within a show."""
+    try:
+        import debrid_drive
+        return debrid_drive.in_line(jobs)
+    except Exception:
+        return jobs
+
+
 def _copy_next(debrid):
     """What the AllDebrid → Drive copy does after the file it copies now (owner, build 205: a whole season showed as
     one download): the season's other episodes, then the other jobs, [{'kind', 'title', 'line'}] in that order."""
-    jobs = [j for j in (debrid or {}).get('jobs') or [] if j.get('status') not in ('done', 'failed')]
+    copying = {str(c.get('job')) for c in ((debrid or {}).get('lanes') or {}).values() if c.get('job')}
+    jobs = _in_line([j for j in (debrid or {}).get('jobs') or [] if j.get('status') not in ('done', 'failed')])
+    # A job a lane copies now is on its own card, not in Up next (owner, build 329: four copies, one card).
+    lead = jobs[:1]
+    jobs = lead + [j for j in jobs[1:] if '%s:%s:%s' % (j.get('hash', ''), j.get('season', ''), j.get('episode', '')) not in copying]
     out = []
     for n, job in enumerate(jobs):
         title = _download_title(job)
@@ -229,7 +242,10 @@ def _copy_next(debrid):
             pending = pending[1:]   # the first one left is the one copying now
         if pending:
             for f in pending:
-                out.append(dict(identity, **{'id':identity['id']+':'+f.get('path',''), 'folder':f.get('path',''), 'kind': 'copy', 'title': '%s · %s' % (title, episode_label(f.get('path'))),
+                # Owner screenshot (build 327): "Naruto Shippuden · S1 E1 · Naruto Shi…": a one-episode job's title already
+                # names the episode; only a pack's files add theirs.
+                named = title if ' · S' in title else '%s · %s' % (title, episode_label(f.get('path')))
+                out.append(dict(identity, **{'id':identity['id']+':'+f.get('path',''), 'folder':f.get('path',''), 'kind': 'copy', 'title': named,
                             'line': 'Waiting · %s' % STEP['copy']}))
         elif n:
             out.append(dict(identity, **{'kind': 'copy', 'title': title,
@@ -237,10 +253,38 @@ def _copy_next(debrid):
     return out
 
 
+def _copies(debrid, now):
+    """Owner screenshot (build 329): four copies ran, the status showed one ("1 working"). One card per lane that
+    copies now (debrid_drive's 'lanes', each with the job it copies), else the single card _copy() makes:
+    [(card, owner job)]."""
+    debrid = debrid or {}
+    jobs = _in_line([j for j in debrid.get('jobs') or [] if j.get('status') not in ('done', 'failed')])
+    if not jobs:
+        return []
+    by_key = {'%s:%s:%s' % (j.get('hash', ''), j.get('season', ''), j.get('episode', '')): j for j in jobs}
+    fresh = lambda c: now - max(float(c.get('updated') or 0), float(c.get('phase_at') or 0)) < 600
+    lanes = [c for _, c in sorted((debrid.get('lanes') or {}).items(), key=lambda kv: int(kv[0]))
+             if c.get('total') and fresh(c) and by_key.get(str(c.get('job')))]
+    if len(lanes) > 1:
+        out = []
+        for lane in lanes:
+            owner = by_key[str(lane['job'])]
+            card = _copy({'jobs': [owner], 'current': lane}, now)
+            if card:
+                out.append((card, owner))
+        if out:
+            return out
+    card = _copy(debrid, now)
+    return [(card, jobs[0])] if card else []
+
+
 def _copy(debrid, now):
     """The AllDebrid → Drive copy, or None."""
-    current = (debrid or {}).get('current') or {}
-    jobs = [j for j in (debrid or {}).get('jobs') or [] if j.get('status') not in ('done', 'failed')]
+    # Owner (build 325): the card sat at "no answer for 23 min" while other lanes copied; show the lane that moved last.
+    fresh = lambda c: max(float(c.get('updated') or 0), float(c.get('phase_at') or 0))
+    lanes = [c for c in ((debrid or {}).get('current'), (debrid or {}).get('current_also')) if c]
+    current = max(lanes, key=fresh) if lanes else {}
+    jobs = _in_line([j for j in (debrid or {}).get('jobs') or [] if j.get('status') not in ('done', 'failed')])
     if not jobs:
         return None
     job = jobs[0]
@@ -267,6 +311,8 @@ def _copy(debrid, now):
             out['wait'] = ('Waiting for download' if phase=='reading' else 'Waiting for Google Drive')+' · no answer for %d min' % max(1,int((now-float(updated))//60))
         if job.get('tries') and retry > now:
             out['wait'] = 'Waiting for the network · %s' % retry_text(retry, now)
+        if (debrid or {}).get('hold') == 'wifi':
+            out['wait'] = 'Waiting for Wi-Fi · copies run on Wi-Fi only (Transfer settings)'
         out['playback_held']=phase=='paused_playback' and not (job.get('tries') and retry>now)
         return out
     if current.get('stage') == 'fetching':
@@ -277,6 +323,10 @@ def _copy(debrid, now):
         return {'kind': 'copy', 'title': title, 'name': job.get('name', ''), 'step': STEP['copy'], 'pct': 0, 'indeterminate': False,
                 'rate': 0.0, 'eta_s': 0, 'tint': BLUE, 'hash': job.get('hash', ''),
                 'wait': 'Waiting for the network · %s' % retry_text(retry, now)}
+    if (debrid or {}).get('hold') == 'wifi':
+        return {'kind': 'copy', 'title': title, 'name': job.get('name', ''), 'step': STEP['copy'], 'pct': 0, 'indeterminate': False,
+                'rate': 0.0, 'eta_s': 0, 'tint': BLUE, 'hash': job.get('hash', ''),
+                'wait': 'Waiting for Wi-Fi · copies run on Wi-Fi only (Transfer settings)'}
     return {'kind':'copy','title':title,'name':job.get('name',''),'step':
             'Waiting for AllDebrid' if job.get('status') in ('new','fetching') else 'Starting transfer to Google Drive',
             'pct':0,'indeterminate':True,'queued':True,'rate':0.0,'eta_s':0,'tint':BLUE,'hash':job.get('hash','')}
@@ -328,9 +378,7 @@ def build(inp, now):
     conv = _conversion(inp.get('prep'), inp.get('runtime'), now)
     if conv:
         add(conv, held=conv.pop('held', False) or (paused.get('conv') and conv['kind'] != 'check'))
-    copy = _copy(inp.get('debrid'), now)
-    if copy:
-        owner=next(j for j in inp['debrid']['jobs'] if j.get('status') not in ('done','failed'))
+    for copy, owner in _copies(inp.get('debrid'), now):
         copy['id']='debrid:%s:%s:%s'%(owner.get('hash',''),owner.get('season',''),owner.get('episode',''))
         playback_held=copy.pop('playback_held',False)
         add(copy, held=bool(paused.get('up')), wait=copy.pop('wait', ''))
@@ -444,7 +492,9 @@ def current(profile, now=None):
     now=time.time() if now is None else now
     state=load(profile,now) or build({},now)
     paused={k:transfer_control.paused(profile,k) for k in transfer_control.KINDS}
-    copies=build({'debrid':debrid_drive.load(profile),'paused':paused,'slow':state.get('slow',''),'show_names':show_names(profile)},now)
+    debrid=debrid_drive.load(profile)
+    copies=build({'debrid':debrid,'paused':paused,'slow':state.get('slow',''),'show_names':show_names(profile)},now)
+    state=dict(state,copy_left=copy_bytes_left(debrid))
     jobs=[j for j in state.get('jobs',[]) if j.get('kind')!='copy']+copies['jobs']
     nexts=state.get('next') or [];drive_next=copies['drive_next'];needs=state.get('needs') or []
     moving=[j for j in jobs if j['state'] in MOVING]
@@ -536,6 +586,31 @@ def align(prep_state, state):
     return dict(prep_state, current=current)
 
 
+def copy_bytes_left(debrid):
+    """E17: bytes still to copy to Drive across every unfinished job (Drive's confirmed position for a file under way;
+    jobs AllDebrid has not listed yet count as the average file seen). None when nothing is known."""
+    jobs = [j for j in (debrid or {}).get('jobs') or [] if j.get('status') not in ('done', 'failed')]
+    lanes = {str(c.get('file')): float(c.get('sent') or 0) for c in ((debrid or {}).get('lanes') or {}).values()}
+    sizes, left, unknown = [], 0.0, 0
+    for job in jobs:
+        files = [f for f in job.get('files') or [] if not f.get('done')]
+        if not job.get('files'):
+            unknown += 1
+            continue
+        for f in files:
+            size = float(f.get('size') or 0)
+            sizes.append(size)
+            sent = max([v for k, v in lanes.items() if k and (k == f.get('drive_name') or k.endswith(str(f.get('path', '')).rsplit('/', 1)[-1]))] or [0])
+            left += max(0.0, size - sent)
+        sizes += [float(f.get('size') or 0) for f in job.get('files') or [] if f.get('done')]
+    if unknown:
+        known = [x for x in sizes if x > 0]
+        if not known:
+            return None
+        left += unknown * sum(known) / len(known)
+    return left if jobs else 0.0
+
+
 def remaining_text(state):
     """One queue estimate for the summary and Queue, from the published model only.
 
@@ -550,10 +625,18 @@ def remaining_text(state):
     seconds = float((conv or {}).get('eta_s') or 0)
     rate = float((conv or {}).get('rate') or 0)
     if nexts:
-        if rate <= 0 or any(not j.get('size') for j in nexts):
+        if (rate <= 0 or any(not j.get('size') for j in nexts)) and not state.get('copy_left'):
             return ''
-        seconds += sum(float(j['size']) / rate for j in nexts)
-    seconds = max([seconds] + [float(j.get('eta_s') or 0) for j in state.get('jobs') or []])
+        if rate > 0 and all(j.get('size') for j in nexts):
+            seconds += sum(float(j['size']) / rate for j in nexts)
+    # E17 (owner screenshots: "about 84 h 40 min" from a starved conversion rate; "about 16 min" with 31 episodes waiting,
+    # counting the copy under way only): copies are the bytes left in every waiting and running copy over all lanes'
+    # speed together; conversions run beside them, so the longer of the two.
+    copy_rate = sum(float(j.get('rate') or 0) for j in state.get('jobs') or [] if j.get('kind') == 'copy' and j.get('state') in MOVING)
+    copies = (float(state['copy_left']) / copy_rate) if state.get('copy_left') and copy_rate > 0 else 0.0
+    if conv and rate < 64 * 1024 and copies:
+        seconds = float((conv or {}).get('eta_s') or 0) if not nexts else 0.0   # a starved read rate says nothing about the queue
+    seconds = max([seconds, copies] + [float(j.get('eta_s') or 0) for j in state.get('jobs') or []])
     if seconds <= 0:
         return ''
     m = max(1, int(seconds // 60))

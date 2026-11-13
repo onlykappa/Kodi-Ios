@@ -235,6 +235,41 @@ class SeasonBuildPicks(unittest.TestCase):
   self.assertEqual(dp.auto_choose([pack,single],{'quality':'1080p','strict_quality':True})['idx'],1)
   self.assertEqual(dp.auto_choose([pack],{'quality':'1080p','strict_quality':True})['idx'],0)   # still used when alone
 
+class SmallerEpisodes(unittest.TestCase):
+ def test_a_normal_size_episode_without_conversion_beats_a_huge_10bit_one(self):
+  # Owner log b2f10d1f (build 327): 4-6 GB 10-bit H.264 episodes took 4 h each and then needed converting.
+  huge=dp.parse_item('1080p (300 / 0) [4.6 GB] BluRay H.264 10bit - Torrentio\nNaruto.Shippuden.S01E03.1080p.BluRay.10bit.x264\nicon.png',0)
+  big8=dp.parse_item('1080p (200 / 0) [4.2 GB] BluRay H.264 - Torrentio\nNaruto.Shippuden.S01E03.1080p.BluRay.REMUX\nicon.png',1)
+  normal=dp.parse_item('1080p (20 / 0) [1.1 GB] WebDL H.264 - Torrentio\nNaruto.Shippuden.S01E03.1080p.WEB.x264\nicon.png',2)
+  want={'quality':'1080p','strict_quality':True}
+  self.assertTrue(dp.converts_for_tv(huge));self.assertTrue(dp.oversized_episode(big8));self.assertFalse(dp.oversized_episode(normal))
+  self.assertEqual(dp.auto_choose([huge,big8,normal],want)['idx'],2)
+  self.assertEqual(dp.auto_choose([huge,big8],want)['idx'],1)     # no conversion beats size
+  self.assertEqual(dp.auto_choose([huge],want)['idx'],0)          # still taken when it is the only one
+
+class BestOverall(unittest.TestCase):
+ """Owner (build 328): "pick the genuine best options based off size and the quality i pick not just the smallest"."""
+ def mk(self,i,seeds,size,name,tag='WebDL H.264'):
+  return dp.parse_item('1080p (%d / 0) [%s] %s - Torrentio\n%s\nicon.png'%(seeds,size,tag,name),i)
+ def test_the_right_size_for_the_length_then_the_better_source(self):
+  # A 23-minute 1080p episode: 2.5-10 Mbit/s is 0.4-1.6 GB (H.264).
+  starved=self.mk(0,300,'180 MB','Naruto.Shippuden.S01E03.1080p.WEB.x264')               # 1 Mbit/s: too little picture
+  web=self.mk(1,40,'900 MB','Naruto.Shippuden.S01E03.1080p.WEB-DL.x264')
+  bluray=self.mk(2,25,'1.3 GB','Naruto.Shippuden.S01E03.1080p.BluRay.x264','BluRay H.264')
+  remux=self.mk(3,500,'4.6 GB','Naruto.Shippuden.S01E03.1080p.BluRay.REMUX','BluRay H.264')
+  want={'quality':'1080p','strict_quality':True,'runtime':23}
+  self.assertEqual([dp.size_fit(x,23) for x in (starved,web,bluray,remux)],[2,0,0,2])
+  self.assertEqual(dp.auto_choose([starved,web,bluray,remux],want)['idx'],2)               # Blu-ray at a good size
+  self.assertEqual(dp.auto_choose([starved,web,remux],want)['idx'],1)                      # not the smallest, not the biggest
+ def test_hevc_is_judged_by_its_own_bitrate_and_seeds_still_matter(self):
+  hevc=self.mk(0,30,'400 MB','Naruto.Shippuden.S01E03.1080p.WEB.x265','WebDL H.265')      # 2.4 Mbit/s HEVC: fine
+  self.assertEqual(dp.size_fit(hevc,23),0)
+  dead=self.mk(1,2,'1.2 GB','Naruto.Shippuden.S01E03.1080p.BluRay.x264','BluRay H.264')
+  self.assertEqual(dp.auto_choose([hevc,dead],{'quality':'1080p','strict_quality':True,'runtime':23})['idx'],0)
+ def test_runtime_reaches_the_pick(self):
+  src=(ROOT/'migration/bundled-bootstrap/resources/lib/season_sources.py').read_text()
+  self.assertIn("runtime=episode_minutes(tmdb,season,episode)",src)
+
 class Lanes(unittest.TestCase):
  def test_each_episode_finds_its_own_lane(self):
   import json,time as t

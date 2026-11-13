@@ -140,7 +140,7 @@ class AllDebrid(object):
         return data['link'], str(data.get('filename') or ''), int(data.get('filesize') or 0)
 
 
-def pick(files, kind, season=None, episode=None, episodes=None):
+def pick(files, kind, season=None, episode=None, episodes=None, offset=None):
     """The video files to copy: the largest for a movie, the matching episode for an episode, every episode for a
     season. Samples and extras are left out."""
     videos = [f for f in files if f[0].lower().endswith(VIDEO) and not re.search(r'(?i)(^|[/._ -])(sample|trailer|extras?)([/._ -]|$)', f[0])]
@@ -150,11 +150,29 @@ def pick(files, kind, season=None, episode=None, episodes=None):
         m = re.search(r'(?i)\bS(\d{1,2})[ ._-]?E(\d{1,3})\b', name) or re.search(r'\b(\d{1,2})x(\d{2,3})\b', name)
         return (int(m.group(1)), int(m.group(2))) if m else None
     if kind == 'episode' and season and episode:
-        wanted = [f for f in videos if number(f[0].rsplit('/', 1)[-1]) == (int(season), int(episode))]
-        return wanted[:1] or sorted(videos, key=lambda f: -f[1])[:1]
+        target = (int(season), int(episode))
+        wanted = [f for f in videos if number(f[0].rsplit('/', 1)[-1]) == target]
+        base = 0 if target[0] == 1 else offset
+        if not wanted and base is not None:
+            # Owner builds 317-328 (end-to-end check, scripts/test_download_e2e.py): a complete-series pack names episodes
+            # by absolute number ("Naruto Shippuden Episode 006 ….mkv"); nothing matched S01E06 and every episode job
+            # copied the pack's largest file (its film) as "S01E01". Season 1's episodes are the first absolute numbers.
+            # Later seasons: absolute = the episodes before this season (TMDb, debrid_drive passes offset) + episode.
+            wanted = [f for f in videos if not number(f[0].rsplit('/', 1)[-1]) and absolute(f[0]) == base + target[1]
+                      and season_folder(f[0]) in (None, target[0])]
+        if wanted:
+            return sorted(wanted, key=lambda f: -f[1])[:1]
+        # A torrent of one video is that episode; with several and none named so, nothing is copied (the job says so)
+        # rather than the largest file.
+        return videos if len(videos) == 1 else []
     if episodes and season:   # the episodes picked from a season (a pack holds them all)
         wanted = {(int(season), int(n)) for n in episodes}
-        return sorted([f for f in videos if number(f[0].rsplit('/', 1)[-1]) in wanted], key=lambda f: f[0])
+        found = sorted([f for f in videos if number(f[0].rsplit('/', 1)[-1]) in wanted], key=lambda f: f[0])
+        base = 0 if int(season) == 1 else offset
+        if not found and base is not None:   # an absolute-numbered pack
+            numbers = {base + int(n) for n in episodes}
+            found = sorted([f for f in videos if not number(f[0].rsplit('/', 1)[-1]) and absolute(f[0]) in numbers], key=lambda f: f[0])
+        return found
     numbered = [f for f in videos if number(f[0].rsplit('/', 1)[-1])]
     if kind == 'season' and str(season or '').isdigit():
         # Owner (build 252: "season 1-3 of naruto shippuden ... somehow its downloading everything", queue over 500): a
@@ -183,6 +201,18 @@ class TooMany(Exception):
     def __init__(self, count):
         Exception.__init__(self, 'This version holds %d videos (a whole series), not one season. Pick a season pack.' % count)
         self.count = count
+
+
+ABSOLUTE = re.compile(r'(?i)(?:\bepisode[\s._-]*|\bep\.?[\s._-]*|\s[-–][\s._-]*|\bE)(\d{1,4})(?![\dpP])\b')
+
+
+def absolute(path):
+    """The episode number of a name with no season: 'Show Episode 006 Title.mkv', '[Sub] Show - 006 [1080p].mkv',
+    'Show E006.mkv' -> 6; None when there is none."""
+    base = re.sub(r'\[[^\]]*\]|\([^)]*\)', ' ', str(path).rsplit('/', 1)[-1])
+    base = re.sub(r'[._]+', ' ', re.sub(r'\.[A-Za-z0-9]{2,4}$', '', base))
+    m = ABSOLUTE.search(base)
+    return int(m.group(1)) if m else None
 
 
 def season_folder(path):

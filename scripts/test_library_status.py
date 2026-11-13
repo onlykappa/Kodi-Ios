@@ -175,7 +175,7 @@ class FakeKodi:
  def __init__(self,profile,script,settings=None,answer=True):
   import types
   self.script=list(script);self.settings=dict(settings or {'prepare_downloads':True});self.answer=answer
-  self.notes=[];self.windows=[];kodi=self
+  self.notes=[];self.windows=[];self.menus=[];self.picks=[];kodi=self
   xbmc=types.ModuleType('xbmc');xbmc.LOGWARNING=2;xbmc.LOGINFO=1;xbmc.log=lambda *a:None
   class Monitor:
    def waitForAbort(self,t=0):return True    # the refresh loop ends at once; the test refreshes by tapping
@@ -204,7 +204,7 @@ class FakeKodi:
    def setPercent(self,v):self.percent=v
   class Window:
    def __init__(self,xml,*rest):
-    self.xml=xml;self.props={};self.controls={};self.closed=False;self.focus=None;kodi.windows.append(self)
+    self.xml=xml;self.props={};self.controls={};self.closed=False;self.focus=None;self._kodi=kodi;kodi.windows.append(self)
    def setProperty(self,k,v):self.props[k]=v
    def getProperty(self,k):return self.props.get(k,'')
    def getId(self):return kodi.windows.index(self)
@@ -213,6 +213,7 @@ class FakeKodi:
     assert not self.closed,'control %d used after its window closed'%n
     return self.controls.setdefault(n,Control())
    def setFocusId(self,n):self.focus=n
+   def getFocusId(self):return self.focus
    def close(self):self.closed=True
    def doModal(self):
     self.onInit()
@@ -222,6 +223,7 @@ class FakeKodi:
      step[1](self)
   class Dialog:
    def yesno(self,*a,**k):kodi.notes.append(('yesno',a[1]));return kodi.answer
+   def contextmenu(self,labels):kodi.menus.append(list(labels));return kodi.picks.pop(0) if kodi.picks else -1
    def notification(self,title,text,*a):kodi.notes.append(('note',text))
   gui.ListItem,gui.WindowXMLDialog,gui.Dialog=ListItem,Window,Dialog
   def existing(ident):
@@ -474,5 +476,58 @@ class ReplacementStopsTheConversion(unittest.TestCase):
   src=(LIB/'elementum_cloud.py').read_text()
   self.assertIn("prepare_downloads.request(profile, 'replace', replaced)",src)
   self.assertIn("setProperty('KodiIOS.Replacing'",(BOOT/'library_status.py').read_text())
+
+def kodi_of(w):return w._kodi
+def press(code):return lambda w:w.onAction(type('A',(),{'getId':lambda self:code})())
+def focus(n):return lambda w:w.setFocusId(n)
+
+class LongPressCancel(unittest.TestCase):
+ """Owner (build 328): "holding down on the show that is converting should show a cancel button"; build 347: "holding
+ down anything on the library status sends me out of the page ... ensure if i hold down on a download or transfer it
+ also works like this". The phone delivers one long press as action 10 (which also means Back) and 117."""
+ setUp,tearDown,run_page=TapEveryButton.setUp,TapEveryButton.tearDown,TapEveryButton.run_page
+ def test_holding_the_working_card_keeps_the_page_open(self):
+  kodi=self.run_page([(library_page.WINDOW,focus(library_page.WORK)),(library_page.WINDOW,press(10)),(library_page.WINDOW,press(117)),
+                      (library_page.WINDOW,lambda w:self.assertFalse(w.closed)),(library_page.WINDOW,focus(library_page.BACK)),
+                      (library_page.WINDOW,press(10))])
+  self.assertEqual(kodi.menus,[['Pause converting','Cancel conversion']])   # one menu for one press
+  self.assertTrue(kodi.windows[0].closed)                                   # 10 away from a card is still Back
+ def test_cancel_conversion(self):
+  self.run_page([(library_page.WINDOW,lambda w:setattr(kodi_of(w),'picks',[1])),(library_page.WINDOW,focus(library_page.WORK+100)),
+                 (library_page.WINDOW,press(117)),(library_page.WINDOW,tap(library_page.BACK))])
+  self.assertIn('keep',[r['action'] for r in prep.pending_requests(self.profile)])
+ def held(self,row,picks):
+  def setup(w):
+   w.pools={'down':[{'row':row,'props':{}}]};kodi_of(w).picks=list(picks);w.setFocusId(library_page.POOLS[0][1])
+  return self.run_page([(library_page.WINDOW,setup),(library_page.WINDOW,press(10)),(library_page.WINDOW,press(117)),
+                        (library_page.WINDOW,lambda w:self.assertFalse(w.closed)),(library_page.WINDOW,tap(library_page.BACK))])
+ def test_holding_a_drive_copy_cancels_it(self):
+  import transfer_control
+  kodi=self.held({'kind':'copy','hash':'ABC123','title':'Naruto · S1 E3'},[1])
+  self.assertEqual(kodi.menus,[['Pause uploads','Cancel this download']])
+  self.assertEqual(transfer_control.cancelled_copies(self.profile),{'abc123'})
+ def test_holding_a_drive_copy_pauses_uploads(self):
+  import transfer_control
+  self.held({'kind':'copy','hash':'abc','title':'Naruto · S1 E3'},[0])
+  self.assertTrue(transfer_control.paused(self.profile,'up'))
+ def test_holding_an_elementum_download(self):
+  import notices
+  from unittest.mock import patch
+  with patch.object(notices,'engine_action',return_value=True) as engine:
+   kodi=self.held({'kind':'down','id':'e7','title':'Arrival (2016)','held':True},[0])
+  self.assertEqual(kodi.menus,[['Resume download','Cancel download']]);engine.assert_called_once_with('resume','e7')
+ def test_a_queued_copy_in_up_next_and_rows_that_are_not_transfers(self):
+  import transfer_control
+  self.assertEqual(transfer_control.row_menu({'queued_transfer':True,'hash':'h','title':'T'},queued=3)[2],
+                   [('Pause uploads','toggle'),('Cancel this download','cancel'),('Cancel all downloads to Drive (3)','cancel_all')])
+  self.assertEqual(transfer_control.row_menu({'kind':'upload','title':'Clip'})[2],[('Pause uploads','toggle')])
+  self.assertIsNone(transfer_control.row_menu({'state':'waiting','id':'w1'}))
+ def test_source(self):
+  src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/library_status.py').read_text()
+  self.assertIn("prepare_downloads.request(profile,'keep',row['id'])",src)
+  self.assertIn("if code in LONG or code==10:",src)
+  import sys;sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'))
+  import transfer_control
+  self.assertIn(('Cancel conversion','cancel'),transfer_control.menu('conv',{'id':'d1'}))
 
 if __name__=='__main__':unittest.main()

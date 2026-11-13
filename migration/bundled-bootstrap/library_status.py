@@ -7,10 +7,11 @@ Check now (top right) asks the service to look at Google Drive again; a row open
 service applies on its next pass (prepare_downloads.request)."""
 import os,shutil,sys,threading,time
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import page_wait,library_page,library_rows,prepare_downloads,tool_windows,transfer_history
+import page_wait,library_page,library_rows,prepare_downloads,tool_windows,transfer_control,transfer_history
 p_side=54   # portrait.SIDE: the summary card's left edge
 
 BACK=(9,10,92,110)
+LONG=(101,117)   # right click, context menu (a long press on the phone; it can arrive as 10 too)
 # By id: a script started through RunScript(service.kodi.ios.bootstrap,...) runs via default.py's runpy, and Kodi
 # cannot tell which add-on an Addon call without an id means (build 159: the page never opened).
 ADDON='service.kodi.ios.bootstrap'
@@ -160,8 +161,23 @@ def run(args=()):
    self.stop.set();self.guard.close()
 
  class Page(xbmcgui.WindowXMLDialog):
+  # Owner (build 329): "scrolling is just not smooth like it doesnt scroll far with my scrolls". Every 2 s refresh
+  # wrote ~1,130 window properties (141 pooled rows x 8) and every bar, each taking Kodi's GUI lock while the finger
+  # or the glide moved the list. Only what changed is written now.
+  def setProperty(self,key,value):
+   value=str(value)
+   seen=self.__dict__.setdefault('_props',{})
+   if seen.get(key)==value:return
+   seen[key]=value
+   xbmcgui.WindowXMLDialog.setProperty(self,key,value)
+  def bar(self,ident,value):
+   seen=self.__dict__.setdefault('_bars',{});value=float(value or 0)
+   if seen.get(ident)==value:return
+   seen[ident]=value
+   self.guard.percent(ident,value)
   def onInit(self):
    import live_window
+   self.__dict__.pop('_props',None);self.__dict__.pop('_bars',None);self.__dict__.pop('_segments',None)   # a new window: write everything once
    self.guard=live_window.Guard(self)   # ISSUE-123: controls only while this page is open
    self.offset=0;self.graphs=transfer_history.GraphCache('spark');self.filter=getattr(self,'filter','all');self.checking=0;self.shown=None;self.view=None
    self.stop=threading.Event();self.busy=threading.Lock()
@@ -202,17 +218,24 @@ def run(args=()):
     self.setProperty('work.metrics',work_state.metrics_line(conv))
     self.setProperty('work.ring',library_rows.ring_name(conv.get('pct')))
     self.setProperty('work.percent','' if conv.get('indeterminate') else '%d%%'%float(conv.get('pct') or 0))
-    for n in (0,1):self.guard.percent(library_page.WORK_BAR+n,0 if conv.get('indeterminate') else float(conv.get('pct') or 0))
+    for n in (0,1):self.bar(library_page.WORK_BAR+n,0 if conv.get('indeterminate') else float(conv.get('pct') or 0))
     self.setProperty('work.poster',poster(conv))
     graph=''
+    try:graph=self.graph(conv)
+    except Exception as error:xbmc.log('Library status: graph not drawn (%s)'%type(error).__name__,xbmc.LOGWARNING)
+    self.setProperty('work.graph',graph)
+    self.draw_rows(pools,props)
+  def graph(self,conv):
+    graph=''
     if conv:
-     import transfer_history as th
+     import transfer_history as th,work_state
      j=(th.load(profile).get('jobs') or {}).get('conv') or {}
      if j.get('title')==conv.get('title') and len(j.get('points') or [])>1:
       folder=os.path.join(xbmcvfs.translatePath('special://skin/'),'extras','portrait','spark')
       graph=self.graphs.image(work_state.job_key(conv),j['points'],conv['tint_now'],folder,
        'special://skin/extras/portrait/spark',width=438,height=81,scale=th.device_scale(),guides=False)
-    self.setProperty('work.graph',graph)
+    return graph
+  def draw_rows(self,pools,props):
     for key,base,slots,_ in library_page.POOLS:
      rows=pools.get(key,[])
      for n in range(slots):
@@ -223,10 +246,13 @@ def run(args=()):
                   poster=poster(r) if r and key=='down' else '')
       for k,v in values.items():self.setProperty('%s.%d.%s'%(key,n,k),v)
       if key=='down':
-       self.guard.percent(library_page.DOWN_BARS+n,r.get('pct') or 0)
+       self.bar(library_page.DOWN_BARS+n,r.get('pct') or 0)
     # The segmented summary bar: one segment per count, 8-unit gaps (Kodi cannot size these from a property).
     for n,(x,width) in enumerate(library_rows.segments([int(props.get('count.'+k) or 0) for k in ('ready','working','next','kept')],
                                                       library_page.BAR_W,library_page.BAR_GAP)):
+     placed=self.__dict__.setdefault('_segments',{})
+     if placed.get(n)==(x,width):continue
+     placed[n]=(x,width)
      def segment(n=n,x=x,width=width):
       c=self.guard.control(library_page.SEGMENTS+n);c.setPosition(p_side+library_page.BAR_X+x,library_page.BAR_Y);c.setWidth(max(0,width))
       c.setVisible(width>0)
@@ -241,7 +267,62 @@ def run(args=()):
    if getattr(self,'filter','all')!='all':self.set_filter('all')
    else:self.finish()
   def onAction(self,action):
-   if action.getId() in BACK:self.go_back()
+   code=action.getId()
+   # Owner (build 328): "holding down on the show that is converting should show a cancel button"; build 347: a long
+   # press closed the page behind the menu, and download rows had none. iOS delivers a long press as action 10 as
+   # well as 101/117 (Notifications reads it the same way), so on a card it opens the menu and never means Back; the
+   # second action of the same press, just after the menu, does nothing.
+   if code in LONG or code==10:
+    held=self.held_row(self.getFocusId())
+    if held:
+     if time.time()-getattr(self,'menu_done',0)<1.5:return
+     if held=='conv':self.conversion_menu()
+     else:self.transfer_menu(held)
+     self.menu_done=time.time();return
+   if code in BACK:self.go_back()
+  def held_row(self,control):
+   """'conv' for the Working on now card, a Downloading / Up next transfer row, or None (not a card to hold)."""
+   if control in (library_page.WORK,library_page.WORK+100):import work_state;return 'conv' if work_state.job((self.view or {}).get('model'),'conv') else None
+   for key,base,slots,_ in library_page.POOLS:
+    if key in ('down','next') and base<=control<base+slots:
+     rows=getattr(self,'pools',{}).get(key,[])
+     row=(rows[control-base].get('row') or {}) if control-base<len(rows) else {}
+     return row if transfer_control.row_menu(row) else None
+   return None
+  def transfer_menu(self,row):
+   # The same choices and words as the transfer cards' long press in Notifications.
+   kind,item,rows=transfer_control.row_menu(row,transfer_control.paused(profile,'up'),len(transfer_control.unfinished_copies(profile)))
+   pick=dialog.contextmenu([label for label,_ in rows])
+   if not 0<=pick<len(rows):return
+   action,title=rows[pick][1],item.get('title') or 'this video'
+   if kind=='down':
+    if action=='toggle':command='resume' if item.get('paused') else 'pause'
+    elif dialog.yesno('Cancel download','Stop downloading %s and delete what has downloaded so far?'%title,nolabel='Keep',yeslabel='Stop'):command='cancel'
+    else:return
+    if not notices.engine_action(command,item['id']):dialog.notification('Elementum','The download engine did not answer',xbmcgui.NOTIFICATION_WARNING,3000)
+   elif action=='toggle':
+    now=not transfer_control.paused(profile,'up');transfer_control.set_paused(profile,'up',now)
+    dialog.notification('Kodi iOS','Uploads paused' if now else 'Uploads resumed',xbmcgui.NOTIFICATION_INFO,2500)
+   elif action=='cancel_all':
+    self.cancel_all();return
+   elif action=='cancel' and dialog.yesno('Cancel download','Stop copying %s from AllDebrid to Google Drive? What has been copied so far is dropped.'%title,
+                                         nolabel='Keep',yeslabel='Stop'):
+    transfer_control.cancel_copy(profile,item['hash'])
+   self.refresh(force=True)
+  def conversion_menu(self):
+   import work_state
+   conv=work_state.job(self.view.get('model'),'conv')
+   row=next((r for r in self.view['rows']['preparing'] if conv and r['title']==conv['title']),None)
+   if not row:return
+   rows=transfer_control.menu('conv',{'id':row.get('id')},conv_paused=transfer_control.paused(profile,'conv'))
+   rows=[r for r in rows if r[1]!='speed']
+   pick=dialog.contextmenu([label for label,_ in rows])
+   if pick<0:return
+   if rows[pick][1]=='toggle':transfer_control.set_paused(profile,'conv',not transfer_control.paused(profile,'conv'))
+   elif dialog.yesno('Cancel conversion','Stop converting %s? It stays in your library as it is and plays on this iPhone. '
+                     'Library status can convert it later for Play on TV.'%row['title'],nolabel='Keep Converting',yeslabel='Stop'):
+    prepare_downloads.request(profile,'keep',row['id'])
+   self.refresh(force=True)
   def cancel_all(self):
    # Every queued AllDebrid -> Drive copy goes, after one question (the heading's Cancel All and the copy's sheet).
    import transfer_control

@@ -434,6 +434,7 @@ class GraphCache:
         self.entries = {}      # identity -> (signature, path, drawn_at, used_at, stream)
         self.counter = 0
         self.tidied = set()
+        self.made = set()      # folders this cache drew in (another copy of the page draws in its own)
 
     def _tidy(self, folder, keep):
         import shutil
@@ -444,7 +445,14 @@ class GraphCache:
         for name in names:
             path = os.path.join(folder, name)
             if name.startswith(self.namespace + '-') and name not in keep and os.path.isdir(path):
-                shutil.rmtree(path, ignore_errors=True)
+                # Build 347: two copies of a page share the namespace; a folder another one drew in lately stays
+                # (removing it under that page failed its refresh before the download rows were drawn).
+                try:
+                    fresh = name not in self.made and time.time() - os.path.getmtime(path) < self.KEEP
+                except OSError:
+                    fresh = False
+                if not fresh:
+                    shutil.rmtree(path, ignore_errors=True)
             elif folder not in self.tidied and name.startswith('graph_') and name.endswith(('.png', '.tmp')):
                 try:
                     os.remove(path)   # build-192 pages wrote loose graph_N.png here
@@ -465,7 +473,12 @@ class GraphCache:
         import hashlib
         stream = self.namespace + '-' + hashlib.sha256(repr(identity).encode()).hexdigest()[:12]
         self.counter += 1
-        name = write_graph(os.path.join(folder, stream), self.counter, render(points, colour, **options))
+        png = render(points, colour, **options)
+        self.made.add(stream)
+        try:
+            name = write_graph(os.path.join(folder, stream), self.counter, png)
+        except OSError:
+            name = write_graph(os.path.join(folder, stream), self.counter, png)   # its folder went meanwhile: once more
         path = prefix.rstrip('/') + '/' + stream + '/' + name
         self.entries[identity] = (signature, path, now, now, stream)
         for key in [k for k, e in self.entries.items() if now - e[3] > self.KEEP]:

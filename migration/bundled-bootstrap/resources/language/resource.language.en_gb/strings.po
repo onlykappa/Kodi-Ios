@@ -115,3 +115,7 @@ msgstr ""
 msgctxt "#32028"
 msgid "AI Upscale test (one video, counted only)"
 msgstr ""
+
+msgctxt "#32029"
+msgid "Copy downloads to Google Drive only on Wi-Fi"
+msgstr ""

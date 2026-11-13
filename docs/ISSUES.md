@@ -2938,3 +2938,246 @@ MB; driveupload's native path grows pieces to that limit after three fast pieces
 Retest: test_debrid_drive (build_season_episodes_one_job_each_copy_three_at_a_time; a companion failing does not fail
 the first), test_native_http (r50 32 MB pieces, older frameworks keep 8 MB, pieces grow to 32 MB). Phone proof: the
 next log should show three "Drive copy native" threads and pieces growing to 32 MB.
+
+## ISSUE-183 — Build Season downloads show as hash-named cards with no metadata (build 314, owner screenshot) — FIXED on host
+
+Owner screenshot: Library › Downloaded TV Shows lists "3c90db2e052…" and "ee34425d559…" with no title or poster, and
+the upload card names the hash; "awh man and i forgot meta data not working".
+Root cause: Build Season's automatic picks often reach elementum_cloud.route with no torrent name (no magnet dn, no
+query), so name fell back to the info-hash; the job's title, its Drive folder (Kodi Downloads › TV Shows › <hash>)
+and the Library card came from it. Second, anime files number episodes absolutely ("Naruto Shippuuden - 002
+[1080p].mkv"), so even in the right folder the Library could not tell which episode a file is.
+Fix: season_sources.request puts the show's title in the automatic request's target; route names such a job
+'<show> S01E02' with the show's title. debrid_drive.retitle gives jobs already queued under a hash the show's title
+from the season plan (episode_watch, by TMDb id); rehome moves files already copied into a hash folder into the show's
+folder (and trashes the empty hash folder); episode_name names an episode's Drive file '<show> S01E02 - <original>'
+when the original does not say its season and episode (new copies and moved ones).
+Retest: test_debrid_drive HashNamedJobs (retitle, move, rename, parse back to show/season/episode),
+test_elementum_cloud SeasonQueueNames; related suites pass. Phone proof: after the next IPA, the two hash cards become
+Naruto Shippūden with its episodes (the service moves them on its next AllDebrid step).
+
+## ISSUE-184 — Copy speed on build 314: three lanes work, pieces ramp too slowly (owner log 4beafff6) — tuned on host
+
+Build 314 (ISSUE-182 fixes) on the owner's 101 Mbps upload: three "Drive copy native" threads at once, 950 MB in
+132 s = 7.2 MB/s (~58 Mbps), up from 2.8 MB/s on build 309; each lane ~2.4 MB/s (per-connection limit, AllDebrid or
+Drive). Pieces started at 1 MB and needed most of the two minutes to double up to 16 MB.
+Change: LANES 3 → 4 (a fourth connection adds about a quarter); native pieces start at 8 MB (every framework takes it)
+and still halve after a lost answer. Retest: test_debrid_drive (four lanes; native copy resumes after a lost answer
+with 8, then 4 MB pieces). Phone proof: four threads and 8 MB first pieces in the next log.
+Also in the log: one "Drive source changed; preparation will rescan" for episode 2 at start (the file was still
+arriving); the rescan then kept every episode unchanged (compatible). No action.
+
+## ISSUE-185 — Downloads "frozen" in the background: iOS took the silent audio and it never came back (owner log ed63fe73, build 317)
+
+What the log shows: copies ran well (8-16 MB pieces, three at a time) until 13:18:14 "audio interrupted by iOS; work
+will resume when allowed". The silent audio that keeps Kodi working in the background came back only at 14:19:59
+("running again after 3705 s", when the owner opened Kodi). In between, iOS throttled the app: from about 13:42 copy
+pieces timed out at ~20 s, each timeout halved the piece size down to 1 MB, and the copy crawled from 0.1 % to 3.1 % in
+32 minutes. No slowdown reason was set (nothing was playing), so playback throttling was not the cause.
+
+Root cause: KodiAirPlay's keepUpdate() returned at once while `keepInterrupted` was set, so the add-on's restart
+request every second (background.watch) was ignored. Only iOS's "interruption ended" (often never sent), or Kodi
+leaving/returning to the screen, cleared it.
+
+Fix (KodiAirPlay r51, staged): while work waits in the background, the mixable silent audio is tried again 15 s after
+the interruption and every 10 s after that; a refused try stays interrupted until the next. Retest: test_airplay_remux
+BackgroundRetry (fails on r50's code). Phone check on the next IPA: lock the phone with a season copying, play music
+in another app, stop it; the log should show "silent audio running again after N s" within ~10-30 s, not an hour.
+Also seen (not fixed yet): episode 006's preparation restarted from the beginning at 13:38 after 20 min of work while
+throttled; and piece sizes recover slowly after timeouts. Both to recheck once the audio no longer drops.
+
+## ISSUE-186 — AirPlay of an Umbrella stream: long start, then broken sound (owner log 3b94b426, build 319) — FIXED on host, r52 staged
+
+What the log shows (The Lorax via Umbrella, 1920x1040 H.264, 27.8 Mbit/s): the stream reached the phone at about
+0.6 MB/s, under a fifth of what the movie needs (3.5 MB/s). Video segment 0 (11.6 MB) took 18 s, segment 1 took 39 s.
+Kodi's own playback of the same link buffered again and again afterwards ("Waiting while the video buffers" 10 times),
+and the AllDebrid → Drive copy ran at 1 MB per 6-20 s, so the connection itself was slow at the time.
+The TV (Apple TV, external playback on) asked for video segment 1 all along ("No response for media file in 6s"),
+took audio segments meanwhile, and after 30 s the r6 "sound only" check took that for a TV that cannot decode the
+picture: "the TV takes audio segments but no video ones (avc1.640029)", then "restarting in compat mode". An H.264
+movie was re-encoded to H.264 on the phone from the same slow source: another 80 s with "presentation 0x0", the
+picture lost and the sound out of step. The second try (16:28) took 18 s just to open the source and 36 s for the first
+segment, and the owner gave up.
+
+Root cause (the part we can fix): the sound-only check counted segments served, not requests still waiting, so a
+slow source looked like a codec refusal. The slow source itself (Umbrella's host / Wi-Fi at that moment) is outside
+the app.
+
+Fix (KodiAirPlay r52, staged): kr_remux_video_waiting() counts video requests still being made; while the TV waits
+for one, the player logs "the TV is waiting for a video segment the source has not delivered yet (slow source, not the
+codec)" and never restarts in compat mode. Retest: test_airplay_remux SlowSource; test_play_on_tv_network updated.
+Phone check on the next IPA: the same kind of stream should either play (late) or stay on the waiting line, never
+"restarting in compat mode" for an avc1 movie. A faster source (a Drive copy, or a smaller Umbrella result) is the real
+cure for a 28 Mbit/s file on a ~5 Mbit/s link.
+Background in the same log: no queued work was left waiting with the app in the background, so r51's retry did not need
+to fire (the "running again after 5494 s" line follows 2 h of foreground playback, where the silence is not used). The
+Drive copy held while the movie played and buffered (by design: the video goes first) and resumed at 18:45.
+
+## ISSUE-187 — Library status "Up next" out of order: E006, 002, 006, S1 E6, E4… (build 319, owner screenshot) — FIXED on host
+
+Root cause: within the same priority the queue (prepare_downloads.order_key and library_view) broke ties by the job
+key, which is a SHA-256 of the file's identity, so episodes came out in a random but stable order.
+Fix: prepare_downloads.line_key sorts by show, season, episode (from SxxEyy, "Episode 006", "E004" or " - 002"; an
+episode with no season counts as season 1), before the job key; the owner's own choices (Start now, ▲ ▼) still go
+first. Retest: test_prepare_downloads EpisodeOrder. Also: test_work_state had a stale needle after the debrid_drive
+rename (job → owner) and was not in the CI list; fixed and added to import-review.yml.
+Not fixed here: the same episode can appear twice (two releases of episode 6 from different sources); that is the
+source matching, to look at with the next log.
+
+## ISSUE-188 — Season copy crawled on one lane for hours; "Invalid Drive confirmed position" (owner log 3b94b426, build 319) — FIXED on host
+
+What the log shows: Build Season started four lanes at 16:01. Pieces timed out at 20 s and halved (8 → 3.8 → 1.8 MB).
+At 16:02:37 and 16:02:56 two lanes failed with "Invalid Drive confirmed position"; a third ended silently (the job's own
+episode: its error is only raised when every lane is done). From 16:03 to 19:17 one lane (one episode) copied alone at
+1-4 MB per 5-20 s, and the season's other episodes waited.
+Root cause: (1) after a timed-out piece, Drive went on to keep that piece's bytes, so its next answer confirmed more
+than the piece just sent, which driveupload treated as fatal; (2) a lane whose episode failed dropped it for the whole
+turn, and with nothing left in the list the lane ended.
+Fix: driveupload accepts any Drive position up to the file's size and carries on from there (logs "Drive kept N MB more
+from an earlier piece"); debrid_drive puts a failed episode back in line up to RETRIES_IN_RUN (2) times in the same turn,
+its Drive session kept, before it waits for the next turn. Retest: test_debrid_drive LateBytes and
+TwoLanes.test_a_lane_whose_episode_fails_once_tries_it_again_in_the_same_turn (both fail on the old code).
+Also: a job still named after its info-hash with no saved season plan now takes its show's title from another job of
+the same show (retitle; HashNamedJobs test) — the "ee34425d5595…" card. The slow pieces themselves matched a slow
+connection at that time (Kodi's own playback buffered too), see ISSUE-186.
+
+## ISSUE-189 — Downloads still named after the hash, the same episode queued several times, no posters (build 325, owner screenshots and log 7698974a)
+
+What the screenshots show: Library › TV Shows lists "3c90db2e05217cc29aef549b4…" (1 copying) and
+"ee34425d5595f37297bc8c94…" (31 copying) with no poster; Library status › Up next lists "Naruto Shippuden Episode 006
+Missi…" three times, "Naruto Shippuuden - 002" twice (one already on Drive and converting) and "Download · S1 E4/E8/E9".
+Root cause: (1) these jobs were queued by builds before 315 with the info-hash as their title; queuing the same
+torrent again returned the old job without renaming it, and retitle only knew the season plan or a sibling job, and the
+Library had no cached name for Naruto (its files went into hash-named folders), so the pages fell back to the hash or
+"Download"; (2) the queue was de-duplicated per torrent only, so each Build Season or download from another version
+added the same episode again.
+Fix: retitle also takes the Library's cached name, TMDb's (by the show's TMDb id, cached in drive-library-art.json,
+so posters follow; a failed lookup waits 10 min), or the release / file name (title_from_name); a new request for a
+hash-named job renames it. queue() returns the episode already waiting from another torrent (same show, season,
+episode); drop_duplicates removes not-started duplicates already in the queue (the one copying stays). Retest:
+test_debrid_drive HashNamedJobs, Duplicates. Phone check: the hash cards become "Naruto Shippūden" with a poster; Up next
+lists each episode once.
+Also in the log: four copies at 0.2 MB/s each (8-20 s per 2 MB piece) while a conversion read from Drive at the same
+time; the connection was the limit (see ISSUE-186). Not changed. Not fixed: an episode already on Drive under an
+absolute number ("Naruto Shippuuden - 002") can still be queued as S1 E2 by an older job; it needs the Drive listing in
+the queue check.
+
+## ISSUE-190 — Stuck copy card, episodes already on Drive copied again, four slow lanes (build 325, owner screenshots, log 7698974a) — FIXED on host
+
+- Stuck card ("Waiting for Google Drive · no answer for 23 min" at 0 % while other copies moved): the card is the
+  'current' lane saved in the state; a new run's lanes did not always write over a lane of the earlier run. Fix: each run
+  clears the old lane cards before it starts, and the status card shows whichever lane moved last (current or
+  current_also). Tests: test_debrid_drive (old card cleared), test_work_state FreshLane.
+- "Naruto Shippuuden - 002" on Drive and converting while S1 E2 waited to be copied: the queue never looked at Drive.
+  Fix: drive_episodes reads the Library's saved Drive listing (number-only names count as season 1) and drop_on_drive
+  removes a waiting episode job that has not copied anything when the episode is there; show_match makes "Shippūden",
+  "Shippuden" and "Shippuuden" one show. Test: Duplicates.test_an_episode_already_on_drive_leaves_the_queue.
+- Four lanes at ~0.2 MB/s with every piece timing out at 20 s, beside a conversion reading and writing Drive on the
+  same connection: two lanes while a conversion runs (BUSY_LANES). The connection is still the ceiling (the log does
+  not say Wi-Fi or cellular; the owner's screenshot shows 5G).
+
+## ISSUE-191 — Season copies sent their bytes twice on a slow link (owner log ec3b0956, build 325, 24 min) — FIXED on host
+
+What the log shows: four lanes for 24 minutes; each sent 143-203 MB in 104-111 pieces but Drive confirmed only 3-4 %
+of a ~2 GB episode (~60-80 MB). 37-40 pieces per lane (about 40 %) ended at 20.2-21.6 s: the native copier's deadline
+is max(20 s, 1 s per MB), which assumes 1 MB/s, and the lanes got ~0.1 MB/s each (~0.5 MB/s together). A piece cut
+off at its deadline kept only what Drive had confirmed and the rest went again. One ConnectionError was retried in the
+same turn (ISSUE-188 working). The conversion of "Naruto Shippuuden - 002" beside it failed with a Drive read error at
+20:28 and waits for a retry.
+Root cause: a deadline that does not follow the link's real speed.
+Fix: driveupload.Pace measures the speed Drive confirms and gives each piece three times its expected time (20 s floor,
+the framework's 180 s cap); debrid_drive's copier passes it on. The log line now says the deadline. Retest:
+test_debrid_drive Paced. Phone check: "piece in … (deadline N s)" with few pieces at their deadline, and the confirmed %
+rising about as fast as the MB sent.
+
+## ISSUE-192 — Copies still slow: 4-6 GB episodes; two spellings of Naruto; empty hash folder; stray bar (build 327, owner log b2f10d1f and screenshots) — FIXED on host
+
+What the log shows: the ISSUE-191 deadline works (4 of 57 pieces at their deadline; nothing sent twice). Two lanes
+(a conversion was running) at ~0.13 MB/s each. The card says "S1 E3 · 3 % · 303 KB/s · 3 h 56 min left": ~4.4 GB for a
+23-minute episode. Build Season's automatic pick took 1440x1080 10-bit H.264 releases of 4-6 GB, which then also need
+converting for AirPlay. Owner asked whether downloading first and uploading last would help: no, the upload to Drive is
+the slow side and the bytes go up either way (and it would need 4-6 GB of phone space per episode); smaller files help.
+Fixes:
+- deck_picker.auto_choose: at the same quality, a version that needs no conversion (not 10-bit H.264), then one of a
+  normal episode size (EPISODE_GB: 1080p 3 GB, 720p 1.5 GB, 4K 10 GB) before a bigger one; a huge one is still taken
+  when nothing else has the episode. Test: test_deck_picker SmallerEpisodes. Already queued picks are not changed.
+- "Naruto Shippuden" and "Naruto Shippuuden" as two shows (titles from different release names): one_spelling gives a
+  show's jobs one title (the TMDb one when known); files already copied move over (rehome). Test: one_title_per_show.
+- An empty "3c90db2e05…" folder (0 episodes) stayed while its episodes copied into the show's folder: rehome now runs
+  for renamed jobs that are not finished too, and trashes the old folder once it is empty.
+- Library status: a flat purple speed graph under a conversion with no speed yet; it now shows only beside a speed.
+- Up next: "Naruto Shippuden · S1 E1 · Naruto Shi…": a one-episode job's title already names the episode.
+
+## ISSUE-193 — End-to-end check of season downloads: wrong file from absolute-numbered packs, removals undone, folders per release name (owner request, build 328) — FIXED on host
+
+Owner: "before u push ipa ensure the show download system fully works". The desktop rig cannot reach AllDebrid or
+Drive, so scripts/test_download_e2e.py runs the real queue, lanes, retries, naming, duplicate and Drive checks, rehome
+and the status cards against a fake AllDebrid and a fake Drive that speaks Drive's HTTP (resumable sessions, folders,
+moves, Trash), on the owner's situation: a complete-series pack named by absolute number with 32 episode jobs from an
+old build titled by hash, episode 2 already on Drive in a hash folder, episode 6 asked for from two more torrents, a slow
+link (timeouts with part kept, lost answers after Drive took the bytes, dropped connections), a conversion beside it and
+the app closed mid-copy. It found three bugs the unit tests did not:
+1. alldebrid.pick for an episode found no S01E06 in "Naruto Shippuden Episode 006 ….mkv" and copied the pack's
+   largest file (its film) as "S01E01" for every episode: likely the 4-6 GB "episodes" on the phone. Fix: absolute
+   numbers count as season 1 episodes; with several videos and none matching, nothing is copied (the job says so).
+2. Jobs removed as duplicates or already on Drive came back at the next save (save merges jobs found on disk), so the
+   ISSUE-189/190 removals never held. Fix: removed jobs are remembered (state['removed']) and never merged back.
+3. A show's folder came from each release's file name ("Show/…", "Naruto Shippuuden/…"): the two-Naruto folders. Fix:
+   an episode with its show's title goes into that show's folder.
+Result: 4 scenarios (the owner's season, Pick Better Versions, a new Build Season, Up next order) × 20 fault patterns:
+80 of 80 pass. Evidence class: host simulation, not the phone.
+
+## ISSUE-194 — Absolute-numbered packs copied nothing past season 1 (found while checking, 2026-11-13) — FIXED on host
+
+ISSUE-193's fix mapped "Naruto Shippuden Episode 006" to season 1 only; a season 2+ episode job on such a pack copied
+nothing (and the source filter took "Episode 013" for S2E13, which is really S1E13). Fix: drivelibrary.season_counts
+(TMDb's per-season episode counts, cached as counts:ID) and absolute_offset; debrid_drive passes the offset to
+alldebrid.pick (episodes and season lists), and waits instead of failing while TMDb is unknown; source_match fills the
+absolute number from TMDb when Elementum did not and, for season 2+, takes only that number. Retest:
+test_download_e2e test_season_two_of_an_absolute_pack / test_season_two_waits_when_tmdb_is_unknown, test_source_match
+LaterSeasonAbsolute.
+
+## ISSUE-195 — Library status: one card for four copies, Up next out of order, slow scrolling, wrong time left (build 329, owner screenshots) — FIXED on host
+
+- Four copies ran, one card ("1 working"): only 'current' / 'current_also' were saved and read. Every lane is kept
+  (state 'lanes', with the job it copies); work_state._copies makes a card per lane; notices.uploads names each
+  episode. Up next leaves out the episodes being copied and goes in episode order (debrid_drive.in_line, which the
+  copier also follows). Rig: four cards, Working 4, Up next from E5.
+- Scrolling "doesnt scroll far": the page rewrote ~1,130 window properties every 2 s (141 pooled rows x 8) plus every
+  bar, each taking Kodi's GUI lock. Only changed values are written now. Phone check needed (the rig cannot fling).
+- "About 16 min to go" with 31 waiting / "84 h": see E17 (work_state.copy_bytes_left).
+Also from the same round: the picker (source_match) hid a file named after its pack ("[uP] … Vol.01 (…) [uP] … - 005")
+as the wrong title, so episodes 5-6 got 4 GB upscaled copies (4a3ab1f).
+
+## Build pipeline (2026-11-13)
+
+- import-review builds the IPA only on Run workflow or the build-ipa label; every push runs the tests (owner: "one new
+  build with everything not 1000").
+- kodi-ios-portrait skips its one-hour build when the locked release exists from the same patch (a check job).
+
+## ISSUE-196 — Library status: a long press closed the page; download rows had no menu; Show page Back dead; graph error hid rows (build 347, owner) — FIXED on host (rows) / OPEN (poster, refresh card)
+- **Seen:** owner screenshot + log f96cd4bd (build 347). Holding the Working-on-now card showed Pause/Cancel but Library status had closed behind it. Holding a download/transfer row did nothing. IOSLibraryShow.xml control 9001 tapped 12 times, never handled. `Library status: [Errno 2] … extras/portrait/spark/spark-…` twice.
+- **Root cause:** iOS delivers a long press as action 10 (also Back) plus 117; library_status treated 10 as Back. The Show window's round back button had no onclick and `Show.onClick` ignored 9001. Two open copies of Library status share the `spark` graph namespace and `GraphCache._tidy` deleted the other copy's folder; the exception aborted `refresh()` before the download rows were drawn.
+- **Fix:** library_status.onAction reads 10/101/117 on a card (Working on now, Downloading and Up next transfer rows) as a long press with a 1.5 s debounce, else Back. `transfer_control.row_menu` gives copy/upload/Elementum menus (Pause/Resume uploads, Cancel this download, Cancel all…); `held` flag carried in library_rows.with_model. Show Back closes. Select/FreeUp ignore 10 on a row. GraphCache only removes its own stale folders or foreign ones untouched for 60 s; write retried once; graph failure no longer stops the row redraw.
+- **Retest:** test_library_status LongPressCancel (fake Kodi: one menu per press, page stays open, cancel copy / pause uploads / Elementum resume, 10 off a card still Back), test_library_files ShowBack, test_build193_pages plot cache. Phone retest pending.
+- **Still open (owner, same session):** (a) Downloaded TV Shows: Naruto Shippuden card has no poster; (b) remove the "Refresh Library" card from Downloaded TV Shows / Movies (ios_library.py ~line 641, the `if not show_page:` refresh item) since the page has a refresh button; (c) Free Up Space "Watched episodes" not wired (library_manager.model passes no watched set; library_delete.free_up_groups takes `watched`).
+
+## ISSUE-197 — Downloaded TV Shows: Naruto with no poster; a "Refresh Library" card; Free Up Space › Watched never filled (build 347, owner) — FIXED on host
+
+- **Seen:** owner (same session as ISSUE-196): the Naruto Shippūden card in Downloaded TV Shows had no poster; the
+  grid ended with a "Refresh Library" card although the page has a refresh button; Free Up Space never offered
+  Watched episodes.
+- **Root cause:** (1) drivelibrary.remember_show records a downloaded show by TMDb id alone (`{'tmdb_id'}`) under its
+  names; artwork() returned that cache hit as is, so the poster was empty and the show was never looked up. A folder
+  named without the macron ("Naruto Shippuden") also missed the recorded "Shippūden" slot. (2) ios_library.directory
+  always added the refresh item. (3) Nothing kept what was watched: Continue Watching drops a title once it is
+  finished, and library_manager.model passed no watched set to the rows or to free_up_groups.
+- **Fix:** artwork() fills poster, fanart and plot from show_details(tmdb_id) for such hits (cached or fetched) and
+  caches the result; remember_show also records accent-free names. The refresh card is gone (the header button and the
+  long-press Refresh Library stay). ios_continue.stopped() remembers each finished title's Drive file id / phone path
+  (data['watched'], newest 2000); library_manager.model reads it and passes it to show, episode and movie rows and to
+  free_up_groups.
+- **Retest:** test_drive_library (tmdb-id-only hit gets its poster, cached, plain spelling too), test_library_refresh
+  (no card, empty library renders nothing), test_watch_continue (finished Drive episode and phone movie remembered),
+  test_library_files WatchedFreeUp (model → Watched episodes group). The whole import-review test list and
+  check_project pass. Phone retest pending (the one IPA).

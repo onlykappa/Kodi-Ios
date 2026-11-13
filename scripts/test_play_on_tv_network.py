@@ -343,7 +343,7 @@ class SoundOnlyRestart(unittest.TestCase):
  def test_native_restarts_prepared_movies_once_when_the_tv_takes_the_sound_only(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn("soundOnlyTicks = (!external && tvRoute(player)) ? soundOnlyTicks + 1 : 0;",build)
-  self.assertIn("__block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO, everExternal = NO;",build)
+  self.assertIn("__block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO, everExternal = NO, slowNoted = NO;",build)
   self.assertIn("if (!preparedLink && wasOn && !external",build)
   remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
   self.assertIn('if(!compat && !segmented && kr_prepare_ready(prepared)',remux)

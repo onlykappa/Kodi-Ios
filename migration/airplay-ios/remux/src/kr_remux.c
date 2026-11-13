@@ -885,6 +885,10 @@ static struct {
 static atomic_int pf_on = 1;  // kr_remux_set_prefetch (tests)
 // A foreground request owns priority over speculative work on its rendition.
 static atomic_int demand[NREND];
+// r52 (owner's build-319 log, an Umbrella stream at ~5 Mbit/s for a 28 Mbit/s movie): video requests still being made
+// (waiting for the lane or for the source). The player's "sound only" check must not take a slow source for a TV that
+// cannot decode the picture.
+int kr_remux_video_waiting(void) { return atomic_load(&demand[R_VCOPY]) + atomic_load(&demand[R_VCOMPAT]); }
 static int near(int rend, int seg, int at) { return seg >= at && seg <= at + PF_DEPTH(rend); }
 
 // Queues (rend, seg) unless it is cached, queued or being made (P.lock held).

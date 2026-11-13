@@ -32,7 +32,7 @@ class Wiring(unittest.TestCase):
   svc=(BOOT/'service.py').read_text();send=(BOOT/'cast.py').read_text()
   self.assertIn('airplay_busy=lambda:airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time())',svc)
   # Build 193: AirPlay no longer holds anything; it slows the work (slowdown.py). Only the owner's Pause holds.
-  self.assertIn("keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up'),on_done=done",svc)
+  self.assertIn("keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not wifi_only_hold(),on_done=done",svc)
   self.assertIn("uploading=lambda:idle() and not transfer_control.paused(profile,'up')   #",svc)
   # Build 206: Kodi buffering (after a seek) is its own reason.
   self.assertIn("slowdown.configure(lambda:'airplay' if airplay_busy() else ('buffering' if xbmc.getCondVisibility('Player.Caching') else 'video' if xbmc.getCondVisibility('Player.HasVideo') else ''))",svc)

@@ -120,7 +120,7 @@ class FakeAPI:
 
 class NativeCopies(unittest.TestCase):
  def test_copy_bytes_bypass_python_reader_and_query_uncertain_ack_before_resuming(self):
-  blob=b'x'*(3*1024*1024);offsets=[]
+  blob=b'x'*(20*1024*1024);offsets=[]   # owner log 4beafff6: native pieces start at 8 MB
   class API(FakeAPI):
    def unlock(self,link):return 'https://source/f','Fall.2022.2160p.mkv',len(blob)
   class Drive(FakeDrive):
@@ -135,12 +135,214 @@ class NativeCopies(unittest.TestCase):
    def forbidden(*args):raise AssertionError('Video bytes passed through Python source reader')
    debrid_drive.step(profile,api,drive,open_url=forbidden)
    self.assertEqual(debrid_drive.load(profile)['jobs'][0]['status'],'done');self.assertEqual(drive.data,blob)
-   self.assertEqual(offsets,[0,1024*1024,2*1024*1024])
+   self.assertEqual(offsets,[0,8*1024*1024,12*1024*1024,16*1024*1024])   # after the lost answer: half-size pieces
+
+class Paced(unittest.TestCase):
+ def test_the_deadline_follows_the_confirmed_speed(self):
+  # Owner log ec3b0956 (build 325): ~0.1 MB/s a lane; 40 % of pieces hit the fixed 20 s and were partly sent again.
+  pace=driveupload.Pace()
+  self.assertEqual(pace.deadline(1024*1024),20.0)                          # nothing measured yet
+  pace.observe(1024*1024,10)                                               # 0.1 MB/s confirmed
+  self.assertAlmostEqual(pace.deadline(1024*1024),30.0)                    # 3 x 10 s
+  self.assertEqual(pace.deadline(64*1024*1024),180.0)                      # never past the framework's cap
+  pace.observe(0,20)                                                       # a stalled piece does not move it
+  self.assertAlmostEqual(pace.deadline(1024*1024),30.0)
+  for _ in range(10):pace.observe(8*1024*1024,1)                           # a fast link: back to the floor
+  self.assertEqual(pace.deadline(1024*1024),20.0)
+ def test_copiers_get_the_deadline(self):
+  blob=b'x'*(3*1024*1024);seen=[]
+  class Drive(FakeDrive):
+   def copy_piece(self,source,source_headers,target,headers,offset,count,total,timeout):
+    seen.append(timeout)
+    return self.call('PUT',target,blob[offset:offset+count],{'Content-Range':'bytes %d-%d/%d'%(offset,offset+count-1,total)})
+  class API(FakeAPI):
+   def unlock(self,link):return 'https://source/f','Fall.2022.2160p.mkv',len(blob)
+  with tempfile.TemporaryDirectory() as profile:
+   debrid_drive.queue(profile,{'id':H,'name':'Fall'},'movie','Fall');drive=Drive();api=API()
+   debrid_drive.step(profile,api,drive);debrid_drive.step(profile,api,drive)
+   self.assertEqual(debrid_drive.load(profile)['jobs'][0]['status'],'done');self.assertEqual(seen[0],20.0)
+
+class LaneLearning(unittest.TestCase):
+ def test_lanes_follow_what_the_link_gives(self):
+  # E16: start at two; one more while it pays (15 %); else the fastest count measured.
+  st={}
+  self.assertEqual(debrid_drive.lane_plan(st),2)
+  debrid_drive.learn_lanes(st,2,300*1024**2,600)            # 0.5 MB/s with two
+  self.assertEqual(debrid_drive.lane_plan(st),3)              # try three
+  debrid_drive.learn_lanes(st,3,330*1024**2,600)            # +10 %: not worth it
+  self.assertEqual(debrid_drive.lane_plan(st),2)
+  fast={}
+  debrid_drive.learn_lanes(fast,2,1200*1024**2,600)
+  debrid_drive.learn_lanes(fast,3,1700*1024**2,600)         # +42 %
+  self.assertEqual(debrid_drive.lane_plan(fast),4)
+  debrid_drive.learn_lanes(fast,4,2400*1024**2,600)
+  self.assertEqual(debrid_drive.lane_plan(fast),4)            # never more than LANES
+  quick={}
+  debrid_drive.learn_lanes(quick,2,1024,5)                   # a few seconds say nothing
+  self.assertEqual(quick,{})
+  src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib/debrid_drive.py').read_text()
+  self.assertIn('if not busy and not converting():',src)       # E19: runs beside a conversion are not learned from
+
+class LateBytes(unittest.TestCase):
+ def test_drive_keeping_a_timed_out_pieces_bytes_is_not_an_error(self):
+  # Owner log 3b94b426 (build 319): after a 20 s timeout Drive confirmed more than the next piece sent; the copy failed
+  # with "Invalid Drive confirmed position". Drive's position is the truth up to the file's size.
+  blob=bytes(range(256))*(64*1024);size=len(blob);calls=[]
+  class Drive(FakeDrive):
+   def copy_piece(self,source,source_headers,target,headers,offset,count,total,timeout):
+    calls.append((offset,count))
+    if len(calls)==1:   # the first piece times out; Drive has only half when asked
+     self.data=blob[:count//2];raise TimeoutError('piece took 20 s')
+    if len(calls)==2:   # the rest of piece 1 lands late: Drive is past this piece's end
+     self.data=blob[:offset+count+1024*1024]
+     return 308,{'Range':'bytes=0-%d'%(len(self.data)-1)},b''
+    return self.call('PUT',target,blob[offset:offset+count],{'Content-Range':'bytes %d-%d/%d'%(offset,offset+count-1,total)})
+  class API(FakeAPI):
+   def unlock(self,link):return 'https://source/f','Fall.2022.2160p.mkv',size
+  with tempfile.TemporaryDirectory() as profile:
+   debrid_drive.queue(profile,{'id':H,'name':'Fall'},'movie','Fall');drive=Drive();api=API()
+   debrid_drive.step(profile,api,drive);debrid_drive.step(profile,api,drive)
+   self.assertEqual(debrid_drive.load(profile)['jobs'][0]['status'],'done');self.assertEqual(drive.data,blob)
+   self.assertEqual(calls[2][0],calls[1][0]+calls[1][1]+1024*1024)   # carried on from where Drive was
+
+class HashNamedJobs(unittest.TestCase):
+ def test_names_from_releases_tmdb_and_requeue(self):
+  # Owner screenshots (build 325): "3c90db2e05…" and "ee34425d5595…" cards; "Download · S1 E4" in Up next.
+  t=debrid_drive.title_from_name
+  self.assertEqual(t('Naruto Shippuden Episode 006 Mission to Rescue the Kazekage.mkv'),'Naruto Shippuden')
+  self.assertEqual(t('S/[Sub] Naruto.Shippuuden.-.002.[1080p].mkv'),'Naruto Shippuuden')
+  self.assertEqual(t('Show.S01E04.1080p.mkv'),'Show')
+  self.assertEqual(t('ee34425d5595f37297bc8c94dab3184c02d43daf'),'')
+  h='3c90db2e05'+'a'*30
+  state={'jobs':[{'hash':h,'name':h,'title':h,'kind':'episode','season':'1','episode':'4','show_tmdb':'31910','status':'new','files':[]},
+                 {'hash':'e'*40,'name':'e'*40,'title':'e'*40,'kind':'episode','season':'1','episode':'6','status':'copying',
+                  'files':[{'path':'P/Naruto Shippuden Episode 006 Mission.mkv','done':False,'session':{}}]}]}
+  asked=[]
+  changed=debrid_drive.retitle('/p',state,plans={},lookup=lambda i:asked.append(i) or 'Naruto Shippūden')
+  self.assertEqual([j['title'] for j,_ in changed],['Naruto Shippūden','Naruto Shippuden'])
+  self.assertEqual((asked,state['jobs'][0]['name']),(['31910'],'Naruto Shippūden S01E04'))
+ def test_a_new_request_renames_an_old_hash_job(self):
+  with tempfile.TemporaryDirectory() as p:
+   h='ee34425d55'+'f'*30
+   debrid_drive.queue(p,{'id':h},'episode','',season='1',episode='4',show_tmdb='31910')
+   self.assertEqual(debrid_drive.load(p)['jobs'][0]['title'],'')
+   job=debrid_drive.queue(p,{'id':h,'name':'Naruto Shippūden S01E04'},'episode','Naruto Shippūden',season='1',episode='4',show_tmdb='31910')
+   self.assertEqual((job['title'],len(debrid_drive.load(p)['jobs'])),('Naruto Shippūden',1))
+
+class Duplicates(unittest.TestCase):
+ def test_pick_better_versions_plan(self):
+  # Owner (build 328): episodes already queued with oversized versions get a better pick; copies under way stay.
+  started={'path':'a','done':False,'session':{'url':'u'}}
+  state={'jobs':[{'hash':'a'*40,'title':'Naruto Shippuden','kind':'episode','season':'1','episode':'3','status':'copying','files':[started]},
+                 {'hash':'a'*40,'title':'Naruto Shippuden','kind':'episode','season':'1','episode':'4','status':'copying','files':[]},
+                 {'hash':'b'*40,'title':'Naruto Shippuuden','kind':'episode','season':'1','episode':'5','status':'new','files':[]},
+                 {'hash':'c'*40,'title':'Naruto Shippuden','kind':'episode','season':'1','episode':'6','status':'new','files':[]},
+                 {'hash':'d'*40,'title':'Lanterns','kind':'episode','season':'1','episode':'1','status':'new','files':[]}]}
+  hashes,episodes=debrid_drive.repick_plan(state,'Naruto Shippūden')
+  self.assertEqual((hashes,episodes),(['b'*40,'c'*40],[(1,5),(1,6)]))   # E4 shares a torrent with E3, already copying
+ def test_a_cancelled_job_never_stands_in_for_the_new_pick(self):
+  import transfer_control
+  with tempfile.TemporaryDirectory() as p:
+   debrid_drive.queue(p,{'id':'1'*40,'name':'Naruto S01E06 huge'},'episode','Naruto',season='1',episode='6',show_tmdb='9')
+   transfer_control.cancel_copy(p,'1'*40)
+   debrid_drive.queue(p,{'id':'2'*40,'name':'Naruto S01E06 web'},'episode','Naruto',season='1',episode='6',show_tmdb='9')
+   self.assertEqual(len(debrid_drive.load(p)['jobs']),2)
+
+ def test_one_title_per_show(self):
+  # Owner screenshot (build 327): "Naruto Shippuden" (poster) and "Naruto Shippuuden" (none) as two shows.
+  state={'jobs':[{'hash':'1'*40,'title':'Naruto Shippuden','kind':'episode','show_tmdb':'31910','status':'copying','files':[]},
+                 {'hash':'2'*40,'title':'Naruto Shippuuden','kind':'episode','status':'done','files':[]},
+                 {'hash':'3'*40,'title':'Naruto Shippuuden','kind':'episode','status':'new','files':[]},
+                 {'hash':'4'*40,'title':'Lanterns','kind':'episode','status':'new','files':[]}]}
+  changed=debrid_drive.one_spelling(state)
+  self.assertEqual([(j['hash'][0],old) for j,old in changed],[('2','Naruto Shippuuden'),('3','Naruto Shippuuden')])
+  self.assertEqual({j['title'] for j in state['jobs'][:3]},{'Naruto Shippuden'})
+  self.assertEqual(state['jobs'][1]['moved_from'],'Naruto Shippuuden')   # its files move out of that folder
+
+ def test_an_episode_already_on_drive_leaves_the_queue(self):
+  # Owner screenshot (build 325): "Naruto Shippuuden - 002" on Drive and converting, while S1 E2 waited to be copied.
+  import os
+  with tempfile.TemporaryDirectory() as p:
+   d=os.path.join(p,'addon_data','service.kodi.ios.bootstrap');os.makedirs(d)
+   json.dump({'tv:':{'entries':[{'id':'f1','title':'Naruto Shippuuden'}]},
+              'tv:f1':{'entries':[{'id':'e2','name':'[Sub] Naruto Shippuuden - 002 [1080p].mkv','show':'Naruto Shippuuden','season':'','episode':''}]}},
+             open(os.path.join(d,'drive-library.json'),'w'))
+   on=debrid_drive.drive_episodes(p)
+   self.assertIn((debrid_drive.show_match('Naruto Shippūden'),1,2),on)
+   state={'jobs':[{'hash':'1'*40,'title':'Naruto Shippūden','kind':'episode','season':'1','episode':'2','status':'new','files':[]},
+                  {'hash':'2'*40,'title':'Naruto Shippūden','kind':'episode','season':'1','episode':'3','status':'new','files':[]},
+                  {'hash':'3'*40,'title':'Naruto Shippuden','kind':'episode','season':'1','episode':'2','status':'copying',
+                   'files':[{'path':'x','done':False,'session':{'url':'u'}}]}]}
+   dropped=debrid_drive.drop_on_drive(state,on)
+   self.assertEqual([j['hash'][0] for j in dropped],['1'])                 # a copy already under way finishes
+   self.assertEqual([j['hash'][0] for j in state['jobs']],['2','3'])
+ def test_spellings_of_a_show_match(self):
+  m=debrid_drive.show_match
+  self.assertEqual(m('Naruto Shippūden'),m('Naruto Shippuuden'));self.assertEqual(m('Naruto Shippuden'),m('naruto.shippuden'))
+  self.assertNotEqual(m('Naruto'),m('Naruto Shippuden'))
+
+ def test_one_episode_is_queued_once(self):
+  # Owner screenshot (build 325): "Naruto Shippuden Episode 006" waited three times, each from another torrent.
+  with tempfile.TemporaryDirectory() as p:
+   for n in (1,2,3):
+    debrid_drive.queue(p,{'id':('%d'%n)*40,'name':'Naruto Episode 006 v%d'%n},'episode','Naruto',season='1',episode='6',show_tmdb='31910')
+   debrid_drive.queue(p,{'id':'4'*40,'name':'Naruto Episode 007'},'episode','Naruto',season='1',episode='7',show_tmdb='31910')
+   self.assertEqual([j['episode'] for j in debrid_drive.load(p)['jobs']],['6','7'])
+ def test_old_duplicates_leave_the_queue_unless_started(self):
+  started={'path':'a.mkv','done':False,'session':{'url':'https://upload/a'}}
+  state={'jobs':[{'hash':'1'*40,'title':'Naruto','kind':'episode','season':'1','episode':'6','show_tmdb':'9','status':'new','files':[]},
+                 {'hash':'2'*40,'title':'Naruto','kind':'episode','season':'1','episode':'6','show_tmdb':'9','status':'copying','files':[started]},
+                 {'hash':'3'*40,'title':'Naruto','kind':'episode','season':'1','episode':'6','show_tmdb':'9','status':'new','files':[]},
+                 {'hash':'4'*40,'title':'Naruto','kind':'episode','season':'1','episode':'2','show_tmdb':'9','status':'done','files':[]},
+                 {'hash':'5'*40,'title':'Naruto','kind':'episode','season':'1','episode':'2','show_tmdb':'9','status':'new','files':[]}]}
+  dropped=debrid_drive.drop_duplicates(state)
+  self.assertEqual(sorted(j['hash'][0] for j in dropped),['1','3'])        # the one already copying stays
+  self.assertEqual([j['hash'][0] for j in state['jobs']],['2','4','5'])    # a done one never counts as waiting
+
+ """Owner screenshot (build 314): Build Season's episodes went into Drive folders named after the torrent hash
+ ("3c90db2e052…"), so the Library had no title or poster for them."""
+ def test_jobs_take_the_show_title_and_copied_files_move_into_its_folder(self):
+  h='3c90db2e05'+'a'*30
+  state={'jobs':[{'hash':h,'name':h,'title':h,'kind':'episode','season':'1','episode':'2','show_tmdb':'31910','status':'done',
+                  'files':[{'path':'Naruto Shippuuden - 002 [1080p].mkv','drive_name':'Naruto Shippuuden - 002 [1080p].mkv','drive_id':'f1','done':True}]},
+                 {'hash':'b'*40,'name':'b'*40,'title':'b'*40,'kind':'episode','season':'1','episode':'3','show_tmdb':'31910','status':'new','files':[]},
+                 {'hash':'c'*40,'name':'Fall','title':'Fall','kind':'movie','status':'new','files':[]}]}
+  changed=debrid_drive.retitle('/p',state,plans={'31910':{'title':'Naruto Shippūden'}})
+  self.assertEqual([j['title'] for j,_ in changed],['Naruto Shippūden','Naruto Shippūden'])
+  self.assertEqual((state['jobs'][1]['name'],state['jobs'][2]['title']),('Naruto Shippūden S01E03','Fall'))
+  calls=[]
+  class Drive:
+   def folder(self,parts):return 'id:'+'/'.join(parts[1:])
+   def call(self,method,url,body=None,headers=None):
+    calls.append((method,url));return (200,{},b'{"files":[]}') if method=='GET' else (200,{},b'{}')
+  self.assertEqual(debrid_drive.rehome(Drive(),state['jobs'][0]),1)
+  move=calls[0][1]
+  self.assertIn('addParents=id%3ATV%20Shows/Naruto%20Shipp%C5%ABden',move.replace('%2F','/'))
+  self.assertIn('removeParents=id%3ATV%20Shows/'+h,move.replace('%2F','/'))
+  self.assertTrue(any(m=='PATCH' and h in u for m,u in calls[2:]))      # the empty hash folder goes to the Trash
+  self.assertNotIn('moved_from',state['jobs'][0])
+  self.assertTrue(debrid_drive.is_hash('A'*32) and not debrid_drive.is_hash('Naruto'))
+  self.assertEqual(state['jobs'][0]['files'][0]['drive_name'],'Naruto Shippūden S01E02 - Naruto Shippuuden - 002 [1080p].mkv')
+  import drivelibrary
+  info=drivelibrary.parse(state['jobs'][0]['files'][0]['drive_name'])
+  self.assertEqual((info['title'],info['season'],info['episode']),('Naruto Shippūden','1','2'))
+  self.assertEqual(debrid_drive.episode_name(state['jobs'][0],'Naruto.S01E02.mkv'),'Naruto.S01E02.mkv')   # already says it
+
+ def test_a_job_with_no_season_plan_takes_its_shows_title_from_another_job(self):
+  # Owner (build 319): an "ee34425d5595…" card stayed in Downloaded TV Shows.
+  h='ee34425d55'+'f'*30
+  state={'jobs':[{'hash':h,'name':h,'title':h,'kind':'episode','season':'1','episode':'4','show_tmdb':'46260','status':'copying','files':[]},
+                 {'hash':'d'*40,'name':'Naruto S01E01','title':'Naruto','kind':'episode','season':'1','episode':'1','show_tmdb':'46260','status':'done','files':[]}]}
+  changed=debrid_drive.retitle('/p',state,plans={})
+  self.assertEqual([(j['title'],j['name'],old) for j,old in changed],[('Naruto','Naruto S01E04',h)])
 
 class TwoLanes(unittest.TestCase):
  """ISSUE-164 / 1F.4: a season's episodes go up to Drive up to three at a time; a movie is still one upload."""
- def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
- def tearDown(self):self.tmp.cleanup()
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
+  # These check the lanes' mechanics at full width; how many the link earns is LaneLearning's.
+  self.plan=patch.object(debrid_drive,'lane_plan',lambda state:debrid_drive.LANES);self.plan.start()
+ def tearDown(self):self.plan.stop();self.tmp.cleanup()
  def season(self,names):
   class Pack(FakeAPI):
    def files(self,m):return [('S/%s'%n,3,n) for n in names]
@@ -186,9 +388,9 @@ class TwoLanes(unittest.TestCase):
   drive=self.drive();api=Episodes()
   self.assertEqual(debrid_drive.step(self.p,api,drive),1)          # episode 1: added at AllDebrid
   debrid_drive.step(self.p,api,drive)                              # 1, 2 and 3 copy side by side
-  self.assertEqual(self.most,3);self.assertEqual(sorted(self.uploaded),['Show.S01E01.mkv','Show.S01E02.mkv','Show.S01E03.mkv'])
+  self.assertEqual(self.most,4);self.assertEqual(len(self.uploaded),4)
   jobs=debrid_drive.load(self.p)['jobs']
-  self.assertEqual([j['status'] for j in jobs],['done','done','done','new'])
+  self.assertEqual([j['status'] for j in jobs],['done']*4)
   self.run_job(api,drive)
   self.assertEqual([j['status'] for j in debrid_drive.load(self.p)['jobs']],['done']*4)
  def test_a_companion_episode_failing_does_not_fail_the_first(self):
@@ -203,9 +405,35 @@ class TwoLanes(unittest.TestCase):
   jobs=debrid_drive.load(self.p)['jobs']
   self.assertEqual(jobs[0]['status'],'done')
   self.assertEqual((jobs[1]['status'],jobs[1]['tries']),('copying',1));self.assertIn('ConnectionError',jobs[1]['error'])
+ def test_a_lane_whose_episode_fails_once_tries_it_again_in_the_same_turn(self):
+  # Owner log 3b94b426 (build 319): three of four lanes ended at their first error; one copied the season alone for hours.
+  import threading,time
+  names=['Show.S01E0%d.mkv'%n for n in (1,2,3)];failed=[]
+  debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')
+  test=self;base=self.drive(pause=.05)
+  class Once(type(base)):
+   def upload_stream(self,open_at,size,name,parent,session,save,*a,**k):
+    if name=='Show.S01E02.mkv' and not failed:
+     failed.append(name);session.update(url='https://upload/'+name,size=size);save()
+     raise RuntimeError('Invalid Drive confirmed position')
+    return super().upload_stream(open_at,size,name,parent,session,save,*a,**k)
+  api=self.season(names);drive=Once()
+  self.assertEqual(debrid_drive.step(self.p,api,drive),1)
+  self.assertEqual(debrid_drive.step(self.p,api,drive),1)   # done in this turn, not "again in 30 s"
+  job=debrid_drive.load(self.p)['jobs'][0]
+  self.assertEqual(job['status'],'done');self.assertEqual(sorted(self.uploaded),names);self.assertFalse(job.get('tries'))
+ def test_a_new_turn_clears_an_old_card_and_two_lanes_while_converting(self):
+  # Owner screenshot (build 325): "no answer for 23 min" at 0 % from an earlier run's lane; four lanes beside a conversion.
+  names=['Show.S01E0%d.mkv'%n for n in range(1,6)]
+  debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')
+  state=debrid_drive.load(self.p);state['current']={'slot':7,'name':'old','updated':1,'stage':'copying'};debrid_drive.save(self.p,state)
+  with patch.object(debrid_drive,'conversion_running',lambda profile,now:True):
+   self.run_job(self.season(names),self.drive(pause=.1))
+  self.assertEqual(self.most,2)
+  self.assertFalse(any(c.get('name')=='old' for c in self.shown))
  def test_two_episodes_use_two_lanes_and_five_use_three_at_a_time(self):
-  self.assertEqual([debrid_drive.lanes_for(n) for n in (0,1,2,3,4,10)],[1,1,2,3,3,3])
-  for count,most in ((2,2),(5,3)):
+  self.assertEqual([debrid_drive.lanes_for(n) for n in (0,1,2,3,4,10)],[1,1,2,3,4,4])   # owner log 4beafff6: four at once
+  for count,most in ((2,2),(5,4)):
    self.tearDown();self.setUp()
    names=['Show.S01E%02d.mkv'%n for n in range(1,count+1)]
    debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')

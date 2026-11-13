@@ -428,3 +428,76 @@ HTTP Browse guard to PR #16 on claude/trusting-euler-kgug98; keep IPA held. Real
 Browse guard evidence plus passing related checks recorded in reports/season-source-queue-checks.json. Unfinished
 empty-show UI excluded (ISSUE-155). Remaining TV-session evidence, final UI smoke tests and required new iOS
 engine build/pin are listed in docs/REVIEW-HANDOFF-PR16.md. No main merge or phase acceptance-count changes.
+
+## Mockup roadmap — 2026-11-12 (DEC-039, DEC-042, DEC-043)
+
+Approved mockups still to build, in order. Planning only: no code until the owner says start. Each step ends with
+host tests, the desktop Kodi rig next to its board (APPLE-UI-POLICY §7, screenshots labelled), an IPA and the owner's
+iPhone log; phone behaviour is never assumed from the rig.
+
+Library file manager (docs/design/library-files-mockups.html, round 3, DEC-043). Kodi skin XML from pages.py and the
+portrait helpers; data from what the app already records.
+- L1 Data model (pure Python, host-tested): one list of downloaded shows and movies from the Drive library listing,
+  the phone's completed downloads, debrid_drive jobs (copying), the preparation queue (converting, ready, problem),
+  upscale-copies.json (AI copies) and Continue Watching (watched); per show: seasons, episodes, sizes, state counts.
+- L2 Board A, TV Shows: the TV Shows / Movies switch, the storage card (Drive used by shows, movies, AI copies; phone),
+  search and sort (Recent, Name, Size), show rows with state chips. Replaces the Library tab's current downloaded-
+  movies list.
+- L3 Board B, one show: art, three numbers, season chips, episode rows with one state line (bars only while
+  something runs); the round back, ••• and Select controls (round 3).
+- L4 Board C, the episode / movie sheet: steps (on Drive, ready for Kodi and AirPlay, AI copy, subtitles), facts,
+  Play, Play on TV or Pause converting, Delete. C3: a problem's cause in one line and Repair as the main action.
+- L5 Repair and Find Missing Episodes: Repair looks one episode up again at the season's quality through Build
+  Season's lookup (season_sources.request, purpose queue) and adds it; Find Missing Episodes runs the Build Season
+  check for the season and adds only what is not there; Repair All Problems repairs each in turn. All in the •••
+  menu except the per-row Repair.
+- L6 Board D, select and delete: checkboxes, Select All / watched, the bottom bar with count and size, the iOS
+  confirmation (Drive files to Drive's Trash for 30 days, phone copies deleted, AI copies optional, Cancel). Built on
+  ios_remove (long press › Remove), extended to several items and to AI copies.
+- L7 Board E, Movies: three-column poster grid with size and state badge, the same sheet (C).
+- L8 Board F, Free Up Space: watched episodes, AI copies, largest movies, phone copies already on Drive; each opens
+  board D with its items ticked.
+
+Video and AI Upscale (approved DEC-039 / DEC-042, not built yet).
+- V1 Picture button and menu in the video controls (docs/design/video-picture-mockups.html round 4): AI Upscale
+  slider (Off, then sizes above the video) and Saturation, per video / show / every video (picture.py rules exist).
+- V2 Saturation: a GLES shader change in migration/ios-portrait/kodi-21.3-portrait.patch, Kodi r32 staged, CI build,
+  downloaded and verified, pinned by checksum.
+- V3 Settings › AI Upscale board C (docs/design/ai-upscale-settings-mockups.html): one show's own page with its
+  episodes and Remove the copies (today a size list).
+
+Waiting on owner logs from build-314 before more AI Upscale work: the tiled upscaler test (speed, heat, battery,
+size, joins) and the copy speed (three copies at once, 32 MB pieces).
+
+### Fixes from the owner's logs (2026-11-12) — status
+
+| Issue | What | State |
+|---|---|---|
+| ISSUE-179 | Build Season found every episode, queued none | Fixed; phone: 31/32 queued (build 309) |
+| ISSUE-180 | AI Upscale test closed Kodi (4x model made 8K frames) | Guard in build 309; tiled 720p/1080p upscaling in AirPlay r49 (build 314), phone test pending |
+| ISSUE-181 | Version menu opened mid-season; lost episode identity | Fixed in build 314; phone log pending |
+| ISSUE-182 | AllDebrid → Drive one episode at a time, 8 MB pieces | Build 314: 3 at once, 7.2 MB/s (was 2.8) |
+| ISSUE-183 | Build Season downloads named after the torrent hash, no metadata | Fixed after build 314 (title in the request, files moved and renamed); phone proof pending |
+| ISSUE-184 | Pieces ramp slowly; per-connection limit ~2.4 MB/s | 4 lanes, 8 MB first pieces; phone proof pending |
+
+Next owner checks on the next IPA: the hash cards become "Naruto Shippūden" with episodes and art; four copy threads;
+the AI Upscale test (Settings › AI Upscale › Test on one video): speed, heat, battery, size and whether the tile joins
+show.
+
+### Open bugs, not coded yet (owner screenshots after build 314, 2026-11-12) — for the next agent
+
+1. **Activity shows one upload while several copy.** debrid_drive.uploads() returns only state['current']; 'current_also'
+   is saved but never read, and lanes 3-4 live only in the local `extra` dict (never saved). activity.current() also
+   gives every upload the same key 'drive', so rows collapse into one. Fix: save every lane (e.g. state['current_more']),
+   return all of them from uploads(), and key each Activity row by lane or file.
+2. **Raw hashes as titles** ("Ee34425D5595F37297Bc8C94Dab…" in Activity and the upload card). The row title is
+   display_title(job name), and jobs queued before ISSUE-183 are named after the info-hash. ISSUE-183's retitle()
+   renames queued jobs, but every display path should also refuse a hash: use the show (folder) + episode label from
+   the file name, never the hash (debrid_drive.is_hash exists).
+3. **No metadata/poster anywhere for anime-style names** (Library status "Naruto Shippuuden - 002", Notifications,
+   Downloaded TV Shows). drivelibrary.parse keeps " - 002" and "Episode 006 …" in the title and finds no episode, so the
+   poster lookup (activity.Posters, transfer_artwork) and the Library grouping miss. Fix: parse absolute-numbered names
+   ("Show - 002", "Show Episode 006 Title", "Show 002 [1080p]") into title + episode, with tests; ISSUE-183's
+   episode_name() covers new copies only.
+4. Check after the fix: Library status "Working on now", Notifications "Running now" and Activity show the show's
+   poster and "Naruto Shippūden · S1 E2" for every lane.

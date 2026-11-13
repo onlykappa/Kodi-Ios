@@ -1,5 +1,91 @@
 # Performance and quality progress
 
+## TAKEOVER (2026-11-13, after build 347) — start here
+
+Branch claude/trusting-euler-kgug98, draft PR #22. Owner approved merging PR #22 **only once all gaps are filled and nothing is left out**. Last fix commit: Library status long press / Show Back / graph race (ISSUE-196).
+DONE 2026-11-13 (ISSUE-197): items 1-3 below fixed on host, the full CI test list and check_project pass; next is the one
+IPA (workflow_dispatch) and the merge.
+To do, in order:
+1. Downloaded TV Shows: Naruto Shippuden card has no poster (check drivelibrary.artwork for the show title with the macron / "Shippuden" spelling and the art cache).
+2. Remove the "Refresh Library" card from Downloaded TV Shows and Movies (plugin.video.kodi.ios.watch/resources/lib/ios_library.py, the `if not show_page:` block near the end of the listing); update its tests.
+3. Free Up Space "Watched episodes": pass Kodi's watched set (JSON-RPC playcount / ios_continue history) into library_manager.model and free_up_groups.
+4. Run the CI test list (import-review.yml) + `python3 -B scripts/check_project.py`; update PR #22 body; build ONE IPA (workflow_dispatch import-review.yml on the branch); then merge PR #22.
+Note: test_build193_pages XML.test_landscape_airplay_sheet_unchanged fails locally only in a shallow clone (git show ecfbecc).
+
+## HANDOFF FOR THE NEXT AGENT (2026-11-13, overnight run) — read this first
+
+Branch claude/trusting-euler-kgug98, draft PR #22. Everything is pushed. Builds: pushes only run tests; the one IPA is
+built by Run workflow on import-review (or the build-ipa label). Pinned: Kodi r32 (Saturation), AirPlay r52.
+Done tonight (host tests, desktop Kodi rig where it is a page, host simulations; phone checks pending for all):
+- Library status: a card per copy lane, Up next in episode order without the copies under way, change-only property
+  writes (scrolling), time left over every copy and all lanes (ISSUE-195, E17).
+- V2 Saturation: Kodi r32 built from 61510d7, digests checked, pinned.
+- V3 Settings › AI Upscale › one show (IOSUpscaleShow.xml): size capsules, episodes with chips, make the rest, Remove
+  the copies (service bins them). Rig-checked.
+- L6 Select and delete (IOSLibrarySelect.xml) from a show's Select; L8 Free Up Space (IOSLibraryFreeUp.xml) from the
+  storage card, Review opens L6 ticked. Rig-checked.
+- V1 Picture menu checked in the landscape rig (1311x603); its AI Upscale part needs a playing video (phone).
+- AI Upscale end to end (scripts/test_upscale_e2e.py) and downloads end to end (scripts/test_download_e2e.py: shows,
+  season 2 of absolute packs (ISSUE-194), movies) in CI.
+- Check Drive for problems (Settings › Library), Copy only on Wi-Fi (Transfer settings), lanes that follow the link,
+  AirPlay says when a stream is too slow, runs beside a conversion are not learned from.
+Left for the phone: everything above on the device; the scroll feel; Saturation on screen; a season copying on Wi-Fi
+versus cellular (log); Pick Better Versions for Naruto episodes 5-6.
+
+## HANDOFF FOR THE NEXT AGENT (2026-11-13, build-319 feedback) — read this first
+
+Branch claude/trusting-euler-kgug98, draft PR #22. Everything is pushed. Owner logs read: c4f05d90, 5a03a391 and
+3b94b426 (the last two are one session; 3b94b426 is the longer). Fixed on the host since build 319:
+- Owner: the file manager belongs on Settings › Library (Movies / TV Shows rows there open library_manager); the Home
+  Library tab is back to the Downloaded Movies / TV Shows poster grid. Changed Custom_NNNN windows now trigger a skin
+  reload (build 319 showed the old Library hub until restart).
+- ISSUE-186 AirPlay of an Umbrella stream: a slow source (0.6 MB/s for a 3.5 MB/s movie) was taken for a TV that
+  cannot decode the picture and restarted in compat mode (long wait, broken sound). KodiAirPlay r52 staged:
+  kr_remux_video_waiting() blocks that restart while the TV waits for a video segment. r52 built (run 43359694650),
+  downloaded, sha256 084b7672…71b9 checked, PINNED. IPA: **build-325** (e46a674) has everything here; waiting on the
+  owner's phone log.
+- ISSUE-187 Library status Up next in episode order (prepare_downloads.line_key).
+- ISSUE-188 season copies: Drive's late bytes after a timeout are no longer "Invalid Drive confirmed position"; a
+  failed episode is tried again twice in the same turn; hash-named jobs borrow their show's title from a sibling job.
+Still open from the owner's screenshots: the same episode listed twice in Up next (two releases of episode 6) —
+needs a log with the season's source picks.
+
+## HANDOFF FOR THE NEXT AGENT (2026-11-12, mockup pages + background freeze) — read this first
+
+Branch claude/trusting-euler-kgug98, draft PR #22. Everything is pushed; nothing is kept only locally.
+This commit starts the next IPA (import-review) with everything below. 84 import-review suites pass on the host.
+
+Done (host-tested; desktop Kodi rig = "rig"; phone not yet):
+- ISSUE-185 downloads "frozen" in the background: iOS took the keep-alive silent audio and the framework refused every
+  restart until Kodi was reopened (62 min in log ed63fe73). KodiAirPlay r51 retries it 15 s after, then every 10 s.
+  r51 built (run 43320420111), downloaded, sha256 55f6d2f6…53ab checked, PINNED.
+- Library file manager (DEC-043, docs/design/library-files-mockups.html):
+  L1 library_files.py model (states, chips, storage, free-up groups);
+  L2 board A TV Shows / Movies (library_files_page.py, library_manager.py; Library tab rows open it) — rig-checked;
+  L3 board B one show (library_show_page.py: numbers, season chips, episode states, Repair on problems) — rig-checked;
+  L4 board C episode/movie sheet (library_item_page.py: steps, facts, Play, Play on TV, Repair, Delete) — rig-checked;
+  L5 part: ••• menu (Find Missing Episodes = Build Season for the season; Repair All Problems) — rig-checked.
+  Tests: scripts/test_library_files.py (19).
+- V1 Picture button and menu in the video controls (by the second agent: picture_menu.py, picture_osd.py,
+  scripts/test_picture_menu.py): AI Upscale slider, Saturation, Apply to, AirPlay copy states. Rig shots were taken in the
+  portrait rig only; it is a landscape OSD, so its layout needs a landscape rig check (KODI_RIG_SIZE=1311x603).
+
+Left to do (in order):
+1. Phone checks on this IPA: background copies keep going with the phone locked after another app's sound; the hash-named
+   season cards become the show (ISSUE-183); four copy lanes (ISSUE-184); the new Library pages; the Picture menu.
+2. L5 rest: Repair fully automatic (today: retries a preparation problem; an episode never added opens its download
+   step with a version choice — make it pick through season_sources.request purpose 'queue').
+3. L6 board D select and delete (several items, AI copies optional, iOS confirmation; extend ios_remove).
+4. L7 board E Movies poster grid (today the Movies side is a list).
+5. L8 board F Free Up Space (library_files.free_up has the groups).
+6. V3 Settings › AI Upscale one-show page (board C of ai-upscale-settings-mockups.html): NOT committed (the second agent
+   was stopped before it); start over from upscale_queue.py / picture.py.
+7. V2 Saturation shader change in kodi-21.3-portrait.patch → Kodi r32 (not started).
+8. V1 landscape rig check.
+Rig notes: build with `kodi_rig.py setup --release build-302`; open new pages by path
+(RunScript(special://home/addons/service.kodi.ios.bootstrap/NAME.py)); never ReloadSkin with a script window open (it
+crashed Kodi twice) — `sync` then `restart` loads new window XMLs; only one agent may drive the rig at a time.
+
 ## PR #19 review repair checkpoint — 2026-11-12
 
 - Separate source commits: ISSUE-171 real token renewal; ISSUE-172 bounded HEAD; ISSUE-173 bounded season scans +

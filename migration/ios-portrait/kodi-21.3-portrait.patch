@@ -2012,3 +2012,99 @@ diff --git a/xbmc/guilib/listproviders/DirectoryProvider.cpp b/xbmc/guilib/listp
      if (flag & ANNOUNCEMENT::Player)
      {
        if (message == "OnPlay" || message == "OnResume" || message == "OnStop")
+diff --git a/xbmc/cores/VideoPlayer/VideoRenderers/VideoShaders/YUV2RGBShaderGLES.cpp b/xbmc/cores/VideoPlayer/VideoRenderers/VideoShaders/YUV2RGBShaderGLES.cpp
+index 63e4d30..4d8bfdb 100644
+--- a/xbmc/cores/VideoPlayer/VideoRenderers/VideoShaders/YUV2RGBShaderGLES.cpp
++++ b/xbmc/cores/VideoPlayer/VideoRenderers/VideoShaders/YUV2RGBShaderGLES.cpp
+@@ -15,9 +15,17 @@
+ #include "utils/GLUtils.h"
+ #include "utils/log.h"
+ 
++#include <atomic>
+ #include <sstream>
+ #include <string>
+ 
++// Kodi iOS (DEC-039 V2): Saturation from the Picture menu, -50..+50 (0 = as the video is). Set by the
++// SetVideoSaturation(n) built-in (PlayerBuiltins.cpp); read here every frame, so a change shows at once.
++namespace KODI_IOS
++{
++extern std::atomic<int> g_videoSaturation;
++}
++
+ using namespace Shaders::GLES;
+ 
+ //////////////////////////////////////////////////////////////////////
+@@ -116,6 +124,23 @@ bool BaseYUV2RGBGLSLShader::OnEnabled()
+       .SetDestinationLimitedRange(!m_convertFullRange);
+ 
+   Matrix4 yuvMat = m_convMatrix.GetYuvMat();
++  // Kodi iOS (DEC-039 V2): saturation in RGB after the YUV conversion, keeping each pixel's BT.709 luma:
++  // rgb' = k * rgb + (1 - k) * luma(rgb). Folded into the matrix (column-major for GL: yuvMat[column][row]),
++  // so it works for every source format and bit depth without changing the shader source.
++  const int saturation = KODI_IOS::g_videoSaturation.load(std::memory_order_relaxed);
++  if (saturation != 0)
++  {
++    const float k = 1.0f + static_cast<float>(saturation) / 100.0f;
++    const float w[3] = {0.2126f, 0.7152f, 0.0722f};
++    for (int c = 0; c < 4; ++c)
++    {
++      const float r = yuvMat[c][0], g = yuvMat[c][1], b = yuvMat[c][2];
++      const float luma = (1.0f - k) * (w[0] * r + w[1] * g + w[2] * b);
++      yuvMat[c][0] = k * r + luma;
++      yuvMat[c][1] = k * g + luma;
++      yuvMat[c][2] = k * b + luma;
++    }
++  }
+   glUniformMatrix4fv(m_hYuvMat, 1, GL_FALSE, yuvMat.ToRaw());
+   glUniformMatrix4fv(m_hProj,  1, GL_FALSE, m_proj);
+   glUniformMatrix4fv(m_hModel, 1, GL_FALSE, m_model);
+diff --git a/xbmc/interfaces/builtins/PlayerBuiltins.cpp b/xbmc/interfaces/builtins/PlayerBuiltins.cpp
+index 18c84ed..0fc18c2 100644
+--- a/xbmc/interfaces/builtins/PlayerBuiltins.cpp
++++ b/xbmc/interfaces/builtins/PlayerBuiltins.cpp
+@@ -41,6 +41,8 @@
+ #include "video/VideoUtils.h"
+ #include "video/guilib/VideoSelectActionProcessor.h"
+ 
++#include <atomic>
++#include <cstdlib>
+ #include <math.h>
+ 
+ #ifdef HAS_OPTICAL_DRIVE
+@@ -856,6 +858,28 @@ static int SubtitleShiftDown(const std::vector<std::string>& params)
+ ///
+ 
+ // clang-format off
++// Kodi iOS (DEC-039 V2): the Picture menu's Saturation, -50..+50; YUV2RGBShaderGLES.cpp applies it.
++namespace KODI_IOS
++{
++std::atomic<int> g_videoSaturation{0};
++}
++
++/*! \brief Set the video saturation (Kodi iOS Picture menu).
++ *  \param params The parameters.
++ *  \details params[0] = -50..+50 (0 = as the video is).
++ */
++static int SetVideoSaturation(const std::vector<std::string>& params)
++{
++  int value = std::atoi(params[0].c_str());
++  if (value < -50)
++    value = -50;
++  if (value > 50)
++    value = 50;
++  KODI_IOS::g_videoSaturation.store(value, std::memory_order_relaxed);
++  CLog::Log(LOGINFO, "Kodi iOS picture: saturation {:+d}", value);
++  return 0;
++}
++
+ CBuiltins::CommandMap CPlayerBuiltins::GetOperations() const
+ {
+   return {
+@@ -868,6 +892,7 @@ CBuiltins::CommandMap CPlayerBuiltins::GetOperations() const
+            {"queuemedia",          {"Queue the specified media in video or music playlist", 1, QueueMedia}},
+            {"playwith",            {"Play the selected item with the specified core", 1, PlayWith}},
+            {"seek",                {"Performs a seek in seconds on the current playing media file", 1, Seek}},
++           {"setvideosaturation",  {"Kodi iOS: set the video saturation (-50..50)", 1, SetVideoSaturation}},
+            {"subtitleshiftup",     {"Shift up the subtitle position", 0, SubtitleShiftUp}},
+            {"subtitleshiftdown",   {"Shift down the subtitle position", 0, SubtitleShiftDown}},
+          };

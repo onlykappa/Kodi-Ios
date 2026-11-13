@@ -57,6 +57,23 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
     if data.get('engine') != engine or wants_model:
         data['engine'] = engine
         uq.save(profile, data)
+    # Board C "Remove the copies…": each copy goes to Drive's Trash (30 days); waiting ones are dropped.
+    removing = data.pop('remove', None) or []
+    for original in removing:
+        entry = data.get('copies', {}).get(original)
+        if not entry:
+            continue
+        if entry.get('copy_id'):
+            try:
+                drive_prepare.bin(q.drive, entry['copy_id'])
+            except Exception as error:
+                q.log('upscale: a copy was not sent to the bin: %s' % error)
+                data.setdefault('remove', []).append(original)   # tried again next pass
+                continue
+        entry.update(status='gone', copy_id=None, progress=0)
+    if removing:
+        uq.save(profile, data)
+        q.log('upscale: %d copies removed (Settings › AI Upscale)' % len(removing))
     added = uq.plan(q.state, data, settings, media_for, clock)
     if added:
         q.log('upscale: %d copy%s to make (%s)' % (len(added), '' if len(added) == 1 else ' copies',
@@ -239,7 +256,8 @@ def media_lookup(profile, parse=None):
         name = (prep_job.get('source') or {}).get('name', '')
         found = next((by_id[i] for i in ids if i in by_id), None)
         if found and found.get('show_tmdb'):
-            return {'tmdb': found['show_tmdb'], 'type': 'tv', 'show': found.get('title') or '', 'drive_id': ids[0] or ids[1]}
+            return {'tmdb': found['show_tmdb'], 'type': 'tv', 'show': found.get('title') or '', 'drive_id': ids[0] or ids[1],
+                    'season': found.get('season') or '', 'episode': found.get('episode') or ''}
         info = {}
         if parse is not None:
             try:
@@ -247,7 +265,8 @@ def media_lookup(profile, parse=None):
             except Exception:
                 info = {}
         kind = 'tv' if info.get('season') or info.get('episode') else 'movie'
-        return {'type': kind, 'show': info.get('title') or '', 'drive_id': ids[0] or ids[1]}
+        return {'type': kind, 'show': info.get('title') or '', 'drive_id': ids[0] or ids[1],
+                'season': info.get('season') or '', 'episode': info.get('episode') or ''}
     return media_for
 
 

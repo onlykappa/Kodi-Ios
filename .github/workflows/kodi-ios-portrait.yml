@@ -25,7 +25,36 @@ concurrency:
   group: kodi-ios-portrait
   cancel-in-progress: false
 jobs:
+  # Pull requests run this workflow on every push once the patch is in the PR's changes (2026-11-13: a one-hour rebuild
+  # of an already published r32 at each push). Skip the build when the release for build_tag exists and the patch is
+  # the one locked (patch_sha256); a manual run always builds.
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.need.outputs.build }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Is this build already published?
+        id: need
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          tag="$(python3 -c "import json;d=json.load(open('migration/ios-portrait/source-lock.json'));print(d.get('build_tag') or d['executable_release']['tag'])")"
+          locked="$(python3 -c "import json;print(json.load(open('migration/ios-portrait/source-lock.json')).get('patch_sha256',''))")"
+          actual="$(sha256sum migration/ios-portrait/kodi-21.3-portrait.patch | cut -d' ' -f1)"
+          if [ "$EVENT" != "workflow_dispatch" ] && [ "$locked" = "$actual" ] && gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
+            echo "$tag is published from this patch; nothing to build"; echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
   executable:
+    needs: check
+    if: needs.check.outputs.build == 'true'
     runs-on: macos-15
     timeout-minutes: 360
     steps:

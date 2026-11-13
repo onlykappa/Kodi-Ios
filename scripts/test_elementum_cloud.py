@@ -141,6 +141,16 @@ class AutomaticRefusals(unittest.TestCase):
   self.assertEqual(ec.refusal(wanted,picked,{'name':'Something Else'},own=True),'')
   self.assertEqual(ec.refusal(wanted,picked,{'name':'x','episode':'6'},own=True),'different episode')
 
+class SeasonQueueNames(unittest.TestCase):
+ def test_the_season_request_carries_the_show_title(self):
+  import season_sources,json
+  props={}
+  home=types.SimpleNamespace(getProperty=lambda k:props.get(k,''),setProperty=props.__setitem__,clearProperty=lambda k:props.pop(k,None))
+  seen={}
+  def follow(url,**kw):seen['want']=json.loads(props['KodiIOS.AutoPick']);return url
+  season_sources.request(home,31910,1,2,'queue','1080p',follow=follow,title='Naruto Shippūden')
+  self.assertEqual(seen['want']['target']['title'],'Naruto Shippūden')
+
 class SeasonQueueThreeLanes(unittest.TestCase):
  """ISSUE-179 (owner log 1138649a, build 302): Build Season found every episode and queued none: each pick was
  "refused (different version)" then "no matching automatic request". Reproduces season_sources.request's queue phase

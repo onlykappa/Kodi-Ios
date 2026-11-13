@@ -764,6 +764,57 @@ def mark_multi(kept, exp, sm=None):
     return kept
 
 
+# Owner log b2f10d1f (build 327: "things just move slow slow"): Build Season took 4-6 GB files for 23-minute episodes
+# (1440x1080 10-bit H.264), each 4 h through the phone at ~0.3 MB/s and then converted for AirPlay. Owner (build 328):
+# "pick the genuine best options based off size and the quality i pick not just the smallest but just overall best".
+# At the quality picked, the automatic pick weighs, in this order: no conversion; a size that fits the quality for the
+# episode's length (a sensible bitrate: not a bloated remux, not a starved encode); the source (Blu-ray, WEB-DL, ...);
+# enough seeds; then, among equals, the larger file (more picture for the same kind of release).
+EPISODE_GB = {u'4k': 10.0, u'1440p': 5.0, u'1080p': 3.0, u'720p': 1.5, u'480p': 0.8, u'sd': 0.8}
+# Video bitrate that looks right for each quality, Mbit/s (low, high); HEVC needs about 60 % of H.264's.
+BITRATE = {u'4k': (10.0, 40.0), u'1440p': (5.0, 16.0), u'1080p': (2.5, 10.0), u'720p': (1.2, 5.0),
+           u'480p': (0.6, 2.5), u'sd': (0.6, 2.5)}
+SOURCE_RANK = {u'Blu-ray': 0, u'WEB-DL': 1, u'WEB': 2, u'WEBRip': 2, u'Blu-ray Remux': 3, u'HDTV': 4, u'DVD': 5, u'': 3}
+
+
+def oversized_episode(item):
+    """An episode file far bigger than its quality needs (remux, 10-bit encodes): it copies for hours."""
+    limit = EPISODE_GB.get(_s(item.get('quality')).lower(), 3.0)
+    return not item.get('multi') and float(item.get('size') or 0) > limit
+
+
+def size_fit(item, minutes=0):
+    """0 when the file's bitrate suits its quality for the episode's length (TMDb runtime), 1 when it is a little
+    outside, 2 when far (a remux, a starved encode). Without a runtime, the episode-size limits stand in."""
+    size = float(item.get('size') or 0)
+    if item.get('multi') or size <= 0:
+        return 1
+    quality = _s(item.get('quality')).lower()
+    if not minutes:
+        return 2 if oversized_episode(item) else 0
+    low, high = BITRATE.get(quality, (2.5, 10.0))
+    if codec(item) == u'H.265':
+        low, high = low * 0.6, high * 0.6
+    mbps = size * 8192.0 / (minutes * 60.0)
+    if low <= mbps <= high:
+        return 0
+    return 1 if low / 1.5 <= mbps <= high * 1.5 else 2
+
+
+def size_step(item):
+    """The size in steps of about 25 %: a few MB more never beat more seeds; a clearly larger file of the same kind
+    (more picture) does."""
+    import math
+    size = float(item.get('size') or 0)
+    return int(round(math.log(size, 1.25))) if size > 0 else -99
+
+
+def seed_bucket(item):
+    """0: plenty (20+), 1: some (5-19), 2: few. Within a bucket the size and source decide, not a few more seeds."""
+    seeds = int(item.get('seeds') or 0)
+    return 0 if seeds >= 20 else 1 if seeds >= 5 else 2
+
+
 def auto_choose(kept, want):
     """The version closest to the first pick: its quality (else the nearest lower, then higher), its HDR kind and
     codec, never AV1 when avoidable, seeds, then the size nearest the first pick's. None when nothing has seeds."""
@@ -774,6 +825,7 @@ def auto_choose(kept, want):
     order = {q: n for n, q in enumerate(QUALITY_ORDER)}
     target = order.get(want.get('quality'), 2)
     size = float(want.get('size') or 0)
+    minutes = int(want.get('runtime') or 0)
     if want.get('coverage') == u'' and size:
         size = 0.0                                      # a pack's size says nothing about one episode's
 
@@ -786,7 +838,8 @@ def auto_choose(kept, want):
         # most seeds); whole-series packs come last, used only when nothing else has the episode.
         return (is_bad(it), it['seeds'] <= 0, bool(WHOLE_SERIES.search(_s(it.get('name')))), bool(it.get('multi')), distance,
                 hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
-                slow_to_prepare(it), too_heavy(it), abs(it['size'] - size) if size else 0, -it['seeds'])
+                slow_to_prepare(it), converts_for_tv(it), too_heavy(it), size_fit(it, minutes), seed_bucket(it),
+                SOURCE_RANK.get(source_type(it), 3), abs(it['size'] - size) if size else -size_step(it), -it['seeds'])
     best = min(dedupe(kept), key=score)
     return None if best['seeds'] <= 0 else best
 
