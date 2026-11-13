@@ -24,6 +24,8 @@ FILE = 'debrid-drive.json'
 # Most files copied at once (ISSUE-164; Roadmap 1F.4). Owner log 4beafff6 (build 314, a 101 Mbps upload): three copies
 # ran at ~2.4 MB/s each, 7.2 MB/s together, each held by its own connection; a fourth adds a quarter more.
 LANES = 4
+# A file whose copy failed goes back in line this many times in the same turn before it waits for the next one.
+RETRIES_IN_RUN = 2
 
 
 def lanes_for(files_left):
@@ -147,11 +149,17 @@ def retitle(profile, state, plans=None):
         except Exception:
             plans = {}
     changed = []
+    # Owner (build 319: an "ee34425d5595…" card in Downloaded TV Shows): with no saved season plan for the show, a job
+    # takes the title another job of the same show (same TMDb id) already has.
+    known = {}
+    for other in state.get('jobs', []):
+        if other.get('show_tmdb') and other.get('title') and not is_hash(other.get('title')):
+            known.setdefault(str(other['show_tmdb']), other['title'])
     for job in state.get('jobs', []):
         old = job.get('title') or ''
         if not (is_hash(old) or is_hash(job.get('name'))) or not job.get('show_tmdb'):
             continue
-        title = (plans.get(str(job['show_tmdb'])) or {}).get('title') or ''
+        title = (plans.get(str(job['show_tmdb'])) or {}).get('title') or known.get(str(job['show_tmdb'])) or ''
         if not title or title == old:
             continue
         job['title'] = title
@@ -556,14 +564,27 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                             entry = todo.pop(0) if todo else None
                         if entry is None:
                             return
-                        if entry[0] is job:
-                            copy(entry, slot)
-                            continue
                         try:
                             copy(entry, slot)
+                            continue
                         except driveupload.Stop:
                             raise
-                        except Exception as error:   # a companion's problem stays its own; it carries on in its own turn
+                        except Exception as error:
+                            # Owner log 3b94b426 (build 319): a lane whose episode failed once ended there, and one lane
+                            # copied the season alone for hours. The episode goes back in line (its Drive session kept)
+                            # up to RETRIES_IN_RUN times before it is left for the next turn.
+                            with guard:
+                                retried[id(entry[1])] = retried.get(id(entry[1]), 0) + 1
+                                again = retried[id(entry[1])] <= RETRIES_IN_RUN
+                                if again:
+                                    todo.append(entry)
+                            if again:
+                                log('%s: %s; trying it again after the others (%d of %d)' % (
+                                    entry[0].get('title') or entry[0]['name'], type(error).__name__, retried[id(entry[1])], RETRIES_IN_RUN))
+                                continue
+                            if entry[0] is job:
+                                raise
+                            # A companion's problem stays its own; it carries on in its own turn.
                             with guard:
                                 other = entry[0]
                                 other['tries'] = other.get('tries', 0) + 1
@@ -574,6 +595,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 finally:
                     release(slot)
 
+            retried = {}
             lanes = lanes_for(len(todo))
             if lanes == 1:
                 worker(0)

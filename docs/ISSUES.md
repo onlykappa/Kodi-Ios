@@ -3023,3 +3023,20 @@ first. Retest: test_prepare_downloads EpisodeOrder. Also: test_work_state had a 
 rename (job → owner) and was not in the CI list; fixed and added to import-review.yml.
 Not fixed here: the same episode can appear twice (two releases of episode 6 from different sources); that is the
 source matching, to look at with the next log.
+
+## ISSUE-188 — Season copy crawled on one lane for hours; "Invalid Drive confirmed position" (owner log 3b94b426, build 319) — FIXED on host
+
+What the log shows: Build Season started four lanes at 16:01. Pieces timed out at 20 s and halved (8 → 3.8 → 1.8 MB).
+At 16:02:37 and 16:02:56 two lanes failed with "Invalid Drive confirmed position"; a third ended silently (the job's own
+episode: its error is only raised when every lane is done). From 16:03 to 19:17 one lane (one episode) copied alone at
+1-4 MB per 5-20 s, and the season's other episodes waited.
+Root cause: (1) after a timed-out piece, Drive went on to keep that piece's bytes, so its next answer confirmed more
+than the piece just sent, which driveupload treated as fatal; (2) a lane whose episode failed dropped it for the whole
+turn, and with nothing left in the list the lane ended.
+Fix: driveupload accepts any Drive position up to the file's size and carries on from there (logs "Drive kept N MB more
+from an earlier piece"); debrid_drive puts a failed episode back in line up to RETRIES_IN_RUN (2) times in the same turn,
+its Drive session kept, before it waits for the next turn. Retest: test_debrid_drive LateBytes and
+TwoLanes.test_a_lane_whose_episode_fails_once_tries_it_again_in_the_same_turn (both fail on the old code).
+Also: a job still named after its info-hash with no saved season plan now takes its show's title from another job of
+the same show (retitle; HashNamedJobs test) — the "ee34425d5595…" card. The slow pieces themselves matched a slow
+connection at that time (Kodi's own playback buffered too), see ISSUE-186.

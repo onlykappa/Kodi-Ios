@@ -312,7 +312,11 @@ class Drive(object):
     progress(size,size);save();return receipt
    if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
    confirmed=_next_offset(headers)
-   if not 0<=confirmed<=offset+count:raise RuntimeError('Invalid Drive confirmed position')
+   # Owner log 3b94b426 (build 319): after a timed-out piece, Drive went on to keep that piece's bytes, so the next answer
+   # confirmed more than the piece just sent and the copy failed with "Invalid Drive confirmed position". Those bytes are
+   # the same file at the same place: Drive's position is the truth, anywhere up to the file's size.
+   if not 0<=confirmed<=size:raise RuntimeError('Invalid Drive confirmed position')
+   if confirmed>offset+count:_note('Drive copy native: Drive kept %.1f MB more from an earlier piece'%((confirmed-offset-count)/1048576))
    if confirmed<=offset:
     failures+=1
     if failures>3:raise ConnectionError('Drive did not advance; upload session retained')

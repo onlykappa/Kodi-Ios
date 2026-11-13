@@ -137,6 +137,28 @@ class NativeCopies(unittest.TestCase):
    self.assertEqual(debrid_drive.load(profile)['jobs'][0]['status'],'done');self.assertEqual(drive.data,blob)
    self.assertEqual(offsets,[0,8*1024*1024,12*1024*1024,16*1024*1024])   # after the lost answer: half-size pieces
 
+class LateBytes(unittest.TestCase):
+ def test_drive_keeping_a_timed_out_pieces_bytes_is_not_an_error(self):
+  # Owner log 3b94b426 (build 319): after a 20 s timeout Drive confirmed more than the next piece sent; the copy failed
+  # with "Invalid Drive confirmed position". Drive's position is the truth up to the file's size.
+  blob=bytes(range(256))*(64*1024);size=len(blob);calls=[]
+  class Drive(FakeDrive):
+   def copy_piece(self,source,source_headers,target,headers,offset,count,total,timeout):
+    calls.append((offset,count))
+    if len(calls)==1:   # the first piece times out; Drive has only half when asked
+     self.data=blob[:count//2];raise TimeoutError('piece took 20 s')
+    if len(calls)==2:   # the rest of piece 1 lands late: Drive is past this piece's end
+     self.data=blob[:offset+count+1024*1024]
+     return 308,{'Range':'bytes=0-%d'%(len(self.data)-1)},b''
+    return self.call('PUT',target,blob[offset:offset+count],{'Content-Range':'bytes %d-%d/%d'%(offset,offset+count-1,total)})
+  class API(FakeAPI):
+   def unlock(self,link):return 'https://source/f','Fall.2022.2160p.mkv',size
+  with tempfile.TemporaryDirectory() as profile:
+   debrid_drive.queue(profile,{'id':H,'name':'Fall'},'movie','Fall');drive=Drive();api=API()
+   debrid_drive.step(profile,api,drive);debrid_drive.step(profile,api,drive)
+   self.assertEqual(debrid_drive.load(profile)['jobs'][0]['status'],'done');self.assertEqual(drive.data,blob)
+   self.assertEqual(calls[2][0],calls[1][0]+calls[1][1]+1024*1024)   # carried on from where Drive was
+
 class HashNamedJobs(unittest.TestCase):
  """Owner screenshot (build 314): Build Season's episodes went into Drive folders named after the torrent hash
  ("3c90db2e052…"), so the Library had no title or poster for them."""
@@ -166,6 +188,14 @@ class HashNamedJobs(unittest.TestCase):
   info=drivelibrary.parse(state['jobs'][0]['files'][0]['drive_name'])
   self.assertEqual((info['title'],info['season'],info['episode']),('Naruto Shippūden','1','2'))
   self.assertEqual(debrid_drive.episode_name(state['jobs'][0],'Naruto.S01E02.mkv'),'Naruto.S01E02.mkv')   # already says it
+
+ def test_a_job_with_no_season_plan_takes_its_shows_title_from_another_job(self):
+  # Owner (build 319): an "ee34425d5595…" card stayed in Downloaded TV Shows.
+  h='ee34425d55'+'f'*30
+  state={'jobs':[{'hash':h,'name':h,'title':h,'kind':'episode','season':'1','episode':'4','show_tmdb':'46260','status':'copying','files':[]},
+                 {'hash':'d'*40,'name':'Naruto S01E01','title':'Naruto','kind':'episode','season':'1','episode':'1','show_tmdb':'46260','status':'done','files':[]}]}
+  changed=debrid_drive.retitle('/p',state,plans={})
+  self.assertEqual([(j['title'],j['name'],old) for j,old in changed],[('Naruto','Naruto S01E04',h)])
 
 class TwoLanes(unittest.TestCase):
  """ISSUE-164 / 1F.4: a season's episodes go up to Drive up to three at a time; a movie is still one upload."""
@@ -233,6 +263,23 @@ class TwoLanes(unittest.TestCase):
   jobs=debrid_drive.load(self.p)['jobs']
   self.assertEqual(jobs[0]['status'],'done')
   self.assertEqual((jobs[1]['status'],jobs[1]['tries']),('copying',1));self.assertIn('ConnectionError',jobs[1]['error'])
+ def test_a_lane_whose_episode_fails_once_tries_it_again_in_the_same_turn(self):
+  # Owner log 3b94b426 (build 319): three of four lanes ended at their first error; one copied the season alone for hours.
+  import threading,time
+  names=['Show.S01E0%d.mkv'%n for n in (1,2,3)];failed=[]
+  debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')
+  test=self;base=self.drive(pause=.05)
+  class Once(type(base)):
+   def upload_stream(self,open_at,size,name,parent,session,save,*a,**k):
+    if name=='Show.S01E02.mkv' and not failed:
+     failed.append(name);session.update(url='https://upload/'+name,size=size);save()
+     raise RuntimeError('Invalid Drive confirmed position')
+    return super().upload_stream(open_at,size,name,parent,session,save,*a,**k)
+  api=self.season(names);drive=Once()
+  self.assertEqual(debrid_drive.step(self.p,api,drive),1)
+  self.assertEqual(debrid_drive.step(self.p,api,drive),1)   # done in this turn, not "again in 30 s"
+  job=debrid_drive.load(self.p)['jobs'][0]
+  self.assertEqual(job['status'],'done');self.assertEqual(sorted(self.uploaded),names);self.assertFalse(job.get('tries'))
  def test_two_episodes_use_two_lanes_and_five_use_three_at_a_time(self):
   self.assertEqual([debrid_drive.lanes_for(n) for n in (0,1,2,3,4,10)],[1,1,2,3,4,4])   # owner log 4beafff6: four at once
   for count,most in ((2,2),(5,4)):
