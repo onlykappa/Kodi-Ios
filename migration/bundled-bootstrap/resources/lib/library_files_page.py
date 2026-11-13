@@ -5,7 +5,7 @@ pooled row per show (or movie): poster, title, one grey line, up to three state 
 fills it from library_files.py. Kodi skin XML, portrait units (2.687 per pt); existing tokens and helpers only.
 """
 WINDOW = 'IOSLibraryFiles.xml'
-BACK, TAB_SHOWS, TAB_MOVIES, SEARCH, SORT = 9001, 9101, 9102, 9103, 9104
+BACK, TAB_SHOWS, TAB_MOVIES, SEARCH, SORT, VIEW = 9001, 9101, 9102, 9103, 9104, 9105
 STORE_BAR = 9120
 ROW, SLOTS, ROW_H = 9200, 30, 236
 LIST = 9300
@@ -107,7 +107,14 @@ def page(p):
     W, S, w = p.WIDTH, p.SIDE, p.WIDTH - 2 * p.SIDE
     P = u.P
     body = p.backdrop() + p.nav_button(BACK, S, 36, 'chevron-left.png', [('true', 'Close')])
-    body += u.text(p, S, 150, w, 110, P('title'), 'p_large')
+    body += u.text(p, S, 150, w - 160, 110, P('title'), 'p_large')
+    # Owner (L7 review): "i like the list version … make it so i can change the view at anytime". On the Movies side a
+    # button beside the title switches list / grid (the glyph shows the view it switches to); the choice is kept.
+    movies = 'String.IsEqual(Window().Property(tab),movie)'
+    body += p.nav_button(VIEW, W - S - 108, 152, 'grid.png', [('true', 'noop')],
+                         visible=movies + ' + !String.IsEqual(Window().Property(view),grid)')
+    body += p.nav_button(VIEW + 1, W - S - 108, 152, 'list.png', [('true', 'noop')],
+                         visible=movies + ' + String.IsEqual(Window().Property(view),grid)')
     # Board A: the switch.
     switch = (u.card(p, 0, 0, w, 96, u.SURF2) + _tab(p, u, TAB_SHOWS, 6, w // 2 - 12, 'TV Shows', 'tv') +
               _tab(p, u, TAB_MOVIES, w // 2 + 6, w // 2 - 12, 'Movies', 'movie'))

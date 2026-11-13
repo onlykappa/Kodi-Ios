@@ -141,9 +141,14 @@ class Page(unittest.TestCase):
 
     def test_movies_and_search(self):
         props, rows = self.lm.fill(self.data, 'movie', 'size', '', slots=5)
-        # L7 (board E): the Movies side is the poster grid (mov.N.*); the show rows stay empty.
-        self.assertEqual((props['title'], props['mov.0.title'], props['mov.0.badge'], props['mov.0.badgec']), ('Movies', 'Fall', 'Ready', 'green'))
-        self.assertEqual((props['mov.0.sub'], props['row.0.title']), ('3.3 GB · 1080p', ''))
+        # Owner: "i like the list version … make it so i can change the view at anytime": list by default.
+        self.assertEqual((props['title'], props['row.0.title'], props['row.0.chip0'], props['row.0.chip0c'], props['view']),
+                         ('Movies', 'Fall', 'Ready', 'green', 'list'))
+        self.assertEqual((props['row.0.sub'], props['mov.0.title']), ('2022 · 3.3 GB · 1080p', ''))
+        # L7 (board E): the poster grid when chosen (mov.N.*); the list rows stay empty.
+        props, rows = self.lm.fill(self.data, 'movie', 'size', '', slots=5, view='grid')
+        self.assertEqual((props['mov.0.title'], props['mov.0.badge'], props['mov.0.badgec'], props['row.0.title']), ('Fall', 'Ready', 'green', ''))
+        self.assertEqual(props['mov.0.sub'], '3.3 GB · 1080p')
         props, rows = self.lm.fill(self.data, 'tv', 'recent', 'zzz', slots=5)
         self.assertEqual((rows, props['empty']), ([], 'Nothing matches “zzz”.'))
         props, rows = self.lm.fill({'shows': [], 'movies': [], 'storage': lf.storage([], [])}, 'tv', slots=5)
@@ -211,6 +216,20 @@ class MovieGrid(unittest.TestCase):
             self.assertIn('<control type="button" id="%d">' % (page.MOVIE + n), xml)
         self.assertIn('String.IsEqual(Window().Property(mov.0.badgec),orange)', xml)
         self.assertGreaterEqual(ph + 150, 118)
+
+    def test_view_switch_is_remembered(self):
+        import tempfile, portrait, library_files_page as page
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap'))
+        import library_manager as lm
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(lm.load_view(d), 'list')
+            lm.save_view(d, 'grid')
+            self.assertEqual(lm.load_view(d), 'grid')
+        xml = page.page(portrait)
+        for ident, glyph in ((page.VIEW, 'grid.png'), (page.VIEW + 1, 'list.png')):
+            self.assertIn('<control type="button" id="%d">' % ident, xml)
+            self.assertIn(glyph, xml)
+        self.assertIn("String.IsEqual(Window().Property(tab),movie) + String.IsEqual(Window().Property(view),grid)", xml)
 
     def test_converting_badge_says_how_far(self):
         rows = lf.movie_rows([{'id': 'm1', 'title': 'Hell House', 'size': 2 * 1024 ** 3}],

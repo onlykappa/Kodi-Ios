@@ -50,9 +50,9 @@ def model(profile):
                      for s in shows}}
 
 
-def fill(data, tab='tv', sort='recent', search='', slots=30):
+def fill(data, tab='tv', sort='recent', search='', slots=30, view='list'):
     """{property: value} for the page: title, storage card, sort label, rows (title, sub, art, chips, pos), empty."""
-    props = {'tab': tab, 'title': 'TV Shows' if tab == 'tv' else 'Movies', 'search': search,
+    props = {'tab': tab, 'title': 'TV Shows' if tab == 'tv' else 'Movies', 'search': search, 'view': view,
              'sort.label': dict(SORTS)[sort]}
     store = data['storage']
     props['store.line'] = '%s on Google Drive' % (lf.size_text(store['total']) or '0 MB')
@@ -72,7 +72,7 @@ def fill(data, tab='tv', sort='recent', search='', slots=30):
             props['row.%d.%s' % (n, key)] = ''
         for key in ('title', 'sub', 'art', 'badge', 'badgec'):
             props['mov.%d.%s' % (n, key)] = ''
-    if tab == 'movie':
+    if tab == 'movie' and view == 'grid':
         # L7 (board E): posters in a three-column grid, the size under each title; the badge only says the state.
         for n, r in enumerate(rows):
             k = 'mov.%d.' % n
@@ -104,6 +104,30 @@ def fill(data, tab='tv', sort='recent', search='', slots=30):
     props['empty'] = '' if rows else ('Nothing matches “%s”.' % search if search else
                                       'No downloaded %s yet. Downloads appear here once they are on Google Drive.' % ('shows' if tab == 'tv' else 'movies'))
     return props, rows
+
+
+VIEW_FILE = 'library-view.json'
+
+
+def load_view(state_dir):
+    """The Movies view the owner chose last: 'list' (the default, owner's choice) or 'grid'."""
+    import json
+    try:
+        with open(os.path.join(state_dir, VIEW_FILE), encoding='utf-8') as f:
+            view = json.load(f).get('movies')
+    except (OSError, ValueError, AttributeError):
+        view = None
+    return view if view in ('list', 'grid') else 'list'
+
+
+def save_view(state_dir, view):
+    import json
+    try:
+        os.makedirs(state_dir, exist_ok=True)
+        with open(os.path.join(state_dir, VIEW_FILE), 'w', encoding='utf-8') as f:
+            json.dump({'movies': view}, f)
+    except OSError:
+        pass
 
 
 def fill_show(data, show, season=None, slots=60, seasons_max=8):
@@ -206,6 +230,8 @@ def run():
         def onInit(self):
             self.tab = 'movie' if 'movie' in sys.argv[1:] else 'tv'
             self.sort, self.search, self.rows = 'recent', '', []
+            self.state_dir = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap')
+            self.view = load_view(self.state_dir)
             try:
                 self.data = model(profile)
             except Exception as error:
@@ -214,7 +240,7 @@ def run():
             self.draw()
 
         def draw(self):
-            props, self.rows = fill(self.data, self.tab, self.sort, self.search, page.SLOTS)
+            props, self.rows = fill(self.data, self.tab, self.sort, self.search, page.SLOTS, self.view)
             for key, value in props.items():
                 self.setProperty(key, str(value))
             try:
@@ -227,13 +253,17 @@ def run():
                 self.tab = 'tv'
             elif control == page.TAB_MOVIES:
                 self.tab = 'movie'
+            elif control in (page.VIEW, page.VIEW + 1):
+                self.view = 'list' if self.view == 'grid' else 'grid'
+                save_view(self.state_dir, self.view)
+                self.setFocusId(page.VIEW + (1 if self.view == 'grid' else 0))
             elif control == page.SEARCH:
                 self.search = xbmcgui.Dialog().input('Search downloads', self.search) or ''
             elif control == page.SORT:
                 pick = xbmcgui.Dialog().select('Sort by', [label for _, label in SORTS])
                 if pick >= 0:
                     self.sort = SORTS[pick][0]
-            elif page.MOVIE <= control < page.MOVIE + page.SLOTS and control - page.MOVIE < len(self.rows) and self.tab == 'movie':
+            elif page.MOVIE <= control < page.MOVIE + page.SLOTS and control - page.MOVIE < len(self.rows) and self.tab == 'movie' and self.view == 'grid':
                 if open_item(self.data, self.rows[control - page.MOVIE], None, 'movie'):
                     self.close()
                 return
