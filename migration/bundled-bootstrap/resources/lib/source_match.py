@@ -359,7 +359,9 @@ def _check_one(name, exp, keys):
         elif info['complete']:
             ok = True
         elif kind == 'anime' and info['absolute'] is not None:
-            ok = info['absolute'] in (exp.get('absolute'), episode)
+            # Season 2+ with its absolute number known: only that number (S2E13 is "045", never "013").
+            ok = (info['absolute'] == exp['absolute'] if exp.get('absolute') and (season or 1) > 1
+                  else info['absolute'] in (exp.get('absolute'), episode))
             if not ok:
                 reasons.append(u'wrong episode')
                 continue
@@ -648,6 +650,12 @@ def _enrich_show(exp, key, get):
     _add_titles(exp, [a.get('title') for a in ((details.get('alternative_titles') or {}).get('results') or ())])
     _add_titles(exp, [(t.get('data') or {}).get('name') for t in ((details.get('translations') or {}).get('translations') or ())])
     exp['show_year'] = exp.get('show_year') or _int(details.get('first_air_date'))
+    # Absolute-numbered anime packs: season N episode E is absolute (episodes of seasons 1..N-1) + E.
+    if exp.get('absolute') is None and exp.get('season') and exp.get('episode') and int(exp['season']) > 1:
+        counts = {int(x.get('season_number') or 0): int(x.get('episode_count') or 0) for x in details.get('seasons') or ()}
+        before = [counts.get(n) for n in range(1, int(exp['season']))]
+        if before and all(before):
+            exp['absolute'] = sum(before) + int(exp['episode'])
     if not exp.get('countries'):
         exp['countries'] = sorted(set(_s(c).upper() for c in details.get('origin_country') or ()))
 

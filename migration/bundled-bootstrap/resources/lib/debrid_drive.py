@@ -28,6 +28,48 @@ LANES = 4
 RETRIES_IN_RUN = 2
 
 
+OFFSET = [lambda job: None]   # set by step(): tmdb, season -> episodes before that season (TMDb, cached)
+
+
+def offset_for(job):
+    """Episodes before the job's season, for absolute-numbered packs (season 1: 0; unknown: None)."""
+    try:
+        season = int(job.get('season') or 0)
+    except (TypeError, ValueError):
+        return None
+    if season <= 1:
+        return 0
+    if job.get('offset') is not None:
+        return int(job['offset'])
+    value = OFFSET[0](job)
+    if value is not None:
+        job['offset'] = int(value)
+    return value
+
+
+def offset_lookup(profile):
+    """job -> episodes before its season, from TMDb's season sizes (TMDb Helper's key), cached in drive-library-art.json."""
+    import drivelibrary
+    try:
+        import xbmcvfs
+        key = drivelibrary.tmdb_key(xbmcvfs.translatePath('special://home/addons/plugin.video.themoviedb.helper'))
+    except Exception:
+        key = ''
+    path = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap', 'drive-library-art.json')
+
+    def lookup(job):
+        tmdb = str(job.get('show_tmdb') or '')
+        if not tmdb:
+            return None
+        cache = drivelibrary.load_json(path, {})
+        known = 'counts:%s' % tmdb in cache
+        counts = drivelibrary.season_counts(tmdb, key, cache, lambda url: urllib.request.urlopen(url, timeout=15).read(), cached_only=not key)
+        if counts and not known:
+            drivelibrary.save_json(path, cache)
+        return drivelibrary.absolute_offset(counts, job.get('season'))
+    return lookup
+
+
 BUSY_LANES = 2
 
 
@@ -586,7 +628,7 @@ def companions(state, later, api, clock, log=lambda text: None):
                     continue
             if not other.get('files'):
                 chosen = alldebrid.pick(api.files(other['magnet']), other['kind'], other.get('season'), other.get('episode'),
-                                        other.get('episodes'))
+                                        other.get('episodes'), offset=offset_for(other))
                 if not chosen:
                     continue
                 other['files'] = [{'path': p, 'size': s, 'link': l, 'session': {}, 'done': False} for p, s, l in chosen]
@@ -617,6 +659,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     renamed = retitle(profile, state, names=show_names(profile), lookup=show_lookup(profile)) + one_spelling(state)
     dropped = drop_duplicates(state) + drop_on_drive(state, drive_episodes(profile))
     CONVERTING[0] = lambda: conversion_running(profile, clock())
+    OFFSET[0] = offset_lookup(profile)
     for job_ in dropped:
         log('%s S%sE%s: already on Drive or downloading from another version; this one is removed' % (
             job_.get('title') or job_['name'], job_.get('season'), job_.get('episode')))
@@ -669,9 +712,13 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         if job['status'] == 'copying':
             if not job['files']:
                 try:
-                    chosen = alldebrid.pick(api.files(job['magnet']), job['kind'], job.get('season'), job.get('episode'), job.get('episodes'))
+                    chosen = alldebrid.pick(api.files(job['magnet']), job['kind'], job.get('season'), job.get('episode'), job.get('episodes'),
+                                            offset=offset_for(job))
                 except alldebrid.TooMany as many:
                     raise alldebrid.Problem(str(many))
+                if not chosen and int(job.get('season') or 0) > 1 and offset_for(job) is None:
+                    # An absolute-numbered pack needs TMDb's season sizes; without them, try again later (not a failure).
+                    raise RuntimeError('Waiting for TMDb to say where season %s starts' % job.get('season'))
                 if not chosen:
                     raise alldebrid.Problem('This version has no video for season %s. Pick a season pack.' % job.get('season')
                                             if job.get('kind') == 'season' and job.get('season') else 'This torrent has no video file.')

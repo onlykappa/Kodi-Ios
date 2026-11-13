@@ -314,6 +314,25 @@ def season(tmdb_id,number,key,cache,get,cached_only=False):
  cache[slot]=found
  return found
 
+def season_counts(tmdb_id,key,cache,get,cached_only=False):
+ """{season number: episode count} of a TMDb show (specials left out), cached as 'counts:ID'. Absolute-numbered packs
+ ("Naruto Shippuden Episode 045") need them: season 2 episode 13 of Naruto Shippuden is absolute 45 (season 1 has 32)."""
+ slot='counts:%s'%tmdb_id
+ if slot in cache:return {int(k):int(v) for k,v in cache[slot].items()}
+ if cached_only or not key or not tmdb_id:return {}
+ try:data=json.loads(get(TMDB+'/tv/%s?'%urllib.parse.quote(str(tmdb_id),safe='')+urllib.parse.urlencode({'api_key':key})))
+ except Exception:return {}
+ counts={int(x['season_number']):int(x.get('episode_count') or 0) for x in data.get('seasons') or [] if int(x.get('season_number') or 0)>0}
+ if counts:cache[slot]={str(k):v for k,v in counts.items()}
+ return counts
+
+def absolute_offset(counts,season):
+ """How many episodes come before this season (None when a season before it is unknown)."""
+ season=int(season or 0)
+ if season<=1:return 0
+ if any(n not in counts for n in range(1,season)):return None
+ return sum(counts[n] for n in range(1,season))
+
 def show_details(tmdb_id,key,cache,get,cached_only=False):
  """Full show metadata for the downloaded seasons header; only the visible-page worker fetches it."""
  slot='show:%s'%tmdb_id

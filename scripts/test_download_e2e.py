@@ -343,6 +343,32 @@ class SeasonDownload(unittest.TestCase):
         self.assertEqual(len(paths), 8)
         self.assertTrue(all(p.startswith('Kodi Downloads/TV Shows/Lanterns/') for p in paths), paths)
 
+    def test_season_two_of_an_absolute_pack(self):
+        # E12: "Naruto Shippuden Episode 045" is S2E13 (season 1 has 32); before, season 2+ copied nothing.
+        debrid_drive.location(self.profile).write_text(json.dumps({'jobs': []}))
+        h = 'b2' * 20
+        files = [('Naruto Shippuden (001-500)/Season 02/Naruto Shippuden Episode %03d T.mkv' % n, PIECE * 3) for n in range(33, 54)]
+        files += [('Naruto Shippuden (001-500)/Season 01/Naruto Shippuden Episode %03d T.mkv' % n, PIECE * 3) for n in (13, 14)]
+        self.debrid.add_torrent(h, files)
+        for n in (13, 14):
+            debrid_drive.queue(self.profile, {'id': h, 'name': 'Naruto Shippuden S02E%02d' % n}, 'episode', SHOW, season='2', episode=str(n), show_tmdb=TMDB)
+        with patch.object(debrid_drive, 'offset_lookup', lambda profile: (lambda job: 32 if job.get('season') == '2' else None)):
+            self.run_queue()
+        names = sorted(p.rsplit('/', 1)[1] for paths in self.on_drive().values() for p in paths if 'S02' in p)
+        self.assertEqual(len(names), 2, names)
+        self.assertTrue(names[0].endswith('Episode 045 T.mkv') and names[1].endswith('Episode 046 T.mkv'), names)
+
+    def test_season_two_waits_when_tmdb_is_unknown(self):
+        debrid_drive.location(self.profile).write_text(json.dumps({'jobs': []}))
+        h = 'b3' * 20
+        self.debrid.add_torrent(h, [('P/Naruto Shippuden Episode %03d.mkv' % n, PIECE) for n in range(1, 60)])
+        debrid_drive.queue(self.profile, {'id': h, 'name': 'x'}, 'episode', SHOW, season='2', episode='1', show_tmdb=TMDB)
+        with patch.object(debrid_drive, 'offset_lookup', lambda profile: (lambda job: None)):
+            self.run_queue(steps=3)
+        job = debrid_drive.load(self.profile)['jobs'][0]
+        self.assertNotEqual(job['status'], 'failed')                          # waits, never a wrong file
+        self.assertEqual(self.on_drive().get(blob('P/Naruto Shippuden Episode 001.mkv', PIECE), []), [])
+
     def test_up_next_goes_episode_by_episode(self):
         snap = work_state.build({'debrid': debrid_drive.load(self.profile), 'prep': {}, 'show_names': {TMDB: SHOW}}, self.clock[0])
         numbers = [int(re.search(r'E(\d+)', j['title']).group(1)) for j in snap.get('jobs', []) if re.search(r'E(\d+)', j['title'])]

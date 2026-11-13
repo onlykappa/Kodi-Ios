@@ -458,4 +458,15 @@ class PackNameThenFile(unittest.TestCase):
   self.assertFalse(sm.check(name%6,exp)[0])                                  # another episode stays out
   self.assertFalse(sm.check('[uP] Boruto - Vol.01 [uP] Boruto - 005.mkv',exp)[0])   # another show stays out
 
+class LaterSeasonAbsolute(unittest.TestCase):
+ def test_season_two_takes_only_its_absolute_number(self):
+  exp=sm.expected('anime',['Naruto Shippuden'],2007,season=2,episode=13,absolute=45)
+  self.assertTrue(sm.check('[HorribleSubs] Naruto Shippuden - 045 [1080p].mkv',exp)[0])
+  self.assertFalse(sm.check('[HorribleSubs] Naruto Shippuden - 013 [1080p].mkv',exp)[0])   # that is S1E13
+ def test_tmdb_fills_the_absolute_number(self):
+  exp=sm.expected('anime',['Naruto Shippuden'],2007,season=2,episode=13,tmdb='31910')
+  details={'id':31910,'name':'Naruto Shippūden','seasons':[{'season_number':0,'episode_count':9},{'season_number':1,'episode_count':32},{'season_number':2,'episode_count':21}]}
+  with mock.patch.object(sm,'tmdb_get',lambda *a,**k:details):sm._enrich_show(exp,'k',None)
+  self.assertEqual(exp['absolute'],45)
+
 if __name__=='__main__':unittest.main()

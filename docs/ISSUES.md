@@ -3126,3 +3126,13 @@ the app closed mid-copy. It found three bugs the unit tests did not:
    an episode with its show's title goes into that show's folder.
 Result: 4 scenarios (the owner's season, Pick Better Versions, a new Build Season, Up next order) × 20 fault patterns:
 80 of 80 pass. Evidence class: host simulation, not the phone.
+
+## ISSUE-194 — Absolute-numbered packs copied nothing past season 1 (found while checking, 2026-11-13) — FIXED on host
+
+ISSUE-193's fix mapped "Naruto Shippuden Episode 006" to season 1 only; a season 2+ episode job on such a pack copied
+nothing (and the source filter took "Episode 013" for S2E13, which is really S1E13). Fix: drivelibrary.season_counts
+(TMDb's per-season episode counts, cached as counts:ID) and absolute_offset; debrid_drive passes the offset to
+alldebrid.pick (episodes and season lists), and waits instead of failing while TMDb is unknown; source_match fills the
+absolute number from TMDb when Elementum did not and, for season 2+, takes only that number. Retest:
+test_download_e2e test_season_two_of_an_absolute_pack / test_season_two_waits_when_tmdb_is_unknown, test_source_match
+LaterSeasonAbsolute.
