@@ -764,6 +764,18 @@ def mark_multi(kept, exp, sm=None):
     return kept
 
 
+# Owner log b2f10d1f (build 327: "things just move slow slow"): Build Season took 4-6 GB files for 23-minute episodes
+# (1440x1080 10-bit H.264), each 4 h through the phone at ~0.3 MB/s and then converted for AirPlay. At the same quality
+# the automatic pick now takes, in this order, a version that needs no conversion, then one of a normal episode size.
+EPISODE_GB = {u'4k': 10.0, u'1440p': 5.0, u'1080p': 3.0, u'720p': 1.5, u'480p': 0.8, u'sd': 0.8}
+
+
+def oversized_episode(item):
+    """An episode file far bigger than its quality needs (remux, 10-bit encodes): it copies for hours."""
+    limit = EPISODE_GB.get(_s(item.get('quality')).lower(), 3.0)
+    return not item.get('multi') and float(item.get('size') or 0) > limit
+
+
 def auto_choose(kept, want):
     """The version closest to the first pick: its quality (else the nearest lower, then higher), its HDR kind and
     codec, never AV1 when avoidable, seeds, then the size nearest the first pick's. None when nothing has seeds."""
@@ -786,7 +798,8 @@ def auto_choose(kept, want):
         # most seeds); whole-series packs come last, used only when nothing else has the episode.
         return (is_bad(it), it['seeds'] <= 0, bool(WHOLE_SERIES.search(_s(it.get('name')))), bool(it.get('multi')), distance,
                 hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
-                slow_to_prepare(it), too_heavy(it), abs(it['size'] - size) if size else 0, -it['seeds'])
+                slow_to_prepare(it), converts_for_tv(it), oversized_episode(it), too_heavy(it),
+                abs(it['size'] - size) if size else 0, -it['seeds'])
     best = min(dedupe(kept), key=score)
     return None if best['seeds'] <= 0 else best
 

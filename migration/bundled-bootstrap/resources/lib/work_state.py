@@ -229,7 +229,10 @@ def _copy_next(debrid):
             pending = pending[1:]   # the first one left is the one copying now
         if pending:
             for f in pending:
-                out.append(dict(identity, **{'id':identity['id']+':'+f.get('path',''), 'folder':f.get('path',''), 'kind': 'copy', 'title': '%s · %s' % (title, episode_label(f.get('path'))),
+                # Owner screenshot (build 327): "Naruto Shippuden · S1 E1 · Naruto Shi…": a one-episode job's title already
+                # names the episode; only a pack's files add theirs.
+                named = title if ' · S' in title else '%s · %s' % (title, episode_label(f.get('path')))
+                out.append(dict(identity, **{'id':identity['id']+':'+f.get('path',''), 'folder':f.get('path',''), 'kind': 'copy', 'title': named,
                             'line': 'Waiting · %s' % STEP['copy']}))
         elif n:
             out.append(dict(identity, **{'kind': 'copy', 'title': title,

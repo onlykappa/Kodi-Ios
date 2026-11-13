@@ -235,6 +235,18 @@ class SeasonBuildPicks(unittest.TestCase):
   self.assertEqual(dp.auto_choose([pack,single],{'quality':'1080p','strict_quality':True})['idx'],1)
   self.assertEqual(dp.auto_choose([pack],{'quality':'1080p','strict_quality':True})['idx'],0)   # still used when alone
 
+class SmallerEpisodes(unittest.TestCase):
+ def test_a_normal_size_episode_without_conversion_beats_a_huge_10bit_one(self):
+  # Owner log b2f10d1f (build 327): 4-6 GB 10-bit H.264 episodes took 4 h each and then needed converting.
+  huge=dp.parse_item('1080p (300 / 0) [4.6 GB] BluRay H.264 10bit - Torrentio\nNaruto.Shippuden.S01E03.1080p.BluRay.10bit.x264\nicon.png',0)
+  big8=dp.parse_item('1080p (200 / 0) [4.2 GB] BluRay H.264 - Torrentio\nNaruto.Shippuden.S01E03.1080p.BluRay.REMUX\nicon.png',1)
+  normal=dp.parse_item('1080p (20 / 0) [1.1 GB] WebDL H.264 - Torrentio\nNaruto.Shippuden.S01E03.1080p.WEB.x264\nicon.png',2)
+  want={'quality':'1080p','strict_quality':True}
+  self.assertTrue(dp.converts_for_tv(huge));self.assertTrue(dp.oversized_episode(big8));self.assertFalse(dp.oversized_episode(normal))
+  self.assertEqual(dp.auto_choose([huge,big8,normal],want)['idx'],2)
+  self.assertEqual(dp.auto_choose([huge,big8],want)['idx'],1)     # no conversion beats size
+  self.assertEqual(dp.auto_choose([huge],want)['idx'],0)          # still taken when it is the only one
+
 class Lanes(unittest.TestCase):
  def test_each_episode_finds_its_own_lane(self):
   import json,time as t

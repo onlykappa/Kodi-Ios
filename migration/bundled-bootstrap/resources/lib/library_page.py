@@ -50,7 +50,9 @@ def _work(p, u):
               u.id_bar(p, WORK_BAR + (0 if moving else 1), S + 210, 238, w - 248, 12, P('work.tint'), texture='pill16.png', border=6) +
               '</control>')
         if moving:
-            b += p.image(S + 38, 279, 438, 81, P('work.graph'), p.WHITE, '', '>stretch')
+            # Owner screenshot (build 327): a flat purple line under a conversion at 0 % with no speed yet; the graph shows
+            # only beside a speed.
+            b += p.image(S + 38, 279, 438, 81, P('work.graph'), p.WHITE, '<visible>%s</visible>' % u.has('work.speed'), '>stretch')
             b += ('<control type="grouplist"><left>%d</left><top>287</top><width>%d</width><height>51</height><orientation>horizontal</orientation>'
                   '<itemgap>12</itemgap><usecontrolcoords>true</usecontrolcoords><visible>%s</visible>' % (S + 502, w - 560, u.has('work.speed')) +
                   '<control type="label"><width>auto</width><scroll>false</scroll><height>51</height><font>p_pill</font><textcolor>%s</textcolor><label>%s</label></control>' % (p.WHITE, P('work.speed')) +

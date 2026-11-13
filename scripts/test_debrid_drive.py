@@ -209,6 +209,17 @@ class HashNamedJobs(unittest.TestCase):
    self.assertEqual((job['title'],len(debrid_drive.load(p)['jobs'])),('Naruto Shippūden',1))
 
 class Duplicates(unittest.TestCase):
+ def test_one_title_per_show(self):
+  # Owner screenshot (build 327): "Naruto Shippuden" (poster) and "Naruto Shippuuden" (none) as two shows.
+  state={'jobs':[{'hash':'1'*40,'title':'Naruto Shippuden','kind':'episode','show_tmdb':'31910','status':'copying','files':[]},
+                 {'hash':'2'*40,'title':'Naruto Shippuuden','kind':'episode','status':'done','files':[]},
+                 {'hash':'3'*40,'title':'Naruto Shippuuden','kind':'episode','status':'new','files':[]},
+                 {'hash':'4'*40,'title':'Lanterns','kind':'episode','status':'new','files':[]}]}
+  changed=debrid_drive.one_spelling(state)
+  self.assertEqual([(j['hash'][0],old) for j,old in changed],[('2','Naruto Shippuuden'),('3','Naruto Shippuuden')])
+  self.assertEqual({j['title'] for j in state['jobs'][:3]},{'Naruto Shippuden'})
+  self.assertEqual(state['jobs'][1]['moved_from'],'Naruto Shippuuden')   # its files move out of that folder
+
  def test_an_episode_already_on_drive_leaves_the_queue(self):
   # Owner screenshot (build 325): "Naruto Shippuuden - 002" on Drive and converting, while S1 E2 waited to be copied.
   import os

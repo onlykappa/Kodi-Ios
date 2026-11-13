@@ -232,6 +232,32 @@ def retitle(profile, state, plans=None, names=None, lookup=None):
     return changed
 
 
+def one_spelling(state):
+    """Owner screenshot (build 327): "Naruto Shippuden" and "Naruto Shippuuden" were two shows, one without a poster:
+    titles from different release names. Jobs of one show (show_match) take one title: the one a job with a TMDb id has,
+    else the most common; files already copied move from the other spelling's folder (rehome). Returns [(job, old)]."""
+    import collections
+    groups = collections.defaultdict(list)
+    for job in state.get('jobs', []):
+        title = job.get('title') or ''
+        if job.get('kind') in ('episode', 'season') and title and not is_hash(title):
+            groups[show_match(title)].append(job)
+    changed = []
+    for jobs in groups.values():
+        titles = collections.Counter(j['title'] for j in jobs)
+        if len(titles) < 2:
+            continue
+        tmdb = collections.Counter(j['title'] for j in jobs if j.get('show_tmdb'))
+        best = (tmdb or titles).most_common(1)[0][0]
+        for job in jobs:
+            if job['title'] != best:
+                old = job['title']
+                job.setdefault('moved_from', old)
+                job['title'] = best
+                changed.append((job, old))
+    return changed
+
+
 def show_names(profile):
     """{tmdb id: name} the Library has cached (drive-library-art.json 'show:ID'); no network."""
     try:
@@ -545,7 +571,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             forget(job['hash'])
     # Owner screenshot (build 314): Build Season jobs named after their hash; give them the show's title and move what
     # was already copied into the show's folder.
-    renamed = retitle(profile, state, names=show_names(profile), lookup=show_lookup(profile))
+    renamed = retitle(profile, state, names=show_names(profile), lookup=show_lookup(profile)) + one_spelling(state)
     dropped = drop_duplicates(state) + drop_on_drive(state, drive_episodes(profile))
     CONVERTING[0] = lambda: conversion_running(profile, clock())
     for job_ in dropped:
@@ -557,7 +583,9 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         for job_, old in renamed:
             log('%s: named after its show (was %s)' % (job_['title'], old[:12]))
         save(profile, state)
-    for job_ in [j for j in state['jobs'] if j.get('moved_from') and j['status'] == 'done']:
+    # Owner screenshot (build 327): an empty "3c90db2e05…" folder stayed in the Library while its show's episodes were
+    # still copying (into the show's folder); a renamed job moves what it has and trashes the old folder once empty.
+    for job_ in [j for j in state['jobs'] if j.get('moved_from') and j['status'] != 'failed']:
         try:
             if rehome(drive, job_, log):
                 driveupload.invalidate_library(str(location(profile).parent))   # the Library lists the show again

@@ -3089,3 +3089,21 @@ Fix: driveupload.Pace measures the speed Drive confirms and gives each piece thr
 the framework's 180 s cap); debrid_drive's copier passes it on. The log line now says the deadline. Retest:
 test_debrid_drive Paced. Phone check: "piece in … (deadline N s)" with few pieces at their deadline, and the confirmed %
 rising about as fast as the MB sent.
+
+## ISSUE-192 — Copies still slow: 4-6 GB episodes; two spellings of Naruto; empty hash folder; stray bar (build 327, owner log b2f10d1f and screenshots) — FIXED on host
+
+What the log shows: the ISSUE-191 deadline works (4 of 57 pieces at their deadline; nothing sent twice). Two lanes
+(a conversion was running) at ~0.13 MB/s each. The card says "S1 E3 · 3 % · 303 KB/s · 3 h 56 min left": ~4.4 GB for a
+23-minute episode. Build Season's automatic pick took 1440x1080 10-bit H.264 releases of 4-6 GB, which then also need
+converting for AirPlay. Owner asked whether downloading first and uploading last would help: no, the upload to Drive is
+the slow side and the bytes go up either way (and it would need 4-6 GB of phone space per episode); smaller files help.
+Fixes:
+- deck_picker.auto_choose: at the same quality, a version that needs no conversion (not 10-bit H.264), then one of a
+  normal episode size (EPISODE_GB: 1080p 3 GB, 720p 1.5 GB, 4K 10 GB) before a bigger one; a huge one is still taken
+  when nothing else has the episode. Test: test_deck_picker SmallerEpisodes. Already queued picks are not changed.
+- "Naruto Shippuden" and "Naruto Shippuuden" as two shows (titles from different release names): one_spelling gives a
+  show's jobs one title (the TMDb one when known); files already copied move over (rehome). Test: one_title_per_show.
+- An empty "3c90db2e05…" folder (0 episodes) stayed while its episodes copied into the show's folder: rehome now runs
+  for renamed jobs that are not finished too, and trashes the old folder once it is empty.
+- Library status: a flat purple speed graph under a conversion with no speed yet; it now shows only beside a speed.
+- Up next: "Naruto Shippuden · S1 E1 · Naruto Shi…": a one-episode job's title already names the episode.
