@@ -1,5 +1,15 @@
 # Performance and quality progress
 
+## TAKEOVER (2026-11-13, after build 347) — start here
+
+Branch claude/trusting-euler-kgug98, draft PR #22. Owner approved merging PR #22 **only once all gaps are filled and nothing is left out**. Last fix commit: Library status long press / Show Back / graph race (ISSUE-196).
+To do, in order:
+1. Downloaded TV Shows: Naruto Shippuden card has no poster (check drivelibrary.artwork for the show title with the macron / "Shippuden" spelling and the art cache).
+2. Remove the "Refresh Library" card from Downloaded TV Shows and Movies (plugin.video.kodi.ios.watch/resources/lib/ios_library.py, the `if not show_page:` block near the end of the listing); update its tests.
+3. Free Up Space "Watched episodes": pass Kodi's watched set (JSON-RPC playcount / ios_continue history) into library_manager.model and free_up_groups.
+4. Run the CI test list (import-review.yml) + `python3 -B scripts/check_project.py`; update PR #22 body; build ONE IPA (workflow_dispatch import-review.yml on the branch); then merge PR #22.
+Note: test_build193_pages XML.test_landscape_airplay_sheet_unchanged fails locally only in a shallow clone (git show ecfbecc).
+
 ## HANDOFF FOR THE NEXT AGENT (2026-11-13, overnight run) — read this first
 
 Branch claude/trusting-euler-kgug98, draft PR #22. Everything is pushed. Builds: pushes only run tests; the one IPA is

@@ -396,7 +396,8 @@ def run():
                 self.setProperty(key, str(value))
 
         def onAction(self, action):
-            if action.getId() in (9, 10, 92, 110):
+            # The phone sends a long press on a row as action 10 too (build 347): only a real Back closes the sheet.
+            if action.getId() in (9, 10, 92, 110) and not (action.getId() == 10 and select_page.ROW <= self.getFocusId() < select_page.ROW + select_page.SLOTS):
                 self.close()
 
         def onClick(self, control):
@@ -486,7 +487,8 @@ def run():
                 self.setProperty(key, str(value))
 
         def onAction(self, action):
-            if action.getId() in (9, 10, 92, 110):
+            # The phone sends a long press on a row as action 10 too (build 347): only a real Back closes the sheet.
+            if action.getId() in (9, 10, 92, 110) and not (action.getId() == 10 and freeup_page.ROW <= self.getFocusId() < freeup_page.ROW + freeup_page.SLOTS):
                 self.close()
 
         def onClick(self, control):
@@ -575,7 +577,10 @@ def run():
                 repair_rows([r for r in problems if not r.get('id')], self.data, self.show, self.episodes)
 
         def onClick(self, control):
-            if show_page.SEASON <= control < show_page.SEASON + show_page.SEASONS and control - show_page.SEASON < len(self.seasons):
+            if control == show_page.BACK:
+                # Build 347: the round back button had no action, so it took a swipe to leave a show.
+                self.close()
+            elif show_page.SEASON <= control < show_page.SEASON + show_page.SEASONS and control - show_page.SEASON < len(self.seasons):
                 self.season = self.seasons[control - show_page.SEASON]
                 self.draw()
             elif show_page.EP <= control < show_page.EP + show_page.SLOTS and control - show_page.EP < len(self.episodes):

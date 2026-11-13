@@ -324,6 +324,16 @@ class FreeUpSpace(unittest.TestCase):
         self.assertIn('elif control == page.STORE:', root.read_text())
 
 
+class ShowBack(unittest.TestCase):
+    def test_the_show_pages_back_button_closes_it(self):
+        # Build 347 log: twelve taps on IOSLibraryShow.xml control 9001, none handled (the round button has no onclick).
+        root = Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap'
+        manager = (root / 'library_manager.py').read_text()
+        show = manager[manager.index('class Show(xbmcgui.WindowXML):'):]
+        self.assertIn('if control == show_page.BACK:\n                # Build 347', show)
+        self.assertIn('self.close()', show[show.index('if control == show_page.BACK'):][:200])
+
+
 class DriveProblems(unittest.TestCase):
     """E14: what older builds left on Drive (a film saved as an episode, an episode twice, an empty hash folder)."""
     def test_finds_the_three_kinds(self):

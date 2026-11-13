@@ -116,6 +116,23 @@ def menu(kind,item,up_paused=False,conv_paused=False,queued=0):
   return rows+[('Show speed','speed')]
  return []
 
+def row_menu(row,up_paused=False,queued=0):
+ """Library status (owner, build 347: "if i hold down on a download or transfer it also works like this"): a held
+ Downloading / Up next row as (kind, item, [(label, action)]) for menu() and Notifications' act(); None when the row
+ is not a transfer. Show speed is left out: the page draws the row's own speed."""
+ row=row or {}
+ title=row.get('title','')
+ if row.get('kind')=='down' and row.get('id'):
+  kind,item='down',{'id':row['id'],'title':title,'paused':bool(row.get('held'))}
+ elif row.get('kind')=='copy' or (row.get('queued_transfer') and row.get('hash')):
+  kind,item='up',{'source':'debrid','hash':row.get('hash',''),'title':title}
+ elif row.get('kind')=='upload':
+  kind,item='up',{'source':'phone','title':title}
+ else:
+  return None
+ rows=[r for r in menu(kind,item,up_paused,False,queued) if r[1]!='speed']
+ return kind,item,rows
+
 def card_of(control,slots=4):
  """Which transfer card a control id is: ('up',0), ('conv',0), ('down',n) or None."""
  if control==9432:return ('up',0)

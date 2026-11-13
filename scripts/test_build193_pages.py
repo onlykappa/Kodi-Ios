@@ -362,9 +362,12 @@ class ReviewFindings(unittest.TestCase):
                 clock=[100.0];cache=th.GraphCache(namespace,clock=lambda:clock[0]);key=ws.job_key(self.work())
                 for old in ('graph_3.png',):open(os.path.join(folder,old),'wb').close()        # a build-192 loose file
                 os.makedirs(os.path.join(folder,namespace+'-oldjob'))                          # an earlier opening's job
+                stale=time.time()-th.GraphCache.KEEP-5;os.utime(os.path.join(folder,namespace+'-oldjob'),(stale,stale))
+                os.makedirs(os.path.join(folder,namespace+'-otherpage'))                       # build 347: another open copy's
                 points=[[1,MB],[2,2*MB]]
                 image=cache.image(key,points,ws.PURPLE,folder,'special://plot',width=40,height=20)
-                self.assertEqual(sorted(os.listdir(folder)),[image.split('/')[-2]])           # both old ones gone
+                self.assertEqual(sorted(os.listdir(folder)),sorted([image.split('/')[-2],namespace+'-otherpage']))   # old ones gone
+                import shutil;shutil.rmtree(os.path.join(folder,namespace+'-otherpage'))
                 for _ in range(5):self.assertEqual(cache.image(key,points,ws.GREY,folder,'special://plot'),image)
                 self.assertEqual(render.call_count,1)
                 points.append([3,3*MB]);clock[0]+=2

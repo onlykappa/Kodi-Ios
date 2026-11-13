@@ -409,7 +409,7 @@ def with_model(view, model):
         base=lookup.get(j.get('id')) or (by_title.get(j['title']) if j['kind'] in ('conv','repack') else None) or {}
         state='preparing' if j['kind'] in ('conv','repack') else 'downloading' if j['kind']=='down' else 'uploading'
         r=dict(base,**{k:v for k,v in j.items() if k not in ('state',)})
-        r.update(id=base.get('id') or j.get('id') or 'work:'+':'.join(work_state.job_key(j)),work_key=work_state.job_key(j),state=state,sub=j['line'],step=j['step'],size=base.get('size') or j.get('total') or 0)
+        r.update(id=base.get('id') or j.get('id') or 'work:'+':'.join(work_state.job_key(j)),work_key=work_state.job_key(j),state=state,held=j.get('state')==work_state.PAUSED,sub=j['line'],step=j['step'],size=base.get('size') or j.get('total') or 0)
         rows['preparing' if state=='preparing' else 'downloading'].append(r)
         active_ids.add(r['id'])
     # A ready faster-start job may run; it appears once in the summary.
