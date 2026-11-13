@@ -374,7 +374,7 @@ class AirPlayGetsTheLine(unittest.TestCase):
  def test_read_ahead_while_a_video_plays(self):
   # Build 193: one block ahead while a video or AirPlay plays (slowed, never stopped); none only when the owner paused.
   s=(LIB/'drive_stream.py').read_text()
-  self.assertIn('for step in range(1, 0 if stream.hold() else (stream.ahead_blocks or (2 if stream.playback else 1 if slowdown.reason() else READ_AHEAD)) + 1):',s)
+  self.assertIn('for step in range(1, 0 if stream.hold() else (stream.ahead_blocks or ahead_count(stream.playback, slowdown.reason(), stream.wide)) + 1):',s)
   self.assertIn('if preparation.stream:preparation.stream.hold=lambda:preparation.paused() or slowdown.holding()',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
 
 class PreparedAirPlayServer(unittest.TestCase):

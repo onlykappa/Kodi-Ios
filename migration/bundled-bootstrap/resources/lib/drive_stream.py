@@ -29,7 +29,21 @@ CHUNK = 1024 * 1024
 BLOCK = 8 * 1024 * 1024
 KEEP = 24            # 192 MB (build 181: two video lanes and the audio drift apart; build-176 read 3x the film)
 READ_AHEAD = 4       # blocks fetched ahead in parallel (32 MB on its way while one block is read)
+# F3 (PR #24 roadmap, build-356 log: a re-package read Drive at 3-7 MB/s while copies moved ~15 MB/s): Drive serves each
+# connection at about 1.5 MB/s on that line, so the read rate is about the blocks in flight. A re-package only moves bytes
+# (the picture is copied, nothing is encoded), so it keeps twice as many on their way; still inside KEEP.
+READ_AHEAD_WIDE = 8
 SPAN = re.compile(r'bytes (\d+)-(\d+)/(\d+)')
+
+
+def ahead_count(playback, slowed, wide):
+    """Blocks fetched ahead of the reader: 2 for Kodi's own playback, 1 while a video or AirPlay plays (work slows),
+    READ_AHEAD_WIDE for a re-package at full speed, else READ_AHEAD."""
+    if playback:
+        return 2
+    if slowed:
+        return 1
+    return READ_AHEAD_WIDE if wide else READ_AHEAD
 
 
 class _Blocks(object):
@@ -132,6 +146,7 @@ class DriveStream(object):
         self.gate = slowdown.Gate()   # build 193: a video or AirPlay playing slows the reads to a share of the line
         self.block_size=block_size;self.playback=playback
         self.ahead_blocks=None   # a fixed read-ahead (remote_media.Foreground); None keeps the rules below
+        self.wide=False          # a re-package reads now (prepare_downloads sets it): READ_AHEAD_WIDE at full speed
         self.blocks = _Blocks(self._fetch,keep,block_size)
         stream = self
 
@@ -211,7 +226,7 @@ class DriveStream(object):
                         # the next READ_AHEAD blocks are fetched at once, in parallel, not one after another.
                         # Not while a video plays (build-181 log: AirPlay starved while a conversion read and uploaded).
                         # Build 193: while a video or AirPlay plays, one block ahead instead of none (it slows, never stops).
-                        for step in range(1, 0 if stream.hold() else (stream.ahead_blocks or (2 if stream.playback else 1 if slowdown.reason() else READ_AHEAD)) + 1):
+                        for step in range(1, 0 if stream.hold() else (stream.ahead_blocks or ahead_count(stream.playback, slowdown.reason(), stream.wide)) + 1):
                             stream.blocks.ahead(item, index + step)
                         piece = block[position - index * stream.block_size:end - index * stream.block_size + 1]
                         if not piece:

@@ -80,7 +80,7 @@ class Workers(Reset):
   self.assertIn('self.gate.after(time.monotonic() - began)',(LIB/'drive_prepare.py').read_text())
   stream=(LIB/'drive_stream.py').read_text()
   self.assertIn('self.gate.after(time.monotonic() - began, sum(len(x) for x in parts), download=True)',stream)
-  self.assertIn('(2 if stream.playback else 1 if slowdown.reason() else READ_AHEAD)',stream)
+  self.assertIn('ahead_count(stream.playback, slowdown.reason(), stream.wide)',stream)
   up=(LIB/'driveupload.py').read_text()
   self.assertEqual(up.count('slowdown.Gate(keep_going=keep_going)'),3)   # phone uploads, AllDebrid copies and the native resumable copy (eef4910)
   self.assertIn('gate.after(put_s,len(chunk),download=True)',up)
@@ -101,6 +101,21 @@ class Workers(Reset):
   cloud=(LIB/'prepare_cloud.py').read_text()
   self.assertIn("q.runtime.phase('Paused by you',False,item['name'])",cloud)
   self.assertNotIn("phase('Paused while a video plays'",cloud)
+
+class WideReadAhead(unittest.TestCase):
+ """F3 (PR #24): a re-package reads Drive with twice the blocks in flight; playback and slowdowns keep their rules."""
+ def test_ahead_count(self):
+  import drive_stream as ds
+  self.assertEqual(ds.ahead_count(False,'',False),ds.READ_AHEAD)
+  self.assertEqual(ds.ahead_count(False,'',True),ds.READ_AHEAD_WIDE)
+  self.assertGreater(ds.READ_AHEAD_WIDE,ds.READ_AHEAD);self.assertLess(ds.READ_AHEAD_WIDE,ds.KEEP)   # memory stays bounded
+  self.assertEqual(ds.ahead_count(False,'video',True),1)   # a video or AirPlay plays: work slows as before
+  self.assertEqual(ds.ahead_count(True,'',True),2)         # Kodi's own playback stream
+ def test_only_a_repackage_reads_wide(self):
+  src=(LIB/'prepare_downloads.py').read_text()
+  self.assertIn("if self.stream:self.stream.wide=bool(before.get('copy_video'))",src)
+  self.assertIn("if self.stream:self.stream.wide=False",src)
+
 
 class DownloadCap(unittest.TestCase):
  """Build 206 (owner, build 205: seeking an Umbrella episode "nearly broke the app ... it should use download speeds"):

@@ -1032,6 +1032,7 @@ class Queue:
   # Always resume the one downloaded working source before allocating space for another movie.
   candidates.sort(key=lambda pair:0 if (self.work/pair[0]).exists() else 1)
   slot,job=candidates[0];folder=self.work/slot;folder.mkdir(exist_ok=True)
+  if self.stream:self.stream.wide=False
   source=folder/'source';output=folder/'prepared.mp4';item=job['source'];last=[0]
   def progress(stage,value):
    if not keep_going():raise driveupload.Stop('Preparation paused during playback')
@@ -1070,6 +1071,8 @@ class Queue:
      if driveupload.checksum(str(source),keep_going,pace=1)!=item['md5Checksum'].lower():
       source.unlink();raise RuntimeError('Source checksum differs; will read it again')
     before=self.native.probe(str(source))
+    # F3: a re-package (picture copied) reads Drive with more blocks in flight; a real conversion keeps the usual few.
+    if self.stream:self.stream.wide=bool(before.get('copy_video'))
     # Kept with the job: the queue and Library status then use the same estimate as this step (work_bytes).
     job['probe']={k:before.get(k) for k in ('copy_video','audio_work_bytes','duration','width','height','codec','bit_depth','pgs_subtitles')}
     if self.skip_compatible(slot,job,item,before):
