@@ -415,6 +415,14 @@ def check(name, exp, result=None):
             ok2, _ = _check_one(parts[-1], exp, keys)
             if ok2:
                 return True, u''
+        # Owner log fffb3cd8 (build 329): "[uP] Naruto Shippuden - Vol.01 (BDRip …) [uP] Naruto Shippuden - 005 (…).mkv"
+        # (the pack's name and its file joined by a space) was hidden as "wrong title", so episode 5 fell back to a 4 GB
+        # upscaled copy. A file name that starts again with a [group] tag is checked from there.
+        text = _s(parts[-1] if parts else name)
+        for at in [m.start() for m in re.finditer(r'\[', text) if m.start() > 0][::-1]:
+            ok2, _ = _check_one(text[at:], exp, keys)
+            if ok2:
+                return True, u''
     return ok, reason
 
 

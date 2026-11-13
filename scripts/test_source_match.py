@@ -449,4 +449,13 @@ class SeasonCoverage(unittest.TestCase):
   rows=dp.build_rows(shown)
   self.assertEqual([r['badge'] for r in rows],['FULL SEASON','EPISODE 1 ONLY'])
 
+class PackNameThenFile(unittest.TestCase):
+ def test_a_file_after_its_pack_name_is_checked_from_its_group_tag(self):
+  # Owner log fffb3cd8 (build 329): a 780 MB BDRip of episode 5 was hidden as "wrong title", so the pick took a 4 GB copy.
+  exp=sm.expected('anime',['Naruto Shippuden','ナルト 疾風伝'],2007,season=1,episode=5)
+  name='[uP] Naruto Shippuden - Vol.01 (BDRip 1080p x264 AAC Multi) [uP] Naruto Shippuden - %03d (BDRip 1080p x264 AAC Multi).mkv'
+  self.assertEqual(sm.check(name%5,exp),(True,''))
+  self.assertFalse(sm.check(name%6,exp)[0])                                  # another episode stays out
+  self.assertFalse(sm.check('[uP] Boruto - Vol.01 [uP] Boruto - 005.mkv',exp)[0])   # another show stays out
+
 if __name__=='__main__':unittest.main()
