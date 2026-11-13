@@ -204,14 +204,15 @@ class Workers(unittest.TestCase):
   with tempfile.TemporaryDirectory() as p:
    debrid_drive.queue(p,{'id':H},'movie','Fall (2022)')
    class Flaky(FakeDrive):
-    def __init__(self):super().__init__();self.fail=True
+    # ISSUE-188: a failed copy is tried again RETRIES_IN_RUN times in the same turn; fail once more than that.
+    def __init__(self):super().__init__();self.fail=debrid_drive.RETRIES_IN_RUN+1
     def call(self,method,url,body=None,headers=None):
-     if self.fail and method=='PUT':self.fail=False;raise ConnectionError('reset')
+     if self.fail and method=='PUT':self.fail-=1;raise ConnectionError('reset')
      return super().call(method,url,body,headers)
    drive=Flaky();clock=[NOW]
    step=lambda:debrid_drive.step(p,FakeAPI(),drive,open_url=lambda u,o:io.BytesIO(b'abc'[o:]),clock=lambda:clock[0])
    step()                                     # add: copying
-   self.assertEqual(step(),30)                # the first piece fails: retry in 30 s
+   self.assertEqual(step(),30)                # the piece fails every try this turn: retry in 30 s
    j=debrid_drive.load(p)['jobs'][0];self.assertEqual((j['tries'],j['retry_at']),(1,NOW+30))
    self.assertEqual(ws.build({'debrid':debrid_drive.load(p)},NOW)['jobs'][0]['line'],'Waiting for the network · trying again in a moment')
    seen=[]
