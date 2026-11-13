@@ -4,6 +4,16 @@ grouped card with tinted tiles."""
 import status_ui as u
 
 BARS = 9470          # running-card bars: prepare 9470, upload 9471, downloads 9472.. (set by notifications.py)
+COPIES = 6           # owner (build 356): the pill said 3 running, this page showed one copy; one card per copy lane
+COPY_IDS = 9441      # the 2nd..6th copy cards: 9441-9445, their bars BARS + 6.. (9476-9480)
+
+
+def cards():
+    """[(property prefix, card id, bar id)] in page order: preparing, every copy, then torrent downloads."""
+    out = [('prepare.', 9433, BARS), ('up.', 9432, BARS + 1)]
+    out += [('up.%d.' % k, COPY_IDS + k - 2, BARS + 4 + k) for k in range(2, COPIES + 1)]
+    out += [('dl.%d.' % k, 9435 + k, BARS + 1 + k) for k in range(1, 5)]
+    return out
 LINK_W = 290   # room for the accent 'Library status' after the Up next line
 TOP = 443            # the list starts with RUNNING NOW (board 5: 225 pt)
 
@@ -45,8 +55,8 @@ def page(p):
     head += u.text(p, S, 160, w, 110, 'Notifications', 'p_large')
     head += segmented(p, p.NOTICE_FILTERS)
     rows = u.group(p, 99, u.text(p, S + 10, 0, w - 20, 62, 'RUNNING NOW', 'p_pill', p.GREY), u.has('live'))
-    for n, (key, ident) in enumerate([('prepare.', 9433), ('up.', 9432)] + [('dl.%d.' % k, 9435 + k) for k in range(1, 5)]):
-        rows += compact(p, key, ident, BARS + n)
+    for key, ident, bar in cards():
+        rows += compact(p, key, ident, bar)
     nxt = (u.tap(p, 9440, S, 0, w, 118).replace('<texturefocus colordiffuse="14FFFFFF">', '<texturefocus colordiffuse="00FFFFFF">', 1) +
            '<control type="grouplist"><left>%d</left><top>0</top><width>%d</width><height>62</height><orientation>horizontal</orientation>'
            '<itemgap>10</itemgap><usecontrolcoords>true</usecontrolcoords>' % (S, w) +

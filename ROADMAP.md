@@ -519,6 +519,9 @@ One PR, one IPA at the end (owner: no builds until asked). Phone proof is the ow
 | R9 | Fill fast, high-latency lines (owner: 79.7 Mbps up, 469 ms ping, copies 1.4 MB/s): up to 6 lanes, 4 beside a conversion, 2 on mobile data, lane learning restarts on a new connection | Done (ISSUE-200) |
 | R10 | Native copy streams each piece (Drive PUT fed while the AllDebrid read arrives), pieces up to 256 MB | Coded: AirPlay r53 pinned (ISSUE-201) |
 | R11 | A finished conversion says it is uploading (share, MB left, time) instead of "Converting 79%"; movie pieces up to 32 MB | Coded (ISSUE-202) |
+| R12 | Bell page: a card for every running copy, like the pill and Library status | Coded (ISSUE-203) |
+| R13 | No re-copy of a video already finished from another source; problem rows never show a hash | Coded (ISSUE-204) |
+| R14 | Download problems page redesign (summary, groups by what you can do, plain reasons, row actions, empty state) | Mockup: docs/design/download-problems-mockups.html, awaiting owner approval |
 
 Owner conditions to check on the phone: downloads carry on after switching Wi-Fi / cellular, with the screen off
 (Kodi stays awake while any copy is unfinished), and after Kodi is closed and opened again (resumes from Drive's

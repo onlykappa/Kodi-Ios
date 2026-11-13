@@ -316,10 +316,12 @@ class ReviewFindings(unittest.TestCase):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as profile:
             prep.save(profile,fixture.library_state())
-            m=dict(model(),jobs=[self.work('conv',id=None),self.work('copy',id=None)],next=[])
+            second=dict(self.work('copy',id=None),title='Heat',hash='b'*40)
+            m=dict(model(),jobs=[self.work('conv',id=None),self.work('copy',id=None),second],next=[])
             seen={}
             def inspect(w):
                 seen['conv']=dict(w.current);seen['copy']=dict(w.ups[0])
+                seen['second']=(w.getProperty('up.2.title'),w.getProperty('up.3.title'),w.ups[1]['hash'])
             fake=fixture.FakeKodi(profile,[('IOSNotifications.xml',inspect),('IOSNotifications.xml',fixture.tap(9001))])
             fake.modules['xbmcgui'].Window=lambda ident:types.SimpleNamespace(setProperty=lambda *a:None)
             with patch.dict(sys.modules,fake.modules),patch.object(ws,'load',return_value=m):notifications.run()
@@ -327,6 +329,8 @@ class ReviewFindings(unittest.TestCase):
             self.assertIn(('Cancel conversion','cancel'),tc.menu('conv',seen['conv']))
             self.assertEqual((seen['copy']['source'],seen['copy']['hash']),('debrid','a'*40))
             self.assertIn(('Cancel this download','cancel'),tc.menu('up',seen['copy']))
+            # Owner (build 356): the pill said 3 running, the bell page showed one copy; each copy has its own card.
+            self.assertEqual(seen['second'],('Heat','','b'*40))
 
     def test_5_reencoding_keeps_quicker_as_the_third_sheet_button(self):
         j=self.work('conv')

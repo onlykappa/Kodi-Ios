@@ -396,6 +396,19 @@ class NetworkTrouble(unittest.TestCase):
   self.assertEqual(debrid_drive.clear_failed(self.p),1)
   self.assertEqual([j['status'] for j in debrid_drive.load(self.p)['jobs']],['copying','new'])
 
+ def test_a_video_already_on_drive_from_another_source_does_not_come_back(self):
+  # Owner (build 356): "its doing inception again?" A copy that failed for the network comes back once, but not when
+  # another source of the same video already finished; untitled rows name their file, not their hash.
+  state={'jobs':[{'hash':'a'*40,'title':'Inception','kind':'movie','status':'done'},
+                 {'hash':'b'*40,'title':'Inception','kind':'movie','status':'failed','error':'URLError: timed out'},
+                 {'hash':'c'*40,'kind':'movie','status':'failed','error':'Problem: blocked','files':[{'name':'Heat.1995.1080p.mkv'}]},
+                 {'hash':'d'*40,'kind':'movie','status':'failed','error':'Problem: blocked'}]}
+  self.assertEqual(debrid_drive.revive(state,lambda:5),[])
+  titles=[p['title'] for p in debrid_drive.problems(state)]
+  self.assertEqual(titles[0],'Inception');self.assertTrue(titles[1].startswith('Heat'));self.assertEqual(titles[2],'Unnamed download')
+  debrid_drive.save(self.p,state)
+  self.assertEqual(debrid_drive.retry_failed(self.p),2)                                   # not the finished Inception
+
 class DownloadProblemsPage(unittest.TestCase):
  def test_lines_and_settings_row(self):
   import importlib.util

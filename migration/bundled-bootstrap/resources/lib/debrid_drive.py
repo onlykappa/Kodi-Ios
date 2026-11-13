@@ -151,8 +151,11 @@ def revive(state, clock=time.time):
     """Copies that ended 'failed' for network trouble (before ISSUE-198) go back in line, once, from where Drive got
     to (their sessions are kept). Returns the jobs revived."""
     back = []
+    have = finished_keys(state)
     for job in state.get('jobs', []):
         if job.get('status') != 'failed' or job.get('error') == 'Cancelled' or job.get('revived'):
+            continue
+        if same_video(job) in have:   # another source already put this video on Drive
             continue
         if not network_error(job.get('error')):
             continue
@@ -160,6 +163,31 @@ def revive(state, clock=time.time):
         job.pop('finished', None)
         back.append(job)
     return back
+
+
+def same_video(job):
+    """What a copy is, whatever its source: (title, season, episode)."""
+    return (str(job.get('title') or '').strip().lower(), str(job.get('season') or ''), str(job.get('episode') or ''))
+
+
+def finished_keys(state):
+    return {same_video(j) for j in state.get('jobs', []) if j.get('status') == 'done' and j.get('title')}
+
+
+def problem_title(job):
+    """Owner screenshot (build 356): rows read "45e2c1e0…" when a copy had no title; its file name says what it is."""
+    title = job.get('title') or ''
+    if not title:
+        files = job.get('files') or []
+        name = job.get('name') or (files[0].get('name') if files and isinstance(files[0], dict) else '') or ''
+        title = name.rsplit('/', 1)[-1]
+        if title:
+            try:
+                import drivelibrary
+                title = drivelibrary.display_title(title) or title
+            except Exception:
+                pass
+    return title or 'Unnamed download'
 
 
 def problems(state):
@@ -170,7 +198,7 @@ def problems(state):
             continue
         error = str(job.get('error') or 'unknown')
         kind = 'cancelled' if error == 'Cancelled' else 'network' if network_error(error) else 'source'
-        title = job.get('title') or job.get('name') or ''
+        title = problem_title(job)
         if job.get('kind') == 'episode' and job.get('season') and job.get('episode'):
             title = '%s · S%s E%s' % (title, job['season'], job['episode'])
         out.append({'title': title, 'reason': error.split(': ', 1)[-1][:120], 'kind': kind, 'hash': job.get('hash'), 'index': n})
@@ -180,7 +208,8 @@ def problems(state):
 def retry_failed(profile, kinds=('network', 'source')):
     """Settings › Library › Download problems › Retry: those copies go back in line. Returns how many."""
     state = load(profile)
-    picked = {p['index'] for p in problems(state) if p['kind'] in kinds}
+    have = finished_keys(state)
+    picked = {p['index'] for p in problems(state) if p['kind'] in kinds and same_video(state['jobs'][p['index']]) not in have}
     for n in picked:
         job = state['jobs'][n]
         job.update(status='copying' if job.get('files') else 'new', tries=0, net_tries=0, retry_at=0)

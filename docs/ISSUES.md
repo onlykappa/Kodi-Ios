@@ -3277,3 +3277,31 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   is MAIN_CHUNK), test_preparation_runtime (the wording, 300 MB left, ETA from speed).
 - **Regression protection:** those tests in import-review.yml. Phone proof: the next log's preparation after its last
   unit shows the upload share rising.
+
+## ISSUE-203 — The bell page showed one copy while the pill said "3 running" (owner screenshot, build 356) — fixed in code
+
+- **Evidence:** the activity pill read "3 running · Uploading to Google Drive · 74%"; the bell's Notifications page
+  listed only Inception under RUNNING NOW.
+- **Cause:** the page had one upload card ('up.'), filled from the first copy; Library status and the pill already
+  show one card per copy lane (work_state._copies).
+- **Fix:** six copy cards (notifications_skin.cards(): 'up.', 'up.2.'..'up.6.', ids 9432 and 9441-9445, bars
+  9471 and 9476-9480), each with its own poster, line, bar, tap (the speed graph) and long-press menu (cancels that
+  copy). Same compact card, no new style.
+- **Retest:** test_build193_pages (two copies fill up. and up.2.), test_hold_menu (9441/9445 are copy cards).
+- **Visual check:** pending (desktop Kodi rig, then the owner's iPhone).
+
+## ISSUE-204 — "It's doing Inception again?" and hash-named rows in Download problems (build 356) — fixed in code
+
+- **Evidence:** log 96e194ae: "Inception: back in line (it had stopped for network trouble: write operation timed
+  out)" at start; it then copied at 6 MB/s (77% of 4.4 GB by 08:42). Download problems listed another Inception with a
+  source error and two rows named "45e2c1e0…".
+- **What happened:** ISSUE-198 brings each copy that failed for the network back once. This Inception copy had never
+  finished (0.5% confirmed at start), so copying it was right; but nothing stopped a revive or Retry when another
+  source of the same video had finished.
+- **Fix:** revive() and Retry skip a copy whose title, season and episode match a finished copy; problem rows with no
+  title use the cleaned file name, else "Unnamed download", never the hash.
+- **Retest:** test_debrid_drive (a finished Inception keeps the failed one from coming back or being retried;
+  untitled rows).
+- **Follow-up:** the Download problems page redesign is a mockup awaiting approval
+  (docs/design/download-problems-mockups.html).
+

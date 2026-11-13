@@ -180,11 +180,12 @@ def run():
     self.setProperty('has.up','true' if ups else '')
     cache=drivelibrary.load_json(transfer_artwork.cache_path(profile),{})
     pairs=[('dl.%d.'%(n+1),self.downloads[n] if n<len(self.downloads) else {}) for n in range(SLOTS)]
-    pairs += [('up.',ups[0] if ups else {}),('prepare.',current)]
-    self.artnames=[j.get('name') or j['title'] for j in jobs]
     import notifications_skin
-    bars={'prepare.':notifications_skin.BARS,'up.':notifications_skin.BARS+1}
-    bars.update({'dl.%d.'%k:notifications_skin.BARS+1+k for k in range(1,SLOTS+1)})
+    # Owner (build 356): the pill said "3 running" while this page showed one copy: every copy lane has its card.
+    copies=['up.']+['up.%d.'%k for k in range(2,notifications_skin.COPIES+1)]
+    pairs += [(pre,ups[n] if n<len(ups) else {}) for n,pre in enumerate(copies)]+[('prepare.',current)]
+    self.artnames=[j.get('name') or j['title'] for j in jobs]
+    bars={pre:bar for pre,_,bar in notifications_skin.cards()}
     for pre,j in pairs:
      for key in ('title','line'):self.setProperty(pre+key,str(j.get(key,'')))
      self.setProperty(pre+'pct',str(j.get('pct') or 0))
@@ -223,7 +224,7 @@ def run():
   def long_press(self,kind,n):
    """The menu for a held transfer card: pause / resume, cancel, the speed graph. False when the card is empty."""
    if kind=='down':item=self.downloads[n] if n<len(self.downloads) else None
-   elif kind=='up':item=self.ups[0] if getattr(self,'ups',None) else None
+   elif kind=='up':item=self.ups[n] if n<len(getattr(self,'ups',None) or []) else None
    else:item=getattr(self,'current',None) or None
    if not item or item.get('kind')=='check':return False   # the Drive library check has nothing to pause or cancel
    queued=len(transfer_control.unfinished_copies(profile)) if kind=='up' else 0
@@ -280,9 +281,9 @@ def run():
     if control==9460:self.long_press('conv',0)
     elif control==9461:self.long_press('up',0)
     else:self.long_press('down',control-9462)
-   elif control in (9432,9433) or 9436<=control<=9435+SLOTS:
+   elif control in (9432,9433) or 9436<=control<=9435+SLOTS or 9441<=control<=9445:
     # Owner: the speed graph shows only when a transfer card is tapped.
-    import transfers;transfers.run(['up' if control==9432 else 'conv' if control==9433 else 'down'])
+    import transfers;transfers.run(['up' if control==9432 or control>=9441 else 'conv' if control==9433 else 'down'])
    elif 9501<=control<=9500+ROWS:
     # Owner (build 159): a message opens its details and its part of kodi.log; its own action (if any) is a button there.
     n=control-9500
