@@ -98,6 +98,8 @@ int main(int argc,char **argv) {
   self.assertEqual(r['status'],200);self.assertEqual(self.uploads,[(b'x'*16,'bytes 0-15/16')])
  def test_copy_never_uploads_a_mismatched_source_range(self):
   r=self.run_request('/bad-range','COPY',budget=2,limit=256)
-  self.assertEqual(r['status'],-1);self.assertEqual(self.uploads,[])
+  # r53 streams: the upload request is open before the source answers, so the stand-in may see it start; what must
+  # never happen is a byte of the wrong range going up (an aborted, empty request stores nothing in a Drive session).
+  self.assertEqual(r['status'],-1);self.assertEqual([body for body,_ in self.uploads if body],[])
 
 if __name__=='__main__':unittest.main()
