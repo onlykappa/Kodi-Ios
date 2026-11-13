@@ -610,7 +610,8 @@ def drive_uploads(monitor,home,profile):
       diagnostics.event(log,'preparation','scheduler',**schedule);last_schedule=schedule
      with preparation_runtime.Lease(profile,stats=preparation.stream.stats if preparation.stream else lambda:{}) as runtime:
       preparation.runtime=runtime
-      preparation.scan(can_prepare,force=bool(count))
+      # Build-356 log 7249de4d: three videos already on Drive waited 12.5 min after the app opened for the first check.
+      preparation.scan(can_prepare,force=bool(count) or not getattr(preparation,'checked_at_start',False));preparation.checked_at_start=True
       # Build 169 made preparation wait for AllDebrid copies; with copies at 6-8 MB/s (build-169 log) both run at once
       # again, so conversion never sits paused behind an hour-long download.
       # A check no longer stops it (build-170 log: each stop restarted Inception from 0%); it runs when this one ends.
@@ -623,7 +624,7 @@ def drive_uploads(monitor,home,profile):
       preparation.paused=lambda:(not monitor.abortRequested() and transfer_control.paused(profile,'conv') and
                                  xbmcaddon.Addon().getSettingBool('prepare_downloads') and not prepare_downloads.interrupts(profile))
       # The upload pieces and the Drive read-ahead wait too while paused by the owner.
-      if preparation.stream:preparation.stream.hold=lambda:preparation.paused() or slowdown.holding()   # build 208: no read-ahead while Kodi plays
+      if preparation.stream:preparation.stream.hold=lambda:preparation.paused() or slowdown.preparation_holding()   # build 208 held while Kodi played; now only while it buffers
       # DEC-039 measurement build: an AI Upscale test asked for in Settings runs here, between conversions, with the
       # queue's own converter and Drive stream (one AI engine at a time). Counted only, nothing uploaded.
       import upscale_measure

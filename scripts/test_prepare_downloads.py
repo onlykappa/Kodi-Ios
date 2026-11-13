@@ -188,7 +188,7 @@ class Integration(unittest.TestCase):
    prep.request(p,'now','y');self.assertTrue(prep.interrupts(p))        # Start converting now does not
  def test_service_scans_on_boot_and_after_uploads_and_settings_enable_it(self):
   service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
-  self.assertIn('preparation.scan(can_prepare,force=bool(count))',service);self.assertIn('preparation.process_one(converting)',service)
+  self.assertIn("preparation.scan(can_prepare,force=bool(count) or not getattr(preparation,'checked_at_start',False))",service);self.assertIn('preparation.process_one(converting)',service)
   # A requested check no longer stops the running conversion (build-170 log); only Prepare next / Keep do.
   self.assertIn('converting=lambda:can_prepare() and not prepare_downloads.interrupts(profile)',service)
   self.assertNotIn('not prepare_downloads.check_requested(profile)',service);self.assertIn('if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5',service)

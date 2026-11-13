@@ -99,6 +99,14 @@ def holding():
     return reason() in HOLD
 
 
+def preparation_holding():
+    """Owner (2026-11-13): "Id like it all to be ready before i watch ... preparing in the background if im watching
+    something else". Preparation keeps going while a video plays, at its share of the time (SHARE) and the download cap
+    (CAP), and waits only while Kodi buffers (after a seek), so the seek stays smooth (ISSUE-136/137: the freeze was the
+    buffering dialog, background work was ruled out in build 209). Copies and uploads keep HOLD."""
+    return reason() == 'buffering'
+
+
 def strained(now=None):
     return (time.time() if now is None else now) < _state['strain_until']
 

@@ -143,10 +143,10 @@ def process_one(q, keep_going):
                 progress('Opening conversion tracks',None)
                 parent=q.drive.folder([driveupload.TOP,'.Preparation'])
                 def on_file(track,result):outputs[track]=result;q.commit()
-                # A video playing pauses the conversion where it is (owner, build 175): the upload session waits too.
+                # Owner (2026-11-13): preparation goes on while a video plays (slowed); it waits only while Kodi buffers.
                 paused=getattr(q,'paused',None) or (lambda:False)
                 identity=prep.identity(item)
-                sink=drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=lambda:paused() or __import__('slowdown').holding(),
+                sink=drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=lambda:paused() or __import__('slowdown').preparation_holding(),
                     spool=str(resume_store.folder(q.profile)) if resumes else None,checkpoint=checkpoint,
                     keep_pieces=resumes and not (job.get('probe') or {}).get('copy_video'),
                     on_checkpoint=lambda cp:resume_store.save(q.profile,slot,identity,cp))

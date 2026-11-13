@@ -149,12 +149,16 @@ class DownloadCap(unittest.TestCase):
   going=[True,False];slept=[]
   g=slowdown.Gate(why=lambda:'video',sleep=slept.append,keep_going=lambda:going.pop(0) if going else False)
   g.after(2.0);self.assertEqual(slept,[1.0])
- def test_the_converter_and_its_reads_hold_while_kodi_plays(self):
-  self.assertIn("hold=lambda:paused() or __import__('slowdown').holding()",(LIB/'prepare_cloud.py').read_text())
-  self.assertIn('preparation.stream.hold=lambda:preparation.paused() or slowdown.holding()',(BOOT/'service.py').read_text())
-  slowdown.configure(lambda:'video');slowdown._state['at']=-10;self.assertTrue(slowdown.holding())
-  slowdown.configure(lambda:'airplay');slowdown._state['at']=-10;self.assertFalse(slowdown.holding())
+ def test_preparation_goes_on_while_kodi_plays_and_waits_while_it_buffers(self):
+  # Owner (2026-11-13): "ready before i watch ... preparing in the background if im watching something else".
+  self.assertIn("hold=lambda:paused() or __import__('slowdown').preparation_holding()",(LIB/'prepare_cloud.py').read_text())
+  self.assertIn('preparation.stream.hold=lambda:preparation.paused() or slowdown.preparation_holding()',(BOOT/'service.py').read_text())
+  for why,prep,others in (('video',False,True),('buffering',True,True),('airplay',False,False),('',False,False)):
+   slowdown.configure(lambda why=why:why);slowdown._state['at']=-10
+   self.assertEqual((slowdown.preparation_holding(),slowdown.holding()),(prep,others),why)   # copies and uploads keep HOLD
   slowdown.configure(lambda:'');slowdown._state['at']=-10
+ def test_the_first_check_runs_when_the_app_opens(self):
+  self.assertIn("force=bool(count) or not getattr(preparation,'checked_at_start',False)",(BOOT/'service.py').read_text())
  def test_full_speed_when_nothing_plays(self):
   g,slept=self.gate(['']);self.assertEqual(g.after(0.08,1024*1024,download=True),0.0);self.assertEqual(slept,[])
  def test_the_service_reports_buffering(self):
