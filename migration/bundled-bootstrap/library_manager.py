@@ -334,7 +334,7 @@ def run():
         if not tmdb or not rows:
             return False
         xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,library_repair_page,%s)' % ','.join(
-            library_repair.script_args(tmdb, (show or {}).get('title', ''), rows, library_repair.qualities(episodes or rows)[0])))
+            library_repair.script_args(tmdb, (show or {}).get('title', ''), rows, library_repair.chosen(profile, tmdb, episodes or rows))))
         return True
 
     def act(action, row, data, show=None, kind='episode', episodes=None):
@@ -618,7 +618,7 @@ def run():
                 import library_repair
                 rows = [{'season': s_, 'episode': e_} for s_, e_ in waiting]
                 xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,library_repair_page,%s)' % ','.join(
-                    library_repair.script_args(tmdb, self.show['title'], rows, library_repair.qualities(self.episodes)[0]) +
+                    library_repair.script_args(tmdb, self.show['title'], rows, library_repair.chosen(profile, tmdb, self.episodes)) +
                     ['cancel=%s' % ';'.join(hashes)]))
             elif what == 'repair_all':
                 problems = [r for r in self.episodes if r.get('repair')]

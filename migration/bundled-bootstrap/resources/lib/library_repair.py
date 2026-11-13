@@ -26,6 +26,32 @@ def qualities(rows):
     return first + [None]
 
 
+def chosen(profile, tmdb, rows):
+    """The quality to repair with (ISSUE-237, owner log f63389f1: Repair took "..._2.25x_1920x1080_alq-10", an uploader's
+    upscale, because the show's ready episodes were 480p and the search ran at "any quality"). The quality the owner chose
+    for the show (Build Season / Download All: episode_watch's planned episodes, then the show's strict preference) comes
+    first; the show's ready episodes only when nothing was chosen. With a chosen quality the automatic pick takes a real one,
+    or the best that exists as a fallback with one notice, so no "any quality" search follows it."""
+    try:
+        import episode_watch
+        show = (episode_watch.load(profile).get('shows') or {}).get(str(tmdb)) or {}
+    except Exception:
+        show = {}
+    planned = collections.Counter(quality_key(p.get('quality')) for p in (show.get('planned') or {}).values()
+                                  if isinstance(p, dict) and quality_key(p.get('quality')))
+    if planned:
+        return planned.most_common(1)[0][0]
+    preference = show.get('preference') or {}
+    if preference.get('strict_quality') and quality_key(preference.get('quality')):
+        return quality_key(preference.get('quality'))
+    return qualities(rows)[0]
+
+
+def tries_for(quality):
+    """A chosen quality alone (its pick already falls back to the best available); nothing chosen: any quality."""
+    return [quality] if quality else [None]
+
+
 def repair(request, home, tmdb, title, season, episode, tries, log=lambda text: None):
     """Look the episode up again and queue the best version. Returns ('queued', quality or 'any') or ('none', why)."""
     why = 'No version with seeds was found for it.'

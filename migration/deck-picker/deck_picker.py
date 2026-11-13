@@ -887,7 +887,10 @@ def auto_choose(kept, want):
         hdr = next((t for t in tags if t in HDR_TAGS), u'')
         # Owner log 15e6cbc4: one episode of a season build was taken from a 500-episode "Complete Series" pack (the
         # most seeds); whole-series packs come last, used only when nothing else has the episode.
-        return (is_bad(it), it['seeds'] <= 0, it['name'] in lower, bool(WHOLE_SERIES.search(_s(it.get('name')))), bool(it.get('multi')), distance,
+        # ISSUE-237: in a fallback, a version that only claims the quality (an uploader's upscale, an SD name, far too
+        # small) comes after every real one: it is the lower quality, many times larger.
+        fake = fallback and bool(below_quality(it, it['quality'], minutes))
+        return (is_bad(it), it['seeds'] <= 0, it['name'] in lower, fake, bool(WHOLE_SERIES.search(_s(it.get('name')))), bool(it.get('multi')), distance,
                 hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
                 slow_to_prepare(it), converts_for_tv(it), too_heavy(it), prep_cost(it), size_fit(it, minutes), seed_bucket(it),
                 SOURCE_RANK.get(source_type(it), 3), abs(it['size'] - size) if size else -size_step(it), -it['seeds'])

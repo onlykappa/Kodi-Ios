@@ -64,6 +64,39 @@ class BeforeTheDownload(unittest.TestCase):
         self.assertIn("and not (auto or {}).get('_fallback')", cloud)
 
 
+class RepairQuality(unittest.TestCase):
+    """ISSUE-237 (owner log f63389f1, build 376): Repair searched Naruto S1 E5/E6 at "any quality" (the show's ready
+    episodes were 480p) and took "..._2.25x_1920x1080_alq-10", an uploader's upscale of the DVD episode."""
+    def test_repair_uses_the_quality_chosen_for_the_show(self):
+        import episode_watch
+        import library_repair
+        with tempfile.TemporaryDirectory() as profile:
+            ready = [{'id': 'x', 'quality': '480p'}]
+            self.assertEqual(library_repair.chosen(profile, '31910', ready), '480p')        # nothing chosen: what it has
+            self.assertEqual(library_repair.chosen(profile, '31910', []), None)
+            episode_watch.plan_season(profile, '31910', 'Naruto Shippuuden', 1, [5, 6], '1080p', now=1)
+            self.assertEqual(library_repair.chosen(profile, '31910', ready), '1080p')
+        self.assertEqual(library_repair.tries_for('1080p'), ['1080p'])                    # no "any quality" pass after it
+        self.assertEqual(library_repair.tries_for(''), [None])
+        page = (ROOT / 'migration/bundled-bootstrap/library_repair_page.py').read_text()
+        self.assertIn("library_repair.tries_for(a.get('quality'))", page)
+        manager = (ROOT / 'migration/bundled-bootstrap/library_manager.py').read_text()
+        self.assertEqual(manager.count('library_repair.chosen(profile, tmdb, '), 2)
+        self.assertNotIn('library_repair.qualities(', manager)
+
+    def test_a_fallback_takes_a_real_lower_version_before_a_fake_1080p(self):
+        upscale = item('Naruto Shippuden Episode 005 The Kazekage Stands Tall_2.25x_1920x1080_alq-10.mp4', 4.14, seeds=232)
+        real720 = item('Naruto.Shippuden.S01E05.720p.WEB.x264.mkv', 0.6, quality='720p', tags='x264', seeds=4)
+        dvd = item('Naruto Shippuden Episode 005 The Kazekage Stands Tall.mkv', 0.26, quality='480p', seeds=232)
+        want = {'quality': '1080p', 'strict_quality': True, 'runtime': 23}
+        best = dp.auto_choose([upscale, real720, dvd], want)
+        self.assertEqual((best['name'], best['fallback']), (real720['name'], True))
+        best = dp.auto_choose([upscale, dvd], want)
+        self.assertEqual((best['name'], best['fallback']), (dvd['name'], True))          # the original, not it blown up 16x
+        best = dp.auto_choose([upscale], want)
+        self.assertEqual((best['name'], best['fallback']), (upscale['name'], True))      # the absolute only one: taken
+
+
 class AfterTheCopy(unittest.TestCase):
     def test_the_real_picture_decides(self):
         self.assertTrue(prep.below_wanted({'width': 640, 'height': 480}, '1080p'))

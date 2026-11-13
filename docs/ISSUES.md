@@ -3560,3 +3560,10 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Fix:** the row says what is on: "New downloads · 4K", "All shows · 4K", "1 show · 4K" / "N shows · 4K", "Off", or "Unavailable".
 - **Retest:** test_upscale_page.
 
+
+## ISSUE-237 — Repair took an uploader's upscale ("_2.25x_1920x1080_alq-10") for Naruto S1 E5/E6 (owner log f63389f1, build 376) — fixed in code
+
+- **Seen:** 15:48:52 and 15:49:21 `Kodi iOS repair: S01E05 / S01E06 queued (any quality)`; the automatic pick took "Naruto Shippuden Episode 005 The Kazekage Stands Tall_2.25x_1920x1080_alq-10.mp4" (4.14 GB) from the Complete Series pack, and it was made ready while copying at 1920x1080. S01E06 was queued twice (two Repair taps 6 s apart; the copier keeps one per hash).
+- **Cause:** Repair took its quality from the show's ready episodes (`library_repair.qualities`), and those were the 480p DVD episodes, so no quality applied, then the "any quality" pass ran. Without a chosen quality the ISSUE-231 checks (SD names, upscales, too small) never run. In a fallback, an upscale still ranked as 1080p (distance 0), ahead of a real 720p.
+- **Fix:** `library_repair.chosen` uses the quality the owner chose for the show (episode_watch's planned episodes, then the show's strict preference), and the ready episodes only when nothing was chosen; `tries_for` drops the "any quality" pass after a chosen quality (the strict pick already falls back to the best available, with one notice). In a fallback, a version that only claims its quality (`below_quality`: upscale, SD name, far too small) comes after every real version, so a real 720p, then the original DVD episode, are taken before the same episode blown up 16 times; it is still taken when it is the only one.
+- **Retest:** test_season_quality `RepairQuality`. Phone proof: the season re-download log.

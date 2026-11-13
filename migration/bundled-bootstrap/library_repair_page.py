@@ -12,7 +12,7 @@ def run(argv):
     import library_repair
     import season_sources
     a = library_repair.args(argv[1:])
-    tries = [a['quality'], None] if a.get('quality') else [None]
+    tries = library_repair.tries_for(a.get('quality'))
     if a.get('cancel'):
         # Pick Better Versions: the old picks leave the queue first (the copy loop drops cancelled hashes), so the new
         # pick is never taken for the episode already waiting.
