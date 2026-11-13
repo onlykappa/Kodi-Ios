@@ -310,7 +310,19 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
             if underlying:text+=': '+underlying
         q.log('preparation: failed for %s: %s; phase=%s; video=%s'%(drivelibrary.display_title(item['name']),text,(card() or {}).get('stage','opening'),json.dumps(job.get('probe') or {},sort_keys=True)))
         if 'source changed' in text:job['status']='superseded';q.state['last_scan']=0;clear_temps();resume_store.clear(q.profile,slot)
-        elif 'tracks MP4 cannot preserve' in text or 'without changing HDR' in text or 'needs RPU remapping' in text:job['blocked']=True
+        elif 'tracks MP4 cannot preserve' in text or 'without changing HDR' in text or 'needs RPU remapping' in text:
+            # Owner screenshot (2026-11-13, Naruto Shippuuden S1 E16): this read "Video preparation paused" with the
+            # converter's words, but nothing is paused: the file is kept as it is (blocked, not tried again). Say so plainly,
+            # once, and name what stops it.
+            job['blocked']=True
+            why=('it has DVD picture subtitles or a second video track an MP4 can\'t keep' if 'tracks MP4' in text else
+                 'its Dolby Vision or HDR picture can\'t be copied as it is')
+            if not job.get('kept_told'):   # once per video: retry_image_subtitles gives one more try and clears the error
+                job['kept_told']=True
+                q.notify('info','Kept as it is',drivelibrary.display_title(item['name'])+' still plays in Kodi as it is; '+why+
+                         ', so it isn\'t made ready for AirPlay.')
+                import transfer_history;transfer_history.failed(q.profile,'conv',item['name'],'kept as it is: '+why,q.clock())
+            job['error']=text;return False
         elif job.get('repack') and any(word in text for word in REPACK_STOPS):
             # Build 193 (build-192 log 13:55:08: Fall 2's faster start failed at 22 % on "MP4 packet: Invalid argument" after
             # 26 min): the converter refuses the same piece of an older file every time, so each retry would start from

@@ -222,6 +222,16 @@ class Queue(unittest.TestCase):
   self.assertTrue(self.q.state['jobs']['slot']['blocked'])
   self.assertFalse(self.q.process_one())
   self.assertEqual(self.d.files['source']['data'],b'original')
+ def test_a_track_mp4_cannot_keep_is_kept_as_it_is_with_plain_words(self):
+  # Owner screenshot (2026-11-13, Naruto Shippuuden S1 E16): "Video preparation paused: This file has tracks MP4 cannot
+  # preserve; original retained". Nothing was paused: it is kept as it is, once, in plain words.
+  notes=[];self.q.notify=lambda kind,title,text:notes.append((kind,title,text))
+  def refused(*args,**kwargs):raise RuntimeError('This file has tracks MP4 cannot preserve; original retained')
+  self.n.convert_to=refused
+  self.assertFalse(self.q.process_one());self.assertFalse(self.q.process_one())
+  job=self.q.state['jobs']['slot'];self.assertTrue(job['blocked'])
+  self.assertEqual(notes,[('info','Kept as it is',"Film still plays in Kodi as it is; it has DVD picture subtitles or a second video track an MP4 can't keep, so it isn't made ready for AirPlay.")])
+  self.assertEqual(self.d.files['source']['data'],b'original')
  def test_failed_faster_start_is_not_retried_for_ever(self):
   # Build-192 log 13:55:08: Fall 2's re-pack failed at 22 % on "MP4 packet: Invalid argument"; each retry restarts at 0 %.
   notes=[];self.q.notify=lambda kind,title,text:notes.append((kind,title,text))
