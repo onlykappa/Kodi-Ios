@@ -34,6 +34,16 @@ def current(item,runtime):
   item.update(stage='Uploading to Google Drive' if phase=='uploading' else 'Waiting for Drive',
               rate=runtime.get('up_rate',0),eta='',eta_s=0,indeterminate=False)
   item['detail']='Drive is receiving the upload' if phase=='uploading' else 'Waiting for the current upload to finish'
+  total=float(runtime.get('upload_total') or 0)
+  if total>0 and 'upload_left' in runtime:
+   # ISSUE-202: the converter is done; the line says how much of the upload is left (the bar holds at 80 so the
+   # Drive check after it, at 82, never steps back).
+   done=1-float(runtime['upload_left'])/total
+   item['stage']+=' · %d%%'%int(100*done)
+   left=float(runtime['upload_left'])/1024**2
+   item['detail']='%s left to upload'%('%.1f GB'%(left/1024) if left>=1024 else '%.0f MB'%left)
+   rate=float(runtime.get('up_rate') or 0)
+   if rate>0:item['eta_s']=runtime['upload_left']/rate
  elif item['indeterminate'] and runtime.get('read_bytes'):
   item['stage']+=' · %.0f MB read'%(runtime['read_bytes']/1024**2)
  return item

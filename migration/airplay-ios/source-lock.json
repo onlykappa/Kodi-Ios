@@ -2,14 +2,14 @@
   "framework_release": {
     "tag": "kodi-airplay-r53",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "sha256": "10df323f7667d478d2b9d007ef998bed4fdb2e0dd701019ca6b9e620e08202b8"
   },
   "previous": {
     "tag": "kodi-airplay-r52",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "084b7672700448aeff983a4cac39e2a6e0025f3930d003c21e96a63e91bf71b9"
   },
-  "source_commit": "eeb76027c86cb71b9dd75e70180b46c9744e84f1",
-  "verified_run": 43359694650,
-  "staged_note": "r53 staged (ISSUE-201: AllDebrid-to-Drive pieces stream, the Drive PUT fed while the AllDebrid GET arrives; pieces up to 256 MB; kodi_http_copy_streams): built and published by airplay-ios on PR #23; sha256, source_commit and verified_run are pinned from that run."
+  "source_commit": "83ebc8873cb1150a5e4f6d910dffcd60a7ababaa",
+  "verified_run": 43455191676,
+  "pin_note": "r53 (ISSUE-201: streamed AllDebrid-to-Drive pieces, kodi_http_copy_streams, pieces up to 256 MB) built by airplay-ios run 43455191676 from 83ebc88; the release asset digest and the downloaded zip both give 10df323f\u202602b8, and the binary exports kodi_http_copy_streams and kodi_http_copy_max."
 }

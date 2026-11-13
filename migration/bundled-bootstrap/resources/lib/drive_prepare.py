@@ -77,6 +77,7 @@ class Sink:
         self.uploads = {}
         self.upload_wait = threading.Event()
         self.finishing = False
+        self.made_all = False    # ISSUE-202: the converter has made every unit; what is left is the upload
         self.made = 0            # bytes of the movie the converter has handed over
         self.made_marks = []     # (time, made): how fast the converter makes the movie (shown before any upload)
         # r30: spool (a folder) keeps picture subtitle files there until the movie is done, so a mark can say how much
@@ -166,8 +167,14 @@ class Sink:
         age=max((self.clock()-started for started in uploads),default=0)
         waiting=self.upload_wait.is_set() or self.finishing
         phase=('waiting_drive' if age>=10 else 'uploading') if waiting and uploads else ''
-        return {'out_bytes':self.sent,'up_rate':self.rate(),'upload_inflight_s':round(age,1),
-                'upload_pending':bool(uploads),'transfer_phase':phase}
+        # ISSUE-202 (build-350 log: 47 of 47 units made, then "Converting 79%" for 20 min while 0.3 MB/s pieces went
+        # up): once every unit is made, the rest is the upload, and it says so with its own share.
+        left=self.made-self.sent
+        if self.made_all and left>0 and not phase:phase='uploading'
+        out={'out_bytes':self.sent,'up_rate':self.rate(),'upload_inflight_s':round(age,1),
+             'upload_pending':bool(uploads),'transfer_phase':phase}
+        if self.made_all and self.made>0:out.update(upload_left=max(0,left),upload_total=self.made)
+        return out
 
     def made_rate(self):
         """How fast the converter hands over the movie (bytes per second over the last ~20 s)."""
@@ -336,7 +343,9 @@ class Sink:
         target = t['offset'] + length
         chunks=t.get('chunks')
         if chunks is None:
-            chunks=t['chunks']=driveupload.StreamChunks()
+            # ISSUE-202: the movie's pieces may grow to 32 MB on a fast line (8 MB cost a Drive round trip per 0.6 s at
+            # 14 MB/s); they still start at 1 MB and shrink toward ten seconds each on a slow one.
+            chunks=t['chunks']=driveupload.StreamChunks(MAIN_CHUNK if t.get('track',0)==0 else None,MAIN_CHUNK if t.get('track',0)==0 else None)
             chunks.current=chunks.minimum  # first acknowledgement is quick even on an unknown slow uplink
         failures=0
         while failures<attempts:

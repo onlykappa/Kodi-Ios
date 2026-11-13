@@ -3243,7 +3243,7 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Open (native, ROADMAP R10):** within a piece, start the Drive PUT while the AllDebrid read is still arriving (one
   streamed pass instead of read-then-send) and keep the connections open between pieces (no new handshake per piece).
 
-## ISSUE-201 — One copy lane uses well under the line: read-then-send pieces (owner: "drastically speed up downloads") — staged (AirPlay r53)
+## ISSUE-201 — One copy lane uses well under the line: read-then-send pieces (owner: "drastically speed up downloads") — fixed in code (AirPlay r53 pinned)
 
 - **Cause:** kodi_http_copy read a whole piece from AllDebrid into memory, then sent it to Drive, then waited for
   Drive's answer: each side idle more than half the time, and pieces capped at 32 MB by the memory they held.
@@ -3255,5 +3255,25 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   GET fills as bytes arrive (back-pressure: the GET waits when the pipe is full); a short or refused source ends the
   PUT short and Python asks Drive what it kept (existing path). Pieces up to 256 MB, starting at 32 MB when the
   framework streams (kodi_http_copy_streams). Redirects: https only, no source credentials to another host.
+- **Pinned:** r53 built by airplay-ios run 43455191676 from 83ebc88; asset digest and downloaded zip both sha256
+  10df323f…02b8; the binary exports kodi_http_copy_streams and kodi_http_copy_max.
 - **Retest:** test_native_http (streams flag, 256 MB limit); the native code compiles in the airplay-ios run (macOS);
   phone proof: the next log's "Drive copy native" pieces (size, seconds) and the network line (MB/s per lane).
+
+## ISSUE-202 — A finished conversion reads "Converting 79%" for 20 minutes while it uploads (build-350 log) — fixed in code
+
+- **Evidence:** Naruto S1 E2 (CPU re-encode) made 47 of 47 units by 07:19:30; the job then showed "Step 3 of 3 ·
+  Converting" at 79.48% past 07:42, Drive reads stopped, the worker heartbeat stayed fresh, and the conversion's
+  own Drive pieces kept going up every minute ("4.0 MB piece in 14 s, 0.30 MB/s"). Not a hang: the converter was done
+  and the upload backlog drained over a slow line, with no word of it on screen.
+- **Cause:** the "Uploading to Google Drive" wording only showed while the converter was blocked on a full queue;
+  after the last unit nothing said the rest was the upload. Movie pieces were also capped at 8 MB, a Drive round trip
+  for every 0.6 s of a fast line.
+- **Fix:** once every unit is made (stage 3, or n of n), the Sink reports upload_left / upload_total and the line
+  reads "Uploading to Google Drive · N%" with "X MB left to upload" and a time from the upload speed; the bar holds at
+  80 so the Drive check (82) never steps back. Movie pieces start at 1 MB and may grow to 32 MB (still aimed at ten
+  seconds each, so a slow line keeps small pieces).
+- **Retest:** test_drive_prepare (upload share after the last unit; 32 MB limit, 1 MB start; slow-upload test bound
+  is MAIN_CHUNK), test_preparation_runtime (the wording, 300 MB left, ETA from speed).
+- **Regression protection:** those tests in import-review.yml. Phone proof: the next log's preparation after its last
+  unit shows the upload share rising.

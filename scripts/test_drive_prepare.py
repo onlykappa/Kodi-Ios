@@ -158,7 +158,7 @@ class BackgroundUpload(unittest.TestCase):
   self.assertFalse(producer.is_alive())
   result=sink.finish()['0']
   self.assertEqual(d.files[result['id']]['data'],piece*2+b'end')
-  self.assertTrue(all(0<n<=8*1024*1024 for n in puts))
+  self.assertTrue(all(0<n<=dp.MAIN_CHUNK for n in puts))   # ISSUE-202: movie pieces up to 32 MB
   self.assertEqual(sum(puts),dp.MAIN_CHUNK*2+3);self.assertEqual(sink.sent,dp.MAIN_CHUNK*2+3)
  def test_upload_error_reaches_the_converter_and_original_stays(self):
   d=Drive();orig=d.call
@@ -174,6 +174,20 @@ class BackgroundUpload(unittest.TestCase):
  def test_close_ends_the_thread(self):
   sink=dp.Sink(Drive(),'staging','prepared',lambda:True);sink.write(0,'.mp4',b'a'*(dp.MAIN_CHUNK+1))
   sink.close();self.assertFalse(sink.tracks[0]['thread'].is_alive())
+ def test_once_every_unit_is_made_the_rest_reads_as_the_upload(self):
+  # ISSUE-202 (build-350 log): 47 of 47 units made, then "Converting 79%" for 20 minutes while the movie went up.
+  sink=dp.Sink(Drive(),'staging','p',lambda:True)
+  sink.made,sink.sent=400*1024*1024,100*1024*1024
+  self.assertNotIn('upload_left',sink.stats());self.assertEqual(sink.stats()['transfer_phase'],'')
+  sink.made_all=True;stats=sink.stats()
+  self.assertEqual((stats['transfer_phase'],stats['upload_left'],stats['upload_total']),('uploading',300*1024*1024,400*1024*1024))
+ def test_movie_pieces_may_grow_to_32_mb_and_start_at_1_mb(self):
+  sink=dp.Sink(Drive(),'staging','p',lambda:True)
+  t={'offset':0,'buffer':bytearray(),'track':0,'url':'u','md5':None}
+  sink.closed=True
+  try:sink._send_parts(t,0,False)
+  except Exception:pass
+  self.assertEqual((t['chunks'].limit,t['chunks'].current),(dp.MAIN_CHUNK,1024*1024))
  def test_rate_over_recent_seconds(self):
   now=[0.0];sink=dp.Sink(Drive(),'staging','p',lambda:True,clock=lambda:now[0])
   t={'offset':0}

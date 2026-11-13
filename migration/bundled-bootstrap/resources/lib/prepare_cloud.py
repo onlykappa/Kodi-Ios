@@ -171,6 +171,7 @@ def process_one(q, keep_going):
                     doing='Making it start faster' if job.get('repack') else 'Converting'
                     if attempt['convert_start'] is None:attempt['convert_start']=q.clock()
                     if stage in (0,2) and t:attempt['fraction']=max(attempt['fraction'],min(1.0,float(n)/t))
+                    if stage==3 or (stage in (0,2) and t and n>=t):sink.made_all=True   # ISSUE-202: the rest is the upload
                     value=80 if stage==3 else (min(80,80*n/t) if t else converted[0])
                     converted[0]=max(converted[0],value)
                     progress(doing,converted[0])   # build 192 (owner): shorter, more fits on the page

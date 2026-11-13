@@ -514,10 +514,11 @@ One PR, one IPA at the end (owner: no builds until asked). Phone proof is the ow
 | R4 | Version choice: 10-bit H.264 ranked as needing conversion; Pick Better Versions for queued oversized files | Already in PR #22 (deck_picker converts_for_tv, ISSUE-192) |
 | R5 | Conversions carry on after network trouble (wait 15 s–5 min, resume from the mark) | Done (ISSUE-198) |
 | R6 | Phone proof of build 350's pages (poster, no Refresh card, Watched episodes, Library status long press, Saturation) | Owner |
-| R7 | Keep working when another app takes the audio (owner log a0a4e492: Kodi suspended 581 s): iOS 26 BGContinuedProcessingTask for copies and conversions, with the system progress item; native (KodiAirPlay r53) + Info.plist BGTaskSchedulerPermittedIdentifiers | Planned (native build, owner approval) |
+| R7 | Keep working when another app takes the audio (owner log a0a4e492: Kodi suspended 581 s): iOS 26 BGContinuedProcessingTask for copies and conversions, with the system progress item; native (a later KodiAirPlay, after r53) + Info.plist BGTaskSchedulerPermittedIdentifiers | Planned (native build, owner approval) |
 | R8 | Mobile data: optional compatibility checks wait for Wi-Fi; check timeouts wait instead of failing | Done (ISSUE-199) |
 | R9 | Fill fast, high-latency lines (owner: 79.7 Mbps up, 469 ms ping, copies 1.4 MB/s): up to 6 lanes, 4 beside a conversion, 2 on mobile data, lane learning restarts on a new connection | Done (ISSUE-200) |
-| R10 | Native copy streams each piece (Drive PUT fed while the AllDebrid read arrives), pieces up to 256 MB | Staged: AirPlay r53 (ISSUE-201) |
+| R10 | Native copy streams each piece (Drive PUT fed while the AllDebrid read arrives), pieces up to 256 MB | Coded: AirPlay r53 pinned (ISSUE-201) |
+| R11 | A finished conversion says it is uploading (share, MB left, time) instead of "Converting 79%"; movie pieces up to 32 MB | Coded (ISSUE-202) |
 
 Owner conditions to check on the phone: downloads carry on after switching Wi-Fi / cellular, with the screen off
 (Kodi stays awake while any copy is unfinished), and after Kodi is closed and opened again (resumes from Drive's
