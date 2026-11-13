@@ -1,15 +1,15 @@
 {
   "framework_release": {
+    "tag": "kodi-airplay-r55",
+    "asset": "KodiAirPlay.framework.zip",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "previous": {
     "tag": "kodi-airplay-r54",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "0a00cb69d9974b9d5b07dd1c18c75eeba696139987e5c90f979b2fdc89be6315"
   },
-  "previous": {
-    "tag": "kodi-airplay-r53",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "10df323f7667d478d2b9d007ef998bed4fdb2e0dd701019ca6b9e620e08202b8"
-  },
   "source_commit": "30cacbe633daf07e70227ebb5378c766cb416f34",
   "verified_run": 43500839856,
-  "pin_note": "r54 (ISSUE-226 / P2, P3: DVD picture subtitles kept inside the MP4, a smaller extra video track left out, the refusal names the track) built by airplay-ios run 43500839856 from 30cacbe; the release notes, the asset digest and the downloaded zip all give 0a00cb69\u202606315, and the binary exports kodi_airplay_prepare_keep_dvd_subs."
+  "staged_note": "r55 staged (ISSUE-229: a prepared MP4 that keeps a DVD picture subtitle counts as ready; r54 wrote it and its own ready check rejected it, so 30 conversions of Naruto Shippuuden failed at verification): built and published by airplay-ios on this branch; sha256, source_commit and verified_run are pinned from that run."
 }

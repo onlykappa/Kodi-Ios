@@ -1862,6 +1862,8 @@ static void test_dvd_subtitles_and_extra_video(const char *work) {
          }
      }
      CHECK(dvd==1 && video==1 && audio==1,"the prepared MP4 holds the DVD subtitle beside the picture and sound (%d/%d/%d)",dvd,video,audio);
+     // r55: a prepared file that keeps a DVD subtitle is READY (r54 wrote it, then its own ready check rejected it).
+     CHECK(f && kr_prepare_ready(f)==1,"a prepared MP4 with a kept DVD subtitle counts as ready");
      CHECK(extra>0,"the DVD subtitle keeps its palette (extradata %d bytes)",extra);
      avformat_close_input(&f);}
     CHECK(kodi_airplay_verify(input,output,err,sizeof err)==0,"the kept DVD subtitle passes verification: %s",err);

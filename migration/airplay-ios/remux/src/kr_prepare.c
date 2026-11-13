@@ -148,7 +148,9 @@ int kr_prepare_ready(AVFormatContext *f) {
     for(unsigned i=0;i<f->nb_streams;i++) {
         AVCodecParameters *p=f->streams[i]->codecpar;
         if(p->codec_type==AVMEDIA_TYPE_AUDIO && p->codec_id!=AV_CODEC_ID_AAC) return 0;
-        if(p->codec_type==AVMEDIA_TYPE_SUBTITLE && p->codec_id!=AV_CODEC_ID_MOV_TEXT) return 0;
+        // r55 (owner log 5f05cd99, build 368: 30 prepared Naruto files rejected after a full conversion): a DVD picture subtitle
+        // kept inside the MP4 (r54, mp4s) is part of a prepared file, so the file is still ready.
+        if(p->codec_type==AVMEDIA_TYPE_SUBTITLE && p->codec_id!=AV_CODEC_ID_MOV_TEXT && p->codec_id!=AV_CODEC_ID_DVD_SUBTITLE) return 0;
     }
     return 1;
 }
