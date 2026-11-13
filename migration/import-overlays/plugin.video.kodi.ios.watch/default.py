@@ -51,6 +51,20 @@ def run(argv):
   from ios_library import play_downloaded;play_downloaded(handle,params);return
  if params.get('action')=='continue':
   from ios_continue import directory;directory(handle,params.get('type','all'));return
+ if params.get('action')=='continue_hide':
+  # Long press › Remove from Continue Watching: off the row until it is played again; the position is kept.
+  import xbmc,xbmcvfs
+  from ios_continue import hide
+  def read(path):
+   f=xbmcvfs.File(path)
+   try:return f.read()
+   finally:f.close()
+  def write(path,text):
+   f=xbmcvfs.File(path,'w')
+   try:f.write(text)
+   finally:f.close()
+  hide(read,write,params.get('key',''))
+  xbmc.executebuiltin('Container.Refresh');return
  if params.get('action')=='choose_source':
   # Long press › Choose source on Continue Watching: forget last time's pick, then ask for the source of THIS title.
   import xbmcvfs

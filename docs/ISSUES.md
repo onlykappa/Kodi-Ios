@@ -3363,3 +3363,9 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   forgotten), test_prepare_downloads QuickCheck (eight at a time, order kept, a failed file reported).
 - **Phone check:** pending: Cancel All on a long queue, and a Refresh's time in the next log.
 
+
+## ISSUE-209 — Continue Watching had no way to tidy a title off the row without losing its place (owner request, 2026-11-13) — fixed in code
+- **Seen:** owner screenshot (Ghost Soldier long press: Choose source, Resume from 00:00:52, … Reset resume position): "put a remove from continue watching, dont make it erase the continue from progress … if i watch it again it can show back up".
+- **Cause:** the row (ios_continue.entries) listed every started title; the only ways off it were finishing it or Kodi's Reset resume position, which loses the place.
+- **Fix:** long press › **Remove from Continue Watching** on every row (phone titles and Kodi library items). `ios_continue.hide` records the title in `continue.json`'s `hidden` map (key → time, capped at 400); `entries` leaves a title out while it has not been played since. The saved position, player and version are untouched. Playing it again updates `played`, so it returns, newest first. Route `?action=continue_hide` in default.py, then Container.Refresh (as ios_remove does). Icon: the existing "Remove" glyph in the skin's context menu (CTX_ICONS); no new UI.
+- **Retest:** test_watch_continue (removed row keeps position 52 s and comes back after a new play; a library item by its file; the menu entry and route). Phone: hold a Continue Watching card › Remove; check the Home row refreshes at once (if not, it does on the next Home visit).
