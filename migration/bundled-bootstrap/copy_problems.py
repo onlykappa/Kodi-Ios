@@ -64,7 +64,8 @@ def what(problem):
     if kind == 'episode':
         return 'Episode'
     if kind == 'season':
-        return 'Season · %d episodes' % problem['count'] if problem.get('count') else 'Season'
+        n = int(problem.get('count') or 0)
+        return 'Season · %d episode%s' % (n, '' if n == 1 else 's') if n else 'Season'
     if kind == 'movie':
         return 'Movie'
     return 'Download' if problem.get('title') != 'Unnamed download' else 'No title came with it'
@@ -85,7 +86,7 @@ def model(found, filter_='all', now=None, slots=40, poster=lambda problem: ''):
     for key, title in GROUPS:
         if key not in shown or not groups[key]:
             continue
-        entries.append({'head': ('%s · %d' % (title, len(groups[key]))).upper()})
+        entries.append({'head': ('%s · %d' % (title, len(groups[key]))).upper(), 'headclear': 'Clear' if key == 'cancelled' else ''})
         entries += [dict(p, pos='') for p in groups[key]]
     over = max(0, len(entries) - slots)
     entries = entries[:slots]
@@ -102,6 +103,7 @@ def model(found, filter_='all', now=None, slots=40, poster=lambda problem: ''):
         k = 'row.%d.' % n
         e = entries[n] if n < len(entries) else {}
         props[k + 'head'] = e.get('head', '')
+        props[k + 'headclear'] = e.get('headclear', '')
         if 'head' in e or not e:
             for key in ('title', 'sub', 'why', 'whyc', 'act', 'pos', 'poster'):
                 props[k + key] = ''
@@ -200,7 +202,7 @@ def run():
                 if self.filter == 'all':   # every one that can try again, not only those with a slot
                     keys = {p['key'] for p in self.found if plain(p)[1] == 'retry'}
                 self.note('%d back in line' % debrid_drive.retry_failed(profile, ('network', 'source'), only=keys))
-            elif control == page.CLEAR:
+            elif control == page.CLEAR or page.HEAD_CLEAR <= control < page.HEAD_CLEAR + page.SLOTS:
                 n = sum(1 for p in self.found if p['kind'] == 'cancelled')
                 if not xbmcgui.Dialog().yesno('Clear %d cancelled downloads?' % n,
                                               'They leave this list. Videos already on Google Drive stay, and AllDebrid keeps its copy.',

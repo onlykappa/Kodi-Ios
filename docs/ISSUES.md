@@ -3434,3 +3434,8 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Cause:** (1) `upscale_page.library` grouped by `picture.show_key`: episodes with a TMDb id went to `tv:<id>`, the others to `title:phony`. (2) `debrid_drive.problem_title` returned the job's title even when the title (and name) was the torrent hash, which Build Season jobs of builds 317-319 carry.
 - **Fix:** a name-only group joins the TMDb group of the same show (`debrid_drive.show_match`), counts and episodes merged; different shows stay apart. A hash is never a title: the job's files (drive name, name, path) name it, else "Unnamed download".
 - **Retest:** test_upscale_page OneRowPerShow, test_debrid_drive ProblemTitles; test_upscale_e2e, test_library_files, test_library_status pass.
+
+## ISSUE-218 — Download problems: Clear on the "Cancelled by you" heading (DEC-044 board C) — built, rig-checked
+- **Owner:** "I want a clear by the 'cancelled by you' under download problems so i can remove that list" (62 cancelled rows under the two fixable ones; Clear only existed inside the Cancelled filter).
+- **Fix:** copy_problems.model gives the Cancelled heading `headclear='Clear'`; copy_problems_page draws a blue text link on that heading (status_ui.link, 118-unit hit area, ids 9500+slot), and onClick runs the existing Clear with its alert ("Clear N cancelled downloads?"). "Season · 1 episodes" now reads "1 episode".
+- **Retest:** test_debrid_drive DownloadProblemsPage. Desktop Kodi rig render (evidence class: rig): All view with "CANCELLED BY YOU · 2 … Clear", hash-named season shown by its file name (ISSUE-217).

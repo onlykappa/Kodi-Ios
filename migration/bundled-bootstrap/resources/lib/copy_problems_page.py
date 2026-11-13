@@ -11,6 +11,7 @@ BACK, RETRY, CLEAR = 9001, 9010, 9011
 FILTERS = (('all', 'All'), ('retry', 'Retry'), ('source', 'Source'), ('cancelled', 'Cancelled'))
 FILTER0 = 9101
 ROW, ACT, SLOTS, ROW_H, HEAD_H = 9200, 9400, 40, 204, 118
+HEAD_CLEAR = 9500   # DEC-044 board C: Clear on the "Cancelled by you" heading, one id per slot
 LIST = 9300
 WHY = (('orange', 'FFFF9F0A'), ('red', 'FFFF453A'), ('grey', '99EBEBF5'))
 
@@ -32,7 +33,10 @@ def _summary(p, u):
 def _slot(p, u, n):
     S, w, M = p.SIDE, p.WIDTH - 2 * p.SIDE, p.MEDIA
     k = 'row.%d.' % n
-    head = u.text(p, S + 26, 40, w - 52, 60, u.P(k + 'head'), 'p_foot_b', p.GREY)
+    head = u.text(p, S + 26, 40, w - 52 - 260, 60, u.P(k + 'head'), 'p_foot_b', p.GREY)
+    # Board C (DEC-044): the Cancelled section's heading carries Clear (blue text, 118-unit hit area).
+    head += '<control type="group"><visible>%s</visible>%s</control>' % (
+        u.has(k + 'headclear'), u.link(p, HEAD_CLEAR + n, S + w - 260, 10, 234, 118, u.P(k + 'headclear')))
     b = u.row_back(p, k, w, ROW_H) + u.tap(p, ROW + n, S, 0, w - 230, ROW_H)
     b += p.image(S + 32, 26, 102, 152, M + 'poster16.png', u.SURF2)
     b += p.image(S + 32, 26, 102, 152, u.P(k + 'poster'), p.WHITE, '', '>scale', M + 'poster16.png', background=True)

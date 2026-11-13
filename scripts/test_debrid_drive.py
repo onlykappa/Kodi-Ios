@@ -441,9 +441,13 @@ class DownloadProblemsPage(unittest.TestCase):
   self.assertEqual((props['row.2.why'],props['row.2.pos'],props['row.2.sub']),('The connection dropped','last','Episode'))
   self.assertEqual((props['row.3.head'],props['row.4.why'],props['row.4.act'],props['row.4.pos']),('NEED A NEW SOURCE · 1','This source has no video file','Find','only'))
   self.assertEqual((props['row.6.why'],props['row.6.act'],props['row.6.whyc']),('Cancelled 3 days ago','Restart','grey'))
-  self.assertEqual(props['clear.label'],'')                                       # Clear lives on the Cancelled filter
+  self.assertEqual(props['clear.label'],'')                                       # the red Clear Cancelled lives on the Cancelled filter
+  # DEC-044 board C: Clear on the "Cancelled by you" heading in the All view too; no other heading has it.
+  self.assertEqual((props['row.5.head'],props['row.5.headclear']),('CANCELLED BY YOU · 1','Clear'))
+  self.assertEqual((props['row.0.headclear'],props['row.3.headclear']),('',''))
   props,entries=cp.model(found,'cancelled',now=1000,slots=10)
   self.assertEqual((props['row.0.head'],props['row.1.title'],props['clear.label'],props['retry.label']),('CANCELLED BY YOU · 1','Heat','Clear Cancelled (1)',''))
+  self.assertEqual((cp.what({'job_kind':'season','count':1}),cp.what({'job_kind':'season','count':581})),('Season · 1 episode','Season · 581 episodes'))
   props,_=cp.model([],'all')
   self.assertEqual((props['empty'],props['sum.any']),('true',''))
   props,_=cp.model(found*5,'all',slots=6)
@@ -465,9 +469,11 @@ class DownloadProblemsPage(unittest.TestCase):
  def test_the_page_is_drawn(self):
   import portrait,copy_problems_page as page
   xml=page.page(portrait)
-  for ident in (page.BACK,page.RETRY,page.CLEAR,page.ROW,page.ACT+page.SLOTS-1,page.FILTER0+3):
+  for ident in (page.BACK,page.RETRY,page.CLEAR,page.ROW,page.ACT+page.SLOTS-1,page.FILTER0+3,page.HEAD_CLEAR,page.HEAD_CLEAR+page.SLOTS-1):
    self.assertIn('id="%d"'%ident,xml)
   self.assertIn('No download problems',xml);self.assertIn(page.WINDOW,portrait.__dict__.get('copy_problems_page').WINDOW)
+  src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/copy_problems.py').read_text()
+  self.assertIn("elif control == page.CLEAR or page.HEAD_CLEAR <= control < page.HEAD_CLEAR + page.SLOTS:",src)   # same alert as the red Clear
 
 class TwoLanes(unittest.TestCase):
  """ISSUE-164 / 1F.4: a season's episodes go up to Drive up to three at a time; a movie is still one upload."""
