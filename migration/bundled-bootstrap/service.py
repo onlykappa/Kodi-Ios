@@ -585,6 +585,8 @@ def drive_uploads(monitor,home,profile):
     if xbmcaddon.Addon().getSettingBool('prepare_downloads'):
      if preparation is None:
       preparation=preparation_queue()
+      import watch_next
+      prepare_downloads.WATCH_NEXT[0]=watch_next.cached(profile)   # F4: next-to-watch episodes are prepared first
       # Build 191 (owner: "If i press refresh in the library status it doesnt do anything"): a check asked for while a
       # movie converts (hours) runs beside it instead of waiting for the movie to finish.
       def check_beside(q):

@@ -72,6 +72,7 @@ def offset_lookup(profile):
     return lookup
 
 
+PRIORITY_LANES = 2  # F4: copy lanes while a next-to-watch video is being prepared
 READY_TRIES = 3     # F1: starts of the made-ready-while-copying path per file before a plain copy
 BUSY_LANES = 4      # beside a conversion (was 2: on the owner's Wi-Fi the conversion used a fraction of the line)
 START_LANES = 3
@@ -634,6 +635,17 @@ def drop_on_drive(state, on_drive):
     return dropped
 
 
+def priority_running(profile, now):
+    """F4: the video being prepared now is one the owner will watch next (prepare_cloud marks its card): the copies
+    leave it most of the line (PRIORITY_LANES)."""
+    try:
+        import prepare_downloads
+        current = prepare_downloads.load(profile).get('current') or {}
+    except Exception:
+        return False
+    return bool(current.get('running') and current.get('watch_next')) and now - float(current.get('updated') or 0) < 300
+
+
 def conversion_running(profile, now):
     try:
         import prepare_downloads
@@ -1162,6 +1174,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             # E16: as many lanes as the link rewards (lane_plan), never more than files, and two beside a conversion.
             busy = converting()
             cap = CELLULAR_LANES if state.get('link') == 'cellular' else (BUSY_LANES if busy else LANES)
+            if busy and priority_running(profile, clock()):
+                cap = min(cap, PRIORITY_LANES)   # F4: a next-to-watch video is being prepared; it gets the line first
             lanes = min(lanes_for(len(todo)), lane_plan(state, clock()), cap)
             moved = {}
             began = clock()

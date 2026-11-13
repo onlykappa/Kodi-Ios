@@ -84,7 +84,7 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
         eta_s=0
         if mark and (pct or 0)-mark[1]>=0.2 and now>mark[0]:
             eta_s=(now-mark[0])*(100-(pct or 0))/((pct or 0)-mark[1]);eta=prep.eta_text(eta_s)
-        current=dict(title=item['name'],stage='Step 3 of 3 · '+stage,kind='repack' if job.get('repack') else 'conv',progress=max(0,min(100,pct or 0)),indeterminate=pct is None,
+        current=dict(title=item['name'],watch_next=prep.watch_next(job),stage='Step 3 of 3 · '+stage,kind='repack' if job.get('repack') else 'conv',progress=max(0,min(100,pct or 0)),indeterminate=pct is None,
                      queued=len(candidates),running=True,updated=now,read=speed[0],rate=speed[1],
                      detail=prep.speed_text(*speed),eta=eta,eta_s=eta_s)
         # Build 177 (owner-approved movie sheet): upload speed, film done, pace and the expected size.

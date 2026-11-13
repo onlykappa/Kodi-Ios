@@ -19,6 +19,6 @@ class Label(unittest.TestCase):
   self.assertTrue(any(v.startswith('prepare · 3.0 GB') for v in lines.values()),lines)   # not read yet
  def test_repacks_wait_behind_real_work(self):
   src=(BOOT/'resources/lib/prepare_downloads.py').read_text()
-  self.assertIn("return (-job.get('priority',0),1 if job.get('repack') else 0,",src)
+  self.assertIn("return (-job.get('priority',0),0 if watch_next(job) else 1,1 if job.get('repack') else 0,",src)
 
 if __name__=='__main__':unittest.main()

@@ -512,6 +512,10 @@ def line_key(name):
  # An episode number with no season ('Episode 006') counts as season 1, so it sorts among S01Exx.
  return (drivelibrary.show_key(re.sub(r'[\s\-–(]+$','',title).strip()) if title else '',season or (1 if episode else 0),episode,str(name).lower())
 
+WATCH_NEXT=[lambda name:False]   # set by the service (watch_next.cached)
+def watch_next(job):
+ try:return bool(WATCH_NEXT[0]((job.get('source') or {}).get('name','')))
+ except Exception:return False
 def order_key(slot,job):
  """The order videos are prepared in: the owner's choices first (Start now, Prepare next, ▲ ▼), then videos that
  only need repacking before ones that need re-encoding (owner, build 181: "quick movies first", so one AV1 film
@@ -519,7 +523,9 @@ def order_key(slot,job):
  # Build 188 (owner, build-187 log: Interstellar was converted and uploaded overnight, its last check on Drive timed out,
  # and the check then waited behind the next movie's hours of conversion): a movie that only needs checking goes first.
  checked_only=bool((job.get('cloud_output') or {}).get('0'))
- return (-job.get('priority',0),1 if job.get('repack') else 0,0 if checked_only else 1,1 if slow(job) else 0,
+ # F4 (PR #24): after the owner's own choices, what they will watch next (the started episode and the next ones in
+ # Continue Watching, watch_next.py) goes before everything else.
+ return (-job.get('priority',0),0 if watch_next(job) else 1,1 if job.get('repack') else 0,0 if checked_only else 1,1 if slow(job) else 0,
          line_key((job.get('source') or {}).get('name','')),slot)
 
 def queue_order(state,now=None):
