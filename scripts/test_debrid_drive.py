@@ -336,6 +336,52 @@ class Duplicates(unittest.TestCase):
   changed=debrid_drive.retitle('/p',state,plans={})
   self.assertEqual([(j['title'],j['name'],old) for j,old in changed],[('Naruto','Naruto S01E04',h)])
 
+class NetworkTrouble(unittest.TestCase):
+ """ISSUE-198 (owner logs, build 350): 65 of 116 copies ended 'failed' after network trouble (Wi-Fi / cellular
+ switches, the phone asleep, Kodi closed); they must wait and carry on, never give up."""
+ def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
+ def tearDown(self):self.tmp.cleanup()
+ def test_what_counts_as_network_trouble(self):
+  import urllib.error
+  for e in (ConnectionError('x'),TimeoutError(),OSError('Input/output error'),urllib.error.URLError('offline'),
+            urllib.error.HTTPError('u',503,'busy',{},None),RuntimeError('Drive did not confirm the upload'),
+            'ConnectionError: Native copy did not finish','RuntimeError: Source read: Input/output error'):
+   self.assertTrue(debrid_drive.network_error(e),e)
+  for e in (urllib.error.HTTPError('u',404,'gone',{},None),RuntimeError('Google Drive has a different size'),'Problem: torrent has no video',
+            'Cancelled'):
+   self.assertFalse(debrid_drive.network_error(e),e)
+  self.assertEqual([debrid_drive.net_wait(n) for n in (1,2,3,4,5,6,9)],[15,30,60,120,240,300,300])
+ def test_fifty_drops_never_fail_a_copy_and_it_finishes_from_where_drive_got_to(self):
+  # Wi-Fi switched, phone asleep, app closed and opened again: every step loads the saved state afresh.
+  debrid_drive.queue(self.p,{'id':H,'name':'Fall'},'movie','Fall')
+  drops={'n':50}
+  class Flaky(FakeDrive):
+   def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda s,t:None,activity=lambda *a:None):
+    session.update(url='https://upload/s',size=size);save()
+    if drops['n']:
+     drops['n']-=1;raise ConnectionError('The network connection was lost')
+    return {'id':'d1','size':str(size)}
+  clock={'t':0}
+  for _ in range(60):
+   clock['t']+=400
+   if debrid_drive.step(self.p,FakeAPI(),Flaky(),clock=lambda:clock['t']) is None:break
+  job=debrid_drive.load(self.p)['jobs'][0]
+  self.assertEqual(job['status'],'done');self.assertEqual(job.get('tries',0),0)
+ def test_copies_failed_for_network_trouble_come_back_once_and_problems_list_the_rest(self):
+  state={'jobs':[{'hash':'a'*40,'name':'A','title':'Naruto','kind':'episode','season':'1','episode':'2','status':'failed','error':'ConnectionError: lost','files':[{'path':'x','done':False,'session':{'url':'u'}}]},
+                 {'hash':'b'*40,'name':'B','title':'Fall','kind':'movie','status':'failed','error':'Problem: This torrent has no video file.'},
+                 {'hash':'c'*40,'name':'C','title':'Heat','kind':'movie','status':'failed','error':'Cancelled'}]}
+  back=debrid_drive.revive(state,lambda:5)
+  self.assertEqual([j['title'] for j in back],['Naruto']);self.assertEqual(state['jobs'][0]['status'],'copying')
+  self.assertEqual(state['jobs'][0]['files'][0]['session'],{'url':'u'})                 # carries on, not from zero
+  self.assertEqual(debrid_drive.revive(state,lambda:6),[])
+  kinds=[(p['title'],p['kind']) for p in debrid_drive.problems(state)]
+  self.assertEqual(kinds,[('Fall','source'),('Heat','cancelled')])
+  debrid_drive.save(self.p,state)
+  self.assertEqual(debrid_drive.retry_failed(self.p,('source',)),1)
+  self.assertEqual(debrid_drive.clear_failed(self.p),1)
+  self.assertEqual([j['status'] for j in debrid_drive.load(self.p)['jobs']],['copying','new'])
+
 class TwoLanes(unittest.TestCase):
  """ISSUE-164 / 1F.4: a season's episodes go up to Drive up to three at a time; a movie is still one upload."""
  def setUp(self):
@@ -404,7 +450,8 @@ class TwoLanes(unittest.TestCase):
   debrid_drive.step(self.p,api,drive);debrid_drive.step(self.p,api,drive)
   jobs=debrid_drive.load(self.p)['jobs']
   self.assertEqual(jobs[0]['status'],'done')
-  self.assertEqual((jobs[1]['status'],jobs[1]['tries']),('copying',1));self.assertIn('ConnectionError',jobs[1]['error'])
+  # ISSUE-198: a dropped connection is network trouble: it waits and never counts toward giving up.
+  self.assertEqual((jobs[1]['status'],jobs[1].get('net_tries'),jobs[1].get('tries',0)),('copying',1,0));self.assertIn('ConnectionError',jobs[1]['error'])
  def test_a_lane_whose_episode_fails_once_tries_it_again_in_the_same_turn(self):
   # Owner log 3b94b426 (build 319): three of four lanes ended at their first error; one copied the season alone for hours.
   import threading,time
@@ -447,11 +494,11 @@ class TwoLanes(unittest.TestCase):
   debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')
   api,drive=self.season(names),self.drive(fail='Show.S01E02.mkv')
   self.assertEqual(debrid_drive.step(self.p,api,drive),1)                 # AllDebrid has it
-  self.assertEqual(debrid_drive.step(self.p,api,drive),30)                # copy: one lane failed, tried again in 30 s
+  self.assertEqual(debrid_drive.step(self.p,api,drive),15)                # copy: one lane dropped (network), again in 15 s
   job=debrid_drive.load(self.p)['jobs'][0];files={f['path']:f for f in job['files']}
   self.assertTrue(files['S/Show.S01E01.mkv']['done']);self.assertFalse(files['S/Show.S01E02.mkv']['done'])
   self.assertEqual(files['S/Show.S01E02.mkv']['session']['url'],'https://upload/Show.S01E02.mkv')   # resumes there
-  self.assertEqual(job['tries'],1)
+  self.assertEqual((job.get('tries',0),job.get('net_tries')),(0,1))   # ISSUE-198: a dropped connection is not a try
 
 class Queue(unittest.TestCase):
  def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name;self.notes=[];self.done=[]

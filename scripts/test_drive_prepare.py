@@ -224,6 +224,21 @@ class Queue(unittest.TestCase):
   self.n.convert_to=refused
   self.assertFalse(self.q.process_one());job=self.q.state['jobs']['slot']
   self.assertFalse(job.get('blocked'));self.assertGreater(job['retry_after'],0)   # a movie that is not ready yet keeps trying
+ def test_network_trouble_waits_and_carries_on_without_counting(self):
+  # ISSUE-198 (owner log b3c5d6eb, build 350): Drive reads stopped for 5 minutes, then "Source read: Input/output error"
+  # failed the conversion; network trouble now waits 15 s and carries on, then the conversion finishes.
+  calls={'n':0};real=self.n.convert_to
+  def flaky(*args,**kwargs):
+   calls['n']+=1
+   if calls['n']==1:raise RuntimeError('Source read: Input/output error')
+   return real(*args,**kwargs)
+  self.n.convert_to=flaky
+  self.assertFalse(self.q.process_one());job=self.q.state['jobs']['slot']
+  self.assertEqual((job['status'],job.get('attempts',0),job['net_attempts']),('waiting',0,1))
+  self.assertLessEqual(job['retry_after']-self.q.clock(),15)
+  job['retry_after']=0
+  with patch.object(prep.phone_space,'free',return_value=0):self.assertTrue(self.q.process_one())
+  self.assertEqual(self.q.state['jobs']['slot']['status'],'done')
  def test_end_to_end_queue_writes_no_local_media_and_marks_ready(self):
   with patch.object(prep.phone_space,'free',return_value=0):self.assertTrue(self.q.process_one())
   # Build 181: uploaded once. The prepared file takes the original's place; the original goes to the bin.

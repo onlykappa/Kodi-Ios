@@ -255,6 +255,18 @@ def process_one(q, keep_going):
         if job.get('status')!='committing':job['status']='paused'
         job['retry_after']=0;return False
     except Exception as error:
+        import debrid_drive
+        if debrid_drive.network_error(error) and 'source changed' not in str(error).lower():
+            # ISSUE-198 (owner log b3c5d6eb, build 350: Drive reads stopped for 5 minutes, then "Source read:
+            # Input/output error"): network trouble is not the video's fault. It waits (15 s up to 5 min), carries on
+            # from its last mark (resume_store) and never counts toward the long back-off.
+            job['net_attempts']=job.get('net_attempts',0)+1
+            job['retry_after']=q.clock()+debrid_drive.net_wait(job['net_attempts'])
+            if job.get('status')!='committing':job['status']='waiting'
+            q.log('preparation: %s — network trouble (%s); carrying on in %d s'%(drivelibrary.display_title(item['name']),
+                  str(error)[:100],debrid_drive.net_wait(job['net_attempts'])))
+            q.state.pop('current',None);q.commit()
+            return False
         job['attempts']=job.get('attempts',0)+1
         job['retry_after']=q.clock()+min(3600,60*2**min(job['attempts']-1,6))
         if job.get('status')!='committing':job['status']='failed'
