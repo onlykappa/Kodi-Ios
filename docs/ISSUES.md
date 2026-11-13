@@ -3512,7 +3512,7 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 
 - **Seen:** Naruto Shippuuden S1 E1, 3, 4, 7, 8, 9, 17-20: 30 attempts, each a full read and write on Google Drive, every one ending "Prepared video did not preserve resolution/HDR; original retained" at "Verifying the Drive file and seek index". The picture was fine (640x480, 8-bit, copied); the real cause was `kr_prepare_ready`, which accepted only text subtitles, so a prepared MP4 holding a DVD subtitle was "not ready". None finished in 39 minutes.
 - **Missed:** the converter host test (workflow "AirPlay MKV remuxer", job host-tests) failed on exactly this on every commit of PR #26 (4 checks: the kept DVD subtitle, its palette, verification) and I read only the framework build, so r54 was pinned as checked. Both jobs are now read before pinning.
-- **Fix:** `kr_prepare_ready` accepts `dvd_subtitle`; the test also asserts a prepared MP4 with a kept DVD subtitle counts as ready. r55 staged; pinned after host-tests and the framework build pass.
+- **Fix:** `kr_prepare_ready` accepts `dvd_subtitle`; the test also asserts a prepared MP4 with a kept DVD subtitle counts as ready. **r55 pinned:** airplay-remux host-tests (run 43515845318, 3,3xx checks, 0 failed) and the framework build (airplay-ios run 43515845857) are green; release notes, asset digest and downloaded zip give sha256 5ba3eca8…23f1c94 and the binary exports the DVD switch.
 
 ## ISSUE-230 — Verification failures retried as full conversions; preparation ran on mobile data; Refresh held the converter; AI Upscale read errors failed the copy; small items (owner log 5f05cd99)
 
