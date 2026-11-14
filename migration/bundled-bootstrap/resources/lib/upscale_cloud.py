@@ -49,7 +49,27 @@ def _prep_waiting(q):
         return False
 
 
-def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_bytes=None, clock=time.time):
+def _on_screen():
+    try:
+        import app_state
+        return app_state.foreground()
+    except Exception:
+        return True
+
+
+# ISSUE-241 (owner log 1ae21097: Phony S1 E2, 1920x1080 to 4K, failed after 2 min with "video conversion: encode: Generic
+# error in an external library"): that is FFmpeg's AVERROR_EXTERNAL from Apple's hardware encoder (VideoToolbox), which
+# refuses frames once its session is gone: iOS ends encoder sessions and GPU work (the upscaler runs on the GPU) while an
+# app is in the background, and under memory pressure. A fresh session normally works, so it is not the video's fault.
+ENCODER_TROUBLE = ('Generic error in an external library', 'Insufficient Permission', 'kVTInvalidSessionErr', '-12903',
+                   '-12902', '-12905', 'GPU work from background')
+
+
+def _encoder_trouble(error):
+    return any(word in str(error) for word in ENCODER_TROUBLE)
+
+
+def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_bytes=None, clock=time.time, on_screen=_on_screen):
     """Plans and makes at most one copy. Returns True when it did work (a copy made, or a step that changed state)."""
     import drive_prepare
     import driveupload
@@ -98,6 +118,12 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
     if not key:
         return bool(added)
     entry = data['copies'][key]
+    if entry.get('needs_screen') and not on_screen():
+        # ISSUE-241: its encoder stopped while Kodi was in the background; it is made while Kodi is on screen.
+        if entry.get('note') != 'Waits for Kodi to be open':
+            _status_text(entry, 'Waits for Kodi to be open')
+            uq.save(profile, data)
+        return False
     native = q.native
     if not getattr(native, 'upscales', False):
         uq.failed(entry, 'AI Upscale is not available on this device (needs KodiAirPlay r48)', clock)
@@ -248,6 +274,24 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
         q.log('upscale: %s — stopped; it starts again later' % title)
         return False
     except Exception as error:
+        if _encoder_trouble(error):
+            screen = on_screen()
+            entry['encoder_tries'] = entry.get('encoder_tries', 0) + (1 if screen else 0)
+            if not screen or entry['encoder_tries'] <= 1:
+                # In the background: it waits for Kodi to be on screen (not a failure). On screen: one more try with a new
+                # encoder in 30 s; a second refusal on screen is a real failure (back-off below).
+                entry['status'] = 'waiting'
+                entry['progress'] = 0
+                entry['retry_after'] = clock() + (0 if not screen else 30)
+                entry['needs_screen'] = True
+                entry['note'] = 'Waits for Kodi to be open' if not screen else 'Starting the AI engine again'
+                entry.pop('eta', None)
+                entry.pop('error', None)
+                uq.save(profile, data)
+                q.log('upscale: %s — the video encoder stopped (%s) while Kodi was %s; %s' % (
+                    title, str(error)[:100], 'on screen' if screen else 'in the background',
+                    'trying again in 30 s with a new encoder' if screen else 'it carries on when Kodi is open'))
+                return False
         if _network_trouble(error):
             # ISSUE-198 / owner log (2026-11-13, "Source read: Input/output error" after 2 minutes on a Drive file streamed
             # through the loopback proxy): the network is not the video's fault. Wait 15 s up to 5 min, then start again
@@ -270,6 +314,8 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
         q.log('upscale: %s — failed: %s' % (title, str(error)[:200]))
         return True
     entry.pop('net_attempts', None)
+    entry.pop('encoder_tries', None)
+    entry.pop('needs_screen', None)
     old = entry.get('previous_copy')
     entry.update(status='ready', copy_id=main['id'], size=int(main.get('size') or 0), progress=100,
                  finished=clock(), took=round(clock() - began))

@@ -182,6 +182,31 @@ class MakesACopy(unittest.TestCase):
         self.assertEqual((entry['status'], entry['attempts']), ('failed', 1))
         self.assertNotIn('net_attempts', entry)
 
+    def test_an_encoder_that_stops_is_tried_again_not_failed(self):
+        """ISSUE-241 (owner log 1ae21097): "encode: Generic error in an external library" failed an AI Upscale copy."""
+        error = RuntimeError('video conversion: encode: Generic error in an external library')
+        with tempfile.TemporaryDirectory() as profile, mock.patch.dict(sys.modules, fake_modules([])):
+            q = queue(profile, Native(fail=error))
+            run = lambda screen, at: upscale_cloud.process_one(q, lambda: True, settings(), lambda job: SHOW, None,
+                                                               clock=lambda: at, on_screen=lambda: screen)
+            # In the background: waits for Kodi to be open, never counted.
+            self.assertFalse(run(False, 1000.0));entry = uq.load(profile)['copies']['orig1']
+            self.assertEqual((entry['status'], entry['note'], entry.get('encoder_tries')), ('waiting', 'Waits for Kodi to be open', 0))
+            self.assertNotIn('attempts', entry)
+            converts = lambda: sum(c[0] == 'convert' for c in q.native.calls)
+            calls = converts();self.assertFalse(run(False, 1001.0))
+            self.assertEqual(converts(), calls)                                # not started again in the background
+            # On screen: one more try with a new encoder in 30 s ...
+            self.assertFalse(run(True, 1002.0));entry = uq.load(profile)['copies']['orig1']
+            self.assertEqual((entry['status'], entry['retry_after'], entry['encoder_tries']), ('waiting', 1032.0, 1))
+            # ... a second refusal on screen is a real failure, with the usual back-off.
+            self.assertTrue(run(True, 1040.0));entry = uq.load(profile)['copies']['orig1']
+            self.assertEqual((entry['status'], entry['attempts']), ('failed', 1))
+            # A copy made after it forgets the encoder trouble.
+            q.native.fail = None;entry['retry_after'] = 0;data = uq.load(profile);data['copies']['orig1'] = entry;uq.save(profile, data)
+            self.assertTrue(run(True, 5000.0));entry = uq.load(profile)['copies']['orig1']
+            self.assertEqual(entry['status'], 'ready');self.assertNotIn('encoder_tries', entry);self.assertNotIn('needs_screen', entry)
+
     def test_only_4x_models_block_a_1080p_copy_instead_of_closing_kodi(self):
         native = Native()
         native.support = {'os26': 1, 'image': {'supported': 1, 'fits': 1, 'scale': 4}, 'video': {'supported': 1, 'fits': 0, 'scale': 0}}
