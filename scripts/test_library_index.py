@@ -200,5 +200,21 @@ class LibraryStatusReadsTheIndex(unittest.TestCase):
         self.assertEqual((props['count.ready'], props['count.kept']), (str(c['ready']), str(c['kept'])))
 
 
+class SelfCheckAndLogLine(unittest.TestCase):
+    def test_the_minute_line_and_the_self_check(self):
+        listing, prep, debrid = owner_state()
+        debrid['jobs'].append({'title': 'Lost Show', 'kind': 'episode', 'season': '1', 'episode': '1', 'status': 'done',
+                               'files': [{'drive_id': 'gone1', 'done': True}]})
+        prep['jobs']['jghost'] = {'status': 'waiting', 'source': {'id': 'ghost'}}
+        index = li.build(listing, prep, debrid)
+        c = li.counts(index)
+        self.assertTrue(li.summary(dict(index, drive={'ok': True})).startswith('library: %d of %d ready' % (c['ready'], c['total'])))
+        self.assertIn("Drive Can't reach Google Drive", li.summary(dict(index, drive={'ok': False, 'error': "Can't reach Google Drive"})))
+        found = li.check(index, prep, debrid)
+        self.assertEqual(found['duplicates'], ['ddup'])
+        self.assertEqual(found['copied_not_on_drive'], ['Lost Show'])
+        self.assertEqual(found['prepared_not_on_drive'], ['ghost'])
+
+
 if __name__ == '__main__':
     unittest.main()

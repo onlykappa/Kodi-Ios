@@ -319,19 +319,64 @@ def refresh(profile, drive=None, clock=time.time):
     return index
 
 
-def publish(profile, wait, every=2.0, set_property=None, drive_health=lambda: None, log=lambda text: None, clock=time.time):
-    """The service loop: rebuild when an input changed (and at least every 30 s), keep the counter property current."""
-    last_print, last_at, last_counter = None, 0.0, None
+def summary(index):
+    """DEC-052 item 5: the minute log line, with the numbers the screens show."""
+    c = counts(index)
+    drive = (index or {}).get('drive') or {}
+    return ('library: %d of %d ready · %d working (%d copying, %d converting) · %d kept · %d need you · %d hidden · '
+            'Drive %s' % (c['ready'], c['total'], c['working'], c['copying'], c['converting'], c['kept'], c['problems'],
+                          c['hidden'], 'ok' if drive.get('ok', True) else (drive.get('error') or 'not reachable')))
+
+
+def check(index, prep_state, debrid_state):
+    """DEC-052 item 3, the self-check: where the copies, the preparation queue and Drive disagree. Pure; returns
+    {'duplicates': [Drive ids], 'copied_not_on_drive': [titles], 'prepared_not_on_drive': [Drive ids]}."""
+    on_drive = {e['id'] for e in (index or {}).get('videos', []) if e.get('id')} | set((index or {}).get('duplicates') or [])
+    copied = []
+    for job in (debrid_state or {}).get('jobs', []):
+        if job.get('status') != 'done':
+            continue
+        for f in job.get('files') or []:
+            if f.get('drive_id') and str(f['drive_id']) not in on_drive and not f.get('replaced'):
+                copied.append(str(job.get('title') or job.get('name') or f.get('drive_name') or f['drive_id']))
+    prepared = []
+    for job in (prep_state or {}).get('jobs', {}).values():
+        ident = str((job.get('source') or {}).get('id') or '')
+        if ident and ident not in on_drive and job.get('status') not in ('done', 'superseded') and job.get('prepared_id') not in on_drive:
+            prepared.append(ident)
+    return {'duplicates': list((index or {}).get('duplicates') or []), 'copied_not_on_drive': sorted(set(copied)),
+            'prepared_not_on_drive': sorted(set(prepared))}
+
+
+def publish(profile, wait, every=2.0, set_property=None, drive_health=lambda: None, log=lambda text: None, clock=time.time,
+            note=None):
+    """The service loop: rebuild when an input changed (and at least every 30 s), keep the counter property current,
+    write the minute line and run the self-check every five minutes (note: the info log)."""
+    note = note or log
+    last_print, last_at, last_counter, last_line, last_check = None, 0.0, None, 0.0, 0.0
     while not wait(every):
         try:
             mark = fingerprint(profile)
-            if mark == last_print and clock() - last_at < 30:
-                continue
-            index = refresh(profile, drive_health(), clock)
-            last_print, last_at = mark, clock()
-            if set_property and index['counter'] != last_counter:
-                set_property(PROPERTY, str(index['counter']))
-                last_counter = index['counter']
+            now = clock()
+            if mark != last_print or now - last_at >= 30:
+                index = refresh(profile, drive_health(), clock)
+                last_print, last_at = mark, now
+                if set_property and index['counter'] != last_counter:
+                    set_property(PROPERTY, str(index['counter']))
+                    last_counter = index['counter']
+            if now - last_line >= 60:
+                last_line = now
+                note(summary(load(profile)))
+            if now - last_check >= 300:
+                last_check = now
+                import prepare_downloads
+                import debrid_drive
+                found = check(load(profile), prepare_downloads.load(profile), debrid_drive.load(profile))
+                if any(found.values()):
+                    note('library self-check: %d duplicate files, %d copies not on Drive%s, %d preparations of files not on Drive' % (
+                        len(found['duplicates']), len(found['copied_not_on_drive']),
+                        (' (%s)' % ', '.join(found['copied_not_on_drive'][:3])) if found['copied_not_on_drive'] else '',
+                        len(found['prepared_not_on_drive'])))
         except Exception as error:
             log('library index: %s: %s' % (type(error).__name__, error))
 

@@ -615,7 +615,8 @@ def drive_uploads(monitor,home,profile):
  import library_index
  threading.Thread(target=library_index.publish,args=(profile,monitor.waitForAbort),
                   kwargs={'set_property':window.setProperty,'drive_health':lambda:dict(drive_health),
-                          'log':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGWARNING)},daemon=True).start()
+                          'log':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGWARNING),
+                          'note':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)},daemon=True).start()
  # Build 193: "idle" only means Kodi is not closing (build-192 log: one busy look made the queue wait 120 s).
  idle=lambda:not monitor.abortRequested()
  log=lambda message:xbmc.log('Kodi iOS '+diagnostics.redact(message),xbmc.LOGINFO)
