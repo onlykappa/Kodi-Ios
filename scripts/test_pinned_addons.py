@@ -50,7 +50,7 @@ class BlockUpdates(unittest.TestCase):
     def test_the_service_runs_the_guard_and_survives_an_unpatched_clouddrive(self):
         service = (ROOT / 'migration/bundled-bootstrap/service.py').read_text()
         self.assertLess(service.index('pinned_addons.restore('), service.index('target=keep_copying'))
-        self.assertIn('except ImportError:', service);self.assertIn("special://xbmc/addons/script.module.clouddrive.common/", service)
+        self.assertIn('except ImportError:', service);self.assertIn('pinned_addons.use_clouddrive(', service)
 
 
 class Watchdog(unittest.TestCase):

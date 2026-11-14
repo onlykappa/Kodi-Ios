@@ -393,6 +393,9 @@ def keep_copying(monitor,home,profile,run=None,wait=None):
  drive_uploads runs under this watchdog. If it stops with an error, one notice says so in plain words ("Downloads
  stopped") and it starts again after a pause (30 s, then up to 10 min), so a crash is never a silent freeze."""
  import xbmc
+ try:
+  import netwatch;netwatch.start()   # ISSUE-271: Wi-Fi <-> cellular is seen within seconds, not at the next copy run
+ except Exception:pass
  run=run or drive_uploads;wait=wait or monitor.waitForAbort
  failures=0
  while True:
@@ -421,11 +424,8 @@ def drive_uploads(monitor,home,profile):
  import slowdown
  slowdown.configure(lambda:'airplay' if airplay_busy() else ('buffering' if xbmc.getCondVisibility('Player.Caching') else 'video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
- common=xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
- # ISSUE-267: the app's patched copy first, whatever Kodi resolved (a repository update may still be registered).
- bundled=xbmcvfs.translatePath('special://xbmc/addons/script.module.clouddrive.common/')
- if os.path.isfile(os.path.join(bundled,'addon.xml')):common=bundled
- if common not in sys.path:sys.path.insert(0,common)
+ # ISSUE-267 / ISSUE-270: the app's patched copy first, whatever Kodi resolved, and nothing left from a moved copy.
+ import pinned_addons;pinned_addons.use_clouddrive(xbmcaddon,xbmcvfs)
  from clouddrive.common.account import AccountManager
  try:from clouddrive.common.remote.request import tls_context
  except ImportError:

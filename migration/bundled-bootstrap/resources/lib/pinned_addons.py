@@ -92,3 +92,31 @@ def addons_database(database_folder):
     except OSError:
         return ''
     return os.path.join(str(database_folder), max(names, key=lambda n: int(re.findall(r'\d+', n)[0]))) if names else ''
+
+
+def use_clouddrive(xbmcaddon=None, xbmcvfs=None):
+    """ISSUE-270 (owner log 4e5fb2dd, build 424: after restore() moved the repository copy aside, Library lists and the Drive
+    proxy failed every 10 s with "No module named 'clouddrive.common.remote'" until a restart): the clouddrive library is
+    loaded from the app's patched copy. Modules already loaded from another (or a moved) folder are dropped, stale path
+    entries removed, and the bundled copy put first. Returns its folder."""
+    import sys
+    if xbmcaddon is None:
+        import xbmcaddon
+    if xbmcvfs is None:
+        import xbmcvfs
+    bundled = xbmcvfs.translatePath('special://xbmc/addons/script.module.clouddrive.common/')
+    if os.path.isfile(os.path.join(bundled, 'addon.xml')):
+        path = bundled
+    else:
+        path = xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
+    root = os.path.normpath(path)
+    for name, module in list(sys.modules.items()):
+        if name == 'clouddrive' or name.startswith('clouddrive.'):
+            files = [getattr(module, '__file__', '') or ''] + list(getattr(module, '__path__', []) or [])
+            if any(f and (not os.path.exists(f) or not os.path.normpath(f).startswith(root)) for f in files):
+                del sys.modules[name]
+    sys.path[:] = [p for p in sys.path if not (str(p).rstrip('/').endswith('script.module.clouddrive.common')
+                                               and os.path.normpath(str(p)) != root)]
+    if path not in sys.path:
+        sys.path.insert(0, path)
+    return path

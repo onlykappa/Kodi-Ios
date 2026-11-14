@@ -85,11 +85,14 @@ class Diagnostics(unittest.TestCase):
   from pathlib import Path as _P
   with tempfile.TemporaryDirectory() as d:
    folder=_P(d)
-   (folder/'debrid-drive.json').write_text(_j.dumps({'lanes':{'0':{'stage':'copying','rate_own':2*1048576},'1':{'stage':'copying','rate_own':1048576}},
+   # ISSUE-271: a lane that has not reported for 90 s is quiet, not still copying at its last speed.
+   (folder/'debrid-drive.json').write_text(_j.dumps({'lanes':{'0':{'stage':'copying','rate_own':2*1048576,'updated':95},'1':{'stage':'copying','rate_own':1048576,'updated':99},
+     '2':{'stage':'copying','rate_own':5*1048576,'updated':1}},
      'jobs':[{'status':'copying','net_tries':2},{'status':'done','net_tries':1}]}))
    diag._NET.clear()
    first=diag.network(folder,{'read_bytes':0},lambda:100,link='wifi')
-   self.assertEqual((first['link'],first['copy_lanes'],first['copy_mb_s'],first['copies_waiting_for_network']),('wifi',2,3.0,1))
+   self.assertEqual((first['link'],first['copy_lanes'],first['copy_mb_s'],first['copies_waiting_for_network']),('wifi',3,3.0,1))
+   self.assertEqual(first['quiet_lanes'],1)
    second=diag.network(folder,{'read_bytes':60*1048576},lambda:160,link='cellular')
    self.assertEqual((second['prep_read_mb_s'],second['link_changed_from']),(1.0,'wifi'))
  def test_watch_emits_initial_and_periodic_snapshot_with_build(self):

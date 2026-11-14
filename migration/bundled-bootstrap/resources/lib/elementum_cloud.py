@@ -115,9 +115,8 @@ def route(url,quiet=False,request_id=None):
         if not xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken'):
             raise RuntimeError('Sign in to AllDebrid in Umbrella › Accounts first.')
         # The Drive add-on owns its account registry; use the same registry as the service.
-        common = xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
-        import sys
-        if common not in sys.path:sys.path.append(common)
+        import pinned_addons
+        pinned_addons.use_clouddrive(xbmcaddon, xbmcvfs)   # ISSUE-270: the app's patched copy
         from clouddrive.common.account import AccountManager
         accounts = AccountManager(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.googledrive').getAddonInfo('profile')))
         if not accounts.get_accounts():raise RuntimeError('Sign in to Google Drive first.')

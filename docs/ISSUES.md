@@ -3923,3 +3923,54 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - "…discover…with_companies=178464…page=3": the owner's Refresh moved the TMDb rows to page 3, which that studio row
     does not have. The row hides itself for that page (it shows only with items).
 - **Retest:** test_pinned_addons `Watchdog`.
+
+## ISSUE-270 — Wi-Fi to cellular deep dive; Library lists and the Drive proxy failed after the add-on restore (owner log 4e5fb2dd, build 424) — fixed in code
+
+- **Owner:** "look what happens when I disconnect from Wi-Fi, ensure the download begins again on cellular, do a deep dive."
+- **Wi-Fi to cellular (07:36:32, log):**
+  - Copies did not stop. Two lanes were running (Naruto S02E33/E34, made ready while they copy). The piece in flight when
+    Wi-Fi went took 46 s (14 MB at 0.30 MB/s) and finished without an error or a retry; system networking moved the
+    connection over.
+  - On cellular, pieces adapted from 10–16 MB to 1.5–6 MB, at 0.2–2.2 MB/s per lane. The snapshot's link went
+    "cellular", link_changed_from "wifi", with copies_waiting_for_network 0 and copy lanes 2 (CELLULAR_LANES).
+  - Preparation (conversion reading Drive) waits for Wi-Fi on mobile data by design (ISSUE-232).
+  - Nothing to fix in the switch itself.
+- **Found:**
+  - From 07:35 every Library list refresh (every 10 s) and the Drive proxy failed with "No module named
+    'clouddrive.common.remote'". ISSUE-267's restore had moved the repository copy aside while the session still had its
+    half-imported clouddrive package and path, so later imports looked in the moved folder.
+  - The copy thread itself ran, with the plain tls_context fallback.
+- **Fix:** `pinned_addons.use_clouddrive()` is used everywhere clouddrive is loaded (service, drivelibrary.client, the
+  Accounts page, elementum_cloud). It drops clouddrive modules loaded from another or a moved folder, removes stale path
+  entries, and puts the app's bundled patched copy first. So it works in the same session, before the restart.
+- **Retest:** test_pinned_addons; the full import-review list.
+- **Next:** the owner's log after reconnecting to Wi-Fi (same session). Check the lanes and piece sizes grow back, and that
+  preparation starts again.
+
+## ISSUE-271 — Copies recovered slowly after a Wi-Fi <-> cellular switch (owner logs 4e5fb2dd and 18a4f9c7, build 424) — fixed in code
+
+- **Owner:** "it appears it may already be working now, but it did take a long time; ensure it has a quicker and smoother
+  recovery when switching from Wi-Fi to cellular or cellular to Wi-Fi."
+- **Seen:**
+  - Copies never stopped, but the run kept the old link's plan. The connection was read only when a copy run started, and
+    a run holds whole episodes (minutes on mobile data).
+  - The piece in flight at the switch hung 46 s.
+  - Pieces on cellular started from Wi-Fi sizes and timed out, or started small and took minutes to grow again on Wi-Fi.
+  - Back on Wi-Fi one lane ran, still with the cellular plan.
+  - The snapshot's copy speed (1.19 MB/s) did not change for four minutes.
+- **Fix:**
+  - `netwatch` reads the connection every 2 s. A switch counts when the new link is seen twice and is not "no address",
+    so a flicker does not restart anything.
+  - A copy run that sees the switch ends at the next piece boundary. The upload sessions are saved, so nothing is sent
+    again. The next run starts after 1 s, not the 30 s of a pause, with the new link's lane count (CELLULAR_LANES on
+    mobile data, the Wi-Fi lane plan learned again, ISSUE-200).
+  - `driveupload.LinkMemory`: the piece size and the Drive-confirmed speed that last worked on each link. A copy on a link
+    starts there. A link not seen yet starts at 4 MB on cellular and at the framework's size on Wi-Fi. So the first
+    pieces after a switch neither time out nor creep up from 1 MB.
+  - Diagnostics count only lanes that reported in the last 90 s (`quiet_lanes` for the rest).
+- **Not changed:** the one native piece already in flight at the moment Wi-Fi goes cannot be cancelled from Python. It
+  ends at its paced deadline (here 46 s) and is then confirmed against Drive, so no bytes are lost.
+- **Retest:** test_netwatch (new); test_diagnostics `test_network_summary_says_link_lanes_and_speeds`.
+- **Phone check:** turn Wi-Fi off and on during a season copy. The log should say "connection changed to cellular while
+  copying: carrying on at once", lanes should change within seconds, and there should be no 20 s piece timeouts after
+  the switch.

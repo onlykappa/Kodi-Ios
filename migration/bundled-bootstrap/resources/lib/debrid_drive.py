@@ -1042,6 +1042,27 @@ def link_now():
         return None
 
 
+def net_generation():
+    try:
+        import netwatch
+        return netwatch.generation()
+    except Exception:
+        return 0
+
+
+def net_link():
+    try:
+        import netwatch
+        return netwatch.link()
+    except Exception:
+        return ''
+
+
+def link_moved(since):
+    """ISSUE-271: the connection changed (Wi-Fi <-> cellular) after `since` (netwatch.generation())."""
+    return net_generation() != since
+
+
 def kick_on_new_link(state, link, clock=time.time):
     """ISSUE-198: Wi-Fi to cellular (or back, or a new Wi-Fi): copies waiting out network trouble try again at once
     instead of finishing their wait. Returns the previous link when it changed, else None."""
@@ -1093,6 +1114,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     # Owner screenshot (build 314): Build Season jobs named after their hash; give them the show's title and move what
     # was already copied into the show's folder.
     changed = kick_on_new_link(state, link(), clock)
+    netgen = net_generation()   # ISSUE-271: a switch while this run copies ends it at the next piece; the next run re-plans
     if changed:
         log('connection changed (%s to %s): waiting copies carry on now' % (changed, state.get('link')))
         save(profile, state)
@@ -1300,7 +1322,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                             owner.pop('error', None)
                     commit()
                 hash_ = str(owner['hash']).lower()
-                going = lambda: keep_going() and hash_ not in {str(h).lower() for h in cancelled()}
+                going = lambda: keep_going() and hash_ not in {str(h).lower() for h in cancelled()} and not link_moved(netgen)
                 def activity(phase,sent,total):
                     # Called on the owner thread, never the read-ahead thread. Percent remains confirmed bytes.
                     now=clock()
@@ -1468,6 +1490,12 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             on_done(job)
             return 1
     except driveupload.Stop:
+        if link_moved(netgen):
+            # ISSUE-271: not a pause. Every upload session is saved; the next run starts at once on the new link, with its
+            # own lane count and piece size, and carries on from what Drive already has.
+            log('connection changed to %s while copying: carrying on at once on the new connection' % (net_link() or 'another network'))
+            save(profile, state)
+            return 1
         return 30
     except alldebrid.Problem as problem:
         log('%s: failed: %s' % (title, problem))
