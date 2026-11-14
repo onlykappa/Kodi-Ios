@@ -80,3 +80,13 @@ read it as well as the framework build before pinning any KodiAirPlay release (I
 - **Phone checks still open:** AI Upscale hold menu and Cancel All (ISSUE-228); waiting for Wi-Fi on mobile data
   (ISSUE-230); Repair stopping an upscale (ISSUE-227); Library status Refresh (ISSUE-234); deleting while converting
   (ISSUE-233); DVD subtitle shown in Kodi; the "Control 9110" focus fix.
+
+## Update 2026-11-14, later
+
+- Owner approved DEC-047 (docs/design/library-show-mockups.html: board A without Ready and A2, B, C, D) and it is coded:
+  ISSUE-243. Owner logs 3df2f247, 3a30b6ef, 6984524f (build 384) gave ISSUE-244 (Repair leaves out dead and low versions; a
+  refused quality is never copied; Don't Show Again for Download problems; the sheet text and the red square) and ISSUE-245
+  (AI Upscale makes copies only of videos the owner asked for on a show's page, or every new download with Upscale new
+  downloads on).
+- Next IPA dispatched from 8aa612d (everything through ISSUE-245). Desktop Kodi rig render of the DEC-047 pages: pending.
+- Known, not fixed: "Control 32503 in window 13002 has been asked to focus, but it can't" (the version picker, harmless).
