@@ -518,3 +518,27 @@ def intend_for(profile, action, drive_ids=(), hashes=(), problem_keys=(), now=No
     if keys:
         intend(profile, keys, action, now)
     return len(keys)
+
+
+def remove(profile, keys, now=None):
+    """ISSUE-286 (owner, build 442: deleting the "Unnamed download" did nothing): the videos (index keys) that are not on
+    Google Drive leave the library through the same record: a copy that ended leaves Download problems (every failed
+    version of it), and a copy still running is stopped. Videos on Drive are not touched (their Delete trashes the file).
+    Returns how many were removed."""
+    import debrid_drive
+    import transfer_control
+    wanted = {str(k) for k in keys if k}
+    entries = [e for e in load(profile).get('videos', []) if e['key'] in wanted and not e.get('id')]
+    problems = {e['problem_key'] for e in entries if e['state'] in (PROBLEM, CANCELLED) and e.get('problem_key')}
+    hashes = {e['hash'] for e in entries if e['state'] == COPYING and e.get('hash')}
+    if not problems and not hashes:
+        return 0
+    intend(profile, [e['key'] for e in entries], 'delete', now)
+    cleared = debrid_drive.clear_failed(profile, only=problems, whole_video=True) if problems else 0
+    for h in sorted(hashes):
+        transfer_control.cancel_copy(profile, h)
+    try:
+        refresh(profile)
+    except Exception:
+        pass
+    return len([e for e in entries if (cleared and e.get('problem_key') in problems) or e.get('hash') in hashes])

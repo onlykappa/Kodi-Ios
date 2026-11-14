@@ -4212,3 +4212,21 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   ISSUE-282 does the same for `keep_copying`.
 - **Next:** the owner's next log after a retry shows which one it is; the fix follows in its own entry.
 - **Test:** test_build442_logs (the retry line carries `_said(error)`; `_said` keeps the words and removes a link).
+
+## ISSUE-286 — Deleting the "Unnamed download" did nothing (owner, build 442) — fixed in code
+
+- **Cause:** two parts.
+  - A video that is only an AllDebrid copy or problem (no Drive file) showed "Remove from Library…" on its sheet
+    (`library_manager.fill_item`), but its action was empty, so the tap closed nothing and changed nothing. Delete
+    Season and Select only passed videos with a Drive id, so they left these behind too.
+  - `debrid_drive.clear_failed` removed only the failure Download problems shows. An older failed version of the same
+    video then became the latest, so the problem came back.
+- **Fix:**
+  - `library_index.remove(profile, keys)` is the one path for videos not on Drive: a copy that ended leaves with every
+    failed version (`clear_failed(..., whole_video=True)`), and a running copy is stopped (`transfer_control.cancel_copy`).
+    "Deleting…" shows on every page at once (`intend`), and the index is rebuilt.
+  - The item sheet's "Remove from Library…" (problem) and new "Stop and Remove…" (copying) call it after a confirmation.
+    Delete Season also removes the season's copies and problems that are not on Drive.
+  - Videos on Drive keep the existing Delete (Drive's Trash).
+- **Test:** test_library_remove (two failed versions of an untitled episode both go; a running copy is stopped; a Drive
+  video is untouched; the sheet and Delete Season use the path). The test fails with `whole_video=False`.

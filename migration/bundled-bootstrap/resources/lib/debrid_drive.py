@@ -343,12 +343,24 @@ def retry_failed(profile, kinds=('network', 'source'), only=None):
     return len(picked)
 
 
-def clear_failed(profile, kinds=None, only=None):
+def _video_of(job):
+    """The video a job is for (problems() lists one failure per video)."""
+    title = str(job.get('title') or '').strip().casefold()
+    if not title:
+        return ('hash', job.get('hash'), job.get('season'), job.get('episode'))
+    return (title, str(job.get('season') or ''), str(job.get('episode') or ''))
+
+
+def clear_failed(profile, kinds=None, only=None, whole_video=False):
     """Clear: copies that ended leave the list (the AllDebrid request stays at AllDebrid); kinds limits it to some
-    problem kinds, only to some problems' keys. Returns how many."""
+    problem kinds, only to some problems' keys. whole_video (ISSUE-286, Library's "Remove from Library"): every failed
+    version of those videos goes too, so an older failure does not take the cleared one's place. Returns how many."""
     state = load(profile)
     picked = {p['index'] for p in problems(state) if (kinds is None or p['kind'] in kinds) and (only is None or p['key'] in only)}
     jobs = state.get('jobs', [])
+    if whole_video and picked:
+        videos = {_video_of(jobs[n]) for n in picked}
+        picked |= {n for n, j in enumerate(jobs) if j.get('status') == 'failed' and _video_of(j) in videos}
     keep = [j for n, j in enumerate(jobs) if n not in picked]
     cleared = [j for n, j in enumerate(jobs) if n in picked]
     if cleared:
