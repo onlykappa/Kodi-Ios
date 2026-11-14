@@ -156,6 +156,9 @@ def pick_dialogs(xbmc,xbmcgui,dialog,extra,found,done,last):
  pick=dialog.select('Play on which TV?',[t['name']+'  ·  '+KINDS[t['kind']] for t in tvs])
  return tvs[pick] if pick>=0 else None
 
+QUIET_PROGRESS=True   # ISSUE-251: no "Play on TV" progress card; the system AirPlay list instead
+
+
 class FlowUI:
  """Play on TV's card over the video (owner-approved boards, airplay_flow.py); Kodi's own progress box and alerts
  only if that window cannot load."""
@@ -182,7 +185,11 @@ class FlowUI:
   except Exception as error:
    self.win=None;xbmc.log('Kodi iOS Play on TV: card unavailable (%s), using Kodi\'s dialogs'%type(error).__name__,getattr(xbmc,'LOGWARNING',2))
  def show(self,stage,skipped=()):
+  # ISSUE-251 (owner, build 393: "I would like this page removed everywhere and have it open straight to the AirPlay list
+  # instead of the ugly loading screen"): the progress card is not shown; Apple's AirPlay list opens at once instead
+  # (kodi_airplay_open, while the stream is made). Problems still show their card (ask).
   self.skipped=skipped
+  if QUIET_PROGRESS:return
   if self.win is not None:
    self.win.apply(self.flow.stage_view(stage,self.title,skipped=skipped,kind=self.kind,poster=self.poster));self.win.show();self.win.apply({'bar':self.win.props.get('bar','0')})
   else:
@@ -327,6 +334,9 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
    try:lib.kodi_airplay_start_at(float(player.getTime()))
    except Exception:lib.kodi_airplay_start_at(0.0)
   lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
+  # ISSUE-251: Apple's AirPlay list at once, while the stream is made (the TV starts when it is ready). The framework
+  # opens the list again when the stream is ready only if no AirPlay device was chosen.
+  if QUIET_PROGRESS and hasattr(lib,'kodi_airplay_open'):lib.kodi_airplay_open()
   outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25,network=network,stage=stage,startup_limit=budget)
   why=airplay.message(lib)
   net=network()

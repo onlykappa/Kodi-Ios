@@ -40,3 +40,57 @@ Smart Refresh and Check Every Video; uploads while a season is made ready; AI Up
 dead/low versions and its live "Looking for 1080p…" ✕; show page ••• menu, Select toolbar and Better Version (old file to
 Trash after the new one is saved); Don't Show Again; no "Window id does not exist"; DVD subtitles shown; AI Upscale hold menu
 and Cancel All; waiting for Wi-Fi on mobile data; deleting while converting.
+
+## 2026-11-14 (later): Play on TV work in progress (NOT built; the owner is testing build-398 first)
+
+Build-398 (8781cdc) went to the owner. After it: ISSUE-250 (Download problems and the show card agree) is committed and
+tested. The owner then asked for three things about Play on TV:
+
+1. **Remove the "Play on TV" progress card everywhere and open Apple's AirPlay list at once** (owner screenshots: the card
+   "Opening the episode · reading its index", and the system "iPhone Speaker / Bedroom / Kannon basement tv / Kannons bedroom
+   roku tv / Living room" list).
+   - WIP in this commit (ISSUE-251):
+     - `cast.py`: `QUIET_PROGRESS=True`, so `FlowUI.show` shows nothing.
+     - `lib.kodi_airplay_open()` is called right after `kodi_airplay_play`.
+     - `build-airplay.sh`: when the stream is ready, the native player opens the list again only if no AirPlay output is
+       already the audio route.
+   - Problem cards (`ui.ask`) still show.
+   - **To do:**
+     - `scripts/test_play_on_tv_network.py` has 6 failures. They assert the card is shown. Update them to the new rule.
+     - The Roku paths (cast.py ~542/571) used `ui.show('connecting')`; they are quiet now too. Check they still say
+       something on failure.
+     - The native change needs a KodiAirPlay release after r55 (r56): stage it, read the airplay-remux host-tests and the
+       framework build, pin it, then one IPA. Only with the owner's OK.
+     - Check on the phone that choosing a TV before the stream is ready sends the video there. iOS sets the AirPlay route
+       for the app's audio session and the AVPlayer follows it.
+2. **Why an Umbrella stream takes long to AirPlay** (owner log a176bcec, Dragon Ball Super: Beerus S1 E1, 10-bit H.264
+   1080p MKV with subtitles):
+   - Play on TV 17:55:49.4: source opened at +1.8 s, its index read at +4.6 s.
+   - The first segment needed a software decode of the 10-bit picture, a VideoToolbox encode and the subtitles burnt in:
+     9.7 s (162 % of real time). Audio for that segment took 8.8 s, because its own reader scanned the remote file
+     (`scan_ms=8785`).
+   - Stream ready +18 s, player ready +22.6 s, TV playing +28 s. Then every converted segment kept the TV waiting
+     1-3 s (the converter is barely ahead).
+   - Speed-ups to do, best first:
+     - (a) Open the AirPlay list at once (item 1), so choosing the TV overlaps the preparation.
+     - (b) Start reading the source and its index when a video starts playing in Kodi (prefetch), not when Play on TV is
+       tapped. That saves about 6 s.
+     - (c) Take audio for the first segment from the video reader's pass (or seek audio by its own index) instead of a
+       separate full scan. That saves about 8 s.
+     - (d) Make the first segment shorter (2 s), so the first conversion finishes sooner.
+     - (e) In the source picker, prefer 8-bit H.264 / HEVC versions when Play on TV is likely. They need no conversion
+       and start in a few seconds.
+3. **Roku: drop Media Assistant and use AirPlay** (owner log 9c11baa7: "Roku took the link via media-assistant", 10 s from
+   Play on TV; Roku/DVP-16.0 fetched the phone's master.m3u8).
+   - Findings: there is no Roku API that starts its AirPlay receiver with a link. AirPlay to a Roku goes only through
+     Apple's AirPlay (the system list, where "Kannons bedroom roku tv" already appears).
+   - Removing Media Assistant therefore means:
+     - every TV, Roku included, goes through the system list (item 1);
+     - delete the ECP / Media Assistant route (`cast.roku_play`, `assistant_url`, `roku_copy*`, the Roku branches in
+       cast.py) and its settings;
+     - keep the problem cards.
+   - Both paths are served by the phone (the same HLS server), so the phone must stay on either way.
+   - Media Assistant played the phone's HLS directly. AirPlay goes through Apple's player (no HDR passthrough
+     difference for SDR files).
+   - Ask the owner before deleting the Roku code if anything still depends on it.
+

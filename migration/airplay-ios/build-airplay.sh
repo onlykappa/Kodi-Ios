@@ -753,7 +753,12 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
             sheet.prioritizesVideoDevices = YES;
             sheet.delegate=holder;
             [holder.view addSubview:sheet];
-            openSheet(sheet);
+            // ISSUE-251: the add-on opens Apple's AirPlay list as soon as Play on TV starts; when a device was already
+            // chosen there, the stream goes to it and the list is not opened a second time.
+            BOOL chosen=NO;
+            for (AVAudioSessionPortDescription *port in AVAudioSession.sharedInstance.currentRoute.outputs)
+                if ([port.portType isEqualToString:AVAudioSessionPortAirPlay]) chosen=YES;
+            if (!chosen) openSheet(sheet);
         }];
     });
 }
