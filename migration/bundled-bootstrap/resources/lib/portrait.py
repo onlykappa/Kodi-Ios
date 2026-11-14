@@ -649,6 +649,17 @@ def cached_content(name,path,variables,spotlight=None,tab=None):
   name,e(on),WATCH_ON,e(CACHE_ROUTE+key),page,e(path))
  return '$VAR[%s]'%name
 
+def title_tap(id,title,path,visible):
+ """Owner (build 442: "when I tap these bars it opens a grid view of the shows with the meta art only, like how
+ downloaded movies and TV shows work; apply this to all rows"): the row's title opens its whole list as the poster
+ grid (the Videos window, as Library › Movies does), titled with the row's name. A 1-unit group: it adds no height;
+ the button lies over the title, and the grouplist does not move it."""
+ if not path:return ''
+ clicks=''.join('<onclick>%s</onclick>'%e(a) for a in titled_page(title,path).split('\x00'))
+ return ('<control type="group"><height>1</height><visible>%s</visible>'
+         '<control type="button" id="%d"><left>%d</left><top>-129</top><width>%d</width><height>128</height><label></label>'
+         '<texturefocus /><texturenofocus />%s</control></control>')%(visible,id+700,SIDE,WIDTH-2*SIDE,clicks)
+
 def row(index,widget,last,tab='home',variables=None):
  id=5001+index;title=str(widget.get('label') or '')
  style=widget.get('style') or ('poster' if str(widget.get('widget_style') or '').lower()=='poster' else 'card')
@@ -657,6 +668,7 @@ def row(index,widget,last,tab='home',variables=None):
  visible='Integer.IsGreater(Container(%d).NumItems,0) | Container(%d).IsUpdating'%(id,id)
  item=poster_item if style=='poster' else (lambda f:card_item(f,style=='continue'))
  return (label(SIDE,0,WIDTH-2*SIDE,128,'%s  [COLOR %s]›[/COLOR]'%(title,GREY),'p_h2',WHITE,'left','<aligny>bottom</aligny><visible>%s</visible>'%visible).replace('<control type="label">','<control type="label" id="%d">'%(id+500),1)+
+  title_tap(id,title,widget.get('path') or '',visible)+
   # Board 13: while the row is still loading and has nothing yet, its tiles are drawn as placeholders (SURFACE, the
   # item's own size and corners), so the first frame already shows the page's structure. A 1-unit group: the grouplist
   # moves the list down by 1 while it shows.

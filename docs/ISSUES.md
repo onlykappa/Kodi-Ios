@@ -4285,3 +4285,16 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   wrapped text). A two- or three-line title shows its "×N" under the time.
 - **Test:** test_notification_centre_c1 (line counting, every height has its part, no `!(` and no "…" in the window,
   folding, sections and per-section positions).
+
+## ISSUE-291 — A row's title opens the row as a poster grid (owner, build 442) — done in code
+
+- **Request:** owner, build 442 screenshots: "when I tap these bars it opens a grid view of the shows with the meta art
+  only, like how downloaded movies and TV shows work; apply this to all rows".
+- **Cause:** the title above each row ("Trending Movies ›") was a label; the chevron promised a page that did not exist.
+- **Fix:** `portrait.title_tap` lays a 128-unit (44 pt+) borderless button over every row's title on Home, Movies and
+  TV (`row()`, ids 5701+). It runs `titled_page`, the same action as Library › Movies: the Videos window with the
+  poster grid, titled with the row's name, showing the row's own list. A 1-unit group, so the page's layout is unchanged.
+- **Retest:** desktop Kodi rig, a real pointer tap on "Netflix Originals ›" on Home: the grid opened with the row's
+  titles and the heading "Netflix Originals". Rig evidence, not the phone. (SendClick from a script did not reach it; a
+  pointer tap did.)
+- **Test:** test_row_title_grid.
