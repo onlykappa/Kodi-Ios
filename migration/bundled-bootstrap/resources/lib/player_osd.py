@@ -98,6 +98,11 @@ DEFAULT_ONLOAD=(('String.IsEmpty(%s) + !%s'%(TIMEOUT,DEFAULTED),'Skin.SetString(
                 ('String.IsEqual(%s,5) + !%s'%(TIMEOUT,MOVED),'Skin.SetString(OSD_Timeout,%d)'%DEFAULT_TIMEOUT),
                 ('!%s'%MOVED,'Skin.SetBool(ios_osd_timeout_3)'))
 ARM_WHEN='!String.IsEmpty(%s) + !String.IsEqual(%s,0) + !Player.Paused + !Skin.HasSetting(ios_osd_continue)'%(TIMEOUT,TIMEOUT)
+# ISSUE-298 (review): Kodi evaluates every onload condition before it runs the actions, so on the open that sets or
+# moves the timer, ARM still saw the old value (none, or 5 s). That open is re-armed with the new value written out.
+FIRST_WHEN='[[String.IsEmpty(%s) + !%s] | [String.IsEqual(%s,5) + !%s]] + !Player.Paused + !Skin.HasSetting(ios_osd_continue)'%(
+    TIMEOUT,DEFAULTED,TIMEOUT,MOVED)
+FIRST_ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(videoosd),00:%02d,silent)'%DEFAULT_TIMEOUT)
 # ISSUE-279 (owner: "if i tap outside of the pause or play or skip it should hide the menu anywhere i tap"; log 72b62563:
 # ten taps on no control, "control 0 (not handled)"): a clear button under everything closes the controls, as a tap
 # does in Apple's player. Drawn first, so every real control is above it and keeps its own taps.
@@ -184,7 +189,8 @@ def window():
   '<animation effect="fade" start="0" end="100" time="150">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
   '<onunload>Skin.Reset(ios_osd_continue)</onunload><onunload>Skin.Reset(ios_osd_continue_path)</onunload><onunload>CancelAlarm(osd_timeout,true)</onunload>'
   +''.join('<onload condition="%s">%s</onload>'%(e(c),e(a)) for c,a in DEFAULT_ONLOAD)
-  +''.join('<onload condition="%s">%s</onload>'%(e(ARM_WHEN),e(a)) for a in ARM)+
+  +''.join('<onload condition="%s">%s</onload>'%(e(ARM_WHEN),e(a)) for a in ARM)
+  +''.join('<onload condition="%s">%s</onload>'%(e(FIRST_WHEN),e(a)) for a in FIRST_ARM)+
   '<controls>%s%s</controls>\n</window>\n')%(MARKER,BACKDROP,rearm(shade+head+centre+title+bar+row+panel))
 
 # r4: never shown. The owner does not want a bar besides the controls' own ("the old one still appears"): the

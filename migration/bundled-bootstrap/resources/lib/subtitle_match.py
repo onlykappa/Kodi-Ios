@@ -302,7 +302,9 @@ class PlaybackMatcher:
         publish(json.dumps([dict(index=t.get('index'), **{k: v for k, v in t.items() if k.startswith('match_')})
                             for t in models], separators=(',', ':')))
         chosen = preferred(streams, state.get('current'), state.get('enabled'), video)
-        if state.get('enabled') and chosen != state.get('current'):
+        # ISSUE-298 (review of PR #30): when no track is usable the owner's subtitles stay on; the reasons are published
+        # above. Only a better usable track replaces the current one, never Off.
+        if state.get('enabled') and chosen is not None and chosen != state.get('current'):
             select(chosen)
         self.done = True
 

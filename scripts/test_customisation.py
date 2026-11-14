@@ -311,7 +311,8 @@ class HideControls(unittest.TestCase):
  def test_alarm_on_open_and_every_tap(self):
   xml=osd.window();root=ET.fromstring(xml.split('\n',2)[2])
   loads=[o.text for o in root.findall('onload')]
-  self.assertEqual(loads,[a for _,a in osd.DEFAULT_ONLOAD]+list(osd.ARM))   # ISSUE-279: the 5 s default comes first
+  self.assertEqual(loads,[a for _,a in osd.DEFAULT_ONLOAD]+list(osd.ARM)+list(osd.FIRST_ARM))   # ISSUE-279/298: default first, re-arm last
+  self.assertIn('AlarmClock(osd_timeout,Dialog.Close(videoosd),00:03,silent)',osd.FIRST_ARM)
   self.assertIn('Dialog.Close(videoosd)',osd.ARM[1]);self.assertIn('$INFO[Skin.String(OSD_Timeout),00:,]',osd.ARM[1])
   for button in root.iter('control'):
    if button.get('type')=='button' and button.get('id')!='7100':   # the tap-to-hide area closes instead

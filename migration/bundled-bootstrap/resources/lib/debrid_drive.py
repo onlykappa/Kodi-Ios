@@ -1672,6 +1672,14 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         transfer_history.failed(profile, 'up', title, str(problem), clock())
         return 1
     except Exception as error:   # network, Drive: try again in a while, from where it got to
+        if copy_errors.needs_owner(error):
+            # ISSUE-298: signed out / no folder access / Drive full: the copy waits for the owner, never counts a try.
+            job['error'] = '%s: %s' % (type(error).__name__, str(error)[:160])
+            job['retry_at'] = clock() + copy_errors.OWNER_WAIT
+            state.pop('current', None)
+            log('%s: waiting for you (%s); again in %d min' % (title, str(error)[:100], copy_errors.OWNER_WAIT // 60))
+            commit()
+            return copy_errors.OWNER_WAIT
         if copy_errors.is_terminal(error):
             end_permanent(job, error)
             state.pop('current', None)

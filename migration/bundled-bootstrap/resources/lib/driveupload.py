@@ -583,7 +583,8 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
     if duplicate is not None:on_uploaded()  # the Library lists it from Drive now
     while os.path.basename(folder) not in ('Movies','TV Shows') and not os.listdir(folder):os.rmdir(folder);folder=os.path.dirname(folder)
   except Exception as error:
-   if not copy_errors.is_terminal(error):raise
+   # ISSUE-298: a phone file's sign-in/access refusal is still its own problem row (one file never holds the others).
+   if not (copy_errors.is_terminal(error) or copy_errors.needs_owner(error)):raise
    import diagnostics
    reason=diagnostics.redact(str(error),160)
    failures[path]={'fp':list(before),'reason':reason,'time':time.time()}

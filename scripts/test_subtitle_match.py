@@ -230,6 +230,16 @@ class Controller(unittest.TestCase):
         service = (BOOT / 'service.py').read_text()
         self.assertIn('target=subtitle_match.run', service)
 
+    def test_no_usable_track_never_turns_subtitles_off(self):
+        # ISSUE-298 (review of PR #30): every track rejected must leave the owner's subtitles on, with the reasons published.
+        matcher = sm.PlaybackMatcher()
+        changes, published = [], []
+        state = {'streams': [{'index': 0, 'name': 'Naruto.S01E06', 'language': 'en'}],
+                 'current': 0, 'enabled': True, 'video': VIDEO}
+        matcher.step('video', lambda: state, changes.append, published.append)
+        self.assertEqual(changes, [])
+        self.assertTrue(json.loads(published[-1])[0]['match_rejected'])
+
     def test_playback_hook_waits_for_streams(self):
         matcher = sm.PlaybackMatcher()
         changes = []

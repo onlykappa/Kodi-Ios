@@ -44,13 +44,20 @@ class Classification(unittest.TestCase):
             self.assertTrue(ce.is_retryable(error), reason)
 
     def test_http_permission_storage_and_bad_input_need_owner_action(self):
-        for status in (400, 401, 403, 405, 413, 415, 422):
+        for status in (400, 405, 413, 415, 422):
             error = ce.http_error('Drive upload start', status)
             self.assertTrue(ce.is_terminal(error))
             self.assertFalse(ce.is_retryable(error))
+        # ISSUE-298: sign-in, folder access and a full Drive wait for the owner; they never retire the copy.
+        for status in (401, 403):
+            error = ce.http_error('Drive upload start', status)
+            self.assertTrue(ce.needs_owner(error));self.assertFalse(ce.is_terminal(error))
         error = ce.http_error('Drive upload', 403, {'error': {'errors': [{'reason': 'storageQuotaExceeded'}]}})
         self.assertIn('Free up space', str(error))
-        self.assertTrue(ce.is_terminal(error))
+        self.assertTrue(ce.needs_owner(error));self.assertFalse(ce.is_terminal(error))
+        # A saved source/AllDebrid text with an HTTP 4xx is not Drive's answer: never retired by the 4xx rule.
+        self.assertFalse(ce.is_terminal('RuntimeError: AllDebrid HTTP 404 on the link'))
+        self.assertTrue(ce.is_terminal('PermanentCopyError: Drive verification: HTTP 404. gone'))
 
     def test_expired_upload_session_can_restart(self):
         for status in (404, 410):
@@ -70,7 +77,8 @@ class Classification(unittest.TestCase):
     def test_sign_in_needs_owner_but_a_busy_refresh_does_not(self):
         SignedOut = type('SignedOut', (RuntimeError,), {})
         RefreshBusy = type('RefreshBusy', (RuntimeError,), {})
-        self.assertTrue(ce.is_terminal(SignedOut('Please sign in again')))
+        self.assertFalse(ce.is_terminal(SignedOut('Please sign in again')))   # ISSUE-298: waits for the owner
+        self.assertTrue(ce.needs_owner(SignedOut('Please sign in again')))
         self.assertFalse(ce.is_terminal(RefreshBusy('Waiting for sign-in server')))
         self.assertTrue(ce.is_retryable(RefreshBusy('Waiting for sign-in server')))
 
@@ -99,8 +107,7 @@ class CopyWorker(unittest.TestCase):
 
     def test_terminal_error_never_enters_inline_or_later_retries(self):
         for error in (ce.PermanentCopyError('The refreshed download is a different file'),
-                      RuntimeError('Invalid completed upload receipt'), RuntimeError('Invalid Drive confirmed position'),
-                      driveupload.SignedOut('Sign in to Google Drive again')):
+                      RuntimeError('Invalid completed upload receipt'), RuntimeError('Invalid Drive confirmed position')):
             with self.subTest(error=str(error)):
                 api = self.queued()
                 calls, notified, logs = [], [], []
@@ -133,6 +140,19 @@ class CopyWorker(unittest.TestCase):
         self.assertEqual((len(calls), state['jobs'][0]['status']), (1, 'failed'))
         self.assertIn('different size', debrid_drive.problems(state)[0]['reason'])
         self.assertEqual(state['jobs'][0]['invalid_drive_id'], 'file')
+
+    def test_signed_out_copy_waits_for_the_owner_and_keeps_its_place(self):
+        # ISSUE-298 (review of PR #30): a sign-out retired every queued copy for good.
+        api = self.queued()
+        def upload(*args, **kwargs):
+            raise driveupload.SignedOut('Sign in to Google Drive again')
+        drive = types.SimpleNamespace(folder=lambda parts: 'folder', upload_stream=upload)
+        wait = debrid_drive.step(self.profile, api, drive, notify=lambda *a: None, log=lambda t: None)
+        job = debrid_drive.load(self.profile)['jobs'][0]
+        self.assertNotEqual(job['status'], 'failed');self.assertFalse(job.get('terminal'))
+        self.assertEqual((wait, job.get('tries', 0)), (ce.OWNER_WAIT, 0))
+        self.assertGreater(job['retry_at'], 0)
+        self.assertEqual(debrid_drive.problems(debrid_drive.load(self.profile)), [])
 
     def test_saved_terminal_runtime_error_stops_before_unlock_or_upload(self):
         for text in ('RuntimeError: The refreshed download is a different file',

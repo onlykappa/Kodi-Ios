@@ -23,8 +23,26 @@ class RetryableCopyError(RuntimeError):
 RATE_LIMITS = {'ratelimitexceeded', 'userratelimitexceeded', 'sharingratelimitexceeded', 'downloadquotaexceeded'}
 PERMANENT_WORDS = ('different file', 'different size', 'invalid completed upload receipt', 'invalid drive confirmed position',
                    'google drive checksum does not match',
-                   'did not preserve resolution/hdr', 'sign in to google drive', 'saved drive sign-in', 'google drive is full',
-                   'google drive refused access', 'google drive refused this request')
+                   'did not preserve resolution/hdr', 'google drive refused this request')
+# ISSUE-298 (review of PR #30): the owner can fix these without changing the source (sign in again, grant the folder,
+# free space). The copy keeps its place and waits (OWNER_WAIT seconds between tries), as the Sign in notice promises,
+# instead of failing for good; before this a sign-out retired the whole queue.
+OWNER_WORDS = ('sign in to google drive', 'saved drive sign-in', 'google drive is full', 'google drive refused access')
+OWNER_WAIT = 600
+
+
+def needs_owner(error):
+    """True for a Drive sign-in, folder access or full-Drive failure: wait for the owner, never retire the copy."""
+    if type(error).__name__ == 'SignedOut':
+        return True
+    code = getattr(error, 'code', None)
+    if isinstance(code, int) and code in (401, 403) and not getattr(error, 'retryable', False):
+        return True
+    low = str(error or '').lower()
+    if any(word in low for word in OWNER_WORDS):
+        return True
+    http = re.search(r'http\s+(\d{3})', low)
+    return bool(http and 'drive' in low and int(http[1]) in (401, 403) and not any(r in low for r in RATE_LIMITS))
 
 
 def _reasons(body):
@@ -84,15 +102,16 @@ def is_retryable(error):
 
 def is_terminal(error):
     """Also recognise old persisted RuntimeError words, so a durable copy does not enter a fresh retry loop."""
-    if is_retryable(error):
+    if is_retryable(error) or needs_owner(error):
         return False
-    if getattr(error, 'terminal', False) or type(error).__name__ == 'SignedOut':
+    if getattr(error, 'terminal', False):
         return True
     low = str(error or '').lower()
     if low.startswith('permanentcopyerror:') or any(word in low for word in PERMANENT_WORDS):
         return True
     http = re.search(r'http\s+(\d{3})', low)
-    if http:
+    # ISSUE-298: only Google Drive's own answers (http_error's 'Drive …' prefixes); a source/AllDebrid text never retires.
+    if http and 'drive' in low:
         code = int(http[1])
         if code in (404, 410) and ('drive upload:' in low or 'upload session' in low):
             return False

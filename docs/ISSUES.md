@@ -4431,3 +4431,23 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   it cannot identify the owner's original individual failure. Host checks do not prove device recovery.
 - **Test:** scripts/test_terminal_copy_errors.py (26 cases); updated test_debrid_drive, test_drive_upload and
   test_library_tools fixtures; check_project and every workflow-listed test before commit.
+
+## ISSUE-298 — Review of the PR #30 backend (Agent C, host review of 2cd5cdd): four fixes — fixed in code
+
+- **Sign-out retired the whole copy queue.**
+  - Cause: `copy_errors` treated "Sign in to Google Drive", folder access (401/403) and a full Drive as permanent. `debrid_drive` then failed every queued copy for good, which contradicts the Sign-in notice ("copies wait until you sign in").
+  - Fix: `copy_errors.needs_owner()`. AllDebrid copies keep their place and wait 10 min between tries, with no try counted. Phone uploads still record the file's own problem row, so one file never holds up the others.
+- **A blanket HTTP 4xx rule.**
+  - Cause: any saved error text containing "http 4xx" retired the copy, including source/AllDebrid texts.
+  - Fix: the rule now applies only to Google Drive's own answers.
+- **The subtitle filter switched subtitles off.**
+  - Cause: when no track was usable (all rejected), `PlaybackMatcher` selected Off.
+  - Fix: subtitles now stay as they are. The reasons are still published.
+- **Controls timer, first open after an update.**
+  - Cause: Kodi evaluates all onload conditions first, so the open that set or moved the timer armed the old value (none, or 5 s).
+  - Fix: that open is re-armed with a literal 00:03.
+- **Tests:**
+  - test_terminal_copy_errors: `needs_owner` cases, Drive-only 4xx, `test_signed_out_copy_waits_for_the_owner_and_keeps_its_place`.
+  - test_subtitle_match: `test_no_usable_track_never_turns_subtitles_off`.
+  - test_customisation: FIRST_ARM.
+- **Handed to Agent A:** the reviewer's other high finding, the Umbrella source closed after 120 s of pause (the Resume crash, ISSUE-281).
