@@ -7,7 +7,8 @@ read it as well as the framework build before pinning any KodiAirPlay release (I
 
 ## State
 
-- Last IPA the owner has: **build-376** (commit 7ea9a5f). Everything after it is committed but **not built**.
+- Last IPA the owner has: **build-384** (commit db35cf0, 2026-11-14): everything up to ISSUE-237. **ISSUE-238 to ISSUE-242
+  are committed after it and not built** (one IPA when the owner asks).
 - AirPlay framework pinned: **r55** (DVD subtitles kept in the MP4 and counted as ready).
 - The owner will re-download Naruto Shippuuden season 1 at 1080p once the next IPA has the quality fallback below.
 
@@ -61,3 +62,21 @@ read it as well as the framework build before pinning any KodiAirPlay release (I
 - One IPA at the end of a batch; no builds per commit. Merge only when the owner says so.
 - 480p is unacceptable unless nothing else exists. The owner wants plain status words, no stuck percentages, and
   instant reactions to taps (cancel, delete, refresh).
+
+## Update 2026-11-14 (this session)
+
+- **Built:** build-384 (db35cf0) = build-376 + ISSUE-233–237: the season quality rule (a real 1080p wins; lower only when
+  nothing else exists, one plain notice, no AI Upscale offer) and Repair using the quality chosen for the show.
+- **ISSUE-237:** owner log f63389f1 (build 376) showed Repair taking an uploader's upscale ("_2.25x_1920x1080_alq-10") at
+  "any quality". Repair now uses the show's chosen quality; in a fallback, versions that only claim their quality come
+  after every real one. PR check run 381 had failed on two season-source tests still expecting "never lower"; updated.
+- **Coded after build-384 (not built):** ISSUE-238 (a failed `native.verify` stops after one conversion unless network),
+  ISSUE-239 (TMDb Helper "Window id does not exist" after a page closes, build patch), ISSUE-240 (a dropped upload piece
+  halves the piece size instead of 1 MB), ISSUE-241 (AI Upscale encoder stop: retry once on screen, wait for Kodi to be
+  open in the background; cause not proven, log 1ae21097 not available), ISSUE-242 (AI Upscale copies resume from a mark).
+- **Waiting for the owner's log of the Naruto season 1 re-download on build-384.** Check: every episode real 1080p where
+  one exists, else one fallback with one notice; no repeat loop on a refused version; refused episodes searched again;
+  the DVD subtitle still shows.
+- **Phone checks still open:** AI Upscale hold menu and Cancel All (ISSUE-228); waiting for Wi-Fi on mobile data
+  (ISSUE-230); Repair stopping an upscale (ISSUE-227); Library status Refresh (ISSUE-234); deleting while converting
+  (ISSUE-233); DVD subtitle shown in Kodi; the "Control 9110" focus fix.
