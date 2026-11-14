@@ -216,5 +216,32 @@ class SelfCheckAndLogLine(unittest.TestCase):
         self.assertEqual(found['prepared_not_on_drive'], ['ghost'])
 
 
+class StopOrDeleteEverywhere(unittest.TestCase):
+    """Owner: "if I delete something or stop something in one place it stops it everywhere"."""
+    def setUp(self):
+        import prepare_downloads, debrid_drive
+        self.tmp = tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.profile = self.tmp.name
+        listing, prep, debrid = owner_state()
+        prep['library'] = {'items': listing, 'checked': 900.0}
+        prepare_downloads.save(self.profile, prep);debrid_drive.save(self.profile, debrid)
+        li.refresh(self.profile, clock=lambda: 1000.0)
+
+    def test_stop_from_any_page_shows_on_every_page(self):
+        import transfer_control
+        transfer_control.cancel_copy(self.profile, 'C50')                 # the Library status hold menu, the bell, …
+        entry = next(e for e in li.refresh(self.profile)['videos'] if e.get('hash') == 'c50')
+        self.assertEqual(li.entry_line(entry), 'Stopping…')
+
+    def test_a_deleted_episode_leaves_every_page_before_the_next_scan(self):
+        import prepare_downloads
+        before = li.counts(li.load(self.profile), ('show', 'Naruto Shippuuden'))['total']
+        prepare_downloads.forget(self.profile, ['d1-3'])                  # what Delete does (with the Trash call)
+        index = li.refresh(self.profile)
+        self.assertNotIn('d1-3', [e['id'] for e in index['videos']])
+        self.assertEqual(li.counts(index, ('show', 'Naruto Shippuuden'))['total'], before - 1)
+        src = (ROOT / 'migration/bundled-bootstrap/library_manager.py').read_text()
+        self.assertIn("library_index.intend_for(profile, 'delete', drive_ids=", src)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -657,6 +657,11 @@ def run():
         if not drive:
             dialog.ok('Delete', 'Sign in to Google Drive first (Settings › Google Drive).')
             return None
+        try:   # DEC-052: "Deleting…" on every page at once, wherever Delete was pressed
+            import library_index
+            library_index.intend_for(profile, 'delete', drive_ids=[i['id'] for i in items if i['id'] in picked])
+        except Exception:
+            pass
         import upscale_queue
         ups = upscale_queue.load(profile)
         state_dir = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap')

@@ -109,6 +109,8 @@ def build(listing, prep_state, debrid_state, upscale_state=None, ignored=None, c
         kind = 'episode' if episode else 'movie'
         title = info.get('title') or name.rsplit('.', 1)[0]
         job = prep.get(str(item.get('id') or ''))
+        if job and job.get('forgotten'):
+            continue          # deleted by the owner: gone from every page at once, before the next Drive scan
         state, reason, pkey = _prep_state(job)
         copy = copies.get(str(item.get('id') or '')) or {}
         entry = {'key': video_key(kind, title, info.get('season'), info.get('episode'), info.get('year')),
@@ -143,7 +145,8 @@ def build(listing, prep_state, debrid_state, upscale_state=None, ignored=None, c
                  'show_key': show_key(title) if kind == 'episode' else '', 'tmdb': str(job.get('show_tmdb') or ''),
                  'season': s, 'episode': n, 'title': title, 'year': str(job.get('year') or ''), 'id': None,
                  'name': job.get('name') or '', 'size': int(job.get('size') or 0), 'quality': _quality(job.get('name') or ''),
-                 'state': COPYING, 'reason': '', 'progress': pct, 'hidden': False, 'problem_key': '', 'ai': ''})
+                 'state': COPYING, 'reason': '', 'progress': pct, 'hidden': False, 'problem_key': '', 'ai': '',
+                 'hash': str(job.get('hash') or '').lower()})
 
     # 3. Copies that ended (Download problems' own list), unless the video is on Drive or copying again. A copy saved
     # without a title (owner screenshot: "S1 E6 · Unnamed download") takes its show from its TMDb id, through the copies
@@ -497,3 +500,14 @@ def movie_rows(index, watched=(), sort='recent'):
     elif sort == 'size':
         rows.sort(key=lambda r: -r['size'])
     return rows
+
+
+def intend_for(profile, action, drive_ids=(), hashes=(), problem_keys=(), now=None):
+    """The one action path from any page: the videos with these Drive ids, copies (hashes) or problems are marked with
+    the action at once, on every page. Returns how many."""
+    ids, hs, pks = {str(i) for i in drive_ids if i}, {str(h).lower() for h in hashes if h}, {str(k) for k in problem_keys if k}
+    keys = [e['key'] for e in load(profile).get('videos', [])
+            if (e.get('id') and e['id'] in ids) or (e.get('hash') and e['hash'] in hs) or (e.get('problem_key') and e['problem_key'] in pks)]
+    if keys:
+        intend(profile, keys, action, now)
+    return len(keys)
