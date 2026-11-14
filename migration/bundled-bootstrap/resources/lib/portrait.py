@@ -101,7 +101,8 @@ def titled_page(title,path):
 # "this needs to be linked to library, not gear to Drive"); the watch add-on lists both (ios_library.py).
 LIBRARY_PAGE='plugin://plugin.video.kodi.ios.watch/?action=library&type='
 # Owner (build 319): the Home Library tab keeps the poster grid; the file manager (DEC-043) opens from Settings › Library.
-LIBRARY=[('Movies','film.png',titled_page('Movies',LIBRARY_PAGE+'movie')),('TV Shows','tv.png',titled_page('TV Shows',LIBRARY_PAGE+'tv'))]
+LIBRARY=[('Movies','film.png',titled_page('Movies',LIBRARY_PAGE+'movie')),('TV Shows','tv.png',titled_page('TV Shows',LIBRARY_PAGE+'tv')),
+         ('Favourites','star.png','RunScript(service.kodi.ios.bootstrap,favourites_page)')]
 TMDB='plugin://plugin.video.themoviedb.helper/'
 SEARCH_ACTION='ActivateWindow(Videos,%s?info=search&tmdb_type=multi,return)'%TMDB
 # Search page categories (TMDb TV genres) with their tile gradients.
@@ -263,8 +264,37 @@ def arc(size,stroke,degrees):
 _GLYPHS={}
 def header_glyphs():
  """The round-5 header textures, drawn once per process (supersampled, so not cheap)."""
- if not _GLYPHS:_GLYPHS.update({'ring_arc.png':arc(132,5,150),'hdr_gear.png':shape(96,gear_inside),'hdr_refresh.png':shape(96,refresh_inside)})
+ if not _GLYPHS:_GLYPHS.update({'ring_arc.png':arc(132,5,150),'hdr_gear.png':shape(96,gear_inside),'hdr_refresh.png':shape(96,refresh_inside),
+  **{'bell_%s.png'%k:shape(96,bell_inside(k),3) for k in ('line','fill','halo_line','halo_fill')}})
  return _GLYPHS
+
+
+# The show page's anticipated-episodes bell (mockup board G): dome with flared lip, knob and clapper on the 24 grid. White
+# line (off) and fill (on), each with a black edge texture under it so the bell reads on any artwork.
+def _bell_body(u,v,d):
+ """Inside the bell's body grown by d (negative shrinks): a dome, straight shoulders, then a curved flare out to the lip."""
+ half=5.3+d
+ if v<10.0:
+  b=5.6+d
+  return b>0 and half>0 and ((v-10.0)/b)**2+((u-12)/half)**2<=1
+ if v<=13.0:return abs(u-12)<=half
+ return v<=17.3+d and abs(u-12)<=half+3.0*((v-13.0)/4.3)**2
+def _bell_strokes(u,v,r):
+ """The knob above and the clapper below, as strokes of half-width r."""
+ import math
+ if abs(u-12)<=r and 3.3<=v<=4.6:return True
+ if math.hypot(u-12,v-3.3)<=r and v<3.3:return True
+ if v>=19.0:return abs(math.hypot(u-12,v-19.0)-1.9)<=r
+ return False
+def bell_inside(kind):
+ """kind: 'line' / 'fill' (white) or 'halo_line' / 'halo_fill' (the black edge, wider by 1.4 each side)."""
+ halo=kind.startswith('halo');r=2.5 if halo else 1.1;filled=kind.endswith('fill')
+ def inside(u,v):
+  grown=_bell_body(u,v,r)
+  if filled:return grown or _bell_strokes(u,v,r)
+  return (grown and not _bell_body(u,v,-r)) or _bell_strokes(u,v,r)
+ return inside
+BELL_TEXTURES=('bell_line.png','bell_fill.png','bell_halo_line.png','bell_halo_fill.png')
 
 def textures():
  return {**header_glyphs(),'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'menu_round.png':rounded(160,160,64),**{'menu_%s.png'%k:activity_skin.corner_texture(types_ns(),160,64,t,b) for k,t,b in (('first',True,False),('last',False,True))},'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
@@ -967,6 +997,24 @@ def show_header(ids_down):
  header+='<control type="group"><width>%d</width><height>160</height><control type="textbox"><left>%d</left><top>0</top><width>%d</width><height>132</height><font>p_foot</font><textcolor>%s</textcolor><label>$VAR[Portrait_Show_Plot]</label><autoscroll>false</autoscroll></control></control>'%(WIDTH,SIDE,WIDTH-2*SIDE,GREY)
  return header
 
+BELL_SIZE=112
+def bell_button():
+ """The anticipated-episodes bell, top right of a show page, opposite Back. Visible only while the open show is the one the
+ service found an upcoming episode for (anticipated.bell_service sets KodiIOS.Bell.*). Off: a white outline; on: filled white.
+ The 150-unit touch area is the nav buttons'."""
+ prop=lambda k:'Window(Home).Property(KodiIOS.Bell.%s)'%k
+ shown=('Container.Content(seasons) + !String.IsEmpty(%s) + String.IsEqual(%s,$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)])'%(prop('Tmdb'),prop('Tmdb')))
+ on='!String.IsEmpty(%s)'%prop('On')
+ c=54;off=c-BELL_SIZE//2
+ layer=lambda name,color,vis:image(off,off,BELL_SIZE,BELL_SIZE,MEDIA+name,color,'<visible>%s</visible>'%vis,'>keep')
+ click=('RunScript(service.kodi.ios.bootstrap,anticipated_bell,tmdb=$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)],'
+        'title=$ESCINFO[ListItem.TVShowTitle])')
+ return ('<control type="group"><left>%d</left><top>36</top><width>108</width><height>108</height><visible>%s</visible>'%(WIDTH-SIDE-108,shown)+
+  '<control type="button" id="9004"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus /><texturenofocus />'
+  '<onclick>%s</onclick><onleft>9001</onleft><ondown>9002</ondown></control>'%(c-NAV_TOUCH//2,c-NAV_TOUCH//2,NAV_TOUCH,NAV_TOUCH,e(click))+
+  layer('bell_halo_line.png','FF000000','!'+on)+layer('bell_halo_fill.png','FF000000',on)+
+  layer('bell_line.png',WHITE,'!'+on)+layer('bell_fill.png',WHITE,on)+'</control>')
+
 def episode_item(focused):
  thumb_w,thumb_h=400,225
  bg=surface(SIDE-18,4,WIDTH-2*SIDE+36,thumb_h+176,'round_s.png','14FFFFFF',26) if focused else ''
@@ -1022,7 +1070,7 @@ def video_nav(original):
    '<onclick>SetFocus(50,$INFO[Container(49).CurrentItem],absolute)</onclick><onclick>Control.Move(50,-1)</onclick>'
    '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout>'
    '<content>$INFO[Container.FolderPath]</content></control>')%(SIDE,WIDTH-SIDE,pinned_chip(False),pinned_chip(True))+'</control>')
- body=('<controls>'+backdrop()+show_page+generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+pinned+back+plain_title+refresh+'</controls>')
+ body=('<controls>'+backdrop()+show_page+generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+pinned+back+plain_title+refresh+bell_button()+'</controls>')
  return window(original,body,'50','<views>50,51,52,53</views>')
 
 def pinned_chip(focused):

@@ -2,8 +2,8 @@
 import json,time,urllib.parse,urllib.request,uuid
 import episode_watch as watch
 
-def pass_once(profile,window,keep_going,log):
- import xbmc,xbmcaddon,xbmcvfs
+def pass_once(profile,window,keep_going,log,auto_allowed=True):
+ import xbmc,xbmcaddon,xbmcgui,xbmcvfs
  import debrid_drive,drivelibrary,library_scan,source_match,elementum_cloud,elementum_download,transfer_control
  if watch.batch_active(window):return 0
  if not watch.load(profile)['shows']:return 0
@@ -78,17 +78,27 @@ def pass_once(profile,window,keep_going,log):
    if current.get('request_id')==ident:window.clearProperty(watch.AUTO)
  def allowed():
   return keep_going() and not watch.batch_active(window) and not any(transfer_control.paused(profile,k) for k in transfer_control.KINDS)
- return watch.sweep(profile,show,lambda ident,n:get('/tv/%s/season/%d'%(ident,n)),existing,download,keep_going=allowed,log=log)
+ def notify(show,episode):
+  # The bell's Alert switch: a message in Notifications and a toast. Only a message that was posted counts as sent.
+  import anticipated,notices
+  title,text=anticipated.alert_text(show,episode)
+  notices.add(profile,'info',title,text)
+  try:xbmcgui.Dialog().notification(title,text,xbmcgui.NOTIFICATION_INFO,6000)
+  except Exception:pass
+  return True
+ return watch.sweep(profile,show,lambda ident,n:get('/tv/%s/season/%d'%(ident,n)),existing,download,keep_going=allowed,log=log,
+                    notify=notify,auto_allowed=auto_allowed)
 
 def run(monitor,profile,ready):
  import xbmc,xbmcaddon,xbmcgui,app_state,diagnostics
  window=xbmcgui.Window(10000)
  log=lambda event,**fields:diagnostics.event(lambda text:xbmc.log(text,xbmc.LOGINFO),'episode_watch',event,**fields)
  def check():
+  # The Library setting only switches automatic downloading off; the bell's alerts still run (a stream-only show).
   try:log('opening_check',queued=pass_once(profile,window,
-       lambda:not monitor.abortRequested() and app_state.foreground() and not xbmc.getCondVisibility('Player.HasMedia')
-              and xbmcaddon.Addon().getSetting('follow_episodes')!='false',log))
+       lambda:not monitor.abortRequested() and app_state.foreground() and not xbmc.getCondVisibility('Player.HasMedia'),log,
+       auto_allowed=xbmcaddon.Addon().getSetting('follow_episodes')!='false'))
   except Exception as error:log('opening_deferred',error=type(error).__name__)
  watch.run_open_checks(monitor,ready,app_state.foreground,
   lambda:xbmc.getCondVisibility('Player.HasMedia | Window.IsVisible(yesnodialog) | Window.IsVisible(selectdialog) | Window.IsVisible(virtualkeyboard)') or bool(watch.active_request(window)) or watch.batch_active(window),
-  lambda:xbmcaddon.Addon().getSetting('follow_episodes')!='false',check)
+  lambda:True,check)

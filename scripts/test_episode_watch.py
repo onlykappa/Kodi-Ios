@@ -129,15 +129,19 @@ class Openings(unittest.TestCase):
   check.assert_not_called()
 
 class Runtime(unittest.TestCase):
- def test_follow_only_enrolls_an_existing_show_without_downloading_again_or_requiring_engine(self):
-  fixture,home,props=self.setup_runtime();fixture.dialog.select.return_value=2
+ def test_season_sheet_offers_two_choices_and_following_moved_to_the_bell(self):
+  """Owner 2026-11-14 (mockup board G): Full season and Choose episodes only. Following new episodes is the bell on the
+  show page (anticipated.py), so the season menu never enrolls a show."""
+  fixture,home,props=self.setup_runtime();fixture.dialog.select.return_value=-1
   spec=importlib.util.spec_from_file_location('follow_download_entry',ROOT/'migration/bundled-bootstrap/download.py')
   entry=importlib.util.module_from_spec(spec);spec.loader.exec_module(entry)
   with patch.dict(sys.modules,{'elementum_engine':types.SimpleNamespace(running=lambda:False,ensure_here=lambda:False)}),\
        patch.object(sys,'argv',['download.py','kind=season','title=Show','season=1','path=plugin://plugin.video.themoviedb.helper/?tmdb_id=123&tmdb_type=tv&season=1']),\
        patch.object(elementum_download,'follow') as follow:
    entry.run()
-  self.assertIn('123',watch.load(fixture.tmp.name)['shows']);follow.assert_not_called();fixture.dialog.ok.assert_not_called()
+  labels=[item.getLabel() if hasattr(item,'getLabel') else str(item) for item in fixture.dialog.select.call_args[0][1]]
+  self.assertEqual(len(labels),2);self.assertTrue(labels[0].endswith('Full season[/B]') or 'Full season' in labels[0])
+  self.assertEqual(watch.load(fixture.tmp.name)['shows'],{});follow.assert_not_called()
  def setup_runtime(self):
   from test_elementum_cloud import Route
   fixture=Route();fixture.setUp();self.addCleanup(fixture.doCleanups)
