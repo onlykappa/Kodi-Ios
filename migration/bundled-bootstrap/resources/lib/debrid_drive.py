@@ -215,6 +215,39 @@ def problem_title(job):
     return title or 'Unnamed download'
 
 
+FALLBACKS = 'quality-fallbacks.json'
+
+
+def _fallback_path(profile):
+    return Path(profile) / 'addon_data/service.kodi.ios.bootstrap' / FALLBACKS
+
+
+def remember_fallback(profile, tmdb, season, quality, now=None):
+    """ISSUE-258: this show's season had no real `quality` version (a fallback was taken): later episodes of it are not
+    copied, refused and searched again first; the picker still prefers a real match whenever one exists."""
+    if not (tmdb and quality):
+        return
+    path = _fallback_path(profile)
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        data = {}
+    data['%s:%s:%s' % (tmdb, season or '', quality)] = time.time() if now is None else now
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data), encoding='utf-8')
+    except OSError:
+        pass
+
+
+def fallback_known(profile, tmdb, season, quality):
+    try:
+        data = json.loads(_fallback_path(profile).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return False
+    return ('%s:%s:%s' % (tmdb, season or '', quality)) in data
+
+
 def wanted_quality(state, drive_id):
     """ISSUE-231: (the copy job, the quality the owner chose) for a file on Drive, or (None, '')."""
     for job in state.get('jobs', []):

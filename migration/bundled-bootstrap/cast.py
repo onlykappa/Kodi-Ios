@@ -4,7 +4,7 @@ Apple TV / AirPlay TV).
 The picker is one AirPlay-style sheet over the video (1080i/IOSPlayOnTV.xml, written by pages.py): This iPhone
 first, then the TVs as the search finds them, with a spinner while it keeps looking. If that page cannot be
 loaded (an older skin copy), the previous progress box and list are used instead."""
-import json,os,sys
+import json,os,re,sys
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
 import airplay,cast,notices,diagnostics
 
@@ -54,11 +54,29 @@ def run():
   try:run_owned()
   finally:home.clearProperty(cast.BUSY)
 
+def slow_on_airplay_ok(xbmc,dialog,playing):
+ """ISSUE-256: True to go on. A 10-bit H.264 release (its name says 10-bit / Hi10 and no HEVC/AV1) asks first."""
+ name=' %s '%re.sub(r'[^A-Za-z0-9]+',' ',str(playing or '')+' '+(xbmc.getInfoLabel('VideoPlayer.Title') if hasattr(xbmc,'getInfoLabel') else '')).upper()
+ ten=' HI10P ' in name or ' HI10 ' in name or ' 10BIT ' in name or ' 10 BIT ' in name
+ if not ten or any(w in name for w in (' HEVC ',' X265 ',' H265 ',' AV1 ')):return True
+ return dialog.yesno('Slow on AirPlay','This version is 10-bit, so the phone converts it while it plays: it takes longer to '
+                     'start and the TV may pause now and then. A version without "10-BIT · SLOW ON AIRPLAY" in the version '
+                     'list plays on the TV as it is.',nolabel='Cancel',yeslabel='Play Anyway')
+
+
 def run_owned():
  import threading,time,xbmc,xbmcaddon,xbmcgui,xbmcvfs
  xbmc.log('Kodi iOS Play on TV: opened',xbmc.LOGINFO)
  dialog=xbmcgui.Dialog();addon=xbmcaddon.Addon('service.kodi.ios.bootstrap');player=xbmc.Player()
+ # ISSUE-255 (owner: a plain Stop while the TV starts, with no loading screen): Play on TV tapped again while a start is
+ # under way stops it.
+ home=xbmcgui.Window(10000)
+ starting=home.getProperty(TV_STARTING)
+ if starting and time.time()-float(starting.split('|',1)[0] or 0)<180:
+  home.setProperty(TV_STOP,'1');dialog.notification('Play on TV','Stopped',xbmcgui.NOTIFICATION_INFO,2500);return
  if not player.isPlayingVideo():dialog.ok('Play on TV','Start a video first.');return
+ # ISSUE-256 (owner: ask before a version that is slow on AirPlay): 10-bit H.264 is converted on the phone, slowly.
+ if not slow_on_airplay_ok(xbmc,dialog,player.getPlayingFile()):return
  phone=cast.phone_address()
  url,needs_phone=cast.stream_url(player.getPlayingFile(),phone)
  if not url:dialog.ok('Play on TV','This video is not a web stream, so a TV cannot open it by itself.');return
@@ -161,11 +179,12 @@ def pick_dialogs(xbmc,xbmcgui,dialog,extra,found,done,last):
  pick=dialog.select('Play on which TV?',[t['name']+'  ·  '+KINDS[t['kind']] for t in tvs])
  return tvs[pick] if pick>=0 else None
 
+TV_STARTING,TV_STOP='KodiIOS.TV.Starting','KodiIOS.TV.Stop'   # ISSUE-255: a start in progress, and the owner's Stop
 QUIET_PROGRESS=True   # ISSUE-251: no "Play on TV" progress card; the system AirPlay list instead
 # ISSUE-252 (owner: "remove Media Assistant and just have it open to AirPlay"): Play on TV goes straight to Apple's AirPlay
 # list (Roku TVs are in it as AirPlay receivers); the in-app TV list, the Roku search and the switch of a Roku to Media
 # Assistant are not used.
-DIRECT_AIRPLAY=True
+DIRECT_AIRPLAY=False   # owner (2026-11-14): keep Media Assistant until AirPlay is confirmed on the Rokus
 
 
 class FlowUI:
@@ -210,6 +229,9 @@ class FlowUI:
   if self.win is not None:self.win.apply(self.flow.stage_view(stage,self.title,skipped=self.skipped,converting=self.converting,kind=self.kind,poster=self.poster))
   elif self.box:self.box.update(0,cast.AIRPLAY_WORDS.get(stage,''))
  def canceled(self):
+  if QUIET_PROGRESS:   # ISSUE-255: no card; Play on TV tapped again while it starts is Stop
+   try:return self.xbmcgui.Window(10000).getProperty(TV_STOP)=='1'
+   except Exception:return False
   if self.win is not None:return self.win.canceled()
   return bool(self.box and self.box.iscanceled())
  def ask(self,props,monitor):
@@ -240,10 +262,20 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   import xbmcgui
   source,lease=remote_media.acquire(raw,xbmcgui.Window(10000))
   diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','source_cache',enabled=bool(lease))
+ import time as _time,xbmcgui as _gui
+ _home=_gui.Window(10000)
+ def _mark(key,value=None):
+  try:_home.setProperty(key,value) if value else _home.clearProperty(key)
+  except Exception:pass
+ _mark(TV_STOP);_mark(TV_STARTING,'%f|%s'%(_time.time(),title or ''))
+ if QUIET_PROGRESS:
+  try:dialog.notification('Play on TV','Getting it ready · tap Play on TV again to stop',_gui.NOTIFICATION_INFO,4000)
+  except Exception:pass
  try:
   retained=bool(_send_airplay(xbmc,dialog,player,library,url,title,playing,lib,source,lease))
   return retained
  finally:
+  _mark(TV_STARTING);_mark(TV_STOP)
   # Native playback outlives this interpreter after the 45-second settle check. The service owns its cache.
   if lease:
    try:diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','source_link',**lease.status())

@@ -231,5 +231,25 @@ class SlowOnAirPlay(unittest.TestCase):
         self.assertFalse(dp.converts_for_tv(item('Show - 01 [1080p] x264.mkv', 1.0, tags='x264')))
 
 
+class ProblemsPageAndMemory(unittest.TestCase):
+    """ISSUE-257 (titles not cut at the episode, Clear All for a show) and ISSUE-258 (a season without real 1080p remembered)."""
+    def test_episode_first_titles_and_clear_for_a_show(self):
+        spec2 = importlib.util.spec_from_file_location('copy_problems', ROOT / 'migration/bundled-bootstrap/copy_problems.py')
+        cp = importlib.util.module_from_spec(spec2);spec2.loader.exec_module(cp)
+        p = {'title': 'Naruto Shippuuden · S1 E5', 'group': 'source', 'why': 'x', 'kind': 'source', 'error': 'x', 'reason': 'x'}
+        self.assertEqual(cp.short_title(p), 'S1 E5 · Naruto Shippuuden');self.assertEqual(cp.show_of(p), 'Naruto Shippuuden')
+        self.assertEqual(cp.short_title({'title': 'Heat (1995)'}), 'Heat (1995)')
+        spec, actions = cp.sheet(p)
+        self.assertEqual(actions[-1], 'clear_show');self.assertEqual(spec['rows'][-1]['label'], 'Clear All for Naruto Shippuuden')
+
+    def test_a_season_without_real_1080p_is_remembered(self):
+        with tempfile.TemporaryDirectory() as p:
+            self.assertFalse(debrid_drive.fallback_known(p, '31910', '1', '1080p'))
+            debrid_drive.remember_fallback(p, '31910', '1', '1080p')
+            self.assertTrue(debrid_drive.fallback_known(p, '31910', '1', '1080p'))
+            self.assertFalse(debrid_drive.fallback_known(p, '31910', '2', '1080p'))
+        self.assertIn('debrid_drive.fallback_known(', (LIB / 'elementum_cloud.py').read_text())
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -103,6 +103,23 @@ def what(problem):
     return 'Download' if problem.get('title') != 'Unnamed download' else 'No title came with it'
 
 
+def short_title(problem):
+    """ISSUE-257 (owner: "Naruto Shippuuden · S…" was cut off): an episode reads "S1 E5 · Naruto Shippuuden", so what is cut
+    is the show's name, which the poster already shows, never the episode."""
+    title = str(problem.get('title') or '')
+    head, sep, tail = title.rpartition(' \u00b7 ')
+    if sep and tail.startswith('S') and ' E' in tail:
+        return '%s \u00b7 %s' % (tail, head)
+    return title
+
+
+def show_of(problem):
+    """The show an episode problem belongs to ('' for a movie)."""
+    title = str(problem.get('title') or '')
+    head, sep, tail = title.rpartition(' \u00b7 ')
+    return head if sep and tail.startswith('S') and ' E' in tail else ''
+
+
 def model(found, filter_='all', now=None, slots=40, poster=lambda problem: ''):
     """({property: value}, [slot entries]) for the page. A slot entry is {'head': text} or the problem it shows."""
     now = time.time() if now is None else now
@@ -141,7 +158,7 @@ def model(found, filter_='all', now=None, slots=40, poster=lambda problem: ''):
                 props[k + key] = ''
             continue
         when = ago(e.get('finished'), now)
-        props[k + 'title'] = e['title']
+        props[k + 'title'] = short_title(e)
         props[k + 'sub'] = e.get('sub') or what(e)
         props[k + 'why'] = ('Cancelled %s' % when) if e['group'] == 'cancelled' and when else e['why']
         props[k + 'whyc'] = TINT[e['group']]
@@ -180,6 +197,8 @@ def sheet(problem):
     rows.append({'label': 'Restart' if group == 'cancelled' else 'Try This Source Again'});actions.append('retry')
     rows.append(DONT_SHOW);actions.append('ignore')
     rows.append({'label': 'Remove From List', 'tint': 'FFFF453A', 'glyph': 'trash.png'});actions.append('remove')
+    if show_of(problem):   # ISSUE-257: once a season is done, its leftovers go in one tap
+        rows.append({'label': 'Clear All for %s' % show_of(problem), 'tint': 'FFFF453A', 'glyph': 'trash.png'});actions.append('clear_show')
     return {'heading': problem['title'], 'sub': detail_text(problem)[:220], 'rows': rows}, actions
 
 
@@ -280,6 +299,12 @@ def run():
                 self.note('Back in line' if n else 'Already on Google Drive')
             elif action == 'remove':
                 debrid_drive.clear_failed(profile, only={problem['key']})
+            elif action == 'clear_show':
+                show = show_of(problem)
+                keys = {p['key'] for p in self.found if p.get('kind') != 'prepare' and show_of(p) == show}
+                if xbmcgui.Dialog().yesno('Clear all for %s?' % show, '%d leave this list. Nothing on Google Drive changes.' % len(keys),
+                                          nolabel='Cancel', yeslabel='Clear All'):
+                    debrid_drive.clear_failed(profile, only=keys)
             elif action == 'find':
                 xbmc.executebuiltin('ActivateWindow(Videos,%s,return)' % search_path(problem))
                 return

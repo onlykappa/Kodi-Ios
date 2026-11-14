@@ -498,7 +498,7 @@ class DownloadProblemsPage(unittest.TestCase):
   props,entries=cp.model(found,'prepare',now=1000,slots=12)
   self.assertEqual((props['row.1.title'],props['row.1.act'],props['row.1.why']),('Fall 2 (2026)','Retry','Stopped · it will try again'))   # line order
   self.assertEqual((props['row.2.title'],props['row.2.sub'],props['row.2.why'],props['row.2.act'],props['row.2.whyc']),
-                   ('Naruto Shippuuden · S1 E9','Episode · 300 MB',"DVD subtitles can't be kept",'Find','orange'))
+                   ('S1 E9 · Naruto Shippuuden','Episode · 300 MB',"DVD subtitles can't be kept",'Find','orange'))
   self.assertEqual(props['retry.label'],'Try Again 1');self.assertIn('play in Kodi',props['foot'])
   props,_=cp.model(cp.prep_problems(state,{'dvd_subs':True}),'prepare',now=1000)
   self.assertEqual(props['retry.label'],'Try Again 3')                                 # a converter that keeps them: all can retry

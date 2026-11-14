@@ -709,7 +709,7 @@ class PhoneServedTv(unittest.TestCase):
 class QuietPlayOnTV(unittest.TestCase):
  """ISSUE-251/252 (owner: no loading card, straight to Apple's AirPlay list, no Media Assistant)."""
  def test_play_on_tv_opens_the_airplay_list_at_once_with_no_card_and_no_roku_switch(self):
-  self.assertTrue(controller.QUIET_PROGRESS);self.assertTrue(controller.DIRECT_AIRPLAY)
+  self.assertTrue(controller.QUIET_PROGRESS);self.assertFalse(controller.DIRECT_AIRPLAY)   # owner: Media Assistant stays for now
   src=(BOOT/'cast.py').read_text()
   self.assertIn("if QUIET_PROGRESS and hasattr(lib,'kodi_airplay_open'):lib.kodi_airplay_open()",src)
   self.assertLess(src.index("lib.kodi_airplay_play(source.encode('utf-8')"),src.index("lib.kodi_airplay_open()"))
@@ -720,6 +720,21 @@ class QuietPlayOnTV(unittest.TestCase):
   ui.show('opening');self.assertEqual(shown,[])                                   # nothing drawn
   native=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('if (!chosen) openSheet(sheet);',native)                          # the list is not opened twice
+
+
+class StopAndSlowWarning(unittest.TestCase):
+ """ISSUE-255 (Stop while the TV starts, no card) and ISSUE-256 (ask before a version slow on AirPlay)."""
+ def test_a_ten_bit_h264_stream_asks_first(self):
+  asked=[]
+  dialog=types.SimpleNamespace(yesno=lambda *a,**k:asked.append(a) or False)
+  xbmc=types.SimpleNamespace(getInfoLabel=lambda l:'')
+  self.assertFalse(controller.slow_on_airplay_ok(xbmc,dialog,'http://x/Dragon.Ball.Super.01.1080p.10bit.mkv'));self.assertEqual(len(asked),1)
+  self.assertTrue(controller.slow_on_airplay_ok(xbmc,dialog,'http://x/Show.01.1080p.10bit.HEVC.mkv'))
+  self.assertTrue(controller.slow_on_airplay_ok(xbmc,dialog,'http://x/Show.01.1080p.x264.mkv'));self.assertEqual(len(asked),1)
+ def test_play_on_tv_again_stops_a_start(self):
+  src=(BOOT/'cast.py').read_text()
+  self.assertIn("home.setProperty(TV_STOP,'1')",src);self.assertIn("getProperty(TV_STOP)=='1'",src)
+  self.assertIn("_mark(TV_STARTING);_mark(TV_STOP)",src)
 
 
 if __name__=='__main__':unittest.main()

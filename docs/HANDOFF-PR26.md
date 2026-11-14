@@ -93,4 +93,6 @@ tested. The owner then asked for three things about Play on TV:
    - Media Assistant played the phone's HLS directly. AirPlay goes through Apple's player (no HDR passthrough
      difference for SDR files).
    - Ask the owner before deleting the Roku code if anything still depends on it.
+   - **Owner (2026-11-14): keep Media Assistant until AirPlay is confirmed on the Rokus.** `cast.DIRECT_AIRPLAY` is
+     False; nothing is deleted. ISSUE-252 update.
 

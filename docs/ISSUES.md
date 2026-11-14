@@ -3670,12 +3670,13 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Open:** the test updates (test_play_on_tv_network: 6 failures expect the card), the r56 release, the phone check, the speed-ups and the Media Assistant removal: docs/HANDOFF-PR26.md "Play on TV work in progress".
 - **Done:** tests updated (the card's deadline/cancel tests run with the card on; `QuietPlayOnTV` checks the owner's flow). **r56 pinned:** airplay-ios run 43545050950 and airplay-remux host-tests (run 43545050788) green; digest 91be96af…416f7 checked by download.
 
-## ISSUE-252 — Play on TV goes straight to AirPlay; Media Assistant is no longer used (owner, build 393) — fixed in code
+## ISSUE-252 — Play on TV goes straight to AirPlay; Media Assistant is no longer used (owner, build 393) — fixed in code (Media Assistant kept, see the update)
 
 - **Owner:** "Media Assistant does work … why can't we make it play natively on the Roku AirPlay app instead? I'd love to remove Media Assistant and just have it open to AirPlay."
 - **Findings (log 9c11baa7):** "Roku took the link via media-assistant" in ~10 s; the Roku fetched the phone's own master.m3u8 (the same server AirPlay uses). Roku has no API that starts its AirPlay receiver with a link: a Roku TV is reached as an AirPlay receiver only through Apple's AirPlay list, where it already appears ("Kannons bedroom roku tv").
 - **Fix:** `cast.DIRECT_AIRPLAY`: Play on TV skips the in-app TV list and the Roku search and goes to AirPlay (Apple's list opens at once, ISSUE-251); the automatic switch of a converting stream on a Roku to Media Assistant is off. The Roku code stays dormant behind the flag (its tests still run) and can be deleted once the owner confirms Rokus play well through AirPlay.
 - **Retest:** test_play_on_tv_network `QuietPlayOnTV`. Phone check pending.
+- **Update (owner, 2026-11-14):** "I'll keep Media Assistant until I know AirPlay works": `DIRECT_AIRPLAY` is False again, so the in-app TV list, the Roku search and the Media Assistant hand-off are back. The quiet start (no card, Apple's list at once) stays for AirPlay TVs. `QuietPlayOnTV` now checks the flag is off.
 
 ## ISSUE-253 — AirPlay of a 10-bit H.264 stream took 28 s to reach the TV (owner log a176bcec, build 393) — partly fixed in code
 
@@ -3693,3 +3694,28 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Fix:** the card says why a copy waits: "Waiting for the network" only when the phone has no connection at all; online network trouble reads "Couldn't reach AllDebrid or Google Drive"; the TMDb wait reads "Waiting for TMDb's episode numbers"; anything else gives its own short reason. TMDb Helper's key is found through Kodi (getAddonInfo path, then the old paths). A TMDb wait never counts toward giving up (1 to 10 minutes between tries).
 - **Retest:** test_work_state `WaitWords` (and the two older network tests updated). Phone check pending: Naruto S2 should start copying.
 
+
+## ISSUE-255 — No way to stop Play on TV while the TV starts, now the card is gone (owner, 2026-11-14) — fixed in code
+
+- **Owner:** "do 2": a plain Stop while the TV starts, with no loading screen.
+- **Cause:** ISSUE-251 removed the progress card, and its Cancel with it.
+- **Fix:** while a TV is getting ready the app keeps `KodiIOS.TV.Starting`; a short notice says "Getting it ready · tap Play on TV again to stop"; tapping Play on TV again within 3 minutes sets `KodiIOS.TV.Stop`, which the quiet flow treats as Cancel. Both are cleared when the start ends. Setting or clearing them never stops Play on TV when the window is unavailable.
+- **Retest:** test_play_on_tv_network `StopAndSlowWarning`; test_remote_media (window doubles without clearProperty).
+
+## ISSUE-256 — A 10-bit H.264 version went to AirPlay without warning (owner, 2026-11-14) — fixed in code
+
+- **Owner:** "do 3": ask before a 10-bit version on AirPlay.
+- **Fix:** Play on TV with a 10-bit H.264 version (HI10P, 10BIT, "10 bit" naming no HEVC, x265, H.265 or AV1) asks first: "Slow on AirPlay … Cancel / Play Anyway". HEVC and 8-bit versions do not ask (ISSUE-253 explains why only 10-bit H.264 is slow).
+- **Retest:** test_play_on_tv_network `StopAndSlowWarning`.
+
+## ISSUE-257 — Download problems: episode titles cut off before the episode; no way to clear a whole show (owner, 2026-11-14) — fixed in code
+
+- **Owner:** "do 4": "Naruto Shippuuden · S…" was cut off before the part that matters.
+- **Fix:** the row title puts the episode first ("S1 E5 · Naruto Shippuuden"). A copy problem's sheet adds "Clear All for <show>", which asks, then removes every non-prepare problem of that show.
+- **Retest:** test_season_quality `ProblemsPageAndMemory`.
+
+## ISSUE-258 — "Not the quality you picked" loop for a season with no real 1080p (owner, 2026-11-14) — fixed in code
+
+- **Owner:** "do 5": early Naruto Shippuuden has no real 1080p, and each episode was copied, refused and searched again.
+- **Fix:** when the picker takes a fallback for a tracked show, `debrid_drive.remember_fallback` records show, season and quality in `addon_data/service.kodi.ios.bootstrap/quality-fallbacks.json` (on the phone, not in Git). Later episodes of that season are copied without the strict-quality refusal. The picker still prefers a real match whenever one exists.
+- **Retest:** test_season_quality `ProblemsPageAndMemory`.
