@@ -23,7 +23,22 @@ def store(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap/n
 def load(profile):
  try:items=json.loads(store(profile).read_text(encoding='utf-8'))
  except (OSError,ValueError):return []
- return [i for i in items if isinstance(i,dict) and i.get('title')] if isinstance(items,list) else []
+ return [i for i in items if isinstance(i,dict) and i.get('title') and not routine(i)] if isinstance(items,list) else []
+
+# ISSUE-289 (owner, build 442: "hide these notifications permanently; the only time it should appear is if it doesn't
+# start or there is an error with Trakt/Elementum, because it's a given they start every time"): the start-up successes
+# of Trakt and Elementum are never kept. A notice about them that reports trouble (a problem, or words such as failed,
+# error, could not) still shows.
+ROUTINE_OK=None
+def routine(item):
+ import re
+ global ROUTINE_OK
+ if ROUTINE_OK is None:
+  ROUTINE_OK=re.compile(r'(?i)\b(trakt\b.*\b(connected|authori[sz]ed|signed in)|elementum\b.*\b(started|starting|running|ready)|daemon has started)\b')
+ if item.get('kind')=='problem':return False
+ words='%s %s'%(item.get('title') or '',item.get('text') or '')
+ if not ROUTINE_OK.search(words):return False
+ return not re.search(r'(?i)\b(fail\w*|errors?|could not|couldn.t|cannot|can.t|stopped|refused|denied|missing|timed out|not start\w*)\b',words)
 
 def save(profile,items):
  path=store(profile);path.parent.mkdir(parents=True,exist_ok=True)
@@ -52,6 +67,7 @@ def add(profile,kind,title,text='',action='',now=None,group=''):
  choice); '' for one episode. A message of the same kind and title from the same group as an unread one joins it
  ("Naruto Shippuuden · 21 episodes · …"), moved to the top. One episode's messages stay one each."""
  now=time.time() if now is None else now;kind=kind if kind in KINDS else 'info'
+ if routine({'kind':kind,'title':title,'text':text}):return None   # ISSUE-289
  items=load(profile)
  if items and items[0].get('title')==title and items[0].get('text')==text and now-items[0].get('time',0)<60:return items[0]
  if group:

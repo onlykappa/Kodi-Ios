@@ -4244,3 +4244,16 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   "Upscale new downloads" (ISSUE-245: "I want full control").
 - **Test:** test_upscale_from_index (season 2 episodes without a finished job are listed; unknown size and converting are
   not; never-prepared videos wait for the owner; service and page share the path).
+
+## ISSUE-289 — "Trakt connected" and "Elementum daemon has started" filled Notifications at every start (owner, build 442) — fixed in code
+
+- **Request:** owner, 2026-11-14: "hide these notifications permanently; the only time it should appear is if it doesn't
+  start or there is an error with Trakt/Elementum, because it's a given that Elementum will start and Trakt will start
+  every time".
+- **Cause:** Kodi's own pop-ups (`toasts.jsonl`) are all recorded (`notices.ingest`), so each start added the two
+  successes again (twice after a restart).
+- **Fix:** `notices.routine(item)` marks a Trakt connected/authorised/signed-in or Elementum started/running notice
+  that is not a problem and has no trouble words (failed, error, could not, stopped, refused, timed out, not started).
+  `notices.add` does not record it, and `notices.load` drops ones already saved, so they leave the page and the unread
+  count at once. A failure still shows.
+- **Test:** test_routine_notices (starts dropped, failures kept, old saved ones disappear).

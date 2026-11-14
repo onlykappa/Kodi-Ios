@@ -63,8 +63,8 @@ class Attach(unittest.TestCase):
  def tearDown(self):self.tmp.cleanup()
  def test_each_message_keeps_its_lines_once(self):
   crash=notices.add(self.profile,'problem','Kodi iOS Automatic Setup and Recovery','Check the log for more information.',now=BASE+9.5)
-  quiet=notices.add(self.profile,'general','TMDbHelper','Trakt authorized in 1.946s',now=BASE+2)
-  fresh=notices.add(self.profile,'general','Elementum','Elementum daemon has started',now=BASE+11.5)
+  quiet=notices.add(self.profile,'general','TMDbHelper','Library lists refreshed in 1.946s',now=BASE+2)
+  fresh=notices.add(self.profile,'general','Elementum','Elementum providers loaded',now=BASE+11.5)
   self.assertEqual(notices.attach_logs(self.profile,str(self.log),now=BASE+12),2)   # the newest waits for Kodi to finish writing
   items={i['id']:i for i in notices.load(self.profile)}
   self.assertTrue(items[crash['id']]['log']);self.assertFalse(items[quiet['id']]['log']);self.assertNotIn('log',items[fresh['id']])
@@ -149,7 +149,7 @@ class TapAMessage(unittest.TestCase):
   self.assertEqual(seen['fix0.label'],'Open');self.assertEqual(seen['nolog'],'Kodi wrote nothing else about this around that time.')
   self.assertEqual(ran,['RunScript(service.kodi.ios.bootstrap,check_updates)'])
  def test_the_dimmed_page_and_back_close_it(self):
-  notices.add(self.profile,'general','TMDbHelper','Trakt authorized',now=BASE+2)
+  notices.add(self.profile,'general','TMDbHelper','Library lists refreshed',now=BASE+2)
   kodi,ran=self.run_page([('IOSNotifications.xml',lambda w:w.onClick(9501)),(notice_page.SHEET,lambda w:w.onClick(notice_page.DIM)),
                           ('IOSNotifications.xml',lambda w:w.onClick(9501)),(notice_page.SHEET,lambda w:w.onAction(type('A',(),{'getId':lambda s:92})())),
                           ('IOSNotifications.xml',lambda w:w.onClick(9001))])
