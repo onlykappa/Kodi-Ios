@@ -4181,3 +4181,18 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   5 s default (ISSUE-279) to 3 s. A value the owner sets later, 5 included, is kept. `ARM_WHEN` still waits while paused.
 - **Test:** test_customisation `test_tap_anywhere_hides_and_five_seconds_by_default` (the first default is 3, the 5 to 3 move
   happens once, paused keeps them).
+
+## ISSUE-284 — "Remove From Continue Watching" did nothing (owner, build 442) — fixed in code
+
+- **Cause:** the long-press entry (`plugin.video.kodi.ios.watch` `continue_hide`) recorded the title as removed and ran
+  `Container.Refresh`. That reloads only the page's own list, never a row of the Home, Movies or TV hubs, so the row kept
+  showing the title until the app reloaded it for some other reason.
+- **Fix:**
+  - The rows' path carries `&stamp=$INFO[Window(Home).Property(KodiIOS.ContinueStamp)]` (`portrait.CONTINUE_STAMP`).
+  - A removal sets that property, so Kodi loads every Continue Watching row again at once.
+  - A library item (a downloaded movie or episode, key `file:…`) also has its resume point in Kodi cleared
+    (`VideoLibrary.SetMovieDetails` / `SetEpisodeDetails`, resume 0), so Kodi's own in-progress lists drop it.
+  - A phone title (Umbrella / Elementum / TMDb) keeps its saved position: owner, 2026-11-13, "don't make it erase the
+    progress … if I watch it again it can show back up". It stays off the rows until it is played again.
+- **Test:** test_watch_continue `RemoveFromContinue`; test_portrait `test_continue_watching_leads_each_hub` (the stamp is in
+  the row's path).

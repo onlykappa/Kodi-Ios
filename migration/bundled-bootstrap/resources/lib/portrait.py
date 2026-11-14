@@ -82,6 +82,8 @@ SPOTLIGHT={'Home.xml':'home','Custom_1101_Hub.xml':'1101','Custom_1102_Hub.xml':
 LIBRARY_FILES=('Custom_1103_Hub.xml','Custom_1104_Hub.xml')
 SEARCH_FILE='Custom_1105_Search.xml'
 CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type='
+# ISSUE-284: the row's path carries the removal stamp, so Kodi loads the row again when an item is removed.
+CONTINUE_STAMP='&stamp=$INFO[Window(Home).Property(KodiIOS.ContinueStamp)]'
 # Floating tab bar (Apple TV app): Home, Movies, TV, Library (downloaded media), Search.
 # Home, Movies and TV are one window (Home.xml) with a group per hub, so all three load their rows at start and
 # switching between them only changes Window(Home).Property(Portrait.Tab); Custom_1101/1102 forward to it.
@@ -728,7 +730,7 @@ def shift(xml,offset):
 
 def hub_body(title,widgets,tab,spotlight,resume='all',variables=None):
  # Continue Watching leads (movies and episodes the owner started); the old in-progress rows would repeat it.
- widgets=[{'label':'Continue Watching','path':CONTINUE+resume,'target':'videos','style':'continue'}]+[w for w in widgets if not in_progress(w)]
+ widgets=[{'label':'Continue Watching','path':CONTINUE+resume+CONTINUE_STAMP,'target':'videos','style':'continue'}]+[w for w in widgets if not in_progress(w)]
  rows=''.join(row(i,w,i==len(widgets)-1,tab,variables) for i,w in enumerate(widgets))
  body=('<control type="grouplist" id="5000"><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<itemgap>0</itemgap><scrolltime tween="cubic" easing="out">380</scrolltime><usecontrolcoords>true</usecontrolcoords>%s%s'

@@ -279,7 +279,7 @@ class PortraitTests(unittest.TestCase):
    first=root.find(".//control[@id='%d']"%(5001+offset))
    content=first.findtext('content')
    # The preloader: every hub's rows hold their real path and load when Home opens.
-   self.assertEqual(content,portrait.CONTINUE+kind)
+   self.assertEqual(content,portrait.CONTINUE+kind+portrait.CONTINUE_STAMP)   # ISSUE-284: the removal stamp reloads the row
    self.assertNotIn('Portrait_Row_%s_0'%tab,includes)
  def test_preloader_loads_every_hub_at_once(self):
   # Owner (build-135): back to the preloader: no row or hero waits for a flag or a timer.
