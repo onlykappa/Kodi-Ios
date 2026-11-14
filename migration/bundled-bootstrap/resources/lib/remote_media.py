@@ -131,7 +131,9 @@ class Broker:
         broker.current=None;broker.ident='';broker.warm=False;broker.source=''
        answer={'closed':True}
       elif action=='stats':
-       answer={'stats':broker.current.stats() if broker.current else {}}
+       # ISSUE-280: the opening card also needs whose source it is and how much of it is in memory (no URL, no id).
+       answer={'stats':dict(broker.current.stats(),kodi=broker.kodi,cached_blocks=len(broker.current.blocks.data),
+                            block_size=broker.current.block_size) if broker.current else {}}
       elif action=='status':
        answer={'renewal':broker.current.renewal_state if broker.current and request.get('id')==broker.ident else 'closed'}
        if broker.current and request.get('id')==broker.ident:answer['stats']=broker.current.stats()

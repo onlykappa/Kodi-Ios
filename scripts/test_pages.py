@@ -187,4 +187,41 @@ class SliderUnderTrackMenu(unittest.TestCase):
   src=(ROOT/'migration/bundled-bootstrap/tracks.py').read_text()
   self.assertIn("setProperty('KodiIOS.TrackMenu', 'open')",src);self.assertIn("clearProperty('KodiIOS.TrackMenu')",src)
 
+class OpeningStages(unittest.TestCase):
+ """ISSUE-280, owner-approved board S1 (docs/design/stream-opening-mockups.html): the card's line says the step, with
+ real numbers only (build 430: "Getting ready to play… 0%" for 30 s)."""
+ MB=1024*1024
+ def test_three_stages(self):
+  s=ready.stage
+  self.assertEqual(s('AllDebrid',3,False,{}),{'Line':'Getting the link from AllDebrid\u2026','Right':'3 s','Fill':'','Slow':''})
+  cache={'kodi':True,'block_size':4*self.MB,'cached_blocks':2}
+  self.assertEqual(s('AllDebrid',6,True,cache,3),{'Line':'Opening the video \u00b7 8 of 12 MB','Right':'66%','Fill':'66','Slow':''})
+  done=s('AllDebrid',14,True,dict(cache,cached_blocks=3),12)
+  self.assertEqual((done['Line'],done['Right'],done['Fill']),('Starting the video\u2026','14 s',''))
+  self.assertEqual(done['Slow'],'AllDebrid is sending it slowly right now (1.0 MB/s).')   # only after 10 s, real speed
+  self.assertEqual(s('AllDebrid',14,True,dict(cache,cached_blocks=3),3)['Slow'],'')          # 4 MB/s: no note
+  self.assertEqual(s('AllDebrid',5,True,{})['Line'],'Starting the video\u2026')             # an MP4: no cache, no made-up %
+  self.assertEqual(s('AllDebrid',5,True,{'kodi':False,'block_size':4*self.MB,'cached_blocks':3})['Fill'],'')   # a TV's source
+ def test_watch_follows_the_link_and_the_cache(self):
+  props={};now=[0.0];link=['old'];ticks=iter(range(40))
+  text='[COLOR x]ALLDEBRID[/COLOR][CR]TORRENTIO[CR]1080P[CR]AVC WEB 1.70 GB[CR]01 - Black.Clover.S02E07.mkv'
+  cache={'kodi':True,'block_size':4*self.MB,'cached_blocks':1}
+  seen=[]
+  def wait(_):
+   n=next(ticks,None);now[0]+=1
+   if n==5:link[0]='new'
+   seen.append(props.get('IOSReady.Line'))
+   return n is None
+  ready.watch(lambda:True,lambda:text,props.__setitem__,lambda k:props.pop(k,None),wait,linked=lambda:link[0],cache=lambda:cache,clock=lambda:now[0])
+  self.assertIn('Getting the link from AllDebrid\u2026',seen);self.assertIn('Opening the video \u00b7 4 of 12 MB',seen)
+  self.assertEqual(props['IOSReady.Provider'],'AllDebrid')
+ def test_card_shows_the_line_and_keeps_umbrellas_percent_as_fallback(self):
+  import pages
+  xml=pages.umbrella_ready(portrait);ET.fromstring(xml.split('\n',2)[2])
+  self.assertIn('$INFO[Window(home).Property(IOSReady.Line)]',xml);self.assertIn('$INFO[Window(home).Property(IOSReady.Slow)]',xml)
+  self.assertIn('Integer.IsGreaterOrEqual(Window(home).Property(IOSReady.Fill),50)',xml)
+  self.assertIn('Getting ready to play\u2026',xml);self.assertNotIn('!!',xml)
+  service=(BOOT/'service.py').read_text()
+  self.assertIn("'linked':lambda:window.getProperty('KodiIOS.UmbrellaRenewal')",service)
+
 if __name__=='__main__':unittest.main()

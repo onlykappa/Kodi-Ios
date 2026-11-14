@@ -4124,3 +4124,8 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Tests:** test_remote_media `KodiPlays` (6) covers: the cache route with start and end asked for; other links unchanged; Play on TV gets the real link and shares the cache; idle release; the Umbrella unlock hands Kodi the cache; cast translation.
 - **Card (UI):** `docs/design/stream-opening-mockups.html` board S1 has three honest stages under the bar: getting the link (sliding bar, seconds), opening the video (real MB read of 12 MB), and a slow-source note with the real speed. It waits for the owner's approval before code.
 - **Phone check:** an Umbrella MKV opens in a few seconds rather than about 30. The `open timing … via umbrella` line shows the new open time. Play on TV of the same episode still works.
+- **Card coded (board S1, owner-approved 2026-11-14):**
+  - `umbrella_ready.stage` writes IOSReady.Line / Right / Fill / Slow every quarter second from two sources: the unlocked link (`KodiIOS.UmbrellaRenewal`) and the stream cache's counts (`remote_media` stats now include `kodi`, `cached_blocks`, `block_size`).
+  - `pages.umbrella_ready` shows the line. The bar fills by Fill or slides, and Umbrella's own percent stays the fallback.
+  - Test: test_pages `OpeningStages` (3).
+  - Desktop Kodi rig render of stages a, b and c: matches the boards, no cut-off text (screenshots kept out of Git). Phone check pending.

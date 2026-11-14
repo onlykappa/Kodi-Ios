@@ -309,7 +309,10 @@ def run():
  threading.Thread(target=library_watch.run,args=(xbmc,xbmcaddon,xbmcvfs,monitor,profile),daemon=True).start()
  # Umbrella's getting-ready-to-play screen: its source text, split into the badges the portrait page shows.
  threading.Thread(target=umbrella_ready.watch,args=(lambda:xbmc.getCondVisibility('Window.IsVisible(%s)'%umbrella_ready.WINDOW),
-  lambda:xbmc.getInfoLabel('Control.GetLabel(2001)'),window.setProperty,window.clearProperty,monitor.waitForAbort),daemon=True).start()
+  lambda:xbmc.getInfoLabel('Control.GetLabel(2001)'),window.setProperty,window.clearProperty,monitor.waitForAbort),
+  # ISSUE-280 (board S1): the stage line, from the unlocked link (umbrella_recovery) and the stream cache's own counts.
+  kwargs={'linked':lambda:window.getProperty('KodiIOS.UmbrellaRenewal'),
+          'cache':lambda:__import__('remote_media').stats(window)},daemon=True).start()
  # The activity pill: Kodi's background progress box (never drawn) read and rewritten, plus Elementum and Drive.
  def activity_setting(key,default):
   try:
