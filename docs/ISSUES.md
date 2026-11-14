@@ -4131,3 +4131,116 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - Desktop Kodi rig render of stages a, b and c: matches the boards, no cut-off text (screenshots kept out of Git). Phone check pending.
 
 **Delivery (owner OK, 2026-11-14):** IPA build-442 was built from f1d6447 (import-review run 43623141308) and carries ISSUE-276 to 280 and AirPlay r57. It was downloaded and checked: sha256 982d4a24…4ed7dbb, the zip is valid, and the framework carries the r57 restart note. The library index, poll_fetching, the for_kodi route, the tap-to-hide area and the stage line are all inside. Phone checks are pending for every item.
+
+## ISSUE-281 — Umbrella stream stuck at "Opening the video · 0 of 12 MB", then a crash on Resume (owner, build 442; ISSUE-280 regression) — fixed in code; crash log asked for
+
+- **Seen:** an Umbrella episode never opened; the opening card stayed at "0 of 12 MB". Pressing Resume crashed the app.
+  Log 6cf2a4c5 starts after the crash, so it does not hold the crash itself.
+- **Cause (from the code and log 6cf2a4c5):**
+  - `remote_media.start` runs inside `drive_uploads` before the ISSUE-282 NameError. Every watchdog restart (30 s, 60 s,
+    120 s … 600 s) made a new cache and moved the Home property to it.
+  - Umbrella's unlock (`for_kodi`) could hand Kodi an address on one cache while the opening card (`umbrella_ready`, reading
+    the property's stats) counted another, empty one: "0 of 12 MB" for good.
+  - A later Resume reopened an address whose cache was no longer the one in charge.
+  - `for_kodi` also handed Kodi the cache before knowing the link answered at all.
+- **Fix:**
+  - `remote_media.start` keeps one cache per service run (`_BROKER`). A restarted Drive loop reuses it and points the
+    property back at it.
+  - `for_kodi` gives Kodi the cache only once the cache knows the file's size (the link answered) within FIRST_ANSWER = 5 s.
+    Otherwise Kodi gets the real link, as before ISSUE-280, and the cache lets the source go (`drop`).
+  - The stats name their source by a fingerprint (`source_id`), never the private id.
+  - With ISSUE-282 fixed, the restarts themselves stop.
+- **Asked for:** the crashed session's log (kodi.old.log), to confirm the crash's own cause.
+- **Test:** test_stream_fallback (new: the cache used once the link answered; the real link and `drop` when it does not;
+  one cache per run; no private id in the stats); test_remote_media (52) still passes.
+
+## ISSUE-282 — "Kodi iOS Drive: downloads stopped (NameError); starting again in 30/60/120 s" from startup (owner log 6cf2a4c5, build 442) — fixed in code
+
+- **Seen:** from 10:29:55 the service's Drive loop stopped at once on every start, and the ISSUE-269 watchdog restarted it.
+  The log gave only the error's type.
+- **Cause:** PR #27 (DEC-052, library index step 2) starts `library_index.publish` inside `drive_uploads` with
+  `set_property=window.setProperty`. `window` is a name of `run()`, not of `drive_uploads` (which calls the Home window
+  `home`, a path, and has `xbmcgui`). So `drive_uploads` raised NameError right after the Library lists thread started.
+  Nothing after it ran: no AllDebrid copies, no Drive uploads, no preparation, and the library index never published.
+- **Fix:**
+  - `xbmcgui.Window(10000).setProperty`.
+  - The watchdog logs the message too ("downloads stopped (NameError: name 'window' is not defined)"), redacted, 200
+    characters.
+  - Two latent undefined names in `library_tools_page` (`u` in `_card_row` / `_arrow`) are fixed as well.
+- **Test:** test_undefined_names (new; symtable over the service, the page scripts and every library module: a function
+  may only use its own, an enclosing function's, the module's or a builtin name). It reports `drive_uploads uses window`
+  on the old code.
+- **Also:** test_library_tools `test_failures_are_noted_where_jobs_fail` expects 4 failure records in debrid_drive. PR #27
+  added one for jobs that end while AllDebrid fetches, and the test still said 3, so the import-review list failed on
+  this branch before this change.
+
+## ISSUE-283 — Video controls hide after 3 s, not 5 (owner, build 442) — fixed in code
+
+- **Owner:** the controls should hide after 3 s. They still stay up while paused (confirmed working on build 442).
+- **Fix:** `player_osd.DEFAULT_TIMEOUT` is 3. A second one-time step (`ios_osd_timeout_3`) moves installs that got the earlier
+  5 s default (ISSUE-279) to 3 s. A value the owner sets later, 5 included, is kept. `ARM_WHEN` still waits while paused.
+- **Test:** test_customisation `test_tap_anywhere_hides_and_five_seconds_by_default` (the first default is 3, the 5 to 3 move
+  happens once, paused keeps them).
+
+## ISSUE-284 — "Remove From Continue Watching" did nothing (owner, build 442) — fixed in code
+
+- **Cause:** the long-press entry (`plugin.video.kodi.ios.watch` `continue_hide`) recorded the title as removed and ran
+  `Container.Refresh`. That reloads only the page's own list, never a row of the Home, Movies or TV hubs, so the row kept
+  showing the title until the app reloaded it for some other reason.
+- **Fix:**
+  - The rows' path carries `&stamp=$INFO[Window(Home).Property(KodiIOS.ContinueStamp)]` (`portrait.CONTINUE_STAMP`).
+  - A removal sets that property, so Kodi loads every Continue Watching row again at once.
+  - A library item (a downloaded movie or episode, key `file:…`) also has its resume point in Kodi cleared
+    (`VideoLibrary.SetMovieDetails` / `SetEpisodeDetails`, resume 0), so Kodi's own in-progress lists drop it.
+  - A phone title (Umbrella / Elementum / TMDb) keeps its saved position: owner, 2026-11-13, "don't make it erase the
+    progress … if I watch it again it can show back up". It stays off the rows until it is played again.
+- **Test:** test_watch_continue `RemoveFromContinue`; test_portrait `test_continue_watching_leads_each_hub` (the stamp is in
+  the row's path).
+- **Retest (follow-up):** test_listing_cache `test_a_rows_address_cannot_change_when_the_home_tab_is_shown_again`
+  failed on the stamp (it reads `Window(Home)`). The stamp changes only when a title is removed, never on a tab return,
+  so the test now ignores exactly `portrait.CONTINUE_STAMP` and still rejects any other window info in a row address.
+
+## ISSUE-285 — "AllDebrid … RuntimeError; trying it again after the others" named no cause (owner, build 442) — logging fixed; cause waits for the next log
+
+- **Cause of the blind spot:** `debrid_drive` logged only the error's type (`RuntimeError`) when a copy was queued for a
+  retry. A RuntimeError there can be any of eight things (Drive upload start / upload HTTP status, Drive did not confirm
+  the upload, the download stopped before the end, an invalid receipt or confirmed position, the refreshed download is
+  a different file, Drive has a different size). Log 6cf2a4c5 was not available in this session, so the cause could not
+  be read from it.
+- **Fix:** the retry line now names the episode (`episode_label`) and the error's own words, redacted
+  (`diagnostics.redact`: links, keys, magnets) and cut at 160 characters (`debrid_drive._said`). The startup line of
+  ISSUE-282 does the same for `keep_copying`.
+- **Next:** the owner's next log after a retry shows which one it is; the fix follows in its own entry.
+- **Test:** test_build442_logs (the retry line carries `_said(error)`; `_said` keeps the words and removes a link).
+
+## ISSUE-286 — Deleting the "Unnamed download" did nothing (owner, build 442) — fixed in code
+
+- **Cause:** two parts.
+  - A video that is only an AllDebrid copy or problem (no Drive file) showed "Remove from Library…" on its sheet
+    (`library_manager.fill_item`), but its action was empty, so the tap closed nothing and changed nothing. Delete
+    Season and Select only passed videos with a Drive id, so they left these behind too.
+  - `debrid_drive.clear_failed` removed only the failure Download problems shows. An older failed version of the same
+    video then became the latest, so the problem came back.
+- **Fix:**
+  - `library_index.remove(profile, keys)` is the one path for videos not on Drive: a copy that ended leaves with every
+    failed version (`clear_failed(..., whole_video=True)`), and a running copy is stopped (`transfer_control.cancel_copy`).
+    "Deleting…" shows on every page at once (`intend`), and the index is rebuilt.
+  - The item sheet's "Remove from Library…" (problem) and new "Stop and Remove…" (copying) call it after a confirmation.
+    Delete Season also removes the season's copies and problems that are not on Drive.
+  - Videos on Drive keep the existing Delete (Drive's Trash).
+- **Test:** test_library_remove (two failed versions of an untitled episode both go; a running copy is stopped; a Drive
+  video is untouched; the sheet and Delete Season use the path). The test fails with `whole_video=False`.
+
+## ISSUE-288 — AI Upscale did not list Naruto season 2 (owner, build 442) — fixed in code
+
+- **Cause:** the AI Upscale page (`upscale_page.library`) and its copy planner (`upscale_queue.plan`) read only the
+  preparation queue's finished jobs (`status == 'done'`). A video that was never prepared (it played as it was), was kept
+  as it is, or whose job was superseded never appeared, while Library (library_index) showed it.
+- **Fix:** `upscale_page.jobs_from_index(index, prep)` turns every video in library_index that is on Drive and plays
+  (ready or kept) into a finished job: its own probe when it has one, otherwise the size from the quality in its name
+  (480p, 576p, 720p, 1080p). A video of unknown size is left out. `upscale_cloud.planning_state` feeds it to both the
+  page (`upscale_settings.model`) and the service's planner, falling back to the queue before the first index exists.
+  Videos that were never prepared get a copy only when the owner chooses a size on their show's page, never from
+  "Upscale new downloads" (ISSUE-245: "I want full control").
+- **Test:** test_upscale_from_index (season 2 episodes without a finished job are listed; unknown size and converting are
+  not; never-prepared videos wait for the owner; service and page share the path).

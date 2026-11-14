@@ -275,11 +275,11 @@ class ItemSheet(Page):
         self.assertEqual((props['step.1.state'], props['primary'], actions[0]), ('bad', 'Repair', 'retry'))
         self.assertIn('HTTP 503', props['step.1.detail'])
         props, actions = self.lm.fill_item(self.rows()[9], {'title': 'Naruto'})
-        self.assertEqual((props['step.0.title'], props['secondary'], actions), ('Not added', 'Choose a Version', ('repair', 'choose', '')))
+        self.assertEqual((props['step.0.title'], props['secondary'], actions), ('Not added', 'Choose a Version', ('repair', 'choose', 'remove')))   # ISSUE-286
 
     def test_copying_and_movie(self):
         props, actions = self.lm.fill_item(self.rows()[5], {'title': 'Naruto'})
-        self.assertEqual((props['step.0.state'], props['step.0.pct'], actions), ('run', '61', ('close', '', '')))
+        self.assertEqual((props['step.0.state'], props['step.0.pct'], actions), ('run', '61', ('close', '', 'remove')))   # ISSUE-286
         movie = self.data['movies'][0]
         props, actions = self.lm.fill_item(movie, None, 'movie')
         self.assertEqual((props['title'], props['sub'], props['delete']), ('Fall', 'Movie \u00b7 2022', 'Delete Movie\u2026'))

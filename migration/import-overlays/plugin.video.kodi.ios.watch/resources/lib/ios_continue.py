@@ -166,6 +166,30 @@ def hide(read,write,item_key,now=time.time):
  if len(marks)>HIDDEN_KEEP:data['hidden']=dict(sorted(marks.items(),key=lambda kv:-kv[1])[:HIDDEN_KEEP])
  save(data,write);return True
 
+STAMP='KodiIOS.ContinueStamp'   # ISSUE-284: changed on every removal; part of every Continue Watching row's path
+
+
+def clear_library_resume(item_key,rpc):
+    """ISSUE-284: a library item's resume point in Kodi (file:<path> keys) is set back to 0, so Kodi's own in-progress lists
+    leave it too. Returns True when one was cleared."""
+    if not str(item_key).startswith('file:'):
+        return False
+    path=item_key[5:]
+    if not path:
+        return False
+    flt={'field':'path','operator':'is','value':path}
+    for kind,method,setter,ident in (('movies','VideoLibrary.GetMovies','VideoLibrary.SetMovieDetails','movieid'),
+                                     ('episodes','VideoLibrary.GetEpisodes','VideoLibrary.SetEpisodeDetails','episodeid')):
+        try:
+            found=[i for i in (rpc(method,{'properties':['file']}).get(kind) or []) if i.get('file')==path]
+        except Exception:
+            found=[]
+        for item in found:
+            rpc(setter,{ident:item[ident],'resume':{'position':0,'total':0}})
+            return True
+    return False
+
+
 def hide_action(entry):
  from urllib.parse import quote
  return 'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=continue_hide&key=%s)'%quote(hide_key(entry),safe='')

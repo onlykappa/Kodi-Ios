@@ -177,7 +177,7 @@ class History(unittest.TestCase):
  def test_failures_are_noted_where_jobs_fail(self):
   self.assertIn("transfer_history.failed(q.profile,'conv'",(LIB/'prepare_cloud.py').read_text())
   self.assertIn("transfer_history.failed(self.profile,'conv'",(LIB/'prepare_downloads.py').read_text())
-  self.assertEqual((LIB/'debrid_drive.py').read_text().count("transfer_history.failed(profile, 'up'"),3)   # gave up, failed, cancelled by you (build 186)
+  self.assertEqual((LIB/'debrid_drive.py').read_text().count("transfer_history.failed(profile, 'up'"),4)   # gave up, failed, cancelled by you (build 186), ended while AllDebrid fetched (PR #27)
 
 THIRD=['start: http://127.0.0.1:5000/download/x/Inception.mkv',
        'master: #EXT-X-STREAM-INF:BANDWIDTH=9000000,CODECS="hvc1.2.4.L150,mp4a.40.2",RESOLUTION=3840x2160,VIDEO-RANGE=PQ',

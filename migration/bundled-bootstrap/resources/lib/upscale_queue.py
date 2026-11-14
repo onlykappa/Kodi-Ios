@@ -89,7 +89,7 @@ def plan(prep_state, data, settings, media_for, clock=time.time):
         entry = copies.get(original)
         if not label:
             continue
-        if not settings.get('downloads', {}).get('prepare') and original not in data.get('asked', {}):
+        if (job.get('indexed_only') or not settings.get('downloads', {}).get('prepare')) and original not in data.get('asked', {}):
             # ISSUE-245 (owner log 3a30b6ef, 16:26: a 4K copy of a Naruto episode downloaded after the show was set to 4K,
             # with Upscale new downloads off: "I want full control over it"): a copy is made only of a video the owner
             # asked for (the size chosen on its show's AI Upscale page, for the videos there then), or of every new

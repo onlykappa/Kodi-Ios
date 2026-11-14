@@ -64,6 +64,13 @@ def run(argv):
    try:f.write(text)
    finally:f.close()
   hide(read,write,params.get('key',''))
+  # ISSUE-284 (owner, build 442: "Remove From Continue Watching does nothing"): Container.Refresh reloads only the page's
+  # own list, never a Home row. The rows' path carries this stamp, so every Continue Watching row loads again; Kodi's own
+  # resume point of a library item is cleared too.
+  import json,time,xbmcgui
+  from ios_continue import STAMP,clear_library_resume
+  clear_library_resume(params.get('key',''),lambda method,args:json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':args}))).get('result') or {})
+  xbmcgui.Window(10000).setProperty(STAMP,str(int(time.time()*1000)))
   xbmc.executebuiltin('Container.Refresh');return
  if params.get('action')=='choose_source':
   # Long press › Choose source on Continue Watching: forget last time's pick, then ask for the source of THIS title.

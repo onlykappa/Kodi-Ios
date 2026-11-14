@@ -343,12 +343,24 @@ def retry_failed(profile, kinds=('network', 'source'), only=None):
     return len(picked)
 
 
-def clear_failed(profile, kinds=None, only=None):
+def _video_of(job):
+    """The video a job is for (problems() lists one failure per video)."""
+    title = str(job.get('title') or '').strip().casefold()
+    if not title:
+        return ('hash', job.get('hash'), job.get('season'), job.get('episode'))
+    return (title, str(job.get('season') or ''), str(job.get('episode') or ''))
+
+
+def clear_failed(profile, kinds=None, only=None, whole_video=False):
     """Clear: copies that ended leave the list (the AllDebrid request stays at AllDebrid); kinds limits it to some
-    problem kinds, only to some problems' keys. Returns how many."""
+    problem kinds, only to some problems' keys. whole_video (ISSUE-286, Library's "Remove from Library"): every failed
+    version of those videos goes too, so an older failure does not take the cleared one's place. Returns how many."""
     state = load(profile)
     picked = {p['index'] for p in problems(state) if (kinds is None or p['kind'] in kinds) and (only is None or p['key'] in only)}
     jobs = state.get('jobs', [])
+    if whole_video and picked:
+        videos = {_video_of(jobs[n]) for n in picked}
+        picked |= {n for n, j in enumerate(jobs) if j.get('status') == 'failed' and _video_of(j) in videos}
     keep = [j for n, j in enumerate(jobs) if n not in picked]
     cleared = [j for n, j in enumerate(jobs) if n in picked]
     if cleared:
@@ -751,6 +763,15 @@ def pack_root(name):
     if '/' in text:
         return text.rsplit('/', 1)[0].strip().casefold()
     return text.strip().casefold()
+
+
+def _said(error, limit=160):
+    """ISSUE-285: an error's own words for the log, with links and keys removed."""
+    try:
+        import diagnostics
+        return diagnostics.redact(str(error), limit)
+    except Exception:
+        return str(error)[:limit]
 
 
 def episode_label(job):
@@ -1476,8 +1497,10 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                                 if again:
                                     todo.append(entry)
                             if again:
-                                log('%s: %s; trying it again after the others (%d of %d)' % (
-                                    entry[0].get('title') or entry[0]['name'], type(error).__name__, retried[id(entry[1])], RETRIES_IN_RUN))
+                                # ISSUE-285 (owner log 6cf2a4c5: "Rick and Morty: RuntimeError; trying it again after the others",
+                                # with no way to tell which one): the episode and the error's own words.
+                                log('%s: %s: %s; trying it again after the others (%d of %d)' % (
+                                    episode_label(entry[0]), type(error).__name__, _said(error), retried[id(entry[1])], RETRIES_IN_RUN))
                                 continue
                             if entry[0] is job:
                                 raise

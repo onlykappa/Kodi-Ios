@@ -93,4 +93,22 @@ class ContinueTests(unittest.TestCase):
    self.assertEqual(self.data()['items'][key]['playback_source'],source)
   module.record(player,self.read,self.write,choice='elementum')
   self.assertEqual(module.saved_choice(self.read,key),{'player':'elementum'})
+class RemoveFromContinue(unittest.TestCase):
+ """ISSUE-284 (owner, build 442: "Remove From Continue Watching does nothing")."""
+ def test_library_resume_point_is_cleared_and_the_rows_reload(self):
+  calls=[]
+  def rpc(method,args):
+   calls.append((method,args))
+   if method=='VideoLibrary.GetMovies':return {'movies':[{'movieid':7,'file':'/Kodi Downloads/Movies/Heat.mp4'}]}
+   if method=='VideoLibrary.GetEpisodes':return {'episodes':[]}
+   return {}
+  self.assertTrue(module.clear_library_resume('file:/Kodi Downloads/Movies/Heat.mp4',rpc))
+  self.assertIn(('VideoLibrary.SetMovieDetails',{'movieid':7,'resume':{'position':0,'total':0}}),calls)
+  self.assertFalse(module.clear_library_resume('movie:603',rpc))                     # a phone title keeps its place (owner)
+  root=Path(__file__).resolve().parents[1]
+  addon=(root/'migration/import-overlays/plugin.video.kodi.ios.watch/default.py').read_text()
+  self.assertIn('setProperty(STAMP',addon)
+  self.assertIn("CONTINUE_STAMP='&stamp=$INFO[Window(Home).Property(KodiIOS.ContinueStamp)]'",(root/'migration/bundled-bootstrap/resources/lib/portrait.py').read_text())
+  self.assertEqual(module.STAMP,'KodiIOS.ContinueStamp')
+
 if __name__=='__main__':unittest.main()
