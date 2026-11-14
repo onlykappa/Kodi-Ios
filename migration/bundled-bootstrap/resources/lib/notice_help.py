@@ -97,7 +97,16 @@ def _upscale_ready(item, video):
             'fixes': [('Open AI Upscale', 'See what is made and what waits', 'upscale')]}
 
 
+def _quality_choice(item, video):
+    """DEC-049 board A: one notice per season when the chosen quality does not exist; Choose opens board B."""
+    return {'title': str(item.get('title') or 'Choose a version'), 'line': str(item.get('text') or ''), 'warn': True,
+            'happened': 'No version of this season is really the quality you chose, so nothing was downloaded for it yet.',
+            'safe': 'Nothing was downloaded at a lower quality without asking you.',
+            'fixes': [('Choose', 'Use the best, pick another version, or keep looking', 'notice')]}
+
+
 RULES = (
+    (r'(?i)^no real .* for season', _quality_choice),
     (r'tracks MP4 cannot preserve|MP4 can.t keep', _kept_tracks),
     (r'(?i)^kept as it is', _kept_as_is),
     (r'(?i)trakt authori[sz]ed|trakt connected', _trakt),

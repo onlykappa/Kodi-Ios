@@ -67,6 +67,9 @@ def repair(request, home, tmdb, title, season, episode, tries, log=lambda text: 
         if result.get('queued'):
             log('Kodi iOS repair: S%02dE%02d queued (%s)' % (season, episode, quality or 'any quality'))
             return 'queued', quality or 'any'
+        if result.get('held'):   # DEC-049: no real version of the chosen quality; the season asks the owner once
+            log('Kodi iOS repair: S%02dE%02d waits for the quality choice' % (season, episode))
+            return 'held', 'Waiting for your choice'
         log('Kodi iOS repair: S%02dE%02d nothing at %s' % (season, episode, quality or 'any quality'))
     return 'none', why
 

@@ -182,7 +182,7 @@ def searching_keys(text):
     return out
 
 
-def fill_show(data, show, season=None, slots=60, seasons_max=8, meta=None, searching=(), quality=''):
+def fill_show(data, show, season=None, slots=60, seasons_max=8, meta=None, searching=(), quality='', choices=None):
     """Board B: {property: value} for one show and the season shown (default: its first), and the episode rows.
     DEC-047: each row has the episode's still and TMDb title (meta), its number on the still, the title on one or two lines,
     and while Repair looks a missing episode up (searching) it says so at once."""
@@ -233,6 +233,20 @@ def fill_show(data, show, season=None, slots=60, seasons_max=8, meta=None, searc
             props[k + 'line'] = 'Looking for %s\u2026' % (quality or 'a version')
         props[k + 'pos'] = POS(n, len(shown))
     props['empty'] = '' if shown else 'No episodes of this show on Google Drive yet.'
+    # DEC-049 board D: the shown season waits for the owner's quality choice (quality_choice.waiting).
+    waiting = (choices or {}).get(season)
+    props['choice.line'] = ''
+    if waiting:
+        import quality_choice
+        n = len(waiting.get('episodes') or [])
+        best = (waiting.get('best') or {}).get('quality')
+        props['choice.line'] = ' \u00b7 '.join(x for x in ('No real %s' % quality_choice.word(waiting.get('quality')),
+                                                           'best is %s' % quality_choice.word(best) if best else '',
+                                                           '%d episode%s' % (n, '' if n == 1 else 's') if n else '') if x)
+        for n_, r in enumerate(shown):   # its missing episodes say so instead of "Looking for 1080p…"
+            if not r.get('id') and r['episode'] in (waiting.get('episodes') or []):
+                props['ep.%d.searching' % n_] = ''
+                props['ep.%d.line' % n_] = 'Waiting for your choice'
     return props, shown, seasons
 
 
@@ -760,8 +774,15 @@ def run():
             import library_repair
             import season_sources
             quality = library_repair.chosen(profile, self.tmdb(), (self.data.get('episodes') or {}).get(self.show['id']) or [])
+            try:
+                import quality_choice
+                choices = quality_choice.waiting(profile, self.tmdb())
+            except Exception:
+                choices = {}
             props, self.episodes, self.seasons = fill_show(self.data, self.show, self.season, show_page.SLOTS, show_page.SEASONS,
-                                                           self.meta, self.searching(), season_sources.QUALITY_NAMES.get(quality, quality or ''))
+                                                           self.meta, self.searching(), season_sources.QUALITY_NAMES.get(quality, quality or ''),
+                                                           choices)
+            self.choice_season = (self.season if self.season is not None else (self.seasons[0] if self.seasons else 0)) if props.get('choice.line') else None
             for key, value in props.items():
                 self.setProperty(key, str(value))
             for n, r in enumerate(self.episodes):
@@ -937,6 +958,11 @@ def run():
                     self.finish()
             elif control == show_page.SELECT:
                 self.select()
+            elif control == show_page.CHOOSE and getattr(self, 'choice_season', None):
+                # DEC-049 board D -> board B for this season; the page shows the answer when it is back.
+                xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,quality_choice,tmdb=%s,season=%d)' % (self.tmdb(), self.choice_season), True)
+                self.data = model(profile)
+                self.draw()
             elif control == show_page.MORE:
                 self.open_menu()
             elif show_page.REPAIR <= control < show_page.REPAIR + show_page.SLOTS and control - show_page.REPAIR < len(self.episodes):

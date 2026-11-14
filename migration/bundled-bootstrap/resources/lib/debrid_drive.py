@@ -739,6 +739,23 @@ def pack_root(name):
     return text.strip().casefold()
 
 
+def refusal_noted(profile, job, error):
+    """DEC-049: a copy found lower than its name is kept for the season's versions list (board C). True when the season
+    already waits for the owner's choice, so the refusal is not announced again (one notice per season)."""
+    try:
+        import re
+        import quality_choice
+        tmdb, season = str(job.get('show_tmdb') or ''), job.get('season')
+        if not (tmdb and season):
+            return False
+        real = re.search(r'(\d{2,5}x\d{2,5})', str(error))
+        if real and job.get('pick_name'):
+            quality_choice.note_found(profile, tmdb, season, pack_root(job['pick_name']), real.group(1))
+        return quality_choice.state(profile, tmdb, season) in ('asking', 'looking')
+    except Exception:
+        return False
+
+
 def avoid_names(state, tmdb, season, episode):
     """(excluded, lower): names of this episode's versions that failed (a dead torrent, "File not available due to no
     peer", a broken file: never picked again) and that a copy found lower than the quality chosen (ISSUE-236: only when
@@ -1286,8 +1303,9 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                                 with guard:
                                     entry[0].update(status='failed', error=str(error), low_quality=True, finished=clock())
                                 log('%s: %s; not copied' % (entry[0].get('title') or entry[0]['name'], error))
-                                notify('problem', 'Not the quality you picked', '%s: %s. Another version will be looked for.' % (
-                                    entry[0].get('title') or entry[0]['name'], str(error).split(': ', 1)[-1]))
+                                if not refusal_noted(profile, entry[0], error):
+                                    notify('problem', 'Not the quality you picked', '%s: %s. Another version will be looked for.' % (
+                                        entry[0].get('title') or entry[0]['name'], str(error).split(': ', 1)[-1]))
                                 commit()
                                 if entry[0] is job:
                                     return

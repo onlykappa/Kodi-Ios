@@ -6,7 +6,7 @@ state line with a coloured dot, a thin bar while it converts or copies, and a re
 library_manager.py fills it from library_files.episode_rows.
 """
 WINDOW = 'IOSLibraryShow.xml'
-BACK, MORE, SELECT = 9001, 9002, 9003
+BACK, MORE, SELECT, CHOOSE = 9001, 9002, 9003, 9004   # CHOOSE: DEC-049 board D
 SEASON, SEASONS = 9110, 8
 EP, SLOTS, EP_H = 9400, 60, 200
 REPAIR = 9600
@@ -89,6 +89,23 @@ def _rows(p, u):
     return out
 
 
+def _choice(p, u):
+    """DEC-049 board D: the shown season waits for the owner's quality choice. A card (the show page's SURFACE card), the
+    show's poster-sized art tile left out (the page's hero already shows it), "Waiting for your choice", one grey line, and
+    the Download problems capsule "Choose" (SURFACE2, blue words, a 118-unit hit area)."""
+    S, w, M, P = p.SIDE, p.WIDTH - 2 * p.SIDE, p.MEDIA, u.P
+    h = 200
+    b = u.card(p, S, 0, w, h)
+    b += u.text(p, S + 40, 40, w - 340, 60, 'Waiting for your choice', 'p_h3')
+    b += u.text(p, S + 40, 104, w - 340, 50, P('choice.line'), 'p_foot', p.GREY)
+    b += p.image(S + w - 250, h // 2 - 42, 210, 84, M + 'r21.png', u.SURF2, border=21)
+    b += ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>210</width><height>118</height><label>Choose</label>'
+          '<font>p_foot_b</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
+          '<scroll>false</scroll><texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>') % (
+              CHOOSE, S + w - 250, h // 2 - 59, p.ACCENT, p.ACCENT, M)
+    return u.group(p, h + 38, b, u.has('choice.line'))
+
+
 def _state(p, u, k, x, y, w):
     out = ''
     for state, tint in DOTS:
@@ -137,7 +154,7 @@ def page(p):
     listing = ('<control type="grouplist" id="%d"><top>720</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
                '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>' % (LIST, W) +
                u.group(p, 190 + 38, _numbers(p, u)) + u.group(p, 96 + 38, _seasons(p, u), u.has('season.1')) +
-               _rows(p, u) + u.group(p, 160, u.text(p, S, 30, w, 100, P('empty'), 'p_foot', p.GREY), u.has('empty')) +
+               _choice(p, u) + _rows(p, u) + u.group(p, 160, u.text(p, S, 30, w, 100, P('empty'), 'p_foot', p.GREY), u.has('empty')) +
                u.group(p, 260, '') + '</control>')
     # DEC-047: one capsule holding Select and ••• (drawn about 90 % opaque so it reads over any artwork).
     pair = (p.image(W - S - 400, 40, 400, 118, p.MEDIA + 'pill_134.png', 'E01C1C1E', border=59) +

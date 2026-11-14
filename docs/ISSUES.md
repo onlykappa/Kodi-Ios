@@ -3833,3 +3833,38 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   about 0.07x real time, with the phone at thermal "serious". The log ends 1.2 min in. A 24-minute SD episode to 4K is
   hours of work, which is why copies are made in the background while charging.
 - **Retest:** test_upscale_cloud `RealWaitingReason`.
+
+## ISSUE-266 — DEC-049 coded: ask once per season when the chosen quality does not exist; DEC-050 no cut-off text (2026-11-14) — fixed in code
+
+- **Owner:** approved docs/design/quality-choice-mockups.html ("Yes"). "We need a fully working repair system." On the rig
+  renders: "ensure there is no … texts can't be cut off, maybe put that in the policy for mockups".
+- **Done (DEC-049):**
+  - A fallback pick for an unanswered season is not queued (`elementum_cloud.held_for_choice`). The episode is held, the
+    season asks once, and the search is told "held".
+  - Board A: one notice, "No real 1080p for season 2 · <show> · the best is 480p (…). Tap to choose.", whose detail page
+    offers Choose.
+  - Board B and C: the `quality_choice` script and choice sheets. The answer is kept in quality-choices.json:
+    - Use the Best, and Always Use the Best: the held episodes go to Repair, the fallback is let through, and the copy is
+      not refused (ISSUE-258).
+    - Choose Another Version: that version's pack goes first in automatic picks (`deck_picker` `prefer_names`).
+    - Keep Looking: nothing downloads, and the season asks again after a day.
+  - Board D: the show page's season card "Waiting for your choice" with Choose. Waiting episodes say so instead of
+    "Looking for 1080p…".
+  - Repair:
+    - Several episodes give one start line and one summary, not two lines per episode.
+    - A season that waits is not searched.
+    - A held episode reads "Waiting for your choice", not "nothing found".
+  - A copy refused for its quality records the real size for board C, and is not announced again while its season waits.
+- **Done (DEC-050):**
+  - The choice sheet has wrapped row forms: the title on up to three lines, the detail on up to two, the row as tall as
+    its text.
+  - Version names are cleaned, not cut (`quality_choice.short`).
+  - Download problems rows wrap a long title onto two or three lines, and a long reason onto two. The fallback reason is
+    no longer cut at 60 characters.
+  - APPLE-UI-POLICY §4.2 and §7: no "…" or clipped text in pages or mockups.
+- **Evidence (desktop Kodi rig, 2026-11-14):** board B, board C (the pack name on three lines, the real-size chip "480p" in
+  orange), and Download problems with a three-line film title: nothing cut off. Board D's rig render is pending (no
+  Library fixture in this rig).
+- **Retest:** test_quality_choice (new, in import-review.yml); test_season_sources
+  `test_selected_quality_missing_queues_the_best_available_as_a_fallback` (held first, queued after "Use the Best", end to
+  end through the real route).

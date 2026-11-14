@@ -12,6 +12,8 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', 'lib'))
 import debrid_drive
 
+WHY_FIT = 28     # characters of the grey/coloured reason line (DEC-050: longer ones wrap)
+TITLE_FIT = 22   # characters of a row title on one line beside the poster and the action (rig render, build 406)
 GROUPS = (('retry', 'Can try again'), ('source', 'Need a new source'), ('prepare', 'Preparing for Kodi and AirPlay'),
           ('cancelled', 'Cancelled by you'))
 ACTION = {'retry': 'Retry', 'source': 'Find', 'cancelled': 'Restart', 'prepare': 'Find'}
@@ -24,7 +26,7 @@ PLAIN = (('not the quality you picked', 'Not the quality you picked', 'source'),
          ('too many', 'AllDebrid is full · it waits its turn', 'retry'),
          ('right now', "AllDebrid can't fetch it right now", 'retry'),
          ('download link', "AllDebrid hasn't given the link yet", 'retry'),
-         ('blocked this sign-in', 'AllDebrid blocked the sign-in · check your e-mail', 'retry'),
+         ('blocked this sign-in', 'Sign-in blocked · check your e-mail', 'retry'),
          ('did not accept the key', 'Sign in to AllDebrid again', 'retry'),
          ('sign in to alldebrid', 'Sign in to AllDebrid again', 'retry'),
          ('premium', 'AllDebrid needs a premium subscription', 'retry'),
@@ -75,7 +77,7 @@ def plain(problem):
         if words in text:
             return reason, group
     first = str(problem.get('reason') or 'Stopped').split('. ')[0].rstrip('.')
-    return (first[:60] or 'Stopped'), 'source'
+    return (first or 'Stopped'), 'source'   # DEC-050: never cut; a long reason wraps onto a second line
 
 
 def ago(then, now):
@@ -154,14 +156,20 @@ def model(found, filter_='all', now=None, slots=40, poster=lambda problem: ''):
         props[k + 'head'] = e.get('head', '')
         props[k + 'headclear'] = e.get('headclear', '')
         if 'head' in e or not e:
-            for key in ('title', 'sub', 'why', 'whyc', 'act', 'pos', 'poster'):
+            for key in ('title', 'sub', 'why', 'whyc', 'act', 'pos', 'poster', 'two'):
                 props[k + key] = ''
             continue
         when = ago(e.get('finished'), now)
         props[k + 'title'] = short_title(e)
+        # DEC-050: a title longer than one line wraps onto two (the row grows), never "…".
+        props[k + 'two'] = ''   # set below once the reason is known
         props[k + 'sub'] = e.get('sub') or what(e)
         props[k + 'why'] = ('Cancelled %s' % when) if e['group'] == 'cancelled' and when else e['why']
         props[k + 'whyc'] = TINT[e['group']]
+        import choice_sheet
+        lines = min(3, choice_sheet.lines(props[k + 'title'], TITLE_FIT))
+        long_why = choice_sheet.lines(props[k + 'why'], WHY_FIT) > 1
+        props[k + 'two'] = str(max(2, lines)) if lines > 1 or long_why else ''   # the title's lines in the taller row
         props[k + 'act'] = ('Retry' if e.get('retryable') else 'Find') if e['group'] == 'prepare' else ACTION[e['group']]
         props[k + 'pos'] = e['pos']
         props[k + 'poster'] = poster(e)
@@ -352,14 +360,16 @@ def run():
                                               nolabel='Cancel', yeslabel='Clear'):
                     return
                 debrid_drive.clear_failed(profile, ('cancelled',))
-            elif page.ACT <= control < page.ACT + page.SLOTS:
-                e = self.entries[control - page.ACT] if control - page.ACT < len(self.entries) else {}
+            elif page.ACT <= control < page.ACT + page.SLOTS or page.ACT2 <= control < page.ACT2 + 50 + page.SLOTS:
+                n = (control - page.ACT) if control < page.ACT2 else (control - page.ACT2) % 50
+                e = self.entries[n] if n < len(self.entries) else {}
                 if 'title' not in e:
                     return
                 self.act({'retry': 'retry', 'source': 'find', 'cancelled': 'retry',
                           'prepare': 'retry' if e.get('retryable') else 'find'}[e['group']], e)
-            elif page.ROW <= control < page.ROW + page.SLOTS:
-                e = self.entries[control - page.ROW] if control - page.ROW < len(self.entries) else {}
+            elif page.ROW <= control < page.ROW + page.SLOTS or page.ROW2 <= control < page.ROW2 + 50 + page.SLOTS:
+                n = (control - page.ROW) if control < page.ROW2 else (control - page.ROW2) % 50
+                e = self.entries[n] if n < len(self.entries) else {}
                 if 'title' not in e:
                     return
                 spec, actions = sheet(e)

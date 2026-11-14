@@ -222,7 +222,12 @@ class RedirectBoundary(unittest.TestCase):
   self.fixture.dialog.select.assert_not_called()
   self.assertFalse(watch.active_request(self.home))
  def test_selected_quality_missing_queues_the_best_available_as_a_fallback(self):
-  # ISSUE-236: no 4K exists, so the 1080p is queued once and marked as a fallback (one notice, not refused at copy).
+  # ISSUE-236: no 4K exists, so the 1080p is the fallback. DEC-049: the season asks the owner once first (held, not
+  # queued); after "Use the Best" the 1080p is queued once and marked as a fallback (not refused at copy).
+  result=season.request(self.home,'123',1,2,'queue','4k',follow=self.follow)
+  self.assertFalse(result['queued']);self.assertTrue(result['held']);self.assertEqual(len(self.fixture.jobs()),0)
+  import quality_choice
+  self.assertEqual(quality_choice.answer(self.fixture.tmp.name,'123',1,'best'),[2])
   result=season.request(self.home,'123',1,2,'queue','4k',follow=self.follow)
   self.assertTrue(result['queued']);self.assertTrue(result['fallback']);self.assertEqual(len(self.fixture.jobs()),1)
  def test_empty_search_can_fall_back_without_an_interactive_picker(self):

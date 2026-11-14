@@ -164,6 +164,8 @@ def route(url,quiet=False,request_id=None):
             s, e = choice.get('season') or tracked.get('season'), choice.get('episode') or tracked.get('episode')
             name = '%s S%02dE%02d' % (show_title, int(s), int(e)) if s and e else show_title
             info = drivelibrary.parse(name)
+        if held_for_choice(profile, auto, tracked, choice, show_title, home):
+            return True
         job = debrid_drive.queue(profile, {'id':choice['hash'], 'name':name}, kind,
                                  show_title or info.get('title') or drivelibrary.display_title(name),
                                  choice.get('season') or info.get('season') or tracked.get('season') or '',
@@ -265,6 +267,37 @@ def _short(name, size=90):
     return name if len(name) <= size else name[:size - 1] + u'\u2026'
 
 
+def held_for_choice(profile, auto, tracked, choice, show_title, home=None):
+    """DEC-049: an automatic pick that is a fallback (nothing is really the chosen quality) for a season the owner has not
+    answered is not queued. The episode is held, the season asks once (board A notice), and the search is told it was held
+    (not 'nothing found'). True when held."""
+    want = (auto or {}).get('profile') or {}
+    season = choice.get('season') or tracked.get('season')
+    episode = choice.get('episode') or tracked.get('episode')
+    if not (auto and auto.get('_fallback') and want.get('strict_quality') and want.get('quality') and tracked.get('tmdb') and season and episode):
+        return False
+    import quality_choice, notices
+    value = quality_choice.state(profile, tracked['tmdb'], season)
+    if quality_choice.lets_fallback(value):
+        return False
+    fresh = quality_choice.hold(profile, tracked['tmdb'], season, episode, want['quality'], show_title or tracked.get('title') or '',
+                                best={'name': auto.get('_pick_name'), 'quality': auto.get('_pick_quality')},
+                                versions=auto.get('_versions'), keep=value == 'looking')
+    if fresh:
+        record = quality_choice.load(profile)['seasons'].get(quality_choice.key(tracked['tmdb'], season)) or {}
+        title, text = quality_choice.notice(record, season)
+        notices.note('problem', title, text, 'RunScript(service.kodi.ios.bootstrap,quality_choice,tmdb=%s,season=%s)' % (tracked['tmdb'], season))
+    _refused('season %s waits for the owner: no real %s' % (season, want['quality']))
+    if home is not None:
+        try:
+            import json
+            home.setProperty('KodiIOS.AutoPick.Queued' + (auto.get('_lane') or ''),
+                             json.dumps({'request_id': auto.get('request_id'), 'queued': False, 'held': True}))
+        except Exception:
+            pass
+    return True
+
+
 def _refused(why):
     try:
         import xbmc
@@ -297,6 +330,8 @@ def auto_season(window, now=None, choice=None, request_id=None):
                     continue
                 wanted['_fallback'] = bool(selected.get('fallback'))   # ISSUE-236: nothing was really the chosen quality
                 wanted['_pick_name'] = str(selected.get('name') or '')  # ISSUE-264: the version's name in the list
+                wanted['_pick_quality'] = str(selected.get('quality') or '')
+                wanted['_versions'] = selected.get('versions') or []     # DEC-049 board C
             return wanted
         except Exception:
             continue

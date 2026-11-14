@@ -156,6 +156,10 @@ def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=Non
    import debrid_drive
    wanted['excluded_names'],wanted['lower_names']=debrid_drive.avoid_names(debrid_drive.load(_profile()),tmdb,int(season),int(episode))
   except Exception:pass
+  try:
+   import quality_choice   # DEC-049 board C: the version the owner chose for this season goes first
+   wanted['prefer_names']=[n for n in (quality_choice.preferred(_profile(),tmdb,int(season)),) if n]
+  except Exception:pass
  watch.canceled(home,target,clear=True)
  home.clearProperty(watch.RESULT+lane);home.clearProperty('KodiIOS.AutoPick.Queued'+lane)
  home.setProperty(watch.AUTO+lane,json.dumps(wanted));result={}
@@ -178,6 +182,7 @@ def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=Non
    try:receipt=json.loads(home.getProperty('KodiIOS.AutoPick.Queued'+lane) or '{}')
    except ValueError:receipt={}
    result['queued']=receipt.get('request_id')==ident and receipt.get('queued') is True
+   result['held']=receipt.get('request_id')==ident and receipt.get('held') is True   # DEC-049: waits for the owner's choice
   if cancel and cancel() and not result.get('queued'):raise dl.Canceled('Source search canceled')
   return result
  finally:

@@ -61,6 +61,10 @@ def pass_once(profile,window,keep_going,log):
   request={'request_id':ident,'target':target,'profile':show['preference'],'mode':0,'until':time.time()+600}
   # ISSUE-236 / ISSUE-244: failed versions are never picked again; ones found lower only when nothing else exists.
   request['excluded_names'],request['lower_names']=debrid_drive.avoid_names(debrid_drive.load(profile),show['tmdb'],target['season'],target['episode'])
+  try:
+   import quality_choice   # DEC-049 board C
+   request['prefer_names']=[n for n in (quality_choice.preferred(profile,show['tmdb'],target['season']),) if n]
+  except Exception:pass
   window.clearProperty(watch.RESULT);window.clearProperty('KodiIOS.AutoPick.Queued')
   window.setProperty(watch.AUTO,json.dumps(request))
   queued=False

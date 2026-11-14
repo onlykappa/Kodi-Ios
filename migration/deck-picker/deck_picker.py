@@ -870,11 +870,18 @@ def is_lower(item, lower):
     return item['name'] in lower or (u'pack:' + _pack_root(item['name'])) in lower
 
 
-def auto_choose(kept, want):
+def auto_choose(kept, want, ranked=None):
     """The version closest to the first pick: its quality (else the nearest lower, then higher), its HDR kind and
     codec, never AV1 when avoidable, seeds, then the size nearest the first pick's. None when nothing has seeds."""
     fallback = False
     lower = set(want.get('lower_names') or ())   # versions a copy already found lower than chosen (ISSUE-236)
+    # DEC-049 board C: the version the owner chose for this season (its pack) is taken whenever it has the episode.
+    prefer = [_pack_root(n) for n in (want.get('prefer_names') or ()) if n]
+    if prefer:
+        mine = [p for p in kept if _pack_root(p['name']) in prefer and p['seeds'] > 0]
+        if mine:
+            best = max(mine, key=lambda p: p['seeds'])
+            return dict(best, fallback=True)
     if want.get('strict_quality'):
         minutes_ = int(want.get('runtime') or 0)
         real = [p for p in kept if p['quality'] == want.get('quality') and not is_bad(p)
@@ -910,7 +917,10 @@ def auto_choose(kept, want):
                 hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
                 slow_to_prepare(it), converts_for_tv(it), too_heavy(it), prep_cost(it), size_fit(it, minutes), seed_bucket(it),
                 SOURCE_RANK.get(source_type(it), 3), abs(it['size'] - size) if size else -size_step(it), -it['seeds'])
-    best = min(dedupe(kept), key=score)
+    ordered = sorted(dedupe(kept), key=score)
+    if ranked is not None:   # DEC-049 board C: the versions, best first
+        ranked.extend(ordered[:8])
+    best = ordered[0]
     if best['seeds'] <= 0:
         return None
     return dict(best, fallback=True) if fallback else best
@@ -1136,13 +1146,17 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
         return show_list(title, usable, [], sm, u'Full season packs', count_label(len(usable), len(usable)))
     if auto is not None and exp and exp.get('episode') and automatic_matches(auto,exp):
         failed=set(auto.get('excluded_names') or [])
+        ranked = []
         best = auto_choose([p for p in kept if p['name'] not in failed],
-                           dict(auto.get('profile') or {}, lower_names=auto.get('lower_names') or []))
+                           dict(auto.get('profile') or {}, lower_names=auto.get('lower_names') or [],
+                                prefer_names=auto.get('prefer_names') or []), ranked)
         try:
             import json
             _auto_result(auto, {'episode': exp.get('episode'), 'found': bool(best),
                                 'quality': best['quality'] if best else u'', 'name': best['name'] if best else u'',
                                 'fallback': bool(best and best.get('fallback')),
+                                'versions': [{'name': v['name'], 'quality': v['quality'], 'seeds': v['seeds'],
+                                              'size': round(float(v.get('size') or 0), 2)} for v in ranked if v['seeds'] > 0],
                                 'request_id':auto.get('request_id')})
         except Exception:
             pass

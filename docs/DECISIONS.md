@@ -404,3 +404,16 @@ The owner approved docs/design/quality-choice-mockups.html ("Yes"), boards A–D
 
 The first refusal or fallback in a season asks instead of downloading; the answer is kept per season, or per show with
 "Always". Until it ships, the best real version is taken automatically (ISSUE-264).
+
+## DEC-050 — No text is ever cut off (2026-11-14)
+
+The owner, on the rig renders of the DEC-049 sheets ("Naruto.Shippuden.S02E33.480p.NF.W… · 2…", "Always Use the Best for T…",
+a "640×4" chip): "ensure there is no … texts can't be cut off, maybe put that in the policy for mockups". APPLE-UI-POLICY §4.2
+and §7 now say:
+
+- No "…", clipped chips or overflowing text, in pages and in mockups.
+- Say it shorter first, wrap second, and move the rest to the detail screen third.
+- The rig render checks the longest real text.
+
+The choice sheet gained wrapped row forms (title up to three lines, detail up to two). Existing pages that still truncate
+are fixed when next touched.
