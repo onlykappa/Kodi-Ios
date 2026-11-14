@@ -4244,3 +4244,19 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   "Upscale new downloads" (ISSUE-245: "I want full control").
 - **Test:** test_upscale_from_index (season 2 episodes without a finished job are listed; unknown size and converting are
   not; never-prepared videos wait for the owner; service and page share the path).
+
+
+## ISSUE-290 — Queue and Notifications bypassed the shared library record — fixed in backend
+
+- **Request:** Build 442 item 15: Rick and Morty season 3 must agree in Library status, Transfers and Running now.
+- **Cause:** work-state independently inferred membership and titles from lane/preparation snapshots; a quiet or missing
+  worker report hid indexed videos. The ISSUE-282 NameError previously prevented the index publisher starting at all.
+- **Fix:** library_index decides video membership, titles and counts; work_state attaches worker telemetry by identity.
+  All three consumers use that projection; missing measurements leave the video queued. Ready/problems cannot reappear
+  as active transfers. Pending cancellations are applied to the index. Its publisher refreshes on every service pass,
+  survives a failed pass and updates KodiIOS.LibraryIndex only on a visible change. Concurrent writes use unique temp files.
+- **Retest:** The supplied current build-442 log has 12 repeated NameError restarts, no library summaries and no upload
+  piece timings (raw log retained outside Git). A four-video fixture (copying, converting, problem, ready) agrees across all consumers; missing telemetry and
+  transient publisher failure are covered. Host checks do not establish device behaviour; owner retest remains pending.
+- **Test:** scripts/test_queue_index.py; updated publisher fixture in test_work_state.py; check_project and every test
+  listed in import-review.yml run before commit.

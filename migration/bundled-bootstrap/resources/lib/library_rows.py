@@ -139,10 +139,11 @@ def page_properties(view, checking=False, index=None):
     rows = view['rows']
     counts = {'ready': view['ready'], 'working': len(rows['preparing'])+len(rows['downloading']),
               'next': len(rows['waiting']), 'kept': view['kept']}
-    if (index or {}).get('videos'):
+    index = index if index is not None else (view.get('model') or {}).get('library_index')
+    if index is not None:
         import library_index
         c = library_index.counts(index)
-        counts = {'ready': c['ready'], 'working': max(0, c['working'] - len(rows['waiting'])), 'next': len(rows['waiting']),
+        counts = {'ready': c['ready'], 'working': c['working'], 'next': 0,
                   'kept': c['kept']}
         view = dict(view, ready=c['ready'], total=c['total'], pct=round(100 * c['ready'] / max(1, c['total'])))
     total = sum(counts.values())
@@ -409,6 +410,8 @@ def card(history, kind, title, now, step=''):
 def with_model(view, model):
     """Metadata stays in the library; only work_state decides current jobs and queue order."""
     import work_state
+    if model is not None and 'library_index' in model:
+        return indexed_view(view, model)
     rows=view['rows']
     lookup={r['id']:r for rr in rows.values() for r in rr}
     by_title={r['title']:r for r in lookup.values()}
@@ -441,3 +444,49 @@ def with_model(view, model):
     view['total']=sum(len(rr) for rr in rows.values())
     view['pct']=round(100*view['ready']/max(1,view['total']))
     return view
+
+
+def indexed_view(view, model):
+    """Library status rows, including problems and ready, use the exact same index as Transfers and the bell."""
+    import library_index as li
+    import work_state
+    lookup = {r['id']: r for group in view['rows'].values() for r in group}
+    rows = {k: [] for k in view['rows']}
+    live = {j['key']: j for j in model.get('jobs', []) if j.get('key')}
+    for e in model['library_videos']:
+        if e['state'] == li.CANCELLED or (e['state'] == li.PROBLEM and e.get('hidden')):
+            continue
+        j = live.get(e['key'])
+        r = dict(lookup.get(e.get('id')) or {}, id=e.get('id') or e['key'], key=e['key'],
+                 title=li.entry_title(e), name=e.get('name') or '', size=e['size'],
+                 library_state=e['state'], sub=li.entry_line(e), probe=e.get('probe') or {})
+        if j:
+            r.update({k: v for k, v in j.items() if k not in ('state', 'id')})
+            r.update(state='uploading' if e['state'] == li.COPYING else 'preparing', sub=j['line'],
+                     held=j['state'] == work_state.PAUSED, work_key=work_state.job_key(j))
+            group = 'downloading' if e['state'] == li.COPYING else 'preparing'
+        elif e['state'] in li.WORKING:
+            queued = next((j for j in model['next'] + model['drive_next'] if j.get('key') == e['key']), {})
+            base = lookup.get(e.get('id')) or {}
+            r.update(state='space' if base.get('state') == 'space' else 'waiting',
+                     sub=base.get('sub', '') if base.get('state') == 'space' else (queued.get('line') if e['state'] == li.COPYING else queued.get('what')) or li.entry_line(e),
+                     queued_transfer=e['state'] == li.COPYING, what=queued.get('what', 'prepare'),
+                     work_key=work_state.job_key(queued), hash=queued.get('hash') or '')
+            group = 'waiting'
+        elif e['state'] == li.PROBLEM:
+            r.update(state='problem', warn=True, reason=e['reason'])
+            group = 'waiting'
+        else:
+            group = 'kept' if e['state'] == li.KEPT else 'ready'
+            r['state'] = group
+        rows[group].append(r)
+    # These transfers are not library videos yet; retain them without counting them as library entries.
+    for j in model.get('jobs', []):
+        if j['kind'] in ('down', 'upload'):
+            rows['downloading'].append(dict(j, state='downloading', sub=j['line'], id=j.get('id') or str(work_state.job_key(j))))
+    order = {j['id']: n for n, j in enumerate(model['next'])}
+    rows['waiting'].sort(key=lambda r: order.get(r['id'], len(order)))
+    c = model['library_counts']
+    return dict(view, rows=rows, model=model, library_counts=c, library_videos=model['library_videos'],
+                ready=c['ready'], kept=c['kept'], total=c['total'], todo=c['working'] + c['problems'],
+                downloading=c['copying'], pct=round(100 * c['ready'] / max(1, c['total'])))
