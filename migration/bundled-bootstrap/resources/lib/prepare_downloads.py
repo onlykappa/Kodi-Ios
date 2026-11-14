@@ -733,11 +733,24 @@ def check_request(profile):
   try:yield marker
   finally:fcntl.flock(guard,fcntl.LOCK_UN)
 
+INSPECT_VERSION=1   # ISSUE-247: raise it when the checks change, so every video is read once more by the next Refresh
+
+def settled(job,item):
+ """ISSUE-247: this video's last check was good and still describes the same Drive file, by the current checks."""
+ return bool(job.get('probe') and not job.get('inspection_error') and job.get('probe_for')==list(identity(item))
+             and job.get('probe_version')==INSPECT_VERSION and not job.get('audit') and not job.get('repack')
+             and not job.get('blocked') and not job.get('kept'))
+
 def request_check(profile,inspect=False):
- """Ask the service to check Google Drive › Kodi Downloads now (Settings › Library › Check library for conversion)."""
+ """Ask the service to check Google Drive › Kodi Downloads now (Settings › Library › Check library for conversion).
+ inspect=True: open the videos that are new, changed or not ready (ISSUE-247); inspect='full': every video."""
  # Automatic listing requests must not downgrade a pending explicit file inspection.
  with check_request(profile) as marker:
-  if inspect:marker.write_text(json.dumps({'inspect':True,'time':time.time()}))
+  if inspect:
+   try:before=json.loads(marker.read_text()) if marker.exists() else {}
+   except (ValueError,OSError):before={}
+   full='full' if inspect=='full' or (isinstance(before,dict) and before.get('inspect')=='full') else True
+   marker.write_text(json.dumps({'inspect':full,'time':time.time()}))
   elif not marker.exists():marker.write_text(str(time.time()))
 def check_requested(profile):return (location(profile).parent/RESCAN).exists()
 
@@ -893,8 +906,8 @@ class Queue:
   with check_request(self.profile):
    try:requested_text=requested.read_text()
    except OSError:requested_text=''
-  try:request=json.loads(requested_text);inspection=bool(request.get('inspect'));asked_at=float(request.get('time') or 0)
-  except (ValueError,AttributeError,TypeError):inspection=False;asked_at=0.0
+  try:request=json.loads(requested_text);inspection=bool(request.get('inspect'));asked_at=float(request.get('time') or 0);full=request.get('inspect')=='full'
+  except (ValueError,AttributeError,TypeError):inspection=False;asked_at=0.0;full=False
   self.inspection_pending=False
   if inspection and not listing_only:
    try:
@@ -960,6 +973,11 @@ class Queue:
       self.inspection_pending=True
       if not getattr(self,'told_cellular',False):
        self.told_cellular=True;self.log('preparation: compatibility checks wait for Wi-Fi (on mobile data)')
+     elif not full and old.get('status')=='done' and settled(old,item):
+      # ISSUE-247 (owner: "if it's already good to go then no need to re-read it; make a smarter refresh"): a video whose
+      # last check was good and whose Drive file is exactly the same (id, checksum, size, version) is not opened again.
+      # New, changed, waiting, failed and kept videos are; a full check (request_check(inspect='full')) still reads all.
+      pass
      elif old.get('probe') and not old.get('inspection_error') and old.get('probe_for')==list(identity(item)) and asked_at and old.get('probe_at',0)>=asked_at:
       # Owner log (build 368): a Refresh that was stopped, deferred or restarted read the same videos again, 17+ in a row,
       # while 27 videos waited. The same Drive file (id, checksum, size, version) already inspected FOR THIS request keeps
@@ -971,7 +989,8 @@ class Queue:
        status.update(stage='Checking compatibility and faster opening · '+drivelibrary.display_title(item['name']),updated=self.clock());self.commit()
        if self.runtime:self.runtime.phase('Checking compatibility',False,item['name'])
        probe=self.inspect_source(item,keep_going)
-       old['probe']=probe;old['probe_for']=list(identity(item));old['probe_at']=time.time();old.pop('inspection_error',None);self.commit()
+       old['probe']=probe;old['probe_for']=list(identity(item));old['probe_at']=time.time();old['probe_version']=INSPECT_VERSION
+       old.pop('inspection_error',None);self.commit()
        if not streamable_video(probe):
         old.pop('stream_only',None);old.pop('repack',None)
         if old.get('status')=='done':old.update(status='waiting',retry_after=0,attempts=0)

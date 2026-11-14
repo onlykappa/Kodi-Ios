@@ -384,3 +384,10 @@ that wrap, the row changing at once after Repair); board C (the ••• menu d
 with Delete asking first); board D (Select with stills, names, checks, a count and a toolbar: Better Version, Prepare Again,
 Delete with confirmation). No IPA until the owner has tested build 384 and sent its log; the work is committed without
 being pushed until then.
+
+## DEC-048 — Refresh checks only what is new, changed or not ready (2026-11-14)
+
+Owner: "we should try and maybe speed up the refresh like if its already good to go then no need to re read it? make a
+smarter refresh system please". This replaces the earlier rule that every Refresh re-reads every file. Library status
+Refresh lists Drive and opens only new, changed or not-ready videos (ISSUE-247); holding Refresh offers Check Every Video,
+which reads every file after asking.

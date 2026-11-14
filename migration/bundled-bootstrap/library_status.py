@@ -282,6 +282,14 @@ def run(args=()):
    # press closed the page behind the menu, and download rows had none. iOS delivers a long press as action 10 as
    # well as 101/117 (Notifications reads it the same way), so on a card it opens the menu and never means Back; the
    # second action of the same press, just after the menu, does nothing.
+   if (code in LONG or code==10) and self.getFocusId()==library_page.CHECK:
+    # ISSUE-247: Refresh opens only new, changed or not-ready videos; holding it offers to read every video again.
+    if time.time()-getattr(self,'menu_done',0)<1.5:return
+    self.menu_done=time.time()
+    if dialog.yesno('Check Every Video','Refresh opens only videos that are new, changed or not ready yet. Check every video '
+                    'on Google Drive again? It reads each one, which takes a while.',nolabel='Cancel',yeslabel='Check Every Video'):
+     self.checking=time.time();prepare_downloads.request_check(profile,inspect='full');self.refresh()
+    return
    if code in LONG or code==10:
     held=self.held_row(self.getFocusId())
     if held:
