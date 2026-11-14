@@ -2,14 +2,14 @@
   "framework_release": {
     "tag": "kodi-airplay-r56",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "sha256": "91be96afe8a51cfde1643b79a6675f6c91ba915d9b5fc334591f583c9b9416f7"
   },
   "previous": {
     "tag": "kodi-airplay-r55",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "5ba3eca8a0c5e185c66af406da813eb4bc3f7b5c9dad9b401b0328d3c23f1c94"
   },
-  "source_commit": "c249e85fa51397d35d6034cb95bf52b7ba10942a",
-  "verified_run": 43515845857,
-  "staged_note": "r56 staged (ISSUE-251: when the stream is ready, Apple's AirPlay list opens only if no AirPlay device was already chosen; the add-on now opens the list as soon as Play on TV starts): built and published by airplay-ios on this branch; sha256, source_commit and verified_run are pinned from that run after host-tests pass."
+  "source_commit": "4e26d137a7b7c36ba8320629287385f83cbbb4d4",
+  "verified_run": 43545050950,
+  "pin_note": "r56 (ISSUE-251: Apple's AirPlay list opens only if no AirPlay device was chosen) published by airplay-ios run 43545050950 from 4e26d13; the converter host tests (airplay-remux run 43545050788, host-tests) passed; release notes, asset digest and downloaded zip all give 91be96af\u2026416f7."
 }

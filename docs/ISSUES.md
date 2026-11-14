@@ -3668,7 +3668,7 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Owner:** "I would like this page removed everywhere and have it open straight to the AirPlay list instead of the ugly loading screen"; also "investigate why an Umbrella stream takes so long to AirPlay"; and "remove Media Assistant and just have it open to AirPlay".
 - **Done so far:** `cast.py` hides the progress card (`QUIET_PROGRESS`) and calls `kodi_airplay_open()` right after `kodi_airplay_play`; the framework opens the list again only when no AirPlay output is chosen (needs r56).
 - **Open:** the test updates (test_play_on_tv_network: 6 failures expect the card), the r56 release, the phone check, the speed-ups and the Media Assistant removal: docs/HANDOFF-PR26.md "Play on TV work in progress".
-- **Done:** tests updated (the card's deadline/cancel tests run with the card on; `QuietPlayOnTV` checks the owner's flow). r56 staged for the framework change.
+- **Done:** tests updated (the card's deadline/cancel tests run with the card on; `QuietPlayOnTV` checks the owner's flow). **r56 pinned:** airplay-ios run 43545050950 and airplay-remux host-tests (run 43545050788) green; digest 91be96af…416f7 checked by download.
 
 ## ISSUE-252 — Play on TV goes straight to AirPlay; Media Assistant is no longer used (owner, build 393) — fixed in code
 
