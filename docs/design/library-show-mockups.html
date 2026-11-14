@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Library show page mockups</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt,
+     tokens from portrait.py / pages.py (§4.3), the style of library-files-mockups.html (boards B and C, DEC-043).
+     Artwork is drawn as plain colour gradients: no film or show art is committed (§5.4). -->
+<style>
+:root{--bg:#000;--s1:#1c1c1e;--s2:#2c2c2e;--grey:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);--sep:rgba(235,235,245,.16);
+ --blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro{max-width:1180px;margin:0 auto 10px}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:880px;margin-bottom:8px}
+.board{max-width:1180px;margin:30px auto 0;padding-top:16px;border-top:1px solid #26272b}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board>p{color:var(--grey);font-size:14px;line-height:1.5;max-width:880px;margin-bottom:16px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.4;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:44px 14px 16px;font-size:14px}
+.ps h3{font-size:30px;font-weight:800;letter-spacing:-.01em}
+.sub{color:var(--grey);font-size:12.5px;margin:2px 0 12px}
+.navrow{display:flex;justify-content:space-between;align-items:center;height:32px;margin-bottom:8px}
+.chev{font-size:24px;font-weight:600;line-height:1}.refresh{color:var(--blue-text);font-size:19px;font-weight:700}
+.sh{color:var(--grey);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:14px 6px 6px;display:flex;justify-content:space-between}
+.sh em{font-style:normal;color:var(--blue-text);text-transform:none;letter-spacing:0;font-weight:600}
+.grp{background:var(--s1);border-radius:12px;overflow:hidden}
+.pr{position:relative;display:flex;align-items:center;gap:10px;min-height:44px;padding:9px 12px}
+.pr+.pr::before{content:"";position:absolute;top:0;left:52px;right:0;height:1px;background:var(--sep)}
+.pr .t{flex:1;min-width:0}.pr .t b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .t span{display:block;color:var(--grey);font-size:11.5px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .v{color:var(--grey);font-size:13px;white-space:nowrap}
+.go{color:var(--dim);font-size:17px;font-weight:600}
+.tile{width:30px;height:44px;border-radius:5px;flex:none}
+.ico{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:14px;font-weight:800}
+.thin{height:4px;border-radius:2px;background:rgba(235,235,245,.2);overflow:hidden;margin-top:5px}.thin i{display:block;height:100%;background:var(--blue)}
+.chip{font-size:10.5px;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap}
+.chip.g{background:rgba(48,209,88,.18);color:var(--green)}.chip.b{background:rgba(10,132,255,.2);color:var(--blue-text)}
+.chip.n{background:rgba(235,235,245,.12);color:var(--grey)}.chip.o{background:rgba(255,159,10,.18);color:var(--orange)}
+.chip.r{background:rgba(255,69,58,.18);color:var(--red)}
+.ready{background:var(--s1);border-radius:12px;padding:12px;display:flex;gap:12px;align-items:center}
+.ready .ok{width:34px;height:34px;border-radius:50%;background:var(--green);color:#000;display:grid;place-items:center;font-weight:900;font-size:17px;flex:none}
+.ready .t{flex:1}.ready b{display:block;font-size:15px}.ready span{display:block;color:var(--grey);font-size:12px;margin-top:2px}
+.split{display:flex;gap:8px;margin-top:8px}.split div{flex:1;background:var(--s1);border-radius:12px;padding:10px 12px}
+.split b{display:block;font-size:20px;font-weight:800}.split span{display:flex;justify-content:space-between;color:var(--grey);font-size:12px;margin-top:2px}
+.split span i{font-style:normal;color:var(--dim);font-weight:700}
+.foot{color:var(--grey);font-size:11.5px;margin:6px 6px 0;line-height:1.35}
+/* show page */
+.hero{position:relative;height:250px;margin:-44px -14px 0}
+.hero .bg{position:absolute;inset:0}
+.hero .fade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.25) 0%,rgba(0,0,0,.05) 35%,rgba(0,0,0,.55) 70%,#000 100%)}
+.ctl{position:absolute;top:50px;height:34px;border-radius:17px;background:rgba(28,28,30,.88);border:1px solid rgba(255,255,255,.10);
+ color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px}
+.ctl.back{left:14px;width:34px;font-size:20px;padding-bottom:2px}
+.ctl.pair{right:14px;padding:0 4px}
+.ctl.pair span{padding:0 11px;height:34px;display:flex;align-items:center}
+.ctl.pair span+span{border-left:1px solid rgba(255,255,255,.14)}
+.ctl.pair .dots{font-weight:900;letter-spacing:1.5px;font-size:13px}
+.ctl.pair .on{background:rgba(255,255,255,.16);border-radius:15px}
+.who{position:absolute;left:14px;right:14px;bottom:12px}
+.who b{display:block;font-size:27px;font-weight:800;line-height:1.08;letter-spacing:-.01em}
+.who span{display:block;color:rgba(235,235,245,.75);font-size:12.5px;margin-top:4px}
+.stats{display:flex;gap:6px;margin:10px 0 10px}
+.stats div{flex:1;background:var(--s1);border-radius:11px;padding:8px 10px}.stats b{display:block;font-size:16.5px;font-weight:800}.stats span{color:var(--grey);font-size:10.5px}
+.stats .warn b{color:var(--red)}
+.seasons{display:flex;gap:6px;margin-bottom:10px}.seasons div{background:var(--s1);border-radius:16px;padding:6px 13px;font-size:12.5px;font-weight:600;color:var(--grey)}.seasons div.on{background:#fff;color:#000}
+.eps{background:var(--s1);border-radius:14px;overflow:hidden}
+.er{position:relative;display:flex;gap:10px;align-items:center;padding:8px 10px;min-height:62px}
+.er+.er::before{content:"";position:absolute;top:0;left:100px;right:0;height:1px;background:var(--sep)}
+.thumb{width:80px;height:45px;border-radius:6px;flex:none;position:relative;overflow:hidden}
+.thumb .num{position:absolute;left:5px;bottom:3px;font-size:10px;font-weight:800;text-shadow:0 1px 3px #000}
+.thumb.missing{background:repeating-linear-gradient(135deg,#2a2a2d 0 6px,#232326 6px 12px);display:grid;place-items:center;color:var(--dim);font-size:16px}
+.er .t{flex:1;min-width:0}.er .t b{display:block;font-size:13.5px;font-weight:600;line-height:1.25}
+.er .t span{display:flex;align-items:center;gap:5px;color:var(--grey);font-size:11.5px;margin-top:3px;white-space:nowrap;overflow:hidden}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.fix{flex:none;width:34px;height:34px;border-radius:50%;background:var(--s2);color:#fff;display:grid;place-items:center;font-size:16px;font-weight:800;border:1px solid rgba(255,69,58,.55)}
+.fix.busy{border-color:rgba(10,132,255,.6);color:var(--blue-text)}
+.thumb.missing .num{color:var(--grey);text-shadow:none}
+.er .thinx{height:3px;border-radius:2px;background:rgba(235,235,245,.2);margin-top:5px;overflow:hidden;width:100%}.er .thinx i{display:block;height:100%;background:var(--blue)}
+.dimlight{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.menu{position:absolute;right:14px;top:92px;width:252px;background:rgba(44,44,46,.98);border-radius:14px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.75)}
+.menu div{display:flex;gap:10px;align-items:center;padding:11px 14px;font-size:14px;min-height:44px}
+.menu div+div{border-top:1px solid var(--sep)}
+.menu div i{font-style:normal;width:20px;text-align:center;color:#fff;font-weight:700}
+.menu div .t{flex:1}.menu div .t small{display:block;color:var(--grey);font-size:11px;margin-top:1px}
+.menu .gap{border-top:6px solid rgba(0,0,0,.4)!important}
+.menu .del,.menu .del i{color:var(--red)}
+.toast{position:absolute;left:24px;right:24px;bottom:28px;background:rgba(44,44,46,.97);border-radius:14px;padding:10px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+.toast b{display:block;font-size:13px}.toast span{display:block;color:var(--grey);font-size:11.5px}
+/* select */
+.selbar{display:flex;justify-content:space-between;align-items:center;height:32px;margin-bottom:6px;font-size:15px;font-weight:600;color:var(--blue-text)}
+.selbar .done{font-weight:700}
+.count{color:var(--grey);font-size:12.5px;margin:2px 0 10px}
+.ck{width:22px;height:22px;border-radius:50%;border:2px solid rgba(235,235,245,.35);flex:none}
+.ck.on{border:none;background:var(--blue);display:grid;place-items:center}.ck.on::after{content:"✓";font-size:12px;font-weight:800}
+.er.picked{background:rgba(10,132,255,.08)}
+.tool{position:absolute;left:0;right:0;bottom:0;background:rgba(28,28,30,.97);border-top:1px solid var(--sep);padding:9px 10px 22px;display:flex;justify-content:space-around}
+.tool div{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--blue-text);min-width:70px}
+.tool div i{font-style:normal;font-size:18px;line-height:1}
+.tool .r{color:var(--red)}.tool .off{color:var(--dim)}
+.dimall{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.asheet{position:absolute;left:10px;right:10px;bottom:22px}
+.asheet .g{background:rgba(44,44,46,.98);border-radius:14px;overflow:hidden;margin-bottom:8px}
+.asheet .h{padding:13px 14px;text-align:center;color:var(--grey);font-size:12.5px;line-height:1.35}.asheet .h b{display:block;color:#fff;font-size:13.5px;margin-bottom:3px}
+.asheet .o{border-top:1px solid var(--sep);padding:14px;text-align:center;font-size:16px;color:var(--blue-text)}
+.asheet .o.d{color:var(--red);font-weight:600}.asheet .o.c{font-weight:700;border:none}
+.notes{max-width:1180px;margin:30px auto 0;color:#b4b4ba;font-size:14px;line-height:1.55}.notes h3{color:#fff;font-size:16px;margin:16px 0 6px}.notes li{margin:3px 0 3px 18px}
+.was{color:var(--red);font-weight:700}
+</style></head><body>
+
+<div class="intro">
+<span class="mk">MOCKUP · not a render of Kodi</span>
+<h1>Library status and the show page, round 4</h1>
+<p>Owner (2026-11-14, build 384 screenshots): "we can remove kodi ready for airplay here as we have the movies and tv section
+that has this information with detail … the show repair and the menu settings needs to be fixed, the 3 dot button doesnt work
+and it presses on a screen behind it and sends me out of the menu … the screenshots need to be made prettier".</p>
+<p>Four boards: <b>A</b> Library status without the long "Ready" list, <b>B</b> the show page, <b>C</b> its ••• menu (drawn by
+the page, so it can no longer fall through to the screen behind), <b>D</b> Select. Everything uses the existing tokens, capsules
+and row styles (portrait.py, status_ui); no new colour, font size or radius. Pictures are colour placeholders and episode titles
+are examples; the page shows TMDb's stills and titles.</p>
+</div>
+
+<!-- ============================== A ============================== -->
+<section class="board"><div class="n">A · LIBRARY STATUS</div><h2>Only what is moving or needs you; "Ready" becomes one line</h2>
+<p>The 140-row "Ready for Kodi and AirPlay" list goes. Movies and TV Shows already show every video with its quality and state.
+In its place, a single "Ready" summary with two tiles that open Library › Movies and Library › TV Shows. The page now fits on one
+screen while work is running.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="navrow"><span class="chev">‹</span><span class="refresh">↻</span></div>
+  <h3>Library status</h3><div class="sub">Kodi Downloads on Google Drive · checked just now</div>
+  <div class="sh">Needs you</div>
+  <div class="grp"><div class="pr"><div class="ico" style="background:rgba(255,69,58,.2);color:var(--red)">!</div>
+   <div class="t"><b>2 episodes not added</b><span>Naruto Shippuuden · E5, E6</span></div><span class="v" style="color:var(--blue-text);font-weight:600">Review</span></div></div>
+  <div class="sh">Working now</div>
+  <div class="grp">
+   <div class="pr"><div class="tile" style="background:linear-gradient(160deg,#c46a2b,#3d1d0c)"></div>
+    <div class="t"><b>Naruto Shippuuden · S1 E14</b><span>Made ready while copying · 64 %</span><div class="thin"><i style="width:64%"></i></div></div></div>
+   <div class="pr"><div class="tile" style="background:linear-gradient(160deg,#3b6fb0,#0f2340)"></div>
+    <div class="t"><b>Phony · S1 E6</b><span>Downloading to Google Drive · 31 %</span><div class="thin"><i style="width:31%"></i></div></div></div>
+  </div>
+  <div class="sh">Up next <em>Queue ›</em></div>
+  <div class="grp"><div class="pr"><div class="t"><b>4 waiting</b><span>Naruto Shippuuden E15–E17 · Phony E7</span></div><span class="go">›</span></div></div>
+  <div class="sh">Ready</div>
+  <div class="ready"><div class="ok">✓</div><div class="t"><b>142 videos ready</b><span>Play in Kodi and on AirPlay</span></div></div>
+  <div class="split"><div><b>31</b><span>Movies <i>›</i></span></div><div><b>111</b><span>Episodes <i>›</i></span></div></div>
+ </div></div><div class="cap"><b>A1 · while work runs.</b> Needs you, Working now and Up next stay as they are (DEC-044 lanes).
+ "Ready" is one card and two tiles; each tile opens the Library page with its full list, qualities and states.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="navrow"><span class="chev">‹</span><span class="refresh">↻</span></div>
+  <h3>Library status</h3><div class="sub">Kodi Downloads on Google Drive · checked 2 minutes ago</div>
+  <div class="ready" style="margin-top:16px;padding:18px 14px"><div class="ok" style="width:44px;height:44px;font-size:22px">✓</div>
+   <div class="t"><b style="font-size:17px">Everything is ready</b><span>142 videos play in Kodi and on AirPlay. New downloads appear here while they copy and are prepared.</span></div></div>
+  <div class="split"><div><b>31</b><span>Movies <i>›</i></span></div><div><b>111</b><span>Episodes <i>›</i></span></div></div>
+  <div class="foot" style="margin-top:12px">Last checked 2 minutes ago · 5.0 TB free on Google Drive</div>
+ </div></div><div class="cap"><b>A2 · nothing running.</b> One calm card instead of a long green list. Pull the ↻ to check
+ Google Drive again (unchanged behaviour, ISSUE-234).</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps" style="opacity:.55">
+  <div class="navrow"><span class="chev">‹</span><span class="refresh">↻</span></div>
+  <h3>Library status</h3><div class="sub">Kodi Downloads on Google Drive · checked just now</div>
+  <div class="sh">Ready for Kodi and AirPlay</div>
+  <div class="grp">
+   <div class="pr"><div class="ico" style="background:var(--green);color:#000;border-radius:50%">✓</div><div class="t"><b>Lanterns · S1 E1</b></div><span class="v">2160p HDR</span></div>
+   <div class="pr"><div class="ico" style="background:var(--green);color:#000;border-radius:50%">✓</div><div class="t"><b>Lanterns · S1 E4</b></div><span class="v">4K</span></div>
+   <div class="pr"><div class="ico" style="background:var(--green);color:#000;border-radius:50%">✓</div><div class="t"><b>Lanterns · S1 E5</b></div><span class="v">4K</span></div>
+   <div class="pr"><div class="ico" style="background:var(--green);color:#000;border-radius:50%">✓</div><div class="t"><b>Lanterns · S1 E8</b></div><span class="v">4K</span></div>
+   <div class="pr"><div class="ico" style="background:var(--green);color:#000;border-radius:50%">✓</div><div class="t"><b>Phony · S1 E3</b></div><span class="v">1080p</span></div>
+   <div class="pr"><div class="ico" style="background:var(--green);color:#000;border-radius:50%">✓</div><div class="t"><b>… 137 more</b></div></div>
+  </div>
+ </div></div><div class="cap"><span class="was">Removed:</span> the build-384 list (owner screenshot), shown faded for
+ comparison.</div></div>
+</div></section>
+
+<!-- ============================== B ============================== -->
+<section class="board"><div class="n">B · ONE SHOW</div><h2>Episode names, pictures and one clear state per episode</h2>
+<p>Build 384 showed "3 · Naruto Shippuuden" (the show's name instead of the episode's), no pictures, and a big red Repair on
+missing episodes. Each row now has the episode's still from TMDb, its number and title, and one state line (dot · quality · size).
+A missing episode gets a striped placeholder and a round Repair button (↻, outlined in red; the 44 pt touch area is the whole
+right end of the row). Titles wrap to a second line instead of ending in "…". The controls over the
+art are one back disc and one capsule holding Select and •••, drawn darker so they read on any artwork (§2 glass: about 90 %).</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="hero"><div class="bg" style="background:radial-gradient(120% 90% at 70% 30%,#2f8a8a,#14455a 45%,#0b1a24 80%)"></div><div class="fade"></div>
+   <div class="ctl back">‹</div><div class="ctl pair"><span>Select</span><span class="dots">•••</span></div>
+   <div class="who"><b>Naruto Shippuuden</b><span>2007 · Anime · Google Drive › TV Shows</span></div></div>
+  <div class="stats"><div><b>32</b><span>episodes</span></div><div><b>5.0 GB</b><span>on Drive</span></div><div class="warn"><b>2</b><span>not added</span></div></div>
+  <div class="seasons"><div class="on">Season 1</div><div>Season 2</div><div>Specials</div></div>
+  <div class="eps">
+   <div class="er"><div class="thumb" style="background:linear-gradient(135deg,#d58a3a,#5a2a10)"><span class="num">E3</span></div>
+    <div class="t"><b>The Results of Training</b><span><i class="dot" style="background:var(--green)"></i>Ready · 1080p · 207 MB</span></div></div>
+   <div class="er"><div class="thumb" style="background:linear-gradient(135deg,#7aa6d6,#1d3555)"><span class="num">E4</span></div>
+    <div class="t"><b>The Jinchuriki of the Sand</b><span><i class="dot" style="background:var(--green)"></i>Ready · 1080p · 177 MB</span></div></div>
+   <div class="er"><div class="thumb missing"><span class="num">E5</span></div>
+    <div class="t"><b>The Kazekage Stands Tall</b><span><i class="dot" style="background:var(--red)"></i>Not on Google Drive</span></div><div class="fix">↻</div></div>
+   <div class="er"><div class="thumb missing"><span class="num">E6</span></div>
+    <div class="t"><b>Mission Cleared</b><span><i class="dot" style="background:var(--red)"></i>Not on Google Drive</span></div><div class="fix">↻</div></div>
+   <div class="er"><div class="thumb" style="background:linear-gradient(135deg,#9a5bc4,#2b1440)"><span class="num">E7</span></div>
+    <div class="t"><b>Run, Kankuro</b><span><i class="dot" style="background:var(--orange)"></i>Preparing for AirPlay · 46 %</span><div class="thinx"><i style="width:46%"></i></div></div></div>
+   <div class="er"><div class="thumb" style="background:linear-gradient(135deg,#5bbf8a,#123a26)"><span class="num">E8</span></div>
+    <div class="t"><b>Episode title from TMDb</b><span><i class="dot" style="background:var(--green)"></i>Ready · 480p · 177 MB</span></div></div>
+  </div>
+ </div></div><div class="cap"><b>B1 · the show.</b> The third number becomes what needs you ("2 not added", red) when something
+ does, else "ready for TV". Rows keep the pooled list (60 slots), so scrolling stays smooth. A 480p fallback says 480p plainly.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="hero"><div class="bg" style="background:radial-gradient(120% 90% at 70% 30%,#2f8a8a,#14455a 45%,#0b1a24 80%)"></div><div class="fade"></div>
+   <div class="ctl back">‹</div><div class="ctl pair"><span>Select</span><span class="dots">•••</span></div>
+   <div class="who"><b>Naruto Shippuuden</b><span>2007 · Anime · Google Drive › TV Shows</span></div></div>
+  <div class="stats"><div><b>32</b><span>episodes</span></div><div><b>5.0 GB</b><span>on Drive</span></div><div class="warn"><b>2</b><span>not added</span></div></div>
+  <div class="seasons"><div class="on">Season 1</div><div>Season 2</div><div>Specials</div></div>
+  <div class="eps">
+   <div class="er"><div class="thumb" style="background:linear-gradient(135deg,#d58a3a,#5a2a10)"><span class="num">E3</span></div>
+    <div class="t"><b>The Results of Training</b><span><i class="dot" style="background:var(--green)"></i>Ready · 1080p · 207 MB</span></div></div>
+   <div class="er"><div class="thumb" style="background:linear-gradient(135deg,#7aa6d6,#1d3555)"><span class="num">E4</span></div>
+    <div class="t"><b>The Jinchuriki of the Sand</b><span><i class="dot" style="background:var(--green)"></i>Ready · 1080p · 177 MB</span></div></div>
+   <div class="er"><div class="thumb missing"><span class="num">E5</span></div>
+    <div class="t"><b>The Kazekage Stands Tall</b><span><i class="dot" style="background:var(--blue)"></i>Looking for 1080p…</span><div class="thinx"><i style="width:35%"></i></div></div><div class="fix busy">✕</div></div>
+   <div class="er"><div class="thumb missing"><span class="num">E6</span></div>
+    <div class="t"><b>Mission Cleared</b><span><i class="dot" style="background:var(--blue)"></i>Downloading · 1080p · 12 %</span><div class="thinx"><i style="width:12%"></i></div></div></div>
+   <div class="er"><div class="thumb" style="background:linear-gradient(135deg,#9a5bc4,#2b1440)"><span class="num">E7</span></div>
+    <div class="t"><b>Run, Kankuro</b><span><i class="dot" style="background:var(--orange)"></i>Preparing for AirPlay · 46 %</span><div class="thinx"><i style="width:46%"></i></div></div></div>
+  </div>
+  <div class="toast"><div class="ico" style="background:rgba(10,132,255,.2);color:var(--blue-text)">↻</div><div><b>Repairing E5</b><span>Looking it up again at 1080p, the quality you chose</span></div></div>
+ </div></div><div class="cap"><b>B2 · after Repair.</b> The row changes at once (ISSUE-227): "Looking for 1080p…" with a moving bar and a ✕ to stop it,
+ then "Downloading · 1080p". A short banner says what is happening. If nothing is found the row says so in plain words
+ ("No 1080p found · the best available was 480p", ISSUE-236), never a silent nothing.</div></div>
+</div></section>
+
+<!-- ============================== C ============================== -->
+<section class="board"><div class="n">C · THE ••• MENU</div><h2>A menu that belongs to the page</h2>
+<p>Why it failed: the show page is a full Kodi window opened from the Library dialog, and ••• opened Kodi's own context menu.
+Kodi then drew the window stack underneath (Home's artwork showed through) and the next tap landed on that hidden page, which
+took you out. The fix: the show page becomes a dialog (like the other Library pages) and the menu is drawn by the page itself,
+under the ••• button, with the page dimmed lightly behind it. A tap outside the menu closes only the menu.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="hero"><div class="bg" style="background:radial-gradient(120% 90% at 70% 30%,#2f8a8a,#14455a 45%,#0b1a24 80%)"></div><div class="fade"></div>
+   <div class="ctl back">‹</div><div class="ctl pair"><span>Select</span><span class="dots on">•••</span></div>
+   <div class="who"><b>Naruto Shippuuden</b><span>2007 · Anime · Google Drive › TV Shows</span></div></div>
+  <div class="stats"><div><b>32</b><span>episodes</span></div><div><b>5.0 GB</b><span>on Drive</span></div><div class="warn"><b>2</b><span>not added</span></div></div>
+  <div class="seasons"><div class="on">Season 1</div><div>Season 2</div><div>Specials</div></div>
+  <div class="eps">
+   <div class="er"><div class="thumb" style="background:linear-gradient(135deg,#d58a3a,#5a2a10)"><span class="num">E3</span></div>
+    <div class="t"><b>The Results of Training</b><span><i class="dot" style="background:var(--green)"></i>Ready · 1080p · 207 MB</span></div></div>
+   <div class="er"><div class="thumb missing"><span class="num">E5</span></div>
+    <div class="t"><b>The Kazekage Stands Tall</b><span><i class="dot" style="background:var(--red)"></i>Not on Google Drive</span></div><div class="fix">↻</div></div>
+  </div>
+  <div class="dimlight"></div>
+  <div class="menu">
+   <div><i>↻</i><span class="t">Repair 2 Episodes<small>Look them up again at 1080p</small></span></div>
+   <div><i>⌕</i><span class="t">Find Missing Episodes<small>Search every episode not on Drive</small></span></div>
+   <div><i>⇅</i><span class="t">Pick Better Versions<small>For episodes still waiting</small></span></div>
+   <div class="gap"><i>✓</i><span class="t">Select Episodes</span></div>
+   <div class="del"><i>🗑</i><span class="t">Delete Season 1…</span></div>
+  </div>
+ </div></div><div class="cap"><b>C1 · ••• open.</b> Items appear only when they apply (Repair with a count, Pick Better Versions
+ when episodes wait), each with one grey line saying what it does. Rows are 44 pt (118 units). Delete is last, red, and asks first.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="hero"><div class="bg" style="background:radial-gradient(120% 90% at 70% 30%,#2f8a8a,#14455a 45%,#0b1a24 80%)"></div><div class="fade"></div>
+   <div class="ctl back">‹</div><div class="ctl pair"><span>Select</span><span class="dots">•••</span></div>
+   <div class="who"><b>Naruto Shippuuden</b><span>2007 · Anime · Google Drive › TV Shows</span></div></div>
+  <div class="stats"><div><b>32</b><span>episodes</span></div><div><b>5.0 GB</b><span>on Drive</span></div><div><b>30</b><span>ready for TV</span></div></div>
+  <div class="seasons"><div class="on">Season 1</div><div>Season 2</div><div>Specials</div></div>
+  <div class="eps">
+   <div class="er"><div class="thumb" style="background:linear-gradient(135deg,#d58a3a,#5a2a10)"><span class="num">E3</span></div>
+    <div class="t"><b>The Results of Training</b><span><i class="dot" style="background:var(--green)"></i>Ready · 1080p · 207 MB</span></div></div>
+  </div>
+  <div class="dimall"></div>
+  <div class="asheet"><div class="g"><div class="h"><b>Delete Season 1?</b>32 episodes (5.0 GB) go to Google Drive's Trash for 30 days.
+   Anything still copying or being prepared stops.</div><div class="o d">Delete Season 1</div></div>
+   <div class="g"><div class="o c">Cancel</div></div></div>
+ </div></div><div class="cap"><b>C2 · a destructive item asks first.</b> An action sheet with Cancel (HIG action sheets), the same
+ words as Library › Delete. Nothing is deleted from the menu itself.</div></div>
+</div></section>
+
+<!-- ============================== D ============================== -->
+<section class="board"><div class="n">D · SELECT</div><h2>Pick episodes, then act on all of them</h2>
+<p>Build 384's Select page was a plain list of grey circles and sizes with no names, no pictures and no visible actions. It now
+looks like the show page in edit mode: the same rows with their pictures and names, a blue check, a running count, and a toolbar
+at the bottom with what can be done to the chosen episodes.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="selbar"><span>Select All</span><span class="done">Done</span></div>
+  <h3>Naruto Shippuuden</h3><div class="count">3 selected · 588 MB · Season 1</div>
+  <div class="seasons"><div class="on">Season 1</div><div>Season 2</div><div>Specials</div></div>
+  <div class="eps">
+   <div class="er picked"><div class="ck on"></div><div class="thumb" style="background:linear-gradient(135deg,#e0a35a,#6b3410)"><span class="num">E1</span></div>
+    <div class="t"><b>Homecoming</b><span>480p · 189 MB</span></div></div>
+   <div class="er"><div class="ck"></div><div class="thumb" style="background:linear-gradient(135deg,#c95a5a,#3d1010)"><span class="num">E2</span></div>
+    <div class="t"><b>The Akatsuki Makes Its Move</b><span>1080p · 596 MB</span></div></div>
+   <div class="er picked"><div class="ck on"></div><div class="thumb" style="background:linear-gradient(135deg,#d58a3a,#5a2a10)"><span class="num">E3</span></div>
+    <div class="t"><b>The Results of Training</b><span>480p · 207 MB</span></div></div>
+   <div class="er picked"><div class="ck on"></div><div class="thumb" style="background:linear-gradient(135deg,#7aa6d6,#1d3555)"><span class="num">E4</span></div>
+    <div class="t"><b>The Jinchuriki of the Sand</b><span>480p · 177 MB</span></div></div>
+   <div class="er"><div class="ck"></div><div class="thumb" style="background:linear-gradient(135deg,#9a5bc4,#2b1440)"><span class="num">E7</span></div>
+    <div class="t"><b>Run, Kankuro</b><span>480p · 172 MB</span></div></div>
+   <div class="er"><div class="ck"></div><div class="thumb" style="background:linear-gradient(135deg,#5bbf8a,#123a26)"><span class="num">E8</span></div>
+    <div class="t"><b>Episode title from TMDb</b><span>480p · 177 MB</span></div></div>
+  </div>
+  <div class="tool"><div><i>⇅</i>Better Version</div><div><i>↻</i>Prepare Again</div><div class="r"><i>🗑</i>Delete</div></div>
+ </div></div><div class="cap"><b>D1 · three chosen.</b> The whole row toggles (118-unit rows). "Better Version" looks the chosen
+ episodes up again at the show's quality and replaces them when a better one arrives; "Prepare Again" makes them ready for
+ AirPlay again; Delete asks first (D2). Select All turns into Deselect All when everything is chosen.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="selbar"><span>Select All</span><span class="done">Done</span></div>
+  <h3>Naruto Shippuuden</h3><div class="count">3 selected · 588 MB · Season 1</div>
+  <div class="seasons"><div class="on">Season 1</div><div>Season 2</div><div>Specials</div></div>
+  <div class="eps">
+   <div class="er picked"><div class="ck on"></div><div class="thumb" style="background:linear-gradient(135deg,#e0a35a,#6b3410)"><span class="num">E1</span></div>
+    <div class="t"><b>Homecoming</b><span>480p · 189 MB</span></div></div>
+   <div class="er"><div class="ck"></div><div class="thumb" style="background:linear-gradient(135deg,#c95a5a,#3d1010)"><span class="num">E2</span></div>
+    <div class="t"><b>The Akatsuki Makes Its Move</b><span>1080p · 596 MB</span></div></div>
+  </div>
+  <div class="dimall"></div>
+  <div class="asheet"><div class="g"><div class="h"><b>Delete 3 episodes?</b>588 MB go to Google Drive's Trash for 30 days. You can
+   download them again from the show's page.</div><div class="o d">Delete 3 Episodes</div></div>
+   <div class="g"><div class="o c">Cancel</div></div></div>
+ </div></div><div class="cap"><b>D2 · Delete asks first,</b> with the count and the size, and Cancel in its own group.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="selbar"><span>Select All</span><span class="done">Done</span></div>
+  <h3>Naruto Shippuuden</h3><div class="count">Choose episodes</div>
+  <div class="seasons"><div class="on">Season 1</div><div>Season 2</div><div>Specials</div></div>
+  <div class="eps">
+   <div class="er"><div class="ck"></div><div class="thumb" style="background:linear-gradient(135deg,#e0a35a,#6b3410)"><span class="num">E1</span></div>
+    <div class="t"><b>Homecoming</b><span>480p · 189 MB</span></div></div>
+   <div class="er"><div class="ck"></div><div class="thumb" style="background:linear-gradient(135deg,#c95a5a,#3d1010)"><span class="num">E2</span></div>
+    <div class="t"><b>The Akatsuki Makes Its Move</b><span>1080p · 596 MB</span></div></div>
+   <div class="er"><div class="ck"></div><div class="thumb" style="background:linear-gradient(135deg,#d58a3a,#5a2a10)"><span class="num">E3</span></div>
+    <div class="t"><b>The Results of Training</b><span>480p · 207 MB</span></div></div>
+  </div>
+  <div class="tool"><div class="off"><i>⇅</i>Better Version</div><div class="off"><i>↻</i>Prepare Again</div><div class="off"><i>🗑</i>Delete</div></div>
+ </div></div><div class="cap"><b>D3 · nothing chosen yet.</b> The toolbar is there but greyed, so it is clear what Select is for.</div></div>
+</div></section>
+
+<div class="notes">
+<h3>How this would be built (after approval)</h3>
+<ul>
+<li><b>A:</b> library_status drops the Ready rows; a summary card (status_ui.card) and two tiles reuse the Library page's counts
+and open Library › Movies / TV Shows. Needs you, Working now and Up next are unchanged.</li>
+<li><b>B:</b> library_show_page rows add the TMDb still (episode thumbnails already cached for the Library) and the episode title
+from the season cache (episode_minutes uses the same cache); the third number switches to "N not added" when there are problems.
+Repair keeps its id (9600+) but is drawn as an outlined capsule; after a tap the row reads the pending request at once.</li>
+<li><b>C:</b> IOSLibraryShow.xml becomes a dialog, and the ••• menu is a group inside it (ids 9800+), shown and hidden by a window
+property, with a full-screen tap catcher behind it that closes only the menu. Kodi's DialogContextMenu is no longer used here.</li>
+<li><b>D:</b> library_select_page reuses the show rows with a check, the season chips and a three-button toolbar
+(existing actions: Pick Better Versions, prepare again (retry), Delete with confirm).</li>
+<li>Evidence after coding: desktop Kodi rig renders next to these boards; device proof needs the owner's iPhone.</li>
+</ul>
+</div>
+</body></html>
