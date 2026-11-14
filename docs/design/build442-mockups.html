@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Build 442 mockups</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt,
+     tokens from portrait.py / pages.py (§4.3), the style of ai-upscale-settings-mockups.html. -->
+<style>
+:root{--bg:#000;--s1:#1c1c1e;--s2:#2c2c2e;--grey:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);--sep:rgba(235,235,245,.16);
+ --blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a;--purple:#bf5af2}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro{max-width:1180px;margin:0 auto 10px}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:880px;margin-bottom:8px}
+.board{max-width:1180px;margin:30px auto 0;padding-top:16px;border-top:1px solid #26272b}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board>p{color:var(--grey);font-size:14px;line-height:1.5;max-width:880px;margin-bottom:16px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.4;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:44px 14px 16px;font-size:14px}
+.nb{color:var(--blue-text);font-size:15px;font-weight:600;margin-bottom:4px}
+.ps h3{font-size:30px;font-weight:800;margin-bottom:12px;letter-spacing:-.01em}
+.sh{color:var(--grey);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:14px 6px 6px}
+.grp{background:var(--s1);border-radius:12px;overflow:hidden}
+.pr{position:relative;display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 12px}
+.pr+.pr::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.pr .t{flex:1;min-width:0}.pr .t b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .t span{display:block;color:var(--grey);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .v{color:var(--grey);font-size:14px;white-space:nowrap}
+.go{color:var(--dim);font-size:17px;font-weight:600}
+.ico{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:15px}
+.tile{width:30px;height:44px;border-radius:5px;flex:none}
+.toggle{flex:none;width:46px;height:28px;border-radius:14px;background:#39393d;position:relative}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:#fff}
+.toggle.on{background:var(--green)}.toggle.on::after{left:20px}
+.foot{color:var(--grey);font-size:12px;margin:6px 6px 0;line-height:1.35}
+.thin{height:4px;border-radius:2px;background:rgba(235,235,245,.2);overflow:hidden;margin-top:6px}.thin i{display:block;height:100%;background:var(--blue)}
+.chip{font-size:11px;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap}
+.chip.g{background:rgba(48,209,88,.18);color:var(--green)}.chip.b{background:rgba(10,132,255,.2);color:var(--blue-text)}
+.chip.n{background:rgba(235,235,245,.12);color:var(--grey)}
+.status{background:var(--s1);border-radius:12px;padding:12px;display:flex;gap:12px;align-items:center}
+.status .t b{font-size:15px}.status .t span{color:var(--grey);font-size:12.5px;display:block;margin-top:2px}
+.seg{display:flex;background:var(--s2);border-radius:9px;padding:2px;margin:0 0 8px}
+.seg div{flex:1;text-align:center;padding:6px 0;border-radius:7px;font-size:13px;font-weight:600;color:var(--grey)}.seg div.on{background:#636366;color:#fff}
+.btn{margin-top:12px;height:46px;border-radius:23px;background:#fff;color:#000;display:grid;place-items:center;font-weight:700;font-size:15.5px}
+.red{color:var(--red);text-align:center;font-weight:600;font-size:15px;margin-top:12px}
+.hero{display:flex;gap:12px;align-items:center;margin-bottom:6px}
+.hero i{width:58px;height:84px;border-radius:7px;flex:none}
+.hero b{display:block;font-size:22px;font-weight:800}.hero span{color:var(--grey);font-size:13px}
+.slider{background:var(--s1);border-radius:12px;padding:12px}
+.slider .row{display:flex;justify-content:space-between;align-items:baseline}.slider .row b{font-size:15px}.slider .row span{color:var(--blue-text);font-weight:700}
+.track{position:relative;height:4px;background:rgba(235,235,245,.25);border-radius:2px;margin:16px 6px 8px}
+.track i{position:absolute;left:0;top:0;bottom:0;width:100%;background:var(--blue);border-radius:2px}
+.track em{position:absolute;top:-10px;right:-12px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--grey)}.ticks .on{color:#fff;font-weight:700}
+.notes{max-width:1180px;margin:30px auto 0;color:#b4b4ba;font-size:14px;line-height:1.55}.notes h3{color:#fff;font-size:16px;margin:16px 0 6px}.notes li{margin:3px 0 3px 18px}
+</style><style>
+.sheet2{position:absolute;left:0;right:0;bottom:0;background:var(--s1);border-radius:22px 22px 0 0;padding:14px 14px 18px}
+.grab{width:36px;height:5px;border-radius:3px;background:rgba(235,235,245,.3);margin:0 auto 12px}
+.hd{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}
+.tile{width:42px;height:42px;border-radius:11px;flex:none;display:grid;place-items:center;font-size:18px}
+.hd b{display:block;font-size:16.5px;font-weight:700;line-height:1.25}.hd span{display:block;color:var(--grey);font-size:12px;margin-top:3px}
+.box{background:var(--s2);border-radius:12px;padding:11px 12px;font-size:13.5px;line-height:1.4}
+.box .ok{display:flex;gap:7px;margin-top:8px;color:#fff;font-size:12.5px}.box .ok i{color:var(--green);font-style:normal}
+.lst2{background:var(--s2);border-radius:12px;margin-top:10px;overflow:hidden}
+.lr{position:relative;display:flex;align-items:center;min-height:44px;padding:8px 12px;gap:10px}
+.lr+.lr::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.lr .t{flex:1}.lr .t b{display:block;font-size:14px;font-weight:600}.lr .t span{display:block;color:var(--grey);font-size:11.5px;margin-top:1px}
+.lr .go{color:var(--dim)}
+.tl{margin-top:10px}.tl div{display:flex;gap:10px;font-size:12.5px;line-height:1.35;padding:4px 0}
+.tl i{width:9px;height:9px;border-radius:50%;margin-top:4px;flex:none}.tl span{color:var(--grey);width:58px;flex:none}
+.qrow{display:flex;align-items:center;gap:10px;padding:9px 12px;position:relative}
+.qrow+.qrow::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.qrow b{font-size:14.5px;width:56px}.qrow span{flex:1;color:var(--grey);font-size:12.5px}
+.chk{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;flex:none}
+.slide{height:4px;border-radius:2px;background:rgba(235,235,245,.18);overflow:hidden;margin:10px 0 4px}.slide i{display:block;width:35%;height:100%;background:var(--blue);border-radius:2px;margin-left:30%}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.chips div{border-radius:16px;padding:7px 12px;font-size:13px;font-weight:700}
+.cancel2{margin-top:12px;height:44px;border-radius:22px;background:var(--s2);display:grid;place-items:center;font-weight:600}
+</style></head><body><div class="intro"><span class="mk">MOCKUP · not a render of Kodi</span><h1>Build 442: two redesigns</h1><p>Owner (build 442): the notification detail sheets "look poor"; the Build Season "Checking which qualities exist…" sheet always says "Looking at episodes 1, 6 and 10", shows empty "4K · … 1080p · …" placeholders and a big empty gap. Two options each; pick one per item (or mix). Tokens §4.3, grouped rows §8, nothing cut off (DEC-050).</p></div><div class="board"><div class="n">ITEM 10 · NOTIFICATION DETAIL</div><h2>The sheet is as tall as what it says</h2><p>Today the sheet is a fixed 1780-unit card with every part at a fixed place, so short notices leave large gaps. Both options size the sheet to its content: the icon tile, the title and when, what happened in one box (with a green reassurance line when nothing was lost), then the actions as one grouped list where the first is the main one in blue. Technical details is the last row.</p><div class="shots"><div class="slot"><div class="pframe"><div class="ps"><div class="nb">‹</div><h3>Notifications</h3><div class="sheetwrap" style="position:absolute;inset:0;background:rgba(0,0,0,.55)"></div><div class="sheet2"><div class="grab"></div><div class="hd"><div class="tile" style="background:rgba(255,159,10,.2);color:var(--orange)">!</div><div><b>No real 1080p for season 2</b><span>Naruto Shippuden · 2 min ago</span></div></div><div class="box">No version of season 2 is really 1080p, so nothing was downloaded for it yet.<div class="ok"><i>✓</i>Nothing was downloaded at a lower quality without asking you.</div></div><div class="lst2"><div class="lr"><div class="t"><b style="color:#4fa8ff">Choose</b><span>Use the best, pick another version, or keep looking</span></div><span class="go">›</span></div><div class="lr"><div class="t"><b>Open Naruto Shippuden</b><span>The show page and its seasons</span></div><span class="go">›</span></div><div class="lr"><div class="t"><b>Technical details</b><span>What the app logged, Share Log</span></div><span class="go">›</span></div></div></div></div></div><p class="cap"><b>N1 · Compact.</b> What happened, then the actions list.</p></div><div class="slot"><div class="pframe"><div class="ps"><div class="nb">‹</div><h3>Notifications</h3><div class="sheetwrap" style="position:absolute;inset:0;background:rgba(0,0,0,.55)"></div><div class="sheet2"><div class="grab"></div><div class="hd"><div class="tile" style="background:rgba(255,69,58,.2);color:var(--red)">!</div><div><b>Couldn't download to Google Drive</b><span>Rick and Morty · 3 episodes · 10:31</span></div></div><div class="box">AllDebrid stopped answering while the copies ran. They wait and try again by themselves.</div><div class="tl"><div><span>10:29</span><i style="background:var(--blue)"></i>3 episodes started copying</div><div><span>10:31</span><i style="background:var(--orange)"></i>AllDebrid stopped answering</div><div><span>10:36</span><i style="background:var(--grey)"></i>Tries again · in 5 min</div></div><div class="lst2"><div class="lr"><div class="t"><b style="color:#4fa8ff">Try Again Now</b><span>All 3 episodes</span></div><span class="go">›</span></div><div class="lr"><div class="t"><b>Technical details</b><span>What the app logged, Share Log</span></div><span class="go">›</span></div></div></div></div></div><p class="cap"><b>N2 · With a timeline.</b> For notices about several episodes or retries: a few timed steps of what happened.</p></div></div></div><div class="board"><div class="n">ITEM 12 · BUILD SEASON CHECK</div><h2>Say what it does, show qualities as they are found</h2><p>No sample episode numbers, no empty placeholders, no gap. The header says which season and how many episodes; one plain sentence says what is happening and roughly how long; a sliding bar while it works.</p><div class="shots"><div class="slot"><div class="pframe"><div class="ps"><div class="nb">‹</div><h3>Download season</h3><div class="sheetwrap" style="position:absolute;inset:0;background:rgba(0,0,0,.55)"></div><div class="sheet2"><div class="grab"></div><div class="hd"><div class="tile" style="background:rgba(10,132,255,.2);color:#4fa8ff">⌕</div><div><b>Finding versions of season 2</b><span>Naruto Shippuden · 21 episodes</span></div></div><div class="box">Looking through the sources for whole-season and single-episode versions. This takes about half a minute.<div class="slide"><i></i></div></div><div class="lst2"><div class="qrow"><b>1080p</b><span>Found · 21 of 21 episodes</span><div class="chk" style="background:var(--green);color:#000">✓</div></div><div class="qrow"><b>720p</b><span>Found · 21 of 21 episodes</span><div class="chk" style="background:var(--green);color:#000">✓</div></div><div class="qrow"><b>480p</b><span>Still looking</span><div class="chk" style="background:rgba(235,235,245,.12);color:var(--grey)">…</div></div><div class="qrow"><b>4K</b><span>None found</span><div class="chk" style="background:rgba(235,235,245,.12);color:var(--grey)">–</div></div></div><div class="cancel2">Cancel</div></div></div></div><p class="cap"><b>Q1 · A row per quality.</b> Each quality fills in with how many episodes it covers; still looking, found or none.</p></div><div class="slot"><div class="pframe"><div class="ps"><div class="nb">‹</div><h3>Download season</h3><div class="sheetwrap" style="position:absolute;inset:0;background:rgba(0,0,0,.55)"></div><div class="sheet2"><div class="grab"></div><div class="hd"><div class="tile" style="background:rgba(10,132,255,.2);color:#4fa8ff">⌕</div><div><b>Finding versions of season 2</b><span>Naruto Shippuden · 21 episodes</span></div></div><div class="box">Found so far:<div class="chips"><div style="background:rgba(48,209,88,.18);color:var(--green)">1080p · all 21</div><div style="background:rgba(48,209,88,.18);color:var(--green)">720p · all 21</div><div style="background:rgba(255,159,10,.18);color:var(--orange)">480p · 18 of 21</div></div><div class="slide"><i></i></div><span style="color:var(--grey);font-size:12px">Still looking · 4K</span></div><div class="cancel2">Cancel</div></div></div></div><p class="cap"><b>Q2 · Chips as they arrive.</b> Found qualities appear as chips (green when the whole season has it, orange when part); the line under the bar says what is still being checked.</p></div></div></div></body></html>
