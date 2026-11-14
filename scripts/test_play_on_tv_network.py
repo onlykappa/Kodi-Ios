@@ -20,6 +20,11 @@ class Window:
  def clearProperty(self,key):self.props.pop(key,None)
 
 class ConnectionTests(unittest.TestCase):
+ # These check the controller's deadlines, cancel and Roku logic with the card and the in-app TV list as they were; the
+ # owner's flow without them (ISSUE-251, ISSUE-252) is QuietPlayOnTV below.
+ def setUp(self):
+  self.flags=(controller.QUIET_PROGRESS,controller.DIRECT_AIRPLAY);controller.QUIET_PROGRESS=controller.DIRECT_AIRPLAY=False
+ def tearDown(self):controller.QUIET_PROGRESS,controller.DIRECT_AIRPLAY=self.flags
  def exercise(self,profile,received=None,cancel=None,legacy=False,failed=False,startup=0,choosing=0,raise_log=False,error_message='',roku=False,copy_api=True):
   window=Window();clock=[1000.0];paused=[False];closed=[];messages=[];logs=[];notes=[];plays=[];progress_words=[]
   def wait(seconds):clock[0]+=seconds;return False
@@ -700,5 +705,21 @@ class PhoneServedTv(unittest.TestCase):
   airplay.mark_serve(w,1300);airplay.activity(['GET /prepared.mp4 206 65536 B 40 ms'],w,1380)
   self.assertTrue(airplay.playback_active(lib,w,1380+airplay.BUSY_FOR-1))
   self.assertIn('airplay.mark_serve(xbmcgui.Window(10000),time.time())',(BOOT/'cast.py').read_text())
+
+class QuietPlayOnTV(unittest.TestCase):
+ """ISSUE-251/252 (owner: no loading card, straight to Apple's AirPlay list, no Media Assistant)."""
+ def test_play_on_tv_opens_the_airplay_list_at_once_with_no_card_and_no_roku_switch(self):
+  self.assertTrue(controller.QUIET_PROGRESS);self.assertTrue(controller.DIRECT_AIRPLAY)
+  src=(BOOT/'cast.py').read_text()
+  self.assertIn("if QUIET_PROGRESS and hasattr(lib,'kodi_airplay_open'):lib.kodi_airplay_open()",src)
+  self.assertLess(src.index("lib.kodi_airplay_play(source.encode('utf-8')"),src.index("lib.kodi_airplay_open()"))
+  self.assertIn("if DIRECT_AIRPLAY and extra:",src)
+  self.assertIn("if not DIRECT_AIRPLAY and hasattr(lib,'kodi_airplay_serve_copy')",src)
+  ui=controller.FlowUI.__new__(controller.FlowUI);ui.win=None;ui.box=None
+  shown=[];ui.xbmcgui=types.SimpleNamespace(DialogProgress=lambda:shown.append(1))
+  ui.show('opening');self.assertEqual(shown,[])                                   # nothing drawn
+  native=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('if (!chosen) openSheet(sheet);',native)                          # the list is not opened twice
+
 
 if __name__=='__main__':unittest.main()

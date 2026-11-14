@@ -1,15 +1,15 @@
 {
   "framework_release": {
+    "tag": "kodi-airplay-r56",
+    "asset": "KodiAirPlay.framework.zip",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "previous": {
     "tag": "kodi-airplay-r55",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "5ba3eca8a0c5e185c66af406da813eb4bc3f7b5c9dad9b401b0328d3c23f1c94"
   },
-  "previous": {
-    "tag": "kodi-airplay-r54",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "0a00cb69d9974b9d5b07dd1c18c75eeba696139987e5c90f979b2fdc89be6315"
-  },
   "source_commit": "c249e85fa51397d35d6034cb95bf52b7ba10942a",
   "verified_run": 43515845857,
-  "pin_note": "r55 (ISSUE-229: a prepared MP4 that keeps a DVD picture subtitle counts as ready) published by airplay-ios run 43515845857 from c249e85 (the first run, 43515799412 on b454449, built the framework and failed only to publish with a transient HTTP 403); the converter host tests (airplay-remux run 43515845318, host-tests job) passed, including the kept-DVD-subtitle checks; the release notes, the asset digest and the downloaded zip all give 5ba3eca8\u202623f1c94, and the binary exports kodi_airplay_prepare_keep_dvd_subs."
+  "staged_note": "r56 staged (ISSUE-251: when the stream is ready, Apple's AirPlay list opens only if no AirPlay device was already chosen; the add-on now opens the list as soon as Play on TV starts): built and published by airplay-ios on this branch; sha256, source_commit and verified_run are pinned from that run after host-tests pass."
 }

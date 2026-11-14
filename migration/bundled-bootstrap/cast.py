@@ -89,6 +89,11 @@ def run_owned():
   note+=('AirPlay sends MP4 and HLS; other TVs use their own player.' if direct
          else 'AirPlay streams from this iPhone: keep Kodi open. Other TVs use their own player.' if apple
          else 'AirPlay shows this %s video through Screen Mirroring; other TVs use their own player.'%cast.format_name(url,playing))
+ if DIRECT_AIRPLAY and extra:
+  tv=extra[0]
+  addon.setSettingString('last_tv',tv['kind']+'|'+tv['host'])
+  send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing)
+  return
  last=addon.getSettingString('last_tv')
  found={};done=threading.Event()
  diagnostics.attach(os.path.dirname(os.path.abspath(__file__)),xbmcvfs.translatePath('special://profile/'))
@@ -157,6 +162,10 @@ def pick_dialogs(xbmc,xbmcgui,dialog,extra,found,done,last):
  return tvs[pick] if pick>=0 else None
 
 QUIET_PROGRESS=True   # ISSUE-251: no "Play on TV" progress card; the system AirPlay list instead
+# ISSUE-252 (owner: "remove Media Assistant and just have it open to AirPlay"): Play on TV goes straight to Apple's AirPlay
+# list (Roku TVs are in it as AirPlay receivers); the in-app TV list, the Roku search and the switch of a Roku to Media
+# Assistant are not used.
+DIRECT_AIRPLAY=True
 
 
 class FlowUI:
@@ -294,7 +303,7 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
    try:library_tools.note_airplay(profile,new)
    except Exception as error:diagnostics.log_exception(xbmc,'airplay_record',error)
   net=airplay.network(lib,home) if converting else None
-  if hasattr(lib,'kodi_airplay_serve_copy') and not ui.canceled() and not monitor.abortRequested():
+  if not DIRECT_AIRPLAY and hasattr(lib,'kodi_airplay_serve_copy') and not ui.canceled() and not monitor.abortRequested():
    # The service can drain native logs first. Reuse this session's retained evidence, at most once per second.
    if profile and started[0]-roku_copy['shared_at']>=1:
     roku_copy['shared_at']=started[0]

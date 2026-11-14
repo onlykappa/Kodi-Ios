@@ -3663,9 +3663,25 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Fix:** one rule on both: an episode (or movie) is a problem only while no other version of it is copying, waiting or done, and it is listed once (its latest failure). `debrid_drive.problems` and `library_files._copying_episodes`.
 - **Retest:** test_season_quality `ProblemsAgree`; test_debrid_drive updated (a failed Inception is no longer listed beside a finished one).
 
-## ISSUE-251 — Play on TV: the progress card goes, Apple's AirPlay list opens at once (owner, build 393) — in progress, not built
+## ISSUE-251 — Play on TV: the progress card goes, Apple's AirPlay list opens at once (owner, build 393) — fixed in code (AirPlay r56 staged)
 
 - **Owner:** "I would like this page removed everywhere and have it open straight to the AirPlay list instead of the ugly loading screen"; also "investigate why an Umbrella stream takes so long to AirPlay"; and "remove Media Assistant and just have it open to AirPlay".
 - **Done so far:** `cast.py` hides the progress card (`QUIET_PROGRESS`) and calls `kodi_airplay_open()` right after `kodi_airplay_play`; the framework opens the list again only when no AirPlay output is chosen (needs r56).
 - **Open:** the test updates (test_play_on_tv_network: 6 failures expect the card), the r56 release, the phone check, the speed-ups and the Media Assistant removal: docs/HANDOFF-PR26.md "Play on TV work in progress".
+- **Done:** tests updated (the card's deadline/cancel tests run with the card on; `QuietPlayOnTV` checks the owner's flow). r56 staged for the framework change.
+
+## ISSUE-252 — Play on TV goes straight to AirPlay; Media Assistant is no longer used (owner, build 393) — fixed in code
+
+- **Owner:** "Media Assistant does work … why can't we make it play natively on the Roku AirPlay app instead? I'd love to remove Media Assistant and just have it open to AirPlay."
+- **Findings (log 9c11baa7):** "Roku took the link via media-assistant" in ~10 s; the Roku fetched the phone's own master.m3u8 (the same server AirPlay uses). Roku has no API that starts its AirPlay receiver with a link: a Roku TV is reached as an AirPlay receiver only through Apple's AirPlay list, where it already appears ("Kannons bedroom roku tv").
+- **Fix:** `cast.DIRECT_AIRPLAY`: Play on TV skips the in-app TV list and the Roku search and goes to AirPlay (Apple's list opens at once, ISSUE-251); the automatic switch of a converting stream on a Roku to Media Assistant is off. The Roku code stays dormant behind the flag (its tests still run) and can be deleted once the owner confirms Rokus play well through AirPlay.
+- **Retest:** test_play_on_tv_network `QuietPlayOnTV`. Phone check pending.
+
+## ISSUE-253 — AirPlay of a 10-bit H.264 stream took 28 s to reach the TV (owner log a176bcec, build 393) — partly fixed in code
+
+- **Seen:** Dragon Ball Super: Beerus S1 E1, 10-bit H.264 1080p MKV with a subtitle: source opened +1.8 s, index +4.6 s, first segment converted in 9.7 s (software decode of the 10-bit picture, VideoToolbox encode, subtitles burnt in; audio 8.8 s in parallel), stream ready +18 s, TV playing +28 s; then each segment kept the TV waiting 1-3 s (conversion ~160 % of real time).
+- **Analysis (native code read):** the audio reader already seeks by the file's index and shares the video reader's byte cache; the converter already works three segments ahead; the limit is decoding 10-bit H.264 on the CPU (the phone's hardware decoder does not take it) and the source's speed. A shorter first segment would touch the uniform segment math (gm_stream) for little gain.
+- **Fix:** Apple's AirPlay list opens at once, so choosing the TV overlaps the preparation (ISSUE-251); the source picker treats a "10bit" release that names no codec as 10-bit H.264 (badged "10-BIT · SLOW ON AIRPLAY", ranked after versions that play as they are), so a version that needs no conversion is preferred.
+- **Not done:** a second conversion lane, prefetching the source when a video starts in Kodi (needs new native session state), a lower output size for 10-bit H.264.
+- **Retest:** test_season_quality `SlowOnAirPlay`.
 

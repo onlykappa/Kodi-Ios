@@ -222,5 +222,14 @@ class ProblemsAgree(unittest.TestCase):
         self.assertEqual(row['counts'][lf.PROBLEM], 1)                                  # E5 only: the same as the page
 
 
+class SlowOnAirPlay(unittest.TestCase):
+    """ISSUE-253 (owner log a176bcec): a "10bit" release with no codec named was 10-bit H.264, which the phone converts."""
+    def test_ten_bit_without_a_codec_counts_as_slow_on_airplay(self):
+        self.assertTrue(dp.converts_for_tv(item('Dragon Ball Super - 01 [1080p][10bit][Dual Audio].mkv', 1.0)))
+        self.assertTrue(dp.converts_for_tv(item('Show - 01 [Hi10P 1080p].mkv', 1.0)))
+        self.assertFalse(dp.converts_for_tv(item('Show - 01 [1080p][10bit][HEVC].mkv', 1.0, tags='HEVC')))
+        self.assertFalse(dp.converts_for_tv(item('Show - 01 [1080p] x264.mkv', 1.0, tags='x264')))
+
+
 if __name__ == '__main__':
     unittest.main()

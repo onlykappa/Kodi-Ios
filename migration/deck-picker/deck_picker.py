@@ -156,8 +156,12 @@ def converts_for_tv(item):
     time, so the TV stalls): Apple TV and AirPlay play 8-bit H.264 and HEVC (10-bit included) as they are, but not
     10-bit H.264 (Hi10P), which the phone converts while playing. AV1 has its own badge."""
     b = _blob(_all(item))
-    ten = any(w in b for w in (u' 10BIT ', u' 10 BIT ', u' HI10P ', u' HI10 '))
-    return ten and codec(item) == u'H.264'
+    if u' HI10P ' in b or u' HI10 ' in b:
+        return True
+    ten = any(w in b for w in (u' 10BIT ', u' 10 BIT '))
+    # ISSUE-253 (owner log a176bcec: a "10bit" Dragon Ball Super release with no codec in its name was H.264 and took 28 s to
+    # reach the TV): a 10-bit release that does not say HEVC/AV1 is treated as H.264, which the phone has to convert.
+    return ten and codec(item) in (u'H.264', u'')
 
 
 def prep_cost(item):
