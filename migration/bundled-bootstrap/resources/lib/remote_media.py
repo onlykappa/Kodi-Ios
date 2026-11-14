@@ -4,7 +4,7 @@ Only the original resolved stream URL/headers are held in RAM. A per-launch auth
 loopback control endpoint gives other Kodi interpreters a source URL that survives their exit.
 One source at a time, at most 96 MiB cached, no Drive OAuth or media files.
 """
-import http.server,ipaddress,json,secrets,threading,time,urllib.error,urllib.parse,urllib.request
+import http.server,ipaddress,json,secrets,socket,threading,time,urllib.error,urllib.parse,urllib.request
 import drive_stream,umbrella_recovery
 PROPERTY='KodiIOS.RemoteMedia'
 BLOCK=4*1024*1024;KEEP=24;AHEAD=4
@@ -29,8 +29,8 @@ KODI_PLAYBACK=True
 # is kept, up to KODI_CAP seconds with no read.
 KODI_CAP=30*60
 # ISSUE-281 (owner, build 442: an Umbrella episode sat at "Opening the video · 0 of 12 MB", then the app crashed on Resume):
-# Kodi is handed the cache only once the cache has an answer from the link (its size) within FIRST_ANSWER seconds;
-# otherwise Kodi reads the link itself, as before ISSUE-280.
+# ISSUE-303: Kodi is handed the cache only after all opening blocks are complete within FIRST_ANSWER seconds;
+# a size or one split piece is not enough. Otherwise cancel its reads and preserve the original direct source.
 FIRST_ANSWER=5.0
 _BROKER=[None]   # ISSUE-281: one cache per service run; a restarted Drive loop reuses it
 # ISSUE-302 (owner, build 470, log 2979ea67: an Umbrella episode sat at "Opening the video · 4 of 12 MB, 33 %", AllDebrid
@@ -51,6 +51,37 @@ def eligible(source):
  except ValueError:return True
 
 
+class _SourceClosed(RuntimeError):pass
+
+
+class _Response:
+ """A foreground read can be interrupted without changing Drive preparation's shared reader."""
+ def __init__(self,owner,response):
+  self.owner,self.response=owner,response;self.closed=False
+ def __getattr__(self,name):return getattr(self.response,name)
+ def read(self,size):
+  if self.owner.cancelled.is_set():raise _SourceClosed('Stream cache closed')
+  try:data=getattr(self.response,'read1',self.response.read)(size)
+  except Exception:
+   if self.owner.cancelled.is_set():raise _SourceClosed('Stream cache closed') from None
+   raise
+  if self.owner.cancelled.is_set():raise _SourceClosed('Stream cache closed')
+  return data
+ def close(self):
+  with self.owner.response_lock:
+   if self.closed:return
+   self.closed=True;self.owner.responses.discard(self)
+  try:self.response.close()
+  finally:self.owner.pieces.release()
+ def abort(self):
+  # HTTPResponse.close alone can wait on a BufferedReader held by a stalled read. Interrupt its socket first.
+  sock=getattr(getattr(getattr(self.response,'fp',None),'raw',None),'_sock',None)
+  if sock is not None:
+   try:sock.shutdown(socket.SHUT_RDWR)
+   except OSError:pass
+  threading.Thread(target=self.close,daemon=True).start()
+
+
 class Foreground(drive_stream.DriveStream):
  def __init__(self,source,context=None,open_url=None,clock=time.monotonic):
   raw,_,extra=source.partition('|');p=urllib.parse.urlsplit(raw)
@@ -59,6 +90,8 @@ class Foreground(drive_stream.DriveStream):
   # ISSUE-300: the file's size as soon as the link's first answer arrives (its Content-Range), not after the whole first
   # 4 MB block: at ~0.7 MB/s that block takes ~6 s, longer than for_kodi's FIRST_ANSWER, so Kodi always fell back.
   self.answered_size=0
+  self.cancelled=threading.Event();self.response_lock=threading.Lock();self.responses=set()
+  self.pieces=threading.BoundedSemaphore(PIECES);self.connect_timeout=20;self.opening_deadline=None
   self.renew_lock=threading.Lock();self.renewal=None;self.renew_link=None;self.renewed=False;self.renewal_state='unavailable'
   self.renew_clock=clock;self.renew_after=0.0
   self.remote_headers={k:v for k,v in urllib.parse.parse_qsl(extra,keep_blank_values=True)
@@ -66,51 +99,90 @@ class Foreground(drive_stream.DriveStream):
   if not any(k.lower()=='user-agent' for k in self.remote_headers):self.remote_headers['User-Agent']='Kodi-iOS-AirPlay/1'
   opener=open_url or (lambda request,timeout:urllib.request.urlopen(request,timeout=timeout,context=context))
   def remote(request,timeout):
-   headers=dict(self.remote_headers);headers['Range']=request.get_header('Range')
-   attempted=self.remote_url
-   try:response=opener(urllib.request.Request(attempted,headers=headers),timeout)
-   except urllib.error.HTTPError as error:
-    error.close()
-    if error.code not in (401,403,404,410) or not self._renew(attempted):raise
-    response=opener(urllib.request.Request(self.remote_url,headers=headers),timeout)
-   span=drive_stream.SPAN.match(response.headers.get('Content-Range') or '')
-   if span:self.answered_size=int(span.group(3))
-   start=int(headers['Range'][6:].split('-')[0])
-   if (getattr(response,'status',None) or response.getcode())==206 and (not span or int(span.group(1))!=start):
-    response.close();raise ConnectionError('Stream server returned the wrong byte range')
-   total=self.blocks.sizes.get('media') if hasattr(self,'blocks') else None
-   if span and total and int(span.group(3))!=total:
-    response.close();raise ConnectionError('The refreshed stream is a different file')
-   return response
-  # ISSUE-163 (build-224 log: 2 MiB blocks took 2.6-3 s each, about 0.7 MB/s, so reading the start of an episode took
-  # 20-50 s): debrid links are slow per connection, not per phone. 4 MiB blocks with four fetched at once (about four
-  # times the speed); 24 kept (96 MiB) so AirPlay's video and audio readers still share them.
-  super().__init__(lambda:'',context=context,open_url=remote,block_size=BLOCK,keep=KEEP,playback=True)
-  self.ahead_blocks=AHEAD;self.pieces=threading.BoundedSemaphore(PIECES)
+   while not self.cancelled.is_set():
+    if self.pieces.acquire(timeout=.05):break
+   else:raise _SourceClosed('Stream cache closed')
+   response=None;tracked=False
+   try:
+    if self.cancelled.is_set():raise _SourceClosed('Stream cache closed')
+    remaining=None if self.opening_deadline is None else self.opening_deadline-time.monotonic()
+    if remaining is not None and remaining<=0:raise _SourceClosed('Stream opening budget expired')
+    try:response=self._open_remote(request,min(timeout,self.connect_timeout,remaining if remaining is not None else timeout),opener)
+    except Exception:
+     if self.cancelled.is_set():raise _SourceClosed('Stream cache closed') from None
+     raise
+    guarded=_Response(self,response)
+    with self.response_lock:
+     if self.cancelled.is_set():raise _SourceClosed('Stream cache closed')
+     self.responses.add(guarded);tracked=True
+    return guarded
+   finally:
+    if not tracked:
+     self.pieces.release()
+     if response is not None:response.close()
   # This is the playing movie, not a background download competing with it.
+  super().__init__(lambda:'',context=context,open_url=remote,block_size=BLOCK,keep=KEEP,playback=True)
+  self.ahead_blocks=AHEAD
   self.gate=type('ForegroundGate',(),{'after':lambda *args,**kwargs:None})()
   self.media_url=self.url('media')
 
+ def _open_remote(self,request,timeout,opener):
+   headers=dict(self.remote_headers);headers['Range']=request.get_header('Range')
+   attempted=self.remote_url
+   def open_source(url):
+    if self.cancelled.is_set():raise _SourceClosed('Stream cache closed')
+    remaining=timeout if self.opening_deadline is None else min(timeout,self.opening_deadline-time.monotonic())
+    if remaining<=0:raise _SourceClosed('Stream opening budget expired')
+    request=urllib.request.Request(url,headers=headers)
+    # The system opener buffers a piece and may follow redirects internally; share the entire opening deadline.
+    request._kodi_open_deadline=self.opening_deadline;request._kodi_cancelled=self.cancelled.is_set
+    return opener(request,remaining)
+   try:response=open_source(attempted)
+   except urllib.error.HTTPError as error:
+    error.close()
+    if error.code not in (401,403,404,410) or not self._renew(attempted):raise
+    response=open_source(self.remote_url)
+   span=drive_stream.SPAN.match(response.headers.get('Content-Range') or '')
+   start=int(headers['Range'][6:].split('-')[0])
+   if (getattr(response,'status',None) or response.getcode())==206 and (not span or int(span.group(1))!=start):
+    response.close();raise ConnectionError('Stream server returned the wrong byte range')
+   if span:
+    with self.response_lock:
+     total=self.answered_size or self.blocks.sizes.get('media')
+     if total and int(span.group(3))!=total:
+      response.close();raise ConnectionError('The refreshed stream is a different file')
+     self.answered_size=int(span.group(3))
+   return response
+
+ def close(self):
+  self.cancelled.set()
+  with self.response_lock:responses=tuple(self.responses)
+  for response in responses:response.abort()
+  super().close()
+
  def _fetch(self,item,start,end):
   """ISSUE-302: the block as SPLIT ranges read at once (joined in order); small or single-piece ranges as before."""
+  if self.cancelled.is_set():raise _SourceClosed('Stream cache closed')
   total=self.blocks.sizes.get(item);stop=end if total is None else min(end,total-1)
   if stop-start+1<=SPLIT*SPLIT_MIN:return super()._fetch(item,start,end)
   step=-(-(stop-start+1)//SPLIT)
   spans=[(start+i*step,min(stop,start+(i+1)*step-1)) for i in range(SPLIT) if start+i*step<=stop]
   results=[None]*len(spans);errors=[]
   def piece(i,a,b):
-   with self.pieces:
-    try:results[i]=super(Foreground,self)._fetch(item,a,b)
-    except urllib.error.HTTPError as error:
-     if error.code==416 and i>0:results[i]=(b'',None)   # the file ended inside the block
-     else:errors.append(error)
-    except Exception as error:errors.append(error)
+   try:results[i]=super(Foreground,self)._fetch(item,a,b)
+   except urllib.error.HTTPError as error:
+    if error.code==416 and i>0:results[i]=(b'',None)   # the file ended inside the block
+    else:errors.append(error)
+   except Exception as error:errors.append(error)
   threads=[threading.Thread(target=piece,args=(i,a,b),daemon=True) for i,(a,b) in enumerate(spans)]
   for t in threads:t.start()
   for t in threads:t.join()
   if errors or any(r is None for r in results):raise errors[0] if errors else ConnectionError('Stream block was not read')
   size=next((r[1] for r in results if r[1]),total)
-  return b''.join(r[0] for r in results),size
+  body=b''.join(r[0] for r in results)
+  if any(r[1] and r[1]!=size for r in results) or size is None or len(body)!=min(end,size-1)-start+1:
+   raise ConnectionError('Stream block pieces do not describe one complete range')
+  return body,size
 
  def configure_renewal(self,record,renew):
   if record and record.get('source')==self.remote_url:
@@ -161,7 +233,10 @@ class Broker:
        broker.ident=secrets.token_urlsafe(18);broker.warm=False;broker.source=source
        broker.current.configure_renewal(request.get('renewal'),broker.renew_link)
        broker.kodi=request.get('player')=='kodi' or shared;broker.opened=time.monotonic()
-       if broker.kodi and not warmed:threading.Thread(target=prefetch,args=(broker.current,),daemon=True).start()
+       if broker.kodi and not warmed:
+        broker.current.connect_timeout=min(20,FIRST_ANSWER)
+        broker.current.opening_deadline=broker.opened+FIRST_ANSWER
+        threading.Thread(target=prefetch,args=(broker.current,),daemon=True).start()
        answer={'url':broker.current.media_url,'id':broker.ident,'warmed':warmed}
       elif action=='warm':
        source=request.get('source','')
@@ -181,9 +256,21 @@ class Broker:
        answer={'closed':True}
       elif action=='stats':
        # ISSUE-280: the opening card also needs whose source it is and how much of it is in memory (no URL, no id).
-       answer={'stats':dict(broker.current.stats(),kodi=broker.kodi,cached_blocks=len(broker.current.blocks.data),
-                            block_size=broker.current.block_size,size=int(broker.current.blocks.sizes.get('media') or broker.current.answered_size or 0),
-                            source_id=fingerprint(broker.ident)) if broker.current else {}}
+       snapshot={}
+       if broker.current:
+        current=broker.current;snapshot=current.stats()
+        with current.blocks.lock:
+         size=int(current.blocks.sizes.get('media') or current.answered_size or 0)
+         wanted={0,1,(size-1)//current.block_size} if size else set()
+         wanted={i for i in wanted if size and i*current.block_size<size}
+         complete=lambda index:len(current.blocks.data.get(('media',index),b''))==min(current.block_size,size-index*current.block_size)
+         ready=bool(wanted) and all(complete(index) for index in wanted)
+         snapshot.update(kodi=broker.kodi,cached_blocks=len(current.blocks.data),pending_blocks=len(current.blocks.pending),
+                         block_size=current.block_size,size=size,source_id=fingerprint(broker.ident),
+                         first_block_ready=bool(size and complete(0)),first_block_bytes=len(current.blocks.data.get(('media',0),b'')),
+                         opening_ready=ready,opening_blocks=len(wanted),opening_complete=sum(complete(i) for i in wanted))
+        if ready:current.connect_timeout=20;current.opening_deadline=None
+       answer={'stats':snapshot}
       elif action=='status':
        answer={'renewal':broker.current.renewal_state if broker.current and request.get('id')==broker.ident else 'closed'}
        if broker.current and request.get('id')==broker.ident:answer['stats']=broker.current.stats()
@@ -277,9 +364,9 @@ def start(monitor,window,context=None,open_url=None,playing=None):
  return broker
 
 
-def _call(endpoint,payload):
+def _call(endpoint,payload,timeout=5):
  body=json.dumps(payload).encode()
- with urllib.request.urlopen(urllib.request.Request(endpoint,data=body,headers={'Content-Type':'application/json'}),timeout=5) as response:
+ with urllib.request.urlopen(urllib.request.Request(endpoint,data=body,headers={'Content-Type':'application/json'}),timeout=timeout) as response:
   return json.loads(response.read())
 
 
@@ -313,19 +400,34 @@ def for_kodi(source,home,wait=None,clock=time.monotonic):
  """ISSUE-280: the address Kodi's own player should open for a link Umbrella just resolved: the service's cache when
  the link is a remote MKV / AVI / WebM and the service answers, else the link itself (nothing changes then)."""
  if not KODI_PLAYBACK or not eligible(source):return source
+ began=clock();sample={}
  try:
   endpoint=_endpoint(home)
   if not endpoint:return source
-  answer=_call(endpoint,{'action':'open','source':source,'renewal':umbrella_recovery.selected(source,home),'player':'kodi'})
+  answer=_call(endpoint,{'action':'open','source':source,'renewal':umbrella_recovery.selected(source,home),'player':'kodi'},timeout=min(1,FIRST_ANSWER))
   target=urllib.parse.urlsplit(answer['url'])
   if target.scheme!='http' or target.hostname!='127.0.0.1':return source
-  # ISSUE-281: only a cache that has heard from the link gets Kodi; else the real link, and the cache lets it go.
-  if not answered(endpoint,answer.get('id',''),wait=wait,clock=clock):
+  # A Content-Range header is not video data. Admit only completed opening probes; otherwise preserve direct play.
+  if not answered(endpoint,answer.get('id',''),wait=wait,clock=clock,
+                  limit=max(0,FIRST_ANSWER-(clock()-began)),sample=sample.update):
    try:_call(endpoint,{'action':'drop','id':answer.get('id','')})
    except Exception:pass
+   opening_log('direct',clock()-began,sample)
    return source
+  opening_log('cache',clock()-began,sample)
   return answer['url']
  except Exception:return source
+
+
+def opening_log(route,elapsed,stats):
+ """One useful, credential-free line per handoff, including failed/stalled probes."""
+ try:
+  import xbmc
+  xbmc.log('Kodi iOS stream opening: route=%s wait_ms=%d ready=%s blocks=%d/%d pending=%d bytes=%d requests=%d errors=%d status=%d'%(
+   route,max(0,int(elapsed*1000)),bool(stats.get('opening_ready')),int(stats.get('opening_complete') or 0),
+   int(stats.get('opening_blocks') or 0),int(stats.get('pending_blocks') or 0),int(stats.get('read_bytes') or 0),
+   int(stats.get('http_requests') or 0),int(stats.get('http_errors') or 0),int(stats.get('last_status') or 0)),xbmc.LOGINFO)
+ except Exception:pass
 
 
 def fingerprint(ident):
@@ -334,18 +436,22 @@ def fingerprint(ident):
  return hashlib.sha256(('kodi-ios:'+str(ident or '')).encode()).hexdigest()[:12] if ident else ''
 
 
-def answered(endpoint,ident,wait=None,clock=time.monotonic,limit=None):
- """ISSUE-281: True once the cache for `ident` knows the file's size (the link answered), within FIRST_ANSWER s."""
+def answered(endpoint,ident,wait=None,clock=time.monotonic,limit=None,sample=None):
+ """True only when this source's first/second/tail probes contain validated bytes within the opening budget."""
  wait=wait or time.sleep;limit=FIRST_ANSWER if limit is None else limit
  began=clock()
  while True:
+  remaining=limit-(clock()-began)
+  if remaining<=0:return False
   try:
-   st=_call(endpoint,{'action':'stats'}).get('stats') or {}
-   if st.get('source_id')==fingerprint(ident) and int(st.get('size') or 0)>0:return True
+   st=_call(endpoint,{'action':'stats'},timeout=min(1,remaining)).get('stats') or {}
+   if sample:sample(st)
+   if clock()-began>=limit:return False
+   if st.get('source_id')==fingerprint(ident) and st.get('opening_ready'):return True
    if st.get('source_id')!=fingerprint(ident):return False
   except Exception:return False
   if clock()-began>=limit:return False
-  wait(0.25)
+  if wait(min(.05,max(0,limit-(clock()-began)))):return False
 
 
 def original(playing,home):

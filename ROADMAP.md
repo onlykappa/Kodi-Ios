@@ -1,5 +1,7 @@
 # Kodi-iOS master roadmap
 
+Current maintenance checkpoint (2026-11-14): ISSUE-303 repairs build-473 Umbrella cache admission and cancellation; testing IPA approved, phone result pending. See [progress](docs/UMBRELLA-473-PROGRESS.md). Historical phase counts below are unchanged.
+
 Status: BLOCKED. Current phase: Phase 4 — diagnostic launch owner-confirmed; fully bundled IPA approved; Touch-r1 startup failure recorded; Touch-r2 device evidence pending. Phase 3 approved; Phase 5 unauthorized.
 Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
 

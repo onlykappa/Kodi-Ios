@@ -168,6 +168,9 @@ jobs:
           python3 -B scripts/test_row_title_grid.py
           python3 -B scripts/test_slim_status.py
           python3 -B scripts/test_stream_slow_link.py
+          python3 -B scripts/test_stream_opening_fallback.py
+          python3 -B scripts/test_stream_integrity.py
+          python3 -B scripts/test_native_http.py
           python3 -B scripts/test_pinned_addons.py
           python3 -B scripts/test_netwatch.py
           python3 -B scripts/test_copy_status.py

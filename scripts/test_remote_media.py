@@ -258,13 +258,17 @@ class KodiPlays(Broker):
   service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn("playing=lambda:xbmc.Player().getPlayingFile() if xbmc.getCondVisibility('Player.HasVideo') else ''",service)
  def test_size_is_known_from_the_first_answer(self):
-  # ISSUE-300: the whole first 4 MB block took ~6 s at AllDebrid's speed, longer than FIRST_ANSWER (5 s), so the fallback
-  # always gave Kodi the slow direct link. The size now comes from the first answer's Content-Range.
-  src=remote.Foreground(self.SRC,open_url=lambda req,timeout:Reply(DATA,0,99));self.addCleanup(src.close)
-  src.open_url(urllib.request.Request('http://x',headers={'Range':'bytes=0-99'}),5)
+  # Keep the useful early size for diagnostics, but never confuse headers/a split piece with usable opening blocks.
+  src=remote.Foreground(self.SRC,open_url=lambda req,timeout:Reply(DATA,0,99))
+  with self.broker.lock:
+   self.broker.current=src;self.broker.ident='headers-only';self.broker.source=self.SRC;self.broker.kodi=True
+  response=src.open_url(urllib.request.Request('http://x',headers={'Range':'bytes=0-99'}),5)
+  response.close()
   self.assertEqual(src.answered_size,len(DATA))
-  text=(ROOT/'migration/bundled-bootstrap/resources/lib/remote_media.py').read_text()
-  self.assertIn("blocks.sizes.get('media') or broker.current.answered_size",text)
+  stats=remote.stats(self.home)
+  self.assertEqual(stats['size'],len(DATA));self.assertEqual(stats['first_block_bytes'],0)
+  self.assertFalse(stats['first_block_ready']);self.assertFalse(stats['opening_ready'])
+  self.assertEqual(stats['opening_complete'],0);self.assertFalse(src.blocks.data)
  def test_umbrella_unlock_hands_kodi_the_cache(self):
   import umbrella_recovery
   class Home:

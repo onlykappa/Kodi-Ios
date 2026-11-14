@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Umbrella build 473 never-opening repair — 2026-11-14
+
+Current work: ISSUE-303 on build-473 source `ceb06e7`, preserving PR #28. Cache admission now requires complete opening probes within a shared five-second budget; failed probes cancel and keep the original direct source. Range identity, cancellation and request-cap regressions covered. Read both owner logs; distinguish the shorter build-473 attempt from build-470’s 126-second timeout. Testing IPA approved in the current request; no merge. See [UMBRELLA-473-PROGRESS.md](UMBRELLA-473-PROGRESS.md) for live checks, evidence, publication and device limits.
+
 ## PR #19 — 1A.3 fragment-index cache — 2026-11-12
 
 Owner narrowed the remaining work to one item at a time, starting with 1A.3. The Drive proxy now saves only
