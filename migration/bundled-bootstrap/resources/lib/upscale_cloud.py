@@ -12,7 +12,8 @@ makes the oldest one due:
      '<name> [AI 4K UHD].mp4' (upscale_queue.copy_name); the original is kept (DEC-040: AirPlay of the original keeps
      working, and Off plays it);
   4. upscale-copies.json says 'ready' with the copy's Drive id; a copy at another size it replaces goes to the bin.
-A stop (Kodi closing, the owner's Pause, the phone getting hot) leaves it 'waiting'; it starts over next time. Other
+A stop (Kodi closing, the owner's Pause, the phone getting hot) leaves it 'waiting'; it carries on from the converter's
+last mark next time when Drive still holds the upload (ISSUE-242), else it starts over. Other
 errors retry with upscale_queue.failed's back-off; HDR, already-this-size and no-AI-engine are final ('blocked').
 """
 import json
@@ -227,15 +228,40 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
                     uq.save(profile, data)
 
     staging = q.drive.folder([driveupload.TOP, '.Preparation'])
-    sink = drive_prepare.Sink(q.drive, staging, 'upscale-' + key, keep_going, on_file,
-                              hold=lambda: bool(getattr(q, 'paused', lambda: False)()))
+    # ISSUE-242 (handoff: AI Upscale copies started again from the beginning after every stop): like a preparation, the
+    # copy carries on from the converter's last mark if Drive still holds its upload (resume_store). The identity names
+    # the size asked for, so a mark from another size never carries on.
+    import resume_store
+    slot = 'upscale-' + key
+    resumes = bool(getattr(native, 'resumes', False))
+    identity = ('upscale', key, label, width, height, int(entry.get('kbps') or settings.get('downloads', {}).get('kbps') or 0))
+    checkpoint = resume_store.load(profile, slot, identity) if resumes else None
+    if checkpoint:
+        checkpoint = resume_store.fit(checkpoint, resume_store.confirmed(q.drive, checkpoint), False)
+    if not checkpoint:
+        resume_store.clear(profile, slot)
+    else:
+        q.log('upscale: %s — carrying on from %d s' % (title, resume_store.mark_seconds(checkpoint['mark'])))
+        entry['note'] = 'Carrying on where it stopped'
+    sink = drive_prepare.Sink(q.drive, staging, slot, keep_going, on_file,
+                              hold=lambda: bool(getattr(q, 'paused', lambda: False)()),
+                              spool=str(resume_store.folder(profile)) if resumes else None, checkpoint=checkpoint,
+                              keep_pieces=resumes, on_checkpoint=lambda cp: resume_store.save(profile, slot, identity, cp))
     source = q.stream.url(key)
     try:
         try:
             bw, bh = picture.box(label)
-            native.convert_to(source, sink, keep_going, progress, getattr(q, 'paused', None), None,
-                              upscale=(bw, bh, engine, int(settings.get('downloads', {}).get('kbps') or 0)))
+            try:
+                native.convert_to(source, sink, keep_going, progress, getattr(q, 'paused', None), None,
+                                  upscale=(bw, bh, engine, int(settings.get('downloads', {}).get('kbps') or 0)),
+                                  **({'resume': checkpoint['mark']} if checkpoint else {}))
+            except Exception as error:
+                if type(error).__name__ == 'ResumeFailed':   # the mark no longer fits: it starts again next pass
+                    resume_store.clear(profile, slot)
+                    raise driveupload.Stop('Starting the copy again')
+                raise
             sink.finish()
+            resume_store.clear(profile, slot)
         except Exception:
             sink.close()
             raise
@@ -263,6 +289,7 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
         move(q.drive, main['id'], parent, staging, name)
     except driveupload.Stop:
         if uq.cancelling(profile, key):
+            resume_store.clear(profile, slot)
             uq.apply_control(profile, data, clock)       # DEC-044: cancelled by the owner; not made again
             uq.save(profile, data)
             q.log('upscale: %s — cancelled' % title)
@@ -271,7 +298,8 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
         entry['progress'] = 0
         entry.pop('eta', None)
         uq.save(profile, data)
-        q.log('upscale: %s — stopped; it starts again later' % title)
+        q.log('upscale: %s — stopped; it carries on from its last mark later' % title if resumes else
+              'upscale: %s — stopped; it starts again later' % title)
         return False
     except Exception as error:
         if _encoder_trouble(error):
@@ -295,7 +323,7 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
         if _network_trouble(error):
             # ISSUE-198 / owner log (2026-11-13, "Source read: Input/output error" after 2 minutes on a Drive file streamed
             # through the loopback proxy): the network is not the video's fault. Wait 15 s up to 5 min, then start again
-            # (the converter's resume mark is not used for AI Upscale yet, so it restarts from the beginning); it never
+            # (it carries on from the converter's last mark when Drive still holds the upload, ISSUE-242); it never
             # counts as a failure and never enters the long back-off.
             import debrid_drive
             entry['net_attempts'] = entry.get('net_attempts', 0) + 1
@@ -309,6 +337,7 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
             uq.save(profile, data)
             q.log('upscale: %s — network trouble (%s); trying again in %d s' % (title, str(error)[:100], wait))
             return False
+        resume_store.clear(profile, slot)
         uq.failed(entry, error, clock)
         uq.save(profile, data)
         q.log('upscale: %s — failed: %s' % (title, str(error)[:200]))

@@ -36,7 +36,7 @@ class FakeDrive:
 def fake_modules(log):
     class Sink:
         def __init__(self, drive, parent, name, keep_going, on_file, **kw):
-            self.on_file, self.name = on_file, name
+            self.on_file, self.name, self.kw = on_file, name, kw
 
         def finish(self):
             self.on_file('0', {'id': 'copy1', 'size': 5000000000, 'md5Checksum': 'x'})
@@ -225,6 +225,52 @@ class MakesACopy(unittest.TestCase):
         done, entry, _, _ = self.run_one(Native(), setting=settings(picture.OFF))
         self.assertFalse(done)
         self.assertIsNone(entry)
+
+
+class CarriesOn(unittest.TestCase):
+    """ISSUE-242 (handoff): an AI Upscale copy started again from the beginning after every stop."""
+    def test_a_stopped_copy_carries_on_from_its_last_mark(self):
+        import resume_store
+
+        class Resuming(Native):
+            resumes = True
+
+            def convert_to(self, source, sink, keep_going, progress, paused, waiting, upscale=None, resume=None):
+                self.calls.append(('convert', resume))
+                if self.fail:
+                    sink.kw['on_checkpoint'](dict(url='session', offset=10, tail=b'ab', mark='in 0 0 0 0 0 600', pieces=[]))
+                    raise self.fail
+        native = Resuming(fail=Stop('a video waits to be prepared'))
+        with tempfile.TemporaryDirectory() as profile, mock.patch.dict(sys.modules, fake_modules([])), \
+                mock.patch.object(resume_store, 'confirmed', return_value=12):
+            q = queue(profile, native)
+            run = lambda setting=None: upscale_cloud.process_one(q, lambda: True, setting or settings(), lambda job: SHOW, None,
+                                                                 clock=lambda: 1000.0, on_screen=lambda: True)
+            self.assertFalse(run())
+            self.assertEqual(native.calls[-1], ('convert', None))
+            self.assertIsNotNone(resume_store.load(profile, 'upscale-orig1', ('upscale', 'orig1', '4K UHD', 1920, 1080, 0)))
+            native.fail = None
+            self.assertTrue(run())
+            self.assertEqual(native.calls[-1], ('convert', 'in 0 0 0 0 0 600'))   # carried on from the mark
+            self.assertEqual(uq.load(profile)['copies']['orig1']['status'], 'ready')
+            self.assertEqual(list(resume_store.folder(profile).glob('upscale-orig1.*')), [])   # done: the mark is gone
+        # A mark for another size never carries on: the size asked for is part of its identity.
+        with tempfile.TemporaryDirectory() as profile:
+            resume_store.save(profile, 'upscale-orig1', ('upscale', 'orig1', '4K UHD', 1920, 1080, 0),
+                              dict(url='s', offset=1, tail=b'', mark='m', pieces=[]))
+            self.assertIsNone(resume_store.load(profile, 'upscale-orig1', ('upscale', 'orig1', '1440p', 1920, 1080, 0)))
+        src = (LIB / 'upscale_cloud.py').read_text()
+        self.assertIn("identity = ('upscale', key, label, width, height,", src)
+
+    def test_a_cancel_or_a_failure_forgets_the_mark(self):
+        import resume_store
+        ident = ('upscale', 'orig1', '4K UHD', 1920, 1080, 0)
+        for fail in (RuntimeError('The converter said no'),):
+            with tempfile.TemporaryDirectory() as profile, mock.patch.dict(sys.modules, fake_modules([])):
+                resume_store.save(profile, 'upscale-orig1', ident, dict(url='s', offset=1, tail=b'', mark='m', pieces=[]))
+                q = queue(profile, Native(fail=fail))
+                upscale_cloud.process_one(q, lambda: True, settings(), lambda job: SHOW, None, clock=lambda: 1000.0)
+                self.assertIsNone(resume_store.load(profile, 'upscale-orig1', ident))
 
 
 class RemovesCopies(unittest.TestCase):
