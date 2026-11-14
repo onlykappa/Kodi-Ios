@@ -40,7 +40,7 @@ PORTRAIT_FILES = {'.github/workflows/kodi-ios-portrait.yml','migration/ios-portr
                   'docs/design/transfers-simple-mockup.html','docs/design/library-status-mockups-r1.html',
                   'docs/design/player-subtitles-audio-mockups.html',
                   'docs/design/settings-pages-mockups.html',
-                  'docs/design/fuse-windows-mockups.html','docs/design/ai-upscale-library-mockups.html','docs/design/queue-favourites-mockups.html','docs/design/notification-detail-mockups.html'}   # owner mockups (self-contained pages, no images)
+                  'docs/design/fuse-windows-mockups.html','docs/design/ai-upscale-library-mockups.html','docs/design/queue-favourites-mockups.html','docs/design/notification-detail-mockups.html','docs/design/favourites-import-bell-mockups.html'}   # owner mockups (self-contained pages, no images)
 
 # AirPlay MKV remuxer (migration/airplay-ios/remux): C sources, build and test scripts, licence files, its CI.
 REMUX_FILES = {'migration/airplay-ios/remux/THIRD-PARTY-NOTICES',

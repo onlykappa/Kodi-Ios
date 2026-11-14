@@ -373,3 +373,16 @@ the fixes as one primary capsule and rows, Technical details behind a link with 
 Details / Share Log; a Fix button on problem rows in the Notifications list) and H (good news in one line with no log;
 a vague problem with plain words, Run Setup Again / Share the log / Restart Kodi; a warning that fixes itself). Condition:
 titles and lines wrap to a second line instead of ending in "…" (the list rows and the sheet).
+
+## DEC-047 — Favourites list import and the anticipated-episodes bell approved and coded (2026-11-14)
+
+Owner, on docs/design/favourites-import-bell-mockups.html (boards G–J, draft PR #29), after rounds of edits to the bell and
+the import boards: "you can code it" and "build also the favorite import". Approved scope: (G) the season Download sheet keeps
+Full season and Choose episodes only; a bell on the show page, top right opposite Back, shown only when the show has an
+episode still to come, bare icon (thick white outline with a black edge; solid white when on); its sheet has two switches,
+Alert me and Add to downloads automatically, kept per show, so a stream-only show can still alert. (H–J) Favourites is a third
+Library row; Import a List reads pasted text or a text file, takes only the names (numbers, ticks, emoji, "(STARTED)" and
+names in capitals are skipped, a bare "(3)" is a watch count shown as 3×, "//" splits a line), matches them through TMDb
+(TMDb Helper's API key), keeps list order as rank, and ends with a report of duplicates, questions and names not found;
+sort by list order, year, name, list or date added; a movie stopped part-way offers Continue Watching. Alerts do not depend on
+the Library automatic-download setting. No IPA, release or merge; device behaviour is pending the owner's phone.

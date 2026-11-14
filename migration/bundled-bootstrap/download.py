@@ -43,8 +43,8 @@ def run():
  title,year=values.get('title',''),values.get('year','')
  if kind=='season':
   # Owner-approved season picker (mockup round 3): the show and season as the heading, each choice with a line under it.
-  rows=[('[B]Full season[/B]','Every aired episode, in one quality'),('[B]Choose episodes\u2026[/B]','Pick the ones you want'),
-        ('[B]Follow new episodes[/B]','Each one downloads when it comes out')]
+  # Owner (2026-11-14, mockup board G): two choices. Following new episodes moved to the bell on the show page.
+  rows=[('[B]Full season[/B]','Every aired episode, in one quality'),('[B]Choose episodes\u2026[/B]','Pick the ones you want')]
   heading='%s \u00b7 Season %s'%(values.get('title') or 'Download',season)
   try:
    import choice_sheet
@@ -53,12 +53,6 @@ def run():
    xbmc.log('Kodi iOS download: season sheet unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
    pick=dialog.select(heading,[xbmcgui.ListItem(label=n,label2=d) for n,d in rows])
   if pick<0:return
-  if pick==2:
-   import episode_watch,xbmcvfs
-   profile=xbmcvfs.translatePath('special://profile/')
-   if episode_watch.register(profile,tmdb,title,season,1,episode_watch.library_preference(profile,title)):
-    dialog.notification('New episodes','Show added to followed episodes.',xbmcgui.NOTIFICATION_INFO,4000)
-   return
  if not elementum_engine.running():
   # Not started at launch (performance 1E.1): start it now, with the busy ring while it loads.
   xbmc.executebuiltin('ActivateWindow(busydialognocancel)')
