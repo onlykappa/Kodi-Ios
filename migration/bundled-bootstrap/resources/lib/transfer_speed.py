@@ -49,7 +49,7 @@ class History:
         for j in state.get('jobs') or []:
             if j.get('kind') not in ('copy', 'upload'):
                 continue
-            identity = str(j.get('key') or j.get('job') or j.get('id') or j.get('name') or j['title'])
+            identity = '%s|%s' % (j.get('key') or '', j.get('id') or j.get('job') or j.get('name') or j['title'])
             seen.add(identity)
             rate = float(j.get('rate') or 0) if j.get('state') in ('running', 'slowed') else 0.0
             measured = float(j.get('measured_at') or 0)

@@ -77,6 +77,9 @@ class Measured(unittest.TestCase):
         self.assertEqual(state['jobs'][0]['eta_s'], 0)
         state = restored.sample({'jobs': [lane('new job same slot', MB)]}, 1071)
         self.assertEqual(len(state['jobs'][0]['speed_history']), 1)
+        # A different source for the same indexed episode is a new copy, too.
+        state = restored.sample({'jobs': [dict(lane('one', MB), id='new-source')]}, 1072)
+        self.assertEqual(len(state['jobs'][0]['speed_history']), 1)
 
     def test_transfers_uses_published_lane_history(self):
         state = speed.History().sample({'jobs': [dict(lane('one', 2 * MB), id='copy-one',

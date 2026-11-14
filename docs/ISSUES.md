@@ -4365,3 +4365,29 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   behaviour belong to the UI agent; this entry makes no rendering/device claim.
 - **Test:** scripts/test_notice_season_data.py (seven cases), updated test_season_sheet, check_project and every listed
   import-review test before commit.
+
+
+## ISSUE-295 — Permanent copy failures retried unchanged files — stopped and sent to Download problems
+
+- **Request:** Follow up ISSUE-285: audit every RuntimeError in debrid_drive, driveupload and debrid_ready; stop retries
+  that cannot repair a changed source, wrong size or invalid result, and explain the problem.
+- **Cause:** Generic RuntimeErrors all entered the inline/later retry budgets. Permanent source/receipt/position failures
+  were treated like connection failures; a main failure could be overwritten as done. Legacy phone uploads also retried
+  the same unchanged file on each service pass. HTTP 403 was ambiguous without inspecting its reason code.
+- **Fix:** copy_errors distinguishes permanent identity/integrity/access/input failures from transient network/rate/server
+  and expired-session failures. Drive renews a refused access token once before a terminal refusal. All upload paths
+  validate final receipts and confirmed positions. Permanent workers stop before inline retry, retain a clear reason,
+  notify/history once, and expose a Download problem; companion failures stay isolated and completed companions still
+  get their completion callback. Saved known permanent failures retire without another copy/unlock call. Terminal notice
+  details keep the real reason and no longer offer an unhelpful Retry now.
+  An explicitly rejected Drive ID stays a problem even when listed on Drive; a separate valid duplicate still wins.
+  Phone uploads retain a failure fingerprint and mirror a source=phone failed job into the same index/problems record;
+  automatic passes skip that unchanged file. A changed fingerprint or explicit manual retry clears the block/session;
+  synthetic phone hashes are never submitted to AllDebrid. Failure/retry handling never deletes phone media.
+- **Retest:** Changed source/size, native/buffered/resumed receipt/position, HDR verification, permission/quota errors,
+  transient 403/429/5xx, expired sessions, token refresh, persisted errors, companion isolation and phone repeated-pass /
+  fingerprint/manual-retry/index consistency cases pass. Remaining raw RuntimeErrors are recoverable metadata wait,
+  premature source EOF and an upload not yet confirmed. The supplied private log has no RuntimeError or piece lines;
+  it cannot identify the owner's original individual failure. Host checks do not prove device recovery.
+- **Test:** scripts/test_terminal_copy_errors.py (26 cases); updated test_debrid_drive, test_drive_upload and
+  test_library_tools fixtures; check_project and every workflow-listed test before commit.

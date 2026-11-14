@@ -554,4 +554,5 @@ Authorized scope: Python backend only, stacked on claude/build442-feedback; no m
 2. Upload measurements/history: host implementation and regression tests (ISSUE-292); device log after startup fix needed.
 3. Subtitle matching: backend implemented and tested (ISSUE-293); embedded DVD timing/speech evidence unavailable.
 4. Notification/season data: backend helpers and progressive coverage (ISSUE-294), UI binding remains separate.
-5. Terminal retry classification: implemented, final validation in progress.
+5. Terminal retry classification and legacy phone failures: backend implemented (ISSUE-295), host validation complete
+   before final commit; device retest and the target branch documentation integration remain separate.

@@ -90,3 +90,27 @@ upload metrics 291→292); no pushed history was rewritten.
   checked,pending,unknown,state,text}` for N=1 (4K), 2 (1080p), 3 (720p). Example:
   `check.quality.2.found="4"`, `.total="10"`, `.text="4 of 10 episodes found"`, `.state="checking"`.
   `check.sub="6 of 10 episodes checked"`; no sample-episode wording. Counts are retained after the check completes.
+
+
+## Permanent copy failures (ISSUE-295)
+
+- `debrid_drive.problems(state)` rows expose `terminal=true`, `retryable=false`, `source="debrid"` or `"phone"`, and
+  `error`/`reason`, e.g. `"The refreshed download is a different file. Choose another source."`.
+- Known bad receipts also retain a private `invalid_drive_id`; only that file is marked as a problem. A separate valid
+  copy remains ready. Do not use the private ID as a UI label.
+- Durable failed jobs have `status="failed"`, `terminal=true`, `terminal_reason=<clear reason>`, `retry_at=0`.
+  `library_index` projects the same video as `state="problem"` and the same `reason`; Library status/Download problems
+  should show that reason. Use `retryable` when offering a retry; terminal failures need corrective action first.
+- `notice_help.explain` / `detail_model` keep a permanent failure's actual words and omit the retry fix.
+- Legacy phone state keeps `failures[path]={fp,reason,time}` in private runtime state. This is internal, never a UI label.
+  The existing explicit `debrid_drive.retry_failed` route handles phone failures via a per-file retry request, not an
+  AllDebrid request. Changed files become eligible automatically; original phone files remain intact on failure.
+
+## Validation and integration boundary
+
+All added tests are registered in import-review.yml. Host checks are separate from device verification. No IPA, native
+build, merge, skin/layout/mockup change or notices.py edit was performed.
+
+The target branch advanced during the task. A read-only conflict check found only docs/ISSUES.md's concurrent appended
+entries conflict; workflow and notification controller changes otherwise combine. Keep this PR draft and resolve that
+text-only integration conflict with the UI work when the owner authorizes integration. No merge was performed here.

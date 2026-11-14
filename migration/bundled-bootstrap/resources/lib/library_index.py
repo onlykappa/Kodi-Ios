@@ -92,9 +92,20 @@ def build(listing, prep_state, debrid_state, upscale_state=None, ignored=None, c
     prep = lf._index_prep(prep_state)
     copies = lf._index_copies(upscale_state)
     videos, by_key, duplicates = [], {}, []
+    jobs = (debrid_state or {}).get('jobs', [])
+    failure_rows = debrid_drive.problems(debrid_state or {'jobs': []})
+    failure_by_key = {p['key']: p for p in failure_rows}
+    invalid = {str(j['invalid_drive_id']): j for j in jobs if j.get('invalid_drive_id') and j.get('status') == 'failed'}
 
     def add(entry):
         if entry['key'] in by_key:
+            current = by_key[entry['key']]
+            if current.get('invalid_drive_id') and not entry.get('invalid_drive_id'):
+                # A separate valid version wins regardless of Drive listing order. Keep the rejected ID a duplicate.
+                duplicates.append(dict(current))
+                current.clear()
+                current.update(entry)
+                return current
             duplicates.append(entry)
             return by_key[entry['key']]
         by_key[entry['key']] = entry
@@ -123,12 +134,19 @@ def build(listing, prep_state, debrid_state, upscale_state=None, ignored=None, c
                  'progress': None, 'hidden': False, 'problem_key': pkey,
                  'ai': copy.get('label', '') if copy.get('status') == 'ready' else '', 'ai_size': int(copy.get('size') or 0),
                  'job_id': str(((job or {}).get('source') or {}).get('id') or ''), 'probe': dict((job or {}).get('probe') or {})}
-        if state == PROBLEM:
+        bad = invalid.get(entry['id'])
+        if bad:
+            reason = bad.get('terminal_reason') or bad.get('error') or 'This Drive upload did not pass verification'
+            pkey = debrid_drive.problem_key(bad)
+            problem = failure_by_key.get(pkey) or {'kind': 'source', 'error': reason}
+            entry.update(state=PROBLEM, reason=reason, problem_key=pkey, invalid_drive_id=entry['id'],
+                         hash=str(bad.get('hash') or '').lower(),
+                         hidden=_ignored(ignored, pkey, problem))
+        elif state == PROBLEM:
             entry['hidden'] = _ignored(ignored, pkey, {'kind': 'prepare', 'error': reason})
         add(entry)
 
     # 2. What AllDebrid is copying (not on Drive yet).
-    jobs = (debrid_state or {}).get('jobs', [])
     for job in jobs:
         if job.get('status') in ('done', 'failed'):
             continue
@@ -157,7 +175,7 @@ def build(listing, prep_state, debrid_state, upscale_state=None, ignored=None, c
     # without a title (owner screenshot: "S1 E6 · Unnamed download") takes its show from its TMDb id, through the copies
     # that have both.
     titles = {str(j.get('show_tmdb')): j['title'] for j in jobs if j.get('show_tmdb') and j.get('title')}
-    for p in debrid_drive.problems(debrid_state or {'jobs': []}):
+    for p in failure_rows:
         job = jobs[p['index']] if 0 <= p['index'] < len(jobs) else {}
         title = (str(job.get('title') or '') or titles.get(str(job.get('show_tmdb') or ''), '') or
                  debrid_drive.problem_title(job))

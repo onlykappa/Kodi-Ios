@@ -48,6 +48,13 @@ def _prep_problem(item, video):
 
 def _copy_problem(item, video):
     text = str(item.get('text') or '')
+    import copy_errors
+    if copy_errors.is_terminal(text):
+        return {'title': "Couldn't copy %s" % video if video else "Couldn't download to Google Drive",
+                'line': 'This copy needs your attention', 'warn': True,
+                'happened': 'The copy stopped: %s.' % _plain(text),
+                'safe': 'No unverified copy replaced the original.',
+                'fixes': [('Open Download problems', 'See the reason and choose what to do', 'problems')]}
     blocked = re.search(r'(?i)blocked|sign-?in|unauthor|401|403', text)
     busy = re.search(r'(?i)busy|503|502|timed out|network|connection', text)
     # ISSUE-277: "is waiting" only when it really waits (busy or blocked); a copy that ended says it couldn't be copied.
