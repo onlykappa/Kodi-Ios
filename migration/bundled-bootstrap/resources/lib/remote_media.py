@@ -17,6 +17,11 @@ WARM_BLOCKS=2;WARM_AFTER=8
 # its last block (Matroska's tags and index) asked for the moment the link is known. Released after KODI_IDLE seconds
 # with no read. False: Kodi reads the link itself, as before.
 KODI_PLAYBACK=True;KODI_IDLE=120
+# ISSUE-281 (owner, build 442: an Umbrella episode sat at "Opening the video · 0 of 12 MB", then the app crashed on Resume):
+# Kodi is handed the cache only once the cache has an answer from the link (its size) within FIRST_ANSWER seconds;
+# otherwise Kodi reads the link itself, as before ISSUE-280.
+FIRST_ANSWER=5.0
+_BROKER=[None]   # ISSUE-281: one cache per service run; a restarted Drive loop reuses it
 
 
 def eligible(source):
@@ -133,13 +138,20 @@ class Broker:
       elif action=='stats':
        # ISSUE-280: the opening card also needs whose source it is and how much of it is in memory (no URL, no id).
        answer={'stats':dict(broker.current.stats(),kodi=broker.kodi,cached_blocks=len(broker.current.blocks.data),
-                            block_size=broker.current.block_size) if broker.current else {}}
+                            block_size=broker.current.block_size,size=int(broker.current.blocks.sizes.get('media') or 0),
+                            source_id=fingerprint(broker.ident)) if broker.current else {}}
       elif action=='status':
        answer={'renewal':broker.current.renewal_state if broker.current and request.get('id')==broker.ident else 'closed'}
        if broker.current and request.get('id')==broker.ident:answer['stats']=broker.current.stats()
       elif action=='origin':
        # ISSUE-280: the real link behind the address Kodi plays (Play on TV gives TVs the real link, never 127.0.0.1).
        answer={'source':broker.source if broker.current and request.get('url')==broker.current.media_url else ''}
+      elif action=='drop':
+       # ISSUE-281: Kodi was given the real link after all (the cache had no answer in time): let the source go.
+       if request.get('id')==broker.ident and broker.kodi:
+        if broker.current:broker.current.close()
+        broker.current=None;broker.ident='';broker.kodi=False;broker.source=''
+       answer={'closed':True}
       elif action=='close':
        # A source Kodi's player reads stays until it is idle (reap), even when Play on TV lets go of it.
        if request.get('id')==broker.ident and not broker.kodi:
@@ -189,8 +201,14 @@ def prefetch(source,blocks=None):
 
 
 def start(monitor,window,context=None,open_url=None):
- """Register on Kodi's Home window (the service's `home` is a filesystem Path)."""
- broker=Broker(context=context,open_url=open_url)
+ """Register on Kodi's Home window (the service's `home` is a filesystem Path).
+ ISSUE-281 (log 6cf2a4c5): the Drive loop restarted every 30-600 s (ISSUE-282) and each start made a new cache and moved
+ the Home property to it, so Kodi read one cache while the opening card counted another ("0 of 12 MB"). The cache made by
+ the first start is kept for the whole run."""
+ old=_BROKER[0]
+ if old is not None and not old.stopped.is_set():
+  window.setProperty(PROPERTY,old.url);return old
+ broker=Broker(context=context,open_url=open_url);_BROKER[0]=broker
  try:
   window.setProperty(PROPERTY,broker.url)
   def close_sources():
@@ -238,7 +256,7 @@ def acquire(source,home):
  except Exception:return source,None
 
 
-def for_kodi(source,home):
+def for_kodi(source,home,wait=None,clock=time.monotonic):
  """ISSUE-280: the address Kodi's own player should open for a link Umbrella just resolved: the service's cache when
  the link is a remote MKV / AVI / WebM and the service answers, else the link itself (nothing changes then)."""
  if not KODI_PLAYBACK or not eligible(source):return source
@@ -248,8 +266,33 @@ def for_kodi(source,home):
   answer=_call(endpoint,{'action':'open','source':source,'renewal':umbrella_recovery.selected(source,home),'player':'kodi'})
   target=urllib.parse.urlsplit(answer['url'])
   if target.scheme!='http' or target.hostname!='127.0.0.1':return source
+  # ISSUE-281: only a cache that has heard from the link gets Kodi; else the real link, and the cache lets it go.
+  if not answered(endpoint,answer.get('id',''),wait=wait,clock=clock):
+   try:_call(endpoint,{'action':'drop','id':answer.get('id','')})
+   except Exception:pass
+   return source
   return answer['url']
  except Exception:return source
+
+
+def fingerprint(ident):
+ """Which source the stats are about, without giving the source's private id away."""
+ import hashlib
+ return hashlib.sha256(('kodi-ios:'+str(ident or '')).encode()).hexdigest()[:12] if ident else ''
+
+
+def answered(endpoint,ident,wait=None,clock=time.monotonic,limit=None):
+ """ISSUE-281: True once the cache for `ident` knows the file's size (the link answered), within FIRST_ANSWER s."""
+ wait=wait or time.sleep;limit=FIRST_ANSWER if limit is None else limit
+ began=clock()
+ while True:
+  try:
+   st=_call(endpoint,{'action':'stats'}).get('stats') or {}
+   if st.get('source_id')==fingerprint(ident) and int(st.get('size') or 0)>0:return True
+   if st.get('source_id')!=fingerprint(ident):return False
+  except Exception:return False
+  if clock()-began>=limit:return False
+  wait(0.25)
 
 
 def original(playing,home):

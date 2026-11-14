@@ -4132,6 +4132,28 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 
 **Delivery (owner OK, 2026-11-14):** IPA build-442 was built from f1d6447 (import-review run 43623141308) and carries ISSUE-276 to 280 and AirPlay r57. It was downloaded and checked: sha256 982d4a24…4ed7dbb, the zip is valid, and the framework carries the r57 restart note. The library index, poll_fetching, the for_kodi route, the tap-to-hide area and the stage line are all inside. Phone checks are pending for every item.
 
+## ISSUE-281 — Umbrella stream stuck at "Opening the video · 0 of 12 MB", then a crash on Resume (owner, build 442; ISSUE-280 regression) — fixed in code; crash log asked for
+
+- **Seen:** an Umbrella episode never opened; the opening card stayed at "0 of 12 MB". Pressing Resume crashed the app.
+  Log 6cf2a4c5 starts after the crash, so it does not hold the crash itself.
+- **Cause (from the code and log 6cf2a4c5):**
+  - `remote_media.start` runs inside `drive_uploads` before the ISSUE-282 NameError. Every watchdog restart (30 s, 60 s,
+    120 s … 600 s) made a new cache and moved the Home property to it.
+  - Umbrella's unlock (`for_kodi`) could hand Kodi an address on one cache while the opening card (`umbrella_ready`, reading
+    the property's stats) counted another, empty one: "0 of 12 MB" for good.
+  - A later Resume reopened an address whose cache was no longer the one in charge.
+  - `for_kodi` also handed Kodi the cache before knowing the link answered at all.
+- **Fix:**
+  - `remote_media.start` keeps one cache per service run (`_BROKER`). A restarted Drive loop reuses it and points the
+    property back at it.
+  - `for_kodi` gives Kodi the cache only once the cache knows the file's size (the link answered) within FIRST_ANSWER = 5 s.
+    Otherwise Kodi gets the real link, as before ISSUE-280, and the cache lets the source go (`drop`).
+  - The stats name their source by a fingerprint (`source_id`), never the private id.
+  - With ISSUE-282 fixed, the restarts themselves stop.
+- **Asked for:** the crashed session's log (kodi.old.log), to confirm the crash's own cause.
+- **Test:** test_stream_fallback (new: the cache used once the link answered; the real link and `drop` when it does not;
+  one cache per run; no private id in the stats); test_remote_media (52) still passes.
+
 ## ISSUE-282 — "Kodi iOS Drive: downloads stopped (NameError); starting again in 30/60/120 s" from startup (owner log 6cf2a4c5, build 442) — fixed in code
 
 - **Seen:** from 10:29:55 the service's Drive loop stopped at once on every start, and the ISSUE-269 watchdog restarted it.

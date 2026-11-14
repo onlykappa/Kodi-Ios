@@ -156,6 +156,7 @@ jobs:
           python3 -B scripts/test_season_quality.py
           python3 -B scripts/test_quality_choice.py
           python3 -B scripts/test_undefined_names.py
+          python3 -B scripts/test_stream_fallback.py
           python3 -B scripts/test_pinned_addons.py
           python3 -B scripts/test_netwatch.py
           python3 -B scripts/test_copy_status.py
