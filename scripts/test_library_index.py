@@ -243,5 +243,27 @@ class StopOrDeleteEverywhere(unittest.TestCase):
         self.assertIn("library_index.intend_for(profile, 'delete', drive_ids=", src)
 
 
+class StalledFetchIsAProblemEverywhere(unittest.TestCase):
+    """ISSUE-277 (owner screenshot and log 27c3ca14, build 430): Rick and Morty S2 E7 sat at AllDebrid "fetching 0%"; the
+    pages said "Copying · 0%" and Download problems said 0. Fetching says so, and a stalled fetch is a problem on every page."""
+    def jobs(self, e7):
+        base = {'title': 'Rick and Morty', 'kind': 'episode', 'season': '2', 'show_tmdb': '60625', 'name': 'x', 'added': 1}
+        return {'jobs': [dict(base, episode='8', status='new', hash='h8'), dict(base, episode='7', hash='h7', **e7)]}
+
+    def test_fetching_says_so(self):
+        index = li.build([], {}, self.jobs({'status': 'fetching', 'fetched': 0}))
+        lines = {e['episode']: li.entry_line(e) for e in index['videos']}
+        self.assertEqual(lines, {7: 'AllDebrid is fetching it · 0%', 8: 'Waiting to copy'})
+        self.assertEqual(li.counts(index, ('show', 'Rick and Morty'))['working'], 2)
+
+    def test_a_stalled_fetch_is_a_problem_on_every_page(self):
+        why = 'Nobody is sharing this version: AllDebrid got no further than 0% in 30 minutes. Pick another version.'
+        index = li.build([], {}, self.jobs({'status': 'failed', 'error': why, 'stalled': True, 'finished': 5}))
+        for scope in (None, 'tv', ('show', 'Rick and Morty'), ('season', 'Rick and Morty', 2)):
+            self.assertEqual(li.counts(index, scope)['problems'], 1)
+        problem = li.problems(index)[0]
+        self.assertEqual((problem['episode'], problem['reason']), (7, why))
+
+
 if __name__ == '__main__':
     unittest.main()

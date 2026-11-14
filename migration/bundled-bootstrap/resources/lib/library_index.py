@@ -146,7 +146,10 @@ def build(listing, prep_state, debrid_state, upscale_state=None, ignored=None, c
                  'season': s, 'episode': n, 'title': title, 'year': str(job.get('year') or ''), 'id': None,
                  'name': job.get('name') or '', 'size': int(job.get('size') or 0), 'quality': _quality(job.get('name') or ''),
                  'state': COPYING, 'reason': '', 'progress': pct, 'hidden': False, 'problem_key': '', 'ai': '',
-                 'hash': str(job.get('hash') or '').lower()})
+                 'hash': str(job.get('hash') or '').lower(),
+                 # ISSUE-277: AllDebrid fetching the torrent first is not "Copying to Google Drive · 0%".
+                 'stage': 'fetching' if job.get('status') == 'fetching' else 'waiting' if job.get('status') == 'new' else '',
+                 'fetched': int(job.get('fetched') or 0)})
 
     # 3. Copies that ended (Download problems' own list), unless the video is on Drive or copying again. A copy saved
     # without a title (owner screenshot: "S1 E6 · Unnamed download") takes its show from its TMDb id, through the copies
@@ -414,6 +417,10 @@ def entry_line(entry):
     if entry.get('pending') and WORDS.get(entry['pending']):
         return WORDS[entry['pending']]
     state = entry['state']
+    if state == COPYING and entry.get('stage') == 'fetching':
+        return 'AllDebrid is fetching it · %d%%' % int(entry.get('fetched') or 0)
+    if state == COPYING and entry.get('stage') == 'waiting':
+        return 'Waiting to copy'
     if state == COPYING:
         return 'Copying to Google Drive' + (' · %d%%' % entry['progress'] if entry.get('progress') is not None else '')
     if state == CONVERTING:
