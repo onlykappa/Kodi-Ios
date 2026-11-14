@@ -4257,3 +4257,31 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   `notices.add` does not record it, and `notices.load` drops ones already saved, so they leave the page and the unread
   count at once. A failure still shows.
 - **Test:** test_routine_notices (starts dropped, failures kept, old saved ones disappear).
+
+## ISSUE-290 — Notification centre: a lot of grey space, cut-off text (owner, build 442) — fixed in code (C1, approved)
+
+- **Request:** owner screenshot, 2026-11-14: "there is a lot of grey open space, can be cleaner … the notifications
+  themselves look good but the grey space and everything just looks poor". C1 in `docs/design/build442-mockups.html`
+  approved the same day ("i love the mock, code it").
+- **Cause:** every message row was a fixed 236-unit block: a 97-unit tile, the title, then the text pinned at y=138
+  whatever the title's length, so a one-line title left a grey band and a long text was clipped ("stopped (name
+  'window' is not"). Repeated notices took a row each. The Fix capsule took the text's width.
+- **Fix (`notifications_skin.py`, `notifications.py`):**
+  - A message row is stacked from parts the page's grouplist lays out: the title part (1, 2 or 3 lines, `msg.N.tl`),
+    the text part (1 to 4 lines, `msg.N.ll`), a Fix part, and an end part. `notifications_skin.lines` counts the
+    lines conservatively (whole words, a few characters short of the real width), so a row can be a little tall but
+    text is never cut (DEC-050).
+  - 30 pt tiles, the time on the right with the unread dot before it, "Fix ›" as a blue text action under the text.
+  - The same notice again (kind, title, text) folds into one row with a "×N" chip (`notifications.fold`).
+  - TODAY and EARLIER are separate grouped cards (first/last per section).
+  - Running now is one grouped card of 64 pt rows: poster, title, line and a progress ring (ring_00..20).
+  - One tap area per row reaches under its parts (each part has no button of its own).
+- **Retest:** desktop Kodi rig (Kodi 21.3, synthetic notices with a 168-character text, a two-line title, a repeat
+  and an old notice): rows sized to their content, corners round per card, nothing cut. Rig evidence, not the phone.
+  Two faults found on the rig and fixed before commit: `!(…)` is not a Kodi condition (Kodi uses `![…]`), so the
+  square background covered the rounded one; and a one-line title's header is shorter than its tile, so the tile is
+  drawn by the following part.
+- **Unlike the mockup:** the unread dot sits before the time, not after the title (Kodi cannot place an image after
+  wrapped text). A two- or three-line title shows its "×N" under the time.
+- **Test:** test_notification_centre_c1 (line counting, every height has its part, no `!(` and no "…" in the window,
+  folding, sections and per-section positions).

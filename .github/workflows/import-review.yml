@@ -161,6 +161,7 @@ jobs:
           python3 -B scripts/test_library_remove.py
           python3 -B scripts/test_upscale_from_index.py
           python3 -B scripts/test_routine_notices.py
+          python3 -B scripts/test_notification_centre_c1.py
           python3 -B scripts/test_pinned_addons.py
           python3 -B scripts/test_netwatch.py
           python3 -B scripts/test_copy_status.py
