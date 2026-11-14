@@ -20,8 +20,8 @@ _spec=_iu.spec_from_file_location('settings_page',os.path.join(os.path.dirname(o
 settings_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(settings_page)
 _spec=_iu.spec_from_file_location('pages',os.path.join(os.path.dirname(os.path.abspath(__file__)),'pages.py'))
 pages=_iu.module_from_spec(_spec);_spec.loader.exec_module(pages)
-_spec=_iu.spec_from_file_location('activity_skin',os.path.join(os.path.dirname(os.path.abspath(__file__)),'activity_skin.py'))
-activity_skin=_iu.module_from_spec(_spec);_spec.loader.exec_module(activity_skin)
+_spec=_iu.spec_from_file_location('skin_textures',os.path.join(os.path.dirname(os.path.abspath(__file__)),'skin_textures.py'))
+skin_textures=_iu.module_from_spec(_spec);_spec.loader.exec_module(skin_textures)
 _spec=_iu.spec_from_file_location('library_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_page.py'))
 library_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_page)
 _spec=_iu.spec_from_file_location('library_files_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_files_page.py'))
@@ -118,9 +118,10 @@ MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Check for updates','cloud-arrow-down.png','FF30D158',UPDATES),
       ('Favourites','star.png','FFFF9F0A','RunScript(service.kodi.ios.bootstrap,favourites_page)'),
       # Roadmap 2.6: Kodi's desktop file manager replaced by the app's own Transfers page.
-      ('Transfers','clapperboard.png','FF5E5CE6','RunScript(service.kodi.ios.bootstrap,activity_page)'),
+      # ISSUE-287: the activity pill's sheet is gone; the owner follows work in Library status.
+      ('Library status','clapperboard.png','FF5E5CE6','RunScript(service.kodi.ios.bootstrap,library_status)'),
       ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
-HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{'Includes_Portrait.xml',SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml',activity_skin.NAME,activity_skin.BOX}|pages.HANDMADE
+HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{'Includes_Portrait.xml',SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml',skin_textures.BOX}|pages.HANDMADE
 # Never shrunk: playback stays landscape, and these are not windows.
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
 # Shown only over landscape playback: no portrait copy, so Kodi always loads them from 1080i with landscape
@@ -136,7 +137,7 @@ FONTS=[('p_large','Inter-Bold.ttf',92),('p_title','Inter-Bold.ttf',78),('p_h2','
        ('p_h3','Inter-Bold.ttf',46),('p_body','Inter-Regular.ttf',44),('p_sub','Inter-Regular.ttf',40),
        ('p_foot','Inter-Regular.ttf',35),('p_foot_b','Inter-Bold.ttf',35),('p_cap','Inter-Regular.ttf',30),
        ('p_tab','Inter-Bold.ttf',27),('p_tile','Inter-Bold.ttf',38),('p_btn','Inter-Bold.ttf',46),
-       ('p_pill','Inter-Bold.ttf',40),('p_pill_s','Inter-Regular.ttf',35)]   # the activity pill (activity_skin.py)
+       ('p_pill','Inter-Bold.ttf',40),('p_pill_s','Inter-Regular.ttf',35)]   # Notifications' rows
 SIDE=54                      # 20 pt margins
 POSTER=(300,450);CARD=(640,360);GAP=26;RADIUS=26
 HERO=1420
@@ -269,7 +270,7 @@ def header_glyphs():
  return _GLYPHS
 
 def textures():
- return {**header_glyphs(),'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'menu_round.png':rounded(160,160,64),**{'menu_%s.png'%k:activity_skin.corner_texture(types_ns(),160,64,t,b) for k,t,b in (('first',True,False),('last',False,True))},'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
+ return {**header_glyphs(),'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'menu_round.png':rounded(160,160,64),**{'menu_%s.png'%k:skin_textures.corner_texture(types_ns(),160,64,t,b) for k,t,b in (('first',True,False),('last',False,True))},'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
          'fade_down.png':fade(lambda t:(1-t)**1.6*0.85),'fade_up.png':fade(lambda t:t**1.5),
          'hero_fade.png':fade(lambda t:0 if t<0.3 else ((t-0.3)/0.7)**1.25),
          'poster_mask.png':rounded(POSTER[0],POSTER[1],RADIUS),'card_mask.png':rounded(CARD[0],CARD[1],RADIUS),
@@ -1590,8 +1591,8 @@ def portrait_files(skin,profile):
  files['extras/portrait/close_cross.png']=close_cross();files['extras/portrait/close_disc.png']=close_disc()
  # Round 2: shared dialogs, Add-ons, Event Log, System Info, File Manager, Umbrella's getting-ready, Play on TV.
  files.update(pages.files(types.SimpleNamespace(**globals()),read))
- # The activity pill in place of Kodi's background progress box, which is never drawn (activity_skin.py).
- ns=types.SimpleNamespace(**globals());files.update(activity_skin.files(ns))
+ # ISSUE-287: no activity pill. Kodi's background progress box stays invisible; rings and row corners (skin_textures.py).
+ ns=types.SimpleNamespace(**globals());files.update(skin_textures.files(ns))
  # Settings › Library › Library status and its details sheet (library_page.py).
  files.update(library_page.files(ns))
  # Library › TV Shows / Movies, the file manager (DEC-043 board A, library_files_page.py).
@@ -1612,8 +1613,6 @@ def portrait_files(skin,profile):
  files.update(library_tools_page.files(ns))
  # Settings › Customisation › Tabs & Rows › a tab (rows_page.py, filled by customise_rows.py).
  files.update(rows_page.files(ns))
- for rel in list(files):
-  if rel.startswith(FOLDER+'/'):files[rel]=activity_skin.inject(ns,rel[len(FOLDER)+1:],files[rel])
  # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.
  files['1080i/VideoOSD.xml']=player_osd.window().encode()
  # Fuse's seek bar flashed up at every video start (buffering, the resume jump): ours shows only while seeking.
@@ -1633,9 +1632,6 @@ def row_files(skin,profile):
  for name,data in hub_files(skin,profile,row_variables).items():files[FOLDER+'/'+name]=data
  files[FOLDER+'/Includes.xml']=includes(row_variables)
  files['1080i/'+LANDSCAPE_VARS]=landscape_variables(row_variables)
- ns=types.SimpleNamespace(**globals())
- for rel in list(files):
-  if rel.startswith(FOLDER+'/'):files[rel]=activity_skin.inject(ns,rel[len(FOLDER)+1:],files[rel])
  return files
 
 def refresh_rows(xbmc,invoke,skin,profile):
@@ -1671,6 +1667,11 @@ STARTUP=('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: straight to Home afte
 def write(skin,files):
  changed=[]
  # Portrait copies of playback windows from earlier builds would be picked over the landscape ones.
+ # ISSUE-287: the activity pill's windows from earlier builds go too (portrait and landscape).
+ for name in skin_textures.OBSOLETE:
+  for folder in (FOLDER,'1080i'):
+   stale=Path(skin)/folder/name
+   if stale.is_file():stale.unlink();changed.append(folder+'/'+name)
  for name in sorted(VIDEO_ONLY|SKIP_WRAP):
   stale=Path(skin)/FOLDER/name
   if stale.is_file():stale.unlink();changed.append(FOLDER+'/'+name)
@@ -1704,14 +1705,14 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','Custom_1156_Buffering.xml','IOSPlayOnTV.xml','IOSTrackMenu.xml','IOSPictureMenu.xml','IOSAirPlayFlow.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','Custom_1156_Buffering.xml','IOSPlayOnTV.xml','IOSTrackMenu.xml','IOSPictureMenu.xml','IOSAirPlayFlow.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + skin_textures.py, pages.BUSY, player_osd.INSET
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(library_files_page.__file__),Path(copy_problems_page.__file__),Path(library_show_page.__file__),Path(library_item_page.__file__),Path(upscale_show_page.__file__),Path(upscale_main_page.__file__),Path(queue_page.__file__),Path(library_select_page.__file__),Path(library_freeup_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py')):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(library_files_page.__file__),Path(copy_problems_page.__file__),Path(library_show_page.__file__),Path(library_item_page.__file__),Path(upscale_show_page.__file__),Path(upscale_main_page.__file__),Path(queue_page.__file__),Path(library_select_page.__file__),Path(library_freeup_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(skin_textures.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py')):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())
@@ -1821,7 +1822,7 @@ def progress_tracker(player,continue_module,read,write,clock,every=10,external=l
 
 # Read by Kodi when the skin loads (fonts, includes, Home and the windows marked LOAD_ON_GUI_INIT in the owner's log):
 # a change to one shows only after ReloadSkin. Every other window is read the first time it opens.
-LOADED_AT_START={'Font.xml','Includes.xml','Includes_Portrait.xml','Home.xml','Custom_1187_Activity.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
+LOADED_AT_START={'Font.xml','Includes.xml','Includes_Portrait.xml','Home.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
                  'DialogVolumeBar.xml','DialogExtendedProgressBar.xml','DialogSeekBar.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
                  'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml','Custom_1192_SeasonalTheme.xml',
                  'Custom_1194_Debug_Grid.xml','Custom_1198_Dialog_Startup.xml','Custom_1199_Debug_Overlay.xml'}

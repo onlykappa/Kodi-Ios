@@ -23,7 +23,7 @@ class _Late:
   if self._module is None:
    import importlib;self._module=importlib.import_module(self._name)
   return getattr(self._module,attribute)
-activity,signin_server,background,calibration,driveupload,portrait,umbrella_ready=[_Late(n) for n in ('activity','signin_server','background','calibration','driveupload','portrait','umbrella_ready')]
+signin_server,background,calibration,driveupload,portrait,umbrella_ready=[_Late(n) for n in ('signin_server','background','calibration','driveupload','portrait','umbrella_ready')]
 _IMPORT_SECONDS=time.monotonic()-_IMPORT_STARTED
 
 def run():
@@ -66,19 +66,6 @@ def run():
   portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),kwargs={'ready':setup_done,'native_ui_started':_EARLY_UI_STARTED},daemon=True);portrait_thread.start()
  # Owner build-136 log: the tab bar answered ~8 s after launch, 2 s of it this fixed wait. Only setup waits now.
  if monitor.waitForAbort(2):return
- def slow_start(after=3.0):
-  """Board 13 (owner-approved, docs/design/fuse-windows-mockups.html; roadmap U.13): no startup box over Home. Only
-  when the skin's own setup (first start, or after an update) is still running `after` seconds later, the activity
-  pill says so ("Getting things ready · Preparing your library"), through Kodi's background box that the pill reads
-  (activity.classify), until setup is over."""
-  import activity
-  if monitor.waitForAbort(after) or setup_done.is_set():return
-  box=xbmcgui.DialogProgressBG()
-  try:
-   box.create(activity.STARTUP_TITLE,activity.STARTUP_TEXT)
-   while not setup_done.is_set():
-    if monitor.waitForAbort(0.5):break
-  finally:box.close()
  def prepare_generated(sync=True):
   nonlocal generated
   stage('skin_preferences')
@@ -87,7 +74,6 @@ def run():
   stage('phone_menus');update_nodes(profile);phone_defaults(lambda id:xbmc.getInfoLabel('Skin.String('+id+')'),invoke)
   skin=Path(xbmcvfs.translatePath('special://skin/')).resolve()
   if skin.name!=FUSE or not skin.is_relative_to(home):raise RuntimeError('Writable Fuse path not selected')
-  threading.Thread(target=slow_start,daemon=True).start()
   generate(skin,xbmc.getSkinDir,invoke,monitor.waitForAbort,xbmc.getInfoLabel('Skin.String(SkinVariables.SkinUser)'),stage)
   generated=True
  try:
@@ -313,23 +299,10 @@ def run():
   # ISSUE-280 (board S1): the stage line, from the unlocked link (umbrella_recovery) and the stream cache's own counts.
   kwargs={'linked':lambda:window.getProperty('KodiIOS.UmbrellaRenewal'),
           'cache':lambda:__import__('remote_media').stats(window)},daemon=True).start()
- # The activity pill: Kodi's background progress box (never drawn) read and rewritten, plus Elementum and Drive.
- def activity_setting(key,default):
-  try:
-   value=xbmcaddon.Addon().getSetting(key)
-   return default if value=='' else value.lower()=='true'
-  except Exception:return default
- # The pill shows the poster of what is downloading (TMDb, with TMDb Helper's key, as the Library does).
- try:
-  import drivelibrary,urllib.request
-  key=drivelibrary.tmdb_key(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.themoviedb.helper').getAddonInfo('path')))
-  def get(url):
-   with urllib.request.urlopen(url,timeout=8) as response:return response.read(1024*1024)
-  posters=activity.Posters(activity.poster_lookup(key,get)) if key else None
- except Exception:posters=None
- threading.Thread(target=activity.watch,args=(lambda:activity.read_box(xbmc,xbmcgui),notices.downloads,lambda:notices.uploads(profile),
-  activity_setting,lambda:xbmc.Player().isPlayingVideo(),lambda props:[window.setProperty(k,v) for k,v in props.items()],
-  lambda text:notices.add(profile,'problem','Elementum Burst',text),monitor.waitForAbort),kwargs={'posters':posters},daemon=True).start()
+ # ISSUE-287: no activity pill. Elementum Burst's error lines in Kodi's (invisible) background box still reach Notifications.
+ import background_box
+ threading.Thread(target=background_box.watch,args=(lambda:background_box.read_box(xbmc,xbmcgui),
+  lambda text:notices.add(profile,'problem','Elementum Burst',text),monitor.waitForAbort),daemon=True).start()
  # ISSUE-267: the add-ons the app patches stay its own copies (a repository update had hidden them; no copy ran).
  try:
   import pinned_addons

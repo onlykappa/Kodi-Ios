@@ -19,7 +19,7 @@ NOTE = 'Kodi prepares one video at a time; it slows down while a video plays.'
 
 
 def ring_name(pct):
-    """The ring texture for a percentage (activity_skin draws ring_00..ring_20)."""
+    """The ring texture for a percentage (skin_textures draws ring_00..ring_20)."""
     return 'ring_%02d.png' % max(0, min(20, int(round((pct or 0) / 5.0))))
 
 
