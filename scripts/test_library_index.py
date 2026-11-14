@@ -102,5 +102,40 @@ class OneRecord(unittest.TestCase):
         self.assertNotIn(54, [r['episode'] for r in li.problems(index)])
 
 
+class SharedRecord(unittest.TestCase):
+    """Step 2: the service writes the index, pages read it, every action shows on every page at once."""
+    def setUp(self):
+        import prepare_downloads, debrid_drive
+        self.tmp = tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.profile = self.tmp.name
+        listing, prep, debrid = owner_state()
+        prep['library'] = {'items': listing, 'checked': 900.0}
+        prepare_downloads.save(self.profile, prep);debrid_drive.save(self.profile, debrid)
+
+    def test_the_counter_moves_only_when_something_shown_changes(self):
+        first = li.refresh(self.profile, {'ok': True}, clock=lambda: 1000.0)
+        self.assertEqual((first['counter'], li.load(self.profile)['counter']), (1, 1))
+        self.assertEqual(li.refresh(self.profile, {'ok': True}, clock=lambda: 1001.0)['counter'], 1)   # nothing changed
+        li.refresh(self.profile, {'ok': False, 'error': "can't reach Google Drive"}, clock=lambda: 1002.0)
+        self.assertEqual(li.load(self.profile)['counter'], 2)                                            # the health line did
+        self.assertEqual(li.load(self.profile)['checked'], 900.0)
+
+    def test_an_action_shows_on_every_page_at_once(self):
+        index = li.refresh(self.profile, clock=lambda: 1000.0)
+        key = next(e['key'] for e in index['videos'] if e['episode'] == 50 and e['season'] == 2)
+        li.intend(self.profile, [key], 'stop', now=1000.0)
+        entry = next(e for e in li.refresh(self.profile, clock=lambda: 1001.0)['videos'] if e['key'] == key)
+        self.assertEqual((entry['pending'], li.entry_line(entry)), ('stop', 'Stopping…'))
+        later = next(e for e in li.refresh(self.profile, clock=lambda: 1000.0 + li.INTENT_TTL + 1)['videos'] if e['key'] == key)
+        self.assertNotIn('pending', later)                                                               # the real state took over
+        with self.assertRaises(ValueError):
+            li.intend(self.profile, [key], 'explode')
+
+    def test_the_service_loop_sets_the_counter_property(self):
+        props, ticks = {}, iter([False, False, True])
+        li.publish(self.profile, lambda every: next(ticks), set_property=props.__setitem__, clock=lambda: 1000.0)
+        self.assertEqual(props[li.PROPERTY], '1')
+        self.assertIn('target=library_index.publish,args=(profile,', (ROOT / 'migration/bundled-bootstrap/service.py').read_text())
+
+
 if __name__ == '__main__':
     unittest.main()

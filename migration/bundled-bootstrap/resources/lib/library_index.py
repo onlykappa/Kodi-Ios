@@ -226,3 +226,153 @@ def problems(index, include_hidden=False):
     """Download problems' rows, from the same entries: problems (and cancelled copies), hidden ones only when asked."""
     return [e for e in (index or {}).get('videos', [])
             if e['state'] == CANCELLED or (e['state'] == PROBLEM and (include_hidden or not e['hidden']))]
+
+
+# ---- The shared record on disk (step 2): written by the service, read by every page -------------------------------------
+
+FILE = 'library-index.json'
+INTENTS = 'library-intents.json'
+PROPERTY = 'KodiIOS.LibraryIndex'   # Window(Home) property: the change counter, so open pages redraw when it moves
+INTENT_TTL = 180                    # an action shows on every page at once; after this the real state has caught up
+
+
+def _dir(profile):
+    import os
+    return os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap')
+
+
+def path(profile, name=FILE):
+    import os
+    return os.path.join(_dir(profile), name)
+
+
+def _read(target, default):
+    import json
+    try:
+        with open(target, encoding='utf-8') as handle:
+            data = json.load(handle)
+        return data if isinstance(data, dict) else default
+    except (OSError, ValueError):
+        return default
+
+
+def _write(target, data):
+    import json
+    import os
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    tmp = target + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as handle:
+        json.dump(data, handle)
+    os.replace(tmp, target)
+
+
+def load(profile):
+    """The index every page reads: {'counter', 'built', 'videos', 'duplicates', 'drive' ({'ok', 'checked', 'error'})}."""
+    return _read(path(profile), {'counter': 0, 'built': 0, 'videos': [], 'duplicates': [], 'drive': {}})
+
+
+def inputs(profile):
+    """The files the index is built from (their change times tell the service when to rebuild)."""
+    import prepare_downloads
+    import debrid_drive
+    import upscale_queue
+    import problem_ignore
+    return [str(prepare_downloads.location(profile)), str(debrid_drive.location(profile)), upscale_queue.path(profile),
+            problem_ignore.path(profile), path(profile, INTENTS)]
+
+
+def fingerprint(profile):
+    import os
+    out = []
+    for target in inputs(profile):
+        try:
+            out.append(os.stat(target).st_mtime_ns)
+        except OSError:
+            out.append(0)
+    return tuple(out)
+
+
+def refresh(profile, drive=None, clock=time.time):
+    """Rebuild the index from what the service holds now and save it; the counter moves only when something a page shows
+    changed. drive: {'ok', 'checked', 'error'} for the health line (None keeps the last). Returns the index."""
+    import prepare_downloads
+    import debrid_drive
+    import upscale_queue
+    import problem_ignore
+    now = clock()
+    prep = prepare_downloads.apply_to(prepare_downloads.load(profile), prepare_downloads.pending_requests(profile), now)
+    listing = ((prep.get('library') or {}).get('items')) or []
+    index = build(listing, prep, debrid_drive.load(profile), upscale_queue.load(profile), problem_ignore.load(profile), clock)
+    intents = pending_intents(profile, now)
+    for entry in index['videos']:
+        intent = intents.get(entry['key'])
+        if intent:
+            entry['pending'] = intent['action']
+    before = load(profile)
+    index['drive'] = drive if drive is not None else before.get('drive') or {}
+    index['checked'] = float((prep.get('library') or {}).get('checked') or 0)
+    same = (before.get('videos') == index['videos'] and before.get('drive') == index['drive']
+            and before.get('duplicates') == index['duplicates'])
+    index['counter'] = int(before.get('counter') or 0) + (0 if same else 1)
+    _write(path(profile), index)
+    return index
+
+
+def publish(profile, wait, every=2.0, set_property=None, drive_health=lambda: None, log=lambda text: None, clock=time.time):
+    """The service loop: rebuild when an input changed (and at least every 30 s), keep the counter property current."""
+    last_print, last_at, last_counter = None, 0.0, None
+    while not wait(every):
+        try:
+            mark = fingerprint(profile)
+            if mark == last_print and clock() - last_at < 30:
+                continue
+            index = refresh(profile, drive_health(), clock)
+            last_print, last_at = mark, clock()
+            if set_property and index['counter'] != last_counter:
+                set_property(PROPERTY, str(index['counter']))
+                last_counter = index['counter']
+        except Exception as error:
+            log('library index: %s: %s' % (type(error).__name__, error))
+
+
+# ---- One action path (DEC-052 item 1): whatever page it is pressed on, every page shows it at once ---------------------
+
+ACTIONS = ('delete', 'stop', 'retry', 'hide', 'clear')
+WORDS = {'delete': 'Deleting…', 'stop': 'Stopping…', 'retry': 'Trying again…', 'hide': '', 'clear': ''}
+
+
+def pending_intents(profile, now=None):
+    now = time.time() if now is None else now
+    data = _read(path(profile, INTENTS), {})
+    return {k: v for k, v in data.items() if isinstance(v, dict) and now - float(v.get('at') or 0) < INTENT_TTL}
+
+
+def intend(profile, keys, action, now=None):
+    """Mark videos (index keys) with what the owner just asked; refresh() puts it on their entries, so every page shows
+    "Deleting…" / "Stopping…" until the service has done it and the real state replaces it."""
+    if action not in ACTIONS:
+        raise ValueError('unknown action %r' % (action,))
+    now = time.time() if now is None else now
+    data = pending_intents(profile, now)
+    for key in keys:
+        data[str(key)] = {'action': action, 'at': now}
+    _write(path(profile, INTENTS), data)
+    return data
+
+
+def entry_line(entry):
+    """The one state line every page shows for a video (a pending action first)."""
+    if entry.get('pending') and WORDS.get(entry['pending']):
+        return WORDS[entry['pending']]
+    state = entry['state']
+    if state == COPYING:
+        return 'Copying to Google Drive' + (' · %d%%' % entry['progress'] if entry.get('progress') is not None else '')
+    if state == CONVERTING:
+        return 'Getting it ready for Kodi and AirPlay'
+    if state == READY:
+        return ' · '.join(x for x in ('Ready', entry.get('quality') or '') if x)
+    if state == KEPT:
+        return 'Kept as it is'
+    if state == CANCELLED:
+        return 'Cancelled'
+    return entry.get('reason') or 'Needs you'
