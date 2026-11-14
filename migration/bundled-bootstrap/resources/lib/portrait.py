@@ -1789,9 +1789,15 @@ def first_feed_publisher(info,log,clock,timeout=60,started=None):
   finished=not pending
  return tick
 
-def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{}):
+def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{},log=None):
  """Continue Watching: save the position of what the chooser started, and drop it once finished."""
  state={'playing':False,'saved':float('-inf'),'position':0,'total':0,'started':0,'seed':0,'remote':False,'handoff':False}
+ # ISSUE-299 (owner, build 442: "continue watching is only tracking the downloaded things"): one line per playback
+ # says which title the row will follow, or that nothing was recorded for it (then the row cannot show it).
+ def say(text):
+  if log:
+   try:log(text)
+   except Exception:pass
  def tick():
   try:
    try:remote=external() or {}
@@ -1804,6 +1810,8 @@ def progress_tracker(player,continue_module,read,write,clock,every=10,external=l
      try:
       data=continue_module.load(read);entry=data.get('items',{}).get(data.get('current')) or {}
       state.update(seed=float(entry.get('position') or 0),position=float(entry.get('position') or 0),total=float(entry.get('total') or 0))
+      say('continue watching: following %s · %s'%(entry.get('kind') or '?',entry.get('player') or 'no player') if entry else
+          'continue watching: nothing recorded for this video (not started through the watch menu)')
      except (AttributeError,ValueError,TypeError):pass
     position,total=(remote.get('position',0),remote.get('duration',0)) if on_tv else (player.getTime(),player.getTotalTime())
     if state['remote'] and not on_tv:state.update(seed=state['position'],started=now,handoff=True)
@@ -2003,7 +2011,8 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
   import airplay
   try:native_player=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
   except Exception:native_player=None
-  tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic,external=lambda:airplay.health(native_player))
+  tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic,external=lambda:airplay.health(native_player),
+                       log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
  except Exception as error:xbmc.log('Kodi iOS continue watching unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  # Listing cache: check the row flags against the copies now, then fill and refresh copies in the background.
  try:

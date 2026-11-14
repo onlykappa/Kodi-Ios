@@ -4451,3 +4451,18 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - test_subtitle_match: `test_no_usable_track_never_turns_subtitles_off`.
   - test_customisation: FIRST_ARM.
 - **Handed to Agent A:** the reviewer's other high finding, the Umbrella source closed after 120 s of pause (the Resume crash, ISSUE-281).
+
+## ISSUE-299 — Continue Watching did nothing for an Umbrella stream; the row only showed downloaded titles (owner, build 442, log beee3eba) — fixed in code
+
+- **Seen (13:18:04 and 13:18:09):**
+  - Two taps on Black Clover S2 E7 from Continue Watching. Each time: "watch: completed-copy check failed: SignedOut", and the menu stopped. Google Drive's sign-in had expired.
+  - A fresh Umbrella play (13:18:37) reached the source card, but Umbrella had not handed the link to Kodi when the owner cancelled 15 s later. That is part of the stream fix (ISSUE-281/280 follow-up).
+- **Cause:** `ios_watch_dialog.choose_player` stopped on any failed completed-copy check, so that a download would never start a second time. That also stopped every stream whenever Drive was signed out.
+  - The row lists only titles with a saved position above 0. A stream that never starts never gets one, which is why only downloaded titles showed.
+- **Fix:**
+  - A failed check now carries on without a copy. Only Elementum (a real download) still stops with the old message.
+  - `portrait.progress_tracker` logs one line per playback: "continue watching: following episode · umbrella", or "nothing recorded for this video". The next log shows what the row follows.
+- **Tests:**
+  - test_continue_downloads: `test_lookup_error_lets_a_stream_carry_on` (replaces the old stop-on-any-error test), `SignedOutDriveDoesNotBlockStreams`, and Elementum still stopping.
+  - test_playback_retention: `ContinueWatchingSaysWhatItFollows`.
+- **Also for the owner:** sign in to Google Drive again (Settings › Accounts). Copies wait for it (ISSUE-298).

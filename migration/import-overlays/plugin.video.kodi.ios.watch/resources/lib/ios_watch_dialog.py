@@ -127,8 +127,12 @@ def choose_player(player):
  # Roadmap 2.8: every way in also finds a Drive copy (saved listing only, no wait), not just Continue Watching.
  try:downloaded=None if choosing(player) else downloaded_item(player,candidates,cloud=True if resume else 'cached')
  except DownloadLookupError:
-  xbmcgui.Dialog().ok('Check downloaded copy','Completed downloads could not be checked. Try again before starting another download.')
-  return None
+  # ISSUE-299 (owner log beee3eba, build 442: Continue Watching did nothing twice, "completed-copy check failed: SignedOut"):
+  # Google Drive being signed out must not stop a stream. Without a usable copy it plays from its saved player as before.
+  # Elementum still stops (it would download a second time); a stream carries on.
+  xbmc.log('Kodi iOS watch: completed copies could not be checked; a stream carries on without a copy',xbmc.LOGWARNING)
+  downloaded=None;lookup_failed=True
+ else:lookup_failed=False
  if downloaded is not None:
   player._ios_copy_selected=True
   source=getattr(downloaded,'ios_download_source','local')
@@ -170,6 +174,9 @@ def choose_player(player):
  log('offered %s; picked %s'%([label for label,_,_ in rows],selected))
  if selected<0 or selected>=len(rows):log('nothing picked (the menu closed without a row)');return None
  _,action,item=rows[selected]
+ if lookup_failed and kind_of(item)=='elementum':
+  xbmcgui.Dialog().ok('Check downloaded copy','Completed downloads could not be checked. Try again before starting another download.')
+  return None
  if action in NOT_READY:
   log('%s is not available here'%action);xbmcgui.Dialog().ok(*NOT_READY[action]);return None
  if resume:player._ios_resume_selected=True
