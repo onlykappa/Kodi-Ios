@@ -195,6 +195,57 @@ class Warm(Broker):
   text=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn("if airplay.converts(playback_lib):",text);self.assertIn("cache_tune.link_kind()=='wifi'",text)
   self.assertIn('target=remote_media.watch',text)
+class KodiPlays(Broker):
+ """ISSUE-280 (owner, build 430 log 72b62563: an Umbrella episode sat at "Getting ready to play… 0%" for 32 s, 19 s of
+ it in Kodi's own open of the MKV over one AllDebrid connection): Kodi's player reads it through the cache."""
+ SRC='https://media.example/Black.Clover.S02E07.1080p.CR.WEB.mkv'
+ def settle(self,source):
+  for _ in range(150):
+   if source.blocks.misses>=2 and not source.blocks.pending:break
+   time.sleep(.02)
+ def test_umbrella_link_goes_through_the_cache_with_start_and_end_asked_for(self):
+  url=remote.for_kodi(self.SRC,self.home)
+  self.assertTrue(url.startswith('http://127.0.0.1:'));self.assertTrue(self.broker.kodi)
+  current=self.broker.current;self.settle(current)
+  self.assertIn(('media',0),current.blocks.data);self.assertIn(('media',(len(DATA)-1)//remote.BLOCK),current.blocks.data)
+  with urllib.request.urlopen(urllib.request.Request(url,headers={'Range':'bytes=0-9'})) as r:self.assertEqual(r.read(),DATA[:10])
+ def test_other_links_and_a_missing_service_keep_the_link(self):
+  for src in ('https://media.example/a.mp4','https://media.example/a.m3u8','http://127.0.0.1:9/a.mkv'):
+   self.assertEqual(remote.for_kodi(src,self.home),src)
+  nobody=type('Home',(),{'getProperty':lambda _,key:''})()
+  self.assertEqual(remote.for_kodi(self.SRC,nobody),self.SRC)
+  with patch.object(remote,'KODI_PLAYBACK',False):self.assertEqual(remote.for_kodi(self.SRC,self.home),self.SRC)
+ def test_play_on_tv_gets_the_real_link_and_shares_the_cache(self):
+  url=remote.for_kodi(self.SRC,self.home);current=self.broker.current
+  self.assertEqual(remote.original(url+'|User-Agent=Kodi',self.home),self.SRC)    # never 127.0.0.1 for a TV
+  self.assertEqual(remote.original('https://other.example/x.mkv',self.home),'https://other.example/x.mkv')
+  tv,lease=remote.acquire(self.SRC,self.home)
+  self.assertTrue(lease.warmed);self.assertIs(self.broker.current,current);self.assertEqual(tv,url)
+  lease.close();self.assertIs(self.broker.current,current)          # Kodi may still read it: released when idle
+ def test_idle_source_is_released(self):
+  remote.for_kodi(self.SRC,self.home);current=self.broker.current;self.settle(current)
+  self.assertFalse(self.broker.reap(now=self.broker.opened+5))
+  with patch.object(time,'time',return_value=time.time()+remote.KODI_IDLE+1):
+   self.assertTrue(self.broker.reap(now=self.broker.opened+remote.KODI_IDLE+1))
+  self.assertIsNone(self.broker.current);self.assertFalse(self.broker.kodi)
+ def test_umbrella_unlock_hands_kodi_the_cache(self):
+  import umbrella_recovery
+  class Home:
+   def __init__(self):self.p={}
+   def setProperty(self,k,v):self.p[k]=v
+   def getProperty(self,k):return self.p.get(k,'')
+  home=Home();warmed=[];answer={'link':self.SRC,'filename':'e.mkv','filesize':len(DATA)}
+  umbrella_recovery.remember('https://host.example/f/abc',answer,home=home,warm=lambda *a:warmed.append(a),route=lambda src,h:'http://127.0.0.1:1/x/media/source')
+  self.assertEqual(answer['link'],'http://127.0.0.1:1/x/media/source');self.assertEqual(warmed,[])
+  self.assertEqual(umbrella_recovery.selected(self.SRC,home)['source'],self.SRC)   # renewal keeps the real link
+  answer={'link':self.SRC,'filename':'e.mkv','filesize':len(DATA)}
+  umbrella_recovery.remember('https://host.example/f/abc',answer,home=home,warm=lambda *a:warmed.append(a),route=lambda src,h:1/0)
+  self.assertEqual(answer['link'],self.SRC);self.assertEqual(len(warmed),1)          # any failure: as before
+ def test_play_on_tv_translates_what_kodi_plays(self):
+  text=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
+  self.assertIn('playing=remote_media.original(player.getPlayingFile(),home)',text)
+  self.assertIn('url,needs_phone=cast.stream_url(playing,phone)',text)
+  self.assertNotIn('playing=player.getPlayingFile()',text)
 class Controller(Broker):
  def test_airplay_controller_passes_the_cached_source_and_releases_it(self):
   import importlib.util,types

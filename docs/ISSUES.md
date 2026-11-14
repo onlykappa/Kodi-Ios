@@ -4092,3 +4092,35 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Needs:** an r57 framework build and pin, then an IPA. Both wait for the owner's OK.
 - **Phone check:** AirPlay a prepared H.264 episode to the Roku. The log should show "restarting in 6-s segments", then `/video/` and `/audio/` segment requests from the TV, and the picture on the TV.
 - **Not done yet:** remembering that this TV needs segments, so the next start skips the failed first try (about 1.5 s).
+
+## ISSUE-279 — The video controls never went away: a tap outside the buttons did nothing and they never timed out (owner, build 430, log 72b62563) — fixed in code
+
+- **Seen:**
+  - 09:03:23–09:03:40: ten taps on the playing video's controls landed on no button and were logged "Click at … in VideoOSD.xml: control 0 (not handled)". The controls stayed.
+  - After the last tap they were still up 12 s later, until the owner tapped back.
+- **Root cause:**
+  - The controls (`player_osd.window`) had nothing under the buttons to take a tap.
+  - Kodi only auto-closes its controls when a mouse move opened them, never after a tap.
+  - The app's own timer (Settings › Customisation › Video Controls › Hide Controls After, Fuse's `OSD_Timeout`) ships empty, and empty means never.
+- **Fix:**
+  - A clear full-screen button (id 7100) under every other control closes the controls, as a tap does in Apple's player. Real buttons above it keep their taps, and arrow-key focus never reaches it.
+  - Hide Controls After becomes 5 s the first time the controls open (once, `ios_osd_timeout_default`). The shipped skin settings stay as they are: they are pinned by hash.
+  - Emptying it later, or setting 0, still means never. While paused or with Continue Watching open, the controls stay, as before. Nothing new is drawn.
+- **Tests:** test_customisation `test_tap_anywhere_hides_and_five_seconds_by_default` (plus the updated alarm test); test_portrait skips the clear area in its safe-inset check.
+- **Phone check:** while a video plays, tap the picture away from the buttons and the controls hide. Leave them and they hide after 5 s. Paused, they stay.
+
+## ISSUE-280 — Umbrella streams sat at "Getting ready to play… 0%" for about 30 s, then the video appeared (owner screenshots, build 430, log 72b62563) — speed fixed in code; the card's new line waits for mockup approval
+
+- **Seen (Black Clover S02E07, 1.70 GB WEB MKV through AllDebrid):** the open took 32.2 s ("handoff 11.3 s, open 21.0 s"), and 27.8 s the second time. Kodi's own open of the file accounts for 19 s, from `Creating Demuxer` at 09:03:01.5 to the probe at 09:03:20.2, inside FFmpeg's `avformat_open_input`.
+- **Root cause (inferred, not measured on the phone):**
+  - Kodi reads an Umbrella link itself, over one connection. ISSUE-163 measured AllDebrid at about 0.7 MB/s per connection.
+  - An MKV's start (header, tracks, the first clusters for probing) plus a jump to its end (tags and index) is roughly 13 MB of reads and reconnects at that speed: about 19 s. Kodi's FFmpeg already skips attached fonts (roadmap 1B.1).
+  - Umbrella's card percentage stops once it has the link, so the card said 0% throughout.
+- **Fix (speed):** an Umbrella MKV / AVI / WebM now opens through the service's stream cache (`remote_media`, ISSUE-145/163/259), which until now served only AirPlay.
+  - `umbrella_recovery.remember`, which already runs inside Umbrella's AllDebrid unlock, swaps `response['link']` for the cache's 127.0.0.1 address (`remote_media.for_kodi`). The cache reads with four connections at once, and asks for the file's first two 4 MB blocks and its last block the moment the link is known.
+  - Fallback: any failure, a missing service or another kind of link leaves Umbrella's link unchanged. Already-patched Umbrella installs need no re-patch.
+  - Play on TV translates the cache address back to the real link (`remote_media.original`), so a TV never gets 127.0.0.1, and it shares the same cache instead of reading the file again.
+  - The source Kodi reads is released after 120 s with no reads; a TV reading it keeps it alive.
+- **Tests:** test_remote_media `KodiPlays` (6) covers: the cache route with start and end asked for; other links unchanged; Play on TV gets the real link and shares the cache; idle release; the Umbrella unlock hands Kodi the cache; cast translation.
+- **Card (UI):** `docs/design/stream-opening-mockups.html` board S1 has three honest stages under the bar: getting the link (sliding bar, seconds), opening the video (real MB read of 12 MB), and a slow-source note with the real speed. It waits for the owner's approval before code.
+- **Phone check:** an Umbrella MKV opens in a few seconds rather than about 30. The `open timing … via umbrella` line shows the new open time. Play on TV of the same episode still works.
