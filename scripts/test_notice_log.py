@@ -106,7 +106,7 @@ class Sheet(unittest.TestCase):
   self.assertLessEqual(top+int(listing.findtext('height')),portrait.HEIGHT-170)
  def test_registered_and_pill_hidden(self):
   self.assertIn('notice_page.files(ns)',(LIB/'portrait.py').read_text())
-  self.assertIn('IOSNoticeDetail.xml',(LIB/'activity_skin.py').read_text())
+  self.assertFalse((LIB/'activity_skin.py').exists())   # ISSUE-287: no pill to hide
 
 class TapAMessage(unittest.TestCase):
  """The real notifications.py against the fake Kodi of test_library_status."""

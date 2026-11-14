@@ -56,7 +56,7 @@ class StartupImports(unittest.TestCase):
   self.assertEqual(late.dumps([1]),'[1]');self.assertIsNotNone(late._module)
  def test_service_names_still_bound(self):
   src=SERVICE_PY.read_text()
-  for name in ('activity','signin_server','background','calibration','driveupload','portrait','umbrella_ready'):self.assertIn(name+'.',src)
+  for name in ('signin_server','background','calibration','driveupload','portrait','umbrella_ready'):self.assertIn(name+'.',src)
   self.assertIn("[_Late(n) for n in",src)
 
 import threading,time,re

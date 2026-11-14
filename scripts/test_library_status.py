@@ -145,9 +145,9 @@ class Skin(unittest.TestCase):
    self.assertIn('Window().Property(next.0.%s)'%k,self.page,k)
  def test_status_sheet_closes_with_a_cross(self):
   self.assertIn('close_cross.png',self.sheet);self.assertTrue(all(c.findtext('label')!='Done' for c in self.sheetx.iter('control') if c.get('type')=='button'))
- def test_pill_stays_off_this_page(self):
-  skin=(LIB/'activity_skin.py').read_text()
-  self.assertIn('IOSLibraryStatus.xml',skin);self.assertIn('IOSLibraryItem.xml',skin)
+ def test_no_activity_pill(self):
+  # ISSUE-287: the activity pill is gone (the owner follows work here and in Notifications).
+  self.assertFalse((LIB/'activity_skin.py').exists());self.assertNotIn('activity pill tap',self.page)
  def test_registered_in_the_skin(self):
   files=library_page.files(portrait)
   self.assertEqual(sorted(Path(k).name for k in files if k.endswith('.xml')),['IOSLibraryItem.xml','IOSLibraryStatus.xml'])
