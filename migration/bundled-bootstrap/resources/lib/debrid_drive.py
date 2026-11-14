@@ -753,6 +753,15 @@ def pack_root(name):
     return text.strip().casefold()
 
 
+def _said(error, limit=160):
+    """ISSUE-285: an error's own words for the log, with links and keys removed."""
+    try:
+        import diagnostics
+        return diagnostics.redact(str(error), limit)
+    except Exception:
+        return str(error)[:limit]
+
+
 def episode_label(job):
     """'Naruto Shippuuden · S2 E33' for an episode, the title otherwise (ISSUE-268: a one-episode message names it)."""
     title = job.get('title') or job.get('name') or ''
@@ -1476,8 +1485,10 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                                 if again:
                                     todo.append(entry)
                             if again:
-                                log('%s: %s; trying it again after the others (%d of %d)' % (
-                                    entry[0].get('title') or entry[0]['name'], type(error).__name__, retried[id(entry[1])], RETRIES_IN_RUN))
+                                # ISSUE-285 (owner log 6cf2a4c5: "Rick and Morty: RuntimeError; trying it again after the others",
+                                # with no way to tell which one): the episode and the error's own words.
+                                log('%s: %s: %s; trying it again after the others (%d of %d)' % (
+                                    episode_label(entry[0]), type(error).__name__, _said(error), retried[id(entry[1])], RETRIES_IN_RUN))
                                 continue
                             if entry[0] is job:
                                 raise

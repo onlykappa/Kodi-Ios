@@ -4196,3 +4196,19 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
     progress … if I watch it again it can show back up". It stays off the rows until it is played again.
 - **Test:** test_watch_continue `RemoveFromContinue`; test_portrait `test_continue_watching_leads_each_hub` (the stamp is in
   the row's path).
+- **Retest (follow-up):** test_listing_cache `test_a_rows_address_cannot_change_when_the_home_tab_is_shown_again`
+  failed on the stamp (it reads `Window(Home)`). The stamp changes only when a title is removed, never on a tab return,
+  so the test now ignores exactly `portrait.CONTINUE_STAMP` and still rejects any other window info in a row address.
+
+## ISSUE-285 — "AllDebrid … RuntimeError; trying it again after the others" named no cause (owner, build 442) — logging fixed; cause waits for the next log
+
+- **Cause of the blind spot:** `debrid_drive` logged only the error's type (`RuntimeError`) when a copy was queued for a
+  retry. A RuntimeError there can be any of eight things (Drive upload start / upload HTTP status, Drive did not confirm
+  the upload, the download stopped before the end, an invalid receipt or confirmed position, the refreshed download is
+  a different file, Drive has a different size). Log 6cf2a4c5 was not available in this session, so the cause could not
+  be read from it.
+- **Fix:** the retry line now names the episode (`episode_label`) and the error's own words, redacted
+  (`diagnostics.redact`: links, keys, magnets) and cut at 160 characters (`debrid_drive._said`). The startup line of
+  ISSUE-282 does the same for `keep_copying`.
+- **Next:** the owner's next log after a retry shows which one it is; the fix follows in its own entry.
+- **Test:** test_build442_logs (the retry line carries `_said(error)`; `_said` keeps the words and removes a link).
