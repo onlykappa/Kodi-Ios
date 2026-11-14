@@ -16,7 +16,13 @@ WARM_BLOCKS=2;WARM_AFTER=8
 # reads an Umbrella MKV / AVI / WebM through this cache too: four connections at once, and the file's first blocks and
 # its last block (Matroska's tags and index) asked for the moment the link is known. Released after KODI_IDLE seconds
 # with no read. False: Kodi reads the link itself, as before.
-KODI_PLAYBACK=True;KODI_IDLE=120
+# OFF (owner, build 442: no Umbrella stream plays, fresh or resumed from Continue Watching): Kodi reads the AllDebrid
+# link itself again, as in build 430, until this route is proven on the phone. Play on TV still uses the cache.
+KODI_PLAYBACK=False;KODI_IDLE=120
+# ISSUE-281 (owner: stuck, then a crash on Resume): a paused player reads nothing, so the idle rule closed the source
+# under it and Resume reopened a dead 127.0.0.1 address. While Kodi still has this source open (playing or paused) it
+# is kept, up to KODI_CAP seconds with no read.
+KODI_CAP=30*60
 # ISSUE-281 (owner, build 442: an Umbrella episode sat at "Opening the video · 0 of 12 MB", then the app crashed on Resume):
 # Kodi is handed the cache only once the cache has an answer from the link (its size) within FIRST_ANSWER seconds;
 # otherwise Kodi reads the link itself, as before ISSUE-280.
@@ -88,7 +94,8 @@ class Foreground(drive_stream.DriveStream):
 
 
 class Broker:
- def __init__(self,context=None,source_factory=None,renew_link=None,open_url=None):
+ def __init__(self,context=None,source_factory=None,renew_link=None,open_url=None,playing=None):
+  self.playing=playing or (lambda:'')   # ISSUE-281: the file Kodi has open ('' when none)
   self.lock=threading.Lock();self.current=None;self.ident='';self.secret=secrets.token_urlsafe(24)
   self.warm=False;self.source=''   # ISSUE-259: current is a warmed source no TV has taken yet
   self.kodi=False;self.opened=0.0  # ISSUE-280: current is what Kodi's own player reads (released when idle)
@@ -178,6 +185,9 @@ class Broker:
    last=self.current.stats().get('last_read') or 0
    idle=time.time()-last if last else now-self.opened
    if idle<KODI_IDLE:return False
+   try:open_in_kodi=self.current.media_url in (self.playing() or '')
+   except Exception:open_in_kodi=True   # unsure: keep it (a dead address under the player is the worse failure)
+   if open_in_kodi and idle<KODI_CAP:return False
    self.current.close();self.current=None;self.ident='';self.kodi=False;self.source=''
    return True
  def _reap(self):
@@ -200,7 +210,7 @@ def prefetch(source,blocks=None):
  except Exception:pass
 
 
-def start(monitor,window,context=None,open_url=None):
+def start(monitor,window,context=None,open_url=None,playing=None):
  """Register on Kodi's Home window (the service's `home` is a filesystem Path).
  ISSUE-281 (log 6cf2a4c5): the Drive loop restarted every 30-600 s (ISSUE-282) and each start made a new cache and moved
  the Home property to it, so Kodi read one cache while the opening card counted another ("0 of 12 MB"). The cache made by
@@ -208,7 +218,7 @@ def start(monitor,window,context=None,open_url=None):
  old=_BROKER[0]
  if old is not None and not old.stopped.is_set():
   window.setProperty(PROPERTY,old.url);return old
- broker=Broker(context=context,open_url=open_url);_BROKER[0]=broker
+ broker=Broker(context=context,open_url=open_url,playing=playing);_BROKER[0]=broker
  try:
   window.setProperty(PROPERTY,broker.url)
   def close_sources():

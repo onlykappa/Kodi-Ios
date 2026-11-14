@@ -4492,3 +4492,10 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - Kodi's own grey progress box never appears.
   - More › Library status opens Library status.
   - A Burst error still shows in Notifications.
+
+## ISSUE-281 (continued) — No Umbrella stream played in build 442; Resume after a pause crashed — fixed in code
+
+- **Owner, build 442:** no Umbrella stream plays, either fresh or from Continue Watching. Log beee3eba: the source card showed for 15 s with no hand-off to Kodi.
+- **Fix 1:** the stream cache route for Kodi's own player (ISSUE-280) is off: `remote_media.KODI_PLAYBACK=False`. Kodi reads the AllDebrid link itself, as in build 430, so Umbrella's unlock no longer waits on the cache. Play on TV still uses the cache. The route can come back once it is proven on the phone.
+- **Fix 2:** the broker never closes a source that is still Kodi's playing file, paused or not, up to 30 min with no read. Before, it closed it after 120 s with no read, so Resume met a dead 127.0.0.1 address (found by the PR #30 review).
+- **Tests:** test_remote_media `test_the_route_is_off_by_default` and `test_a_paused_source_survives_while_kodi_has_it_open`. The ISSUE-280 route tests still run with the route switched on.

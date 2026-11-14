@@ -432,7 +432,9 @@ def drive_uploads(monitor,home,profile):
  except Exception as error:xbmc.log('Kodi iOS Drive: system networking unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
  xbmc.log('Kodi iOS Drive: uploads use %s'%('system networking' if native else 'Python networking'),xbmc.LOGINFO)
  xbmc.log('Kodi iOS Drive: media reads use %s'%('system networking' if native_reader else 'Python networking'),xbmc.LOGINFO)
- try:remote_media.start(monitor,xbmcgui.Window(10000),context=tls_context(),open_url=native_reader)
+ # ISSUE-281: the broker keeps a source Kodi still has open (paused too), so Resume never meets a closed address.
+ try:remote_media.start(monitor,xbmcgui.Window(10000),context=tls_context(),open_url=native_reader,
+                        playing=lambda:xbmc.Player().getPlayingFile() if xbmc.getCondVisibility('Player.HasVideo') else '')
  except Exception as error:diagnostics.log_exception(xbmc,'media_source_bridge',error)
  # ISSUE-259: read the start and the index of a video playing in Kodi (Wi-Fi only) so a later Play on TV starts sooner.
  if airplay.converts(playback_lib):
