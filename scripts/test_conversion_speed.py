@@ -313,7 +313,8 @@ class Build180Log(unittest.TestCase):
  def test_subtitle_rule_and_export(self):
   c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
   self.assertIn('if(p->codec_type==AVMEDIA_TYPE_SUBTITLE && !keep_subtitle(original,i))continue;',c)
-  self.assertIn('text_sub(p->codec_id) && keep_subtitle(original,i)))mapped++;',c)   # verify counts the same
+  # verify counts the same (r54/r55: a kept DVD picture subtitle is kept in the MP4 and counted too, ISSUE-226/229)
+  self.assertIn('(text_sub(p->codec_id) || dvdsub(p)) && keep_subtitle(original,i)))mapped++;',c)
   self.assertIn('_kodi_airplay_prepare_subtitle_languages',(ROOT/'migration/airplay-ios/build-airplay.sh').read_text())
   self.assertIn('native.set_subtitle_languages(languages)',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
  def test_subtitle_files_go_up_in_the_background(self):
