@@ -140,6 +140,15 @@ class AllDebrid(object):
         return data['link'], str(data.get('filename') or ''), int(data.get('filesize') or 0)
 
 
+def pack_number(base, episode):
+    """The absolute number of a later season's episode. ISSUE-262 (owner screenshot and log e56f8adf, build 406: 22 Naruto
+    Shippuden S2 episodes failed "This torrent has no video file"): TMDb numbers some shows' later seasons on from the
+    last ("Naruto Shippuden S02E33" is the 33rd episode), others from 1 (S02E01). An episode number past the episodes
+    before its season is already absolute; adding them again looked for episode 65 in a 001-500 pack."""
+    episode = int(episode)
+    return episode if episode > base else base + episode
+
+
 def pick(files, kind, season=None, episode=None, episodes=None, offset=None):
     """The video files to copy: the largest for a movie, the matching episode for an episode, every episode for a
     season. Samples and extras are left out."""
@@ -158,7 +167,7 @@ def pick(files, kind, season=None, episode=None, episodes=None, offset=None):
             # by absolute number ("Naruto Shippuden Episode 006 ….mkv"); nothing matched S01E06 and every episode job
             # copied the pack's largest file (its film) as "S01E01". Season 1's episodes are the first absolute numbers.
             # Later seasons: absolute = the episodes before this season (TMDb, debrid_drive passes offset) + episode.
-            wanted = [f for f in videos if not number(f[0].rsplit('/', 1)[-1]) and absolute(f[0]) == base + target[1]
+            wanted = [f for f in videos if not number(f[0].rsplit('/', 1)[-1]) and absolute(f[0]) == pack_number(base, target[1])
                       and season_folder(f[0]) in (None, target[0])]
         if wanted:
             return sorted(wanted, key=lambda f: -f[1])[:1]
@@ -170,7 +179,7 @@ def pick(files, kind, season=None, episode=None, episodes=None, offset=None):
         found = sorted([f for f in videos if number(f[0].rsplit('/', 1)[-1]) in wanted], key=lambda f: f[0])
         base = 0 if int(season) == 1 else offset
         if not found and base is not None:   # an absolute-numbered pack
-            numbers = {base + int(n) for n in episodes}
+            numbers = {pack_number(base, n) for n in episodes}
             found = sorted([f for f in videos if not number(f[0].rsplit('/', 1)[-1]) and absolute(f[0]) in numbers], key=lambda f: f[0])
         return found
     numbered = [f for f in videos if number(f[0].rsplit('/', 1)[-1])]

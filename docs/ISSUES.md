@@ -3763,3 +3763,21 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Not done:** a second conversion lane for 10-bit H.264 (native; needs a KodiAirPlay release), kept as a later speed-up.
 - **Retest:** test_remote_media `Warm` (5 tests). Phone check: the log says "the playing video is ready for the TV", and the
   next Play on TV's source_cache event has warmed=true and a shorter "indexed inspection finished after".
+
+## ISSUE-262 — 22 Naruto Shippuden season 2 episodes failed "This torrent has no video file" (owner screenshot and log e56f8adf, build 406) — fixed in code
+
+- **Seen:** Download problems: "NEED A NEW SOURCE · 22", rows S2 E36, E41, E42, E43, E44 … "This source has no video file". The picker
+  chose "Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio)", whose season 2 files are
+  "Season 02 (033-053)/Naruto Shippuden Episode 033 The New Target.mkv".
+- **Cause:** ISSUE-254 let the season sizes through (season 2 starts after 32 episodes). But TMDb numbers this show's later
+  seasons on from the last (S02E33 is the 33rd episode), and `alldebrid.pick` always added the 32. So S02E33 looked for
+  episode 65, found nothing, and failed.
+- **Fix:**
+  - `alldebrid.pack_number`: an episode number past the episodes before its season is already absolute; otherwise the
+    offset is added (S02E13 is still 45).
+  - `debrid_drive.repick_packs`: later-season episodes that failed "has no video file" go back in line once, so the 22
+    copies start by themselves.
+- **Retest:** test_debrid_drive `PackNumbering`; test_download_e2e `test_season_two_of_an_absolute_pack` (relative numbering)
+  still passes.
+- **Also on the page, not this bug:** "S1 E6 · Unnamed download · No one is sharing this source" is a dead torrent whose job
+  had no title.

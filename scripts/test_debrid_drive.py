@@ -831,4 +831,26 @@ class ProblemTitles(unittest.TestCase):
         self.assertEqual(debrid_drive.problem_title({'title': 'Naruto Shippuden', 'name': h}), 'Naruto Shippuden')
 
 
+class PackNumbering(unittest.TestCase):
+    """ISSUE-262 (owner screenshot and log e56f8adf, build 406): 22 Naruto Shippuden S2 episodes failed "no video file"."""
+    PACK=[('Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio)/Season 02 (033-053)/'
+           'Naruto Shippuden Episode %03d T.mkv' % n, 300, 'l%d' % n) for n in range(33, 54)]
+    def test_tmdb_numbering_on_from_the_last_season(self):
+        got = alldebrid.pick(self.PACK, 'episode', '2', '33', offset=32)
+        self.assertEqual([f[0].rsplit('/', 1)[1] for f in got], ['Naruto Shippuden Episode 033 T.mkv'])
+        got = alldebrid.pick(self.PACK, 'episode', '2', '1', offset=32)          # numbered from 1: still episode 33
+        self.assertEqual([f[0].rsplit('/', 1)[1] for f in got], ['Naruto Shippuden Episode 033 T.mkv'])
+        got = alldebrid.pick(self.PACK, 'season', '2', episodes=['36', '41'], offset=32)
+        self.assertEqual([f[2] for f in got], ['l36', 'l41'])
+    def test_failed_later_season_episodes_go_back_once(self):
+        state = {'jobs': [{'kind': 'episode', 'season': '2', 'episode': '36', 'status': 'failed', 'magnet': '9',
+                           'error': 'Problem: This torrent has no video file.', 'files': []},
+                          {'kind': 'episode', 'season': '1', 'episode': '6', 'status': 'failed', 'error': 'Problem: This torrent has no video file.'},
+                          {'kind': 'episode', 'season': '2', 'episode': '40', 'status': 'failed', 'error': 'Problem: no one is sharing it'}]}
+        self.assertEqual(len(debrid_drive.repick_packs(state)), 1)
+        self.assertEqual((state['jobs'][0]['status'], state['jobs'][0].get('error')), ('copying', None))
+        state['jobs'][0].update(status='failed', error='Problem: This torrent has no video file.')
+        self.assertEqual(debrid_drive.repick_packs(state), [])                    # once only
+
+
 if __name__=='__main__':unittest.main()

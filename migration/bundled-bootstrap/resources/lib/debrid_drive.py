@@ -311,6 +311,21 @@ def problems(state):
     return out
 
 
+def repick_packs(state):
+    """ISSUE-262: later-season episodes that failed "This torrent has no video file" before the pack numbering fix go
+    back in line once (their pack was never read correctly). Returns the jobs."""
+    back = []
+    for job in state['jobs']:
+        if (job.get('status') == 'failed' and job.get('kind') == 'episode' and not job.get('repicked')
+                and str(job.get('season') or '').isdigit() and int(job['season']) > 1
+                and 'has no video file' in str(job.get('error') or '')):
+            job.update(status='copying' if job.get('magnet') else 'new', files=[], tries=0, net_tries=0, retry_at=0, repicked=1)
+            job.pop('finished', None)
+            job.pop('error', None)
+            back.append(job)
+    return back
+
+
 def retry_failed(profile, kinds=('network', 'source'), only=None):
     """Settings › Library › Download problems › Retry: those copies go back in line (only: the problems' keys, from
     problems()). Returns how many."""
@@ -985,6 +1000,10 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     dropped = drop_duplicates(state) + drop_on_drive(state, drive_episodes(profile), lambda job: better_version.replacing(profile, job))
     CONVERTING[0] = lambda: conversion_running(profile, clock())
     OFFSET[0] = offset_lookup(profile)
+    repicked = repick_packs(state)
+    if repicked:
+        log('%d later-season episodes read their pack again (ISSUE-262)' % len(repicked))
+        save(profile, state)
     for job_ in dropped:
         log('%s S%sE%s: already on Drive or downloading from another version; this one is removed' % (
             job_.get('title') or job_['name'], job_.get('season'), job_.get('episode')))
