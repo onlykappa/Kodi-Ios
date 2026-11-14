@@ -172,5 +172,33 @@ class PagesReadTheIndex(unittest.TestCase):
         self.assertEqual(li.counts(index)['total'], li.counts(index, 'tv')['total'] + li.counts(index, 'movies')['total'])
 
 
+class DownloadProblemsReadTheIndex(unittest.TestCase):
+    def test_the_page_lists_what_the_index_counts(self):
+        import importlib.util, debrid_drive
+        listing, prep, debrid = owner_state()
+        index = li.build(listing, prep, debrid)
+        spec = importlib.util.spec_from_file_location('copy_problems_idx', ROOT / 'migration/bundled-bootstrap/copy_problems.py')
+        cp = importlib.util.module_from_spec(spec);spec.loader.exec_module(cp)
+        found = cp.from_index('/nonexistent', debrid_drive.problems(debrid), index)
+        copies = [p for p in found if p['kind'] != 'cancelled']
+        # The page's copy problems are exactly the index's copy problems (S1 E6 on Drive and S2 E40 replaced are gone).
+        self.assertEqual(sorted(p['key'] for p in copies),
+                         sorted(e['problem_key'] for e in li.problems(index) if e['state'] == li.PROBLEM and e['id'] is None))
+        self.assertNotIn('old6', [p['hash'] for p in found])
+        self.assertTrue(all('Unnamed download' not in p['title'] for p in found))
+
+
+class LibraryStatusReadsTheIndex(unittest.TestCase):
+    def test_the_headline_is_the_index_count(self):
+        import library_rows, prepare_downloads
+        listing, prep, debrid = owner_state()
+        index = li.build(listing, prep, debrid)
+        view = prepare_downloads.library_view({'jobs': {}, 'library': {'items': [], 'checked': 0}})
+        props = library_rows.page_properties(view, False, index)
+        c = li.counts(index)
+        self.assertEqual(props['headline'], '%d of %d ready' % (c['ready'], c['total']))
+        self.assertEqual((props['count.ready'], props['count.kept']), (str(c['ready']), str(c['kept'])))
+
+
 if __name__ == '__main__':
     unittest.main()

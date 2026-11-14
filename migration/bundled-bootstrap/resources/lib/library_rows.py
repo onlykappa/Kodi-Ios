@@ -133,11 +133,18 @@ def segments(counts, width, gap):
     return out
 
 
-def page_properties(view, checking=False):
-    """Window properties for the page's top: subtitle, ring, headline and legend."""
+def page_properties(view, checking=False, index=None):
+    """Window properties for the page's top: subtitle, ring, headline and legend. index: the Library index (DEC-052):
+    "84 of 87 ready" and the Ready / Working / Kept tiles are its counts, the numbers every Library page shows."""
     rows = view['rows']
     counts = {'ready': view['ready'], 'working': len(rows['preparing'])+len(rows['downloading']),
               'next': len(rows['waiting']), 'kept': view['kept']}
+    if (index or {}).get('videos'):
+        import library_index
+        c = library_index.counts(index)
+        counts = {'ready': c['ready'], 'working': max(0, c['working'] - len(rows['waiting'])), 'next': len(rows['waiting']),
+                  'kept': c['kept']}
+        view = dict(view, ready=c['ready'], total=c['total'], pct=round(100 * c['ready'] / max(1, c['total'])))
     total = sum(counts.values())
     eta = sum(float(r.get('eta_s') or 0) for group in rows.values() for r in group)
     props = {'sub': 'Kodi Downloads on Google Drive · '+('checking now…' if checking else view['checked']),

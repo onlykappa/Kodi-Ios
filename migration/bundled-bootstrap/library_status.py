@@ -200,7 +200,8 @@ def run(args=()):
     if self.checking and (state.get('library') or {}).get('checked',0)>=self.checking:self.checking=0
     if self.checking and time.time()-self.checking>300:self.checking=0
     self.view=view
-    props=library_rows.page_properties(view,bool(self.checking))
+    import library_index
+    props=library_rows.page_properties(view,bool(self.checking),library_index.load(profile))   # DEC-052: the one index's counts
     for k,v in props.items():self.setProperty(k,v)
     items=library_rows.list_items(view,self.filter)
     self.items=items
