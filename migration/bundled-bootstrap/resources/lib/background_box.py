@@ -33,13 +33,16 @@ def read_box(xbmc,xbmcgui):
  return (heading,text) if heading or text else None
 
 
+IDLE=2.0   # no box on screen: look every 2 s (roadmap 1E.7)
+
+
 def watch(read,report,wait,interval=1.0):
  """Report each Burst error once per appearance of the box. read() -> (heading, text) or None; report(text);
  wait(s) -> True to stop."""
- seen=set()
- while not wait(interval):
+ seen=set();shown=False
+ while not wait(interval if shown else IDLE):
   try:
-   box=read()
+   box=read();shown=bool(box)
    if not box:
     seen.clear();continue
    problem=burst_problem(*box)

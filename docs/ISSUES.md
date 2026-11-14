@@ -4431,3 +4431,29 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   it cannot identify the owner's original individual failure. Host checks do not prove device recovery.
 - **Test:** scripts/test_terminal_copy_errors.py (26 cases); updated test_debrid_drive, test_drive_upload and
   test_library_tools fixtures; check_project and every workflow-listed test before commit.
+
+## ISSUE-287 — The activity pill and its sheet are removed (owner, build 442: "I use Library status or the notification tray") — done in code
+
+- **Owner decision (2026-11-14):** remove the activity pill and its sheet entirely.
+- **Removed:**
+  - `activity.py`, `activity_skin.py`, `activity_page.py` and the service loop that read Kodi's background box every half second.
+  - The pill windows (Custom_1187_Activity.xml, portrait and landscape) and the sheet (IOSActivity.xml).
+  - The pill's tap area injected into every page.
+  - The start-up box that fed the pill ("Getting things ready").
+  - The add-on settings category "activity".
+  - Existing installs: `portrait.write` deletes the old pill windows.
+- **Kept (moved to `skin_textures.py`):**
+  - The ring_00–ring_20 textures (Notifications, Library status).
+  - sheet_bg and row_only/first/last.
+  - Kodi's background progress box drawn invisible (otherwise Kodi's own box would show again).
+  - The fonts p_pill and p_pill_s (Notifications).
+- **Kept (new `background_box.py`):** Elementum Burst's error lines in that box still reach Notifications, once per appearance. It looks every 2 s while nothing shows (the pill's loop looked every 0.5–1.5 s).
+- **More menu:** "Transfers" (which opened the pill's sheet) is now "Library status".
+- **Tests:**
+  - test_skin_textures (new): textures and hidden box generated, no pill anywhere, old windows deleted, Burst error reported once, service wiring.
+  - test_polling_loops (Burst watcher wake-ups), test_library_status, test_notice_log, test_speed_fixes (updated).
+- **Phone check:**
+  - No pill on any page, nothing where it used to be.
+  - Kodi's own grey progress box never appears.
+  - More › Library status opens Library status.
+  - A Burst error still shows in Notifications.
