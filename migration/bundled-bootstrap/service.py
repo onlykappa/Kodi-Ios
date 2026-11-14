@@ -412,7 +412,8 @@ def keep_copying(monitor,home,profile,run=None,wait=None):
    notices.add(profile,'problem','Downloads stopped',"The download and upload service stopped (%s). It starts again by itself; if this keeps "
                "coming back, share the log."%why,group='downloads-stopped')
    delay=min(600,30*2**min(failures-1,5))
-   xbmc.log('Kodi iOS Drive: downloads stopped (%s); starting again in %d s (try %d)'%(type(error).__name__,delay,failures),xbmc.LOGWARNING)
+   # ISSUE-282 (log 6cf2a4c5: "downloads stopped (NameError)" on every start, with no hint which name): the message too.
+   xbmc.log('Kodi iOS Drive: downloads stopped (%s: %s); starting again in %d s (try %d)'%(type(error).__name__,diagnostics.redact(str(error))[:200],delay,failures),xbmc.LOGWARNING)
    if wait(delay):return
 
 
@@ -617,7 +618,7 @@ def drive_uploads(monitor,home,profile):
  # open pages redraw at once.
  import library_index
  threading.Thread(target=library_index.publish,args=(profile,monitor.waitForAbort),
-                  kwargs={'set_property':window.setProperty,'drive_health':lambda:dict(drive_health),
+                  kwargs={'set_property':xbmcgui.Window(10000).setProperty,'drive_health':lambda:dict(drive_health),   # ISSUE-282: not `window` (NameError)
                           'log':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGWARNING),
                           'note':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)},daemon=True).start()
  # Build 193: "idle" only means Kodi is not closing (build-192 log: one busy look made the queue wait 120 s).

@@ -4131,3 +4131,23 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - Desktop Kodi rig render of stages a, b and c: matches the boards, no cut-off text (screenshots kept out of Git). Phone check pending.
 
 **Delivery (owner OK, 2026-11-14):** IPA build-442 was built from f1d6447 (import-review run 43623141308) and carries ISSUE-276 to 280 and AirPlay r57. It was downloaded and checked: sha256 982d4a24…4ed7dbb, the zip is valid, and the framework carries the r57 restart note. The library index, poll_fetching, the for_kodi route, the tap-to-hide area and the stage line are all inside. Phone checks are pending for every item.
+
+## ISSUE-282 — "Kodi iOS Drive: downloads stopped (NameError); starting again in 30/60/120 s" from startup (owner log 6cf2a4c5, build 442) — fixed in code
+
+- **Seen:** from 10:29:55 the service's Drive loop stopped at once on every start, and the ISSUE-269 watchdog restarted it.
+  The log gave only the error's type.
+- **Cause:** PR #27 (DEC-052, library index step 2) starts `library_index.publish` inside `drive_uploads` with
+  `set_property=window.setProperty`. `window` is a name of `run()`, not of `drive_uploads` (which calls the Home window
+  `home`, a path, and has `xbmcgui`). So `drive_uploads` raised NameError right after the Library lists thread started.
+  Nothing after it ran: no AllDebrid copies, no Drive uploads, no preparation, and the library index never published.
+- **Fix:**
+  - `xbmcgui.Window(10000).setProperty`.
+  - The watchdog logs the message too ("downloads stopped (NameError: name 'window' is not defined)"), redacted, 200
+    characters.
+  - Two latent undefined names in `library_tools_page` (`u` in `_card_row` / `_arrow`) are fixed as well.
+- **Test:** test_undefined_names (new; symtable over the service, the page scripts and every library module: a function
+  may only use its own, an enclosing function's, the module's or a builtin name). It reports `drive_uploads uses window`
+  on the old code.
+- **Also:** test_library_tools `test_failures_are_noted_where_jobs_fail` expects 4 failure records in debrid_drive. PR #27
+  added one for jobs that end while AllDebrid fetches, and the test still said 3, so the import-review list failed on
+  this branch before this change.
