@@ -49,8 +49,34 @@ class BlockUpdates(unittest.TestCase):
 
     def test_the_service_runs_the_guard_and_survives_an_unpatched_clouddrive(self):
         service = (ROOT / 'migration/bundled-bootstrap/service.py').read_text()
-        self.assertLess(service.index('pinned_addons.restore('), service.index('target=drive_uploads'))
+        self.assertLess(service.index('pinned_addons.restore('), service.index('target=keep_copying'))
         self.assertIn('except ImportError:', service);self.assertIn("special://xbmc/addons/script.module.clouddrive.common/", service)
+
+
+class Watchdog(unittest.TestCase):
+    """ISSUE-269: a crashed copy thread says so once and starts again, never a silent freeze."""
+    def test_it_tells_once_and_starts_again(self):
+        import ast, types
+        src = (ROOT / 'migration/bundled-bootstrap/service.py').read_text()
+        tree = ast.parse(src)
+        fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'keep_copying')
+        notes, logs, waits = [], [], []
+        ns = {'diagnostics': types.SimpleNamespace(log_exception=lambda *a, **k: None, redact=lambda e: str(e)),
+              'notices': types.SimpleNamespace(add=lambda *a, **k: notes.append((a, k)))}
+        sys.modules['xbmc'] = types.SimpleNamespace(log=lambda *a: logs.append(a), LOGWARNING=2)
+        try:
+            exec(compile(ast.Module(body=[fn], type_ignores=[]), 'service.py', 'exec'), ns)
+            calls = []
+            def run(monitor, home, profile):
+                calls.append(1)
+                if len(calls) < 3:
+                    raise ImportError("cannot import name 'tls_context'")
+            ns['keep_copying'](None, None, '/p', run=run, wait=lambda s: waits.append(s) or False)
+        finally:
+            sys.modules.pop('xbmc', None)
+        self.assertEqual(len(calls), 3);self.assertEqual(waits, [30, 60])
+        self.assertEqual(notes[0][0][2], 'Downloads stopped');self.assertEqual(notes[0][1]['group'], 'downloads-stopped')
+        self.assertIn('target=keep_copying', src)
 
 
 if __name__ == '__main__':

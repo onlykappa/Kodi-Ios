@@ -3910,3 +3910,16 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - A single episode (no batch) keeps its own message, which now names the episode ("Naruto Shippuuden · S2 E33").
   - The quality question was already once per season (DEC-049). Repair already gives one start line and one summary.
 - **Retest:** test_notices `OnePerSeasonRequest`.
+
+## ISSUE-269 — A stopped download service was silent (owner log b98d5fc2, build 421) — fixed in code
+
+- **Owner:** "it seems frozen waiting for AllDebrid". The copy thread had died at start (ISSUE-267), and nothing said so.
+- **Fix:** the service runs drive_uploads under `keep_copying`. If it stops with an error, one notice says "Downloads
+  stopped (<reason>). It starts again by itself; if this keeps coming back, share the log." It is merged into one entry
+  (ISSUE-268 group), and the service starts again after 30 s, doubling up to 10 min.
+- **Also looked at in the same log (no change):**
+  - TMDb Helper's "GetDirectory … plugin.video.themoviedb.helper/resources/players/": it checks an optional home folder;
+    the bundled copy is used and playback continues.
+  - "…discover…with_companies=178464…page=3": the owner's Refresh moved the TMDb rows to page 3, which that studio row
+    does not have. The row hides itself for that page (it shows only with items).
+- **Retest:** test_pinned_addons `Watchdog`.

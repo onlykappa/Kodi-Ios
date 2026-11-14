@@ -342,7 +342,7 @@ def run():
  # Kept Elementum videos go to Google Drive in the background, never during playback.
  try:
   if xbmcaddon.Addon().getSettingBool('drive_upload') or xbmcaddon.Addon().getSettingBool('prepare_downloads'):
-   threading.Thread(target=drive_uploads,args=(monitor,home,profile),daemon=True).start()
+   threading.Thread(target=keep_copying,args=(monitor,home,profile),daemon=True).start()
  except Exception as error:xbmc.log('Kodi iOS Drive upload unavailable: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
  # Downloads and Drive uploads keep going when Kodi leaves the screen (KodiAirPlay r3 plays silence meanwhile).
  try:
@@ -387,6 +387,27 @@ def run():
    airplay.watch(airplay.cached_load(path),lambda:xbmc.getCondVisibility(airplay.PLAYING),monitor.waitForAbort)
  except Exception as error:xbmc.log('Kodi iOS AirPlay button unavailable: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
  while not monitor.waitForAbort(60):pass
+
+def keep_copying(monitor,home,profile,run=None,wait=None):
+ """ISSUE-269 (owner log b98d5fc2, build 421: the copy thread died at start and every download sat at "new" with no word):
+ drive_uploads runs under this watchdog. If it stops with an error, one notice says so in plain words ("Downloads
+ stopped") and it starts again after a pause (30 s, then up to 10 min), so a crash is never a silent freeze."""
+ import xbmc
+ run=run or drive_uploads;wait=wait or monitor.waitForAbort
+ failures=0
+ while True:
+  try:
+   run(monitor,home,profile);return            # it returns only when Kodi closes (or Drive is not set up)
+  except Exception as error:
+   failures+=1
+   diagnostics.log_exception(xbmc,'drive_uploads',error)
+   why=diagnostics.redact(error)[:140] if hasattr(diagnostics,'redact') else type(error).__name__
+   notices.add(profile,'problem','Downloads stopped',"The download and upload service stopped (%s). It starts again by itself; if this keeps "
+               "coming back, share the log."%why,group='downloads-stopped')
+   delay=min(600,30*2**min(failures-1,5))
+   xbmc.log('Kodi iOS Drive: downloads stopped (%s); starting again in %d s (try %d)'%(type(error).__name__,delay,failures),xbmc.LOGWARNING)
+   if wait(delay):return
+
 
 def drive_uploads(monitor,home,profile):
  """Download → upload → one-file preparation (build 193: slower, never stopped, while a video or AirPlay plays). Startup scan and new uploads share one queue/lock."""
