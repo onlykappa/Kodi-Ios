@@ -29,6 +29,16 @@ The owner's checklist answers for build 442 (2026-11-14), plus log 6cf2a4c5. Tha
     - Apply the same to every other page: Library status, the show page, Download problems, Notifications, Settings, the Queue, AI Upscale, Select, Transfers.
     - The rule is the same flick physics everywhere.
 
+11. **"Remove From Continue Watching" does nothing.**
+    - Find the action (the watch add-on's continue row, and the long-press or sheet entry).
+    - Make it remove the item from Kodi's resume points and every Continue Watching row, then refresh the row.
+    - Add a test.
+12. **Build Season "Checking which qualities exist…" sheet: redesign it.**
+    - The owner says it always says "Looking at episodes 1, 6 and 10", which reads as wrong, and the sheet looks ugly.
+    - The empty placeholders "4K · … 1080p · … 720p · …" and the large empty gap also look bad.
+    - Make a new page: mockups first, sent to the owner for approval before any code (policy §7).
+    - Say what it is doing in plain words, without naming sample episodes, and show the qualities as they are found.
+
 ## Still untested by the owner (ask again later)
 Play on TV of an Umbrella episode; Roku AirPlay of Naruto S1 E1 (r57); "AllDebrid is fetching it" notice; next episodes copy while one fetches; Wi-Fi ↔ cellular copies; Repair / Repair All; "Choose a version"; Pick Better Versions.
 
