@@ -3663,7 +3663,7 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Fix:** one rule on both: an episode (or movie) is a problem only while no other version of it is copying, waiting or done, and it is listed once (its latest failure). `debrid_drive.problems` and `library_files._copying_episodes`.
 - **Retest:** test_season_quality `ProblemsAgree`; test_debrid_drive updated (a failed Inception is no longer listed beside a finished one).
 
-## ISSUE-251 — Play on TV: the progress card goes, Apple's AirPlay list opens at once (owner, build 393) — fixed in code (AirPlay r56 staged)
+## ISSUE-251 — Play on TV: the progress card goes, Apple's AirPlay list opens at once (owner, build 393) — fixed in code (AirPlay r56 pinned)
 
 - **Owner:** "I would like this page removed everywhere and have it open straight to the AirPlay list instead of the ugly loading screen"; also "investigate why an Umbrella stream takes so long to AirPlay"; and "remove Media Assistant and just have it open to AirPlay".
 - **Done so far:** `cast.py` hides the progress card (`QUIET_PROGRESS`) and calls `kodi_airplay_open()` right after `kodi_airplay_play`; the framework opens the list again only when no AirPlay output is chosen (needs r56).
@@ -3683,7 +3683,7 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Seen:** Dragon Ball Super: Beerus S1 E1, 10-bit H.264 1080p MKV with a subtitle: source opened +1.8 s, index +4.6 s, first segment converted in 9.7 s (software decode of the 10-bit picture, VideoToolbox encode, subtitles burnt in; audio 8.8 s in parallel), stream ready +18 s, TV playing +28 s; then each segment kept the TV waiting 1-3 s (conversion ~160 % of real time).
 - **Analysis (native code read):** the audio reader already seeks by the file's index and shares the video reader's byte cache; the converter already works three segments ahead; the limit is decoding 10-bit H.264 on the CPU (the phone's hardware decoder does not take it) and the source's speed. A shorter first segment would touch the uniform segment math (gm_stream) for little gain.
 - **Fix:** Apple's AirPlay list opens at once, so choosing the TV overlaps the preparation (ISSUE-251); the source picker treats a "10bit" release that names no codec as 10-bit H.264 (badged "10-BIT · SLOW ON AIRPLAY", ranked after versions that play as they are), so a version that needs no conversion is preferred.
-- **Not done:** a second conversion lane, prefetching the source when a video starts in Kodi (needs new native session state), a lower output size for 10-bit H.264.
+- **Not done:** a second conversion lane and a lower output size for 10-bit H.264. Prefetching the source while Kodi plays: done in ISSUE-259.
 - **Retest:** test_season_quality `SlowOnAirPlay`.
 
 ## ISSUE-254 — "Waiting for the network" while online; season 2 of Naruto never started (owner screenshot and log fd2ee25a, build 398) — fixed in code
@@ -3721,7 +3721,7 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Fix:** when the picker takes a fallback for a tracked show, `debrid_drive.remember_fallback` records show, season and quality in `addon_data/service.kodi.ios.bootstrap/quality-fallbacks.json` (on the phone, not in Git). Later episodes of that season are copied without the strict-quality refusal. The picker still prefers a real match whenever one exists.
 - **Retest:** test_season_quality `ProblemsPageAndMemory`.
 
-## ISSUE-261 — AirPlay to the Apple TV sat loading for 2 minutes (owner photo and log dd13eb14, build 406) — partly fixed in code
+## ISSUE-261 — AirPlay to the Apple TV sat loading for 2 minutes (owner photo and log dd13eb14, build 406) — fixed in code
 
 - **Seen:** a Drive movie (MP4, 8-bit H.264 1920x1040, AAC 5.1; no conversion) sent to an Apple TV: source opened at +0.6 s,
   index at +8.4 s, first segment ready at +14.1 s, the TV asked at +14.5 s. Then the phone sent the TV its first video segment
@@ -3735,8 +3735,9 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - While AirPlay plays, background downloads were still allowed 1 MB/s (8 Mbit/s), several times what reached the TV.
   - The strain check that should slow them saw none of it: a write the TV gave up on is logged as "-200 …" and did not
     match, and Apple's "Media file not received" lines were ignored.
-  - Separately, the audio reader read 50 s of Drive data for audio segment 1. It reads the movie's interleaved bytes again
-    instead of sharing the video reader's. That is native work, left for the faster-start branch.
+  - The Drive reads themselves crawled: audio segment 1's reader waited 50 s and video segment 1 took 60 s for about 3 MB
+    (about 0.4 Mbit/s). This is not a double read: kr_source's cache is shared by the video, audio and subtitle readers,
+    and a reader waits for a block another is loading (checked in kr_source.c). The cause is the same shared Wi-Fi.
 - **Fix:** `slowdown`:
   - A failed write and Apple's "not received" or "no response" lines now count as strain. So does KodiAirPlay's
     "the TV is waiting for a video segment".
@@ -3759,7 +3760,6 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - Stopping or changing the video releases a warm source no TV took. A TV playing from the cache is never disturbed
     (`busy`).
   - Nothing is read on cellular or while Kodi buffers.
-- **Not done:** a second conversion lane for 10-bit H.264 (native; needs a KodiAirPlay release). The audio reader re-reading
-  an MP4 source's interleaved bytes is also open (ISSUE-261).
+- **Not done:** a second conversion lane for 10-bit H.264 (native; needs a KodiAirPlay release), kept as a later speed-up.
 - **Retest:** test_remote_media `Warm` (5 tests). Phone check: the log says "the playing video is ready for the TV", and the
   next Play on TV's source_cache event has warmed=true and a shorter "indexed inspection finished after".

@@ -11,9 +11,9 @@ job as well as the framework build before pinning a KodiAirPlay release.
 
 - Owner's last IPA: **build-406** (7a50b2a): everything through ISSUE-258, AirPlay r56 pinned, Media Assistant kept
   (`cast.DIRECT_AIRPLAY = False`). Any new IPA needs the owner's OK in the current request.
-- In progress after build-406: faster Play on TV start (ISSUE-253 "Not done": open the source when a video starts in Kodi;
-  a second conversion lane for 10-bit H.264). A native change needs a new KodiAirPlay release: both the airplay-ios run and
-  the airplay-remux host-tests job green, and the downloaded zip's sha256 checked, before pinning.
+- After build-406: ISSUE-257 rig label fix, ISSUE-259 (warm the video Kodi plays for Play on TV), ISSUE-261 (background work
+  waits while the TV is short of the movie). Later speed-up, not started: a second conversion lane for 10-bit H.264 (native; a
+  new KodiAirPlay release needs both the airplay-ios run and the airplay-remux host-tests job green, and the sha256 checked).
 - All scripts in the import-review test list pass on the host.
 
 ## Open
