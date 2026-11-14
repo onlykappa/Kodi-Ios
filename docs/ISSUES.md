@@ -4040,3 +4040,8 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   to watch or one the owner asked for now. Its Up next row says "Starts when the downloads finish". Copies made ready on
   their way are copies, so they are not held.
 - **Retest:** test_copy_status `CopiesFirst`.
+
+## ISSUE-276 — Library pages showed different numbers: TV Shows stuck at 28 Naruto episodes with no season 2 while Library status said 84 of 87 ready (owner screenshots and log 8d661d6e, build 424) — investigated; proposal in a new draft PR
+
+- **Root cause of the season 2 gap:** after a repository update replaced the app's patched Google Drive add-on, every TV Shows list refresh failed (`No module named 'clouddrive.common.remote'`, 207 times in 45 min), so Library › TV Shows kept its last good list (28 episodes) while season 2 was copied. Library status uses a second, separate Drive listing (the preparation scan), which kept working. ISSUE-270 (in build 430) fixes the import; nothing told the owner the list was stale.
+- **Design cause:** two Drive listings of the same folder and four sets of counting rules (Download problems, show card, show page, Library status' Kept). Details and the proposal (one Library index every screen reads): docs/investigations/library-one-source.md.
