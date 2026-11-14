@@ -33,6 +33,13 @@ KODI_CAP=30*60
 # otherwise Kodi reads the link itself, as before ISSUE-280.
 FIRST_ANSWER=5.0
 _BROKER=[None]   # ISSUE-281: one cache per service run; a restarted Drive loop reuses it
+# ISSUE-302 (owner, build 470, log 2979ea67: an Umbrella episode sat at "Opening the video · 4 of 12 MB, 33 %", AllDebrid
+# "sending it slowly (0.2 MB/s)", no picture after 126 s, on Wi-Fi with nothing else copying): a 4 MiB block came over ONE
+# connection and nothing is served until the whole block is here, so at 0.2 MB/s each block took 20 s, and the three
+# opening blocks (the first two and the last) were fetched one after another: 60 s before the first picture. Debrid links
+# are slow per connection, not per phone (ISSUE-163): each block is now fetched as SPLIT parallel ranges, and the opening
+# blocks together. At most PIECES requests run at once, so a link that limits connections is not flooded.
+SPLIT=4;PIECES=8;SPLIT_MIN=256*1024
 
 
 def eligible(source):
@@ -79,10 +86,31 @@ class Foreground(drive_stream.DriveStream):
   # 20-50 s): debrid links are slow per connection, not per phone. 4 MiB blocks with four fetched at once (about four
   # times the speed); 24 kept (96 MiB) so AirPlay's video and audio readers still share them.
   super().__init__(lambda:'',context=context,open_url=remote,block_size=BLOCK,keep=KEEP,playback=True)
-  self.ahead_blocks=AHEAD
+  self.ahead_blocks=AHEAD;self.pieces=threading.BoundedSemaphore(PIECES)
   # This is the playing movie, not a background download competing with it.
   self.gate=type('ForegroundGate',(),{'after':lambda *args,**kwargs:None})()
   self.media_url=self.url('media')
+
+ def _fetch(self,item,start,end):
+  """ISSUE-302: the block as SPLIT ranges read at once (joined in order); small or single-piece ranges as before."""
+  total=self.blocks.sizes.get(item);stop=end if total is None else min(end,total-1)
+  if stop-start+1<=SPLIT*SPLIT_MIN:return super()._fetch(item,start,end)
+  step=-(-(stop-start+1)//SPLIT)
+  spans=[(start+i*step,min(stop,start+(i+1)*step-1)) for i in range(SPLIT) if start+i*step<=stop]
+  results=[None]*len(spans);errors=[]
+  def piece(i,a,b):
+   with self.pieces:
+    try:results[i]=super(Foreground,self)._fetch(item,a,b)
+    except urllib.error.HTTPError as error:
+     if error.code==416 and i>0:results[i]=(b'',None)   # the file ended inside the block
+     else:errors.append(error)
+    except Exception as error:errors.append(error)
+  threads=[threading.Thread(target=piece,args=(i,a,b),daemon=True) for i,(a,b) in enumerate(spans)]
+  for t in threads:t.start()
+  for t in threads:t.join()
+  if errors or any(r is None for r in results):raise errors[0] if errors else ConnectionError('Stream block was not read')
+  size=next((r[1] for r in results if r[1]),total)
+  return b''.join(r[0] for r in results),size
 
  def configure_renewal(self,record,renew):
   if record and record.get('source')==self.remote_url:
@@ -215,7 +243,13 @@ def prefetch(source,blocks=None):
  try:
   cache=source.blocks;cache.get('media',0);total=cache.sizes['media'];size=cache.block_size
   last=(total-1)//size
-  for index in sorted({i for i in range(1,blocks or WARM_BLOCKS) if i<=last}|{last}-{0}):cache.get('media',index)
+  # ISSUE-302: together, not one after another (each is slow on its own on a debrid link)
+  def one(index):
+   try:cache.get('media',index)
+   except Exception:pass
+  threads=[threading.Thread(target=one,args=(i,),daemon=True) for i in sorted({i for i in range(1,blocks or WARM_BLOCKS) if i<=last}|{last}-{0})]
+  for t in threads:t.start()
+  for t in threads:t.join()
  except Exception:pass
 
 

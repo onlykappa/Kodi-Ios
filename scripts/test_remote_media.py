@@ -24,7 +24,8 @@ class Cache(unittest.TestCase):
   s=self.source()
   for _ in range(5):self.assertEqual(self.read(s,0,65535),DATA[:65536])
   self.assertEqual(self.read(s,len(DATA)-123,len(DATA)-1),DATA[-123:])
-  self.assertLessEqual(len(self.requests),3)
+  self.assertLessEqual(len(self.requests),3*remote.SPLIT)   # ISSUE-302: a block is SPLIT ranges; the point is that no block is read twice
+  starts=[int(r.get_header('Range')[6:].split('-')[0]) for r in self.requests];self.assertEqual(len(starts),len(set(starts)))
   self.assertTrue(all(r.full_url=='https://media.example/episode.mkv' for r in self.requests))
  def test_source_metrics_explain_cache_and_upstream_reads_without_url_or_headers(self):
   source=self.source('https://media.example/episode.mkv?secret=PRIVATE|Authorization=Bearer%20PRIVATE')

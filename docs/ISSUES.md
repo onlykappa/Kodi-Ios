@@ -4521,3 +4521,28 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Fix:** each re-read now logs its reason: never checked, last check failed, changed on Drive, checks updated, audit, repack, blocked, kept, not ready, or Check Every Video (`prepare_downloads.reread_reason`). The next Refresh shows whether anything is read again without a reason to.
 - **Not done:** reading several videos at once. The native prober is shared with the converter (`inspection_deferred`), so it needs its own design.
 - **Test:** test_compatibility_filter `RereadReason`.
+## ISSUE-302 — Umbrella episode sat at "Opening the video · 4 of 12 MB", AllDebrid at 0.2 MB/s, no picture after 126 s (owner, build 470, log 2979ea67) — fixed in code, needs the phone
+
+- **What the log shows:** Black Clover S02E07, Wi-Fi, nothing copying (`link: wifi`, 0 copy lanes). The cache was
+  handed to Kodi (the opening card read its stats), the card said "AllDebrid is sending it slowly right now
+  (0.2 MB/s)", and `open timing: no picture after 126 s via umbrella`. The log holds no line from the stream cache
+  itself, so the link's own speed per connection is read from the card: 4 MB in about 20 s.
+- **Cause:** ISSUE-280/281 put the cache between Kodi and the AllDebrid link. A block is 4 MiB and is fetched as ONE
+  request; nothing is served until the whole block is here. Debrid links are slow per connection (ISSUE-163), so at
+  0.2 MB/s a block took 20 s. The three opening blocks (first, second, last: 12 MB) were also fetched one after
+  another, 60 s in all, and Kodi's own open waits for them (the first bytes, then the file's tail). Before the cache,
+  Kodi read the link itself with no whole-block wait; the cache made a slow link look broken.
+- **Not a regression of the source:** the link is genuinely slow (AllDebrid, cold file). This change makes the app
+  use more connections on it; it cannot make AllDebrid faster. If the same file stays at 0.2 MB/s per connection,
+  the opening takes about 12 MB / (8 connections x 0.2) = 8 s instead of 60 s.
+- **Fix (`remote_media.py`):**
+  - `Foreground._fetch` reads a block as `SPLIT` (4) ranges at once, joined in order (short last block and files that end
+    inside a block are exact). At most `PIECES` (8) requests run at once for the source.
+  - `prefetch` fetches the second and last opening blocks together, not one after another.
+- **Retest:** host tests with a link throttled per connection (test_stream_slow_link): a block takes under 0.6 x the
+  single-connection time, the three opening blocks under 0.5 x the serial time, the short last block is exact, at most
+  8 connections. Both timing tests fail with `SPLIT = 1`. **Not proven on the phone**: it needs the owner's iPhone.
+- **If it is still slow on the phone:** send the next log. The cache logs nothing about itself, so the next step is a
+  log line with the first block's time and the connection count, and a fallback to the direct link when the first
+  block has not arrived after about 15 s.
+- **Test:** test_stream_slow_link (new); test_remote_media now counts blocks, not requests.
