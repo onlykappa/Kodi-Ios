@@ -68,6 +68,9 @@
 # r51: the background silent audio is tried again every 10 s while work waits after iOS interrupted it (iOS often never
 # says the interruption ended; build-317 log: 62 min of throttled copies).
 # r52: no compat restart while the TV still waits for a video segment (a slow source, not a codec; build-319 log).
+# r57 (ISSUE-278, owner's build-430 log: Naruto S1 E1, a prepared H.264 file; the Roku took the sound only and Apple's
+# player stopped "Cannot Complete Action" 1.5 s in): a prepared file the TV turns down restarts once, also when the
+# picture is already H.264; an H.264 picture is kept as it is in 6-s segments (KR_COMPAT_SEGMENTED), not converted.
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh, REMUX_LIBASS=DIR
 # one of build-libass.sh ios)
 set -euo pipefail
@@ -559,6 +562,10 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 if(source){restartTicket=kr_remux_begin(1);atomic_store(&remuxTicket,restartTicket);}
                 os_unfair_lock_unlock(&ownershipLock);
                 if (!source) return NO;
+                // r57 (ISSUE-278): a prepared H.264 picture the TV turned down goes again in 6-s segments with the audio
+                // apart (what Roku's specifications ask for), the picture copied; only another codec is converted.
+                const char *pictureCodec = kr_remux_video_codec();
+                const BOOL keepPicture = preparedLink && pictureCodec && !strncmp(pictureCodec, "avc1", 4);
                 compatTried = YES; restarting = YES; atomic_store(&compatBusy,1);
                 double at = CMTimeGetSeconds(player.currentTime);
                 if (!isfinite(at) || at < 0) at = 0;
@@ -566,13 +573,18 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 // position, and give the replacement timer sole ownership of the seek on the new item.
                 if (at < 1 && isfinite(startAt) && startAt > 1) at = startAt;
                 initialSeekAllowed = NO;
-                playerNote(@"restarting in compat mode (picture converted to H.264) at %.1f s", at);
-                setNote(@"Converting the picture for this TV\u2026");
-                showConverting(YES);
+                if (keepPicture) {
+                    playerNote(@"restarting in 6-s segments for this TV (H.264 picture kept as it is) at %.1f s", at);
+                    setNote(@"Getting it ready for this TV\u2026");
+                } else {
+                    playerNote(@"restarting in compat mode (picture converted to H.264) at %.1f s", at);
+                    setNote(@"Converting the picture for this TV\u2026");
+                    showConverting(YES);
+                }
                 dispatch_async(remuxQueue(), ^{
                     if(generation!=atomic_load(&playGeneration) || restartTicket!=atomic_load(&remuxTicket)){free(source);return;}
                     char playlist[512] = "";
-                    int r = kr_remux_start_for(restartTicket,source, 1, 1, playlist, sizeof playlist);
+                    int r = kr_remux_start_for(restartTicket,source, 1, keepPicture ? KR_COMPAT_SEGMENTED : 1, playlist, sizeof playlist);
                     if(r==KR_READY)r=kr_remux_prime_for(restartTicket,at);
                     free(source);
                     NSString *link = r == KR_READY ? @(playlist) : nil;
@@ -651,8 +663,8 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 if (!compatTried && soundOnlyTicks >= 4) {
                     const char *codec = kr_remux_video_codec();
                     BOOL hevc = codec && (!strncmp(codec, "hvc1", 4) || !strncmp(codec, "hev1", 4));
-                    if (!(codec && !strncmp(codec, "avc1", 4))) {
-                        playerNote(@"the TV took the sound only (%s, no external playback): converting the picture", codec ? codec : "");
+                    if (preparedLink || !(codec && !strncmp(codec, "avc1", 4))) {   // r57: a prepared H.264 file too
+                        playerNote(@"the TV took the sound only (%s, no external playback): restarting for this TV", codec ? codec : "");
                         if (restartCompat(hevc)) return;
                     }
                 }
@@ -682,8 +694,8 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                     // picture once before reporting a problem.
                     if (!compatTried && !external && tvRoute(player)) {
                         const char *codec = kr_remux_video_codec();
-                        if (!(codec && !strncmp(codec, "avc1", 4))) {
-                            playerNote(@"the player failed while the TV had the sound only (%s): converting the picture", codec ? codec : "");
+                        if (preparedLink || !(codec && !strncmp(codec, "avc1", 4))) {   // r57 (ISSUE-278): a prepared H.264 file too
+                            playerNote(@"the player failed while the TV had the sound only (%s): restarting for this TV", codec ? codec : "");
                             if (restartCompat(codec && (!strncmp(codec, "hvc1", 4) || !strncmp(codec, "hev1", 4)))) return;
                         }
                     }

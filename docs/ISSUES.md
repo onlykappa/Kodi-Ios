@@ -4070,3 +4070,25 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - test_library_index `StalledFetchIsAProblemEverywhere`.
 - **Phone check still needed:** on the next build, a version AllDebrid has to fetch shows "AllDebrid is fetching it · N%". The next episodes copy meanwhile. If it never moves, after 30 min it is in Download problems with the same count on Library status. The minute `library:` log line carries the counts.
 - **Not proven from this log:** the 94 older failed copies. Download problems lists a video only when no other version of it is on Drive, copying or hidden, and the log does not carry the phone's copy list. The new build's minute `library:` line (… need you · … hidden) will show whether the count is right.
+
+## ISSUE-278 — AirPlay of Naruto S1 E1: only the sound reached the Roku TV, then "AirPlay couldn't play this · Cannot Complete Action" (owner screenshot and log 33942e4f, build 430, AirPlay r56) — fixed in native source (r57 build pending)
+
+- **Seen (09:00:11–12):** Play on TV › AirPlay with the prepared file of Naruto Shippuuden S1 E1 (H.264 `avc1.640028` and AAC, served as HLS over the file's 23 stored fragments of up to 69.3 s, audio and video muxed together).
+  - Every request came from the iPhone itself (AppleCoreMedia), none from the TV, and external playback never came on.
+  - The phone's player read 3.4 MB of the first 10.7 MB range, hung up, and stopped "Cannot Complete Action" 1.5 s after start. The native player then logged "problem left to Kodi's card", with no restart.
+- **Root cause:** the same receiver shape as ISSUE-124 and ISSUE-138. Roku's streaming specifications do not support muxed audio-and-video fMP4 and want segments under 10 s, and the prepared playlist breaks both. The restart rules missed this case:
+  - r36's "sound only" and "player failed" restarts skip any H.264 picture: they were written for HEVC.
+  - r41's prepared-playlist restart needs external playback to have come on once (`everExternal`). This time the TV got the sound only, so external playback never came on.
+  - So nothing ran, and Kodi showed the card.
+- **Fix (`build-airplay.sh`, r57 source):**
+  - A prepared file that the TV takes as sound only, or that fails while the TV has only the sound, restarts once, H.264 too.
+  - A prepared H.264 picture is kept as it is: it restarts in `KR_COMPAT_SEGMENTED` mode (6 s segments with the audio as its own rendition, the picture copied). This is the stream ISSUE-138 made for Roku's own player, so the phone does no conversion work.
+  - Any other codec keeps the H.264 conversion.
+  - Log line: "restarting in 6-s segments for this TV (H.264 picture kept as it is)".
+- **Tests:**
+  - test_play_on_tv_network `test_a_prepared_h264_file_the_tv_turns_down_restarts_in_segments`.
+  - test_airplay_remux updated for the one guarded restart path.
+  - Host checks only: the Objective-C compiles in the airplay-ios workflow on macOS.
+- **Needs:** an r57 framework build and pin, then an IPA. Both wait for the owner's OK.
+- **Phone check:** AirPlay a prepared H.264 episode to the Roku. The log should show "restarting in 6-s segments", then `/video/` and `/audio/` segment requests from the TV, and the picture on the TV.
+- **Not done yet:** remembering that this TV needs segments, so the next start skips the failed first try (about 1.5 s).

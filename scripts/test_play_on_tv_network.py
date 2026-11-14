@@ -684,6 +684,18 @@ class RokuSegmented(unittest.TestCase):
   self.assertIn('if (external) everExternal = YES;',build)
   failed=build.index('preparedLink && everExternal')
   self.assertLess(failed,build.index('showProblem(m && *m ? @(m)',failed))   # before the problem is reported
+ def test_a_prepared_h264_file_the_tv_turns_down_restarts_in_segments(self):
+  # ISSUE-278 (owner's build-430 log 33942e4f: Naruto S1 E1, prepared avc1.640028 in 60-69 s fragments; the Roku took the
+  # sound only, Apple's player stopped "Cannot Complete Action" after 1.5 s, and no restart ran because the picture was
+  # already H.264 and external playback never came on).
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertEqual(build.count('if (preparedLink || !(codec && !strncmp(codec, "avc1", 4)))'),2)   # sound only, and failed
+  restart=build[build.index('BOOL (^restartCompat)'):build.index('return YES;',build.index('BOOL (^restartCompat)'))]
+  self.assertIn('const BOOL keepPicture = preparedLink && pictureCodec && !strncmp(pictureCodec, "avc1", 4);',restart)
+  self.assertIn('kr_remux_start_for(restartTicket,source, 1, keepPicture ? KR_COMPAT_SEGMENTED : 1, playlist, sizeof playlist)',restart)
+  self.assertLess(restart.index('const BOOL keepPicture'),restart.index('dispatch_async(remuxQueue()'))
+  failed=build.index('the player failed while the TV had the sound only')
+  self.assertLess(failed,build.index('showProblem(m && *m ? @(m)',failed))   # before the card
 
 class PhoneServedTv(unittest.TestCase):
  """Build 211 (log 1430bbc1): after Play on TV handed a Roku the phone's link, "slowdown: full speed" and the TV's
