@@ -3974,3 +3974,27 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Phone check:** turn Wi-Fi off and on during a season copy. The log should say "connection changed to cellular while
   copying: carrying on at once", lanes should change within seconds, and there should be no 20 s piece timeouts after
   the switch.
+
+## ISSUE-272 — Reconnect-to-Wi-Fi review; "[pseudo] 1080p" upscales passed as real 1080p (owner log 8de561f4, build 424) — partly fixed in code
+
+- **Owner:** "here is a log after I have reconnected to Wi-Fi, review it and see what you can improve."
+- **Timeline (same session as ISSUE-270/271):**
+  - Cellular from 07:36. The copy run noticed Wi-Fi to cellular only at 07:43:19, 7 min late.
+  - Wi-Fi came back about 07:45:46. The piece in flight took 68 s (0.18 MB/s), then pieces restarted at 1.8–2 MB and needed
+    about 30 s to reach 16–28 MB. The run noticed cellular to Wi-Fi only at 07:49:12, 3.5 min late. Three lanes ran from
+    07:49 at 2–11 MB/s each (snapshot 16–27 MB/s).
+  - From 07:48 a preparation ("Checking downloaded videos") read Drive at 49 MB/s on the same Wi-Fi, and the copies'
+    pieces fell to 0.8–3 MB/s.
+  - ISSUE-271 (not in build 424) removes the late detection and the slow regrowth. The in-flight piece at the switch moment
+    remains, bounded by its paced deadline.
+- **Found:** S02E33–E38 were copied as "[AnimeRG] Naruto Shippuden - 0xx [1080p] [x265] [pseudo]" (1404x1080).
+  "pseudo" marks an upscale of the DVD, so it passed the height check while not being real 1080p. E39 then came from
+  another release (704x480).
+- **Fix:** `deck_picker.UPSCALED_NAME` also matches "pseudo" (as a word) and "Anime4K". Such a version counts as lower than
+  the quality it names, so a season with no real 1080p asks (DEC-049) instead of taking an upscale.
+- **Also seen, harmless:** TMDb Helper's daily clean-up listing log folders that do not exist yet; the Library list
+  errors (64) are ISSUE-270.
+- **Open ideas, not done:**
+  - Keep one release for a whole season (mixed AnimeRG / Anime Time episodes).
+  - Let copies go first while a preparation reads Drive on the same Wi-Fi.
+- **Retest:** test_season_quality `test_versions_that_are_not_really_the_chosen_quality_are_left_out`.

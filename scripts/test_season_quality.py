@@ -33,6 +33,10 @@ class BeforeTheDownload(unittest.TestCase):
         starved = item('Show.S01E01.1080p.WEB.x264.mkv', 0.12, tags='x264')            # 0.7 Mbit/s for 23 min of H.264
         real = item('Naruto Shippuden - Vol.01 (BDRip 1080p x264 AAC)/ep01.mkv', 1.2, tags='x264')
         small_hevc = item('[SubsPlease] Naruto Shippuden - 01 (1080p) [HEVC].mkv', 0.35, tags='HEVC')
+        # ISSUE-272 (owner log 8de561f4): "[AnimeRG] Naruto Shippuden - 034 [1080p] [x265] [pseudo]" is a DVD upscale (1404x1080).
+        pseudo = item('[AnimeRG] Naruto Shippuden - 034 [1080p] [x265] [pseudo].mkv', 0.3, tags='x265')
+        self.assertIn('upscale', dp.below_quality(pseudo, '1080p', 23))
+        self.assertEqual(dp.below_quality(item('Pseudopod.S01E01.1080p.WEB.x264.mkv', 1.2, tags='x264'), '1080p', 23), '')
         for it, why in ((upscale, 'upscale'), (dvd, 'SD'), (starved, 'too small')):
             self.assertIn(why, dp.below_quality(it, '1080p', 23))
         self.assertEqual(dp.below_quality(real, '1080p', 23), '')

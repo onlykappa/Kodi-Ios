@@ -836,7 +836,7 @@ def seed_bucket(item):
 # With a quality chosen (strict), a version whose own name says a lower quality, that is an upscale of a lower one, or whose
 # file is far too small for the quality, is never picked.
 SD_NAME = re.compile(r'(?i)(?<![0-9a-z])(240p|360p|480p|576p|dvd(?:rip|5|9)?|sdtv|sd)(?![0-9a-z])')
-UPSCALED_NAME = re.compile(r'(?i)(\d(?:\.\d+)?x[ _.-]+\d{3,4}x\d{3,4}|(?<![a-z])alq(?![a-z])|waifu2x|real-?esrgan|topaz|upscal)')
+UPSCALED_NAME = re.compile(r'(?i)(\d(?:\.\d+)?x[ _.-]+\d{3,4}x\d{3,4}|(?<![a-z])alq(?![a-z])|waifu2x|real-?esrgan|topaz|upscal|anime4k|(?<![a-z])pseudo(?![a-z]))')
 HIGH = (u'720p', u'1080p', u'1440p', u'4k')
 
 
