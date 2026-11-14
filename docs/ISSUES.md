@@ -3685,3 +3685,11 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Not done:** a second conversion lane, prefetching the source when a video starts in Kodi (needs new native session state), a lower output size for 10-bit H.264.
 - **Retest:** test_season_quality `SlowOnAirPlay`.
 
+## ISSUE-254 — "Waiting for the network" while online; season 2 of Naruto never started (owner screenshot and log fd2ee25a, build 398) — fixed in code
+
+- **Owner:** "fix the waiting for network issue, it should only appear if I'm fully offline."
+- **Seen:** Library status: "Naruto Shippuuden · S2 E33 · 0% · Waiting for the network · trying again in 5 min" on Wi-Fi. The log: "AllDebrid: Naruto Shippuuden: try 12, again in 360 s: RuntimeError: Waiting for TMDb to say where season 2 starts". Not the network at all.
+- **Causes:** (1) the card said "Waiting for the network" for any copy waiting to try again, whatever the reason; (2) the season sizes that place an absolute-numbered pack episode (S2 E33 = episode 65) come from TMDb with TMDb Helper's key, read from special://home/addons, but TMDb Helper is bundled with the app, so no key was found, the sizes were never asked, and every season-2 episode waited; (3) that wait counted toward the 20 tries that end a copy.
+- **Fix:** the card says why a copy waits: "Waiting for the network" only when the phone has no connection at all; online network trouble reads "Couldn't reach AllDebrid or Google Drive"; the TMDb wait reads "Waiting for TMDb's episode numbers"; anything else gives its own short reason. TMDb Helper's key is found through Kodi (getAddonInfo path, then the old paths). A TMDb wait never counts toward giving up (1 to 10 minutes between tries).
+- **Retest:** test_work_state `WaitWords` (and the two older network tests updated). Phone check pending: Naruto S2 should start copying.
+

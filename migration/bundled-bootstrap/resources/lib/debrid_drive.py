@@ -52,11 +52,19 @@ def offset_for(job):
 def offset_lookup(profile):
     """job -> episodes before its season, from TMDb's season sizes (TMDb Helper's key), cached in drive-library-art.json."""
     import drivelibrary
-    try:
-        import xbmcvfs
-        key = drivelibrary.tmdb_key(xbmcvfs.translatePath('special://home/addons/plugin.video.themoviedb.helper'))
-    except Exception:
-        key = ''
+    # ISSUE-254 (owner log fd2ee25a: "Waiting for TMDb to say where season 2 starts", try 12, every season-2 Naruto
+    # episode stuck): TMDb Helper is bundled with the app, not under special://home/addons, so no key was found and the
+    # season sizes were never asked. Its real folder comes from Kodi; the old path stays as a fallback.
+    key = ''
+    for where in (lambda: __import__('xbmcaddon').Addon('plugin.video.themoviedb.helper').getAddonInfo('path'),
+                  lambda: __import__('xbmcvfs').translatePath('special://home/addons/plugin.video.themoviedb.helper'),
+                  lambda: __import__('xbmcvfs').translatePath('special://xbmc/addons/plugin.video.themoviedb.helper')):
+        try:
+            key = drivelibrary.tmdb_key(where())
+        except Exception:
+            key = ''
+        if key:
+            break
     path = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap', 'drive-library-art.json')
 
     def lookup(job):
@@ -1308,6 +1316,15 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         transfer_history.failed(profile, 'up', title, str(problem), clock())
         return 1
     except Exception as error:   # network, Drive: try again in a while, from where it got to
+        if 'Waiting for TMDb' in str(error):
+            # ISSUE-254: waiting for TMDb's season sizes is not the copy's fault: it never counts toward giving up.
+            job['tmdb_waits'] = job.get('tmdb_waits', 0) + 1
+            job['error'] = '%s: %s' % (type(error).__name__, str(error)[:160])
+            wait = min(600, 60 * job['tmdb_waits'])
+            job['retry_at'] = clock() + wait
+            log('%s: %s; again in %d s' % (title, str(error)[:100], wait))
+            commit()
+            return wait
         if network_error(error):
             # ISSUE-198: a dropped connection, a Wi-Fi / cellular switch, the phone asleep: wait and carry on from what
             # Drive confirmed; never counts toward giving up.

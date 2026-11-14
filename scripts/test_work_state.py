@@ -78,8 +78,10 @@ class Words(unittest.TestCase):
   self.assertEqual(ws.bell_properties(ws.build({'prep':conv()},NOW))['Notices.Needs'],'')   # never red otherwise
   self.assertEqual(ws.flags()['needs'],[])
  def test_waiting_for_the_network(self):
-  debrid={'jobs':[{'hash':'h','title':'Inception (2010)','status':'copying','tries':2,'retry_at':NOW+120}],'current':{}}
-  s=ws.build({'debrid':debrid},NOW)
+  debrid={'jobs':[{'hash':'h','title':'Inception (2010)','status':'copying','net_tries':2,'retry_at':NOW+120}],'current':{}}
+  old=ws.OFFLINE[0];ws.OFFLINE[0]=lambda:True   # ISSUE-254: these words only when the phone is offline
+  try:s=ws.build({'debrid':debrid},NOW)
+  finally:ws.OFFLINE[0]=old
   self.assertEqual((s['mode'],s['jobs'][0]['line']),('waiting_network','Waiting for the network · trying again in 2 min'))
   ws.network('drive',NOW+60,'Google Drive is busy');flags=ws.flags();ws.network('drive')
   s=ws.build(flags,NOW);self.assertEqual(s['mode'],'waiting_network');self.assertIn('Google Drive is busy · trying again in 1 min',s['headline'])
@@ -153,6 +155,24 @@ class InstantCancel(unittest.TestCase):
    debrid_drive.save(p,{'jobs':[{'hash':'a'*40,'name':'A','title':'Heat','kind':'movie','status':'done','files':[],'added':1}]})
    debrid_drive.step(p,None,None,cancelled=lambda:{'a'*40,'c'*40},forget=forgot.append)
   self.assertEqual(sorted(forgot),['a'*40,'c'*40])
+
+class WaitWords(unittest.TestCase):
+ """ISSUE-254 (owner, build 398): "Waiting for the network" only when the phone is offline."""
+ def test_the_card_says_why_a_copy_waits(self):
+  old=ws.OFFLINE[0]
+  try:
+   ws.OFFLINE[0]=lambda:False
+   self.assertEqual(ws.retry_words({'net_tries':2},1300,1000),"Couldn't reach AllDebrid or Google Drive · trying again in 5 min")
+   self.assertEqual(ws.retry_words({'tmdb_waits':1,'error':'RuntimeError: Waiting for TMDb to say where season 2 starts'},1300,1000),
+                    "Waiting for TMDb's episode numbers · trying again in 5 min")
+   self.assertEqual(ws.retry_words({'tries':3,'error':'RuntimeError: Google Drive has a different size for x. More'},1300,1000),
+                    'Google Drive has a different size for x · trying again in 5 min')
+   ws.OFFLINE[0]=lambda:True
+   self.assertEqual(ws.retry_words({'net_tries':2},1300,1000),'Waiting for the network · trying again in 5 min')
+  finally:ws.OFFLINE[0]=old
+ def test_a_tmdb_wait_never_counts_toward_giving_up(self):
+  src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib/debrid_drive.py').read_text()
+  self.assertIn("if 'Waiting for TMDb' in str(error):",src);self.assertIn("getAddonInfo('path')",src)
 
 class Freshness(unittest.TestCase):
  def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
@@ -247,7 +267,9 @@ class Workers(unittest.TestCase):
    step()                                     # add: copying
    self.assertEqual(step(),15)                # the piece fails every try this turn: network trouble, again in 15 s (ISSUE-198)
    j=debrid_drive.load(p)['jobs'][0];self.assertEqual((j.get('tries',0),j['net_tries'],j['retry_at']),(0,1,NOW+15))
-   self.assertEqual(ws.build({'debrid':debrid_drive.load(p)},NOW)['jobs'][0]['line'],'Waiting for the network · trying again in a moment')
+   old=ws.OFFLINE[0];ws.OFFLINE[0]=lambda:False   # online: the network words are not used (ISSUE-254)
+   try:self.assertEqual(ws.build({'debrid':debrid_drive.load(p)},NOW)['jobs'][0]['line'],"Couldn't reach AllDebrid or Google Drive · trying again in a moment")
+   finally:ws.OFFLINE[0]=old
    seen=[]
    orig=debrid_drive.save
    debrid_drive.save=lambda profile,state,enqueue=False:(seen.append(json.loads(json.dumps(state.get('current') or {}))),orig(profile,state,enqueue))

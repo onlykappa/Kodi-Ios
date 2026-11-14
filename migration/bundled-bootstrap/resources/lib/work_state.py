@@ -124,6 +124,33 @@ def left(seconds):
     return '%d min left' % m if m < 60 else '%d h%s left' % (m // 60, ' %d min' % (m % 60) if m % 60 else '')
 
 
+def _offline():
+    try:
+        import cache_tune
+        return not cache_tune.local_address()
+    except Exception:
+        return False
+
+
+OFFLINE = [_offline]   # tests replace it
+
+
+def retry_words(job, until, now):
+    """ISSUE-254 (owner, build 398: "Waiting for the network · trying again in 5 min" while online, "it should only appear if
+    I'm fully offline"): the words say why a copy waits. The log showed the real reason: "Waiting for TMDb to say where
+    season 2 starts"."""
+    error = str(job.get('error') or '')
+    when = retry_text(until, now)
+    if job.get('net_tries'):
+        if OFFLINE[0]():
+            return 'Waiting for the network \u00b7 %s' % when
+        return "Couldn't reach AllDebrid or Google Drive \u00b7 %s" % when
+    if 'Waiting for TMDb' in error:
+        return "Waiting for TMDb's episode numbers \u00b7 %s" % when
+    reason = error.split(': ', 1)[-1].split('. ')[0].strip().rstrip('.')
+    return ('%s \u00b7 %s' % (reason[:48], when)) if reason else 'Stopped \u00b7 %s' % when
+
+
 def retry_text(until, now):
     wait = max(0, float(until or 0) - now)
     if wait < 60:
@@ -328,20 +355,20 @@ def _copy(debrid, now):
                'hash': job.get('hash', ''), 'folder': current.get('folder', ''),'phase_detail':phase in words,'transfer_phase':phase}
         if quiet and phase!='paused_playback':
             out['wait'] = ('Waiting for download' if phase=='reading' else 'Waiting for Google Drive')+' · no answer for %d min' % max(1,int((now-float(updated))//60))
-        if (job.get('tries') or job.get('net_tries')) and retry > now:
-            out['wait'] = 'Waiting for the network · %s' % retry_text(retry, now)
+        if (job.get('tries') or job.get('net_tries') or job.get('tmdb_waits')) and retry > now:
+            out['wait'] = retry_words(job, retry, now)
         if (debrid or {}).get('hold') == 'wifi':
             out['wait'] = 'Waiting for Wi-Fi · copies run on Wi-Fi only (Transfer settings)'
-        out['playback_held']=phase=='paused_playback' and not ((job.get('tries') or job.get('net_tries')) and retry>now)
+        out['playback_held']=phase=='paused_playback' and not ((job.get('tries') or job.get('net_tries') or job.get('tmdb_waits')) and retry>now)
         return out
     if current.get('stage') == 'fetching':
         return {'kind': 'copy', 'title': title, 'name': current.get('name', ''), 'step': 'AllDebrid is fetching it',
                 'pct': int(current.get('sent') or 0), 'indeterminate': False, 'rate': 0.0, 'eta_s': 0, 'tint': BLUE,
                 'hash': job.get('hash', '')}
-    if (job.get('tries') or job.get('net_tries')) and retry > now:
+    if (job.get('tries') or job.get('net_tries') or job.get('tmdb_waits')) and retry > now:
         return {'kind': 'copy', 'title': title, 'name': job.get('name', ''), 'step': STEP['copy'], 'pct': 0, 'indeterminate': False,
                 'rate': 0.0, 'eta_s': 0, 'tint': BLUE, 'hash': job.get('hash', ''),
-                'wait': 'Waiting for the network · %s' % retry_text(retry, now)}
+                'wait': retry_words(job, retry, now)}
     if (debrid or {}).get('hold') == 'wifi':
         return {'kind': 'copy', 'title': title, 'name': job.get('name', ''), 'step': STEP['copy'], 'pct': 0, 'indeterminate': False,
                 'rate': 0.0, 'eta_s': 0, 'tint': BLUE, 'hash': job.get('hash', ''),
