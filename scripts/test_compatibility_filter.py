@@ -307,4 +307,20 @@ class Filter(unittest.TestCase):
   job=self.q.state['jobs'][self.slot];job['status']='waiting'           # not done: read
   prep.request_check(self.tmp.name,inspect=True);self.refresh();self.assertEqual(len(calls),3)
   self.assertIn("inspect='full'",(ROOT/'migration/bundled-bootstrap/library_status.py').read_text())
+
+class RereadReason(unittest.TestCase):
+ """ISSUE-301 (owner, build 466: Refresh read 49 videos one by one): the log says why each one is opened again."""
+ def test_reasons(self):
+  item={'id':'a','md5Checksum':'x','size':5,'version':'1'}
+  good={'probe':{'v':1},'probe_for':list(prep.identity(item)),'probe_version':prep.INSPECT_VERSION}
+  self.assertTrue(prep.settled(good,item))
+  self.assertEqual(prep.reread_reason({},item),'never checked')
+  self.assertEqual(prep.reread_reason(dict(good,inspection_error='x'),item),'last check failed')
+  self.assertEqual(prep.reread_reason(good,dict(item,version='2')),'changed on Drive')
+  self.assertEqual(prep.reread_reason(dict(good,probe_version=0),item),'checks updated')
+  self.assertEqual(prep.reread_reason(good,item,full=True),'Check Every Video')
+  src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib/prepare_downloads.py').read_text()
+  self.assertIn("reread_reason(old,item,full)",src)
+
+
 if __name__=='__main__':unittest.main()

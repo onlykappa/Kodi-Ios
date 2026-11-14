@@ -4512,3 +4512,12 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Rig result (`for_kodi` end to end, same file and speed):** hand-off 0.5 s, then Kodi's open 7.3 s, against 29 s direct. The cache read the start with four connections at once.
 - **Tests:** test_remote_media `test_the_route_is_on_by_default` and `test_size_is_known_from_the_first_answer`; test_stream_fallback is unchanged and passes.
 - **Phone check:** the `open timing … via umbrella` line for a resume, expected about 5–8 s instead of 20 s.
+
+## ISSUE-301 — Refresh Library read every video one by one (owner, build 466, log 074adcd9: "the scan was a little slow") — logging added; cause to confirm
+
+- **Seen:** 49 "preparation: compatible video kept unchanged" lines from 13:46:58 to 13:54:39, about 9.4 s per video, one at a time.
+- **Code:** plain Refresh (`request_check(inspect=True)`) already skips a video whose last check was good and whose Drive file is the same (ISSUE-247, `settled`); only Check Every Video reads them all. Nothing in these checks changed since build 442 (INSPECT_VERSION 1).
+- **Likely cause:** this was the first Refresh after the library came back from Drive, so no video had a settled check yet and all were read once. The log did not say why each video was opened.
+- **Fix:** each re-read now logs its reason: never checked, last check failed, changed on Drive, checks updated, audit, repack, blocked, kept, not ready, or Check Every Video (`prepare_downloads.reread_reason`). The next Refresh shows whether anything is read again without a reason to.
+- **Not done:** reading several videos at once. The native prober is shared with the converter (`inspection_deferred`), so it needs its own design.
+- **Test:** test_compatibility_filter `RereadReason`.

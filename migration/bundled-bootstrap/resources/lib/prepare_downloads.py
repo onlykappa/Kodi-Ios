@@ -745,6 +745,18 @@ def settled(job,item):
              and job.get('probe_version')==INSPECT_VERSION and not job.get('audit') and not job.get('repack')
              and not job.get('blocked') and not job.get('kept'))
 
+def reread_reason(job,item,full=False):
+ """ISSUE-301 (owner, build 466: "the scan was a little slow", 49 videos read one by one in 7 min 40 s): why Refresh opens
+ this video again, for the log. Only settled videos (ISSUE-247) are skipped."""
+ if full:return 'Check Every Video'
+ if not job.get('probe'):return 'never checked'
+ if job.get('inspection_error'):return 'last check failed'
+ if job.get('probe_for')!=list(identity(item)):return 'changed on Drive'
+ if job.get('probe_version')!=INSPECT_VERSION:return 'checks updated'
+ for name in ('audit','repack','blocked','kept'):
+  if job.get(name):return name
+ return 'not ready'
+
 def request_check(profile,inspect=False):
  """Ask the service to check Google Drive › Kodi Downloads now (Settings › Library › Check library for conversion).
  inspect=True: open the videos that are new, changed or not ready (ISSUE-247); inspect='full': every video."""
@@ -989,6 +1001,7 @@ class Queue:
       pass
      else:
       try:
+       self.log('preparation: checking %s (%s)'%(drivelibrary.display_title(item['name']),reread_reason(old,item,full)))
        old['audit']=True;old.pop('probe',None)
        status.update(stage='Checking compatibility and faster opening · '+drivelibrary.display_title(item['name']),updated=self.clock());self.commit()
        if self.runtime:self.runtime.phase('Checking compatibility',False,item['name'])
