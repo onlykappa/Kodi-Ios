@@ -3645,3 +3645,12 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Source changed:** seconds after a download was saved, its preparation failed with "Drive source changed" and waited for another library check: the copier names and files a new download just after saving it, which changes Drive's `version` but not the video. **Fix:** when the Drive record differs only in name, folder or version (`prepare_downloads.same_content`: same id, checksum and size) and nothing has been made yet, preparation carries on with the current record. New bytes are still a changed source.
 - **Control 32503:** the version picker's page asked Kodi to focus its list before the picker had filled it. **Fix:** the page opens on Back (32500); `deck_picker.fill` focuses the list once its rows are in.
 - **Retest:** test_drive_prepare (`test_a_rename_right_after_the_copy_does_not_fail_the_preparation`, `test_new_bytes_are_still_a_changed_source`), test_library_show_menu `VersionPickerFocus`.
+
+## ISSUE-249 — Desktop Kodi rig render of the DEC-047 pages found layout faults (2026-11-14, evidence class: desktop Kodi rig) — fixed in code, re-render partly done
+
+- **Show page:** a title that fits on one line was laid out as two (status line too low). Wrap cut-off is now 28 characters, 20 beside Repair (`library_manager.TWO_LINES*`). Re-rendered: OK.
+- **••• menu:** the card behind it was missing (Kodi takes no window property as a height). Each row draws its piece of the card (`row_back`, `menu.N.pos`). Re-rendered: OK, matches board C1. Tapping outside closes only the menu: OK. The ••• focus highlight was a square over the round capsule; now a fade. Not re-rendered.
+- **Select:** the size line sat far below one-line titles, and two-line titles ran into it (`it.N.two`, 30 characters); the empty check drew as a filled dot, then as a broken ring (now `circle_line.png`). Re-rendered: OK, matches board D1.
+- **Choice sheet tiles (Download problems):** "Don't Show Again" and "Remove From List" drew bare coloured squares because the glyph was a bare name; `choice_sheet.glyph_path` adds the skin's icon path. Its grey line is shorter. **Not re-rendered yet** (interrupted).
+- **Retest:** test_library_show_menu (`SheetGlyphs`), test_library_files, test_choice_sheet. Rig: re-render the Download problems sheet.
+- **Seen, not changed (older page):** Download problems row titles end in "…" ("Naruto Shippuuden · S…"); the owner dislikes "…" (DEC-046).

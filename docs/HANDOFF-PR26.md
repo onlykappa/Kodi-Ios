@@ -1,92 +1,42 @@
-# Handoff: PR #26 (branch `claude/preparation-repair`), 2026-11-13
+# Handoff: PR #26 (branch `claude/preparation-repair`), 2026-11-14
 
-Read AGENTS.md, ROADMAP.md, docs/ISSUES.md (ISSUE-226 to ISSUE-236) first. No IPA, merge or release without the owner's
-explicit OK in the current request. `python3 -B scripts/check_project.py` before every commit; new tests go in
-`.github/workflows/import-review.yml`. The converter host tests are the **airplay-remux** workflow (job `host-tests`):
-read it as well as the framework build before pinning any KodiAirPlay release (ISSUE-229 was missed that way).
+Read first: AGENTS.md, docs/design/APPLE-UI-POLICY.md (for any UI work), docs/ISSUES.md ISSUE-226 to ISSUE-249,
+docs/DECISIONS.md DEC-047 and DEC-048, ROADMAP.md. Rules: never merge, release or build an IPA without the owner's OK in
+the current request; `python3 -B scripts/check_project.py` before every commit (run Python with `-B`, or __pycache__
+fails it); new tests go in `.github/workflows/import-review.yml`; log every fix in docs/ISSUES.md; never offer AI Upscale in
+quality messages; owner approves mockups before UI is coded. Native converter changes: read the airplay-remux host-tests
+job as well as the framework build before pinning a KodiAirPlay release.
 
 ## State
 
-- Last IPA the owner has: **build-384** (commit db35cf0, 2026-11-14): everything up to ISSUE-237. **ISSUE-238 to ISSUE-242
-  are committed after it and not built** (one IPA when the owner asks).
-- AirPlay framework pinned: **r55** (DVD subtitles kept in the MP4 and counted as ready).
-- The owner will re-download Naruto Shippuuden season 1 at 1080p once the next IPA has the quality fallback below.
+- Owner's last IPA: **build-393** (8aa612d): everything through ISSUE-245.
+- Committed and pushed after build-393, **not built**: ISSUE-246 (Refresh inspection waits while downloads are made ready;
+  upload pieces grow on a steady line), ISSUE-247 / DEC-048 (smart Refresh; hold Refresh = Check Every Video), ISSUE-248
+  (preparation carries on after a rename; version picker opens on Back), ISSUE-249 (rig render fixes).
+- The owner asked for these recommendations and then an IPA. **Next step: finish the open items below, then build the IPA
+  (`import-review.yml` workflow_dispatch on this branch; the release is `build-<run number>`) and send the link.** The
+  owner said "push the ipa", so building is approved for this batch.
+- All 96+ scripts in the import-review test list pass on the host (one known environment-only error in
+  test_build193_pages `test_landscape_airplay_sheet_unchanged`: `git show` in a shallow clone).
 
-## Committed after build-376 (needs one IPA, then an owner log)
+## Open (do these)
 
-1. **ISSUE-233** Deleting mid-conversion: both delete paths call `prepare_downloads.forget`; a trashed or missing source
-   (`SourceGone`) leaves the queue quietly; a forget stops the running conversion.
-2. **ISSUE-234** Library status Refresh: while videos wait, the Drive listing runs at once (`scan(listing_only=True)`, once
-   per request); the inspection waits for an idle queue.
-3. **ISSUE-235** Settings › AI Upscale row says what is on ("1 show · 4K", "New downloads · 4K", "Off", "Unavailable").
-4. **ISSUE-236** Season quality:
-   - The copy path (made ready while copying, F1, `debrid_ready.copy`, and plain copies through `check_quality`) probes
-     the AllDebrid file and refuses one lower than the chosen quality before anything reaches Drive. The job ends
-     `failed` + `low_quality`.
-   - The owner's rule: **take a lower quality only when it is the absolute only one available.**
-     - `deck_picker.auto_choose` (strict quality) takes a real match first.
-     - Otherwise it takes the best that exists as a `fallback`: nearest quality first, versions already found lower
-       (`lower_names`, from `low_quality` jobs, set in `episode_watch_runtime`) last.
-     - A fallback pick is not refused at copy (`elementum_cloud` passes no `quality`), and the owner gets one notice
-       ("No 1080p version … the best available was downloaded").
-   - **The owner said: do NOT offer AI Upscale in that notice** (not tuned or tested).
-   - Tests: `scripts/test_season_quality.py`.
+1. **Re-render the Download problems choice sheet in the desktop Kodi rig** after the `choice_sheet.glyph_path` fix
+   (ISSUE-249): tiles must show the eye-slash and trash glyphs, no bare squares. How: `python3 -B scripts/kodi_rig.py start`,
+   `sync`, write fake data with the script below, `open copy_problems`, `click 9201`, `shot NAME` (screenshots stay out of
+   Git; they are in ~/.cache/kodi-rig/shots). The fake Library data script used this session was in the scratchpad
+   (not in Git): it writes drive-library.json (`tv:` with one show, `tv:<id>` with episodes), drive-library-art.json
+   (`tv:<title lower>:<year>` → tmdb_id, `season:<tmdb>:<n>` → titles/thumbs), a preparation state (prepare_downloads.save)
+   and two failed debrid jobs (debrid_drive.save) into ~/.cache/kodi-rig/home/.kodi/userdata/addon_data/service.kodi.ios.bootstrap.
+   A Trakt 401 dialog may cover the rig: `builtin "Dialog.Close(all,true)"`.
+2. Re-render the show page's ••• capsule after its focus change (no square highlight).
+3. Optional (owner dislikes "…"): Download problems row titles truncate ("Naruto Shippuuden · S…"); would need the
+   row to wrap or shorten (approved page; small change, mention to the owner).
+4. Build the IPA, send the link, update the PR #26 description (ISSUE-246 to ISSUE-249 are not in it yet).
 
-## Not coded yet (owner asked for these; do them in this PR or a new one)
+## Needs the owner's phone
 
-- **Check the season re-download end to end with the owner's log.** Early Naruto Shippuden exists mostly in SD; the
-  expected result is real 1080p where any exists (e.g. "Naruto Shippuuden - 002 [1080p] 10bit"), otherwise one fallback
-  per episode with one notice each.
-  - Watch for a loop: a `low_quality` copy, then a re-search, then the same pack as fallback. The fallback is accepted,
-    so the loop should end; verify it does.
-  - Verify the re-search actually happens for a refused episode. `episode_watch` re-downloads missing episodes; confirm it
-    picks a `low_quality`-failed episode up again.
-- **AI Upscale encode failure:** "video conversion: encode: Generic error in an external library" (Phony S1 E2,
-  1920x1080 → 4K, log 1ae21097). Not investigated.
-- **"EXCEPTION: Window id does not exist"** after a page closes (logs 1ae21097 14:57, 15:14). A page thread touches a
-  closed window. Not traced.
-- **`native.verify` (C-level) failures still retry as full conversions** (ISSUE-230 only covered the probe and checksum).
-  A read problem during verify is now treated as network (ISSUE-232), but a real verify failure repeats.
-- **Prepared-file uploads are slow** (~1.3 MB/s total while reads run at 7–10 MB/s, log 47e2276a). Pieces fall back to
-  1 MB after each dropped connection. Consider parallel piece uploads or a softer reset.
-- **AI Upscale copies do not resume** from a mark after a stop or a network drop. They start again.
-- **Unverified on the phone:**
-  - DVD subtitle shown when playing a prepared Naruto episode.
-  - AI Upscale hold menu and Cancel All (ISSUE-228).
-  - Preparation waiting for Wi-Fi on mobile data.
-  - The focus fix for "Control 9110".
-  - Repair interrupting an upscale (ISSUE-227).
-
-## Owner preferences seen in this session
-
-- One IPA at the end of a batch; no builds per commit. Merge only when the owner says so.
-- 480p is unacceptable unless nothing else exists. The owner wants plain status words, no stuck percentages, and
-  instant reactions to taps (cancel, delete, refresh).
-
-## Update 2026-11-14 (this session)
-
-- **Built:** build-384 (db35cf0) = build-376 + ISSUE-233–237: the season quality rule (a real 1080p wins; lower only when
-  nothing else exists, one plain notice, no AI Upscale offer) and Repair using the quality chosen for the show.
-- **ISSUE-237:** owner log f63389f1 (build 376) showed Repair taking an uploader's upscale ("_2.25x_1920x1080_alq-10") at
-  "any quality". Repair now uses the show's chosen quality; in a fallback, versions that only claim their quality come
-  after every real one. PR check run 381 had failed on two season-source tests still expecting "never lower"; updated.
-- **Coded after build-384 (not built):** ISSUE-238 (a failed `native.verify` stops after one conversion unless network),
-  ISSUE-239 (TMDb Helper "Window id does not exist" after a page closes, build patch), ISSUE-240 (a dropped upload piece
-  halves the piece size instead of 1 MB), ISSUE-241 (AI Upscale encoder stop: retry once on screen, wait for Kodi to be
-  open in the background; cause not proven, log 1ae21097 not available), ISSUE-242 (AI Upscale copies resume from a mark).
-- **Waiting for the owner's log of the Naruto season 1 re-download on build-384.** Check: every episode real 1080p where
-  one exists, else one fallback with one notice; no repeat loop on a refused version; refused episodes searched again;
-  the DVD subtitle still shows.
-- **Phone checks still open:** AI Upscale hold menu and Cancel All (ISSUE-228); waiting for Wi-Fi on mobile data
-  (ISSUE-230); Repair stopping an upscale (ISSUE-227); Library status Refresh (ISSUE-234); deleting while converting
-  (ISSUE-233); DVD subtitle shown in Kodi; the "Control 9110" focus fix.
-
-## Update 2026-11-14, later
-
-- Owner approved DEC-047 (docs/design/library-show-mockups.html: board A without Ready and A2, B, C, D) and it is coded:
-  ISSUE-243. Owner logs 3df2f247, 3a30b6ef, 6984524f (build 384) gave ISSUE-244 (Repair leaves out dead and low versions; a
-  refused quality is never copied; Don't Show Again for Download problems; the sheet text and the red square) and ISSUE-245
-  (AI Upscale makes copies only of videos the owner asked for on a show's page, or every new download with Upscale new
-  downloads on).
-- Next IPA dispatched from 8aa612d (everything through ISSUE-245). Desktop Kodi rig render of the DEC-047 pages: pending.
-- Known, not fixed: "Control 32503 in window 13002 has been asked to focus, but it can't" (the version picker, harmless).
+Smart Refresh and Check Every Video; uploads while a season is made ready; AI Upscale only on request; Repair skipping
+dead/low versions and its live "Looking for 1080p…" ✕; show page ••• menu, Select toolbar and Better Version (old file to
+Trash after the new one is saved); Don't Show Again; no "Window id does not exist"; DVD subtitles shown; AI Upscale hold menu
+and Cancel All; waiting for Wi-Fi on mobile data; deleting while converting.

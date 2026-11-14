@@ -157,5 +157,14 @@ class VersionPickerFocus(unittest.TestCase):
         self.assertIn('self.setFocusId(self.list_id())', (ROOT / 'migration/deck-picker/deck_picker.py').read_text())
 
 
+class SheetGlyphs(unittest.TestCase):
+    def test_tile_glyphs_get_the_skin_path(self):
+        # Rig render: "Don't Show Again" and "Remove From List" tiles drew as bare squares (bare icon names).
+        import choice_sheet
+        self.assertEqual(choice_sheet.glyph_path('trash.png'), 'special://skin/extras/icons/trash.png')
+        self.assertEqual(choice_sheet.glyph_path('special://skin/x.png'), 'special://skin/x.png')
+        self.assertEqual(choice_sheet.glyph_path(''), '')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -31,7 +31,7 @@ def properties(spec):
         cover = row.get('cover')
         props.update({'row.%d.label' % n: row.get('label') or '', 'row.%d.detail' % n: row.get('detail') or '',
                       'row.%d.tag' % n: row.get('tag') or '', 'row.%d.tag_kind' % n: row.get('tag_kind') or '',
-                      'row.%d.tint' % n: row.get('tint') or '', 'row.%d.glyph' % n: row.get('glyph') or '',
+                      'row.%d.tint' % n: row.get('tint') or '', 'row.%d.glyph' % n: glyph_path(row.get('glyph')),
                       # the coverage bar in tenths (0-10); '' hides it
                       'row.%d.cover' % n: '' if cover is None else str(max(0, min(10, int(round(float(cover) / 10.0)))))})
     return props
@@ -44,6 +44,13 @@ def result(control, rows, link):
     if control == LINK and link:
         return rows
     return -1
+
+
+def glyph_path(name):
+    """A row tile's glyph: an icon name ('trash.png') becomes the skin's icon path (rig render, 2026-11-14: the tiles
+    drew as bare coloured squares because the image control was given the bare name)."""
+    name = str(name or '')
+    return name if not name or '://' in name or name.startswith(('/', '$')) else 'special://skin/extras/icons/' + name
 
 
 def choose(spec, xbmcgui=None, xbmc=None, path=None):

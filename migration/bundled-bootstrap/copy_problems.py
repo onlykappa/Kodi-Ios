@@ -185,7 +185,7 @@ def sheet(problem):
 
 # Owner (2026-11-14): "one more option that clears it for good and only will show up if there is a different issue"
 # (problem_ignore). A grey tile with the eye-slash glyph; the grey line says when it comes back.
-DONT_SHOW = {'label': "Don't Show Again", 'detail': 'It comes back only if something else goes wrong', 'tint': 'FF636366',
+DONT_SHOW = {'label': "Don't Show Again", 'detail': 'Back only if something else goes wrong', 'tint': 'FF636366',
              'glyph': 'eye-slash.png'}
 
 

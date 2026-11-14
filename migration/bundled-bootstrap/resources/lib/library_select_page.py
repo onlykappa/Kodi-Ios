@@ -30,16 +30,23 @@ def _rows(p, u):
         b = u.row_back(p, k, w, ROW_H) + u.tap(p, ROW + n, S, 0, w, ROW_H)
         b += p.image(S, 0, w, ROW_H, M + 'white.png', '140A84FF', '<visible>%s + %s</visible>' % (u.has(k + 'on'), pic))
         # Board D1: a round checkbox, blue with a tick when picked.
-        b += u.glyph(p, S + 38, ROW_H // 2 - 27, 54, 'circle.png', '66EBEBF5', '<visible>%s</visible>' % u.neg(u.has(k + 'on')))
+        b += p.image(S + 38, ROW_H // 2 - 27, 54, 54, M + 'circle_line.png', '66EBEBF5', '<visible>%s</visible>' % u.neg(u.has(k + 'on')))   # an empty ring
         b += u.glyph(p, S + 38, ROW_H // 2 - 27, 54, 'circle-check.png', 'FF0A84FF', '<visible>%s</visible>' % u.has(k + 'on'))
         ty = (ROW_H - THUMB_H) // 2
         still = (p.image(S + 120, ty, THUMB_W, THUMB_H, M + 'thumb16.png', p.SURFACE2, border=21) +
                  p.image(S + 120, ty, THUMB_W, THUMB_H, P(k + 'thumb'), p.WHITE, '', '>scale', M + 'thumb16.png', background=True) +
                  u.text(p, S + 132, ty + THUMB_H - 42, 120, 38, P(k + 'num'), 'p_cap', p.WHITE))
         tx = S + 120 + THUMB_W + 30
-        b += '<control type="group"><visible>%s</visible>%s%s%s</control>' % (
-            pic, still, u.paragraph(p, tx, 14, w - (tx - S) - 30, 106, P(k + 'title'), 'p_sub', p.WHITE),
-            u.text(p, tx, 104, w - (tx - S) - 30, 44, P(k + 'line'), 'p_foot', p.GREY))
+        tw = w - (tx - S) - 30
+        two = u.has(k + 'two')
+        # Rig render (DEC-047): the size line follows the title, one line or two (never "…").
+        b += '<control type="group"><visible>%s</visible>%s%s%s%s</control>' % (
+            pic, still,
+            '<control type="group"><visible>%s</visible>%s%s</control>' % (
+                u.neg(two), u.text(p, tx, 30, tw, 52, P(k + 'title'), 'p_sub'), u.text(p, tx, 84, tw, 44, P(k + 'line'), 'p_foot', p.GREY)),
+            '<control type="group"><visible>%s</visible>%s%s</control>' % (
+                two, u.paragraph(p, tx, 8, tw, 100, P(k + 'title'), 'p_sub', p.WHITE), u.text(p, tx, 106, tw, 44, P(k + 'line'), 'p_foot', p.GREY)),
+            '')
         b += '<control type="group"><visible>%s</visible>%s%s</control>' % (
             u.neg(pic), u.text(p, S + 128, 24, w - 166, 58, P(k + 'title'), 'p_body'),
             u.text(p, S + 128, 84, w - 166, 50, P(k + 'line'), 'p_foot', p.GREY))

@@ -17,7 +17,7 @@ MENU_DIM, MENU = 9799, 9800       # the catcher behind the menu, then up to MENU
 MENU_ITEMS, MENU_W, MENU_ROW = 5, 680, 150
 DOTS = (('ready', 'FF30D158'), ('converting', 'FFFF9F0A'), ('copying', 'FF0A84FF'), ('problem', 'FFFF453A'), ('unknown', 'FF30D158'))
 THUMB_W, THUMB_H = 215, 121       # 80 x 45 pt, a TMDb still at 16:9
-TWO_LINES = 22                    # titles longer than this wrap to a second line (DEC-046/047: never "…")
+TWO_LINES = 28                    # titles longer than this wrap to a second line (DEC-046/047: never "…"); 20 beside Repair
 
 
 def _round(p, u, ident, x, glyph):
@@ -104,12 +104,13 @@ def _menu(p, u):
     b = ('<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
          '<texturefocus colordiffuse="59000000">%swhite.png</texturefocus><texturenofocus colordiffuse="59000000">%swhite.png</texturenofocus></control>'
          % (MENU_DIM, W, p.HEIGHT, M, M))
-    b += p.image(x, y, MENU_W, P('menu.h'), M + 'r27.png', 'FA2C2C2E', border=27)
     rows = ''
     for n in range(MENU_ITEMS):
         k = 'menu.%d.' % n
         red = 'String.IsEqual(Window().Property(%sred),true)' % k
         r = '<control type="group"><top>%d</top>' % (n * MENU_ROW)
+        # Rig render (DEC-047): Kodi takes no property as a height, so each row draws its piece of the rounded card.
+        r += u.row_back(p, k, MENU_W, MENU_ROW, x=x, color='FA2C2C2E')
         r += p.image(x + 40, MENU_ROW - 3, MENU_W - 40, 3, M + 'white.png', '29EBEBF5', '<visible>!String.IsEmpty(Window().Property(menu.%d.label))</visible>' % (n + 1))
         r += u.glyph(p, x + 38 + 22, (MENU_ROW - 44) // 2, 44, P(k + 'icon'), p.WHITE, '<visible>!%s</visible>' % red)
         r += u.glyph(p, x + 38 + 22, (MENU_ROW - 44) // 2, 44, P(k + 'icon'), 'FFFF453A', '<visible>%s</visible>' % red)
@@ -142,7 +143,10 @@ def page(p):
     pair = (p.image(W - S - 400, 40, 400, 118, p.MEDIA + 'pill_134.png', 'E01C1C1E', border=59) +
             p.image(W - S - 160, 64, 3, 70, p.MEDIA + 'white.png', '24FFFFFF') +
             u.link(p, SELECT, W - S - 400, 40, 240, 118, 'Select', 'center', 'p_btn', p.WHITE) +
-            u.glyph(p, W - S - 80 - 22, 77, 44, 'ellipsis.png', p.WHITE) + u.tap(p, MORE, W - S - 160, 40, 160, 118))
+            u.glyph(p, W - S - 80 - 22, 77, 44, 'ellipsis.png', p.WHITE) + ('<control type="button" id="%d"><left>%d</left><top>40</top><width>160</width><height>118</height><label></label>'
+             '<texturefocus /><texturenofocus />'
+             '<animation effect="fade" start="100" end="60" time="0" condition="Control.HasFocus(%d)">Conditional</animation></control>'
+             % (MORE, W - S - 160, MORE)))   # rig render: no square highlight over the rounded capsule
     controls = (p.backdrop() + hero + head + listing + _round(p, u, BACK, S, 'chevron-left.png') + pair + _menu(p, u))
     # DEC-047 board C: a dialog, like the other Library pages, so nothing is drawn or tapped behind it.
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Library show page (DEC-043 board B, DEC-047 boards B and C), drawn by library_show_page.py -->\n'

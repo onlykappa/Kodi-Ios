@@ -244,7 +244,7 @@ class ShowPage(Page):
         self.assertIn(props['n.ready.label'], ('not added', 'need you'))
         self.assertEqual([r['episode'] for r in shown], [1, 2, 3, 4, 5, 9])
         self.assertEqual((props['ep.0.title'], props['ep.0.num'], props['ep.0.two']), ('Episode 1', 'E1', ''))
-        meta = {(1, 1): {'title': 'Homecoming', 'thumb': 'still1.jpg'}, (1, 2): {'title': 'The Akatsuki Makes Its Move', 'thumb': 's2.jpg'}}
+        meta = {(1, 1): {'title': 'Homecoming', 'thumb': 'still1.jpg'}, (1, 2): {'title': 'The Akatsuki Makes Its Move Once More', 'thumb': 's2.jpg'}}
         props2, _, _ = self.lm.fill_show(data, show, slots=10, meta=meta)
         self.assertEqual((props2['ep.0.title'], props2['ep.0.thumb'], props2['ep.1.two']), ('Homecoming', 'still1.jpg', 'true'))
         self.assertEqual((props['ep.3.state'], props['ep.3.repair']), ('problem', 'true'))

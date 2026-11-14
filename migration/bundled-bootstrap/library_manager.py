@@ -221,7 +221,8 @@ def fill_show(data, show, season=None, slots=60, seasons_max=8, meta=None, searc
         props[k + 'title'] = title
         props[k + 'num'] = 'E%d' % r['episode']
         props[k + 'thumb'] = m.get('thumb', '') if r.get('id') else ''
-        props[k + 'two'] = 'true' if len(title) > TWO_LINES else ''
+        # Rig render (DEC-047): about 28 characters fit on one line, about 20 beside the round Repair.
+        props[k + 'two'] = 'true' if len(title) > (TWO_LINES_BESIDE_REPAIR if (r['repair'] or not r.get('id')) else TWO_LINES) else ''
         props[k + 'line'] = r['line']
         props[k + 'state'] = r['state']
         props[k + 'bar'] = 'true' if r['state'] in (lf.CONVERTING, lf.COPYING) and r.get('progress') is not None else ''
@@ -235,7 +236,7 @@ def fill_show(data, show, season=None, slots=60, seasons_max=8, meta=None, searc
     return props, shown, seasons
 
 
-TWO_LINES = 22   # library_show_page.TWO_LINES: a longer title wraps to a second line
+TWO_LINES, TWO_LINES_BESIDE_REPAIR = 28, 20   # library_show_page.TWO_LINES: a longer title wraps to a second line
 
 
 def fill_item(row, show=None, kind='episode'):
@@ -507,6 +508,7 @@ def run():
                 props['it.%d.pos' % n] = POS(n, len(shown)) if it else ''
                 props['it.%d.num' % n] = it.get('num', '') if it else ''
                 props['it.%d.thumb' % n] = it.get('thumb', '') if it else ''
+                props['it.%d.two' % n] = 'true' if it and it.get('num') and len(it.get('title', '')) > 30 else ''
             for key, value in props.items():
                 self.setProperty(key, str(value))
 
@@ -807,7 +809,7 @@ def run():
                 self.setProperty(k + 'icon', 'special://skin/extras/icons/' + e[3] if e else '')
                 self.setProperty(k + 'red', 'true' if e and e[4] else '')
                 self.setProperty(k + 'tint', 'FFFF453A' if e and e[4] else 'FFFFFFFF')
-            self.setProperty('menu.h', str(show_page.MENU_ROW * min(len(self.entries), show_page.MENU_ITEMS)))
+                self.setProperty(k + 'pos', POS(n, min(len(self.entries), show_page.MENU_ITEMS)) if e else '')
             self.setProperty('menu', 'true')
             try:
                 self.setFocusId(show_page.MENU)
