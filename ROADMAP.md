@@ -553,4 +553,5 @@ Authorized scope: Python backend only, stacked on claude/build442-feedback; no m
 1. Shared Queue/Notifications index: host implementation and regression fixture (ISSUE-291), device retest pending.
 2. Upload measurements/history: host implementation and regression tests (ISSUE-292); device log after startup fix needed.
 3. Subtitle matching: backend implemented and tested (ISSUE-293); embedded DVD timing/speech evidence unavailable.
-4. Notice/season data; 5. terminal retry classification: in progress.
+4. Notification/season data: backend helpers and progressive coverage (ISSUE-294), UI binding remains separate.
+5. Terminal retry classification: implemented, final validation in progress.

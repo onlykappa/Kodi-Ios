@@ -46,13 +46,11 @@ class Models(unittest.TestCase):
         self.assertEqual(ss.recommend({'4k': [9.0]}, 8), '4k')         # the only one there is
         self.assertIsNone(ss.recommend({}, 8))
 
-    def test_check_looks_at_start_middle_end_and_counts_lower_for_720p(self):
-        self.assertEqual(ss.check_numbers(range(1, 12)), [1, 6, 11])
-        self.assertEqual(ss.check_numbers([4, 5]), [4, 5])
+    def test_check_counts_lower_for_720p_without_claiming_sample_coverage(self):
         self.assertEqual(ss.survey({1: {'qualities': ['480p'], 'sizes': {'480p': 0.1}}}), {'720p': [0.1]})
         props = ss.checking_props('Rick and Morty', 1, 11, [1, 6, 11], 2, {'4k': 'found', '1080p': 'found'})
         self.assertEqual((props['check.sub'], props['check.q.3'], props['button.off'], props['check.pct']),
-                         ('Looking at episodes 1, 6 and 11', '720p · \u2026', 'true', '66'))
+                         ('0 of 11 episodes checked', '720p · 0 of 11 episodes found · checking', 'true', '0'))
 
     def test_nothing_found_cannot_build_and_no_answer_lets_every_row_be_chosen(self):
         props = ss.quality_props('X', 1, 8, {})

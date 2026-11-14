@@ -65,3 +65,28 @@ scored. Python has no exposed DVD cue or speech API in the current native framew
 Issue numbering note: the target branch added its own UI ISSUE-290 while this work was underway. The backend entries
 are ISSUE-291 onward. The first two commit subjects retain their original pre-collision references (queue 290→291,
 upload metrics 291→292); no pushed history was rewritten.
+
+
+## Notification and season data (ISSUE-294)
+
+- **C1:** `notice_help.folded(items)` returns copies with `count` (notice occurrences, e.g. `2`), `lines` (`2` or `3`,
+  text length over 110 characters selects `3`), `ids` (e.g. `["new","old"]`), `unread` (any member unread), and
+  `source_count` (the original store count, which may describe episodes). Exact kind/title/text only; no store mutation.
+  Newest time/action stays on the row. The UI agent can replace its list projection with this helper.
+- **N2:** `notice_help.detail_model(item, records=(), profile=profile)["timeline"]` loads retained producer steps.
+  `notice_help.explain(item)["timeline"]` also accepts an explicit item timeline. Up to three entries, e.g.
+  `[{"at":1001,"time":"10:29","kind":"copying","colour_kind":"blue","text":"3 episodes started copying"},
+  {"at":1120,"time":"10:31","kind":"problem","colour_kind":"orange","text":"AllDebrid stopped answering"},
+  {"at":1420,"time":"10:36","kind":"retry","colour_kind":"orange","text":"Tries again in 5 min"}]`.
+  Clock strings use the phone's local timezone; the numeric timestamps above are illustrative. Old notices without timed
+  evidence get no invented steps. The UI agent should pass profile to load the sidecar; no detail layout was changed.
+- **Q2:** `season_check.Survey.model()` has `total`, `completed`, `pending`, `unknown`, `checking_qualities`, `qualities`.
+  Example quality: `{"key":"1080p","label":"1080p","found":4,"total":10,"checked":6,"pending":4,
+  "unknown":0,"state":"checking"}`. Total is episodes still needed for this Build Season request.
+  State becomes `done` or `incomplete`; failed scans stay unknown. Exact 720p counts do not count a 480p fallback as 720p.
+- `season_sheet.checking_props` / the existing sheet controller publish string properties:
+  `check.total="10"`, `check.completed="6"`, `check.pending="4"`, `check.unknown="0"`,
+  `check.checking_qualities="4k,1080p,720p"` (empty when no scans remain), and `check.quality.N.{key,label,found,total,
+  checked,pending,unknown,state,text}` for N=1 (4K), 2 (1080p), 3 (720p). Example:
+  `check.quality.2.found="4"`, `.total="10"`, `.text="4 of 10 episodes found"`, `.state="checking"`.
+  `check.sub="6 of 10 episodes checked"`; no sample-episode wording. Counts are retained after the check completes.

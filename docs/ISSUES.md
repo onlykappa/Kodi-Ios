@@ -4344,3 +4344,24 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   no claim that text/speech recognition or an unavailable native cue API was implemented.
 - **Test:** scripts/test_subtitle_match.py; existing test_track_menu, test_subtitle_sources and test_undefined_names;
   check_project and all workflow-listed tests before commit. Host checks only, owner playback retest pending.
+
+
+## ISSUE-294 — Data for folded notifications, timed steps and live season-quality coverage — implemented without layouts
+
+- **Request:** C1 identical-notice folding and 2/3-line data; N2 up to three timed steps; Q2 per-quality episode coverage
+  as answers arrive, without sample-episode wording or any sheet/menu layout change.
+- **Cause:** Raw notices had no reusable list/detail projection or retained lifecycle times. The quality sheet reported
+  start/middle/end sample episodes and only a found/not-found flag; that was not whole-season coverage.
+- **Fix:** notice_help.folded / notice_models.fold combine exact kind/title/text matches, preserve member IDs/unread state,
+  count notice occurrences (not a stored season's episode count), and expose lines=2/3 from text length. A separate bounded
+  runtime sidecar records copy-start/problem/retry/ready steps, folding starts across a season's concurrent episodes/files;
+  notice_help.detail_model exposes timeline with actual time, colour_kind, kind and text. No notices.py routines changed.
+  The Build Season check now scans every remaining episode once, reuses those answers for the build, and publishes exact
+  found/total/checked/pending/unknown counts per quality plus checking_qualities. Empty/error responses stay unknown,
+  never proof of absence; incomplete checks do not disable a quality. Sample-episode wording/helpers were removed.
+- **Retest:** Exact-repeat folding with an existing episode count, immutable inputs, line count, timed-step reload/cap,
+  pack-file identity, single-episode lookup, the real copier retry producer, partial/failed quality replies, and the real
+  season builder publishing before completion all pass. Existing season sheet/source tests pass. UI binding and visual
+  behaviour belong to the UI agent; this entry makes no rendering/device claim.
+- **Test:** scripts/test_notice_season_data.py (seven cases), updated test_season_sheet, check_project and every listed
+  import-review test before commit.

@@ -169,6 +169,8 @@ def explain(item):
     if item.get('action') and not any(a == 'notice' for _, _, a in out['fixes']):
         out['fixes'].insert(0, ('Open', 'Where this happened', 'notice'))
     out['fixes'] = out['fixes'][:3]
+    import notice_models
+    out['timeline'] = notice_models.timeline(item)
     return out
 
 
@@ -204,4 +206,21 @@ def facts(item, records, probe=None):
             out.append(('Subtitles', 'DVD picture subtitles'))
     if (item or {}).get('time'):
         out.append(('When', _time.strftime('%d %b %H:%M', _time.localtime(item['time']))))
+    return out
+
+
+def folded(items):
+    """C1 list model, ready for the UI to bind count/lines without changing notices.add/load/filter."""
+    import notice_models
+    return notice_models.fold(items)
+
+
+def detail_model(item, records=(), profile=None):
+    """N2: explanation plus up to three timed steps (time, colour_kind, kind, text, at)."""
+    import notice_models
+    item = dict(item or {})
+    if profile is not None and not item.get('timeline'):
+        item['timeline'] = notice_models.steps_for(profile, item)
+    out = explain(item)
+    out['timeline'] = notice_models.timeline(item, records)
     return out

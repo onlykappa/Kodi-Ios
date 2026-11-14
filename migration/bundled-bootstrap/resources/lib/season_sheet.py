@@ -47,14 +47,6 @@ def season_size(gb):
     return size_text(gb)
 
 
-def check_numbers(numbers):
-    """The three episodes the quick check looks up first: start, middle, end (board B3·1)."""
-    numbers = sorted(numbers)
-    if len(numbers) <= 3:
-        return numbers
-    return sorted({numbers[0], numbers[len(numbers) // 2], numbers[-1]})
-
-
 def survey(found):
     """{episode: scan answer} -> {quality: [size of one episode, ...]} for the sheet's three rows. A copy found only
     below 720p counts for 720p (Build Season takes it a quality down)."""
@@ -85,20 +77,20 @@ def recommend(found, episodes):
 
 
 def checking_props(title, season, episodes, checked, done, states):
-    """Board B3·1: the check card while three episodes are looked up. states: {quality: 'found'|'none'|''}."""
-    props = {'season.title': 'Season %s' % season, 'season.sub': '%s · %d episode%s' % (title, episodes, '' if episodes == 1 else 's'),
-             'checking': 'true', 'check.title': 'Checking which qualities exist\u2026',
-             'check.sub': 'Looking at episode%s %s' % ('' if len(checked) == 1 else 's', _and(checked)),
-             'check.pct': str(int(100 * done / max(1, len(checked)))),
-             'how': 'Takes a few seconds. Only qualities that exist can be chosen.', 'button': 'Build Season', 'button.off': 'true'}
-    for n, q in enumerate(QUALITIES, 1):
-        props['check.q.%d' % n] = '%s \u00b7 %s' % (LABELS[q], {'found': 'found', 'none': 'not found'}.get(states.get(q), '\u2026'))
+    """Live quality coverage only; no sample-episode names or inferred whole-season counts."""
+    import season_check
+    coverage = states.get('coverage')
+    if coverage is None:
+        # Initial and older callers have not supplied per-episode evidence: keep counts unknown/zero.
+        coverage = season_check.Survey(range(episodes)).model()
+    props = {'season.title': 'Season %s' % season,
+             'season.sub': '%s · %d episode%s' % (title, episodes, '' if episodes == 1 else 's'),
+             'checking': 'true', 'check.title': 'Checking available qualities',
+             'check.sub': '%d of %d episodes checked' % (coverage['completed'], coverage['total']),
+             'check.pct': str(int(100 * coverage['completed'] / max(1, coverage['total']))),
+             'how': 'Results appear as each episode is checked.', 'button': 'Build Season', 'button.off': 'true'}
+    props.update(season_check.properties(coverage))
     return props
-
-
-def _and(numbers):
-    numbers = ['%d' % n for n in numbers]
-    return numbers[0] if len(numbers) == 1 else ', '.join(numbers[:-1]) + ' and ' + numbers[-1]
 
 
 def quality_props(title, season, episodes, found=None, chosen=None):
@@ -260,7 +252,11 @@ def pick_quality(xbmcgui, title, season, episodes, check=None, wait=None):
         state['found'] = None
 
     def pick_props():
-        return quality_props(title, season, episodes, state['found'], state['q'])
+        props = quality_props(title, season, episodes, state['found'], state['q'])
+        if state.get('coverage'):
+            import season_check
+            props.update(season_check.properties(state['coverage']))
+        return props
 
     class Sheet(xbmcgui.WindowXMLDialog):
         def apply(self, props):
@@ -313,11 +309,12 @@ def pick_quality(xbmcgui, title, season, episodes, check=None, wait=None):
         threading.Thread(target=sheet.doModal, daemon=True).start()
 
         def show(done, states):
+            state['coverage'] = states.get('coverage')
             sheet.apply(checking_props(title, season, episodes, getattr(check, 'numbers', ()) or (), done, states))
         found = check(show, lambda: state['closed'])
         if state['closed']:
             return None
-        state['found'] = survey(found) if found is not None else None
+        state['found'] = survey(found) if found is not None and not (state.get('coverage') or {}).get('unknown') else None
         state['ready'] = True
         props = pick_props()
         state['q'] = next((q for n, q in enumerate(QUALITIES, 1) if props.get('q.%d.on' % n)), None)

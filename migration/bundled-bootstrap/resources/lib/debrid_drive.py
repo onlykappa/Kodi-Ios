@@ -1160,9 +1160,18 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     those jobs end as failed with 'Cancelled' and forget(hash) clears each request."""
     say = notify
 
+    def timed_step(target, kind, text):
+        try:
+            import notice_models
+            notice_models.record_step(profile, target, kind, text, clock())
+        except Exception as error:
+            log('notice timeline: %s' % type(error).__name__)
+
     def notify(kind, title_, text, job_=None):
         # ISSUE-268: a download from a season request (its batch) joins that season's one message; one episode's stays its own.
         group = str((job_ or {}).get('batch') or '')
+        if job_ and kind in ('problem', 'drive'):
+            timed_step(job_, 'problem' if kind == 'problem' else 'ready', text)
         if group:
             try:
                 return say(kind, title_, text, group=group)
@@ -1380,6 +1389,9 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 marks = []
                 mode = ['']   # ISSUE-273: 'ready' while the file is made ready on its way (the card says so)
                 lane_job = '%s:%s:%s' % (owner.get('hash', ''), owner.get('season', ''), owner.get('episode', ''))
+                if owner.get('timeline_file') != name:
+                    owner['timeline_file'] = name
+                    timed_step(owner, 'copying', '1 episode started copying' if owner.get('batch') else 'Copy started')
 
                 def progress(sent, total):
                     # Owner (build 170): the speed and the time left, measured over the last ~20 s.
@@ -1505,6 +1517,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                                 if again:
                                     todo.append(entry)
                             if again:
+                                timed_step(entry[0], 'problem', _said(error))
+                                timed_step(entry[0], 'retry', 'Tries again after the other downloads')
                                 # ISSUE-285 (owner log 6cf2a4c5: "Rick and Morty: RuntimeError; trying it again after the others",
                                 # with no way to tell which one): the episode and the error's own words.
                                 log('%s: %s: %s; trying it again after the others (%d of %d)' % (
@@ -1614,6 +1628,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             job['error'] = '%s: %s' % (type(error).__name__, str(error)[:160])
             wait = min(600, 60 * job['tmdb_waits'])
             job['retry_at'] = clock() + wait
+            timed_step(job, 'problem', _said(error))
+            timed_step(job, 'retry', 'Tries again in %d min' % max(1, int(wait / 60)))
             log('%s: %s; again in %d s' % (title, str(error)[:100], wait))
             commit()
             return wait
@@ -1624,6 +1640,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             job['error'] = '%s: %s' % (type(error).__name__, str(error)[:160])
             wait = net_wait(job['net_tries'])
             job['retry_at'] = clock() + wait
+            timed_step(job, 'problem', _said(error))
+            timed_step(job, 'retry', 'Tries again in %d min' % max(1, int(wait / 60)))
             log('%s: network trouble (%s); carrying on in %d s' % (title, job['error'][:100], wait))
             commit()
             return wait
@@ -1631,6 +1649,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         job['error'] = '%s: %s' % (type(error).__name__, str(error)[:160])
         log('%s: try %d, again in %d s: %s' % (title, job['tries'], min(600, 30 * job['tries']), job['error']))
         job['retry_at'] = clock() + min(600, 30 * job['tries'])   # build 193: pages say "trying again in N min"
+        timed_step(job, 'problem', _said(error))
+        timed_step(job, 'retry', 'Tries again in %d min' % max(1, int(min(600, 30 * job['tries']) / 60)))
         commit()
         if job['tries'] >= 20:
             job['status'] = 'failed'
