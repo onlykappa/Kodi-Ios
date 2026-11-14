@@ -229,7 +229,8 @@ def run():
   import transfer_history,debrid_drive,prepare_downloads
   try:torrents=notices.torrent_list()
   except Exception:torrents=[]
-  return transfer_history.activity(torrents,debrid_drive.load(profile).get('current'),prepare_downloads.load(profile).get('current'))
+  d=debrid_drive.load(profile)
+  return transfer_history.activity(torrents,d.get('current'),prepare_downloads.load(profile).get('current'),d.get('lanes'))
  import transfer_history
  threading.Thread(target=transfer_history.watch,args=(profile,transfer_rates,monitor.waitForAbort),daemon=True).start()
  # Roadmap 1A.1: the app's own Drive streaming proxy (Library playback of Drive copies), started once Drive is signed in.

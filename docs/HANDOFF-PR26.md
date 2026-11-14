@@ -7,22 +7,49 @@ fails it); new tests go in `.github/workflows/import-review.yml`; log every fix 
 quality messages; owner approves mockups before UI is coded. Native converter changes: read the airplay-remux host-tests
 job as well as the framework build before pinning a KodiAirPlay release.
 
-## State
+## State (2026-11-14, end of session; the next agent takes over from here)
 
-- Owner's last IPA: **build-406** (7a50b2a): everything through ISSUE-258, AirPlay r56 pinned, Media Assistant kept
-  (`cast.DIRECT_AIRPLAY = False`). Any new IPA needs the owner's OK in the current request.
-- After build-406: ISSUE-257 rig label fix, ISSUE-259 (warm the video Kodi plays for Play on TV), ISSUE-261 (background work
-  waits while the TV is short of the movie). Later speed-up, not started: a second conversion lane for 10-bit H.264 (native; a
-  new KodiAirPlay release needs both the airplay-ios run and the airplay-remux host-tests job green, and the sha256 checked).
-- All scripts in the import-review test list pass on the host.
+- **Owner's last IPA: build-424** (14ed931). Everything after it is committed and pushed on this branch and **NOT built**:
+  ISSUE-270 to ISSUE-275 (see docs/ISSUES.md). The owner asked for an IPA with these ("push out the ipa"), so build it as soon
+  as the full test list and check_project pass: `import-review.yml` workflow_dispatch on `claude/preparation-repair`; the
+  release is `build-<run number>`; send the owner the .ipa link.
+- Before building: run every import-review test (`for t in $(grep -oE "python3 -B scripts/test_[A-Za-z0-9_]+\.py"
+  .github/workflows/import-review.yml | sed 's/python3 -B //' | sort -u); do python3 -B $t; done`); the last full run was before
+  ISSUE-273-275, whose own suites pass (test_copy_status, test_netwatch, test_pinned_addons, test_work_state,
+  test_quality_choice, test_season_quality, test_deck_picker, test_debrid_drive).
 
-## Open
+## Open (do these, in order)
 
-1. ~~Done 2026-11-14 (rows and sheet fit; label changed).~~ Desktop Kodi rig check of the Download problems page after ISSUE-257 (episode-first titles, "Clear All for <show>" row
-   in the sheet). How: `python3 -B scripts/kodi_rig.py setup` (once), `start`, `sync`, fake data (two failed debrid jobs
-   of one show via `debrid_drive.save`), `open copy_problems`, `click 9201`, `shot NAME`.
-2. Delete the Roku / Media Assistant route only after the owner confirms Rokus play well through AirPlay (ISSUE-252).
-3. AI Upscale: the host tests pass; the phone proof is a 4K copy that finishes (ISSUE-241).
+1. **Build the IPA** (above) with ISSUE-268 to ISSUE-275.
+2. **Wi-Fi <-> cellular (owner: "ensure seamless downloads work at all times", "a quicker and smoother recovery")**:
+   - Built-in fix not yet on the phone: ISSUE-271 (`netwatch` 2 s link watcher; a copy run ends at the next piece on a
+     switch and restarts after 1 s; `driveupload.LinkMemory` per-link piece size and speed; diagnostics count only fresh
+     lanes) and ISSUE-270 (`pinned_addons.use_clouddrive` everywhere clouddrive is loaded).
+   - Ask the owner for one log: start a season copy on Wi-Fi, turn Wi-Fi off for ~3 min, back on, then share the log.
+     Check: "connection changed to cellular while copying: carrying on at once" within seconds of the switch, lane count
+     changes (2 on cellular), no 20 s piece timeouts after the switch, pieces start at the remembered size, and back on
+     Wi-Fi the lanes go up within seconds (logs 4e5fb2dd / 18a4f9c7 / 8de561f4 show the old 3-7 min delays).
+   - Known limit: the one native piece in flight at the switch cannot be cancelled from Python (46-68 s in the logs).
+     If the owner wants that shorter, the native copier (KodiAirPlay copy_piece) needs a cancel; framework release rules
+     apply (airplay-ios + airplay-remux host-tests green, sha256 checked, then pin).
+   - Log 3848afa9 07:53-07:59: three "made ready while it copies" lanes (704x480 HEVC) crawled at 0.03-0.1 MB/s on Wi-Fi
+     that did ~24 MB/s a minute earlier, and sat at 92-94 %. Cause not proven (likely three converters reading AllDebrid
+     at once). Look in the next log; consider at most one made-ready lane at a time if it repeats.
+3. **Library status redesign (owner: "I still don't like this")**: docs/design/unified-status-mockups.html.
+   - Board A was rejected twice: round 1 cards "way too thick"; round 2 (slim grouped rows with a 34 pt ring, one title line,
+     one status line, a small speed line) still not liked. The owner's screenshot of round 2 showed status lines wrapping
+     ("1 min / left") and the summary as plain text (an early render before its CSS was fixed). **Remake board A from
+     scratch**: ask the owner what they want first (e.g. bars instead of rings, no speed line, one line per job, density),
+     make 2-3 options side by side, follow APPLE-UI-POLICY (DEC-050: nothing cut off, no wrapping that looks broken).
+   - Board B (copy sheet like the conversion sheet: big ring + speed graph) not yet commented on; it and any ring change
+     DEC-036 (bars everywhere), so record the owner's decision as a new DEC.
+   - Do not code the redesign until the owner approves a board.
+4. **Already in code, needs the phone**: one notice per season request (ISSUE-268); the quality question (DEC-049, boards
+   A-D; board D rig render still pending); pinned add-ons restored ("Add-ons put back" then restart, ISSUE-267/270);
+   "Downloads stopped" watchdog (ISSUE-269); pseudo/Anime4K treated as upscales (ISSUE-272); smooth copy cards, "Getting it
+   ready for Kodi and AirPlay", a graph per copy lane (ISSUE-273); one release per season (ISSUE-274); preparation waits
+   while copies run, "Starts when the downloads finish" (ISSUE-275).
+5. Update the PR #26 description (it stops at ISSUE-261 / build-411) with ISSUE-262 to ISSUE-275 and builds 415/421/424.
 
 ## Needs the owner's phone
 

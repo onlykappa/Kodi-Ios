@@ -115,8 +115,12 @@ def run(args=()):
   def speed(self,s):
    import transfer_history
    history=transfer_history.load(profile)
-   j=(history.get('jobs') or {}).get(s['card']) or {}
-   points=j.get('points') or [] if j.get('title')==s['title'] else []
+   jobs=history.get('jobs') or {}
+   j=jobs.get(s['card']) or {}
+   # ISSUE-273: a copy's graph is the history lane copying this job ('up' or 'up.<slot>'), whatever its title says.
+   if s.get('live_job') and s['card']=='up':
+    j=next((v for k,v in jobs.items() if k.split('.')[0]=='up' and v.get('job')==s['live_job']),j)
+   points=j.get('points') or [] if (j.get('title')==s['title'] or (s.get('live_job') and j.get('job')==s['live_job'])) else []
    live=s.get('live') or {}
    rate=float(live.get('rate') or 0)
    moving=live.get('state') in ('running','slowed') and rate>0

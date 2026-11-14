@@ -64,6 +64,7 @@ def pass_once(profile,window,keep_going,log):
   try:
    import quality_choice   # DEC-049 board C
    request['prefer_names']=[n for n in (quality_choice.preferred(profile,show['tmdb'],target['season']),) if n]
+   request['season_names']=debrid_drive.season_names(debrid_drive.load(profile),show['tmdb'],target['season'])   # ISSUE-274
   except Exception:pass
   window.clearProperty(watch.RESULT);window.clearProperty('KodiIOS.AutoPick.Queued')
   window.setProperty(watch.AUTO,json.dumps(request))

@@ -316,7 +316,8 @@ def details(row, view):
         if live['kind']=='copy' and int((model or {}).get('copies_waiting') or 0)>1:
             actions.append(('Cancel All','cancel_all'))
         sheet.update(status=live['line'], step=live['step'], bar=str(live.get('pct') or 0), bar_tint=live['tint_now'],
-                     card='conv' if live['kind'] in ('conv','repack') else 'up' if live['kind'] in ('copy','upload') else 'down',
+                     card='conv' if live['kind'] in ('conv','repack') else ('up' if live['kind'] in ('copy','upload') else 'down'),
+                     live_job=str(live.get('job') or ''),
                      actions=actions)
     probe = row.get('probe') or {}
     picture, codec = picture_text(probe), str(probe.get('codec') or '').upper()

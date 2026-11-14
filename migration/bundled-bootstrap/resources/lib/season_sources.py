@@ -160,6 +160,7 @@ def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=Non
   try:
    import quality_choice   # DEC-049 board C: the version the owner chose for this season goes first
    wanted['prefer_names']=[n for n in (quality_choice.preferred(_profile(),tmdb,int(season)),) if n]
+   wanted['season_names']=debrid_drive.season_names(debrid_drive.load(_profile()),tmdb,int(season))   # ISSUE-274
   except Exception:pass
  watch.canceled(home,target,clear=True)
  home.clearProperty(watch.RESULT+lane);home.clearProperty('KodiIOS.AutoPick.Queued'+lane)

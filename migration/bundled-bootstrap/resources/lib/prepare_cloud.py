@@ -66,6 +66,17 @@ def verify_problem(before, after):
     return ''
 
 
+def copies_running(q, fresh=30):
+    """ISSUE-275: an AllDebrid copy lane reported in the last `fresh` seconds."""
+    try:
+        import debrid_drive
+        now = q.clock()
+        return any(isinstance(c, dict) and c.get('stage') == 'copying' and now - max(float(c.get('updated') or 0), float(c.get('phase_at') or 0)) < fresh
+                   for c in (debrid_drive.load(q.profile).get('lanes') or {}).values())
+    except Exception:
+        return False
+
+
 def process_one(q, keep_going, lane=None):
     """One preparation job. lane None: the main lane (any job; owns the heartbeat and the 'current' card). lane 'N'
     (F2, PR #24): an extra lane that takes only known re-packages, claims its job so no other lane runs it, and shows its
@@ -107,6 +118,19 @@ def process_one(q, keep_going, lane=None):
                     held_changed = True
             candidates = kept
         elif lane is None and q.state.pop('wifi_hold', None):
+            held_changed = True
+        # ISSUE-275 (owner log 3848afa9: a preparation read Drive at 49 MB/s while three copies crawled): while AllDebrid
+        # copies run, nothing new is prepared unless it is the next to watch or the owner asked for it now; it starts as
+        # soon as the copies finish (copies made ready on their way are copies, not this).
+        if candidates and lane is None and copies_running(q):
+            first = [pair for pair in candidates if asked_now(pair[1], q.clock) or prep.watch_next(pair[1])]
+            if not first and not q.state.get('copy_hold'):
+                q.log('preparation: waits while downloads run (they go first)')
+            if bool(q.state.get('copy_hold')) != (not first):
+                q.state['copy_hold'] = not first
+                held_changed = True
+            candidates = first
+        elif lane is None and q.state.pop('copy_hold', None):
             held_changed = True
         candidates.sort(key=lambda pair:prep.order_key(*pair))   # build 182: quick (repack only) before re-encodes
         if candidates:running.add(candidates[0][0])

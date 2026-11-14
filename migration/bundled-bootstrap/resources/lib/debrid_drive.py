@@ -803,6 +803,13 @@ def hold_pack(state, job, error, clock=time.time):
     return held
 
 
+def season_names(state, tmdb, season):
+    """ISSUE-274: the list names of the versions this season's episodes were copied from (newest last), so the rest of the
+    season comes from the same release when one of equal quality has it."""
+    return [j['pick_name'] for j in state.get('jobs', []) if j.get('status') == 'done' and j.get('pick_name')
+            and str(j.get('show_tmdb') or '') == str(tmdb or '') and str(tmdb or '') and str(j.get('season')) == str(season)][-10:]
+
+
 def avoid_names(state, tmdb, season, episode):
     """(excluded, lower): names of this episode's versions that failed (a dead torrent, "File not available due to no
     peer", a broken file: never picked again) and that a copy found lower than the quality chosen (ISSUE-236: only when
@@ -1295,6 +1302,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     parent = drive.folder(parts)
 
                 marks = []
+                mode = ['']   # ISSUE-273: 'ready' while the file is made ready on its way (the card says so)
                 lane_job = '%s:%s:%s' % (owner.get('hash', ''), owner.get('season', ''), owner.get('episode', ''))
 
                 def progress(sent, total):
@@ -1315,7 +1323,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     # which file of the job this is, so the pages name the episode and count the season.
                     show(slot, {'name': job_title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying', 'job': lane_job,
                                         'rate_own': rate, 'eta_s': (total - sent) / rate if rate else 0, 'updated': now,
-                                        'file': name, 'index': owner['files'].index(entry) + 1, 'count': len(owner['files'])})
+                                        'file': name, 'index': owner['files'].index(entry) + 1, 'count': len(owner['files']), 'mode': mode[0]})
                     with guard:
                         if owner.get('tries') and sent > (marks[0][1] if len(marks) > 1 else 0):
                             owner['tries'] = 0
@@ -1348,8 +1356,10 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                         entry['ready_tries'] = entry.get('ready_tries', 0) + 1
                         attempt_ready = entry['ready_tries'] <= READY_TRIES
                     if attempt_ready:
+                        mode[0] = 'ready'
                         result = ready_copy(with_source, name, size, parent, going, progress,
                                             '%s:%s' % (hash_, entry.get('path') or name), quality=owner.get('quality') or '')
+                    mode[0] = ''
                     if result is None:
                         with guard:
                             entry['plain'] = True

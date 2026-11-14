@@ -864,6 +864,21 @@ def _pack_root(name):
     return (text.rsplit(u'/', 1)[0] if u'/' in text else text).strip().casefold()
 
 
+def release_group(name):
+    """ISSUE-274: who released a version: the leading "[Group]" tag, else the scene suffix "-Group", else its pack folder.
+    '' when none can be told."""
+    text = _s(name).strip()
+    m = re.match(r'\s*\[([^\]]+)\]', text)
+    if m:
+        return m.group(1).strip().casefold()
+    base = text.rsplit(u'/', 1)[-1]
+    base = re.sub(r'\.(mkv|mp4|avi|m4v|ts)$', u'', base, flags=re.I)
+    m = re.search(r'-([A-Za-z0-9]{2,20})$', base)
+    if m:
+        return m.group(1).casefold()
+    return _pack_root(text) if u'/' in text else u''
+
+
 def is_lower(item, lower):
     """ISSUE-264: a version a copy found lower than chosen, by its list name or by its pack (a refusal counts for the
     season's other episodes of the same pack)."""
@@ -898,6 +913,7 @@ def auto_choose(kept, want, ranked=None):
         return None
     order = {q: n for n, q in enumerate(QUALITY_ORDER)}
     target = order.get(want.get('quality'), 2)
+    season_groups = {g for g in (release_group(n) for n in (want.get('season_names') or ())) if g}
     size = float(want.get('size') or 0)
     minutes = int(want.get('runtime') or 0)
     if want.get('coverage') == u'' and size:
@@ -914,6 +930,8 @@ def auto_choose(kept, want, ranked=None):
         # small) comes after every real one: it is the lower quality, many times larger.
         fake = fallback and bool(below_quality(it, it['quality'], minutes))
         return (is_bad(it), it['seeds'] <= 0, is_lower(it, lower), fake, bool(WHOLE_SERIES.search(_s(it.get('name')))), bool(it.get('multi')), distance,
+                # ISSUE-274 (owner: one release per season): the group the season's other episodes came from, at equal quality.
+                bool(season_groups) and release_group(it['name']) not in season_groups,
                 hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
                 slow_to_prepare(it), converts_for_tv(it), too_heavy(it), prep_cost(it), size_fit(it, minutes), seed_bucket(it),
                 SOURCE_RANK.get(source_type(it), 3), abs(it['size'] - size) if size else -size_step(it), -it['seeds'])
@@ -1149,7 +1167,7 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
         ranked = []
         best = auto_choose([p for p in kept if p['name'] not in failed],
                            dict(auto.get('profile') or {}, lower_names=auto.get('lower_names') or [],
-                                prefer_names=auto.get('prefer_names') or []), ranked)
+                                prefer_names=auto.get('prefer_names') or [], season_names=auto.get('season_names') or []), ranked)
         try:
             import json
             _auto_result(auto, {'episode': exp.get('episode'), 'found': bool(best),

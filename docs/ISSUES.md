@@ -3998,3 +3998,45 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - Keep one release for a whole season (mixed AnimeRG / Anime Time episodes).
   - Let copies go first while a preparation reads Drive on the same Wi-Fi.
 - **Retest:** test_season_quality `test_versions_that_are_not_really_the_chosen_quality_are_left_out`.
+
+## ISSUE-273 — Copy cards choppy, no graph on a copy's sheet, nothing said "getting it ready" (owner screenshots and log 3848afa9, build 424) — fixed in code; circle design in mockup
+
+- **Owner:** "these are super choppy to update, not smooth like the conversion pages"; "have the AllDebrid to Drive look just
+  like the conversion tab … a graph of speed and a circle of progression"; "it doesn't show anything about getting things
+  ready; ensure all downloads and preparation and everything shows in the status".
+- **Seen:**
+  - S2 E48/E49/E50 sat at 92/91/94 % with "Waiting for Google Drive · no answer for 1 min".
+  - Their sheet showed "Right now —" and no graph.
+  - All three were "made ready while it copies" (704x480 HEVC). From 07:53 every Drive piece crawled at 0.03–0.1 MB/s,
+    against about 24 MB/s a minute earlier on the same Wi-Fi.
+- **Causes:**
+  - A copy reports when a piece is confirmed: 6–30 s apart, longer at low speed. Conversions report every second.
+  - The transfer history kept one copy ("up"), the shown one, so the other lanes had no graph. The sheet also matched it
+    by title, which differs for single-episode jobs.
+  - Copies made ready on their way had no words of their own.
+- **Fix:**
+  - work_state glides a copy card between reports at its measured speed: at most MAX_GLIDE 20 s, never to 100 %.
+  - A copy made ready on its way says "Getting it ready for Kodi and AirPlay", and when quiet "Getting it ready · waiting
+    for Google Drive · no answer for N min".
+  - transfer_history records every fresh copy lane ('up', 'up.<slot>') with its job. The sheet finds the lane by the job
+    and draws its graph.
+- **Mockup:** docs/design/unified-status-mockups.html, waiting for approval.
+  - Board A: one card style for every job, with a progress circle, the step, speed/left or why it waits, and a speed line.
+  - Board B: the copy sheet like the conversion sheet, with a large circle and the speed graph.
+  - It changes DEC-036 (bars everywhere), so it waits for the owner.
+- **Retest:** test_copy_status `Card`, `Graphs`.
+
+## ISSUE-274 — One release per season (owner, from ISSUE-272) — fixed in code
+
+- **Seen:** S2 mixed "[AnimeRG] … [pseudo]" 1404x1080 and "[Anime Time]" 704x480 episodes.
+- **Fix:** `debrid_drive.season_names` (the list names of the season's copied episodes) goes with each automatic request.
+  `deck_picker.release_group` reads the "[Group]" tag or the scene "-Group". At equal quality a version from the season's
+  group goes first; it never wins over a better quality.
+- **Retest:** test_copy_status `OneReleasePerSeason`.
+
+## ISSUE-275 — A preparation read Drive at 49 MB/s while copies crawled (owner log 8de561f4 / 3848afa9) — fixed in code
+
+- **Fix:** while an AllDebrid copy lane reported in the last 30 s, prepare_cloud starts no new preparation, except the next
+  to watch or one the owner asked for now. Its Up next row says "Starts when the downloads finish". Copies made ready on
+  their way are copies, so they are not held.
+- **Retest:** test_copy_status `CopiesFirst`.
