@@ -4583,3 +4583,5 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Host tests:** test_favourites_import, test_favourites_flow, test_anticipated_bell; the full list passes.
 - **Gaps against the approved mockups (from the review), handled in the next entries:** the bell sheet (G3), the import
   report, J3.
+
+- **ISSUE-303 delivery checkpoint:** testing IPA [475](https://github.com/onlykappa/Kodi-Ios/releases/download/build-475/Kodi-iOS-Customized-Touch-r10.ipa), source `2f447c7`, CI run 43653853433 succeeded. 125 focused host checks pass; downloaded IPA digest/ZIP/source/pins verified. Owner iPhone retest remains pending.

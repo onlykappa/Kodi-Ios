@@ -2,7 +2,7 @@
 
 ## Umbrella build 473 never-opening repair — 2026-11-14
 
-Current work: ISSUE-303 on build-473 source `ceb06e7`, preserving PR #28. Cache admission now requires complete opening probes within a shared five-second budget; failed probes cancel and keep the original direct source. Range identity, cancellation and request-cap regressions covered. Read both owner logs; distinguish the shorter build-473 attempt from build-470’s 126-second timeout. Testing IPA approved in the current request; no merge. See [UMBRELLA-473-PROGRESS.md](UMBRELLA-473-PROGRESS.md) for live checks, evidence, publication and device limits.
+ISSUE-303 fix published as `2f447c7` in PR #28. [Testing IPA 475](https://github.com/onlykappa/Kodi-Ios/releases/download/build-475/Kodi-iOS-Customized-Touch-r10.ipa) is ready: 125 focused host tests plus the full Python 3.11 CI suite pass. Download digest, ZIP integrity, packaged source and framework pins verified. Cache admission requires complete opening probes within a shared five-second budget; failed probes cancel and preserve direct playback. Phone retest pending; PR remains unmerged. Full evidence: [UMBRELLA-473-PROGRESS.md](UMBRELLA-473-PROGRESS.md).
 
 ## Favourites import + anticipated-episodes bell — coded, host-tested — 2026-11-14
 
