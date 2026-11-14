@@ -4326,7 +4326,7 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   the uneven first row). Retest on the rig: three even rows, a speed line on each. The rig's lanes scenario keeps the
   lanes' percentages fixed, so their time left could not show there; test_slim_status covers the estimate.
 
-## ISSUE-291 — Queue and Notifications bypassed the shared library record — fixed in backend
+## ISSUE-293 — Queue and Notifications bypassed the shared library record — fixed in backend
 
 - **Request:** Build 442 item 15: Rick and Morty season 3 must agree in Library status, Transfers and Running now.
 - **Cause:** work-state independently inferred membership and titles from lane/preparation snapshots; a quiet or missing
@@ -4342,12 +4342,12 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   listed in import-review.yml run before commit.
 
 
-## ISSUE-292 — Upload speed omitted first pieces and mixed lane/total rates; graphs arrived in bursts — fixed in backend
+## ISSUE-294 — Upload speed omitted first pieces and mixed lane/total rates; graphs arrived in bursts — fixed in backend
 
 - **Request:** Build 442 item 8: actual per-lane rolling MB/s, regular history, total, ETA and progress-ring data.
 - **Cause:** Rate marks started after the first acknowledgement, and the primary lane's rate was overwritten with a sum.
   History saved every five seconds, independent of the shared work model. An index reader could briefly retain a completed
-  job until the next service pass (caught by the full-suite queue visibility test during ISSUE-291 validation).
+  job until the next service pass (caught by the full-suite queue visibility test during ISSUE-293 validation).
 - **Fix:** driveupload emits acknowledged bytes and measured request duration for the first, intermediate and final pieces.
   Native rates use the very timings printed by the native piece log; partial/recovered acknowledgements cannot multiply
   the bytes just sent. Each copier lane keeps a time-weighted rolling rate. Ready-on-copy uses Sink upload statistics,
@@ -4365,7 +4365,7 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   before commit. Host validation only; device throughput and rendering remain unverified.
 
 
-## ISSUE-293 — Subtitle tracks could belong to another episode or fail the video's timing — filtered in backend
+## ISSUE-295 — Subtitle tracks could belong to another episode or fail the video's timing — filtered in backend
 
 - **Request:** Build 442 item 6: reject clear subtitle mismatches, rank the rest, select the best and expose short reasons.
 - **Cause:** Streams were shown by language only; downloads were ranked by release words and installed without checking
@@ -4386,7 +4386,7 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   check_project and all workflow-listed tests before commit. Host checks only, owner playback retest pending.
 
 
-## ISSUE-294 — Data for folded notifications, timed steps and live season-quality coverage — implemented without layouts
+## ISSUE-296 — Data for folded notifications, timed steps and live season-quality coverage — implemented without layouts
 
 - **Request:** C1 identical-notice folding and 2/3-line data; N2 up to three timed steps; Q2 per-quality episode coverage
   as answers arrive, without sample-episode wording or any sheet/menu layout change.
@@ -4407,7 +4407,7 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   import-review test before commit.
 
 
-## ISSUE-295 — Permanent copy failures retried unchanged files — stopped and sent to Download problems
+## ISSUE-297 — Permanent copy failures retried unchanged files — stopped and sent to Download problems
 
 - **Request:** Follow up ISSUE-285: audit every RuntimeError in debrid_drive, driveupload and debrid_ready; stop retries
   that cannot repair a changed source, wrong size or invalid result, and explain the problem.
