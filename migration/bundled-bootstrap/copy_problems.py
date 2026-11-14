@@ -245,6 +245,26 @@ def auto_find(profile, problem):
     return library_repair.script_args(tmdb, show, [{'season': season, 'episode': episode}], quality)
 
 
+def from_index(profile, found, index=None):
+    """DEC-052 (PR #27): the Library index decides which problems exist, for every page alike: a failed copy of a video
+    that is on Drive or copying again is history, not a problem (owner screenshot: "S1 E6 · Unnamed download" while E6
+    played), and a copy saved without a title is named after its show. The page keeps its own rows and sheet."""
+    import library_index
+    index = library_index.load(profile) if index is None else index
+    if not index.get('videos'):
+        return found
+    entries = {e['problem_key']: e for e in library_index.problems(index, include_hidden=True) if e.get('problem_key')}
+    out = []
+    for p in found:
+        e = entries.get(p.get('key'))
+        if e is None:
+            continue
+        if p.get('title') in ('', 'Unnamed download') or str(p.get('title', '')).startswith('Unnamed download'):
+            p = dict(p, title=('%s · S%d E%d' % (e['show'], e['season'], e['episode'])) if e['kind'] == 'episode' else e['title'])
+        out.append(p)
+    return out
+
+
 def search_path(problem):
     """Find Another Source: the title's TMDb search, movies or shows (the Search page's own results)."""
     import searchbar
@@ -281,7 +301,8 @@ def run():
             # What the owner asked for shows at once (the service applies it at its next pass).
             queue = prepare_downloads.apply_to(prepare_downloads.load(profile), prepare_downloads.pending_requests(profile), time.time())
             import problem_ignore
-            self.found = problem_ignore.visible(profile, debrid_drive.problems(debrid_drive.load(profile)) + prep_problems(queue, self.caps))
+            self.found = from_index(profile, problem_ignore.visible(profile, debrid_drive.problems(debrid_drive.load(profile)) +
+                                                                     prep_problems(queue, self.caps)))
             props, self.entries = model(self.found, self.filter, poster=poster)
             for key, value in props.items():
                 self.setProperty(key, str(value))

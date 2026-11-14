@@ -75,14 +75,17 @@ def run_owned():
  if starting and time.time()-float(starting.split('|',1)[0] or 0)<180:
   home.setProperty(TV_STOP,'1');dialog.notification('Play on TV','Stopped',xbmcgui.NOTIFICATION_INFO,2500);return
  if not player.isPlayingVideo():dialog.ok('Play on TV','Start a video first.');return
+ # ISSUE-280: an Umbrella MKV that Kodi reads through the service's cache is handed on as its real link (a TV cannot
+ # reach 127.0.0.1); the cache is shared, not opened again.
+ import remote_media
+ playing=remote_media.original(player.getPlayingFile(),home)
  # ISSUE-256 (owner: ask before a version that is slow on AirPlay): 10-bit H.264 is converted on the phone, slowly.
- if not slow_on_airplay_ok(xbmc,dialog,player.getPlayingFile()):return
+ if not slow_on_airplay_ok(xbmc,dialog,playing):return
  phone=cast.phone_address()
- url,needs_phone=cast.stream_url(player.getPlayingFile(),phone)
+ url,needs_phone=cast.stream_url(playing,phone)
  if not url:dialog.ok('Play on TV','This video is not a web stream, so a TV cannot open it by itself.');return
  title=xbmc.getInfoLabel('VideoPlayer.TVShowTitle') or xbmc.getInfoLabel('VideoPlayer.Title')
  library=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
- playing=player.getPlayingFile()
  # Roadmap 1G.8: a download that preparation has not finished is offered Prepare first instead of a live conversion.
  try:
   import cast_ready,prepare_downloads

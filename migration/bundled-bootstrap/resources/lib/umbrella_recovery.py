@@ -11,9 +11,10 @@ def web(url):
   return p.scheme in ('http','https') and bool(p.hostname)
  except (TypeError,ValueError):return False
 
-def remember(link,response,home=None,warm=None):
+def remember(link,response,home=None,warm=None,route=None):
  if not isinstance(response,dict) or not web(response.get('link','')) or not isinstance(link,str) or not 0<len(link)<8192:return
- if home is None:
+ real=home is None
+ if real:
   import xbmcgui
   home=xbmcgui.Window(10000)
   if warm is None:   # the real call from Umbrella's unlock: roadmap 1B.4, read the link's start while Umbrella's window closes
@@ -22,6 +23,19 @@ def remember(link,response,home=None,warm=None):
    except Exception:warm=None
  record={'source':response['link'],'link':link,'size':int(response.get('filesize') or 0),'filename':str(response.get('filename') or '')}
  if len(json.dumps(record))<20000:home.setProperty(PROPERTY,json.dumps(record))
+ # ISSUE-280: Umbrella returns response['link'] to Kodi; an MKV / AVI / WebM goes through the service's cache (four
+ # connections, its start and end already asked for). The record above keeps the real link for renewal and Play on TV.
+ if route is None and real:
+  try:
+   import remote_media;route=remote_media.for_kodi
+  except Exception:route=None
+ if route:
+  try:
+   local=route(response['link'],home)
+   if local!=response['link'] and web(local):
+    response['link']=local
+    return   # the cache reads the start and the end itself
+  except Exception:pass
  if warm:
   try:warm(response['link'],record['size'])
   except Exception:pass

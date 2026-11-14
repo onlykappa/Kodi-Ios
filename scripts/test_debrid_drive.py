@@ -853,4 +853,46 @@ class PackNumbering(unittest.TestCase):
         self.assertEqual(debrid_drive.repick_packs(state), [])                    # once only
 
 
+class FetchingDoesNotHoldTheLine(unittest.TestCase):
+ """ISSUE-277 (owner screenshot and log 27c3ca14, build 430): Rick and Morty S2 E7 was not stored on AllDebrid and sat at
+ "fetching 0%" first in line, so E8-E10 waited behind it, and nothing reached Download problems."""
+ class API(FakeAPI):
+  def add(self,h):self.added.append(h);return 'm'+h[0],h[0]!='7'
+  def status(self,m):return (1,0.0,'Downloading')
+ def setUp(self):
+  self.d=tempfile.TemporaryDirectory();self.p=self.d.name
+ def tearDown(self):self.d.cleanup()
+ def queue(self,*eps):
+  for n in eps:
+   debrid_drive.queue(self.p,{'id':str(n)*40,'name':'Rick.and.Morty.S02E0%d.mkv'%n},'episode','Rick and Morty',season='2',episode=str(n))
+ def test_the_next_episode_starts_while_alldebrid_fetches(self):
+  self.queue(7,8);api=self.API()
+  debrid_drive.step(self.p,api,FakeDrive())                       # E7: AllDebrid has to fetch it
+  self.assertEqual(debrid_drive.load(self.p)['jobs'][0]['status'],'fetching')
+  debrid_drive.step(self.p,api,FakeDrive())                       # E8 gets its turn at once
+  self.assertEqual(api.added,['7'*40,'8'*40])
+  self.assertEqual(debrid_drive.load(self.p)['jobs'][1]['status'],'copying')
+ def test_a_fetch_that_never_moves_ends_in_download_problems(self):
+  self.queue(7);api=self.API();clock={'t':1000.0};said=[]
+  step=lambda:debrid_drive.step(self.p,api,FakeDrive(),clock=lambda:clock['t'],notify=lambda k,t,x,g='':said.append((k,t,x)))
+  step();self.assertEqual(said[0][:2],('download','AllDebrid is fetching it'))
+  self.assertEqual(step(),debrid_drive.FETCH_POLL)                 # only E7 waits: checked again in 15 s
+  self.assertEqual(debrid_drive.problems(debrid_drive.load(self.p)),[])
+  clock['t']+=debrid_drive.FETCH_STALL+60;step()
+  job=debrid_drive.load(self.p)['jobs'][0]
+  self.assertEqual((job['status'],job['stalled']),('failed',True))
+  self.assertEqual(said[-1][:2],('problem',"Couldn't download to Google Drive"))
+  found=debrid_drive.problems(debrid_drive.load(self.p))
+  self.assertEqual([(f['title'],f['kind']) for f in found],[('Rick and Morty · S2 E7','source')])
+  self.assertIn('Nobody is sharing this version',found[0]['error'])
+ def test_progress_keeps_it_going(self):
+  self.queue(7);clock={'t':1000.0};pct={'v':0.1}
+  class Moving(self.API):
+   def status(self,m):return (1,pct['v'],'Downloading')
+  api=Moving();step=lambda:debrid_drive.step(self.p,api,FakeDrive(),clock=lambda:clock['t'])
+  step();step()
+  for n in range(4):
+   clock['t']+=debrid_drive.FETCH_STALL-60;pct['v']+=.1;step()
+  self.assertEqual(debrid_drive.load(self.p)['jobs'][0]['status'],'fetching')
+
 if __name__=='__main__':unittest.main()

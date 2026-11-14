@@ -221,7 +221,7 @@ class SlowSourceNote(unittest.TestCase):
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
-  for needle in ('kr_remux_start_for(ticket,copy, 1, 0,','kr_remux_start_for(restartTicket,source, 1, 1,','compatTried','Converting the picture for this TV',
+  for needle in ('kr_remux_start_for(ticket,copy, 1, 0,','kr_remux_start_for(restartTicket,source, 1, keepPicture ? KR_COMPAT_SEGMENTED : 1,','compatTried','Converting the picture for this TV',
                  'replaceCurrentItemWithPlayerItem','seekToTime:','showNoPicture(hevc)','kr_remux_compat()',
                  '-framework VideoToolbox','-framework CoreVideo','libswscale.a','h264_videotoolbox'):
    self.assertIn(needle,build)
@@ -269,7 +269,7 @@ class PerReceiver(unittest.TestCase):
    self.assertIn(needle,build)
   self.assertNotIn('holder.mask',build)
   self.assertIn('r8:',build.split('set -euo pipefail')[0])
-  self.assertEqual(build.count('kr_remux_start_for(restartTicket,source, 1, 1,'),1)  # one guarded restart path
+  self.assertEqual(build.count('kr_remux_start_for(restartTicket,source, 1, keepPicture ? KR_COMPAT_SEGMENTED : 1,'),1)  # one guarded restart path
 
 
 class R9Speed(unittest.TestCase):

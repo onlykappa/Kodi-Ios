@@ -4040,3 +4040,94 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   to watch or one the owner asked for now. Its Up next row says "Starts when the downloads finish". Copies made ready on
   their way are copies, so they are not held.
 - **Retest:** test_copy_status `CopiesFirst`.
+
+## ISSUE-276 — Library pages showed different numbers: TV Shows stuck at 28 Naruto episodes with no season 2 while Library status said 84 of 87 ready (owner screenshots and log 8d661d6e, build 424) — investigated; proposal in a new draft PR
+
+- **Root cause of the season 2 gap:** after a repository update replaced the app's patched Google Drive add-on, every TV Shows list refresh failed (`No module named 'clouddrive.common.remote'`, 207 times in 45 min), so Library › TV Shows kept its last good list (28 episodes) while season 2 was copied. Library status uses a second, separate Drive listing (the preparation scan), which kept working. ISSUE-270 (in build 430) fixes the import; nothing told the owner the list was stale.
+- **Design cause:** two Drive listings of the same folder and four sets of counting rules (Download problems, show card, show page, Library status' Kept). Details and the proposal (one Library index every screen reads): docs/investigations/library-one-source.md.
+- **Step 1 coded (PR #27):** `library_index.py` builds one entry per movie and episode from the Drive listing, preparation jobs, AllDebrid copies, AI Upscale copies and the Don't Show Again list, with one state each (copying, converting, ready, kept, problem, cancelled) and one set of counting rules (`counts(scope)`: whole library, TV, movies, one show, one season). Rules decided once: a failed copy of a video on Drive or copying again is not a problem; a copy saved without a title takes its show from its TMDb id; one entry per video (extra files listed as duplicates). Test: test_library_index (the owner's state from log 8d661d6e: every screen's numbers add up; S1 E6 is not a problem; season 2 grows as it lands).
+- **Step 2 coded:** the service keeps `library-index.json` (a background thread rebuilds it when the preparation state, the copies, the AI Upscale queue, the Don't Show Again list or a pending action changes, and at least every 30 s); a change counter in `Window(Home).Property(KodiIOS.LibraryIndex)` lets open pages redraw at once. `library_index.intend` is the one action path: a video the owner deletes, stops, retries or hides shows "Deleting…" / "Stopping…" on every page until the real state takes over. The TV Shows list refresh now records Drive health (ok / "Can't reach Google Drive") in the index for the health line.
+- **Step 3a coded:** Library › TV Shows, Movies, the show page, Select and Delete Season read their videos and states from the index (`library_index.show_rows` / `episode_rows` / `movie_rows`, `library_manager.episodes_of`); the saved Drive listing only gives posters, years and TMDb ids. A season being copied shows in its show and grows; the show page's numbers are `counts()`. Test: test_library_index `PagesReadTheIndex` (a stale saved list of 28 season 1 episodes: TV Shows still shows seasons 1 and 2, with Library status' numbers).
+- **Step 3b coded:** Download problems keeps its rows and sheet but lists only the problems the index has (`copy_problems.from_index`): a failed copy of a video on Drive or copying again is gone, and a copy saved without a title is named after its show. Library status' "N of M ready" and its Ready / Working / Kept tiles are `library_index.counts` (`library_rows.page_properties(index=…)`). Tests: test_library_index `DownloadProblemsReadTheIndex`, `LibraryStatusReadsTheIndex`.
+- **Still to do (DEC-052):** the self-check (Drive vs copies vs preparation), the minute log line with the same numbers, and, after mockups: the health line, season progress on the chips, Undo after Delete, and each page redrawing on the counter. Then a desktop Kodi rig render with one fake library, and an IPA with the owner's OK.
+- **Step 4 (no new UI) coded:** every minute the log carries the numbers the screens show (`library: 84 of 87 ready · 3 working (… copying, … converting) · 2 kept · 1 need you · 0 hidden · Drive ok`), and every five minutes a self-check logs duplicate files, copies saved but not on Drive, and preparations of files no longer on Drive (`library_index.summary` / `check`). Test: test_library_index `SelfCheckAndLogLine`.
+- **Step 5 (one action path) coded:** Delete (Library pages) and Stop (any copy, from any page that calls `transfer_control.cancel_copy`) now record an intent in the index (`library_index.intend_for`, by Drive id or torrent hash), so every page shows "Deleting…" / "Stopping…" for that video at once; a preparation job the owner chose to forget no longer counts its file as in the library. Test: test_library_index `StopOrDeleteEverywhere`.
+
+## ISSUE-277 — "Couldn't download to Google Drive · The copy to Google Drive stopped: Rick and Morty · S2 E7" while nothing had failed, Download problems showed 0, and E8–E10 never started (owner screenshot and log 27c3ca14, build 430) — fixed in PR #27
+
+- **What happened (log):** Download Season queued Rick and Morty S2 E1–E10 at 08:34. E1–E6 were stored on AllDebrid and were copied by 08:39. E7's version was not: from 08:40 to the end of the log (08:44) it sat at AllDebrid "fetching 0%" (`debrid` statuses `fetching 1, new 3`), and nothing failed in this run (no `failed:` line, the failed count stayed 94).
+- **Root cause 1 (the notice):** the notice was "AllDebrid is fetching it · Rick and Morty · S2 E7" (Downloads group, download icon). The notification sheet (`notice_help.RULES`) treated any notice with "AllDebrid" anywhere in its title or text as a failed copy, so it opened as "Couldn't download to Google Drive · The copy to Google Drive stopped". Every "Saved to Google Drive · … straight from AllDebrid" notice opened the same way. Download problems showed 0 because nothing had failed.
+- **Root cause 2 (the line):** a torrent AllDebrid is fetching stayed at the head of the copy line (`step` took `jobs[0]`), so E8–E10 waited behind E7. With no peers, AllDebrid keeps a magnet at 0% for up to 72 hours, so it never became a problem anywhere.
+- **Root cause 3 (the brain):** the Library index counted it as "Copying to Google Drive · 0%".
+- **Fix:**
+  - The sheet matches the notice's title. "AllDebrid is fetching …" explains that AllDebrid is downloading it first and that the copy starts by itself. "Saved to Google Drive" is good news. A real failure says "Couldn't copy <video>" ("is waiting" only when AllDebrid is busy or blocked).
+  - `debrid_drive.poll_fetching` checks fetching torrents beside the line every 15 s, so the next episode copies meanwhile.
+  - A fetch that has not moved for 30 minutes ends failed with "Nobody is sharing this version: AllDebrid got no further than N% in 30 minutes. Pick another version." It sends a real notice, joins Download problems, and the next automatic search leaves that version out.
+  - The index says "AllDebrid is fetching it · N%" / "Waiting to copy", and a stalled fetch counts as a problem on every page (Download problems, the show page, the season, Library status).
+- **Tests:**
+  - test_debrid_drive `FetchingDoesNotHoldTheLine`: E8 starts while E7 fetches; no progress for 30 min ends in `problems()`; progress keeps it going. These failed on the old code.
+  - test_notice_log: fetching / saved / failed sheets.
+  - test_library_index `StalledFetchIsAProblemEverywhere`.
+- **Phone check still needed:** on the next build, a version AllDebrid has to fetch shows "AllDebrid is fetching it · N%". The next episodes copy meanwhile. If it never moves, after 30 min it is in Download problems with the same count on Library status. The minute `library:` log line carries the counts.
+- **Not proven from this log:** the 94 older failed copies. Download problems lists a video only when no other version of it is on Drive, copying or hidden, and the log does not carry the phone's copy list. The new build's minute `library:` line (… need you · … hidden) will show whether the count is right.
+
+## ISSUE-278 — AirPlay of Naruto S1 E1: only the sound reached the Roku TV, then "AirPlay couldn't play this · Cannot Complete Action" (owner screenshot and log 33942e4f, build 430, AirPlay r56) — fixed in native source (r57 build pending)
+
+- **Seen (09:00:11–12):** Play on TV › AirPlay with the prepared file of Naruto Shippuuden S1 E1 (H.264 `avc1.640028` and AAC, served as HLS over the file's 23 stored fragments of up to 69.3 s, audio and video muxed together).
+  - Every request came from the iPhone itself (AppleCoreMedia), none from the TV, and external playback never came on.
+  - The phone's player read 3.4 MB of the first 10.7 MB range, hung up, and stopped "Cannot Complete Action" 1.5 s after start. The native player then logged "problem left to Kodi's card", with no restart.
+- **Root cause:** the same receiver shape as ISSUE-124 and ISSUE-138. Roku's streaming specifications do not support muxed audio-and-video fMP4 and want segments under 10 s, and the prepared playlist breaks both. The restart rules missed this case:
+  - r36's "sound only" and "player failed" restarts skip any H.264 picture: they were written for HEVC.
+  - r41's prepared-playlist restart needs external playback to have come on once (`everExternal`). This time the TV got the sound only, so external playback never came on.
+  - So nothing ran, and Kodi showed the card.
+- **Fix (`build-airplay.sh`, r57 source):**
+  - A prepared file that the TV takes as sound only, or that fails while the TV has only the sound, restarts once, H.264 too.
+  - A prepared H.264 picture is kept as it is: it restarts in `KR_COMPAT_SEGMENTED` mode (6 s segments with the audio as its own rendition, the picture copied). This is the stream ISSUE-138 made for Roku's own player, so the phone does no conversion work.
+  - Any other codec keeps the H.264 conversion.
+  - Log line: "restarting in 6-s segments for this TV (H.264 picture kept as it is)".
+- **Tests:**
+  - test_play_on_tv_network `test_a_prepared_h264_file_the_tv_turns_down_restarts_in_segments`.
+  - test_airplay_remux updated for the one guarded restart path.
+  - Host checks only: the Objective-C compiles in the airplay-ios workflow on macOS.
+- **Built and pinned (owner OK, 2026-11-14):** r57 was published by airplay-ios run 43622274914. Digest 9a112807…42fbda was checked by download, and the binary carries the new restart notes. Host tests: airplay-remux run 43621764007.
+- **Phone check:** AirPlay a prepared H.264 episode to the Roku. The log should show "restarting in 6-s segments", then `/video/` and `/audio/` segment requests from the TV, and the picture on the TV.
+- **Not done yet:** remembering that this TV needs segments, so the next start skips the failed first try (about 1.5 s).
+
+## ISSUE-279 — The video controls never went away: a tap outside the buttons did nothing and they never timed out (owner, build 430, log 72b62563) — fixed in code
+
+- **Seen:**
+  - 09:03:23–09:03:40: ten taps on the playing video's controls landed on no button and were logged "Click at … in VideoOSD.xml: control 0 (not handled)". The controls stayed.
+  - After the last tap they were still up 12 s later, until the owner tapped back.
+- **Root cause:**
+  - The controls (`player_osd.window`) had nothing under the buttons to take a tap.
+  - Kodi only auto-closes its controls when a mouse move opened them, never after a tap.
+  - The app's own timer (Settings › Customisation › Video Controls › Hide Controls After, Fuse's `OSD_Timeout`) ships empty, and empty means never.
+- **Fix:**
+  - A clear full-screen button (id 7100) under every other control closes the controls, as a tap does in Apple's player. Real buttons above it keep their taps, and arrow-key focus never reaches it.
+  - Hide Controls After becomes 5 s the first time the controls open (once, `ios_osd_timeout_default`). The shipped skin settings stay as they are: they are pinned by hash.
+  - Emptying it later, or setting 0, still means never. While paused or with Continue Watching open, the controls stay, as before. Nothing new is drawn.
+- **Tests:** test_customisation `test_tap_anywhere_hides_and_five_seconds_by_default` (plus the updated alarm test); test_portrait skips the clear area in its safe-inset check.
+- **Phone check:** while a video plays, tap the picture away from the buttons and the controls hide. Leave them and they hide after 5 s. Paused, they stay.
+
+## ISSUE-280 — Umbrella streams sat at "Getting ready to play… 0%" for about 30 s, then the video appeared (owner screenshots, build 430, log 72b62563) — speed fixed in code; the card's new line waits for mockup approval
+
+- **Seen (Black Clover S02E07, 1.70 GB WEB MKV through AllDebrid):** the open took 32.2 s ("handoff 11.3 s, open 21.0 s"), and 27.8 s the second time. Kodi's own open of the file accounts for 19 s, from `Creating Demuxer` at 09:03:01.5 to the probe at 09:03:20.2, inside FFmpeg's `avformat_open_input`.
+- **Root cause (inferred, not measured on the phone):**
+  - Kodi reads an Umbrella link itself, over one connection. ISSUE-163 measured AllDebrid at about 0.7 MB/s per connection.
+  - An MKV's start (header, tracks, the first clusters for probing) plus a jump to its end (tags and index) is roughly 13 MB of reads and reconnects at that speed: about 19 s. Kodi's FFmpeg already skips attached fonts (roadmap 1B.1).
+  - Umbrella's card percentage stops once it has the link, so the card said 0% throughout.
+- **Fix (speed):** an Umbrella MKV / AVI / WebM now opens through the service's stream cache (`remote_media`, ISSUE-145/163/259), which until now served only AirPlay.
+  - `umbrella_recovery.remember`, which already runs inside Umbrella's AllDebrid unlock, swaps `response['link']` for the cache's 127.0.0.1 address (`remote_media.for_kodi`). The cache reads with four connections at once, and asks for the file's first two 4 MB blocks and its last block the moment the link is known.
+  - Fallback: any failure, a missing service or another kind of link leaves Umbrella's link unchanged. Already-patched Umbrella installs need no re-patch.
+  - Play on TV translates the cache address back to the real link (`remote_media.original`), so a TV never gets 127.0.0.1, and it shares the same cache instead of reading the file again.
+  - The source Kodi reads is released after 120 s with no reads; a TV reading it keeps it alive.
+- **Tests:** test_remote_media `KodiPlays` (6) covers: the cache route with start and end asked for; other links unchanged; Play on TV gets the real link and shares the cache; idle release; the Umbrella unlock hands Kodi the cache; cast translation.
+- **Card (UI):** `docs/design/stream-opening-mockups.html` board S1 has three honest stages under the bar: getting the link (sliding bar, seconds), opening the video (real MB read of 12 MB), and a slow-source note with the real speed. It waits for the owner's approval before code.
+- **Phone check:** an Umbrella MKV opens in a few seconds rather than about 30. The `open timing … via umbrella` line shows the new open time. Play on TV of the same episode still works.
+- **Card coded (board S1, owner-approved 2026-11-14):**
+  - `umbrella_ready.stage` writes IOSReady.Line / Right / Fill / Slow every quarter second from two sources: the unlocked link (`KodiIOS.UmbrellaRenewal`) and the stream cache's counts (`remote_media` stats now include `kodi`, `cached_blocks`, `block_size`).
+  - `pages.umbrella_ready` shows the line. The bar fills by Fill or slides, and Umbrella's own percent stays the fallback.
+  - Test: test_pages `OpeningStages` (3).
+  - Desktop Kodi rig render of stages a, b and c: matches the boards, no cut-off text (screenshots kept out of Git). Phone check pending.
+
+**Delivery (owner OK, 2026-11-14):** IPA build-442 was built from f1d6447 (import-review run 43623141308) and carries ISSUE-276 to 280 and AirPlay r57. It was downloaded and checked: sha256 982d4a24…4ed7dbb, the zip is valid, and the framework carries the r57 restart note. The library index, poll_fetching, the for_kodi route, the tap-to-hide area and the stage line are all inside. Phone checks are pending for every item.

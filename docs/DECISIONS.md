@@ -431,3 +431,18 @@ The owner approved docs/design/unified-status-mockups.html: "actually wait I lik
 - This replaces DEC-036 for the working rows and the detail sheet: a circle there, bars elsewhere (summary, steps).
 - Colours: blue downloading, purple getting ready or converting, green AI Upscale, orange for why something waits.
 - DEC-050 applies: no text cut off.
+
+## DEC-052 — One Library index for every screen, with seven additions (2026-11-14)
+
+Owner, on docs/investigations/library-one-source.md (PR #27): "it should show what's actually ready, so 84/87 and 49/53;
+one index is amazing, then if I delete something or stop something one place it stops it everywhere", and "yeah" to all
+seven recommendations. Approved: Library status shows the whole library ("84 of 87 ready") and each show its own total
+("Naruto Shippuuden · 49 of 53 ready"), both from one index. Additions:
+1. Every action (Delete, Stop, Retry, Don't Show Again, Clear) goes through the index and shows on every screen at once.
+2. Screens redraw as soon as the index changes (a change counter), not on their own timers.
+3. A self-check every few minutes (Drive vs copies vs preparation): safe fixes made, the rest logged.
+4. One health line on every Library screen when Google Drive cannot be reached ("showing what was there at …").
+5. The minute log line carries the same numbers the screens show.
+6. Season chips show their progress ("Season 2 · 18 of 21 ready · 3 copying").
+7. A 10-second Undo after Delete (files sit in Drive's Trash for 30 days).
+UI parts (4, 6, 7 and the per-show total) get mockups for approval before they are coded.

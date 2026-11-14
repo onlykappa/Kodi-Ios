@@ -1088,6 +1088,49 @@ def kick_on_new_link(state, link, clock=time.time):
     return before
 
 
+FETCH_POLL = 15             # seconds between AllDebrid status checks of one torrent it is fetching
+FETCH_STALL = 30 * 60       # no progress for this long: nobody shares this version
+
+
+def poll_fetching(jobs, api, clock=time.time):
+    """ISSUE-277 (owner screenshot and log 27c3ca14, build 430): Rick and Morty S2 E7's version was not stored on AllDebrid;
+    it sat at "fetching 0%" and, being first in line, held E8-E10 behind it with nothing in Download problems. Torrents
+    AllDebrid fetches are now checked here, beside the line rather than at its head: a ready one copies, one AllDebrid gives
+    up on ends failed, and one that has not moved for FETCH_STALL ends failed as nobody sharing it, so it shows in Download
+    problems (and the next search leaves that version out: avoid_names). Returns (changed, ended jobs)."""
+    changed, ended = False, []
+    now = clock()
+    for job in [j for j in jobs if j.get('status') == 'fetching']:
+        if float(job.get('polled') or 0) + FETCH_POLL > now:
+            continue
+        try:
+            code, fraction, words = api.status(job['magnet'])
+        except alldebrid.Problem as problem:
+            job.update(status='failed', error=str(problem), finished=now)
+            ended.append(job)
+            changed = True
+            continue
+        except Exception:
+            continue   # network: asked again at the next check
+        changed = True
+        job['polled'] = now
+        fetched = round(fraction * 100)
+        if fetched != job.get('fetched') or not job.get('fetch_moved'):
+            job['fetch_moved'] = now
+        job['fetched'] = fetched
+        if code >= alldebrid.FAILED:
+            job.update(status='failed', error='AllDebrid could not fetch this torrent (%s).' % (words or code), finished=now)
+            ended.append(job)
+        elif code == alldebrid.READY:
+            job['status'] = 'copying'
+        elif now - float(job['fetch_moved']) >= FETCH_STALL:
+            job.update(status='failed', finished=now, stalled=True,
+                       error='Nobody is sharing this version: AllDebrid got no further than %d%% in %d minutes. Pick another '
+                             'version.' % (fetched, FETCH_STALL // 60))
+            ended.append(job)
+    return changed, ended
+
+
 def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=default_open, keep_going=lambda: True,
          clock=time.time, on_done=lambda job: None, cancelled=lambda: set(), forget=lambda info_hash: None, log=lambda text: None, ready_copy=None,
          link=link_now):
@@ -1162,6 +1205,23 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         if state.pop('current', None) is not None:
             save(profile, state)
         return None
+    polled, ended = poll_fetching(jobs, api, clock)
+    for job_ in ended:
+        log('%s: failed: %s' % (job_.get('title') or job_['name'], job_['error']))
+        notify('problem', "Couldn't download to Google Drive", '%s: %s' % (episode_label(job_), job_['error']), job_)
+        transfer_history.failed(profile, 'up', job_.get('title') or job_['name'], job_['error'], clock())
+    if polled:
+        save(profile, state)
+    jobs = [j for j in jobs if j['status'] not in ('fetching', 'failed')]
+    if not jobs:
+        waiting = [j for j in state['jobs'] if j['status'] == 'fetching']
+        if not waiting:
+            return 1
+        first = in_line(waiting)[0]
+        state['current'] = {'name': first.get('title') or first['name'], 'folder': 'AllDebrid', 'sent': first.get('fetched', 0),
+                            'total': 100, 'stage': 'fetching'}
+        save(profile, state)
+        return FETCH_POLL
     job = jobs[0]
 
     def commit():

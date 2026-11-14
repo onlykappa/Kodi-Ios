@@ -11,6 +11,12 @@ BLOCK=4*1024*1024;KEEP=24;AHEAD=4
 # ISSUE-259: a video playing in Kodi has its first two blocks and its last block read once it has played steadily for
 # WARM_AFTER seconds on Wi-Fi (12 MiB; Matroska usually keeps its index at the end), so Play on TV skips opening the source.
 WARM_BLOCKS=2;WARM_AFTER=8
+# ISSUE-280 (owner, build 430 log 72b62563: an Umbrella episode sat at "Getting ready to play… 0%" for 32 s, 19 s of it
+# inside Kodi's own open of the MKV over one AllDebrid connection, about 0.7 MB/s each: ISSUE-163): Kodi's own player
+# reads an Umbrella MKV / AVI / WebM through this cache too: four connections at once, and the file's first blocks and
+# its last block (Matroska's tags and index) asked for the moment the link is known. Released after KODI_IDLE seconds
+# with no read. False: Kodi reads the link itself, as before.
+KODI_PLAYBACK=True;KODI_IDLE=120
 
 
 def eligible(source):
@@ -80,6 +86,7 @@ class Broker:
  def __init__(self,context=None,source_factory=None,renew_link=None,open_url=None):
   self.lock=threading.Lock();self.current=None;self.ident='';self.secret=secrets.token_urlsafe(24)
   self.warm=False;self.source=''   # ISSUE-259: current is a warmed source no TV has taken yet
+  self.kodi=False;self.opened=0.0  # ISSUE-280: current is what Kodi's own player reads (released when idle)
   self.factory=source_factory or (lambda source:Foreground(source,context=context,open_url=open_url))
   self.renew_link=renew_link or (lambda record:umbrella_recovery.renew(record,context=context))
   broker=self
@@ -96,12 +103,16 @@ class Broker:
       if action=='open':
        source=request.get('source','')
        if not eligible(source):raise ValueError('Not a remote file source')
-       warmed=bool(broker.current and broker.warm and broker.source==source)
+       # ISSUE-280: the source Kodi's player already reads is shared too (Play on TV asks for the same link).
+       warmed=bool(broker.current and (broker.warm or broker.kodi) and broker.source==source)
+       shared=warmed and broker.kodi
        if not warmed:
         if broker.current:broker.current.close()
         broker.current=broker.factory(source)
        broker.ident=secrets.token_urlsafe(18);broker.warm=False;broker.source=source
        broker.current.configure_renewal(request.get('renewal'),broker.renew_link)
+       broker.kodi=request.get('player')=='kodi' or shared;broker.opened=time.monotonic()
+       if broker.kodi and not warmed:threading.Thread(target=prefetch,args=(broker.current,),daemon=True).start()
        answer={'url':broker.current.media_url,'id':broker.ident,'warmed':warmed}
       elif action=='warm':
        source=request.get('source','')
@@ -111,6 +122,7 @@ class Broker:
        else:
         if broker.current:broker.current.close()
         broker.current=broker.factory(source);broker.ident=secrets.token_urlsafe(18);broker.warm=True;broker.source=source
+        broker.kodi=False
         threading.Thread(target=prefetch,args=(broker.current,),daemon=True).start()
         answer={'id':broker.ident}
       elif action=='cool':
@@ -119,12 +131,18 @@ class Broker:
         broker.current=None;broker.ident='';broker.warm=False;broker.source=''
        answer={'closed':True}
       elif action=='stats':
-       answer={'stats':broker.current.stats() if broker.current else {}}
+       # ISSUE-280: the opening card also needs whose source it is and how much of it is in memory (no URL, no id).
+       answer={'stats':dict(broker.current.stats(),kodi=broker.kodi,cached_blocks=len(broker.current.blocks.data),
+                            block_size=broker.current.block_size) if broker.current else {}}
       elif action=='status':
        answer={'renewal':broker.current.renewal_state if broker.current and request.get('id')==broker.ident else 'closed'}
        if broker.current and request.get('id')==broker.ident:answer['stats']=broker.current.stats()
+      elif action=='origin':
+       # ISSUE-280: the real link behind the address Kodi plays (Play on TV gives TVs the real link, never 127.0.0.1).
+       answer={'source':broker.source if broker.current and request.get('url')==broker.current.media_url else ''}
       elif action=='close':
-       if request.get('id')==broker.ident:
+       # A source Kodi's player reads stays until it is idle (reap), even when Play on TV lets go of it.
+       if request.get('id')==broker.ident and not broker.kodi:
         if broker.current:broker.current.close()
         broker.current=None;broker.ident='';broker.warm=False;broker.source=''
        answer={'closed':True}
@@ -136,9 +154,26 @@ class Broker:
      self.send_error(502,'Media source bridge unavailable')
   self.server=drive_stream._Server(('127.0.0.1',0),Handler)
   self.url='http://127.0.0.1:%d/%s'%(self.server.server_address[1],self.secret)
+  self.stopped=threading.Event()
   threading.Thread(target=self.server.serve_forever,daemon=True).start()
+  threading.Thread(target=self._reap,daemon=True).start()
+ def reap(self,now=None):
+  """ISSUE-280: a source Kodi's player opened is closed once nothing has read it for KODI_IDLE seconds (the video
+  stopped, or the TV that took it over finished). Returns True when it closed one."""
+  now=time.monotonic() if now is None else now
+  with self.lock:
+   if not (self.current and self.kodi):return False
+   last=self.current.stats().get('last_read') or 0
+   idle=time.time()-last if last else now-self.opened
+   if idle<KODI_IDLE:return False
+   self.current.close();self.current=None;self.ident='';self.kodi=False;self.source=''
+   return True
+ def _reap(self):
+  while not self.stopped.wait(30):
+   try:self.reap()
+   except Exception:pass
  def close(self):
-  self.server.shutdown();self.server.server_close()
+  self.stopped.set();self.server.shutdown();self.server.server_close()
   with self.lock:
    if self.current:self.current.close();self.current=None
 
@@ -201,6 +236,32 @@ def acquire(source,home):
   lease=Lease(endpoint,answer['id']);lease.warmed=bool(answer.get('warmed'))
   return answer['url'],lease
  except Exception:return source,None
+
+
+def for_kodi(source,home):
+ """ISSUE-280: the address Kodi's own player should open for a link Umbrella just resolved: the service's cache when
+ the link is a remote MKV / AVI / WebM and the service answers, else the link itself (nothing changes then)."""
+ if not KODI_PLAYBACK or not eligible(source):return source
+ try:
+  endpoint=_endpoint(home)
+  if not endpoint:return source
+  answer=_call(endpoint,{'action':'open','source':source,'renewal':umbrella_recovery.selected(source,home),'player':'kodi'})
+  target=urllib.parse.urlsplit(answer['url'])
+  if target.scheme!='http' or target.hostname!='127.0.0.1':return source
+  return answer['url']
+ except Exception:return source
+
+
+def original(playing,home):
+ """ISSUE-280: the link a TV or a file-name check should see for what Kodi plays: the real Umbrella link when Kodi reads
+ it through this cache, else playing unchanged."""
+ raw=(playing or '').split('|',1)[0]
+ if not raw.startswith('http://127.0.0.1:'):return playing
+ try:
+  endpoint=_endpoint(home)
+  source=_call(endpoint,{'action':'origin','url':raw}).get('source','') if endpoint else ''
+  return source or playing
+ except Exception:return playing
 
 
 def stats(window):

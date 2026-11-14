@@ -54,11 +54,34 @@ def model(profile):
         row['art'] = poster('movie', movie)
     fanart = {s['id']: (drivelibrary.artwork('tv', s.get('title') or '', s.get('year'), None, art, None, cached_only=True) or {}).get('fanart', '')
               for s in shows}
-    return {'shows': show_rows, 'movies': movie_rows, 'storage': lf.storage(show_rows, movie_rows, ups),
+    tmdb = {s['id']: (drivelibrary.artwork('tv', s.get('title') or '', s.get('year'), None, art, None, cached_only=True) or {}).get('tmdb_id', '')
+            for s in shows}
+    # DEC-052 / ISSUE-276 (PR #27): which videos exist and what state each is in come from the one Library index, so
+    # Library › TV Shows, the show page, Library status and Download problems agree; the saved Drive listing only gives
+    # posters, years and TMDb ids (matched by show name). A season still copying appears in its show and grows.
+    import library_index
+    index = library_index.load(profile)
+    if not index.get('videos'):
+        try:
+            index = library_index.refresh(profile)
+        except Exception:
+            index = {'videos': []}
+    if index.get('videos'):
+        import debrid_drive
+        meta = {debrid_drive.show_match(s.get('title') or ''): s for s in shows}
+        show_rows = library_index.show_rows(index, watched)
+        for row in show_rows:
+            old = meta.get(row['id']) or {}
+            row['year'] = old.get('year') or row['year']
+            row['art'] = poster('tv', {'title': old.get('title') or row['title'], 'year': row['year']})
+            fanart[row['id']] = fanart.get(old.get('id'), '') if old else ''
+            tmdb[row['id']] = row.get('tmdb') or (tmdb.get(old.get('id'), '') if old else '')
+        movie_rows = library_index.movie_rows(index, watched)
+        for row in movie_rows:
+            row['art'] = poster('movie', {'title': row['title'], 'year': row.get('year')})
+    return {'shows': show_rows, 'movies': movie_rows, 'storage': lf.storage(show_rows, movie_rows, ups), 'index': index,
             'episodes': episodes, 'prep': prep, 'debrid': debrid, 'upscale': ups, 'fanart': fanart, 'watched': watched,
-            'driveid': tv_drive or movie_drive,
-            'tmdb': {s['id']: (drivelibrary.artwork('tv', s.get('title') or '', s.get('year'), None, art, None, cached_only=True) or {}).get('tmdb_id', '')
-                     for s in shows}}
+            'driveid': tv_drive or movie_drive, 'tmdb': tmdb}
 
 
 def fill(data, tab='tv', sort='recent', search='', slots=30, view='list'):
@@ -182,19 +205,32 @@ def searching_keys(text):
     return out
 
 
+def episodes_of(data, show, names=None):
+    """A show's episode rows: from the Library index (DEC-052) when the page has it, else the older per-page reading."""
+    if (data.get('index') or {}).get('videos'):
+        import library_index
+        return library_index.episode_rows(data['index'], show['id'], names, data.get('watched') or ())
+    return lf.episode_rows(show, data.get('episodes', {}).get(show['id']) or [], data.get('prep'), data.get('debrid'),
+                           data.get('upscale'), data.get('watched') or (), names)
+
+
 def fill_show(data, show, season=None, slots=60, seasons_max=8, meta=None, searching=(), quality='', choices=None):
     """Board B: {property: value} for one show and the season shown (default: its first), and the episode rows.
     DEC-047: each row has the episode's still and TMDb title (meta), its number on the still, the title on one or two lines,
     and while Repair looks a missing episode up (searching) it says so at once."""
     meta = meta or {}
     names = {key: m['title'] for key, m in meta.items() if m.get('title')}
-    rows = lf.episode_rows(show, data.get('episodes', {}).get(show['id']) or [], data.get('prep'), data.get('debrid'),
-                           data.get('upscale'), data.get('watched') or (), names)
+    rows = episodes_of(data, show, names)
     seasons = sorted({r['season'] for r in rows}) or [0]
     season = season if season in seasons else seasons[0]
     shown = [r for r in rows if r['season'] == season]
     ready = sum(1 for r in rows if r['state'] in (lf.READY, lf.UNKNOWN))
     problems = [r for r in rows if r.get('repair')]
+    if (data.get('index') or {}).get('videos'):
+        # DEC-052: the show page's numbers are the index's counts, the same ones TV Shows and Library status show.
+        import library_index
+        c = library_index.counts(data['index'], ('show', show['id']))
+        ready = c['ready'] + c['kept']
     tmdb = str((data.get('tmdb') or {}).get(show['id'], '') or '')
     props = {'title': show['title'], 'fanart': (data.get('fanart') or {}).get(show['id'], ''),
              'sub': ' \u00b7 '.join(x for x in (str(show.get('year') or ''), 'Google Drive \u203a TV Shows') if x),
@@ -621,6 +657,11 @@ def run():
         if not drive:
             dialog.ok('Delete', 'Sign in to Google Drive first (Settings › Google Drive).')
             return None
+        try:   # DEC-052: "Deleting…" on every page at once, wherever Delete was pressed
+            import library_index
+            library_index.intend_for(profile, 'delete', drive_ids=[i['id'] for i in items if i['id'] in picked])
+        except Exception:
+            pass
         import upscale_queue
         ups = upscale_queue.load(profile)
         state_dir = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap')
@@ -744,7 +785,7 @@ def run():
             state_dir = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap')
             path = os.path.join(state_dir, 'drive-library-art.json')
             art = drivelibrary.load_json(path, {})
-            rows = lf.episode_rows(self.show, self.data.get('episodes', {}).get(self.show['id']) or [], self.data.get('prep'))
+            rows = episodes_of(self.data, self.show)
             seasons = sorted({r['season'] for r in rows if r['season']})
             getter = None
             if fetch:
@@ -888,8 +929,7 @@ def run():
         def delete_season(self, season):
             """DEC-047 C2: asks first, then the same delete as Library › Select › Delete."""
             import library_delete as ld
-            rows = [r for r in lf.episode_rows(self.show, self.data.get('episodes', {}).get(self.show['id']) or [], self.data.get('prep'),
-                                               self.data.get('debrid'), self.data.get('upscale'), self.data.get('watched') or ())
+            rows = [r for r in episodes_of(self.data, self.show)
                     if r['season'] == season and r.get('id')]
             if not rows:
                 xbmcgui.Dialog().notification('Delete', 'Nothing of this season is on Google Drive', xbmcgui.NOTIFICATION_INFO, 3000)
@@ -908,8 +948,7 @@ def run():
         def select(self):
             # Board D: every episode of the show on Drive, ticked one by one (or Select All / Watched).
             import library_delete as ld
-            rows = lf.episode_rows(self.show, self.data.get('episodes', {}).get(self.show['id']) or [], self.data.get('prep'),
-                                   self.data.get('debrid'), self.data.get('upscale'), self.data.get('watched') or ())
+            rows = episodes_of(self.data, self.show)
             items = ld.items_from_rows(rows, self.data.get('upscale'),
                                        title=lambda r: (self.meta.get((r['season'], r['episode'])) or {}).get('title') or
                                        (r['name'] if r['name'] and r['name'].casefold() != self.show['title'].casefold() else 'Episode %d' % r['episode']))

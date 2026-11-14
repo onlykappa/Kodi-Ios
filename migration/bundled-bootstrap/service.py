@@ -309,7 +309,10 @@ def run():
  threading.Thread(target=library_watch.run,args=(xbmc,xbmcaddon,xbmcvfs,monitor,profile),daemon=True).start()
  # Umbrella's getting-ready-to-play screen: its source text, split into the badges the portrait page shows.
  threading.Thread(target=umbrella_ready.watch,args=(lambda:xbmc.getCondVisibility('Window.IsVisible(%s)'%umbrella_ready.WINDOW),
-  lambda:xbmc.getInfoLabel('Control.GetLabel(2001)'),window.setProperty,window.clearProperty,monitor.waitForAbort),daemon=True).start()
+  lambda:xbmc.getInfoLabel('Control.GetLabel(2001)'),window.setProperty,window.clearProperty,monitor.waitForAbort),
+  # ISSUE-280 (board S1): the stage line, from the unlocked link (umbrella_recovery) and the stream cache's own counts.
+  kwargs={'linked':lambda:window.getProperty('KodiIOS.UmbrellaRenewal'),
+          'cache':lambda:__import__('remote_media').stats(window)},daemon=True).start()
  # The activity pill: Kodi's background progress box (never drawn) read and rewritten, plus Elementum and Drive.
  def activity_setting(key,default):
   try:
@@ -594,6 +597,7 @@ def drive_uploads(monitor,home,profile):
  threading.Thread(target=interpreter_wait,daemon=True).start()
  # Build 192 (owner: Library › Movies "takes a few seconds"): the page shows the saved Drive lists at once; they are
  # listed again here when older than 5 minutes or marked stale after an upload or a conversion.
+ drive_health={'ok':True,'checked':0,'error':''}   # DEC-052 item 4: the health line every Library page shows
  def library_lists():
   import drivelibrary
   state_dir=str(profile/'addon_data/service.kodi.ios.bootstrap')
@@ -602,9 +606,20 @@ def drive_uploads(monitor,home,profile):
     if not accounts.get_accounts():continue
     done=drivelibrary.refresh_stale(state_dir)
     if done:log('Library lists refreshed from Google Drive: %s'%', '.join(done))
+    drive_health.update(ok=True,checked=time.time(),error='')
    except (driveupload.SignedOut,driveupload.RefreshBusy):monitor.waitForAbort(60)   # the uploads loop tells the owner
-   except Exception as error:diagnostics.log_exception(xbmc,'library_lists',error)
+   except Exception as error:
+    # ISSUE-276 (log 8d661d6e: this failed 207 times and every page kept old numbers in silence): the index says so.
+    drive_health.update(ok=False,error="Can't reach Google Drive")
+    diagnostics.log_exception(xbmc,'library_lists',error)
  threading.Thread(target=library_lists,daemon=True).start()
+ # DEC-052 (PR #27): one Library index every screen reads, rebuilt when its inputs change; the counter property makes
+ # open pages redraw at once.
+ import library_index
+ threading.Thread(target=library_index.publish,args=(profile,monitor.waitForAbort),
+                  kwargs={'set_property':window.setProperty,'drive_health':lambda:dict(drive_health),
+                          'log':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGWARNING),
+                          'note':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)},daemon=True).start()
  # Build 193: "idle" only means Kodi is not closing (build-192 log: one busy look made the queue wait 120 s).
  idle=lambda:not monitor.abortRequested()
  log=lambda message:xbmc.log('Kodi iOS '+diagnostics.redact(message),xbmc.LOGINFO)
