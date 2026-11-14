@@ -1,6 +1,6 @@
 # Umbrella build 473 opening repair
 
-Status: implementation and focused host checks complete; final source review and IPA publication in progress. Owner approved a testing IPA on 2026-11-14. No merge requested.
+Status: source fix and testing IPA published; artifact verified. Owner phone retest pending. Owner approved a testing IPA on 2026-11-14. No merge requested.
 
 Baseline: build 473, `ceb06e7f2b48136cb0d66d2d1552ad5a732d421f`, PR #28 (`claude/build442-feedback`).
 
@@ -26,11 +26,14 @@ Baseline: build 473, `ceb06e7f2b48136cb0d66d2d1552ad5a732d421f`, PR #28 (`claude
 - Range/cancellation suite: 10 passing, including renewal deadline/cancellation cases.
 - Combined related suites: 125 tests pass (12 real HTTP opening, 10 integrity/cancellation, 14 native opener, 14 renewal, 55 remote media, 7 fallback, 4 parallel speed, 9 timing). Five macOS Foundation tests skip on Linux; no native code changed.
 - Mandatory project check and staged-deliverable scan pass. Final review added protection against a ready stats reply arriving after its deadline.
-- Commit, CI and testing IPA: source ready; publication/build requested next.
+- Source commit: `2f447c7759cfd55c92151b58c2cca9e075456ab7`, published to PR #28.
+- Testing IPA: [build **475**](https://github.com/onlykappa/Kodi-Ios/releases/download/build-475/Kodi-iOS-Customized-Touch-r10.ipa), run [43653853433](https://github.com/onlykappa/Kodi-Ios/actions/runs/43653853433) succeeded, including the full Python 3.11 suite, bundle smoke checks and IPA validation. Superseded run 474 was cancelled.
+- Downloaded 493,412,828-byte IPA. SHA-256 `137ea206004941424d03af751326c9205df10994bcbbb8d38f1773b3d1e733b7` matches the release digest; all ZIP CRCs pass. Packaged `remote_media.py` and `native_http.py` exactly match tested source. Framework pins remain AirPlay r57, Kodi r32, Glassbar r6.
+- Embedded build identity: 475 / PR test-merge commit `c1bb11cbfc10d35df1fc4e32d804bd351e66720f`; release target is `2f447c7`. These commits share the same tree; no main merge was performed.
 - Phone playback and elapsed time: unverified.
 
 A slow but working provider may intentionally fall back to direct playback: completing all probes within five seconds is not guaranteed. This bounds cache admission; it does not promise that the upstream provider or Kodi's subsequent direct open finishes within five seconds. The exact cause of each UI reset is not provable from these logs, which lack transport diagnostics.
 
 ## Next
 
-Publish the source fix to PR #28, request one IPA using its build label, verify the resulting artifact and send the download link. Retest the same source, another version and Continue Watching on the iPhone.
+Install build 475 as an update and retest the same source, another version and Continue Watching on the iPhone. Confirm playback starts; if it stalls, capture a new log containing the `Kodi iOS stream opening:` route/readiness line.
