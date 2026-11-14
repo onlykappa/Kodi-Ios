@@ -1,5 +1,14 @@
 # Persistent progress
 
+## Favourites import + anticipated-episodes bell — mockups only — 2026-11-14
+
+Owner asked, on a separate draft PR, for (1) a Favourites tab in Library with list import (pasted or shared from
+Notes, matched through TMDb Helper, list order kept as rank, sort by list/year/name/date, an end-of-scan report of
+duplicates and questions, continue-where-you-left-off on open) and (2) a bell on the show page replacing "Follow new
+episodes" in the season Download sheet, shown only with upcoming episodes, with Alert and Auto-download switches.
+Mockups: docs/design/favourites-import-bell-mockups.html (boards G-J). Mockup evidence only; nothing coded until
+the owner approves them. The Notes screenshot was not attached, so the list format is assumed (one title per line).
+
 ## PR #19 — 1A.3 fragment-index cache — 2026-11-12
 
 Owner narrowed the remaining work to one item at a time, starting with 1A.3. The Drive proxy now saves only
