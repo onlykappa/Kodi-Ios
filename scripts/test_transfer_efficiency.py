@@ -9,6 +9,7 @@ from test_drive_prepare import Drive
 MB=1024*1024
 
 class Transfers(unittest.TestCase):
+ def setUp(self):dp.learn_piece(0)   # ISSUE-230: the learned piece size carries across files; each test starts unlearned
  def sink(self,drive=None,**kw):
   sink=dp.Sink(drive or Drive(),'staging','p',lambda:True,**kw);self.addCleanup(sink.close);return sink
  def test_slow_conversion_upload_shrinks_without_changing_media_or_resume_window(self):

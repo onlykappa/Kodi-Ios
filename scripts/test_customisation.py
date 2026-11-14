@@ -311,11 +311,23 @@ class HideControls(unittest.TestCase):
  def test_alarm_on_open_and_every_tap(self):
   xml=osd.window();root=ET.fromstring(xml.split('\n',2)[2])
   loads=[o.text for o in root.findall('onload')]
-  self.assertEqual(loads,list(osd.ARM))
+  self.assertEqual(loads,[a for _,a in osd.DEFAULT_ONLOAD]+list(osd.ARM))   # ISSUE-279: the 5 s default comes first
   self.assertIn('Dialog.Close(videoosd)',osd.ARM[1]);self.assertIn('$INFO[Skin.String(OSD_Timeout),00:,]',osd.ARM[1])
   for button in root.iter('control'):
-   if button.get('type')=='button':
+   if button.get('type')=='button' and button.get('id')!='7100':   # the tap-to-hide area closes instead
     self.assertEqual([o.text for o in button.findall('onclick')][:2],list(osd.ARM),button.get('id'))
   self.assertIn('!Player.Paused',osd.ARM_WHEN);self.assertIn('CancelAlarm(osd_timeout,true)',[o.text for o in root.findall('onunload')])
+
+ def test_tap_anywhere_hides_and_five_seconds_by_default(self):
+  # ISSUE-279 (owner, build 430 log 72b62563: ten taps on no control, "control 0 (not handled)", and the controls
+  # stayed with no tap for 12 s; Fuse ships Hide Controls After empty = never).
+  xml=osd.window();root=ET.fromstring(xml.split('\n',2)[2]);top=list(root.find('controls'))
+  self.assertEqual((top[0].get('id'),top[0].get('type')),('7100','button'))            # under every other control
+  self.assertEqual((top[0].findtext('left'),top[0].findtext('right'),top[0].findtext('top'),top[0].findtext('bottom')),('0','0','0','0'))
+  self.assertEqual([o.text for o in top[0].findall('onclick')],['Dialog.Close(videoosd)'])
+  self.assertNotIn('7100',[n.text for n in root.iter() if n.tag.startswith('on') and n.text and n.text.isdigit()])   # never reached by arrows
+  loads=[(o.get('condition'),o.text) for o in root.findall('onload')]
+  self.assertEqual(loads[0],('String.IsEmpty(Skin.String(OSD_Timeout)) + !Skin.HasSetting(ios_osd_timeout_default)','Skin.SetString(OSD_Timeout,5)'))
+  self.assertIn('!String.IsEqual(Skin.String(OSD_Timeout),0)',osd.ARM_WHEN)            # 0 still means never
 
 if __name__=='__main__':unittest.main()

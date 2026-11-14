@@ -14,6 +14,7 @@ int kodi_airplay_prepare_hdr(void);
 // r15: 1 keeps each Blu-ray picture subtitle (PGS) track in output.sub<track>.<language>[.forced].sup beside the MP4
 // instead of refusing the file; 0 (default) refuses it, so they are never silently dropped.
 void kodi_airplay_prepare_keep_image_subs(int on);
+void kodi_airplay_prepare_keep_dvd_subs(int on);   // r54: DVD picture subtitles are copied into the MP4 (mp4s)
 void kodi_airplay_prepare_audio_languages(const char *list);
 void kodi_airplay_prepare_background(int on);
 void kodi_airplay_prepare_subtitle_languages(const char *list);   // r27: "en,eng" keeps these (and untagged) subtitles   // r26: Kodi off screen: preparation decodes on the CPU   // r25: "en,eng" keeps the first audio + these

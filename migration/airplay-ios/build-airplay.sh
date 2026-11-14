@@ -68,6 +68,9 @@
 # r51: the background silent audio is tried again every 10 s while work waits after iOS interrupted it (iOS often never
 # says the interruption ended; build-317 log: 62 min of throttled copies).
 # r52: no compat restart while the TV still waits for a video segment (a slow source, not a codec; build-319 log).
+# r57 (ISSUE-278, owner's build-430 log: Naruto S1 E1, a prepared H.264 file; the Roku took the sound only and Apple's
+# player stopped "Cannot Complete Action" 1.5 s in): a prepared file the TV turns down restarts once, also when the
+# picture is already H.264; an H.264 picture is kept as it is in 6-s segments (KR_COMPAT_SEGMENTED), not converted.
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh, REMUX_LIBASS=DIR
 # one of build-libass.sh ios)
 set -euo pipefail
@@ -559,6 +562,10 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 if(source){restartTicket=kr_remux_begin(1);atomic_store(&remuxTicket,restartTicket);}
                 os_unfair_lock_unlock(&ownershipLock);
                 if (!source) return NO;
+                // r57 (ISSUE-278): a prepared H.264 picture the TV turned down goes again in 6-s segments with the audio
+                // apart (what Roku's specifications ask for), the picture copied; only another codec is converted.
+                const char *pictureCodec = kr_remux_video_codec();
+                const BOOL keepPicture = preparedLink && pictureCodec && !strncmp(pictureCodec, "avc1", 4);
                 compatTried = YES; restarting = YES; atomic_store(&compatBusy,1);
                 double at = CMTimeGetSeconds(player.currentTime);
                 if (!isfinite(at) || at < 0) at = 0;
@@ -566,13 +573,18 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 // position, and give the replacement timer sole ownership of the seek on the new item.
                 if (at < 1 && isfinite(startAt) && startAt > 1) at = startAt;
                 initialSeekAllowed = NO;
-                playerNote(@"restarting in compat mode (picture converted to H.264) at %.1f s", at);
-                setNote(@"Converting the picture for this TV\u2026");
-                showConverting(YES);
+                if (keepPicture) {
+                    playerNote(@"restarting in 6-s segments for this TV (H.264 picture kept as it is) at %.1f s", at);
+                    setNote(@"Getting it ready for this TV\u2026");
+                } else {
+                    playerNote(@"restarting in compat mode (picture converted to H.264) at %.1f s", at);
+                    setNote(@"Converting the picture for this TV\u2026");
+                    showConverting(YES);
+                }
                 dispatch_async(remuxQueue(), ^{
                     if(generation!=atomic_load(&playGeneration) || restartTicket!=atomic_load(&remuxTicket)){free(source);return;}
                     char playlist[512] = "";
-                    int r = kr_remux_start_for(restartTicket,source, 1, 1, playlist, sizeof playlist);
+                    int r = kr_remux_start_for(restartTicket,source, 1, keepPicture ? KR_COMPAT_SEGMENTED : 1, playlist, sizeof playlist);
                     if(r==KR_READY)r=kr_remux_prime_for(restartTicket,at);
                     free(source);
                     NSString *link = r == KR_READY ? @(playlist) : nil;
@@ -651,8 +663,8 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 if (!compatTried && soundOnlyTicks >= 4) {
                     const char *codec = kr_remux_video_codec();
                     BOOL hevc = codec && (!strncmp(codec, "hvc1", 4) || !strncmp(codec, "hev1", 4));
-                    if (!(codec && !strncmp(codec, "avc1", 4))) {
-                        playerNote(@"the TV took the sound only (%s, no external playback): converting the picture", codec ? codec : "");
+                    if (preparedLink || !(codec && !strncmp(codec, "avc1", 4))) {   // r57: a prepared H.264 file too
+                        playerNote(@"the TV took the sound only (%s, no external playback): restarting for this TV", codec ? codec : "");
                         if (restartCompat(hevc)) return;
                     }
                 }
@@ -682,8 +694,8 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                     // picture once before reporting a problem.
                     if (!compatTried && !external && tvRoute(player)) {
                         const char *codec = kr_remux_video_codec();
-                        if (!(codec && !strncmp(codec, "avc1", 4))) {
-                            playerNote(@"the player failed while the TV had the sound only (%s): converting the picture", codec ? codec : "");
+                        if (preparedLink || !(codec && !strncmp(codec, "avc1", 4))) {   // r57 (ISSUE-278): a prepared H.264 file too
+                            playerNote(@"the player failed while the TV had the sound only (%s): restarting for this TV", codec ? codec : "");
                             if (restartCompat(codec && (!strncmp(codec, "hvc1", 4) || !strncmp(codec, "hev1", 4)))) return;
                         }
                     }
@@ -753,7 +765,12 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
             sheet.prioritizesVideoDevices = YES;
             sheet.delegate=holder;
             [holder.view addSubview:sheet];
-            openSheet(sheet);
+            // ISSUE-251: the add-on opens Apple's AirPlay list as soon as Play on TV starts; when a device was already
+            // chosen there, the stream goes to it and the list is not opened a second time.
+            BOOL chosen=NO;
+            for (AVAudioSessionPortDescription *port in AVAudioSession.sharedInstance.currentRoute.outputs)
+                if ([port.portType isEqualToString:AVAudioSessionPortAirPlay]) chosen=YES;
+            if (!chosen) openSheet(sheet);
         }];
     });
 }
@@ -1360,7 +1377,7 @@ xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$
   -I"$FF/include" -I"$REMUX/src" -c "$REMUX/src/kr_upscale.m" -o "$WORK/kr_upscale.o"
 OBJS+=("$WORK/kr_upscale.o")
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
-printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n_kodi_airplay_serve_segmented\n' > "$WORK/exports"
+printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_keep_dvd_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n_kodi_airplay_serve_segmented\n' > "$WORK/exports"
 printf '_kodi_http_copy_max\n_kodi_http_copy_streams\n_kodi_http_copy\n_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
 printf '_kodi_airplay_prepare_upscale\n_kodi_airplay_upscale_support\n_kodi_airplay_upscale_model\n_kodi_device_state\n' >> "$WORK/exports"   # r48
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
@@ -1390,10 +1407,10 @@ cat > "$FW/Info.plist" <<PLIST
 <key>MinimumOSVersion</key><string>$MIN_IOS</string>
 </dict></plist>
 PLIST
-nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume)|background_(keep|state))$'
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_keep_dvd_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume)|background_(keep|state))$'
 # r14: prepare_streams is what tells the setup add-on it may stream from Drive instead of downloading first.
 # r15: prepare_keep_image_subs keeps Blu-ray picture subtitles in .sup files beside the MP4 (Interstellar, build 160).
-[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume|start_at|serve|serve_segmented)|background_(keep|state))$')" == 29 ]] || { echo 'missing exports' >&2; exit 1; }
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_keep_dvd_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume|start_at|serve|serve_segmented)|background_(keep|state))$')" == 30 ]] || { echo 'missing exports' >&2; exit 1; }
 # ISSUE-161: r44 defined these but did not export them, so the controller fell back to 60 s and lost the health log.
 nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(health|startup_budget)|http_send)$'
 [[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(health|startup_budget)|http_send)$')" == 3 ]] || { echo 'startup budget/health/http_send not exported' >&2; exit 1; }

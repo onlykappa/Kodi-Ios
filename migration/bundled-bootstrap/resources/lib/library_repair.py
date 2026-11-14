@@ -26,6 +26,32 @@ def qualities(rows):
     return first + [None]
 
 
+def chosen(profile, tmdb, rows):
+    """The quality to repair with (ISSUE-237, owner log f63389f1: Repair took "..._2.25x_1920x1080_alq-10", an uploader's
+    upscale, because the show's ready episodes were 480p and the search ran at "any quality"). The quality the owner chose
+    for the show (Build Season / Download All: episode_watch's planned episodes, then the show's strict preference) comes
+    first; the show's ready episodes only when nothing was chosen. With a chosen quality the automatic pick takes a real one,
+    or the best that exists as a fallback with one notice, so no "any quality" search follows it."""
+    try:
+        import episode_watch
+        show = (episode_watch.load(profile).get('shows') or {}).get(str(tmdb)) or {}
+    except Exception:
+        show = {}
+    planned = collections.Counter(quality_key(p.get('quality')) for p in (show.get('planned') or {}).values()
+                                  if isinstance(p, dict) and quality_key(p.get('quality')))
+    if planned:
+        return planned.most_common(1)[0][0]
+    preference = show.get('preference') or {}
+    if preference.get('strict_quality') and quality_key(preference.get('quality')):
+        return quality_key(preference.get('quality'))
+    return qualities(rows)[0]
+
+
+def tries_for(quality):
+    """A chosen quality alone (its pick already falls back to the best available); nothing chosen: any quality."""
+    return [quality] if quality else [None]
+
+
 def repair(request, home, tmdb, title, season, episode, tries, log=lambda text: None):
     """Look the episode up again and queue the best version. Returns ('queued', quality or 'any') or ('none', why)."""
     why = 'No version with seeds was found for it.'
@@ -41,8 +67,32 @@ def repair(request, home, tmdb, title, season, episode, tries, log=lambda text: 
         if result.get('queued'):
             log('Kodi iOS repair: S%02dE%02d queued (%s)' % (season, episode, quality or 'any quality'))
             return 'queued', quality or 'any'
+        if result.get('held'):   # DEC-049: no real version of the chosen quality; the season asks the owner once
+            log('Kodi iOS repair: S%02dE%02d waits for the quality choice' % (season, episode))
+            return 'held', 'Waiting for your choice'
         log('Kodi iOS repair: S%02dE%02d nothing at %s' % (season, episode, quality or 'any quality'))
     return 'none', why
+
+
+SEARCHING, CANCEL = 'KodiIOS.Repairing', 'KodiIOS.RepairCancel'
+
+
+def mark_searching(home, keys, add=True):
+    """DEC-047 B2: Window(Home).Property(KodiIOS.Repairing) lists 'tmdb:season:episode' of the episodes Repair is looking
+    up (the show page reads it every 2 s)."""
+    now = [k for k in str(home.getProperty(SEARCHING) or '').split(';') if k]
+    now = (now + [k for k in keys if k not in now]) if add else [k for k in now if k not in keys]
+    home.setProperty(SEARCHING, ';'.join(now))
+
+
+def cancelled(home, key):
+    """The ✕ on the show page asked this episode's search to stop."""
+    return key in str(home.getProperty(CANCEL) or '').split(';')
+
+
+def clear_cancel(home, keys):
+    left = [k for k in str(home.getProperty(CANCEL) or '').split(';') if k and k not in keys]
+    home.setProperty(CANCEL, ';'.join(left))
 
 
 def script_args(tmdb, title, rows, quality):

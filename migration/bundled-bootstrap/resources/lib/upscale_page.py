@@ -23,15 +23,23 @@ def size_name(width, height):
     return short(picture.LABELS[index]) if index >= 0 else ('%dp' % int(height) if height else '?')
 
 
-def summary(settings):
-    """The Settings row's value: 'On · 4K' when new downloads are upscaled or any show has a size, else 'Off'."""
+def summary(settings, engine=None):
+    """The Settings row's value: 'On · 4K' only when something is really set (new downloads are upscaled, or a show / the
+    default has a size), else 'Off'. engine ({'upscales', 'model'} from the queue step; {} or None before it has run):
+    a phone with no AI engine (or no iOS 26 model) says 'Unavailable', because nothing can be made there."""
+    if engine and (not engine.get('upscales') or engine.get('model') == -1):
+        return 'Unavailable'
+    # ISSUE-235 (owner: "this still says On · 4K" with Upscale new downloads off): it was on for shows set to a size (the
+    # log made 4K copies of Phony). The row now says what is on: new downloads, every show, or how many shows.
     downloads = settings.get('downloads', {})
     if downloads.get('prepare'):
-        return 'On · %s' % short(downloads.get('size') or '4K UHD')
-    sizes = [e.get('upscale') for e in list(settings.get('shows', {}).values()) + [settings.get('default', {})]
-             if e.get('upscale') in picture.LABELS]
+        return 'New downloads \u00b7 %s' % short(downloads.get('size') if downloads.get('size') in picture.LABELS else '4K UHD')
+    default = settings.get('default', {})
+    if isinstance(default, dict) and default.get('upscale') in picture.LABELS:
+        return 'All shows \u00b7 %s' % short(default['upscale'])
+    sizes = [e.get('upscale') for e in settings.get('shows', {}).values() if isinstance(e, dict) and e.get('upscale') in picture.LABELS]
     if sizes:
-        return 'On · %s' % short(max(sizes, key=picture.LABELS.index))
+        return '%d show%s \u00b7 %s' % (len(sizes), '' if len(sizes) == 1 else 's', short(max(sizes, key=picture.LABELS.index)))
     return 'Off'
 
 
@@ -139,7 +147,7 @@ def rows(settings, data, groups, engine):
         bits = ['To %s' % e['label'], '%d %%' % int(e.get('progress') or 0)] + ([e['eta']] if e.get('eta') else [])
         out.append({'kind': 'button', 'label': _title(e.get('name')), 'sub': ' · '.join(bits), 'action': ''})
     elif waiting:
-        note = waiting[0].get('note') or 'Starts when nothing is converting'
+        note = waiting[0].get('note') or 'Up next'   # ISSUE-265: the service writes the real reason
         out.append({'kind': 'button', 'label': _title(waiting[0].get('name')), 'sub': note, 'action': ''})
     else:
         out.append({'kind': 'button', 'label': 'Nothing being made', 'sub': 'Choose a size for a show below', 'action': ''})
@@ -282,6 +290,8 @@ def remove_copies(settings, data, g):
     """Board C "Remove the copies…" (after the alert): the show goes Off (so nothing is made again) and the service
     sends each copy to Drive's Trash (upscale_cloud.process_one). Returns (settings, data)."""
     settings = set_show(settings, g, picture.OFF)
+    import upscale_queue
+    upscale_queue.ask(data, g.get('videos') or [], picture.OFF)   # ISSUE-245: no longer asked for
     ids = [i['id'] for i in g.get('items') or [] if i['state'] in ('ready', 'waiting', 'failed', 'running')]
     data.setdefault('remove', [])
     data['remove'] = sorted(set(data['remove']) | set(ids))

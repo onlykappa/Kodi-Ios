@@ -7,6 +7,7 @@ fill() is pure so host tests can check every property the page reads.
 import json
 import os
 import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, 'resources', 'lib'))
@@ -33,7 +34,10 @@ def model(profile):
     shows, tv_drive = cached(state_dir, 'tv:')
     movies, movie_drive = cached(state_dir, 'movie:')
     episodes = {s['id']: cached(state_dir, 'tv:%s' % s['id'])[0] for s in shows}
-    prep, debrid, ups = prepare_downloads.load(profile), debrid_drive.load(profile), upscale_queue.load(profile)
+    # ISSUE-227: what the owner just asked for (Repair, Try Again, Keep) shows at once, as on Library status; the service
+    # applies it at its next pass.
+    prep = prepare_downloads.apply_to(prepare_downloads.load(profile), prepare_downloads.pending_requests(profile), time.time())
+    debrid, ups = debrid_drive.load(profile), upscale_queue.load(profile)
     art = drivelibrary.load_json(os.path.join(state_dir, 'drive-library-art.json'), {})
     poster = lambda kind, e: (drivelibrary.artwork(kind, e.get('title') or '', e.get('year'), None, art, None, cached_only=True) or {}).get('poster', '')
     # ISSUE-197: what was watched to the end (Continue Watching keeps it: Drive file ids and phone paths).
@@ -50,11 +54,34 @@ def model(profile):
         row['art'] = poster('movie', movie)
     fanart = {s['id']: (drivelibrary.artwork('tv', s.get('title') or '', s.get('year'), None, art, None, cached_only=True) or {}).get('fanart', '')
               for s in shows}
-    return {'shows': show_rows, 'movies': movie_rows, 'storage': lf.storage(show_rows, movie_rows, ups),
+    tmdb = {s['id']: (drivelibrary.artwork('tv', s.get('title') or '', s.get('year'), None, art, None, cached_only=True) or {}).get('tmdb_id', '')
+            for s in shows}
+    # DEC-052 / ISSUE-276 (PR #27): which videos exist and what state each is in come from the one Library index, so
+    # Library › TV Shows, the show page, Library status and Download problems agree; the saved Drive listing only gives
+    # posters, years and TMDb ids (matched by show name). A season still copying appears in its show and grows.
+    import library_index
+    index = library_index.load(profile)
+    if not index.get('videos'):
+        try:
+            index = library_index.refresh(profile)
+        except Exception:
+            index = {'videos': []}
+    if index.get('videos'):
+        import debrid_drive
+        meta = {debrid_drive.show_match(s.get('title') or ''): s for s in shows}
+        show_rows = library_index.show_rows(index, watched)
+        for row in show_rows:
+            old = meta.get(row['id']) or {}
+            row['year'] = old.get('year') or row['year']
+            row['art'] = poster('tv', {'title': old.get('title') or row['title'], 'year': row['year']})
+            fanart[row['id']] = fanart.get(old.get('id'), '') if old else ''
+            tmdb[row['id']] = row.get('tmdb') or (tmdb.get(old.get('id'), '') if old else '')
+        movie_rows = library_index.movie_rows(index, watched)
+        for row in movie_rows:
+            row['art'] = poster('movie', {'title': row['title'], 'year': row.get('year')})
+    return {'shows': show_rows, 'movies': movie_rows, 'storage': lf.storage(show_rows, movie_rows, ups), 'index': index,
             'episodes': episodes, 'prep': prep, 'debrid': debrid, 'upscale': ups, 'fanart': fanart, 'watched': watched,
-            'driveid': tv_drive or movie_drive,
-            'tmdb': {s['id']: (drivelibrary.artwork('tv', s.get('title') or '', s.get('year'), None, art, None, cached_only=True) or {}).get('tmdb_id', '')
-                     for s in shows}}
+            'driveid': tv_drive or movie_drive, 'tmdb': tmdb}
 
 
 def fill(data, tab='tv', sort='recent', search='', slots=30, view='list'):
@@ -150,37 +177,116 @@ def save_view(state_dir, view, tab='movie'):
         pass
 
 
-def fill_show(data, show, season=None, slots=60, seasons_max=8):
-    """Board B: {property: value} for one show and the season shown (default: its first), and the episode rows."""
-    rows = lf.episode_rows(show, data.get('episodes', {}).get(show['id']) or [], data.get('prep'), data.get('debrid'),
-                           data.get('upscale'), data.get('watched') or ())
+def episode_meta(art, tmdb, seasons, fetch=None):
+    """DEC-047 board B: {(season, episode): {'title', 'thumb'}} from TMDb's season data in the Library's art cache
+    (drivelibrary.season). fetch(season) -> {episode: {...}} fills a season that is not cached yet (the page's thread)."""
+    import drivelibrary
+    out = {}
+    if not tmdb:
+        return out
+    for season in seasons:
+        found = drivelibrary.season(tmdb, season, None, art, None, cached_only=True) if fetch is None else fetch(season)
+        for number, ep in (found or {}).items():
+            try:
+                out[(int(season), int(number))] = {'title': ep.get('title') or '', 'thumb': ep.get('thumb') or ''}
+            except (TypeError, ValueError):
+                pass
+    return out
+
+
+def searching_keys(text):
+    """The episodes Repair is looking up now (library_repair_page sets Window(Home).Property(KodiIOS.Repairing)):
+    {(tmdb, season, episode)}."""
+    out = set()
+    for part in str(text or '').split(';'):
+        bits = part.split(':')
+        if len(bits) == 3 and bits[1].isdigit() and bits[2].isdigit():
+            out.add((bits[0], int(bits[1]), int(bits[2])))
+    return out
+
+
+def episodes_of(data, show, names=None):
+    """A show's episode rows: from the Library index (DEC-052) when the page has it, else the older per-page reading."""
+    if (data.get('index') or {}).get('videos'):
+        import library_index
+        return library_index.episode_rows(data['index'], show['id'], names, data.get('watched') or ())
+    return lf.episode_rows(show, data.get('episodes', {}).get(show['id']) or [], data.get('prep'), data.get('debrid'),
+                           data.get('upscale'), data.get('watched') or (), names)
+
+
+def fill_show(data, show, season=None, slots=60, seasons_max=8, meta=None, searching=(), quality='', choices=None):
+    """Board B: {property: value} for one show and the season shown (default: its first), and the episode rows.
+    DEC-047: each row has the episode's still and TMDb title (meta), its number on the still, the title on one or two lines,
+    and while Repair looks a missing episode up (searching) it says so at once."""
+    meta = meta or {}
+    names = {key: m['title'] for key, m in meta.items() if m.get('title')}
+    rows = episodes_of(data, show, names)
     seasons = sorted({r['season'] for r in rows}) or [0]
     season = season if season in seasons else seasons[0]
     shown = [r for r in rows if r['season'] == season]
     ready = sum(1 for r in rows if r['state'] in (lf.READY, lf.UNKNOWN))
+    problems = [r for r in rows if r.get('repair')]
+    if (data.get('index') or {}).get('videos'):
+        # DEC-052: the show page's numbers are the index's counts, the same ones TV Shows and Library status show.
+        import library_index
+        c = library_index.counts(data['index'], ('show', show['id']))
+        ready = c['ready'] + c['kept']
+    tmdb = str((data.get('tmdb') or {}).get(show['id'], '') or '')
     props = {'title': show['title'], 'fanart': (data.get('fanart') or {}).get(show['id'], ''),
              'sub': ' \u00b7 '.join(x for x in (str(show.get('year') or ''), 'Google Drive \u203a TV Shows') if x),
-             'n.episodes': str(len(rows)), 'n.episodes.label': 'episodes',
-             'n.size': lf.size_text(sum(r['size'] for r in rows)) or '0 MB', 'n.size.label': 'on Drive',
-             'n.ready': str(ready), 'n.ready.label': 'ready for TV',
+             'n.episodes': str(len(rows)), 'n.episodes.label': 'episodes', 'n.episodes.tint': 'FFFFFFFF',
+             'n.size': lf.size_text(sum(r['size'] for r in rows)) or '0 MB', 'n.size.label': 'on Drive', 'n.size.tint': 'FFFFFFFF',
+             'n.ready': str(len(problems) if problems else ready),
+             'n.ready.label': ('not added' if all(not r.get('id') for r in problems) else 'need you') if problems else 'ready for TV',
+             'n.ready.tint': 'FFFF453A' if problems else 'FFFFFFFF',
              'season.on': str(seasons.index(season))}
     for n in range(seasons_max):
         props['season.%d' % n] = ('Season %d' % seasons[n] if seasons[n] else 'Specials') if n < len(seasons) else ''
-        props['season.%d.tint' % n] = 'FF0A84FF' if n < len(seasons) and seasons[n] == season else 'FF2C2C2E'
+        chosen = n < len(seasons) and seasons[n] == season
+        props['season.%d.tint' % n] = 'FFFFFFFF' if chosen else 'FF1C1C1E'
+        props['season.%d.text' % n] = 'FF000000' if chosen else '99EBEBF5'
     for n in range(slots):
-        for key in ('title', 'line', 'state', 'bar', 'repair', 'pos'):
+        for key in ('title', 'line', 'state', 'bar', 'repair', 'pos', 'num', 'thumb', 'two', 'searching'):
             props['ep.%d.%s' % (n, key)] = ''
     shown = shown[:slots]
     for n, r in enumerate(shown):
         k = 'ep.%d.' % n
-        props[k + 'title'] = '%d \u00b7 %s' % (r['episode'], r['name'] or 'Episode %d' % r['episode'])
+        m = meta.get((r['season'], r['episode'])) or {}
+        name = r['name'] if r.get('name') and str(r['name']).casefold() != str(show['title']).casefold() else ''
+        title = m.get('title') or name or 'Episode %d' % r['episode']
+        props[k + 'title'] = title
+        props[k + 'num'] = 'E%d' % r['episode']
+        props[k + 'thumb'] = m.get('thumb', '') if r.get('id') else ''
+        # Rig render (DEC-047): about 28 characters fit on one line, about 20 beside the round Repair.
+        props[k + 'two'] = 'true' if len(title) > (TWO_LINES_BESIDE_REPAIR if (r['repair'] or not r.get('id')) else TWO_LINES) else ''
         props[k + 'line'] = r['line']
         props[k + 'state'] = r['state']
         props[k + 'bar'] = 'true' if r['state'] in (lf.CONVERTING, lf.COPYING) and r.get('progress') is not None else ''
         props[k + 'repair'] = 'true' if r['repair'] else ''
+        if not r.get('id') and (tmdb, r['season'], r['episode']) in set(searching):
+            props[k + 'searching'] = 'true'
+            props[k + 'state'] = lf.COPYING
+            props[k + 'line'] = 'Looking for %s\u2026' % (quality or 'a version')
         props[k + 'pos'] = POS(n, len(shown))
     props['empty'] = '' if shown else 'No episodes of this show on Google Drive yet.'
+    # DEC-049 board D: the shown season waits for the owner's quality choice (quality_choice.waiting).
+    waiting = (choices or {}).get(season)
+    props['choice.line'] = ''
+    if waiting:
+        import quality_choice
+        n = len(waiting.get('episodes') or [])
+        best = (waiting.get('best') or {}).get('quality')
+        props['choice.line'] = ' \u00b7 '.join(x for x in ('No real %s' % quality_choice.word(waiting.get('quality')),
+                                                           'best is %s' % quality_choice.word(best) if best else '',
+                                                           '%d episode%s' % (n, '' if n == 1 else 's') if n else '') if x)
+        for n_, r in enumerate(shown):   # its missing episodes say so instead of "Looking for 1080p…"
+            if not r.get('id') and r['episode'] in (waiting.get('episodes') or []):
+                props['ep.%d.searching' % n_] = ''
+                props['ep.%d.line' % n_] = 'Waiting for your choice'
     return props, shown, seasons
+
+
+TWO_LINES, TWO_LINES_BESIDE_REPAIR = 28, 20   # library_show_page.TWO_LINES: a longer title wraps to a second line
 
 
 def fill_item(row, show=None, kind='episode'):
@@ -237,6 +343,14 @@ def fill_item(row, show=None, kind='episode'):
         props.update(primary='Play', secondary='Play on TV', delete='Delete %s\u2026' % ('Episode' if kind == 'episode' else 'Movie'))
         actions = ('play', 'tv', 'delete')
     return props, actions
+
+
+def repair_words(rows, why):
+    """P6: what Repair says when trying again can't help: what stops it, that it still plays, and what to do."""
+    many = len(rows) > 1
+    return ('%s can\'t be made ready for AirPlay yet: %s.\n%s still play%s in Kodi as %s.\nFind Another Version (the show\'s '
+            '\u2022\u2022\u2022 \u203a Pick Better Versions) gets one that needs nothing.') % (
+        '%d videos' % len(rows) if many else 'This video', why, 'They' if many else 'It', '' if many else 's', 'they are' if many else 'it is')
 
 
 def run():
@@ -322,7 +436,7 @@ def run():
         if not tmdb or not rows:
             return False
         xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,library_repair_page,%s)' % ','.join(
-            library_repair.script_args(tmdb, (show or {}).get('title', ''), rows, library_repair.qualities(episodes or rows)[0])))
+            library_repair.script_args(tmdb, (show or {}).get('title', ''), rows, library_repair.chosen(profile, tmdb, episodes or rows))))
         return True
 
     def act(action, row, data, show=None, kind='episode', episodes=None):
@@ -342,6 +456,12 @@ def run():
             return True
         if action == 'retry':
             import prepare_downloads
+            # ISSUE-226 / P6: a video the converter can't keep the tracks of is not tried again for nothing; say why.
+            why = prepare_downloads.cannot_prepare(row.get('problem'), prepare_downloads.capabilities(profile))
+            if why:
+                if xbmcgui.Dialog().yesno('Can\'t be prepared yet', repair_words([row], why), nolabel='OK', yeslabel='Find Another Version'):
+                    act('choose', row, data, show, kind, episodes)
+                return False
             prepare_downloads.request(profile, 'retry', row.get('job_id') or row['id'])
             xbmcgui.Dialog().notification('Repair', 'Preparing it again', xbmcgui.NOTIFICATION_INFO, 3000)
             return False
@@ -400,24 +520,45 @@ def run():
     import library_select_page as select_page
 
     class Select(xbmcgui.WindowXMLDialog):
-        """Board D: tick several, see the space, delete to Drive's Trash after one alert."""
+        """Board D: tick several, see the space, delete to Drive's Trash after one alert. DEC-047: a show's episodes get
+        their stills, season chips and a toolbar (Better Version, Prepare Again, Delete)."""
         def onInit(self):
+            self.tools = bool(self.items) and all(i.get('num') for i in self.items)
+            self.seasons = sorted({i.get('season') or 0 for i in self.items}) if self.tools else []
+            self.season = self.seasons[0] if self.seasons else None
             self.draw()
+
+        def shown(self):
+            if self.season is None:
+                return self.items[:select_page.SLOTS]
+            return [i for i in self.items if (i.get('season') or 0) == self.season][:select_page.SLOTS]
 
         def draw(self):
             import library_delete as ld
             count, size = ld.totals(self.items, self.picked)
-            props = {'title': '%d selected' % count if count else self.heading,
-                     'all.label': 'Select None' if self.items and count == len(self.items) else 'Select All',
+            shown = self.shown()
+            in_view = {i['id'] for i in shown}
+            props = {'title': self.heading if self.tools else ('%d selected' % count if count else self.heading),
+                     'count': (' \u00b7 '.join(x for x in ('%d selected' % count, lf.size_text(size) or '0 MB',
+                                                          ('Season %d' % self.season if self.season else 'Specials') if self.season is not None and len(self.seasons) > 1 else '') if x)
+                               if count else 'Choose episodes') if self.tools else '',
+                     'all.label': 'Deselect All' if in_view and in_view <= self.picked else 'Select All',
                      'watched.label': 'Watched (%d)' % len(self.watched) if self.watched else '',
-                     'delete.label': ld.bar_label(count, size)}
-            shown = self.items[:select_page.SLOTS]
+                     'delete.label': ld.bar_label(count, size), 'tools': 'true' if self.tools else '', 'any': 'true' if count else ''}
+            for n in range(select_page.SEASONS):
+                chosen = n < len(self.seasons) and self.seasons[n] == self.season
+                props['season.%d' % n] = (('Season %d' % self.seasons[n]) if self.seasons[n] else 'Specials') if n < len(self.seasons) and len(self.seasons) > 1 else ''
+                props['season.%d.tint' % n] = 'FFFFFFFF' if chosen else 'FF1C1C1E'
+                props['season.%d.text' % n] = 'FF000000' if chosen else '99EBEBF5'
             for n in range(select_page.SLOTS):
                 it = shown[n] if n < len(shown) else {}
                 props['it.%d.title' % n] = it.get('title', '')
                 props['it.%d.line' % n] = it.get('line', '')
                 props['it.%d.on' % n] = 'true' if it and it['id'] in self.picked else ''
                 props['it.%d.pos' % n] = POS(n, len(shown)) if it else ''
+                props['it.%d.num' % n] = it.get('num', '') if it else ''
+                props['it.%d.thumb' % n] = it.get('thumb', '') if it else ''
+                props['it.%d.two' % n] = 'true' if it and it.get('num') and len(it.get('title', '')) > 30 else ''
             for key, value in props.items():
                 self.setProperty(key, str(value))
 
@@ -427,53 +568,119 @@ def run():
                 self.close()
 
         def onClick(self, control):
-            import library_delete as ld
+            shown = self.shown()
             if control == select_page.DONE:
                 self.close()
                 return
             if control == select_page.ALL:
-                self.picked = set() if len(self.picked) == len(self.items) else {i['id'] for i in self.items}
+                ids = {i['id'] for i in shown}
+                self.picked = (self.picked - ids) if ids and ids <= self.picked else (self.picked | ids)
             elif control == select_page.WATCHED:
                 self.picked = set(self.watched)
-            elif select_page.ROW <= control < select_page.ROW + select_page.SLOTS and control - select_page.ROW < len(self.items):
-                ident = self.items[control - select_page.ROW]['id']
-                self.picked ^= {ident}
-            elif control == select_page.DELETE and self.picked:
+            elif select_page.SEASON <= control < select_page.SEASON + select_page.SEASONS and control - select_page.SEASON < len(self.seasons):
+                self.season = self.seasons[control - select_page.SEASON]
+            elif select_page.ROW <= control < select_page.ROW + select_page.SLOTS and control - select_page.ROW < len(shown):
+                self.picked ^= {shown[control - select_page.ROW]['id']}
+            elif control in (select_page.DELETE, select_page.TOOL_DELETE) and self.picked:
                 if self.delete():
+                    self.close()
+                    return
+            elif control == select_page.PREPARE and self.picked:
+                self.prepare_again()
+            elif control == select_page.BETTER and self.picked:
+                if self.better():
                     self.close()
                     return
             self.draw()
 
-        def delete(self):
-            import library_delete as ld
-            import drivelibrary
-            count, _ = ld.totals(self.items, self.picked)
-            heading, text, yes = ld.alert(count, self.noun)
-            dialog = xbmcgui.Dialog()
-            if not dialog.yesno(heading, text, nolabel='Cancel', yeslabel=yes):
+        def prepare_again(self):
+            """DEC-047 D1: the chosen episodes are made ready for AirPlay again (the Repair request: kept ones too)."""
+            import prepare_downloads
+            chosen = [i for i in self.items if i['id'] in self.picked]
+            if not xbmcgui.Dialog().yesno('Prepare Again', '%d episode%s %s made ready for Kodi and AirPlay again, one after another, '
+                                          'from the file on Google Drive.' % (len(chosen), '' if len(chosen) == 1 else 's',
+                                                                              'is' if len(chosen) == 1 else 'are'),
+                                          nolabel='Cancel', yeslabel='Prepare Again'):
+                return
+            for item in chosen:
+                prepare_downloads.request(profile, 'retry', item['id'])
+            xbmcgui.Dialog().notification('Prepare Again', '%d in the queue' % len(chosen), xbmcgui.NOTIFICATION_INFO, 3000)
+            self.picked = set()
+
+        def better(self):
+            """DEC-047 D1: look the chosen episodes up again at the show's quality; each old file goes to Drive's Trash once its
+            new copy is saved (better_version). Returns True when the lookups started."""
+            import better_version
+            import library_repair
+            import season_sources
+            chosen = [i for i in self.items if i['id'] in self.picked and i.get('season') is not None and i.get('episode')]
+            tmdb = getattr(self, 'tmdb', '')
+            if not chosen or not tmdb:
+                xbmcgui.Dialog().ok('Better Version', 'This show has no TMDb match yet, so its episodes cannot be looked up again.')
                 return False
-            extra = ld.ai_bytes(self.items, self.picked)
-            with_ai = bool(extra) and dialog.yesno('AI Upscale copies', 'Also delete their AI copies (%s)?' % lf.size_text(extra),
-                                                   nolabel='Keep Them', yeslabel='Delete Them')
-            drive, _ = drivelibrary.client()
-            if not drive:
-                dialog.ok('Delete', 'Sign in to Google Drive first (Settings › Google Drive).')
+            quality = library_repair.chosen(profile, tmdb, self.items)
+            name = season_sources.QUALITY_NAMES.get(quality, quality or 'your quality')
+            if not xbmcgui.Dialog().yesno('Better Version', 'Look %d episode%s up again at %s? When a better copy is saved on Google '
+                                          'Drive, the old one goes to the Trash (kept there for 30 days).' % (
+                                              len(chosen), '' if len(chosen) == 1 else 's', name),
+                                          nolabel='Cancel', yeslabel='Look Again'):
                 return False
-            import upscale_queue
-            ups = upscale_queue.load(profile)
-            state_dir = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap')
-            removed, failed = ld.delete(self.items, self.picked, with_ai, lambda i: drivelibrary.trash(drive, i), state_dir, ups,
-                                        log=lambda t: xbmc.log(t, xbmc.LOGWARNING))
-            upscale_queue.save(profile, ups)
-            self.removed = removed
-            if failed:
-                dialog.ok('Could not delete everything', '%d could not be moved to the Trash: %s. Try again in a moment.' % (
-                    len(failed), ', '.join(failed[:3])))
-            else:
-                dialog.notification('Deleted', '%d moved to Google Drive\'s Trash' % len(removed), xbmcgui.NOTIFICATION_INFO, 3000)
+            better_version.remember(profile, [(tmdb, i['season'], i['episode'], i['id'], i.get('name')) for i in chosen])
+            xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,library_repair_page,%s)' % ','.join(
+                library_repair.script_args(tmdb, self.heading, chosen, quality)))
             return True
 
-    def open_select(items, heading, noun='episode', picked=(), watched=()):
+        def delete(self):
+            removed = delete_items(self.items, self.picked, self.noun)
+            if removed is None:
+                return False
+            self.removed = removed
+            return True
+
+    def delete_items(items, picked=None, noun='episode', ask=True):
+        """Board D's delete (and DEC-047 C2's Delete Season, which has asked already): the picked items go to Drive's Trash,
+        leave the preparation queue, and their AI copies too when the owner says so. Returns the ids removed, or None when
+        nothing was done."""
+        import library_delete as ld
+        import drivelibrary
+        picked = set(picked if picked is not None else (i['id'] for i in items))
+        count, _ = ld.totals(items, picked)
+        dialog = xbmcgui.Dialog()
+        if ask:
+            heading, text, yes = ld.alert(count, noun)
+            if not dialog.yesno(heading, text, nolabel='Cancel', yeslabel=yes):
+                return None
+        extra = ld.ai_bytes(items, picked)
+        with_ai = bool(extra) and dialog.yesno('AI Upscale copies', 'Also delete their AI copies (%s)?' % lf.size_text(extra),
+                                               nolabel='Keep Them', yeslabel='Delete Them')
+        drive, _ = drivelibrary.client()
+        if not drive:
+            dialog.ok('Delete', 'Sign in to Google Drive first (Settings › Google Drive).')
+            return None
+        try:   # DEC-052: "Deleting…" on every page at once, wherever Delete was pressed
+            import library_index
+            library_index.intend_for(profile, 'delete', drive_ids=[i['id'] for i in items if i['id'] in picked])
+        except Exception:
+            pass
+        import upscale_queue
+        ups = upscale_queue.load(profile)
+        state_dir = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap')
+        removed, failed = ld.delete(items, picked, with_ai, lambda i: drivelibrary.trash(drive, i), state_dir, ups,
+                                    log=lambda t: xbmc.log(t, xbmc.LOGWARNING))
+        upscale_queue.save(profile, ups)
+        try:   # ISSUE-233: deleted videos leave the preparation queue (a conversion of one stops)
+            import prepare_downloads
+            prepare_downloads.forget(profile, removed)
+        except Exception as error:
+            xbmc.log('Kodi iOS delete: preparation queue not updated (%s)' % type(error).__name__, xbmc.LOGWARNING)
+        if failed:
+            dialog.ok('Could not delete everything', '%d could not be moved to the Trash: %s. Try again in a moment.' % (
+                len(failed), ', '.join(failed[:3])))
+        else:
+            dialog.notification('Deleted', '%d moved to Google Drive\'s Trash' % len(removed), xbmcgui.NOTIFICATION_INFO, 3000)
+        return removed
+
+    def open_select(items, heading, noun='episode', picked=(), watched=(), tmdb=''):
         """Board D (and Free Up Space's Review): returns the ids deleted."""
         try:
             sheet = Select(select_page.WINDOW, HERE, 'Default', '1080i')
@@ -482,7 +689,7 @@ def run():
             _v.listdir(os.path.join(_v.translatePath('special://skin/'), 'portrait') + '/')
             sheet = Select(select_page.WINDOW, HERE, 'Default', '1080i')
         sheet.items, sheet.heading, sheet.noun = items, heading, noun
-        sheet.picked, sheet.watched, sheet.removed = set(picked), set(watched), []
+        sheet.picked, sheet.watched, sheet.removed, sheet.tmdb = set(picked), set(watched), [], tmdb
         sheet.doModal()
         removed = sheet.removed
         del sheet
@@ -542,21 +749,81 @@ def run():
         del sheet
         return changed
 
-    def more_entries(rows, repick=0):
-        """Board B round 2's ••• menu: Find Missing Episodes always; Repair All Problems only when there is one; Pick
-        Better Versions when episodes wait with a version not started yet (owner, build 328)."""
+    def more_entries(rows, repick=0, season=None):
+        """DEC-047 board C: (key, label, grey line, icon, red) for the ••• menu. Repair only when something needs it, Pick
+        Better Versions when episodes wait with a version not started yet (owner, build 328); Delete last, red."""
         problems = [r for r in rows if r.get('repair')]
-        return ([('find', 'Find Missing Episodes')] + ([('repair_all', 'Repair All Problems (%d)' % len(problems))] if problems else []) +
-                ([('repick', 'Pick Better Versions (%d)' % repick)] if repick else []))
+        out = []
+        if problems:
+            out.append(('repair_all', 'Repair %d Episode%s' % (len(problems), '' if len(problems) == 1 else 's'),
+                        'Look them up again at your quality', 'arrow-rotate-right.png', False))
+        out.append(('find', 'Find Missing Episodes', 'Search every episode not on Drive', 'magnifying-glass.png', False))
+        if repick:
+            out.append(('repick', 'Pick Better Versions', 'For %d episode%s still waiting' % (repick, '' if repick == 1 else 's'),
+                        'arrows-rotate.png', False))
+        out.append(('select', 'Select Episodes', '', 'check.png', False))
+        out.append(('delete', 'Delete %s\u2026' % ('Season %d' % season if season else 'Specials'), '', 'trash.png', True))
+        return out
 
-    class Show(xbmcgui.WindowXML):
-        """Board B: one show. Season chips switch the episodes; Repair and ••• come with L5, the episode sheet with L4."""
+    class Show(xbmcgui.WindowXMLDialog):
+        """Board B: one show (DEC-047: a dialog, with its own ••• menu). Season chips switch the episodes."""
         def onInit(self):
+            import threading
             self.season = None
+            self.entries, self.stop = [], threading.Event()
+            self.meta = {}
+            self.load_meta(fetch=False)
             self.draw()
+            threading.Thread(target=self.loop, daemon=True).start()
+
+        def tmdb(self):
+            return str((self.data.get('tmdb') or {}).get(self.show['id'], '') or '')
+
+        def load_meta(self, fetch):
+            """Episode titles and stills from the Library's TMDb cache; with fetch, seasons not cached yet are read once."""
+            import drivelibrary
+            state_dir = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap')
+            path = os.path.join(state_dir, 'drive-library-art.json')
+            art = drivelibrary.load_json(path, {})
+            rows = episodes_of(self.data, self.show)
+            seasons = sorted({r['season'] for r in rows if r['season']})
+            getter = None
+            if fetch:
+                import urllib.request
+                try:
+                    import xbmcaddon
+                    key = drivelibrary.tmdb_key(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.themoviedb.helper').getAddonInfo('path')))
+                except Exception:
+                    key = ''
+                if not key:
+                    return False
+
+                def get(url):
+                    with urllib.request.urlopen(url, timeout=10) as response:
+                        return response.read()
+                before = len(art)
+                getter = lambda season: drivelibrary.season(self.tmdb(), season, key, art, get)
+            self.meta = episode_meta(art, self.tmdb(), seasons, getter)
+            if fetch and len(art) != before:
+                drivelibrary.save_json(path, art)
+            return True
+
+        def searching(self):
+            return searching_keys(xbmcgui.Window(10000).getProperty('KodiIOS.Repairing'))
 
         def draw(self):
-            props, self.episodes, self.seasons = fill_show(self.data, self.show, self.season, show_page.SLOTS, show_page.SEASONS)
+            import library_repair
+            import season_sources
+            quality = library_repair.chosen(profile, self.tmdb(), (self.data.get('episodes') or {}).get(self.show['id']) or [])
+            try:
+                import quality_choice
+                choices = quality_choice.waiting(profile, self.tmdb())
+            except Exception:
+                choices = {}
+            props, self.episodes, self.seasons = fill_show(self.data, self.show, self.season, show_page.SLOTS, show_page.SEASONS,
+                                                           self.meta, self.searching(), season_sources.QUALITY_NAMES.get(quality, quality or ''),
+                                                           choices)
+            self.choice_season = (self.season if self.season is not None else (self.seasons[0] if self.seasons else 0)) if props.get('choice.line') else None
             for key, value in props.items():
                 self.setProperty(key, str(value))
             for n, r in enumerate(self.episodes):
@@ -566,22 +833,67 @@ def run():
                     except Exception:
                         pass
 
-        def more(self):
+        def loop(self):
+            """Stills for seasons not cached yet (once), then a fresh look every 2 s while something moves or Repair searches
+            (DEC-047 B2: the row changes at once)."""
+            monitor = xbmc.Monitor()
+            missing = any(not (self.meta.get((r['season'], r['episode'])) or {}).get('title') for r in self.episodes)
+            if missing and not self.stop.is_set():
+                try:
+                    if self.load_meta(fetch=True) and not self.stop.is_set():
+                        self.draw()
+                except Exception:
+                    pass
+            import page_wait
+            while not page_wait.idle(self.stop, monitor, 2):   # wakes at once when the page closes
+                busy = self.searching() or any(r['state'] in (lf.CONVERTING, lf.COPYING) for r in self.episodes)
+                if busy and not self.getProperty('menu'):
+                    try:
+                        self.data = model(profile)
+                        self.draw()
+                    except Exception:
+                        pass
+
+        def finish(self):
+            self.stop.set()
+            self.close()
+
+        def open_menu(self):
             import debrid_drive
-            tmdb_id = (self.data.get('tmdb') or {}).get(self.show['id'], '')
-            hashes, waiting = debrid_drive.repick_plan(debrid_drive.load(profile), self.show['title'], tmdb_id)
-            entries = more_entries(self.episodes, len(waiting))
-            pick = xbmcgui.Dialog().contextmenu([label for _, label in entries])
-            if pick < 0:
-                return
-            what = entries[pick][0]
-            tmdb = (self.data.get('tmdb') or {}).get(self.show['id'], '')
+            hashes, waiting = debrid_drive.repick_plan(debrid_drive.load(profile), self.show['title'], self.tmdb())
+            self.repick = (hashes, waiting)
+            self.entries = more_entries(self.episodes, len(waiting), self.season if self.season is not None else (self.seasons[0] if self.seasons else 1))
+            for n in range(show_page.MENU_ITEMS):
+                e = self.entries[n] if n < len(self.entries) else None
+                k = 'menu.%d.' % n
+                self.setProperty(k + 'label', e[1] if e else '')
+                self.setProperty(k + 'sub', e[2] if e else '')
+                self.setProperty(k + 'icon', 'special://skin/extras/icons/' + e[3] if e else '')
+                self.setProperty(k + 'red', 'true' if e and e[4] else '')
+                self.setProperty(k + 'tint', 'FFFF453A' if e and e[4] else 'FFFFFFFF')
+                self.setProperty(k + 'pos', POS(n, min(len(self.entries), show_page.MENU_ITEMS)) if e else '')
+            self.setProperty('menu', 'true')
+            try:
+                self.setFocusId(show_page.MENU)
+            except Exception:
+                pass
+
+        def close_menu(self):
+            self.setProperty('menu', '')
+            try:
+                self.setFocusId(show_page.MORE)
+            except Exception:
+                pass
+
+        def run_entry(self, what):
+            tmdb = self.tmdb()
+            hashes, waiting = getattr(self, 'repick', ([], []))
+            season = self.season if self.season is not None else (self.seasons[0] if self.seasons else 1)
             if what == 'find':
                 if not tmdb:
                     xbmcgui.Dialog().ok('Find Missing Episodes', 'This show has no TMDb match yet, so its season cannot be looked up.')
                     return
                 # Build Season looks the season up and adds only what is not on Drive or queued already.
-                season = self.season if self.season is not None else (self.seasons[0] if self.seasons else 1)
                 xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,download,kind=season,tmdb=%s,tvshow.tmdb_id=%s,season=%d,title=%s)' % (
                     tmdb, tmdb, season or 1, self.show['title'].replace(',', ' ')))
             elif what == 'repick':
@@ -595,43 +907,112 @@ def run():
                 import library_repair
                 rows = [{'season': s_, 'episode': e_} for s_, e_ in waiting]
                 xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,library_repair_page,%s)' % ','.join(
-                    library_repair.script_args(tmdb, self.show['title'], rows, library_repair.qualities(self.episodes)[0]) +
+                    library_repair.script_args(tmdb, self.show['title'], rows, library_repair.chosen(profile, tmdb, self.episodes)) +
                     ['cancel=%s' % ';'.join(hashes)]))
             elif what == 'repair_all':
                 problems = [r for r in self.episodes if r.get('repair')]
-                for row in [r for r in problems if r.get('id')]:   # a preparation problem: prepared again
+                import prepare_downloads
+                caps = prepare_downloads.capabilities(profile)
+                stuck = [r for r in problems if r.get('id') and prepare_downloads.cannot_prepare(r.get('problem'), caps)]
+                for row in [r for r in problems if r.get('id') and r not in stuck]:   # a preparation problem: prepared again
                     act('retry', row, self.data, self.show)
+                if stuck:   # one message for all of them, not one per episode (ISSUE-226 / P6)
+                    xbmcgui.Dialog().ok('Can\'t be prepared yet', repair_words(stuck, prepare_downloads.cannot_prepare(stuck[0].get('problem'), caps)))
                 repair_rows([r for r in problems if not r.get('id')], self.data, self.show, self.episodes)
+                self.data = model(profile)
+                self.draw()
+            elif what == 'select':
+                self.select()
+            elif what == 'delete':
+                self.delete_season(season)
+
+        def delete_season(self, season):
+            """DEC-047 C2: asks first, then the same delete as Library › Select › Delete."""
+            import library_delete as ld
+            rows = [r for r in episodes_of(self.data, self.show)
+                    if r['season'] == season and r.get('id')]
+            if not rows:
+                xbmcgui.Dialog().notification('Delete', 'Nothing of this season is on Google Drive', xbmcgui.NOTIFICATION_INFO, 3000)
+                return
+            label = 'Season %d' % season if season else 'Specials'
+            size = lf.size_text(sum(r['size'] for r in rows))
+            if not xbmcgui.Dialog().yesno('Delete %s?' % label, '%d episode%s (%s) go to Google Drive\'s Trash for 30 days. Anything still '
+                                          'copying or being prepared stops.' % (len(rows), '' if len(rows) == 1 else 's', size),
+                                          nolabel='Cancel', yeslabel='Delete %s' % label):
+                return
+            items = ld.items_from_rows(rows, self.data.get('upscale'))
+            if delete_items(items, ask=False) is not None:
+                self.data = model(profile)
+                self.draw()
+
+        def select(self):
+            # Board D: every episode of the show on Drive, ticked one by one (or Select All / Watched).
+            import library_delete as ld
+            rows = episodes_of(self.data, self.show)
+            items = ld.items_from_rows(rows, self.data.get('upscale'),
+                                       title=lambda r: (self.meta.get((r['season'], r['episode'])) or {}).get('title') or
+                                       (r['name'] if r['name'] and r['name'].casefold() != self.show['title'].casefold() else 'Episode %d' % r['episode']))
+            for item, r in zip(items, [r for r in rows if r.get('id')]):
+                item.setdefault('thumb', (self.meta.get((r['season'], r['episode'])) or {}).get('thumb', ''))
+                item.setdefault('num', 'E%d' % r['episode'])
+                item.setdefault('season', r['season'])
+                item.setdefault('episode', r['episode'])
+            if not items:
+                xbmcgui.Dialog().notification('Select', 'Nothing of this show is on Google Drive yet', xbmcgui.NOTIFICATION_INFO, 3000)
+                return
+            if open_select(items, self.show['title'], 'episode', watched=[i['id'] for i in items if 'watched' in i['line']], tmdb=self.tmdb()):
+                self.data = model(profile)
+                self.draw()
+
+        def onAction(self, action):
+            code = action.getId()
+            if code in (9, 10, 92, 110):
+                # A long press is action 10 too (build 347): it never closes the page from a row.
+                focus = self.getFocusId()
+                if self.getProperty('menu'):
+                    self.close_menu()
+                elif code == 10 and (show_page.EP <= focus < show_page.EP + show_page.SLOTS or show_page.REPAIR <= focus < show_page.REPAIR + show_page.SLOTS):
+                    return
+                else:
+                    self.finish()
 
         def onClick(self, control):
+            if self.getProperty('menu'):
+                # DEC-047 board C: while the menu is open only its rows (or the dimmed page, which closes it) answer.
+                if show_page.MENU <= control < show_page.MENU + show_page.MENU_ITEMS and control - show_page.MENU < len(self.entries):
+                    what = self.entries[control - show_page.MENU][0]
+                    self.close_menu()
+                    self.run_entry(what)
+                else:
+                    self.close_menu()
+                return
             if control == show_page.BACK:
                 # Build 347: the round back button had no action, so it took a swipe to leave a show.
-                self.close()
+                self.finish()
             elif show_page.SEASON <= control < show_page.SEASON + show_page.SEASONS and control - show_page.SEASON < len(self.seasons):
                 self.season = self.seasons[control - show_page.SEASON]
                 self.draw()
             elif show_page.EP <= control < show_page.EP + show_page.SLOTS and control - show_page.EP < len(self.episodes):
                 if open_item(self.data, self.episodes[control - show_page.EP], self.show, episodes=self.episodes):
-                    self.close()
+                    self.finish()
             elif control == show_page.SELECT:
-                # Board D: every episode of the show on Drive, ticked one by one (or Select All / Watched).
-                import library_delete as ld
-                rows = lf.episode_rows(self.show, self.data.get('episodes', {}).get(self.show['id']) or [], self.data.get('prep'),
-                                       self.data.get('debrid'), self.data.get('upscale'), self.data.get('watched') or ())
-                items = ld.items_from_rows(rows, self.data.get('upscale'),
-                                           title=lambda r: ' · '.join(x for x in ('S%d E%d' % (r['season'], r['episode']),
-                                                                                    r['name'] if r['name'] and r['name'].casefold() != self.show['title'].casefold() else '') if x))
-                if not items:
-                    xbmcgui.Dialog().notification('Select', 'Nothing of this show is on Google Drive yet', xbmcgui.NOTIFICATION_INFO, 3000)
-                    return
-                if open_select(items, self.show['title'], 'episode', watched=[i['id'] for i in items if 'watched' in i['line']]):
-                    self.data = model(profile)
-                    self.draw()
+                self.select()
+            elif control == show_page.CHOOSE and getattr(self, 'choice_season', None):
+                # DEC-049 board D -> board B for this season; the page shows the answer when it is back.
+                xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,quality_choice,tmdb=%s,season=%d)' % (self.tmdb(), self.choice_season), True)
+                self.data = model(profile)
+                self.draw()
             elif control == show_page.MORE:
-                self.more()
+                self.open_menu()
             elif show_page.REPAIR <= control < show_page.REPAIR + show_page.SLOTS and control - show_page.REPAIR < len(self.episodes):
                 row = self.episodes[control - show_page.REPAIR]
+                if (self.tmdb(), row['season'], row['episode']) in self.searching():
+                    # DEC-047 B2: ✕ stops this episode's search (library_repair_page checks before and during each lookup).
+                    xbmcgui.Window(10000).setProperty('KodiIOS.RepairCancel', '%s:%d:%d' % (self.tmdb(), row['season'], row['episode']))
+                    return
                 act('repair' if not row.get('id') else 'retry', row, self.data, self.show, episodes=self.episodes)
+                self.data = model(profile)
+                self.draw()
 
     if 'freeup' in sys.argv[1:]:
         # Settings › AI Upscale › AI copies on Google Drive (DEC-044 board A2): straight to Free Up Space.

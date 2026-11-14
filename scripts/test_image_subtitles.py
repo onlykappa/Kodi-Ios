@@ -81,10 +81,45 @@ class Switch(unittest.TestCase):
  def test_plain_reason_after_r15(self):
   self.assertEqual(prep.plain('This file has tracks MP4 cannot preserve'),'DVD picture subtitles or a second video track cannot go into MP4')
 
+class DvdSubtitles(unittest.TestCase):
+ """ISSUE-226 / P2, P3, P5 (owner log a1729c16, Naruto Shippuuden S1 E9-E16: only subtitle a DVD picture subtitle)."""
+ def test_the_switch_is_turned_on_only_when_the_framework_has_it(self):
+  class L(Lib):
+   def __init__(self):
+    Lib.__init__(self,True);self.dvd=[];self.kodi_airplay_prepare_keep_dvd_subs=Fn(self.dvd.append)
+  lib=L();native=prep.Native(lib);self.assertTrue(native.keeps_dvd_subs);self.assertEqual(lib.dvd,[1])
+  self.assertFalse(prep.Native(Lib(True)).keeps_dvd_subs)                                   # r53 and older
+ def test_kept_videos_get_one_automatic_new_try_once_dvd_subtitles_are_kept(self):
+  q=prep.Queue.__new__(prep.Queue);q.commit=lambda:None
+  err='This file has tracks MP4 cannot preserve (subtitle track 3: dvd_subtitle 0x0); original retained'
+  q.state={'jobs':{'n':{'source':{'id':'n'},'blocked':True,'status':'waiting','error':err,'kept_told':True},
+                   'h':{'source':{'id':'h'},'blocked':True,'status':'waiting','error':'This HDR codec cannot be prepared without changing HDR'}}}
+  q.native=type('N',(),{'keeps_dvd_subs':False})()
+  self.assertEqual(q.retry_dvd_subtitles(),0)                                               # not until the converter can
+  q.native=type('N',(),{'keeps_dvd_subs':True})()
+  self.assertEqual(q.retry_dvd_subtitles(),1)
+  n=q.state['jobs']['n'];self.assertEqual((n['blocked'],n['status'],n['dvd_subs_retried'],n['kept_told']),(False,'waiting',True,False));self.assertNotIn('error',n)
+  self.assertTrue(q.state['jobs']['h']['blocked'])
+  n.update(blocked=True,error=err)                                                          # a second video track it still can't keep
+  self.assertEqual(q.retry_dvd_subtitles(),0)                                               # one try, not for ever
+  self.assertIn('dvd_subs_retried',prep.FORGIVEN)                                           # an owner's Repair gives it another
+ def test_the_converter_keeps_dvd_subtitles_and_leaves_out_a_smaller_extra_video(self):
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
+  self.assertIn('void kodi_airplay_prepare_keep_dvd_subs(int on)',c);self.assertIn('AV_CODEC_ID_DVD_SUBTITLE',c)
+  self.assertIn('droppable_video(',c);self.assertIn('left out extra video track',c)
+  self.assertIn('(%s); original retained',c)                                                # the refusal names the track
+  t=(ROOT/'migration/airplay-ios/remux/tests/test_remux.c').read_text()
+  self.assertIn('test_dvd_subtitles_and_extra_video(work)',t);self.assertIn('a DVD subtitle is kept inside the MP4',t)
+  self.assertIn('a bigger second video track is refused',t)
+  fixtures=(ROOT/'migration/airplay-ios/remux/tests/make_fixtures.sh').read_text()
+  for name in ('h264_dvdsub.mkv','h264_second_video.mkv','h264_bigger_second_video.mkv'):self.assertIn(name,fixtures)
+  self.assertIn('_kodi_airplay_prepare_keep_dvd_subs',(ROOT/'migration/airplay-ios/build-airplay.sh').read_text())
+  self.assertIn("assert b'_kodi_airplay_prepare_keep_dvd_subs' in binary",(ROOT/'.github/workflows/airplay-ios.yml').read_text())
+
 class Native(unittest.TestCase):
  def test_build_exports_and_ffmpeg_writer(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
-  self.assertIn('_kodi_airplay_prepare_keep_image_subs',build);self.assertRegex(build,r'== (1[3-9]|2[0-9]) \]\]')   # r15 added it; later releases export more
+  self.assertIn('_kodi_airplay_prepare_keep_image_subs',build);self.assertRegex(build,r'== (1[3-9]|[23][0-9]) \]\]')   # r15 added it; later releases export more
   self.assertIn('--enable-muxer=sup',(ROOT/'migration/airplay-ios/build-remux-ffmpeg.sh').read_text())
   self.assertIn("assert b'_kodi_airplay_prepare_keep_image_subs' in binary",(ROOT/'.github/workflows/airplay-ios.yml').read_text())
   c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()

@@ -373,3 +373,76 @@ the fixes as one primary capsule and rows, Technical details behind a link with 
 Details / Share Log; a Fix button on problem rows in the Notifications list) and H (good news in one line with no log;
 a vague problem with plain words, Run Setup Again / Share the log / Restart Kodi; a warning that fixes itself). Condition:
 titles and lines wrap to a second line instead of ending in "…" (the list rows and the sheet).
+
+## DEC-047 — Library status without Ready, the show page, its ••• menu and Select approved (2026-11-14)
+
+Owner, on docs/design/library-show-mockups.html: "for board a, we can remove the ready and a2. We have a section for it
+elsewhere so it can be removed entirely otherwise i approve and it looks good". Approved scope: board A1 without its Ready
+card and tiles (Library status lists only what needs the owner, what is working and what is up next; ready videos are listed
+in Library › Movies / TV Shows), no A2; board B (episode stills and titles, one state line, a round outlined Repair, titles
+that wrap, the row changing at once after Repair); board C (the ••• menu drawn by the show page, which becomes a dialog,
+with Delete asking first); board D (Select with stills, names, checks, a count and a toolbar: Better Version, Prepare Again,
+Delete with confirmation). No IPA until the owner has tested build 384 and sent its log; the work is committed without
+being pushed until then.
+
+## DEC-048 — Refresh checks only what is new, changed or not ready (2026-11-14)
+
+Owner: "we should try and maybe speed up the refresh like if its already good to go then no need to re read it? make a
+smarter refresh system please". This replaces the earlier rule that every Refresh re-reads every file. Library status
+Refresh lists Drive and opens only new, changed or not-ready videos (ISSUE-247); holding Refresh offers Check Every Video,
+which reads every file after asking.
+
+## DEC-049 — Ask once per season when the chosen quality does not exist (2026-11-14)
+
+The owner approved docs/design/quality-choice-mockups.html ("Yes"), boards A–D:
+
+- **A:** one notice per season, not one per episode.
+- **B:** a choice sheet: "Use the Best · <quality>", "Choose Another Version", "Keep Looking for <quality>", "Always Use the
+  Best for This Show", Cancel.
+- **C:** the season's versions with the real picture size a copy found.
+- **D:** the show page's season card "Waiting for your choice" with Choose.
+
+The first refusal or fallback in a season asks instead of downloading; the answer is kept per season, or per show with
+"Always". Until it ships, the best real version is taken automatically (ISSUE-264).
+
+## DEC-050 — No text is ever cut off (2026-11-14)
+
+The owner, on the rig renders of the DEC-049 sheets ("Naruto.Shippuden.S02E33.480p.NF.W… · 2…", "Always Use the Best for T…",
+a "640×4" chip): "ensure there is no … texts can't be cut off, maybe put that in the policy for mockups". APPLE-UI-POLICY §4.2
+and §7 now say:
+
+- No "…", clipped chips or overflowing text, in pages and in mockups.
+- Say it shorter first, wrap second, and move the rest to the detail screen third.
+- The rig render checks the longest real text.
+
+The choice sheet gained wrapped row forms (title up to three lines, detail up to two). Existing pages that still truncate
+are fixed when next touched.
+
+## DEC-051 — Unified status approved: slim rows with a progress circle, and the copy sheet like the conversion sheet (2026-11-14)
+
+The owner approved docs/design/unified-status-mockups.html: "actually wait I like the redesign, all mocks are approved now".
+
+- **Board A, round 2:** Library status lists every job (download, getting ready, converting, AI Upscale) as one slim row of
+  a grouped list, about 44 pt. Each row has a 34 pt progress circle with the percentage, the title with the episode first,
+  one status line (step · speed · time left, or why it waits, in orange), and a small speed line. Up next is a grouped list
+  with numbered circles. The four-number summary stays.
+- **Board B:** a copy's sheet matches the conversion sheet, with the steps, a large progress circle beside the speed, the
+  speed graph with its peak, Average / Done / Started, and Pause / Cancel.
+- This replaces DEC-036 for the working rows and the detail sheet: a circle there, bars elsewhere (summary, steps).
+- Colours: blue downloading, purple getting ready or converting, green AI Upscale, orange for why something waits.
+- DEC-050 applies: no text cut off.
+
+## DEC-052 — One Library index for every screen, with seven additions (2026-11-14)
+
+Owner, on docs/investigations/library-one-source.md (PR #27): "it should show what's actually ready, so 84/87 and 49/53;
+one index is amazing, then if I delete something or stop something one place it stops it everywhere", and "yeah" to all
+seven recommendations. Approved: Library status shows the whole library ("84 of 87 ready") and each show its own total
+("Naruto Shippuuden · 49 of 53 ready"), both from one index. Additions:
+1. Every action (Delete, Stop, Retry, Don't Show Again, Clear) goes through the index and shows on every screen at once.
+2. Screens redraw as soon as the index changes (a change counter), not on their own timers.
+3. A self-check every few minutes (Drive vs copies vs preparation): safe fixes made, the rest logged.
+4. One health line on every Library screen when Google Drive cannot be reached ("showing what was there at …").
+5. The minute log line carries the same numbers the screens show.
+6. Season chips show their progress ("Season 2 · 18 of 21 ready · 3 copying").
+7. A 10-second Undo after Delete (files sit in Drive's Trash for 30 days).
+UI parts (4, 6, 7 and the per-show total) get mockups for approval before they are coded.

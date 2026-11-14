@@ -68,7 +68,7 @@ def _title(name):
         return str(name or '')
 
 
-def activity(torrents, debrid_current, prep_current):
+def activity(torrents, debrid_current, prep_current, lanes=None, now=None):
     """What is moving right now: {kind: {'title', 'rate' (bytes/s), 'done', 'total'}} for each kind that runs."""
     out = {}
     live = []
@@ -94,8 +94,25 @@ def activity(torrents, debrid_current, prep_current):
         if int(d.get('count') or 0) > 1:
             import work_state
             title = '%s · %s' % (title, work_state.episode_label(d.get('file')))
-        out['up'] = {'title': title, 'rate': float(d.get('rate') or 0),
-                     'done': float(d.get('sent') or 0), 'total': float(d.get('total') or 0)}
+        out['up'] = {'title': title, 'rate': float(d.get('rate_own') or d.get('rate') or 0),
+                     'done': float(d.get('sent') or 0), 'total': float(d.get('total') or 0), 'job': d.get('job', '')}
+    # ISSUE-273 (owner: copy sheets showed "Right now —" with no graph while three copies ran): every copy lane has its own
+    # graph. The first lane keeps 'up' (older pages), the others are 'up.<slot>'; each is matched to its card by its job.
+    now = time.time() if now is None else now
+    taken = {str(out['up'].get('job'))} if out.get('up') else set()
+    for slot, lane in sorted((lanes or {}).items(), key=lambda kv: int(kv[0]) if str(kv[0]).isdigit() else 99):
+        if not isinstance(lane, dict) or lane.get('stage') != 'copying' or not lane.get('total') or str(lane.get('job')) in taken:
+            continue
+        if now - max(float(lane.get('updated') or 0), float(lane.get('phase_at') or 0)) > 60:
+            continue
+        title = _title(lane.get('name', ''))
+        if int(lane.get('count') or 0) > 1:
+            import work_state
+            title = '%s · %s' % (title, work_state.episode_label(lane.get('file')))
+        key = 'up' if 'up' not in out else 'up.%s' % slot
+        out[key] = {'title': title, 'rate': float(lane.get('rate_own') or 0), 'done': float(lane.get('sent') or 0),
+                    'total': float(lane.get('total') or 0), 'job': lane.get('job', '')}
+        taken.add(str(lane.get('job')))
     c = prep_current or {}
     # The library check also shows in the queue's 'current' ("Movies and shows", "Checking video 3 of 9"): not a
     # conversion (build 174: History listed it as a finished one).
@@ -171,7 +188,7 @@ def failed(profile, kind, title, reason, now=None):
 def track(data, now, active):
     """Add one look at `active` (from activity()) to the running jobs; close jobs that ended. Returns data."""
     jobs = data.setdefault('jobs', {})
-    for kind in KINDS:
+    for kind in list(KINDS) + sorted(k for k in set(active) | set(jobs) if k not in KINDS):
         a = active.get(kind)
         job = jobs.get(kind)
         if job and ((a and a['title'] != job['title']) or (not a and now - job['last'] > STALE)):
@@ -184,7 +201,7 @@ def track(data, now, active):
         if not job:
             job = jobs[kind] = {'kind': kind, 'title': a['title'], 'start': now, 'last': now, 'peak': 0.0, 'sum': 0.0,
                                 'n': 0, 'step': 2, 'points': []}
-        job.update(last=now, peak=max(job['peak'], rate), sum=job['sum'] + rate, n=job['n'] + 1,
+        job.update(last=now, peak=max(job['peak'], rate), sum=job['sum'] + rate, n=job['n'] + 1, job=a.get('job', ''),
                    done=a.get('done', 0), total=a.get('total', 0), pct=a.get('pct'), extra=a.get('extra') or {})
         pts = job['points']
         if pts and now - pts[-1][0] < job['step']:
@@ -207,7 +224,8 @@ def track(data, now, active):
 def running(data, now, fresh=30):
     """The kinds with a job that moved in the last `fresh` seconds, in KINDS order."""
     jobs = data.get('jobs') or {}
-    return [k for k in KINDS if k in jobs and now - jobs[k].get('last', 0) <= fresh]
+    order = list(KINDS) + sorted(k for k in jobs if k not in KINDS)   # ISSUE-273: 'up.<slot>' lanes after the kinds
+    return [k for k in order if k in jobs and now - jobs[k].get('last', 0) <= fresh]
 
 
 def pick(data, wanted, now):

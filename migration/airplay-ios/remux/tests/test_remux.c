@@ -1841,6 +1841,46 @@ static void test_audio_languages(const char *work) {
     kodi_airplay_prepare_subtitle_languages("");
 }
 
+// r54 (owner log a1729c16, build 361: Naruto Shippuuden S1 E9-E16): a DVD picture subtitle is kept inside the MP4 when asked,
+// refused (naming the track) when not; a second video track no bigger than the main picture is left out, a bigger one refuses.
+static void test_dvd_subtitles_and_extra_video(const char *work) {
+    char input[1024],output[1024],err[512]="";
+    snprintf(output,sizeof output,"%s/dvdsub.mp4",work);
+    snprintf(input,sizeof input,"%s/h264_dvdsub.mkv",fixture_dir);unlink(output);
+    kodi_airplay_prepare_keep_dvd_subs(0);
+    CHECK(kodi_airplay_prepare(input,output,NULL,NULL,err,sizeof err)<0 && strstr(err,"tracks MP4 cannot preserve") && strstr(err,"dvd_subtitle"),
+          "a DVD subtitle is refused while the converter cannot keep it, naming the track: %s",err);
+    CHECK(access(output,F_OK)!=0,"the refused file leaves no output");
+    kodi_airplay_prepare_keep_dvd_subs(1);err[0]=0;
+    CHECK(kodi_airplay_prepare(input,output,NULL,NULL,err,sizeof err)==0,"a DVD subtitle is kept inside the MP4: %s",err);
+    {AVFormatContext *f=NULL;int dvd=0,video=0,audio=0,extra=0;
+     if(avformat_open_input(&f,output,NULL,NULL)==0 && avformat_find_stream_info(f,NULL)>=0) {
+         for(unsigned i=0;i<f->nb_streams;i++) {
+             AVCodecParameters *p=f->streams[i]->codecpar;
+             if(p->codec_id==AV_CODEC_ID_DVD_SUBTITLE){dvd++;extra=p->extradata_size;}
+             video+=p->codec_type==AVMEDIA_TYPE_VIDEO;audio+=p->codec_type==AVMEDIA_TYPE_AUDIO;
+         }
+     }
+     CHECK(dvd==1 && video==1 && audio==1,"the prepared MP4 holds the DVD subtitle beside the picture and sound (%d/%d/%d)",dvd,video,audio);
+     // r55: a prepared file that keeps a DVD subtitle is READY (r54 wrote it, then its own ready check rejected it).
+     CHECK(f && kr_prepare_ready(f)==1,"a prepared MP4 with a kept DVD subtitle counts as ready");
+     CHECK(extra>0,"the DVD subtitle keeps its palette (extradata %d bytes)",extra);
+     avformat_close_input(&f);}
+    CHECK(kodi_airplay_verify(input,output,err,sizeof err)==0,"the kept DVD subtitle passes verification: %s",err);
+    kodi_airplay_prepare_keep_dvd_subs(0);
+    // A second video track no bigger than the main picture is left out (and said so); a bigger one is still refused.
+    snprintf(input,sizeof input,"%s/h264_second_video.mkv",fixture_dir);snprintf(output,sizeof output,"%s/second-video.mp4",work);unlink(output);err[0]=0;
+    {char drain[16384];while(kr_remux_log(drain,sizeof drain)>0){}}
+    CHECK(kodi_airplay_prepare(input,output,NULL,NULL,err,sizeof err)==0,"a smaller second video track is left out: %s",err);
+    {char notes[16384]="";kr_remux_log(notes,sizeof notes);CHECK(strstr(notes,"left out extra video track"),"the left-out video track is noted");}
+    {AVFormatContext *f=NULL;int video=0;
+     if(avformat_open_input(&f,output,NULL,NULL)==0)for(unsigned i=0;i<f->nb_streams;i++)video+=f->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_VIDEO;
+     CHECK(video==1,"one video track in the prepared MP4 (%d)",video);avformat_close_input(&f);}
+    snprintf(input,sizeof input,"%s/h264_bigger_second_video.mkv",fixture_dir);snprintf(output,sizeof output,"%s/bigger-video.mp4",work);unlink(output);err[0]=0;
+    CHECK(kodi_airplay_prepare(input,output,NULL,NULL,err,sizeof err)<0 && strstr(err,"tracks MP4 cannot preserve") && strstr(err,"video track"),
+          "a bigger second video track is refused, naming the track: %s",err);
+    CHECK(access(output,F_OK)!=0,"nothing is written for it");
+}
 static void test_preparation(const char *work) {
     const char *files[]={"h264_aac_srt.mkv","hevc_ac3_ass.mkv","h264_ac3_dts_srt.mkv","hevc_4k.mkv","dovi.mkv","long_seek.mkv"};
     for(unsigned i=0;i<sizeof files/sizeof files[0];i++) {
@@ -2249,7 +2289,7 @@ int main(int argc, char **argv) {
         printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
     if (argc > 3 && !strcmp(argv[3], "--prepare-only")) {
-        test_preparation(work);test_audio_languages(work);test_preparation_http(argv[2],work);test_preparation_stream(work,argv[2]);test_preparation_parallel(argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+        test_preparation(work);test_dvd_subtitles_and_extra_video(work);test_audio_languages(work);test_preparation_http(argv[2],work);test_preparation_stream(work,argv[2]);test_preparation_parallel(argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
     if (argc > 3 && !strcmp(argv[3], "--resume-only")) {
         test_preparation_resume(work,argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
@@ -2266,7 +2306,7 @@ int main(int argc, char **argv) {
         printf("%d checks, %d failed\n", checks, failures);
         return failures ? 1 : 0;
     }
-    test_preparation(work);test_audio_languages(work);
+    test_preparation(work);test_dvd_subtitles_and_extra_video(work);test_audio_languages(work);
     if (argc > 2){test_startup_cancel(argv[2]);test_prepared_indexed_open(argv[2],work);test_preparation_http(argv[2], work);test_preparation_stream(work,argv[2]);test_preparation_parallel(argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);}
     fixture fx[] = {
         { "h264_aac_srt.mkv", "avc1.42C0", "mp4a.40.2", 1, 1, 0, 0, "Hello from SRT" },

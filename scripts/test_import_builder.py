@@ -1,6 +1,19 @@
 import ast,unittest,xml.etree.ElementTree as ET
 from build_import_review import patch_helper,clean_addon,deterministic_zip
 class BuilderTests(unittest.TestCase):
+ def test_tmdb_helper_checks_the_window_is_open_before_emptying_its_list(self):
+  # ISSUE-239: "EXCEPTION: Window id does not exist" from TMDb Helper's thread after a page closed.
+  from build_import_review import patch_listitem_tools
+  line='            _win = xbmcgui.Window(window_id or self.cur_window)  # Note get _win separate from _lst\n'
+  src=('import xbmcgui\n\nclass M:\n    def add_item_listcontainer(self, listitem, window_id=None, container_id=None):\n'
+       '        try:\n'+line+'            _lst = _win.getControl(container_id)\n        except Exception:\n            _lst = None\n')
+  files={'p/resources/tmdbhelper/lib/monitor/listitemtools.py':src.encode()}
+  self.assertIn('just closed',patch_listitem_tools(files,'p/'))
+  out=files['p/resources/tmdbhelper/lib/monitor/listitemtools.py'].decode();ast.parse(out)
+  self.assertTrue(out.startswith('import xbmc\n'))
+  self.assertLess(out.index("Window.IsVisible(%d)"),out.index('_win = xbmcgui.Window('))
+  files={'p/resources/tmdbhelper/lib/monitor/listitemtools.py':b'changed upstream\n'}
+  self.assertIsNone(patch_listitem_tools(files,'p/'))                       # skipped, the build carries on
  def fixture(self):
   p='plugin.video.themoviedb.helper/'
   return p,{p+'addon.xml':b'<addon id="plugin.video.themoviedb.helper" version="6.18.1"><requires><import addon="xbmc.python" version="3.0.1"/></requires><extension point="xbmc.python.pluginsource" library="plugin.py"><provides>video</provides><reuselanguageinvoker>false</reuselanguageinvoker></extension></addon>',p+'resources/tmdbhelper/lib/player/dialog/player.py':b'class Player:\n    def get_player(self):\n        return self.autoplay()\n\n    def untouched(self):\n        return 42\n',p+'resources/tmdbhelper/lib/items/listitem.py':b'class Item:\n    def url(self):\n        return BuildURL(self.path, **self.params).url\n'}

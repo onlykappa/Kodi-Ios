@@ -13,7 +13,8 @@ def textures(p):
     return {'r27.png': p.rounded(64, 64, 27), 'r21.png': p.rounded(48, 48, 21), 'pill21.png': p.rounded(48, 21, 10.5),
             'pill16.png': p.rounded(40, 16, 8), 'pill11.png': p.rounded(30, 11, 5.5), 'poster21.png': p.rounded(140, 210, 21),
             'poster27.png': p.rounded(172, 258, 27), 'poster16.png': p.rounded(108, 161, 16),
-            'pill_134.png': p.rounded(134, 134, 67)}   # board 3/9's 50 pt Play / Pause capsules
+            'pill_134.png': p.rounded(134, 134, 67),   # board 3/9's 50 pt Play / Pause capsules
+            'thumb16.png': p.rounded(160, 90, 16)}     # DEC-047: episode stills at 16:9
 
 
 def card(p, x, y, w, h, color=None, extra=''):
@@ -40,13 +41,13 @@ def id_bar(p, ident, x, y, w, h, tint, track=TRACK, texture='white.png', border=
             '<righttexture /><overlaytexture /></control>') % (ident, x, y, w, h, b, track, p.MEDIA, texture, b, tint, p.MEDIA, texture)
 
 
-def link(p, ident, x, y, w, h, title, align='right', font='p_sub'):
-    """A borderless blue text button (ACCENT text), at least 118 units tall."""
+def link(p, ident, x, y, w, h, title, align='right', font='p_sub', tint=None):
+    """A borderless blue text button (ACCENT text, or `tint`), at least 118 units tall."""
     return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><label>%s</label>'
             '<font>%s</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>%s</align><aligny>center</aligny>'
             '<textoffsetx>0</textoffsetx><scroll>false</scroll><texturefocus /><texturenofocus />'
             '<animation effect="fade" start="100" end="70" time="0" condition="Control.HasFocus(%d)">Conditional</animation></control>') % (
-                ident, x, y, w, h, p.e(title), font, p.ACCENT, p.ACCENT, align, ident)
+                ident, x, y, w, h, p.e(title), font, tint or p.ACCENT, tint or p.ACCENT, align, ident)
 NOS = '<scroll>false</scroll>'
 P = lambda k: '$INFO[Window().Property(%s)]' % k
 has = lambda k: '!String.IsEmpty(Window().Property(%s))' % k

@@ -64,14 +64,17 @@ class Rows(unittest.TestCase):
  def test_all_shows_what_happens_now_and_folders(self):
   items=rows.list_items(self.view)
   self.assertTrue(all(i['kind']=='row' for i in items))
-  self.assertEqual([i['props']['section'] for i in items if i['props']['section']],['UP NEXT','READY FOR KODI AND AIRPLAY','KEPT AS IT IS'])
-  self.assertEqual(sum(i['props']['state']=='ready' for i in items),10)
+  # DEC-047 board A (owner, 2026-11-14): ready videos are listed in Library › Movies / TV Shows, not here.
+  self.assertEqual([i['props']['section'] for i in items if i['props']['section']],['UP NEXT','KEPT AS IT IS'])
+  self.assertEqual(sum(i['props']['state']=='ready' for i in items),0)
+  self.assertEqual(rows.list_items(self.view,'ready'),[])
   self.assertEqual(items[0]['props']['number'],'1')
  def test_every_item_is_one_height_in_one_layout(self):
   xml=library_page.page(portrait)
   self.assertIn('<control type="grouplist" id="9300">',xml)
   # Build 194 (boards 1 and 2): one pool of rows per section, each section one grouped card.
-  for key in ('down','next','kept','ready'):self.assertIn('Window().Property(%s.0.title)'%key,xml)
+  for key in ('down','next','kept'):self.assertIn('Window().Property(%s.0.title)'%key,xml)
+  self.assertNotIn('Window().Property(ready.0.title)',xml);self.assertNotIn('READY FOR KODI AND AIRPLAY',xml)   # DEC-047
   self.assertIn('Window().Property(next.0.number)',xml)
  def test_positions_round_the_group(self):
   waiting=[i['props']['pos'] for i in rows.list_items(self.view,'waiting')]
@@ -129,7 +132,8 @@ class Skin(unittest.TestCase):
      self.assertGreaterEqual(float(c.findtext('height') or 0),library_page.HIT,c.get('id'))
  def test_ids_the_controller_uses(self):
   ids={c.get('id') for c in self.pagex.iter('control')}
-  for n in (library_page.LIST,library_page.BACK,library_page.CHECK,library_page.EDIT,9101,9102,9103,9104):self.assertIn(str(n),ids)
+  for n in (library_page.LIST,library_page.BACK,library_page.CHECK,library_page.EDIT,9102,9103,9104):self.assertIn(str(n),ids)
+  self.assertNotIn('9101',ids)   # DEC-047: the ready count is a number, not a filter
   ids={c.get('id') for c in self.sheetx.iter('control')}
   for n in (9200,9201,9202,9099):self.assertIn(str(n),ids)
  def test_properties_the_controller_sets(self):
@@ -284,13 +288,13 @@ class TapEveryButton(unittest.TestCase):
   self.assertTrue(kodi.windows[0].closed)
   self.assertEqual(seen['props']['headline'],'10 of 18 ready')
   self.assertEqual(seen['props']['work.title'],'Lanterns · S1 E1')
-  self.assertEqual({r[1] for r in seen['rows']},{'waiting','space','problem','ready','kept'})
+  self.assertEqual({r[1] for r in seen['rows']},{'waiting','space','problem','kept'})   # DEC-047: no ready rows
  def test_filters(self):
   seen=[]
   snap=lambda w:seen.append((w.filter,{r[1] for r in self.page_rows(w)}))
-  self.run_page([(library_page.WINDOW,tap(9101)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(9102)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(9103)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(9104)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(library_page.BACK)),(library_page.WINDOW,tap(library_page.BACK))])
-  self.assertEqual([x[0] for x in seen],['ready','working','waiting','kept'])
-  self.assertEqual(seen[0][1],{'ready'});self.assertEqual(seen[1][1],{'preparing'});self.assertEqual(seen[3][1],{'kept'})
+  self.run_page([(library_page.WINDOW,tap(9102)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(9103)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(9104)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(library_page.BACK)),(library_page.WINDOW,tap(library_page.BACK))])
+  self.assertEqual([x[0] for x in seen],['working','waiting','kept'])
+  self.assertEqual(seen[0][1],{'preparing'});self.assertEqual(seen[2][1],{'kept'})
  def folders(self,w):return [(r.getProperty('folder'),r.getProperty('count')) for r in w.getControl(library_page.LIST).items if r.getProperty('kind')=='folder']
  def test_a_folder_opens_and_back_returns_to_all(self):
   seen=[]
@@ -332,14 +336,12 @@ class TapEveryButton(unittest.TestCase):
   self.run_page([(library_page.WINDOW,tap_row('f1')),(library_page.ITEM,tap(9201)),(library_page.WINDOW,tap(library_page.BACK))])
   self.assertEqual(prep.pending_requests(self.profile),[{'action':'retry','id':'f1'}])
  def test_close_buttons_and_no_action_sheets(self):
-  kodi=self.run_page([(library_page.WINDOW,tap_row('r1')),(library_page.ITEM,tap(9200)),
+  kodi=self.run_page([(library_page.WINDOW,tap_row('k1')),(library_page.ITEM,tap(9200)),
                       (library_page.WINDOW,tap_row('k1')),(library_page.ITEM,tap(9099)),
                       (library_page.WINDOW,lambda w:w.onAction(type('A',(),{'getId':lambda self:92})())),
                       (library_page.WINDOW,lambda w:w.onAction(type('A',(),{'getId':lambda self:92})())) ])
   sheets=[w for w in kodi.windows if w.xml==library_page.ITEM]
   self.assertTrue(all(w.closed for w in sheets));self.assertTrue(kodi.windows[0].closed)
-  self.assertEqual((sheets[0].props['action1.label'],sheets[0].props['action2.label']),('Play','Play on TV'))
-  self.assertEqual(sheets[0].props['action2.colour'],'FFFFFFFF')
   self.assertEqual(prep.pending_requests(self.profile),[])
  def test_action_with_preparation_off_asks_to_turn_it_on(self):
   kodi=self.run_page([(library_page.WINDOW,tap_row('w1')),(library_page.ITEM,tap(9202)),(library_page.WINDOW,tap(library_page.BACK))],

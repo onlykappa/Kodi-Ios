@@ -52,11 +52,19 @@ def offset_for(job):
 def offset_lookup(profile):
     """job -> episodes before its season, from TMDb's season sizes (TMDb Helper's key), cached in drive-library-art.json."""
     import drivelibrary
-    try:
-        import xbmcvfs
-        key = drivelibrary.tmdb_key(xbmcvfs.translatePath('special://home/addons/plugin.video.themoviedb.helper'))
-    except Exception:
-        key = ''
+    # ISSUE-254 (owner log fd2ee25a: "Waiting for TMDb to say where season 2 starts", try 12, every season-2 Naruto
+    # episode stuck): TMDb Helper is bundled with the app, not under special://home/addons, so no key was found and the
+    # season sizes were never asked. Its real folder comes from Kodi; the old path stays as a fallback.
+    key = ''
+    for where in (lambda: __import__('xbmcaddon').Addon('plugin.video.themoviedb.helper').getAddonInfo('path'),
+                  lambda: __import__('xbmcvfs').translatePath('special://home/addons/plugin.video.themoviedb.helper'),
+                  lambda: __import__('xbmcvfs').translatePath('special://xbmc/addons/plugin.video.themoviedb.helper')):
+        try:
+            key = drivelibrary.tmdb_key(where())
+        except Exception:
+            key = ''
+        if key:
+            break
     path = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap', 'drive-library-art.json')
 
     def lookup(job):
@@ -207,6 +215,60 @@ def problem_title(job):
     return title or 'Unnamed download'
 
 
+FALLBACKS = 'quality-fallbacks.json'
+
+
+def _fallback_path(profile):
+    return Path(profile) / 'addon_data/service.kodi.ios.bootstrap' / FALLBACKS
+
+
+def remember_fallback(profile, tmdb, season, quality, now=None):
+    """ISSUE-258: this show's season had no real `quality` version (a fallback was taken): later episodes of it are not
+    copied, refused and searched again first; the picker still prefers a real match whenever one exists."""
+    if not (tmdb and quality):
+        return
+    path = _fallback_path(profile)
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        data = {}
+    data['%s:%s:%s' % (tmdb, season or '', quality)] = time.time() if now is None else now
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data), encoding='utf-8')
+    except OSError:
+        pass
+
+
+def fallback_known(profile, tmdb, season, quality):
+    try:
+        data = json.loads(_fallback_path(profile).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return False
+    return ('%s:%s:%s' % (tmdb, season or '', quality)) in data
+
+
+def wanted_quality(state, drive_id):
+    """ISSUE-231: (the copy job, the quality the owner chose) for a file on Drive, or (None, '')."""
+    for job in state.get('jobs', []):
+        if any(str(f.get('drive_id') or '') == str(drive_id) for f in job.get('files') or []):
+            return job, str(job.get('quality') or '')
+    return None, ''
+
+
+def refuse_low_quality(profile, drive_id, why, clock=time.time):
+    """The copy of this file is not the quality the owner chose: its job ends 'failed' with the reason, so Download problems
+    lists it (Find Another Version) and the next automatic search for the episode leaves that version out
+    (episode_watch_runtime's excluded_names). Returns the job or None."""
+    state = load(profile)
+    job, _ = wanted_quality(state, drive_id)
+    if job is None:
+        return None
+    job.update(status='failed', error=why, finished=clock(), low_quality=True)
+    save(profile, state)
+    return job
+
+
 def problem_key(job):
     """Which copy a problem row is, steady while the service saves the list (indexes can move)."""
     return '%s:%s:%s:%s' % (job.get('hash', ''), job.get('season', ''), job.get('episode', ''), job.get('added', 0))
@@ -215,8 +277,26 @@ def problem_key(job):
 def problems(state):
     """The copies that ended: [{'title', 'reason', 'kind' ('network', 'source', 'cancelled'), 'hash', 'index'}]."""
     out = []
-    for n, job in enumerate(state.get('jobs', [])):
+    # ISSUE-250 (owner screenshots, build 393: Naruto's card said "2 problems" while Download problems listed 13): every
+    # failed version was listed, also for episodes since copied from another version or being copied again, and once per
+    # version tried. A video is listed once (its latest failure), and only while no other version is copying or done.
+    jobs = state.get('jobs', [])
+    def video(job):
+        title = str(job.get('title') or '').strip().casefold()
+        if not title:
+            return ('hash', job.get('hash'), job.get('season'), job.get('episode'))
+        return (title, str(job.get('season') or ''), str(job.get('episode') or ''))
+    alive = {video(j) for j in jobs if j.get('status') != 'failed'}
+    latest = {}
+    for n, job in enumerate(jobs):
+        if job.get('status') == 'failed':
+            k = video(job) + (job.get('error') == 'Cancelled',)
+            if k not in latest or float(job.get('finished') or 0) >= float(jobs[latest[k]].get('finished') or 0):
+                latest[k] = n
+    for n, job in enumerate(jobs):
         if job.get('status') != 'failed':
+            continue
+        if video(job) in alive or latest.get(video(job) + (job.get('error') == 'Cancelled',)) != n:
             continue
         error = str(job.get('error') or 'unknown')
         kind = 'cancelled' if error == 'Cancelled' else 'network' if network_error(error) else 'source'
@@ -227,8 +307,23 @@ def problems(state):
                     'error': error.split(': ', 1)[-1] if error.split(': ', 1)[0].isidentifier() else error,
                     'job_kind': job.get('kind') or '', 'name': job.get('name') or '', 'finished': job.get('finished') or 0,
                     'season': job.get('season') or '', 'episode': job.get('episode') or '', 'count': len(job.get('files') or []),
-                    'key': problem_key(job)})
+                    'key': problem_key(job), 'show_tmdb': str(job.get('show_tmdb') or '')})
     return out
+
+
+def repick_packs(state):
+    """ISSUE-262: later-season episodes that failed "This torrent has no video file" before the pack numbering fix go
+    back in line once (their pack was never read correctly). Returns the jobs."""
+    back = []
+    for job in state['jobs']:
+        if (job.get('status') == 'failed' and job.get('kind') == 'episode' and not job.get('repicked')
+                and str(job.get('season') or '').isdigit() and int(job['season']) > 1
+                and 'has no video file' in str(job.get('error') or '')):
+            job.update(status='copying' if job.get('magnet') else 'new', files=[], tries=0, net_tries=0, retry_at=0, repicked=1)
+            job.pop('finished', None)
+            job.pop('error', None)
+            back.append(job)
+    return back
 
 
 def retry_failed(profile, kinds=('network', 'source'), only=None):
@@ -321,15 +416,15 @@ def info_hash(torrent):
     return ''
 
 
-def queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False,show_tmdb=None):
+def queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False,show_tmdb=None,quality=''):
     # Serialize the read/deduplicate/save transaction across the foreground picker and opening watcher.
     target=location(profile);target.parent.mkdir(parents=True,exist_ok=True)
     with open(str(target)+'.enqueue.lock','a') as guard:
         fcntl.flock(guard,fcntl.LOCK_EX)
-        return _queue(profile,torrent,kind,title,season,episode,now,episodes,watch,show_tmdb)
+        return _queue(profile,torrent,kind,title,season,episode,now,episodes,watch,show_tmdb,quality)
 
 
-def _queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False,show_tmdb=None):
+def _queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False,show_tmdb=None,quality=''):
     """Add a Download to the queue (once per torrent and episode). Returns the job."""
     state = load(profile)
     h = info_hash(torrent)
@@ -367,6 +462,7 @@ def _queue(profile, torrent, kind, title='', season='', episode='', now=None, ep
            'status': 'new', 'files': [], 'watch_requested':(time.time() if watch else 0),
            'added': time.time() if now is None else now}
     if show_tmdb:job['show_tmdb']=str(show_tmdb)
+    if quality:job['quality']=str(quality)   # ISSUE-231: the quality the owner chose (an automatic pick); checked once on Drive
     state['jobs'].append(job)
     save(profile, state, enqueue=True)
     return job
@@ -622,7 +718,118 @@ def drive_episodes(profile):
     return found
 
 
-def drop_on_drive(state, on_drive):
+def tag(profile, job, **fields):
+    """Store extra fields on a queued job (and every job of the same torrent and episode): pick_name (ISSUE-264), batch
+    (ISSUE-268: the season request it came from, for one message per season)."""
+    fields = {k: v for k, v in fields.items() if v}
+    if not fields:
+        return
+    state = load(profile)
+    for other in state.get('jobs', []):
+        if other.get('hash') == job.get('hash') and str(other.get('episode')) == str(job.get('episode')) and str(other.get('season')) == str(job.get('season')):
+            other.update(fields)
+    job.update(fields)
+    save(profile, state)
+
+
+def set_pick_name(profile, job, name):
+    """ISSUE-264: keep the name the version had in the list on its job (the job's own name is often the info-hash), so a
+    refusal can be matched to that version, and to its pack, next time."""
+    state = load(profile)
+    for other in state.get('jobs', []):
+        if other.get('hash') == job.get('hash') and str(other.get('episode')) == str(job.get('episode')) and str(other.get('season')) == str(job.get('season')):
+            other['pick_name'] = name
+    job['pick_name'] = name
+    save(profile, state)
+
+
+def pack_root(name):
+    """The part of a version's name every episode of its pack shares: up to its first number of two or more digits after
+    the start ("Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio) Season 02 (033-053)/Episode 033"
+    and ".../Episode 034" share the folder). Folder paths: the folders."""
+    text = str(name or '')
+    if '/' in text:
+        return text.rsplit('/', 1)[0].strip().casefold()
+    return text.strip().casefold()
+
+
+def episode_label(job):
+    """'Naruto Shippuuden · S2 E33' for an episode, the title otherwise (ISSUE-268: a one-episode message names it)."""
+    title = job.get('title') or job.get('name') or ''
+    if job.get('kind') == 'episode' and job.get('season') and job.get('episode'):
+        return '%s \u00b7 S%s E%s' % (title, job['season'], job['episode'])
+    return title
+
+
+def refusal_noted(profile, job, error):
+    """DEC-049: a copy found lower than its name is kept for the season's versions list (board C). True when the season
+    already waits for the owner's choice, so the refusal is not announced again (one notice per season)."""
+    try:
+        import re
+        import quality_choice
+        tmdb, season = str(job.get('show_tmdb') or ''), job.get('season')
+        if not (tmdb and season):
+            return False
+        real = re.search(r'(\d{2,5}x\d{2,5})', str(error))
+        if real and job.get('pick_name'):
+            quality_choice.note_found(profile, tmdb, season, pack_root(job['pick_name']), real.group(1))
+        value = quality_choice.state(profile, tmdb, season)
+        if quality_choice.lets_fallback(value) or not job.get('quality'):
+            return False
+        # ISSUE-267: the season asks once (DEC-049 board A) from the first refusal, not after every episode is refused.
+        fresh = quality_choice.hold(profile, tmdb, season, job.get('episode'), job['quality'], job.get('title') or '',
+                                    keep=value == 'looking')
+        if fresh:
+            import notices
+            record = quality_choice.load(profile)['seasons'].get(quality_choice.key(tmdb, season)) or {}
+            title, text = quality_choice.notice(record, season)
+            notices.add(profile, 'problem', title, text,
+                        'RunScript(service.kodi.ios.bootstrap,quality_choice,tmdb=%s,season=%s)' % (tmdb, season))
+        return True
+    except Exception:
+        return False
+
+
+def hold_pack(state, job, error, clock=time.time):
+    """ISSUE-267 (owner log b98d5fc2, build 421: Repair queued all 21 season-2 episodes from the "1080p" pack whose season 2
+    is 640x480): once one episode of a pack is refused for its quality, the season's other episodes from the same torrent
+    that have not started are not copied and refused one by one; they wait for the owner's choice with it. Returns them."""
+    held = []
+    for other in state.get('jobs', []):
+        if (other is not job and other.get('hash') == job.get('hash') and str(other.get('season')) == str(job.get('season'))
+                and other.get('kind') == 'episode' and other.get('status') in ('new', 'fetching', 'copying') and not _started(other)):
+            other.update(status='failed', error=str(error), low_quality=True, finished=clock(), pick_name=other.get('pick_name') or job.get('pick_name'))
+            held.append(other)
+    return held
+
+
+def season_names(state, tmdb, season):
+    """ISSUE-274: the list names of the versions this season's episodes were copied from (newest last), so the rest of the
+    season comes from the same release when one of equal quality has it."""
+    return [j['pick_name'] for j in state.get('jobs', []) if j.get('status') == 'done' and j.get('pick_name')
+            and str(j.get('show_tmdb') or '') == str(tmdb or '') and str(tmdb or '') and str(j.get('season')) == str(season)][-10:]
+
+
+def avoid_names(state, tmdb, season, episode):
+    """(excluded, lower): names of this episode's versions that failed (a dead torrent, "File not available due to no
+    peer", a broken file: never picked again) and that a copy found lower than the quality chosen (ISSUE-236: only when
+    nothing else exists). Cancelled copies are neither. Used by episode_watch and Repair (ISSUE-244)."""
+    mine = [j for j in state.get('jobs', []) if str(j.get('show_tmdb') or '') == str(tmdb or '') and str(tmdb or '')
+            and str(j.get('season')) == str(season) and str(j.get('episode')) == str(episode) and j.get('name')]
+    excluded = [j['name'] for j in mine if j.get('status') == 'failed' and 'cancel' not in str(j.get('error', '')).lower()
+                and not j.get('low_quality')][-20:]
+    lower = [j['name'] for j in mine if j.get('low_quality')][-20:]
+    # ISSUE-264 (owner screenshot and log bd7af2c1, build 415): a "1080p" complete-series pack whose season 2 is 640x480 was
+    # refused for S2E33, then picked again for E34, E35 … (Repair looped). A refusal now counts for the whole season: every
+    # version of the same pack (its shared folder) is "lower" for the season's other episodes, under its list name too.
+    season_refused = [j for j in state.get('jobs', []) if j.get('low_quality') and str(j.get('show_tmdb') or '') == str(tmdb or '')
+                      and str(tmdb or '') and str(j.get('season')) == str(season)]
+    lower += [j['pick_name'] for j in season_refused if j.get('pick_name')]
+    lower += ['pack:' + pack_root(j['pick_name']) for j in season_refused if j.get('pick_name')]
+    return excluded, list(dict.fromkeys(lower))[-60:]
+
+
+def drop_on_drive(state, on_drive, keep=lambda job: False):
     """Owner (build 325): "Naruto Shippuuden - 002" was on Drive and converting while S1 E2 waited to be copied again.
     A waiting episode job that has not copied anything leaves the queue when that episode is already on Drive."""
     dropped = []
@@ -635,7 +842,7 @@ def drop_on_drive(state, on_drive):
             key = (show_match(job.get('title') or title_from_name(job.get('name'))), int(job.get('season') or 0), int(job.get('episode') or 0))
         except (TypeError, ValueError):
             continue
-        if key[0] and key[2] and key in on_drive:
+        if key[0] and key[2] and key in on_drive and not keep(job):   # keep: a Better Version on its way (DEC-047)
             dropped.append(job)
     forget_jobs(state, dropped)
     return dropped
@@ -842,6 +1049,27 @@ def link_now():
         return None
 
 
+def net_generation():
+    try:
+        import netwatch
+        return netwatch.generation()
+    except Exception:
+        return 0
+
+
+def net_link():
+    try:
+        import netwatch
+        return netwatch.link()
+    except Exception:
+        return ''
+
+
+def link_moved(since):
+    """ISSUE-271: the connection changed (Wi-Fi <-> cellular) after `since` (netwatch.generation())."""
+    return net_generation() != since
+
+
 def kick_on_new_link(state, link, clock=time.time):
     """ISSUE-198: Wi-Fi to cellular (or back, or a new Wi-Fi): copies waiting out network trouble try again at once
     instead of finishing their wait. Returns the previous link when it changed, else None."""
@@ -860,12 +1088,67 @@ def kick_on_new_link(state, link, clock=time.time):
     return before
 
 
+FETCH_POLL = 15             # seconds between AllDebrid status checks of one torrent it is fetching
+FETCH_STALL = 30 * 60       # no progress for this long: nobody shares this version
+
+
+def poll_fetching(jobs, api, clock=time.time):
+    """ISSUE-277 (owner screenshot and log 27c3ca14, build 430): Rick and Morty S2 E7's version was not stored on AllDebrid;
+    it sat at "fetching 0%" and, being first in line, held E8-E10 behind it with nothing in Download problems. Torrents
+    AllDebrid fetches are now checked here, beside the line rather than at its head: a ready one copies, one AllDebrid gives
+    up on ends failed, and one that has not moved for FETCH_STALL ends failed as nobody sharing it, so it shows in Download
+    problems (and the next search leaves that version out: avoid_names). Returns (changed, ended jobs)."""
+    changed, ended = False, []
+    now = clock()
+    for job in [j for j in jobs if j.get('status') == 'fetching']:
+        if float(job.get('polled') or 0) + FETCH_POLL > now:
+            continue
+        try:
+            code, fraction, words = api.status(job['magnet'])
+        except alldebrid.Problem as problem:
+            job.update(status='failed', error=str(problem), finished=now)
+            ended.append(job)
+            changed = True
+            continue
+        except Exception:
+            continue   # network: asked again at the next check
+        changed = True
+        job['polled'] = now
+        fetched = round(fraction * 100)
+        if fetched != job.get('fetched') or not job.get('fetch_moved'):
+            job['fetch_moved'] = now
+        job['fetched'] = fetched
+        if code >= alldebrid.FAILED:
+            job.update(status='failed', error='AllDebrid could not fetch this torrent (%s).' % (words or code), finished=now)
+            ended.append(job)
+        elif code == alldebrid.READY:
+            job['status'] = 'copying'
+        elif now - float(job['fetch_moved']) >= FETCH_STALL:
+            job.update(status='failed', finished=now, stalled=True,
+                       error='Nobody is sharing this version: AllDebrid got no further than %d%% in %d minutes. Pick another '
+                             'version.' % (fetched, FETCH_STALL // 60))
+            ended.append(job)
+    return changed, ended
+
+
 def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=default_open, keep_going=lambda: True,
          clock=time.time, on_done=lambda job: None, cancelled=lambda: set(), forget=lambda info_hash: None, log=lambda text: None, ready_copy=None,
          link=link_now):
     """Move the oldest unfinished job on by one step. Returns seconds until the next step is worth trying
     (None when nothing is queued). cancelled(): info hashes the owner cancelled (long press in Notifications);
     those jobs end as failed with 'Cancelled' and forget(hash) clears each request."""
+    say = notify
+
+    def notify(kind, title_, text, job_=None):
+        # ISSUE-268: a download from a season request (its batch) joins that season's one message; one episode's stays its own.
+        group = str((job_ or {}).get('batch') or '')
+        if group:
+            try:
+                return say(kind, title_, text, group=group)
+            except TypeError:
+                pass
+        return say(kind, title_, text)
+
     state = load(profile)
     drop = {str(h).lower() for h in cancelled()}
     for job in state['jobs']:
@@ -881,6 +1164,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     # Owner screenshot (build 314): Build Season jobs named after their hash; give them the show's title and move what
     # was already copied into the show's folder.
     changed = kick_on_new_link(state, link(), clock)
+    netgen = net_generation()   # ISSUE-271: a switch while this run copies ends it at the next piece; the next run re-plans
     if changed:
         log('connection changed (%s to %s): waiting copies carry on now' % (changed, state.get('link')))
         save(profile, state)
@@ -888,9 +1172,14 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         log('%s: back in line (it had stopped for network trouble: %s)' % (job_.get('title') or job_['name'], str(job_.get('error'))[:80]))
         save(profile, state)
     renamed = retitle(profile, state, names=show_names(profile), lookup=show_lookup(profile)) + one_spelling(state)
-    dropped = drop_duplicates(state) + drop_on_drive(state, drive_episodes(profile))
+    import better_version
+    dropped = drop_duplicates(state) + drop_on_drive(state, drive_episodes(profile), lambda job: better_version.replacing(profile, job))
     CONVERTING[0] = lambda: conversion_running(profile, clock())
     OFFSET[0] = offset_lookup(profile)
+    repicked = repick_packs(state)
+    if repicked:
+        log('%d later-season episodes read their pack again (ISSUE-262)' % len(repicked))
+        save(profile, state)
     for job_ in dropped:
         log('%s S%sE%s: already on Drive or downloading from another version; this one is removed' % (
             job_.get('title') or job_['name'], job_.get('season'), job_.get('episode')))
@@ -916,6 +1205,23 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         if state.pop('current', None) is not None:
             save(profile, state)
         return None
+    polled, ended = poll_fetching(jobs, api, clock)
+    for job_ in ended:
+        log('%s: failed: %s' % (job_.get('title') or job_['name'], job_['error']))
+        notify('problem', "Couldn't download to Google Drive", '%s: %s' % (episode_label(job_), job_['error']), job_)
+        transfer_history.failed(profile, 'up', job_.get('title') or job_['name'], job_['error'], clock())
+    if polled:
+        save(profile, state)
+    jobs = [j for j in jobs if j['status'] not in ('fetching', 'failed')]
+    if not jobs:
+        waiting = [j for j in state['jobs'] if j['status'] == 'fetching']
+        if not waiting:
+            return 1
+        first = in_line(waiting)[0]
+        state['current'] = {'name': first.get('title') or first['name'], 'folder': 'AllDebrid', 'sent': first.get('fetched', 0),
+                            'total': 100, 'stage': 'fetching'}
+        save(profile, state)
+        return FETCH_POLL
     job = jobs[0]
 
     def commit():
@@ -927,7 +1233,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             job['magnet'], ready = api.add(job['hash'])
             job['status'] = 'copying' if ready else 'fetching'
             if not ready:
-                notify('download', 'AllDebrid is fetching it', title)
+                notify('download', 'AllDebrid is fetching it', episode_label(job), job)
             commit()
             return 1
         if job['status'] == 'fetching':
@@ -1056,6 +1362,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     parent = drive.folder(parts)
 
                 marks = []
+                mode = ['']   # ISSUE-273: 'ready' while the file is made ready on its way (the card says so)
                 lane_job = '%s:%s:%s' % (owner.get('hash', ''), owner.get('season', ''), owner.get('episode', ''))
 
                 def progress(sent, total):
@@ -1076,14 +1383,14 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     # which file of the job this is, so the pages name the episode and count the season.
                     show(slot, {'name': job_title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying', 'job': lane_job,
                                         'rate_own': rate, 'eta_s': (total - sent) / rate if rate else 0, 'updated': now,
-                                        'file': name, 'index': owner['files'].index(entry) + 1, 'count': len(owner['files'])})
+                                        'file': name, 'index': owner['files'].index(entry) + 1, 'count': len(owner['files']), 'mode': mode[0]})
                     with guard:
                         if owner.get('tries') and sent > (marks[0][1] if len(marks) > 1 else 0):
                             owner['tries'] = 0
                             owner.pop('error', None)
                     commit()
                 hash_ = str(owner['hash']).lower()
-                going = lambda: keep_going() and hash_ not in {str(h).lower() for h in cancelled()}
+                going = lambda: keep_going() and hash_ not in {str(h).lower() for h in cancelled()} and not link_moved(netgen)
                 def activity(phase,sent,total):
                     # Called on the owner thread, never the read-ahead thread. Percent remains confirmed bytes.
                     now=clock()
@@ -1109,8 +1416,10 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                         entry['ready_tries'] = entry.get('ready_tries', 0) + 1
                         attempt_ready = entry['ready_tries'] <= READY_TRIES
                     if attempt_ready:
+                        mode[0] = 'ready'
                         result = ready_copy(with_source, name, size, parent, going, progress,
-                                            '%s:%s' % (hash_, entry.get('path') or name))
+                                            '%s:%s' % (hash_, entry.get('path') or name), quality=owner.get('quality') or '')
+                    mode[0] = ''
                     if result is None:
                         with guard:
                             entry['plain'] = True
@@ -1139,6 +1448,25 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                         except driveupload.Stop:
                             raise
                         except Exception as error:
+                            if getattr(error, 'low_quality', False):
+                                # ISSUE-236: not the quality chosen. That copy ends now (failed, so Download problems lists
+                                # it and the next search leaves the version out); nothing of it is on Drive.
+                                with guard:
+                                    entry[0].update(status='failed', error=str(error), low_quality=True, finished=clock())
+                                    same_pack = hold_pack(state, entry[0], error, clock)
+                                log('%s: %s; not copied' % (entry[0].get('title') or entry[0]['name'], error))
+                                for other in same_pack:   # the season's other episodes of this pack wait with it
+                                    refusal_noted(profile, other, error)
+                                if same_pack:
+                                    log('%s: %d more episodes of this version wait for the quality choice' % (
+                                        entry[0].get('title') or entry[0]['name'], len(same_pack)))
+                                if not refusal_noted(profile, entry[0], error):
+                                    notify('problem', 'Not the quality you picked', '%s: %s. Another version will be looked for.' % (
+                                        episode_label(entry[0]), str(error).split(': ', 1)[-1]), entry[0])
+                                commit()
+                                if entry[0] is job:
+                                    return
+                                continue
                             # Owner log 3b94b426 (build 319): a lane whose episode failed once ended there, and one lane
                             # copied the season alone for hours. The episode goes back in line (its Drive session kept)
                             # up to RETRIES_IN_RUN times before it is left for the next turn.
@@ -1206,7 +1534,11 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     other['status'] = 'done'
                     other['finished'] = clock()
                     notify('drive', 'Saved to Google Drive', '%s · straight from AllDebrid, nothing kept on the phone'
-                           % (other.get('title') or other['name']))
+                           % episode_label(other), other)
+            if job.get('low_quality'):   # ISSUE-236: refused before it was copied; it stays failed
+                state.pop('current', None)
+                commit()
+                return 1
             job['status'] = 'done'
             job['finished'] = clock()
             state.pop('current', None)
@@ -1224,10 +1556,16 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                        'version for the rest.' % (title, work_state.episode_label(files[0].get('drive_name') or files[0].get('path'))))
             else:
                 notify('drive', 'Saved to Google Drive', '%s%s · straight from AllDebrid, nothing kept on the phone'
-                       % (title, ' · %d episodes' % len(files) if len(files) > 1 else ''))
+                       % (episode_label(job), ' · %d episodes' % len(files) if len(files) > 1 else ''), job)
             on_done(job)
             return 1
     except driveupload.Stop:
+        if link_moved(netgen):
+            # ISSUE-271: not a pause. Every upload session is saved; the next run starts at once on the new link, with its
+            # own lane count and piece size, and carries on from what Drive already has.
+            log('connection changed to %s while copying: carrying on at once on the new connection' % (net_link() or 'another network'))
+            save(profile, state)
+            return 1
         return 30
     except alldebrid.Problem as problem:
         log('%s: failed: %s' % (title, problem))
@@ -1235,10 +1573,19 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         job['error'] = str(problem)
         state.pop('current', None)
         commit()
-        notify('problem', "Couldn't download to Google Drive", '%s: %s' % (title, problem))
+        notify('problem', "Couldn't download to Google Drive", '%s: %s' % (episode_label(job), problem), job)
         transfer_history.failed(profile, 'up', title, str(problem), clock())
         return 1
     except Exception as error:   # network, Drive: try again in a while, from where it got to
+        if 'Waiting for TMDb' in str(error):
+            # ISSUE-254: waiting for TMDb's season sizes is not the copy's fault: it never counts toward giving up.
+            job['tmdb_waits'] = job.get('tmdb_waits', 0) + 1
+            job['error'] = '%s: %s' % (type(error).__name__, str(error)[:160])
+            wait = min(600, 60 * job['tmdb_waits'])
+            job['retry_at'] = clock() + wait
+            log('%s: %s; again in %d s' % (title, str(error)[:100], wait))
+            commit()
+            return wait
         if network_error(error):
             # ISSUE-198: a dropped connection, a Wi-Fi / cellular switch, the phone asleep: wait and carry on from what
             # Drive confirmed; never counts toward giving up.
@@ -1257,7 +1604,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         if job['tries'] >= 20:
             job['status'] = 'failed'
             commit()
-            notify('problem', "Couldn't download to Google Drive", '%s: %s' % (title, job['error']))
+            notify('problem', "Couldn't download to Google Drive", '%s: %s' % (episode_label(job), job['error']), job)
             transfer_history.failed(profile, 'up', title, 'gave up after 20 tries: ' + job['error'].split(': ', 1)[0], clock())
             return 1
         return min(600, 30 * job['tries'])

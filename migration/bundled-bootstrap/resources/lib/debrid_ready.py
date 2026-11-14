@@ -27,6 +27,13 @@ import resume_store
 LANES = 3            # converters at once (the native test runs three; each has its own Drive upload)
 TRIES = 3            # starts per file before it is copied plainly instead
 _gate = threading.BoundedSemaphore(LANES)
+_making = [0]   # copies being made ready now (ISSUE-246: a Refresh's file inspection waits for them)
+_making_lock = threading.Lock()
+
+
+def active():
+    """How many downloads are being made ready while they copy right now."""
+    return _making[0]
 
 
 def slot_for(key):
@@ -40,13 +47,37 @@ def _probe(native, url, going):
     return native.probe(url)
 
 
+class LowQuality(RuntimeError):
+    """ISSUE-236: the file is lower than the quality the owner chose; the copy ends here, before anything reaches Drive."""
+    low_quality = True
+
+
+def quality_problem(before, quality):
+    """'' or why this probed picture is not the quality chosen (prepare_downloads.below_wanted)."""
+    if quality and prep.below_wanted(before, quality):
+        return 'Not the quality you picked: %sx%s, you chose %s' % (before.get('width'), before.get('height'), quality)
+    return ''
+
+
+def check_quality(q, with_link, key, going, quality):
+    """Probe the AllDebrid file (a few seconds of reads) and raise LowQuality when it is lower than `quality`. Used when
+    the file is not made ready on its way (F1 off), so a plain copy is checked too."""
+    native, stream = getattr(q, 'native', None), getattr(q, 'stream', None)
+    if not quality or not (native and stream and hasattr(stream, 'add_external')):
+        return
+    source = stream.add_external('debrid-' + slot_for(key), with_link)
+    why = quality_problem(_probe(native, source, going), quality)
+    if why:
+        raise LowQuality(why)
+
+
 def wanted(before, layout):
     """True when the file would need a re-package: picture copied, and it does not open fast as it is."""
     return prep.streamable_video(before) and (layout or {}).get('fast_open') is False
 
 
 def copy(q, profile, with_link, name, size, parent, going, progress, key, log=lambda text: None, hold=lambda: False,
-         clock=time.monotonic):
+         clock=time.monotonic, quality=''):
     """Make `name` (size bytes, read through with_link) ready on Drive in folder `parent`.
     Returns {'id', 'name', 'size'} of the ready Drive file, or None when it should be copied plainly.
     Raises driveupload.Stop (paused / cancelled) and network errors (the caller waits and tries again; the upload carries
@@ -59,9 +90,14 @@ def copy(q, profile, with_link, name, size, parent, going, progress, key, log=la
             raise driveupload.Stop('Download paused')
     slot, item = slot_for(key), 'debrid-' + slot_for(key)
     outputs, sink, staged = {}, None, None
+    with _making_lock:
+        _making[0] += 1
     try:
         source = stream.add_external(item, with_link)
         before = _probe(native, source, going)
+        why = quality_problem(before, quality)   # ISSUE-236 (owner log 58fc390e): never copy 640x480 for a 1080p season
+        if why:
+            raise LowQuality(why)
         layout = q.layout_probe(source, int(size), going) if prep.streamable_video(before) else {}
         if not wanted(before, layout):
             return None
@@ -138,7 +174,9 @@ def copy(q, profile, with_link, name, size, parent, going, progress, key, log=la
                 except Exception:
                     pass
             resume_store.clear(profile, slot)
-        if debrid_drive.network_error(error):
+        if debrid_drive.network_error(error) or getattr(error, 'low_quality', False):
+            # ISSUE-244 (owner log 3df2f247: six 640x480 episodes "not made ready while copying (LowQuality …); copying it
+            # as it is", each copied in full and sent to the Trash minutes later): a refused quality is never copied.
             raise
         resume_store.clear(profile, slot)
         log('%s: not made ready while copying (%s: %s); copying it as it is' % (name, type(error).__name__, str(error)[:120]))
@@ -155,4 +193,6 @@ def copy(q, profile, with_link, name, size, parent, going, progress, key, log=la
                 stream.forget(ident)
         if hasattr(stream, 'unwide'):
             stream.unwide(item)
+        with _making_lock:
+            _making[0] -= 1
         _gate.release()

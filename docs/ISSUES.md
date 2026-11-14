@@ -3484,3 +3484,650 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Cause 2:** the converter (kr_prepare.c) saves only PGS picture subtitles beside the MP4; Naruto S1 E9–E16's only (English) subtitle is a DVD/VobSub picture subtitle, so it refuses to replace the file.
 - **Cause 3:** Download problems shows only AllDebrid copy problems; preparation problems live in Library status / the show page.
 - **Plan:** ROADMAP "Preparation repair roadmap — 2026-11-13" P1–P6. Not coded (owner: findings only).
+- **P1 fixed (branch claude/preparation-repair):** `prepare_downloads.apply_to` ('retry' and 'now') calls `forgive(job)`, which clears `blocked`, `kept_told`, `repack_failed`, `image_subs_retried` and `hdr_retried`, so Repair / Repair All puts a kept video back in the queue and it says what happened again. Test: test_drive_prepare `test_repair_puts_a_kept_video_back_in_the_queue` (a blocked job retried by request is queued, really runs again, and Start now clears it too). Device check pending.
+- **P6 fixed:** Repair no longer looks like it worked when it can't. `prepare_downloads.cannot_prepare` names a video the converter can't keep the tracks of (DVD picture subtitles or a second video track) while the converter lacks the capability (`preparation-capabilities.json`, written by the service from `native.keeps_dvd_subs`, the `kodi_airplay_prepare_keep_dvd_subs` export P2 will add). Repair on one episode says why, that it still plays in Kodi, and offers Find Another Version; Repair All Problems retries the rest and gives one message for the stuck ones. The "Kept as it is" notice and its help page already said the same (notice_help `_kept_tracks`). Tests: test_library_files `RepairSaysWhy`. Device check pending.
+- **P4 mockup (approved by the owner 2026-11-13):** docs/design/download-problems-mockups.html board E: a "Preparing for Kodi and AirPlay" group and Prepare filter on Download problems, a row sheet (Find Another Version · Try Again · Keep as It Is) and the Library status "can't be made ready" count opening it.
+- **P4 coded:** Download problems lists preparation problems (`prepare_downloads.preparation_problems`: kept or stopped, not owner-kept, done or faster-start-failed). New "Preparing for Kodi and AirPlay" group, a fourth summary tile ("Not ready"), a Prepare filter, per-row Find / Retry, the row sheet (Find Another Version · Try Again · Keep as It Is, no red) and Try Again N. The service adds a Library status "N can't be made ready · Review" Needs-you entry that opens the page on the Prepare filter (`copy_problems,prepare`). Retry on a video the converter can't keep the tracks of explains why instead (P6). Tests: test_debrid_drive (`test_preparation_problems_are_listed_with_the_copy_problems`, `test_the_page_has_four_tiles_and_five_filters`). Desktop Kodi rig render of the Prepare filter matches board E1; the iPhone check is pending.
+- **P2/P3 coded (native, KodiAirPlay r54 staged):** `kr_prepare.c` copies a kept-language DVD picture subtitle (`dvd_subtitle`, VobSub) into the MP4 as `mp4s` (FFmpeg's mov muxer stores it with its palette; checked with the FFmpeg CLI in faststart and fragmented modes) when `kodi_airplay_prepare_keep_dvd_subs(1)` is set, and leaves out a second video track no bigger than the main picture (noted in the converter log); a bigger one still refuses. The refusal now names the track: `...tracks MP4 cannot preserve (video track 1: mpeg2video 720x480); original retained` (the add-on still matches the same words). New fixtures (`h264_dvdsub.mkv`, `h264_second_video.mkv`, `h264_bigger_second_video.mkv`) and `test_remux.c` `test_dvd_subtitles_and_extra_video`. The host test and the iOS build run only in the airplay-ios CI (the code needs a newer FFmpeg than this container has; `kr_prepare.c` and the new test compile syntax-clean here apart from an unrelated FFmpeg-version error).
+- **P5 coded:** `Queue.retry_dvd_subtitles` gives a video kept for tracks MP4 cannot preserve one automatic new try once the framework exports the DVD switch (`native.keeps_dvd_subs`); `FORGIVEN` includes `dvd_subs_retried` so an owner's Repair gives another. Tests: test_image_subtitles `DvdSubtitles` (added to import-review.yml).
+- **r54 pinned:** airplay-ios run 43500839856 (30cacbe, host tests and iOS build passed) published kodi-airplay-r54; the release notes, asset digest and downloaded zip all give sha256 0a00cb69…06315 and the binary contains the DVD switch. **Open:** phone proof is Naruto Shippuuden S1 E9-E16 preparing by themselves and showing the DVD subtitle in Kodi.
+
+## ISSUE-227 — Repair taps seemed to do nothing, then everything happened a minute or two later (owner log 0b5ecceb, build 368) — fixed in code
+
+- **Owner:** "my taps did nothing for repair all or repair, it was just super slow to do anything for a moment."
+- **Seen (13:15–13:19):** the worker made an AI Upscale copy of The Cat In The Hat from 13:15:44 to 13:17:38 (it then failed on "Source read: Input/output error"). The Repair requests sat in the request file until then; at 13:17:43 the scheduler showed 29 videos eligible (the Naruto set, back in the queue), then a library check ("Checking compatibility and faster opening", 58 videos, one at a time) used the worker for the rest of the log. The episode page ignored pending requests, so nothing changed on screen meanwhile. The Repair itself worked: r54 loaded (`dvd_subtitles: true`) and 29 videos queued.
+- **Cause:** (1) AI Upscale started because nothing was waiting (the Naruto jobs were blocked) and a Repair does not stop it; (2) the show / episode page read the saved queue without the owner's pending requests (Library status and Download problems already applied them).
+- **Fix:** an owner's Repair / Try Again / Start now / Prepare next stops a running AI Upscale copy (`prepare_downloads.wakes_work`, used as its keep-going in service.py; the copy starts again later); `library_manager.model` applies pending requests, so the episode row moves to "Converting" at once.
+- **Retest:** test_library_files `RepairShowsAtOnce`.
+- **Not fixed (found in the same log):** the AI Upscale copy failed with "Source read: Input/output error" after 2 minutes; and a Library status Refresh (an inspecting check) probes every video one at a time and holds the worker (ISSUE-208 made only the metadata requests parallel).
+
+## ISSUE-228 — Hold on the AI Upscale copy closed the page; Cancel All Upscaling did nothing (owner, build 368) — fixed in code
+
+- **Owner:** "if I hold down on a movie that is currently downloading it closes out the setting; I want the option to cancel instead of only pausing. And cancel all upscaling isn't working."
+- **Causes:** a long press is a right click, which Kodi turns into "previous menu" (the page's Back); and Cancel All wrote a request that only the upscale pass applied, a pass that waits behind every preparation, while the pages never showed it and the Up next pages consumed requests the copy being made still had to see.
+- **Fix:** a long press on the copy being made opens Pause / Resume, Cancel This Copy and Cancel All Upscaling (an Up next row: Make Next / Remove); pages show a pending cancel at once (`upscale_queue.preview`) and never consume it (`apply_control(keep=True)`); the service applies requests within seconds (`upscale_control` thread, except while a copy is being made, which sees them itself).
+- **Retest:** test_upscale_cancel (new, in import-review.yml). Device check pending.
+
+## ISSUE-229 — r54 wrote a prepared MP4 with the DVD subtitle and then rejected it: 30 failed conversions (owner log 5f05cd99, build 368) — fixed in code (AirPlay r55 staged)
+
+- **Seen:** Naruto Shippuuden S1 E1, 3, 4, 7, 8, 9, 17-20: 30 attempts, each a full read and write on Google Drive, every one ending "Prepared video did not preserve resolution/HDR; original retained" at "Verifying the Drive file and seek index". The picture was fine (640x480, 8-bit, copied); the real cause was `kr_prepare_ready`, which accepted only text subtitles, so a prepared MP4 holding a DVD subtitle was "not ready". None finished in 39 minutes.
+- **Missed:** the converter host test (workflow "AirPlay MKV remuxer", job host-tests) failed on exactly this on every commit of PR #26 (4 checks: the kept DVD subtitle, its palette, verification) and I read only the framework build, so r54 was pinned as checked. Both jobs are now read before pinning.
+- **Fix:** `kr_prepare_ready` accepts `dvd_subtitle`; the test also asserts a prepared MP4 with a kept DVD subtitle counts as ready. **r55 pinned:** airplay-remux host-tests (run 43515845318, 3,3xx checks, 0 failed) and the framework build (airplay-ios run 43515845857) are green; release notes, asset digest and downloaded zip give sha256 5ba3eca8…23f1c94 and the binary exports the DVD switch.
+
+## ISSUE-230 — Verification failures retried as full conversions; preparation ran on mobile data; Refresh held the converter; AI Upscale read errors failed the copy; small items (owner log 5f05cd99)
+
+- **Final check:** a failed final verification (picture / ready / HDR mismatch, checksum) now stops after ONE attempt: `VerifyFailed` blocks the job, clears the staging files, notifies once and names the failed check ("The prepared file is not marked ready…", "The prepared picture is WxH, the original is WxH", "HDR changed…"). A re-package that plays shows as Ready; others stay in Download problems; Repair clears it. Network errors in the final check still retry. (Errors from the C-level `native.verify` still retry as before.)
+- **Mobile data:** preparation does not start new videos on mobile data (Start now overrides); a running one stops cleanly and resumes from its mark when Wi-Fi returns; Library status says "Waiting for Wi-Fi · videos are prepared on Wi-Fi only".
+- **Refresh:** an inspecting check no longer runs while a video is ready to prepare; the waiting videos go first, the request stays and the check runs when the queue is idle; a video inspected during the same request is not re-read after a stop or restart (a new Refresh still re-reads every file).
+- **AI Upscale read errors:** a network-class error (including "Source read: Input/output error") leaves the copy waiting with "Waiting for the network" and a 15 s to 5 min back-off instead of failing it; permanent failures still fail. It restarts from the start (no resume mark yet).
+- **Upload piece size:** the first main-track piece of a prepared file starts at the size the last good one reached (per link kind), not at 1 MB; a failure or slow piece forgets it.
+- **Settings root "AI Upscale · On · 4K" when off:** the summary says On only when something is really set (Upscale new downloads on, or a show/default size), and "Unavailable" when the device has no AI engine; the root and the page pass the engine state.
+- **"Control 9110 in window 13002 has been asked to focus, but it can't":** the AI Upscale show page's default control was its size segments, which show only after the page fills them; its default is now Back (the window id could not be mapped from the source, so this is the best match; pending a log check).
+- **Retest:** test_drive_prepare (FinalCheck, MobileData, LearnedPieceSize), test_compatibility_filter, test_work_state, test_upscale_cloud, test_upscale_page. Device checks pending.
+
+## ISSUE-231 — A season built at 1080p came in at 480p (owner, build 374) — fixed in code
+
+- **Owner:** "why does it say Naruto is in 480p? I selected 1080 … 480p is ass, I never selected it."
+- **Cause:** the automatic season pick took every episode from "Naruto Shippuden (001-500) [Complete Series + Movies (1080p)]". The 1080p is the pack's label: most of its files are 640x480 DVD episodes ("Naruto Shippuden Episode 001 Homecoming.mkv", 262 MB) and a few are the uploader's own upscales ("…_2.25x_1920x1080_alq-10"). The picker trusted the label; nothing checked each file.
+- **Fix, before the download** (deck_picker `below_quality`, strict quality 720p and above): a version whose own name says SD (480p, 576p, DVD, SD…), that is an upscale of a lower quality (a "2.25x_1920x1080" scale, alq, waifu2x, ESRGAN, Topaz, "upscaled"), or whose file is far too small for the quality (bitrate under a third of the quality's floor; HEVC and unknown codecs judged leniently so small HEVC anime encodes still count) is never picked. A file named only "Episode 001" cannot be judged by name, so:
+- **Fix, after the copy** (prepare_cloud, before any preparation): the copy job now remembers the quality chosen (automatic strict picks only); when the probed picture is clearly lower (1080p needs 1700 wide or 1000 high, so 4:3 and scope 1080p count), the copy ends failed "Not the quality you picked: 640x480, you chose 1080p" (Download problems, Find), the file goes to Google Drive's Trash (30 days), it is not prepared, the owner is told once, and the next automatic search for that episode leaves that version out.
+- **Retest:** test_season_quality (new, in import-review.yml). Phone proof: a fresh Naruto season at 1080p.
+
+## ISSUE-232 — A read-back during a dropped connection counted as a failed file; the card froze while the made movie uploaded (owner log 47e2276a, build 374) — fixed in code
+
+- **Seen:** 9 Naruto episodes prepared in 22 min (done 28 → 37) with r55. E10's final read-back failed while Drive dropped the connection 7 times (-1005) and read "Prepared Drive file validation failed" (its 6th try). After the last unit, the card read "Making it start faster · 78.7 %" for 6 min while the made movie went up at ~1.3 MB/s.
+- **Fix:** a read-back that fails while the Drive stream reports a read problem is network trouble (waits 15 s to 5 min, no attempt counted). Once every unit is made, each confirmed upload piece updates the card: "Uploading to Google Drive · N%" and what is left (`Sink.on_confirmed`).
+- **Retest:** test_season_quality `UploadAndReadBack`.
+
+## ISSUE-233 — Deleting videos mid-conversion left them in the preparation queue, failing every minute (owner log 1ae21097, build 374) — fixed in code
+
+- **Owner:** "deleting stuff seems to bug out if it's mid conversion."
+- **Seen:** Naruto was deleted around 15:14 while E24 converted; then every deleted episode (E10, E23, E25-E32) was opened again and failed "Drive video is unavailable or incomplete" (32 times by 15:20, attempts 1, 2, 3 …), each counted as a problem and holding the converter.
+- **Cause:** neither delete path (Library › select and Delete, `library_delete.delete`; the long-press Remove, `ios_remove`) told the preparation queue, and a trashed or missing source counted as an ordinary failure.
+- **Fix:** both delete paths ask the queue to forget the deleted videos (`prepare_downloads.forget`, a whole show folder included); a forget stops the running conversion of a deleted video (`interrupts`); a source that is trashed or gone (`SourceGone`: 404 or trashed) leaves the queue quietly instead of failing and retrying.
+- **Retest:** test_season_quality `DeletedMidConversion`.
+- **Also seen, not fixed:** an AI Upscale copy (Phony S1 E2, 1920x1080 to 4K) failed after 2 min with "video conversion: encode: Generic error in an external library" (the next copy carried on); "EXCEPTION: Window id does not exist" after a page closed (14:57, 15:14).
+
+## ISSUE-234 — Library status Refresh did nothing while videos waited (owner: "library status doesn't really refresh, it's awful") — fixed in code
+
+- **Cause:** ISSUE-230 made an inspecting check wait while any video was ready to prepare. That deferred the whole check, including the Drive listing, so with a season in the queue a Refresh listed nothing (new, removed or changed videos stayed as they were) and the page sat on "Checking…" until it gave up after 5 minutes.
+- **Fix:** while the inspection waits, the Drive listing runs at once, once per Refresh (`scan(listing_only=True)`): the page shows new and removed videos and "checked just now"; the per-video inspection keeps its request and runs when the queue is idle.
+- **Retest:** test_season_quality `RefreshLists`. Phone check pending.
+
+## ISSUE-235 — Settings › AI Upscale still read "On · 4K" with Upscale new downloads off (owner screenshot, build 374) — fixed in code
+
+- **Cause:** the row was right that something was on: a show was set to 4K (the log made 4K copies of Phony at 15:15-15:20). "On" did not say what.
+- **Fix:** the row says what is on: "New downloads · 4K", "All shows · 4K", "1 show · 4K" / "N shows · 4K", "Off", or "Unavailable".
+- **Retest:** test_upscale_page.
+
+
+## ISSUE-237 — Repair took an uploader's upscale ("_2.25x_1920x1080_alq-10") for Naruto S1 E5/E6 (owner log f63389f1, build 376) — fixed in code
+
+- **Seen:** 15:48:52 and 15:49:21 `Kodi iOS repair: S01E05 / S01E06 queued (any quality)`; the automatic pick took "Naruto Shippuden Episode 005 The Kazekage Stands Tall_2.25x_1920x1080_alq-10.mp4" (4.14 GB) from the Complete Series pack, and it was made ready while copying at 1920x1080. S01E06 was queued twice (two Repair taps 6 s apart; the copier keeps one per hash).
+- **Cause:** Repair took its quality from the show's ready episodes (`library_repair.qualities`), and those were the 480p DVD episodes, so no quality applied, then the "any quality" pass ran. Without a chosen quality the ISSUE-231 checks (SD names, upscales, too small) never run. In a fallback, an upscale still ranked as 1080p (distance 0), ahead of a real 720p.
+- **Fix:** `library_repair.chosen` uses the quality the owner chose for the show (episode_watch's planned episodes, then the show's strict preference), and the ready episodes only when nothing was chosen; `tries_for` drops the "any quality" pass after a chosen quality (the strict pick already falls back to the best available, with one notice). In a fallback, a version that only claims its quality (`below_quality`: upscale, SD name, far too small) comes after every real version, so a real 720p, then the original DVD episode, are taken before the same episode blown up 16 times; it is still taken when it is the only one.
+- **Retest:** test_season_quality `RepairQuality`; test_season_sources now expects ISSUE-236's fallback (a strict pick with nothing at the chosen quality queues the best available, marked fallback), which PR check run 381 caught as the old "never lower" rule. Phone proof: the season re-download log.
+
+## ISSUE-238 — A failed converter check (native.verify) still repeated whole conversions (handoff open item from ISSUE-230) — fixed in code
+
+- **Cause:** ISSUE-230 stopped a video after one failed final check only for the add-on's own checks (picture, ready, HDR, checksum). The converter's check (`native.verify`: duration, every track, middle and end seeks over HTTP) raised a plain RuntimeError, so it counted as an ordinary failure and the video was made again after the back-off, each time a full read and write on Drive.
+- **Fix:** `prepare_cloud.native_verify_problem` turns a failed `native.verify` into `VerifyFailed` (one conversion, the original kept, one "Kept as it is" notice, listed in Download problems, Repair clears it), except when it is network trouble (`debrid_drive.network_error`, or the Drive stream reports a read problem): that still waits 15 s to 5 min and carries on.
+- **Retest:** test_drive_prepare `FinalCheck` (`test_the_converters_own_check_failing_stops_after_one_too`, `test_the_converters_check_during_network_trouble_waits`); `test_invalid_completed_temp_is_regenerated_on_retry` now regenerates through Repair instead of by itself.
+
+## ISSUE-239 — "EXCEPTION: Window id does not exist" just after a page closed (owner logs 1ae21097 14:57 / 15:14, a1729c16 11:55:11) — fixed in the build
+
+- **Traced:** in a1729c16 the line comes from thread T:2925927, the thread that logs `[plugin.video.themoviedb.helper]` at start-up: TMDb Helper's list-item monitor, not one of the app's pages (their refresh threads go through `live_window.Guard`, which never touches a closed window). When the window changes, the monitor empties its list on the window it last saw (`ListItemMonitorFunctions.add_item_listcontainer` → `xbmcgui.Window(self.cur_window)`); that was the page that had just closed, so Kodi raised and logged the exception, which TMDb Helper then caught. Harmless, but it read as a crash in the log.
+- **Fix:** the build's TMDb Helper patch (`build_import_review.patch_listitem_tools`) checks `Window.IsVisible(id)` first and skips a closed window; skipped, not failed, if a later TMDb Helper changes that line.
+- **Retest:** test_import_builder `test_tmdb_helper_checks_the_window_is_open_before_emptying_its_list`. Phone proof: no such line after closing Notifications in the next log.
+
+## ISSUE-240 — Prepared files uploaded at ~1.3 MB/s while reads ran at 7–10 MB/s; pieces fell back to 1 MB after every dropped connection (owner log 47e2276a, handoff open item) — fixed in code
+
+- **Cause:** a prepared file's upload is one resumable Drive session, so its pieces go one after another (Drive does not accept parallel pieces in one session); what a piece costs is the round trip plus its size. On a failed piece (a dropped connection, -1005, or a 5xx), `Sink._send_parts` judged the piece as slow over at least 6 s (`observe(len, 0, max(6, elapsed))`), which cut it toward 1 MB after a long drop, and `learn_piece(0)` made the next file start at 1 MB again. Seven drops in that log kept every piece small for the rest of the file and the files after it.
+- **Fix:** a failed piece halves the piece size once (256 KiB aligned, never below 1 MB) and the next file starts from that halved size; three fast pieces double it again as before. Repeated drops still reach 1 MB. Build 376's log f63389f1 (no drops) shows 3.5–6.7 MB/s in total across the parallel uploads with pieces growing to 30 MB, so the drops, not the piece logic, were the slow part.
+- **Retest:** test_drive_prepare `LearnedPieceSize` (`test_a_dropped_connection_halves_the_piece_and_it_grows_back`; a failure now leaves 8 MB learned from 16 MB, not 0).
+
+## ISSUE-241 — An AI Upscale copy failed with "video conversion: encode: Generic error in an external library" (owner log 1ae21097, Phony S1 E2, 1920x1080 to 4K) — handled in code; cause not proven
+
+- **What the error is:** FFmpeg's AVERROR_EXTERNAL from `avcodec_send_frame` (kr_video.c `send_conv`, "encode"), which the VideoToolbox encoders return when Apple's encoder session refuses a frame. iOS ends encoder sessions and GPU work (the upscaler runs on the GPU) when an app goes to the background, and under memory pressure; a new session normally works. The log was not available in this session, so which of these it was is not proven.
+- **Before:** an ordinary failure, with the 5 min to 6 h back-off, and the copy started again from the beginning.
+- **Fix:** `upscale_cloud._encoder_trouble` recognises encoder and GPU refusals (`Generic error in an external library`, `Insufficient Permission`, `kVTInvalidSessionErr`, -12902/-12903/-12905). Stopped in the background: the copy waits with "Waits for Kodi to be open" and is made when Kodi is on screen, never counted as a failure. Stopped on screen: one more try with a new encoder in 30 s ("Starting the AI engine again"); a second refusal on screen is a real failure with the usual back-off. The log line says whether Kodi was on screen, so the next log shows which case it is.
+- **Retest:** test_upscale_cloud `test_an_encoder_that_stops_is_tried_again_not_failed`. Phone proof: a 4K copy that finishes; the log line names on screen / background if it happens again.
+
+## ISSUE-242 — AI Upscale copies started again from the beginning after every stop (handoff open item) — fixed in code
+
+- **Cause:** a copy is stopped often by design: a video waiting to be prepared goes first (ISSUE-224), the owner's Pause, Kodi closing, network trouble (ISSUE-230) and now an encoder that stops (ISSUE-241). `upscale_cloud` made its Sink without the resume store, so every stop threw away the work done (a 4K copy of a 23-minute episode is several minutes of GPU work and a large upload).
+- **Fix:** the copy uses the same resume path as a preparation: `resume_store` keeps the Drive upload session and the converter's last mark (`Sink(spool, checkpoint, keep_pieces, on_checkpoint)`), and the next run calls `convert_to(..., resume=mark, upscale=...)` (KodiAirPlay's resume works with the upscaler: the copy's picture is an ordinary re-encoded track, and the mark's track layout is checked). The identity names the size asked for, the source's size and the bit rate, so a mark from another size never carries on; a mark that no longer fits (`ResumeFailed`) or a Drive session that is gone starts the copy again. Finishing, cancelling (Cancel This Copy / Cancel All) and a real failure forget the mark; a stop, network trouble and an encoder that stopped keep it. The log says "carrying on from N s".
+- **Retest:** test_upscale_cloud `CarriesOn` (a stopped copy carries on from its mark and the mark is gone once it is ready; another size never carries on; a failure forgets the mark). Phone proof: a copy paused or stopped by a preparation that carries on instead of restarting.
+
+## ISSUE-243 — Show page: the ••• menu let taps fall through and sent the owner out; rows showed the show's name; Select was bare (owner screenshots, build 384; DEC-047) — fixed in code
+
+- **Seen:** tapping ••• on a show (Naruto Shippuuden) drew Home's artwork behind Kodi's menu, and the next tap left the page. Every row read "3 · Naruto Shippuuden" (the show's name), with no pictures and a big red Repair; Select listed "S1 E1 · 189 MB" with grey circles and no actions; Library status listed 140 ready videos that Library › Movies / TV Shows already show.
+- **Cause:** the show page was a full Kodi window (`WindowXML`) opened over the Library dialog; `Dialog().contextmenu` then made Kodi draw and route taps to the window stack underneath. Episode titles came from the file name (`episode_rows` was never given TMDb's names, though the Library's art cache has them).
+- **Fix (DEC-047):**
+  - Board A: Library status no longer lists ready videos (no Ready list, no Ready filter); the summary keeps its count.
+  - Board B: rows show the episode's TMDb still and title (`episode_meta` from the art cache, fetched once in the background for a season not cached yet), "E3" on the still, the title on one or two lines (`ep.N.two`, never "…"), one state line, a round outlined Repair; the third number becomes "N not added / need you" in red when something needs the owner. While Repair looks an episode up, its row says "Looking for 1080p…" at once with a ✕ that stops that search (`library_repair.mark_searching` / `cancelled`, Window(Home) properties read every 2 s).
+  - Board C: the show page is a dialog and draws its own ••• menu (ids 9799-9804: Repair N Episodes, Find Missing Episodes, Pick Better Versions, Select Episodes, Delete Season…); a tap outside closes only the menu; Delete Season asks first and uses the same delete as Select (`delete_items`).
+  - Board D: Select shows stills, titles, season chips, "N selected · size", and a toolbar: Better Version (looks the episodes up again at the show's quality; `better_version` lets the new download past the copier's "already on Drive" check and sends the old file to Drive's Trash once the new one is saved), Prepare Again (the retry request), Delete (asks first). Other lists (Free Up Space, Check Drive) keep the red capsule.
+- **Retest:** test_library_show_menu (new, in import-review.yml), test_library_files, test_library_status, test_build193_pages, test_season_quality, test_speed_fixes. Desktop Kodi rig render: pending. Phone proof: the owner's next log.
+
+## ISSUE-244 — Repair stuck on a dead torrent; six 640x480 episodes copied in full and then trashed; Download problems repeated a reason and drew a red square; no way to hide a problem for good (owner log 3df2f247 and screenshot, build 384) — fixed in code
+
+- **Stuck after Repair (S1 E5/E6):** Repair goes through `season_sources.request`, which, unlike the automatic episode checks, never left out versions that had failed before. The pick for E5 was a torrent AllDebrid could not fetch ("File not available due to no peer", 16:25:43), and a Repair could pick it again. In the meantime the copier logged "left for its own turn (Problem)" for it every pass. **Fix:** `debrid_drive.avoid_names` (one helper for episode_watch and Repair): failed versions of that episode are never picked again; ones found lower than the chosen quality only when nothing else exists.
+- **Copied, then trashed:** 16:15–16:19, E27–E32 from the "Complete Series (1080p)" pack were each probed as 640x480 on the copy-while-preparing path ("not made ready while copying (LowQuality …); copying it as it is"), copied in full anyway, and sent to the Trash by the after-copy check a few minutes later. **Cause:** `debrid_ready.copy`'s general error handler turned the refusal into a plain copy. **Fix:** a refused quality is raised to the copier, which ends the copy before anything reaches Drive (ISSUE-236's path).
+- **The sheet said it twice:** "Not the quality you picked. Not the quality you picked: 640x480, you chose 1080p". **Fix:** `copy_problems.detail_text` shows the full reason once when it starts with the short one. "File not available due to no peer" now reads "No one is sharing this source".
+- **Red square:** "Remove From List" set a red tile with no glyph. It has the trash glyph now.
+- **Hide for good (owner: "one more option that clears it for good and only will show up if there is a different issue … for all problems"):** every row sheet in Download problems has "Don't Show Again" (grey tile, eye-slash; "It comes back only if something else goes wrong"). `problem_ignore` keeps {problem key: signature of its reason, numbers ignored}; a hidden problem shows again only when it fails another way. Library status' "N can't be made ready" count leaves hidden ones out.
+- **Retest:** test_debrid_drive (Don't Show Again, the sheet text, no bare red tile), test_season_quality, test_debrid_ready.
+
+## ISSUE-245 — AI Upscale made a copy by itself with Upscale new downloads off (owner log 3a30b6ef, 16:26, build 384) — fixed in code
+
+- **Seen:** "upscale: 1 copy to make (4K UHD) … Naruto Shippuuden · S1 E2 — 1440x1080 to 4K UHD". Upscale new downloads was off. Owner: "I want full control over it".
+- **Cause:** `upscale_queue.plan` made a copy of every finished video whose show (or all videos) had a size chosen, so every later download of that show got one too.
+- **Fix:** a copy is made only of a video the owner asked for. Choosing a size on a show's AI Upscale page asks for the videos there at that moment (`upscale_queue.ask`; Off and Remove the copies take them back). Every new download gets a copy only when Upscale new downloads is on. Copies already waiting or made are untouched; to make copies of a show's later episodes, choose its size again.
+- **Not changed:** the Picture menu on AirPlay still sets which copy plays; it does not ask for new copies.
+- **Retest:** test_upscale_queue `test_a_later_download_gets_no_copy_unless_asked`, test_upscale_cloud, test_upscale_e2e (the page's choice now asks, as the app does).
+
+## ISSUE-246 — Uploads sluggish while Rick and Morty episodes were made ready as they copied (owner log bfde8a13, build 384) — fixed in code
+
+- **Seen (16:46–16:50, Wi-Fi):** three episodes (S01E01–E03) made ready while copying at once; their uploads ran at 3.7–5 MB/s together (~1.3 MB/s each), pieces of 4–8 MB taking 4–9 s, while plain copies had measured 13.6 MB/s on the same line. The first unit took 20.3 s for 30 s of film (later units 1.3–1.8 s). Meanwhile a Refresh's file inspection re-read the library ("Checking compatibility and faster opening", "compatible video kept unchanged" 47 times in 4 minutes), probing through the same converter. The interface was fine (interpreter wait p95 5–6 ms).
+- **Causes:** (1) ISSUE-230/234 made a Refresh's inspection wait for queued preparations, not for downloads being made ready while they copy (F1); (2) a made-ready upload's pieces grew only after three pieces under 6 s, which a line shared by three uploads never gives, so each upload paid a Drive round trip every few MB.
+- **Fix:** `debrid_ready.active()` counts the copies being made ready; while any run, a Refresh lists Drive at once and keeps its file inspection for later (`listing_only`), as with queued videos. In `drive_prepare.Sink`, a steady piece (6–15 s) grows the next one toward about ten seconds at the speed it just had (never above 32 MB); slow pieces still shrink, drops still halve (ISSUE-240).
+- **Retest:** test_debrid_ready `test_a_refresh_inspection_waits_while_copies_are_made_ready`, test_drive_prepare `test_steady_pieces_grow_toward_ten_seconds` (it also caught a name clash in the first version that ended the upload early). Phone proof: a season made ready while copying, with a Refresh during it.
+
+## ISSUE-247 — Refresh re-read every video, even ones already good to go (owner: "make a smarter refresh system") — fixed in code
+
+- **Before:** every Refresh opened every video on Google Drive (a few seconds each through the converter: 47 in 4 minutes in log bfde8a13), by an earlier owner rule ("a new Refresh still re-reads every file").
+- **Now (DEC-048):** Refresh lists Drive at once (eight metadata requests at a time, ISSUE-208) and opens only the videos that are new, changed (id, checksum, size or version differ from their last check), not done, kept, blocked, waiting for a faster start, whose last check failed, or that were checked by an older version of the checks (`INSPECT_VERSION`, raised whenever the checks change). A settled video (`prepare_downloads.settled`) keeps its stored check. Holding Refresh offers "Check Every Video" (asks first), which reads all of them as before (`request_check(inspect='full')`; an automatic request never downgrades it).
+- **Retest:** test_compatibility_filter (`test_smart_refresh_reads_only_what_is_new_changed_or_not_ready`, `test_a_full_check_rechecks_the_actual_file_even_after_restart`, `test_refresh_reads_each_listed_video_once_until_it_changes`, a restarted Refresh).
+
+## ISSUE-248 — "Drive source changed; preparation will rescan" right after a copy landed; "Control 32503 … can't" in every log (owner logs 3df2f247, 6984524f, bfde8a13) — fixed in code
+
+- **Source changed:** seconds after a download was saved, its preparation failed with "Drive source changed" and waited for another library check: the copier names and files a new download just after saving it, which changes Drive's `version` but not the video. **Fix:** when the Drive record differs only in name, folder or version (`prepare_downloads.same_content`: same id, checksum and size) and nothing has been made yet, preparation carries on with the current record. New bytes are still a changed source.
+- **Control 32503:** the version picker's page asked Kodi to focus its list before the picker had filled it. **Fix:** the page opens on Back (32500); `deck_picker.fill` focuses the list once its rows are in.
+- **Retest:** test_drive_prepare (`test_a_rename_right_after_the_copy_does_not_fail_the_preparation`, `test_new_bytes_are_still_a_changed_source`), test_library_show_menu `VersionPickerFocus`.
+
+## ISSUE-249 — Desktop Kodi rig render of the DEC-047 pages found layout faults (2026-11-14, evidence class: desktop Kodi rig) — fixed in code, re-render partly done
+
+- **Show page:** a title that fits on one line was laid out as two (status line too low). Wrap cut-off is now 28 characters, 20 beside Repair (`library_manager.TWO_LINES*`). Re-rendered: OK.
+- **••• menu:** the card behind it was missing (Kodi takes no window property as a height). Each row draws its piece of the card (`row_back`, `menu.N.pos`). Re-rendered: OK, matches board C1. Tapping outside closes only the menu: OK. The ••• focus highlight was a square over the round capsule; now a fade. Not re-rendered.
+- **Select:** the size line sat far below one-line titles, and two-line titles ran into it (`it.N.two`, 30 characters); the empty check drew as a filled dot, then as a broken ring (now `circle_line.png`). Re-rendered: OK, matches board D1.
+- **Choice sheet tiles (Download problems):** "Don't Show Again" and "Remove From List" drew bare coloured squares because the glyph was a bare name; `choice_sheet.glyph_path` adds the skin's icon path. Its grey line is shorter. **Not re-rendered yet** (interrupted).
+- **Retest:** test_library_show_menu (`SheetGlyphs`), test_library_files, test_choice_sheet. Rig: re-render the Download problems sheet.
+- **Seen, not changed (older page):** Download problems row titles end in "…" ("Naruto Shippuuden · S…"); the owner dislikes "…" (DEC-046).
+- **Rig re-render (2026-11-14, desktop Kodi rig):** the Download problems choice sheet shows the eye-slash (Don't Show Again) and trash (Remove From List) tiles, no bare squares; the show page's Select · ••• capsule with focus on ••• has no square highlight. Phone check pending.
+
+## ISSUE-250 — Download problems listed 13 Naruto problems while the show's card said 2 (owner screenshots and log 2095825c, build 393) — fixed in code
+
+- **Seen:** TV Shows › Naruto Shippuuden: "28 ready · 2 problems · 21 copying"; Download problems: about 13 Naruto rows ("No one is sharing this source", "Not the quality you picked"). The log: 16 failed copy jobs, 21 copying.
+- **Cause:** Download problems listed every failed copy job, once per version tried, including episodes since copied from another version or being copied again right now. The card counted each episode once and left out those on Drive (but counted ones being copied again as both copying and a problem).
+- **Fix:** one rule on both: an episode (or movie) is a problem only while no other version of it is copying, waiting or done, and it is listed once (its latest failure). `debrid_drive.problems` and `library_files._copying_episodes`.
+- **Retest:** test_season_quality `ProblemsAgree`; test_debrid_drive updated (a failed Inception is no longer listed beside a finished one).
+
+## ISSUE-251 — Play on TV: the progress card goes, Apple's AirPlay list opens at once (owner, build 393) — fixed in code (AirPlay r56 pinned)
+
+- **Owner:** "I would like this page removed everywhere and have it open straight to the AirPlay list instead of the ugly loading screen"; also "investigate why an Umbrella stream takes so long to AirPlay"; and "remove Media Assistant and just have it open to AirPlay".
+- **Done so far:** `cast.py` hides the progress card (`QUIET_PROGRESS`) and calls `kodi_airplay_open()` right after `kodi_airplay_play`; the framework opens the list again only when no AirPlay output is chosen (needs r56).
+- **Open:** the test updates (test_play_on_tv_network: 6 failures expect the card), the r56 release, the phone check, the speed-ups and the Media Assistant removal: docs/HANDOFF-PR26.md "Play on TV work in progress".
+- **Done:** tests updated (the card's deadline/cancel tests run with the card on; `QuietPlayOnTV` checks the owner's flow). **r56 pinned:** airplay-ios run 43545050950 and airplay-remux host-tests (run 43545050788) green; digest 91be96af…416f7 checked by download.
+
+## ISSUE-252 — Play on TV goes straight to AirPlay; Media Assistant is no longer used (owner, build 393) — fixed in code (Media Assistant kept, see the update)
+
+- **Owner:** "Media Assistant does work … why can't we make it play natively on the Roku AirPlay app instead? I'd love to remove Media Assistant and just have it open to AirPlay."
+- **Findings (log 9c11baa7):** "Roku took the link via media-assistant" in ~10 s; the Roku fetched the phone's own master.m3u8 (the same server AirPlay uses). Roku has no API that starts its AirPlay receiver with a link: a Roku TV is reached as an AirPlay receiver only through Apple's AirPlay list, where it already appears ("Kannons bedroom roku tv").
+- **Fix:** `cast.DIRECT_AIRPLAY`: Play on TV skips the in-app TV list and the Roku search and goes to AirPlay (Apple's list opens at once, ISSUE-251); the automatic switch of a converting stream on a Roku to Media Assistant is off. The Roku code stays dormant behind the flag (its tests still run) and can be deleted once the owner confirms Rokus play well through AirPlay.
+- **Retest:** test_play_on_tv_network `QuietPlayOnTV`. Phone check pending.
+- **Update (owner, 2026-11-14):** "I'll keep Media Assistant until I know AirPlay works": `DIRECT_AIRPLAY` is False again, so the in-app TV list, the Roku search and the Media Assistant hand-off are back. The quiet start (no card, Apple's list at once) stays for AirPlay TVs. `QuietPlayOnTV` now checks the flag is off.
+
+## ISSUE-253 — AirPlay of a 10-bit H.264 stream took 28 s to reach the TV (owner log a176bcec, build 393) — partly fixed in code
+
+- **Seen:** Dragon Ball Super: Beerus S1 E1, 10-bit H.264 1080p MKV with a subtitle: source opened +1.8 s, index +4.6 s, first segment converted in 9.7 s (software decode of the 10-bit picture, VideoToolbox encode, subtitles burnt in; audio 8.8 s in parallel), stream ready +18 s, TV playing +28 s; then each segment kept the TV waiting 1-3 s (conversion ~160 % of real time).
+- **Analysis (native code read):** the audio reader already seeks by the file's index and shares the video reader's byte cache; the converter already works three segments ahead; the limit is decoding 10-bit H.264 on the CPU (the phone's hardware decoder does not take it) and the source's speed. A shorter first segment would touch the uniform segment math (gm_stream) for little gain.
+- **Fix:** Apple's AirPlay list opens at once, so choosing the TV overlaps the preparation (ISSUE-251); the source picker treats a "10bit" release that names no codec as 10-bit H.264 (badged "10-BIT · SLOW ON AIRPLAY", ranked after versions that play as they are), so a version that needs no conversion is preferred.
+- **Not done:** a second conversion lane and a lower output size for 10-bit H.264. Prefetching the source while Kodi plays: done in ISSUE-259.
+- **Retest:** test_season_quality `SlowOnAirPlay`.
+
+## ISSUE-254 — "Waiting for the network" while online; season 2 of Naruto never started (owner screenshot and log fd2ee25a, build 398) — fixed in code
+
+- **Owner:** "fix the waiting for network issue, it should only appear if I'm fully offline."
+- **Seen:** Library status: "Naruto Shippuuden · S2 E33 · 0% · Waiting for the network · trying again in 5 min" on Wi-Fi. The log: "AllDebrid: Naruto Shippuuden: try 12, again in 360 s: RuntimeError: Waiting for TMDb to say where season 2 starts". Not the network at all.
+- **Causes:** (1) the card said "Waiting for the network" for any copy waiting to try again, whatever the reason; (2) the season sizes that place an absolute-numbered pack episode (S2 E33 = episode 65) come from TMDb with TMDb Helper's key, read from special://home/addons, but TMDb Helper is bundled with the app, so no key was found, the sizes were never asked, and every season-2 episode waited; (3) that wait counted toward the 20 tries that end a copy.
+- **Fix:** the card says why a copy waits: "Waiting for the network" only when the phone has no connection at all; online network trouble reads "Couldn't reach AllDebrid or Google Drive"; the TMDb wait reads "Waiting for TMDb's episode numbers"; anything else gives its own short reason. TMDb Helper's key is found through Kodi (getAddonInfo path, then the old paths). A TMDb wait never counts toward giving up (1 to 10 minutes between tries).
+- **Retest:** test_work_state `WaitWords` (and the two older network tests updated). Phone check pending: Naruto S2 should start copying.
+
+
+## ISSUE-255 — No way to stop Play on TV while the TV starts, now the card is gone (owner, 2026-11-14) — fixed in code
+
+- **Owner:** "do 2": a plain Stop while the TV starts, with no loading screen.
+- **Cause:** ISSUE-251 removed the progress card, and its Cancel with it.
+- **Fix:** while a TV is getting ready the app keeps `KodiIOS.TV.Starting`; a short notice says "Getting it ready · tap Play on TV again to stop"; tapping Play on TV again within 3 minutes sets `KodiIOS.TV.Stop`, which the quiet flow treats as Cancel. Both are cleared when the start ends. Setting or clearing them never stops Play on TV when the window is unavailable.
+- **Retest:** test_play_on_tv_network `StopAndSlowWarning`; test_remote_media (window doubles without clearProperty).
+
+## ISSUE-256 — A 10-bit H.264 version went to AirPlay without warning (owner, 2026-11-14) — fixed in code
+
+- **Owner:** "do 3": ask before a 10-bit version on AirPlay.
+- **Fix:** Play on TV with a 10-bit H.264 version (HI10P, 10BIT, "10 bit" naming no HEVC, x265, H.265 or AV1) asks first: "Slow on AirPlay … Cancel / Play Anyway". HEVC and 8-bit versions do not ask (ISSUE-253 explains why only 10-bit H.264 is slow).
+- **Retest:** test_play_on_tv_network `StopAndSlowWarning`.
+
+## ISSUE-257 — Download problems: episode titles cut off before the episode; no way to clear a whole show (owner, 2026-11-14) — fixed in code
+
+- **Owner:** "do 4": "Naruto Shippuuden · S…" was cut off before the part that matters.
+- **Fix:** the row title puts the episode first ("S1 E5 · Naruto Shippuuden"). A copy problem's sheet adds "Clear All for <show>", which asks, then removes every non-prepare problem of that show.
+- **Retest:** test_season_quality `ProblemsPageAndMemory`.
+- **Desktop Kodi rig (2026-11-14, build-406 add-ons):** rows read "S1 E14 · Naruto Shipp…", so the episode is always visible. The first sheet label "Clear All for Naruto Shipp…" was cut off, so it now reads "Clear All for This Show" with the show name on the grey line below, which fits.
+
+## ISSUE-258 — "Not the quality you picked" loop for a season with no real 1080p (owner, 2026-11-14) — fixed in code
+
+- **Owner:** "do 5": early Naruto Shippuuden has no real 1080p, and each episode was copied, refused and searched again.
+- **Fix:** when the picker takes a fallback for a tracked show, `debrid_drive.remember_fallback` records show, season and quality in `addon_data/service.kodi.ios.bootstrap/quality-fallbacks.json` (on the phone, not in Git). Later episodes of that season are copied without the strict-quality refusal. The picker still prefers a real match whenever one exists.
+- **Retest:** test_season_quality `ProblemsPageAndMemory`.
+
+## ISSUE-261 — AirPlay to the Apple TV sat loading for 2 minutes (owner photo and log dd13eb14, build 406) — fixed in code
+
+- **Seen:** a Drive movie (MP4, 8-bit H.264 1920x1040, AAC 5.1; no conversion) sent to an Apple TV: source opened at +0.6 s,
+  index at +8.4 s, first segment ready at +14.1 s, the TV asked at +14.5 s. Then the phone sent the TV its first video segment
+  at about 1 Mbit/s: 786 KB in 12 s ("Receiver write failed"), then 3.3 MB in 29.8 s. Apple's player gave up ("Media file not
+  received in 29s (seg0)", "No response for media file in 10.4 s (seg1)"), so the TV showed the spinner at 0:00 until the
+  owner stopped it at +125 s.
+- **Causes (log):**
+  - The segments were already in the phone's memory, so this was the phone-to-TV Wi-Fi, not the converter. That link was
+    shared with two AllDebrid copies, a "made ready while it copies" preparation of two Rick and Morty episodes, and the
+    movie's own Drive reads.
+  - While AirPlay plays, background downloads were still allowed 1 MB/s (8 Mbit/s), several times what reached the TV.
+  - The strain check that should slow them saw none of it: a write the TV gave up on is logged as "-200 …" and did not
+    match, and Apple's "Media file not received" lines were ignored.
+  - The Drive reads themselves crawled: audio segment 1's reader waited 50 s and video segment 1 took 60 s for about 3 MB
+    (about 0.4 Mbit/s). This is not a double read: kr_source's cache is shared by the video, audio and subtitle readers,
+    and a reader waits for a block another is loading (checked in kr_source.c). The cause is the same shared Wi-Fi.
+- **Fix:** `slowdown`:
+  - A failed write and Apple's "not received" or "no response" lines now count as strain. So does KodiAirPlay's
+    "the TV is waiting for a video segment".
+  - While the TV is short of the movie, every background worker waits up to 30 s per piece. Then downloads keep under
+    0.25 MB/s until the TV keeps up again (60 s after the last strain).
+  - Work still never stops for good while AirPlay plays (owner rule, build 192).
+- **Retest:** test_slowdown `TVShortOfTheMovie`.
+- **Phone check:** the same movie on the Apple TV, and the log's TV GET times. If segments still take more than about 6 s
+  with nothing else running (try Pause on transfers), the Wi-Fi between the phone and the TV is the limit.
+
+## ISSUE-259 — Play on TV opened the source and read its index only when tapped (owner: "faster start", item 7) — fixed in code
+
+- **Seen (ISSUE-253, log a176bcec):** Play on TV spent about 6 s opening an Umbrella or AllDebrid source and reading its index
+  before the first segment could start, although Kodi had been playing that same file.
+- **Fix:**
+  - While Kodi plays a remote file (an http(s) link, not local, not Drive through the app proxy, not HLS), the service's
+    `remote_media.watch` waits for 8 s of steady play on Wi-Fi. It then asks the media broker to warm that file once:
+    it reads the first two 4 MiB blocks and the last block (the start, and Matroska's or MP4's index).
+  - Play on TV's `acquire` then takes the warm source with its blocks (`warmed` in the source_cache event).
+  - Stopping or changing the video releases a warm source no TV took. A TV playing from the cache is never disturbed
+    (`busy`).
+  - Nothing is read on cellular or while Kodi buffers.
+- **Not done:** a second conversion lane for 10-bit H.264 (native; needs a KodiAirPlay release), kept as a later speed-up.
+- **Retest:** test_remote_media `Warm` (5 tests). Phone check: the log says "the playing video is ready for the TV", and the
+  next Play on TV's source_cache event has warmed=true and a shorter "indexed inspection finished after".
+
+## ISSUE-262 — 22 Naruto Shippuden season 2 episodes failed "This torrent has no video file" (owner screenshot and log e56f8adf, build 406) — fixed in code
+
+- **Seen:** Download problems: "NEED A NEW SOURCE · 22", rows S2 E36, E41, E42, E43, E44 … "This source has no video file". The picker
+  chose "Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio)", whose season 2 files are
+  "Season 02 (033-053)/Naruto Shippuden Episode 033 The New Target.mkv".
+- **Cause:** ISSUE-254 let the season sizes through (season 2 starts after 32 episodes). But TMDb numbers this show's later
+  seasons on from the last (S02E33 is the 33rd episode), and `alldebrid.pick` always added the 32. So S02E33 looked for
+  episode 65, found nothing, and failed.
+- **Fix:**
+  - `alldebrid.pack_number`: an episode number past the episodes before its season is already absolute; otherwise the
+    offset is added (S02E13 is still 45).
+  - `debrid_drive.repick_packs`: later-season episodes that failed "has no video file" go back in line once, so the 22
+    copies start by themselves.
+- **Retest:** test_debrid_drive `PackNumbering`; test_download_e2e `test_season_two_of_an_absolute_pack` (relative numbering)
+  still passes.
+- **Also on the page, not this bug:** "S1 E6 · Unnamed download · No one is sharing this source" is a dead torrent whose job
+  had no title.
+
+## ISSUE-263 — Find on a dead or missing episode opened a manual search instead of taking the best version (owner, 2026-11-14) — fixed in code
+
+- **Owner:** "it's probably because I asked for 1080p and it only is in 480p. As I said earlier have it select highest quality
+  available then I can upscale later."
+- **Before:** "Find" on a Download problems row ("No one is sharing this source", "no video file") opened the TMDb search,
+  and the owner had to pick a version by hand.
+- **Fix:**
+  - Find on an episode of a known show runs the automatic Repair search (library_repair_page) for that episode at the
+    show's chosen quality. Its pick takes a real match when one exists, otherwise the best version that exists, with one
+    notice (ISSUE-236), and leaves out dead torrents (ISSUE-244). ISSUE-258 then remembers that season.
+  - Movies and downloads with no show keep the manual search. `problems()` now carries `show_tmdb`.
+- **Retest:** test_season_quality `FindTakesTheBestVersion`.
+
+## ISSUE-264 — Repair looped on a "1080p" pack whose season 2 is 640x480 (owner screenshot and log bd7af2c1, build 415) — loop fixed in code; approval question in mockup
+
+- **Seen:** Notifications full of "Repair: looking up Naruto Shippuuden S02E38 again at 1080p", "S02E38 is downloading ·
+  1080p", "Not the quality you picked: 640x480, you chose 1080p". The log shows "repair: S02E33 … S02E47 queued (1080p)" and
+  matching refusals.
+- **Cause:**
+  - ISSUE-262 made the pack's episodes findable, and Repair picked "Naruto Shippuden (001-500) [Complete Series + Movies
+    (1080p)]" for each episode. Its season 2 files are 640x480, so each copy was refused.
+  - The refusal was remembered only for that episode and only under the job's name. That name was the info-hash, while
+    the list shows the version by its folder and file name. So E34 picked the same pack again, as real 1080p (no fallback
+    flag), and was refused again.
+- **Fix:**
+  - The job keeps the name the version had in the list (`pick_name`, from the automatic pick's result).
+  - `avoid_names` counts a refusal for the whole season, by that name and by its pack folder (`pack:<folder>`).
+  - `deck_picker.is_lower` matches either.
+  - The season's next episode therefore takes a real 1080p if one exists, otherwise the best that exists as a fallback.
+    The copy is then not refused, and ISSUE-258 remembers the season.
+- **Owner's request, mockup only (not coded):** docs/design/quality-choice-mockups.html. It shows one notice per season, a
+  choice sheet ("Use the Best · 480p / Choose Another Version / Keep Looking / Always Use the Best for This Show"), a
+  versions list with each version's real picture size, and the show page's waiting card. It waits for approval.
+- **Retest:** test_season_quality `RefusedPackForTheSeason`.
+
+## ISSUE-265 — AI Upscale said "Starts when nothing is converting" with nothing converting (owner log 0b99a266, build 415) — fixed in code
+
+- **Owner:** "fix AI upscaling … it doesn't start, it says after a conversion but there is no conversion".
+- **Cause:** "Starts when nothing is converting" was the page's default line for a waiting copy, whatever held it. The real
+  holds were `upscale_queue.may_run`: copies are made only while charging (default on; the log says charging 0) and not
+  while the phone is hot (the log says thermal serious). The service writes those reasons only once it reaches the copy,
+  and it does not reach it while a video waits to be prepared, so that reason was never written either.
+- **Fix:**
+  - The service writes "Waits while a video is made ready for Kodi" on the next copy when preparation goes first
+    (`upscale_cloud.hold`).
+  - The page's default is "Up next".
+  - The charger, battery, Low Power Mode and heat reasons were already written by process_one, and now show.
+- **The test (measurement) did run:** the AI video model (4x) on a 640x480 episode made 122 pictures in 60 s at 485 ms each,
+  about 0.07x real time, with the phone at thermal "serious". The log ends 1.2 min in. A 24-minute SD episode to 4K is
+  hours of work, which is why copies are made in the background while charging.
+- **Retest:** test_upscale_cloud `RealWaitingReason`.
+
+## ISSUE-266 — DEC-049 coded: ask once per season when the chosen quality does not exist; DEC-050 no cut-off text (2026-11-14) — fixed in code
+
+- **Owner:** approved docs/design/quality-choice-mockups.html ("Yes"). "We need a fully working repair system." On the rig
+  renders: "ensure there is no … texts can't be cut off, maybe put that in the policy for mockups".
+- **Done (DEC-049):**
+  - A fallback pick for an unanswered season is not queued (`elementum_cloud.held_for_choice`). The episode is held, the
+    season asks once, and the search is told "held".
+  - Board A: one notice, "No real 1080p for season 2 · <show> · the best is 480p (…). Tap to choose.", whose detail page
+    offers Choose.
+  - Board B and C: the `quality_choice` script and choice sheets. The answer is kept in quality-choices.json:
+    - Use the Best, and Always Use the Best: the held episodes go to Repair, the fallback is let through, and the copy is
+      not refused (ISSUE-258).
+    - Choose Another Version: that version's pack goes first in automatic picks (`deck_picker` `prefer_names`).
+    - Keep Looking: nothing downloads, and the season asks again after a day.
+  - Board D: the show page's season card "Waiting for your choice" with Choose. Waiting episodes say so instead of
+    "Looking for 1080p…".
+  - Repair:
+    - Several episodes give one start line and one summary, not two lines per episode.
+    - A season that waits is not searched.
+    - A held episode reads "Waiting for your choice", not "nothing found".
+  - A copy refused for its quality records the real size for board C, and is not announced again while its season waits.
+- **Done (DEC-050):**
+  - The choice sheet has wrapped row forms: the title on up to three lines, the detail on up to two, the row as tall as
+    its text.
+  - Version names are cleaned, not cut (`quality_choice.short`).
+  - Download problems rows wrap a long title onto two or three lines, and a long reason onto two. The fallback reason is
+    no longer cut at 60 characters.
+  - APPLE-UI-POLICY §4.2 and §7: no "…" or clipped text in pages or mockups.
+- **Evidence (desktop Kodi rig, 2026-11-14):** board B, board C (the pack name on three lines, the real-size chip "480p" in
+  orange), and Download problems with a three-line film title: nothing cut off. Board D's rig render is pending (no
+  Library fixture in this rig).
+- **Retest:** test_quality_choice (new, in import-review.yml); test_season_sources
+  `test_selected_quality_missing_queues_the_best_available_as_a_fallback` (held first, queued after "Use the Best", end to
+  end through the real route).
+
+## ISSUE-267 — No AllDebrid copy or Drive upload ran ("frozen waiting for AllDebrid"); Repair queued the 640x480 "1080p" pack again (owner log b98d5fc2, build 421) — fixed in code
+
+- **Seen:** 21 Naruto S2 episodes "new" for 7 minutes, with no copy lane and nothing logged by the copy loop.
+- **Cause 1, the freeze:** the service thread that runs every AllDebrid copy and Drive upload died at start: "cannot import
+  name 'tls_context' from 'clouddrive.common.remote.request'". Kodi's own add-on updater had installed
+  plugin.googledrive 1.6.13 and script.module.clouddrive.common 1.5.20 from the official repository into
+  special://home/addons. Those copies shadow the app's patched 1.6.8 / 1.5.11 (scripts/build_customized_ipa.py
+  DRIVE_PATCHES).
+- **Fix 1 (`pinned_addons`, run by the service before the copy thread starts):**
+  - Kodi's per-add-on "don't update automatically" rule (Addons DB update_rules, rule 1) for the four add-ons the build
+    patches: Google Drive, its library, Elementum and Burst.
+  - A home copy whose version differs from the bundled one is moved to special://temp/shadowed-addons. Kodi rescans
+    (UpdateLocalAddons), and a notice asks for a restart. A home copy of the same version, as in the desktop rig, stays.
+  - The copy thread puts the bundled clouddrive first on its path. If `tls_context` is still missing it uses a plain
+    certifi one instead of dying.
+- **Cause 2, the pack again:** Repair queued all 21 episodes from "Naruto Shippuden (001-500) [Complete Series + Movies
+  (1080p)]". The refusals made by build 415 were saved without the version's list name, so ISSUE-264's season-wide match
+  had nothing to match.
+- **Fix 2:** the first refused copy of a pack holds the season's other unstarted episodes from the same torrent
+  (`debrid_drive.hold_pack`), records the real size, and asks once (DEC-049 notice: "the version named 1080p is really
+  640×480"). Board B then offers "Use the Best Available". The jobs now carry `pick_name`, so the next pick knows the pack.
+- **Retest:** test_pinned_addons (new); test_quality_choice `RefusedPackHoldsItsSeason`.
+- **Phone check:** after installing, the log says "automatic updates blocked for …" and "… was moved aside", with one
+  "Add-ons put back" notice. After a restart, copies start.
+
+## ISSUE-268 — One message per season request, one per episode only for a single episode (owner, 2026-11-14) — fixed in code
+
+- **Owner:** "ensure it's only one stating the full season needs help, not 23 notifications if there are 23 episodes" and
+  "per episode alerts should only appear when I download per episode, and full season alerts need to appear when I do a
+  full season".
+- **Before:** every download in a season posted its own messages ("AllDebrid is fetching it", "Saved to Google Drive",
+  "Couldn't download to Google Drive", "No 1080p version"). A season meant tens of entries. "Saved to Google Drive" did not
+  even name the episode.
+- **Fix:**
+  - A season request tags its downloads with a batch: Build Season (both paths), Repair of several episodes, and the
+    quality choice's look-up (it runs Repair).
+  - `notices.add(group=…)` merges a message of the same kind and title from the same batch into one unread entry, which
+    moves to the top: "Naruto Shippuuden · 21 episodes · straight from AllDebrid…".
+  - A single episode (no batch) keeps its own message, which now names the episode ("Naruto Shippuuden · S2 E33").
+  - The quality question was already once per season (DEC-049). Repair already gives one start line and one summary.
+- **Retest:** test_notices `OnePerSeasonRequest`.
+
+## ISSUE-269 — A stopped download service was silent (owner log b98d5fc2, build 421) — fixed in code
+
+- **Owner:** "it seems frozen waiting for AllDebrid". The copy thread had died at start (ISSUE-267), and nothing said so.
+- **Fix:** the service runs drive_uploads under `keep_copying`. If it stops with an error, one notice says "Downloads
+  stopped (<reason>). It starts again by itself; if this keeps coming back, share the log." It is merged into one entry
+  (ISSUE-268 group), and the service starts again after 30 s, doubling up to 10 min.
+- **Also looked at in the same log (no change):**
+  - TMDb Helper's "GetDirectory … plugin.video.themoviedb.helper/resources/players/": it checks an optional home folder;
+    the bundled copy is used and playback continues.
+  - "…discover…with_companies=178464…page=3": the owner's Refresh moved the TMDb rows to page 3, which that studio row
+    does not have. The row hides itself for that page (it shows only with items).
+- **Retest:** test_pinned_addons `Watchdog`.
+
+## ISSUE-270 — Wi-Fi to cellular deep dive; Library lists and the Drive proxy failed after the add-on restore (owner log 4e5fb2dd, build 424) — fixed in code
+
+- **Owner:** "look what happens when I disconnect from Wi-Fi, ensure the download begins again on cellular, do a deep dive."
+- **Wi-Fi to cellular (07:36:32, log):**
+  - Copies did not stop. Two lanes were running (Naruto S02E33/E34, made ready while they copy). The piece in flight when
+    Wi-Fi went took 46 s (14 MB at 0.30 MB/s) and finished without an error or a retry; system networking moved the
+    connection over.
+  - On cellular, pieces adapted from 10–16 MB to 1.5–6 MB, at 0.2–2.2 MB/s per lane. The snapshot's link went
+    "cellular", link_changed_from "wifi", with copies_waiting_for_network 0 and copy lanes 2 (CELLULAR_LANES).
+  - Preparation (conversion reading Drive) waits for Wi-Fi on mobile data by design (ISSUE-232).
+  - Nothing to fix in the switch itself.
+- **Found:**
+  - From 07:35 every Library list refresh (every 10 s) and the Drive proxy failed with "No module named
+    'clouddrive.common.remote'". ISSUE-267's restore had moved the repository copy aside while the session still had its
+    half-imported clouddrive package and path, so later imports looked in the moved folder.
+  - The copy thread itself ran, with the plain tls_context fallback.
+- **Fix:** `pinned_addons.use_clouddrive()` is used everywhere clouddrive is loaded (service, drivelibrary.client, the
+  Accounts page, elementum_cloud). It drops clouddrive modules loaded from another or a moved folder, removes stale path
+  entries, and puts the app's bundled patched copy first. So it works in the same session, before the restart.
+- **Retest:** test_pinned_addons; the full import-review list.
+- **Next:** the owner's log after reconnecting to Wi-Fi (same session). Check the lanes and piece sizes grow back, and that
+  preparation starts again.
+
+## ISSUE-271 — Copies recovered slowly after a Wi-Fi <-> cellular switch (owner logs 4e5fb2dd and 18a4f9c7, build 424) — fixed in code
+
+- **Owner:** "it appears it may already be working now, but it did take a long time; ensure it has a quicker and smoother
+  recovery when switching from Wi-Fi to cellular or cellular to Wi-Fi."
+- **Seen:**
+  - Copies never stopped, but the run kept the old link's plan. The connection was read only when a copy run started, and
+    a run holds whole episodes (minutes on mobile data).
+  - The piece in flight at the switch hung 46 s.
+  - Pieces on cellular started from Wi-Fi sizes and timed out, or started small and took minutes to grow again on Wi-Fi.
+  - Back on Wi-Fi one lane ran, still with the cellular plan.
+  - The snapshot's copy speed (1.19 MB/s) did not change for four minutes.
+- **Fix:**
+  - `netwatch` reads the connection every 2 s. A switch counts when the new link is seen twice and is not "no address",
+    so a flicker does not restart anything.
+  - A copy run that sees the switch ends at the next piece boundary. The upload sessions are saved, so nothing is sent
+    again. The next run starts after 1 s, not the 30 s of a pause, with the new link's lane count (CELLULAR_LANES on
+    mobile data, the Wi-Fi lane plan learned again, ISSUE-200).
+  - `driveupload.LinkMemory`: the piece size and the Drive-confirmed speed that last worked on each link. A copy on a link
+    starts there. A link not seen yet starts at 4 MB on cellular and at the framework's size on Wi-Fi. So the first
+    pieces after a switch neither time out nor creep up from 1 MB.
+  - Diagnostics count only lanes that reported in the last 90 s (`quiet_lanes` for the rest).
+- **Not changed:** the one native piece already in flight at the moment Wi-Fi goes cannot be cancelled from Python. It
+  ends at its paced deadline (here 46 s) and is then confirmed against Drive, so no bytes are lost.
+- **Retest:** test_netwatch (new); test_diagnostics `test_network_summary_says_link_lanes_and_speeds`.
+- **Phone check:** turn Wi-Fi off and on during a season copy. The log should say "connection changed to cellular while
+  copying: carrying on at once", lanes should change within seconds, and there should be no 20 s piece timeouts after
+  the switch.
+
+## ISSUE-272 — Reconnect-to-Wi-Fi review; "[pseudo] 1080p" upscales passed as real 1080p (owner log 8de561f4, build 424) — partly fixed in code
+
+- **Owner:** "here is a log after I have reconnected to Wi-Fi, review it and see what you can improve."
+- **Timeline (same session as ISSUE-270/271):**
+  - Cellular from 07:36. The copy run noticed Wi-Fi to cellular only at 07:43:19, 7 min late.
+  - Wi-Fi came back about 07:45:46. The piece in flight took 68 s (0.18 MB/s), then pieces restarted at 1.8–2 MB and needed
+    about 30 s to reach 16–28 MB. The run noticed cellular to Wi-Fi only at 07:49:12, 3.5 min late. Three lanes ran from
+    07:49 at 2–11 MB/s each (snapshot 16–27 MB/s).
+  - From 07:48 a preparation ("Checking downloaded videos") read Drive at 49 MB/s on the same Wi-Fi, and the copies'
+    pieces fell to 0.8–3 MB/s.
+  - ISSUE-271 (not in build 424) removes the late detection and the slow regrowth. The in-flight piece at the switch moment
+    remains, bounded by its paced deadline.
+- **Found:** S02E33–E38 were copied as "[AnimeRG] Naruto Shippuden - 0xx [1080p] [x265] [pseudo]" (1404x1080).
+  "pseudo" marks an upscale of the DVD, so it passed the height check while not being real 1080p. E39 then came from
+  another release (704x480).
+- **Fix:** `deck_picker.UPSCALED_NAME` also matches "pseudo" (as a word) and "Anime4K". Such a version counts as lower than
+  the quality it names, so a season with no real 1080p asks (DEC-049) instead of taking an upscale.
+- **Also seen, harmless:** TMDb Helper's daily clean-up listing log folders that do not exist yet; the Library list
+  errors (64) are ISSUE-270.
+- **Open ideas, not done:**
+  - Keep one release for a whole season (mixed AnimeRG / Anime Time episodes).
+  - Let copies go first while a preparation reads Drive on the same Wi-Fi.
+- **Retest:** test_season_quality `test_versions_that_are_not_really_the_chosen_quality_are_left_out`.
+
+## ISSUE-273 — Copy cards choppy, no graph on a copy's sheet, nothing said "getting it ready" (owner screenshots and log 3848afa9, build 424) — fixed in code; circle design in mockup
+
+- **Owner:** "these are super choppy to update, not smooth like the conversion pages"; "have the AllDebrid to Drive look just
+  like the conversion tab … a graph of speed and a circle of progression"; "it doesn't show anything about getting things
+  ready; ensure all downloads and preparation and everything shows in the status".
+- **Seen:**
+  - S2 E48/E49/E50 sat at 92/91/94 % with "Waiting for Google Drive · no answer for 1 min".
+  - Their sheet showed "Right now —" and no graph.
+  - All three were "made ready while it copies" (704x480 HEVC). From 07:53 every Drive piece crawled at 0.03–0.1 MB/s,
+    against about 24 MB/s a minute earlier on the same Wi-Fi.
+- **Causes:**
+  - A copy reports when a piece is confirmed: 6–30 s apart, longer at low speed. Conversions report every second.
+  - The transfer history kept one copy ("up"), the shown one, so the other lanes had no graph. The sheet also matched it
+    by title, which differs for single-episode jobs.
+  - Copies made ready on their way had no words of their own.
+- **Fix:**
+  - work_state glides a copy card between reports at its measured speed: at most MAX_GLIDE 20 s, never to 100 %.
+  - A copy made ready on its way says "Getting it ready for Kodi and AirPlay", and when quiet "Getting it ready · waiting
+    for Google Drive · no answer for N min".
+  - transfer_history records every fresh copy lane ('up', 'up.<slot>') with its job. The sheet finds the lane by the job
+    and draws its graph.
+- **Mockup:** docs/design/unified-status-mockups.html, waiting for approval.
+  - Board A: one card style for every job, with a progress circle, the step, speed/left or why it waits, and a speed line.
+  - Board B: the copy sheet like the conversion sheet, with a large circle and the speed graph.
+  - It changes DEC-036 (bars everywhere), so it waits for the owner.
+- **Retest:** test_copy_status `Card`, `Graphs`.
+
+## ISSUE-274 — One release per season (owner, from ISSUE-272) — fixed in code
+
+- **Seen:** S2 mixed "[AnimeRG] … [pseudo]" 1404x1080 and "[Anime Time]" 704x480 episodes.
+- **Fix:** `debrid_drive.season_names` (the list names of the season's copied episodes) goes with each automatic request.
+  `deck_picker.release_group` reads the "[Group]" tag or the scene "-Group". At equal quality a version from the season's
+  group goes first; it never wins over a better quality.
+- **Retest:** test_copy_status `OneReleasePerSeason`.
+
+## ISSUE-275 — A preparation read Drive at 49 MB/s while copies crawled (owner log 8de561f4 / 3848afa9) — fixed in code
+
+- **Fix:** while an AllDebrid copy lane reported in the last 30 s, prepare_cloud starts no new preparation, except the next
+  to watch or one the owner asked for now. Its Up next row says "Starts when the downloads finish". Copies made ready on
+  their way are copies, so they are not held.
+- **Retest:** test_copy_status `CopiesFirst`.
+
+## ISSUE-276 — Library pages showed different numbers: TV Shows stuck at 28 Naruto episodes with no season 2 while Library status said 84 of 87 ready (owner screenshots and log 8d661d6e, build 424) — investigated; proposal in a new draft PR
+
+- **Root cause of the season 2 gap:** after a repository update replaced the app's patched Google Drive add-on, every TV Shows list refresh failed (`No module named 'clouddrive.common.remote'`, 207 times in 45 min), so Library › TV Shows kept its last good list (28 episodes) while season 2 was copied. Library status uses a second, separate Drive listing (the preparation scan), which kept working. ISSUE-270 (in build 430) fixes the import; nothing told the owner the list was stale.
+- **Design cause:** two Drive listings of the same folder and four sets of counting rules (Download problems, show card, show page, Library status' Kept). Details and the proposal (one Library index every screen reads): docs/investigations/library-one-source.md.
+- **Step 1 coded (PR #27):** `library_index.py` builds one entry per movie and episode from the Drive listing, preparation jobs, AllDebrid copies, AI Upscale copies and the Don't Show Again list, with one state each (copying, converting, ready, kept, problem, cancelled) and one set of counting rules (`counts(scope)`: whole library, TV, movies, one show, one season). Rules decided once: a failed copy of a video on Drive or copying again is not a problem; a copy saved without a title takes its show from its TMDb id; one entry per video (extra files listed as duplicates). Test: test_library_index (the owner's state from log 8d661d6e: every screen's numbers add up; S1 E6 is not a problem; season 2 grows as it lands).
+- **Step 2 coded:** the service keeps `library-index.json` (a background thread rebuilds it when the preparation state, the copies, the AI Upscale queue, the Don't Show Again list or a pending action changes, and at least every 30 s); a change counter in `Window(Home).Property(KodiIOS.LibraryIndex)` lets open pages redraw at once. `library_index.intend` is the one action path: a video the owner deletes, stops, retries or hides shows "Deleting…" / "Stopping…" on every page until the real state takes over. The TV Shows list refresh now records Drive health (ok / "Can't reach Google Drive") in the index for the health line.
+- **Step 3a coded:** Library › TV Shows, Movies, the show page, Select and Delete Season read their videos and states from the index (`library_index.show_rows` / `episode_rows` / `movie_rows`, `library_manager.episodes_of`); the saved Drive listing only gives posters, years and TMDb ids. A season being copied shows in its show and grows; the show page's numbers are `counts()`. Test: test_library_index `PagesReadTheIndex` (a stale saved list of 28 season 1 episodes: TV Shows still shows seasons 1 and 2, with Library status' numbers).
+- **Step 3b coded:** Download problems keeps its rows and sheet but lists only the problems the index has (`copy_problems.from_index`): a failed copy of a video on Drive or copying again is gone, and a copy saved without a title is named after its show. Library status' "N of M ready" and its Ready / Working / Kept tiles are `library_index.counts` (`library_rows.page_properties(index=…)`). Tests: test_library_index `DownloadProblemsReadTheIndex`, `LibraryStatusReadsTheIndex`.
+- **Still to do (DEC-052):** the self-check (Drive vs copies vs preparation), the minute log line with the same numbers, and, after mockups: the health line, season progress on the chips, Undo after Delete, and each page redrawing on the counter. Then a desktop Kodi rig render with one fake library, and an IPA with the owner's OK.
+- **Step 4 (no new UI) coded:** every minute the log carries the numbers the screens show (`library: 84 of 87 ready · 3 working (… copying, … converting) · 2 kept · 1 need you · 0 hidden · Drive ok`), and every five minutes a self-check logs duplicate files, copies saved but not on Drive, and preparations of files no longer on Drive (`library_index.summary` / `check`). Test: test_library_index `SelfCheckAndLogLine`.
+- **Step 5 (one action path) coded:** Delete (Library pages) and Stop (any copy, from any page that calls `transfer_control.cancel_copy`) now record an intent in the index (`library_index.intend_for`, by Drive id or torrent hash), so every page shows "Deleting…" / "Stopping…" for that video at once; a preparation job the owner chose to forget no longer counts its file as in the library. Test: test_library_index `StopOrDeleteEverywhere`.
+
+## ISSUE-277 — "Couldn't download to Google Drive · The copy to Google Drive stopped: Rick and Morty · S2 E7" while nothing had failed, Download problems showed 0, and E8–E10 never started (owner screenshot and log 27c3ca14, build 430) — fixed in PR #27
+
+- **What happened (log):** Download Season queued Rick and Morty S2 E1–E10 at 08:34. E1–E6 were stored on AllDebrid and were copied by 08:39. E7's version was not: from 08:40 to the end of the log (08:44) it sat at AllDebrid "fetching 0%" (`debrid` statuses `fetching 1, new 3`), and nothing failed in this run (no `failed:` line, the failed count stayed 94).
+- **Root cause 1 (the notice):** the notice was "AllDebrid is fetching it · Rick and Morty · S2 E7" (Downloads group, download icon). The notification sheet (`notice_help.RULES`) treated any notice with "AllDebrid" anywhere in its title or text as a failed copy, so it opened as "Couldn't download to Google Drive · The copy to Google Drive stopped". Every "Saved to Google Drive · … straight from AllDebrid" notice opened the same way. Download problems showed 0 because nothing had failed.
+- **Root cause 2 (the line):** a torrent AllDebrid is fetching stayed at the head of the copy line (`step` took `jobs[0]`), so E8–E10 waited behind E7. With no peers, AllDebrid keeps a magnet at 0% for up to 72 hours, so it never became a problem anywhere.
+- **Root cause 3 (the brain):** the Library index counted it as "Copying to Google Drive · 0%".
+- **Fix:**
+  - The sheet matches the notice's title. "AllDebrid is fetching …" explains that AllDebrid is downloading it first and that the copy starts by itself. "Saved to Google Drive" is good news. A real failure says "Couldn't copy <video>" ("is waiting" only when AllDebrid is busy or blocked).
+  - `debrid_drive.poll_fetching` checks fetching torrents beside the line every 15 s, so the next episode copies meanwhile.
+  - A fetch that has not moved for 30 minutes ends failed with "Nobody is sharing this version: AllDebrid got no further than N% in 30 minutes. Pick another version." It sends a real notice, joins Download problems, and the next automatic search leaves that version out.
+  - The index says "AllDebrid is fetching it · N%" / "Waiting to copy", and a stalled fetch counts as a problem on every page (Download problems, the show page, the season, Library status).
+- **Tests:**
+  - test_debrid_drive `FetchingDoesNotHoldTheLine`: E8 starts while E7 fetches; no progress for 30 min ends in `problems()`; progress keeps it going. These failed on the old code.
+  - test_notice_log: fetching / saved / failed sheets.
+  - test_library_index `StalledFetchIsAProblemEverywhere`.
+- **Phone check still needed:** on the next build, a version AllDebrid has to fetch shows "AllDebrid is fetching it · N%". The next episodes copy meanwhile. If it never moves, after 30 min it is in Download problems with the same count on Library status. The minute `library:` log line carries the counts.
+- **Not proven from this log:** the 94 older failed copies. Download problems lists a video only when no other version of it is on Drive, copying or hidden, and the log does not carry the phone's copy list. The new build's minute `library:` line (… need you · … hidden) will show whether the count is right.
+
+## ISSUE-278 — AirPlay of Naruto S1 E1: only the sound reached the Roku TV, then "AirPlay couldn't play this · Cannot Complete Action" (owner screenshot and log 33942e4f, build 430, AirPlay r56) — fixed in native source (r57 build pending)
+
+- **Seen (09:00:11–12):** Play on TV › AirPlay with the prepared file of Naruto Shippuuden S1 E1 (H.264 `avc1.640028` and AAC, served as HLS over the file's 23 stored fragments of up to 69.3 s, audio and video muxed together).
+  - Every request came from the iPhone itself (AppleCoreMedia), none from the TV, and external playback never came on.
+  - The phone's player read 3.4 MB of the first 10.7 MB range, hung up, and stopped "Cannot Complete Action" 1.5 s after start. The native player then logged "problem left to Kodi's card", with no restart.
+- **Root cause:** the same receiver shape as ISSUE-124 and ISSUE-138. Roku's streaming specifications do not support muxed audio-and-video fMP4 and want segments under 10 s, and the prepared playlist breaks both. The restart rules missed this case:
+  - r36's "sound only" and "player failed" restarts skip any H.264 picture: they were written for HEVC.
+  - r41's prepared-playlist restart needs external playback to have come on once (`everExternal`). This time the TV got the sound only, so external playback never came on.
+  - So nothing ran, and Kodi showed the card.
+- **Fix (`build-airplay.sh`, r57 source):**
+  - A prepared file that the TV takes as sound only, or that fails while the TV has only the sound, restarts once, H.264 too.
+  - A prepared H.264 picture is kept as it is: it restarts in `KR_COMPAT_SEGMENTED` mode (6 s segments with the audio as its own rendition, the picture copied). This is the stream ISSUE-138 made for Roku's own player, so the phone does no conversion work.
+  - Any other codec keeps the H.264 conversion.
+  - Log line: "restarting in 6-s segments for this TV (H.264 picture kept as it is)".
+- **Tests:**
+  - test_play_on_tv_network `test_a_prepared_h264_file_the_tv_turns_down_restarts_in_segments`.
+  - test_airplay_remux updated for the one guarded restart path.
+  - Host checks only: the Objective-C compiles in the airplay-ios workflow on macOS.
+- **Built and pinned (owner OK, 2026-11-14):** r57 was published by airplay-ios run 43622274914. Digest 9a112807…42fbda was checked by download, and the binary carries the new restart notes. Host tests: airplay-remux run 43621764007.
+- **Phone check:** AirPlay a prepared H.264 episode to the Roku. The log should show "restarting in 6-s segments", then `/video/` and `/audio/` segment requests from the TV, and the picture on the TV.
+- **Not done yet:** remembering that this TV needs segments, so the next start skips the failed first try (about 1.5 s).
+
+## ISSUE-279 — The video controls never went away: a tap outside the buttons did nothing and they never timed out (owner, build 430, log 72b62563) — fixed in code
+
+- **Seen:**
+  - 09:03:23–09:03:40: ten taps on the playing video's controls landed on no button and were logged "Click at … in VideoOSD.xml: control 0 (not handled)". The controls stayed.
+  - After the last tap they were still up 12 s later, until the owner tapped back.
+- **Root cause:**
+  - The controls (`player_osd.window`) had nothing under the buttons to take a tap.
+  - Kodi only auto-closes its controls when a mouse move opened them, never after a tap.
+  - The app's own timer (Settings › Customisation › Video Controls › Hide Controls After, Fuse's `OSD_Timeout`) ships empty, and empty means never.
+- **Fix:**
+  - A clear full-screen button (id 7100) under every other control closes the controls, as a tap does in Apple's player. Real buttons above it keep their taps, and arrow-key focus never reaches it.
+  - Hide Controls After becomes 5 s the first time the controls open (once, `ios_osd_timeout_default`). The shipped skin settings stay as they are: they are pinned by hash.
+  - Emptying it later, or setting 0, still means never. While paused or with Continue Watching open, the controls stay, as before. Nothing new is drawn.
+- **Tests:** test_customisation `test_tap_anywhere_hides_and_five_seconds_by_default` (plus the updated alarm test); test_portrait skips the clear area in its safe-inset check.
+- **Phone check:** while a video plays, tap the picture away from the buttons and the controls hide. Leave them and they hide after 5 s. Paused, they stay.
+
+## ISSUE-280 — Umbrella streams sat at "Getting ready to play… 0%" for about 30 s, then the video appeared (owner screenshots, build 430, log 72b62563) — speed fixed in code; the card's new line waits for mockup approval
+
+- **Seen (Black Clover S02E07, 1.70 GB WEB MKV through AllDebrid):** the open took 32.2 s ("handoff 11.3 s, open 21.0 s"), and 27.8 s the second time. Kodi's own open of the file accounts for 19 s, from `Creating Demuxer` at 09:03:01.5 to the probe at 09:03:20.2, inside FFmpeg's `avformat_open_input`.
+- **Root cause (inferred, not measured on the phone):**
+  - Kodi reads an Umbrella link itself, over one connection. ISSUE-163 measured AllDebrid at about 0.7 MB/s per connection.
+  - An MKV's start (header, tracks, the first clusters for probing) plus a jump to its end (tags and index) is roughly 13 MB of reads and reconnects at that speed: about 19 s. Kodi's FFmpeg already skips attached fonts (roadmap 1B.1).
+  - Umbrella's card percentage stops once it has the link, so the card said 0% throughout.
+- **Fix (speed):** an Umbrella MKV / AVI / WebM now opens through the service's stream cache (`remote_media`, ISSUE-145/163/259), which until now served only AirPlay.
+  - `umbrella_recovery.remember`, which already runs inside Umbrella's AllDebrid unlock, swaps `response['link']` for the cache's 127.0.0.1 address (`remote_media.for_kodi`). The cache reads with four connections at once, and asks for the file's first two 4 MB blocks and its last block the moment the link is known.
+  - Fallback: any failure, a missing service or another kind of link leaves Umbrella's link unchanged. Already-patched Umbrella installs need no re-patch.
+  - Play on TV translates the cache address back to the real link (`remote_media.original`), so a TV never gets 127.0.0.1, and it shares the same cache instead of reading the file again.
+  - The source Kodi reads is released after 120 s with no reads; a TV reading it keeps it alive.
+- **Tests:** test_remote_media `KodiPlays` (6) covers: the cache route with start and end asked for; other links unchanged; Play on TV gets the real link and shares the cache; idle release; the Umbrella unlock hands Kodi the cache; cast translation.
+- **Card (UI):** `docs/design/stream-opening-mockups.html` board S1 has three honest stages under the bar: getting the link (sliding bar, seconds), opening the video (real MB read of 12 MB), and a slow-source note with the real speed. It waits for the owner's approval before code.
+- **Phone check:** an Umbrella MKV opens in a few seconds rather than about 30. The `open timing … via umbrella` line shows the new open time. Play on TV of the same episode still works.
+- **Card coded (board S1, owner-approved 2026-11-14):**
+  - `umbrella_ready.stage` writes IOSReady.Line / Right / Fill / Slow every quarter second from two sources: the unlocked link (`KodiIOS.UmbrellaRenewal`) and the stream cache's counts (`remote_media` stats now include `kodi`, `cached_blocks`, `block_size`).
+  - `pages.umbrella_ready` shows the line. The bar fills by Fill or slides, and Umbrella's own percent stays the fallback.
+  - Test: test_pages `OpeningStages` (3).
+  - Desktop Kodi rig render of stages a, b and c: matches the boards, no cut-off text (screenshots kept out of Git). Phone check pending.
+
+**Delivery (owner OK, 2026-11-14):** IPA build-442 was built from f1d6447 (import-review run 43623141308) and carries ISSUE-276 to 280 and AirPlay r57. It was downloaded and checked: sha256 982d4a24…4ed7dbb, the zip is valid, and the framework carries the r57 restart note. The library index, poll_fetching, the for_kodi route, the tap-to-hide area and the stage line are all inside. Phone checks are pending for every item.

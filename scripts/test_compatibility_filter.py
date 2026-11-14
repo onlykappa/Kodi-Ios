@@ -104,12 +104,16 @@ class Filter(unittest.TestCase):
   prep.request_check(self.tmp.name,inspect=True);self.refresh()
   job=next(iter(self.q.state['jobs'].values()))
   self.assertEqual((job['status'],job['check_net_tries']),('waiting',1))
- def test_every_manual_refresh_rechecks_the_actual_file_even_after_restart(self):
+ def test_a_full_check_rechecks_the_actual_file_even_after_restart(self):
+  # ISSUE-247 (owner: "if it's already good to go then no need to re-read it"): a plain Refresh skips a settled file; the
+  # full check (hold Refresh › Check Every Video) still reads it, even after a restart.
   prep.request_check(self.tmp.name,inspect=True);self.refresh()
   self.q=prep.Queue(self.tmp.name,self.drive,self.native,stream=Stream())
   calls=[];self.native.probe=lambda url:(calls.append(url),dict(self.probe))[1]
   self.q.layout_probe=lambda *args:(calls.append('layout'),dict(self.layout))[1]
   prep.request_check(self.tmp.name,inspect=True);self.refresh()
+  self.assertEqual(calls,[])                                            # settled and unchanged: nothing read
+  prep.request_check(self.tmp.name,inspect='full');self.refresh()
   self.assertEqual(self.q.state['library']['ready'],1);self.assertFalse(self.q.process_one());self.assertEqual(len(calls),2)
  def test_refresh_reinspects_changed_version_instead_of_trusting_stale_readiness(self):
   prep.request_check(self.tmp.name,inspect=True);self.refresh()
@@ -169,7 +173,7 @@ class Filter(unittest.TestCase):
   self.assertEqual((job['status'],job['retry_after'],job['attempts']),('failed',12345,3))
   self.assertIn('cloud_output',job)
   self.assertEqual(prep.library_view(self.q.state)['rows']['waiting'][0]['state'],'problem')
- def test_refresh_reads_every_listed_movie_and_episode_on_each_tap(self):
+ def test_refresh_reads_each_listed_video_once_until_it_changes(self):
   listed=[self.item];calls=[]
   for ident,name in (('episode','Lanterns.S01E06.mkv'),('movie','Another.Movie.mp4')):
    self.drive.files[ident]=dict(self.drive.files['source'],id=ident,name=name)
@@ -178,7 +182,10 @@ class Filter(unittest.TestCase):
   for _ in range(2):
    prep.request_check(self.tmp.name,inspect=True)
    with patch.object(prep.library_scan,'remote_files',return_value=listed):self.q.scan(force=True)
-  self.assertEqual(len(calls),6);self.assertEqual(self.q.state['library']['videos'],3)
+  self.assertEqual(len(calls),3);self.assertEqual(self.q.state['library']['videos'],3)   # ISSUE-247: the 2nd tap reads none
+  prep.request_check(self.tmp.name,inspect='full')
+  with patch.object(prep.library_scan,'remote_files',return_value=listed):self.q.scan(force=True)
+  self.assertEqual(len(calls),6)                                        # Check Every Video reads all three
   self.assertEqual(self.q.state['library']['ready'],3);self.assertEqual(self.native.calls,0)
  def test_source_change_during_layout_inspection_invalidates_both_checks(self):
   def changed(*args):self.drive.files['source']['version']='2';return dict(self.layout)
@@ -256,4 +263,48 @@ class Filter(unittest.TestCase):
   self.assertFalse(auto.is_alive());self.assertFalse(refresh.is_alive())
   marker=prep.location(self.tmp.name).parent/prep.RESCAN
   self.assertTrue(json.loads(marker.read_text())['inspect'])
+ def test_waiting_jobs_go_before_a_refresh_that_inspects(self):
+  # Owner log (build 368): Refresh probed every video one at a time and the Naruto jobs waited behind it.
+  self.q.link=lambda:'wifi'
+  self.assertFalse(self.q.inspection_deferred())                       # no check asked for
+  prep.request_check(self.tmp.name)
+  self.assertFalse(self.q.inspection_deferred())                       # a plain listing is never deferred
+  prep.request_check(self.tmp.name,inspect=True)
+  self.assertTrue(self.q.inspection_deferred())                        # a job waits: it goes first
+  self.q.state['jobs'][self.slot]['retry_after']=10**12                # nothing ready to start (backing off)
+  self.assertFalse(self.q.inspection_deferred())
+  self.q.state['jobs'][self.slot].update(retry_after=0,blocked=True)
+  self.assertFalse(self.q.inspection_deferred())
+  self.q.state['jobs'][self.slot].update(blocked=False);self.q.link=lambda:'cellular'
+  self.assertFalse(self.q.inspection_deferred())                       # on mobile data the scan skips inspecting by itself
+  self.assertTrue(prep.check_requested(self.tmp.name))                 # and the request itself is never dropped
+ def test_service_runs_the_check_only_when_no_job_waits_first(self):
+  svc=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
+  self.assertIn("if not preparation.inspection_deferred():",svc)
+ def test_a_restarted_refresh_does_not_read_the_same_videos_again(self):
+  calls=[];self.native.probe=lambda url:(calls.append(url),dict(self.probe))[1]
+  self.q.link=lambda:'wifi'
+  marker=prep.location(self.tmp.name).parent/prep.RESCAN
+  prep.request_check(self.tmp.name,inspect=True);request=marker.read_text()
+  self.refresh();self.assertEqual(len(calls),1)
+  marker.write_text(request)                                           # the same request again (stopped, then restarted)
+  self.refresh();self.assertEqual(len(calls),1)                        # same request, same file: its stored probe is used
+  import time;time.sleep(.02);prep.request_check(self.tmp.name,inspect=True)
+  self.refresh();self.assertEqual(len(calls),1)                        # ISSUE-247: a settled, unchanged file is not read again
+  prep.request_check(self.tmp.name,inspect='full')
+  self.refresh();self.assertEqual(len(calls),2)                        # Check Every Video reads it
+  marker.write_text(json.dumps({'inspect':True,'time':time.time()+5}))
+  self.drive.files['source']['version']='2';self.item=prep.metadata(self.drive,'source')
+  self.refresh();self.assertEqual(len(calls),3)                        # and a changed file is read again
+ def test_smart_refresh_reads_only_what_is_new_changed_or_not_ready(self):
+  # ISSUE-247: a waiting / kept / failed video and one checked by an older app version are read; a settled one is not.
+  calls=[];self.native.probe=lambda url:(calls.append(url),dict(self.probe))[1]
+  prep.request_check(self.tmp.name,inspect=True);self.refresh();self.assertEqual(len(calls),1)
+  job=self.q.state['jobs'][self.slot];self.assertEqual(job['probe_version'],prep.INSPECT_VERSION)
+  self.assertTrue(prep.settled(job,prep.metadata(self.drive,'source')))
+  job['probe_version']=0                                               # checked by an older version: read once more
+  prep.request_check(self.tmp.name,inspect=True);self.refresh();self.assertEqual(len(calls),2)
+  job=self.q.state['jobs'][self.slot];job['status']='waiting'           # not done: read
+  prep.request_check(self.tmp.name,inspect=True);self.refresh();self.assertEqual(len(calls),3)
+  self.assertIn("inspect='full'",(ROOT/'migration/bundled-bootstrap/library_status.py').read_text())
 if __name__=='__main__':unittest.main()

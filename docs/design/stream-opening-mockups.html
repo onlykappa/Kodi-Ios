@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stream opening mockups</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt.
+     The Umbrella "getting ready to play" card (pages.umbrella_ready, portrait/source_progress.xml), its existing tokens:
+     glass_card, the purple Umbrella tile, p_body / p_foot / p_cap text, the 11-unit bar (blue fill, or slide_bar while
+     nothing measurable is known). Only the line under the bar and what drives the bar change (ISSUE-280). -->
+<style>
+:root{--grey:rgba(235,235,245,.6);--blue:#0a84ff;--blue-text:#4fa8ff;--purple:#7d3cff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro,.board,.notes{max-width:1180px;margin:0 auto}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:880px;margin-bottom:8px}
+.board{margin-top:30px;padding-top:16px;border-top:1px solid #26272b}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board>p{color:var(--grey);font-size:14px;line-height:1.5;max-width:880px;margin-bottom:16px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.4;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000}
+.art{position:absolute;left:0;right:0;top:7%;height:52%;background:radial-gradient(120% 90% at 70% 30%,#2f5a2a 0,#1a2a1c 35%,#3a0d12 62%,#000 100%)}
+.art::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 40%,#000 100%)}
+.meta{position:absolute;left:14px;right:14px;top:36%}
+.meta b{display:block;font-size:27px;font-weight:800;letter-spacing:-.01em}
+.meta i{display:block;font-style:normal;color:#ff6b6b;font-weight:700;font-size:13px;margin-top:14px}
+.meta span{display:block;color:#d1d1d6;font-size:12.5px;line-height:1.35;margin-top:4px}
+.card{position:absolute;left:12px;right:12px;bottom:84px;background:rgba(44,44,46,.92);border-radius:22px;padding:14px}
+.hd{display:flex;gap:11px;align-items:center}
+.tile{width:38px;height:38px;border-radius:10px;background:var(--purple);display:grid;place-items:center;flex:none}
+.tile::after{content:"☂";font-size:19px}
+.hd .t{flex:1;min-width:0}.hd .t b{display:block;font-size:15.5px}.hd .t span{color:var(--grey);font-size:12.5px}
+.hd .sz{font-size:17px;font-weight:600}
+.badges{display:flex;gap:9px;align-items:center;margin-top:12px;font-size:12px;font-weight:700}
+.badges .q{background:#fff;color:#000;border-radius:10px;padding:3px 7px}
+.file{color:var(--grey);font-size:11px;margin-top:12px;white-space:normal}
+.bar{position:relative;height:4px;border-radius:2px;background:rgba(255,255,255,.2);margin-top:12px;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--blue);border-radius:2px}
+.bar.slide i{width:30%;left:0;animation:slide 1.4s ease-in-out infinite}
+@keyframes slide{0%{left:-30%}100%{left:100%}}
+.line{display:flex;justify-content:space-between;gap:10px;margin-top:9px;font-size:12.5px;color:#d1d1d6;line-height:1.35}
+.line span:last-child{white-space:nowrap}
+.sub{color:var(--grey);font-size:11.5px;margin-top:3px;line-height:1.35}
+.cancel{position:absolute;left:12px;right:12px;bottom:20px;height:46px;border-radius:23px;background:rgba(44,44,46,.92);display:grid;place-items:center;font-weight:700;font-size:15.5px}
+.old{outline:2px dashed #ff453a;outline-offset:3px}
+.notes{margin-top:30px;color:#b4b4ba;font-size:14px;line-height:1.55}.notes h3{color:#fff;font-size:16px;margin:16px 0 6px}.notes li{margin:3px 0 3px 18px}
+</style></head><body>
+<div class="intro"><span class="mk">MOCKUP · not a Kodi render</span>
+<h1>Opening an Umbrella stream</h1>
+<p>Owner, build 430: “it sits at 0% for like 30 seconds then straight to video. At least have it show it load.” The log
+(72b62563) shows where the time goes: about 11 s while Umbrella hands the link over, then 19 s while Kodi opens the MKV
+over one AllDebrid connection. The card said “Getting ready to play… 0%” the whole time because Umbrella’s own
+percentage stops once it has the link.</p>
+<p>Only the bar and the line under it change. Everything above them (the artwork, the source card, the badges, the
+file name, Cancel) stays as it is today.</p></div>
+
+<div class="board"><div class="n">BOARD S1</div><h2>Today, and the three stages it becomes</h2>
+<p>The bar slides while nothing measurable is known and fills when there is a real number. The line always says which
+step it is on. There is no made-up percentage.</p>
+<div class="shots">
+
+<div class="slot"><div class="pframe"><div class="ps"><div class="art"></div>
+<div class="meta"><b>Beyond Tenacity</b><i>Black Clover</i><span>Noelle and Nozel finally face off with Megicula and try to avenge their mother.</span></div>
+<div class="card"><div class="hd"><div class="tile"></div><div class="t"><b>AllDebrid</b><span>via Torrentio</span></div><div class="sz">1.70 GB</div></div>
+<div class="badges"><span class="q">1080P</span>AVC WEB AAC 2CH</div><div class="file">Black.Clover.S02E07.1080p.CR.WEB-DL.mkv</div>
+<div class="bar old"><i style="width:0"></i></div><div class="line"><span>Getting ready to play…</span><span>0%</span></div></div>
+<div class="cancel">Cancel</div></div></div>
+<p class="cap"><b>Now (build 430).</b> Stays at 0% for about 30 s, then the video appears.</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps"><div class="art"></div>
+<div class="meta"><b>Beyond Tenacity</b><i>Black Clover</i><span>Noelle and Nozel finally face off with Megicula and try to avenge their mother.</span></div>
+<div class="card"><div class="hd"><div class="tile"></div><div class="t"><b>AllDebrid</b><span>via Torrentio</span></div><div class="sz">1.70 GB</div></div>
+<div class="badges"><span class="q">1080P</span>AVC WEB AAC 2CH</div><div class="file">Black.Clover.S02E07.1080p.CR.WEB-DL.mkv</div>
+<div class="bar slide"><i></i></div><div class="line"><span>Getting the link from AllDebrid…</span><span>3 s</span></div></div>
+<div class="cancel">Cancel</div></div></div>
+<p class="cap"><b>S1a · Getting the link.</b> From tapping a version until AllDebrid answers. The bar slides; seconds count up.</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps"><div class="art"></div>
+<div class="meta"><b>Beyond Tenacity</b><i>Black Clover</i><span>Noelle and Nozel finally face off with Megicula and try to avenge their mother.</span></div>
+<div class="card"><div class="hd"><div class="tile"></div><div class="t"><b>AllDebrid</b><span>via Torrentio</span></div><div class="sz">1.70 GB</div></div>
+<div class="badges"><span class="q">1080P</span>AVC WEB AAC 2CH</div><div class="file">Black.Clover.S02E07.1080p.CR.WEB-DL.mkv</div>
+<div class="bar"><i style="width:58%"></i></div><div class="line"><span>Opening the video · 7 of 12 MB</span><span>58%</span></div></div>
+<div class="cancel">Cancel</div></div></div>
+<p class="cap"><b>S1b · Opening the video.</b> The phone reads the start and the end of the file first; the bar is that real
+amount (the first two 4 MB blocks and the last one). It fills, then the video starts.</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps"><div class="art"></div>
+<div class="meta"><b>Beyond Tenacity</b><i>Black Clover</i><span>Noelle and Nozel finally face off with Megicula and try to avenge their mother.</span></div>
+<div class="card"><div class="hd"><div class="tile"></div><div class="t"><b>AllDebrid</b><span>via Torrentio</span></div><div class="sz">1.70 GB</div></div>
+<div class="badges"><span class="q">1080P</span>AVC WEB AAC 2CH</div><div class="file">Black.Clover.S02E07.1080p.CR.WEB-DL.mkv</div>
+<div class="bar slide"><i></i></div><div class="line"><span>Starting the video…</span><span>14 s</span></div>
+<div class="sub">AllDebrid is sending it slowly right now (0.6 MB/s).</div></div>
+<div class="cancel">Cancel</div></div></div>
+<p class="cap"><b>S1c · Slow source.</b> Only after 10 s: says why it is taking long, with the real speed. Never a red
+error while it is still working.</p></div>
+
+</div></div>
+
+<div class="notes"><h3>What is reused</h3><ul>
+<li>pages.umbrella_ready’s card, the 11-unit bar and its 20 fill steps, slide_bar, the p_foot / p_cap text and colours.
+No new colour, font size, radius or control.</li>
+<li>The numbers come from the service’s stream cache (ISSUE-280: an Umbrella MKV now opens through it), which already
+counts what it has read. The line is one property, filled by umbrella_ready.py every half second.</li></ul>
+<h3>Needs the owner’s OK</h3><ul><li>S1a–S1c wording and the seconds counter.</li>
+<li>After approval: a desktop Kodi rig render, then the phone.</li></ul></div>
+</body></html>

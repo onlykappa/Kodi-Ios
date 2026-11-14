@@ -29,13 +29,47 @@ def save(profile,items):
  path=store(profile);path.parent.mkdir(parents=True,exist_ok=True)
  temp=path.with_suffix('.tmp');temp.write_text(json.dumps(items[:MAX],indent=1),encoding='utf-8');os.replace(temp,path)
 
-def add(profile,kind,title,text='',action='',now=None):
- """Record a message (newest first). The same message within a minute is not repeated."""
+import re as _re
+_EPISODE=_re.compile(r'^S\d+\s?E\d+$')
+
+def subject(text):
+ """The show or film a message is about: its text up to the first " · " or ": " ("Naruto Shippuuden · S2 E33 · …")."""
+ return _re.split(r' \u00b7 |: ',str(text or ''),maxsplit=1)[0].strip()
+
+def grouped_text(text,count):
+ """"Naruto Shippuuden · 21 episodes · straight from AllDebrid…": the subject, the count, and the rest without the episode."""
+ parts=[p for p in _re.split(r' \u00b7 ',str(text or '')) if p.strip()]
+ head,rest=(parts[0] if parts else ''),parts[1:]
+ if ': ' in head:head,reason=head.split(': ',1);rest=[reason]+rest
+ rest=[_re.sub(r'^S\d+\s?E\d+(: )?','',p.strip()) for p in rest]
+ rest=[p for p in rest if p]
+ return ' \u00b7 '.join([head,'%d episodes'%count]+rest)
+
+def add(profile,kind,title,text='',action='',now=None,group=''):
+ """Record a message (newest first). The same message within a minute is not repeated.
+ ISSUE-268 (owner: "per episode alerts should only appear when I download per episode, and full season alerts when I do a
+ full season"): group is the season request a download came from (Build Season, Repair of several episodes, the quality
+ choice); '' for one episode. A message of the same kind and title from the same group as an unread one joins it
+ ("Naruto Shippuuden · 21 episodes · …"), moved to the top. One episode's messages stay one each."""
  now=time.time() if now is None else now;kind=kind if kind in KINDS else 'info'
  items=load(profile)
  if items and items[0].get('title')==title and items[0].get('text')==text and now-items[0].get('time',0)<60:return items[0]
+ if group:
+  for n,old in enumerate(items[:MAX]):
+   if not old.get('read') and old.get('group')==group and old.get('kind')==kind and old.get('title')==title:
+    count=int(old.get('count') or 1)+1
+    old.update(time=now,count=count,text=grouped_text(text,count),last=text)
+    save(profile,[old]+items[:n]+items[n+1:]);return old
  item={'id':'%d-%d'%(int(now*1000),len(items)),'time':now,'kind':kind,'title':title,'text':text,'action':action,'read':False}
+ if group:item['group']=group
  save(profile,[item]+items);return item
+
+def note_group(kind,title,text='',action='',group=''):
+ """note() with a season group (ISSUE-268)."""
+ try:
+  import xbmcvfs
+  return add(xbmcvfs.translatePath('special://profile/'),kind,title,text,action,group=group)
+ except Exception:return None
 
 def toasts(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap/toasts.jsonl'
 

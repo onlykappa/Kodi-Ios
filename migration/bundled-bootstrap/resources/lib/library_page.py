@@ -13,7 +13,7 @@ BLUE = 'FF0A84FF'
 SLOTS, SLOT, WORK, NEED, MORE, PREVIOUS = 40, 9400, 9005, 9004, 9050, 9051
 # Build 194: one pool of rows per section, each drawn as in the approved mockups (boards 1 and 2):
 # (key, first control id, rows, row height). The page's script fills them; no Previous/More paging.
-POOLS = (('down', 9310, 6, 231), ('next', 9400, 40, 161), ('kept', 9450, 15, 161), ('ready', 9470, 80, 140))
+POOLS = (('down', 9310, 6, 231), ('next', 9400, 40, 161), ('kept', 9450, 15, 161))   # DEC-047: no Ready list
 SEGMENTS = 9811        # summary bar: ready, working, up next, kept (widths set by the script)
 DOWN_BARS = 9330       # the AllDebrid copy bars, one per 'down' row
 WORK_BAR = 9350        # the 'Working on now' bar (running card, then the still card), DEC-036
@@ -110,7 +110,8 @@ def _summary(p, u):
                                              ('next', 'Up next', p.ACCENT), ('kept', 'Kept', p.GREY))):
         x = S + 38 + i * (cw + 16)
         b += p.image(x, 167, cw, 150, p.MEDIA + 'r27.png', u.SURF2, border=27)
-        b += u.tap(p, 9101 + i, x, 167, cw, 150)
+        if key != 'ready':   # DEC-047: the ready count is a number only; its list lives in Library › Movies / TV Shows
+            b += u.tap(p, 9101 + i, x, 167, cw, 150)
         b += u.text(p, x, 183, cw, 64, P('count.' + key), 'p_h2', tint, 'center')
         b += u.text(p, x, 252, cw, 44, title, 'p_cap', p.GREY, 'center')
     return u.group(p, 355 + u.GAP, b, u.has('headline'))
@@ -166,7 +167,7 @@ def page(p):
                       u.group(p, u.GAP, '', u.has('%s.0.title' % key)))
     listing = ('<control type="grouplist" id="9300"><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
                '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>' % (LIST_TOP, W) +
-               _needs(p, u) + _work(p, u) + _lanes(p, u) + pools['down'] + _summary(p, u) + pools['next'] + pools['ready'] + pools['kept'] +
+               _needs(p, u) + _work(p, u) + _lanes(p, u) + pools['down'] + _summary(p, u) + pools['next'] + pools['kept'] +
                u.group(p, 150, u.text(p, S, 30, w, 60, P('empty'), 'p_foot', p.GREY), u.has('empty')) +
                u.group(p, 200, '') + '</control>')
     body = p.backdrop() + p.nav_button(BACK, S, 36, 'chevron-left.png', [('String.IsEqual(Window().Property(filter),all)', 'Close')])

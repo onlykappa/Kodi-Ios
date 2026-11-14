@@ -9,7 +9,7 @@ import re
 from xml.sax.saxutils import escape
 import xml.etree.ElementTree as ET
 
-MARKER='Kodi-iOS player controls r4'
+MARKER='Kodi-iOS player controls r5'
 EDGE=150   # from the screen edges: rounded corners and the Dynamic Island (about 56 pt on an iPhone 16 Pro)
 # Build 191 (owner, landscape video: "the words get cut off by the camera island ... need to move over to the right"):
 # nothing that is read or tapped starts closer than SAFE to either side (the island is on the left or the right,
@@ -84,9 +84,21 @@ def group(anchor,width,body,extra=''):
  return '<control type="group">%s%s%s</control>'%(where,extra,body)
 
 # Settings › Customisation › Video Controls › Hide Controls After (Fuse's OSD_Timeout, in seconds): the controls close
-# that long after they open or after the last tap, unless paused or Continue Watching is open. Empty = never.
+# that long after they open or after the last tap, unless paused or Continue Watching is open. Empty or 0 = never.
+# ISSUE-279 (owner, build 430: "it sits there forever"): Fuse ships it empty, so the controls never hid. The first time
+# the controls open it becomes DEFAULT_TIMEOUT seconds, once (ios_osd_timeout_default), so emptying it later still
+# means never.
 TIMEOUT='Skin.String(OSD_Timeout)'
-ARM_WHEN='!String.IsEmpty(%s) + !Player.Paused + !Skin.HasSetting(ios_osd_continue)'%TIMEOUT
+DEFAULT_TIMEOUT=5
+DEFAULTED='Skin.HasSetting(ios_osd_timeout_default)'
+DEFAULT_ONLOAD=(('String.IsEmpty(%s) + !%s'%(TIMEOUT,DEFAULTED),'Skin.SetString(OSD_Timeout,%d)'%DEFAULT_TIMEOUT),
+                ('!%s'%DEFAULTED,'Skin.SetBool(ios_osd_timeout_default)'))
+ARM_WHEN='!String.IsEmpty(%s) + !String.IsEqual(%s,0) + !Player.Paused + !Skin.HasSetting(ios_osd_continue)'%(TIMEOUT,TIMEOUT)
+# ISSUE-279 (owner: "if i tap outside of the pause or play or skip it should hide the menu anywhere i tap"; log 72b62563:
+# ten taps on no control, "control 0 (not handled)"): a clear button under everything closes the controls, as a tap
+# does in Apple's player. Drawn first, so every real control is above it and keeps its own taps.
+BACKDROP=('<control type="button" id="7100"><left>0</left><top>0</top><right>0</right><bottom>0</bottom>'
+          '<texturefocus /><texturenofocus /><label></label><onclick>Dialog.Close(videoosd)</onclick></control>')
 ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(videoosd),$INFO[%s,00:,],silent)'%TIMEOUT)
 def rearm(xml):
  tags=''.join('<onclick condition="%s">%s</onclick>'%(e(ARM_WHEN),e(a)) for a in ARM)
@@ -167,8 +179,9 @@ def window():
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window>\n<defaultcontrol always="true">7112</defaultcontrol>'
   '<animation effect="fade" start="0" end="100" time="150">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
   '<onunload>Skin.Reset(ios_osd_continue)</onunload><onunload>Skin.Reset(ios_osd_continue_path)</onunload><onunload>CancelAlarm(osd_timeout,true)</onunload>'
+  +''.join('<onload condition="%s">%s</onload>'%(e(c),e(a)) for c,a in DEFAULT_ONLOAD)
   +''.join('<onload condition="%s">%s</onload>'%(e(ARM_WHEN),e(a)) for a in ARM)+
-  '<controls>%s</controls>\n</window>\n')%(MARKER,rearm(shade+head+centre+title+bar+row+panel))
+  '<controls>%s%s</controls>\n</window>\n')%(MARKER,BACKDROP,rearm(shade+head+centre+title+bar+row+panel))
 
 # r4: never shown. The owner does not want a bar besides the controls' own ("the old one still appears"): the
 # window stays because Kodi opens it while seeking and moves its progress control (401).

@@ -36,7 +36,7 @@ class FakeDrive:
 def fake_modules(log):
     class Sink:
         def __init__(self, drive, parent, name, keep_going, on_file, **kw):
-            self.on_file, self.name = on_file, name
+            self.on_file, self.name, self.kw = on_file, name, kw
 
         def finish(self):
             self.on_file('0', {'id': 'copy1', 'size': 5000000000, 'md5Checksum': 'x'})
@@ -80,6 +80,7 @@ class Native:
 
 
 def queue(profile, native):
+    uq.save(profile, dict(uq.load(profile), asked={'orig1': '4K UHD'}))   # the owner chose its show's size (ISSUE-245)
     prep = {'jobs': {'s': {'status': 'done', 'prepared_id': 'orig1', 'source': {'id': 'orig1', 'name': 'Naruto S01E03.mp4'},
                            'probe': {'width': 1920, 'height': 1080, 'duration': 1400, 'hdr': False}}}}
     return types.SimpleNamespace(profile=profile, drive=FakeDrive(), native=native, state=prep, log=lambda m: None,
@@ -160,6 +161,53 @@ class MakesACopy(unittest.TestCase):
         self.assertEqual((entry['status'], entry['progress']), ('waiting', 0))
         self.assertIn('closed', log)
 
+    def test_a_dropped_source_read_waits_for_the_network_and_is_not_a_failure(self):
+        """Owner log (2026-11-13): "Source read: Input/output error" after 2 minutes ended the copy with a long back-off."""
+        done, entry, _, log = self.run_one(Native(fail=RuntimeError('Source read: Input/output error')))
+        self.assertFalse(done)
+        self.assertEqual((entry['status'], entry['progress'], entry['note']), ('waiting', 0, 'Waiting for the network'))
+        self.assertEqual((entry['net_attempts'], entry['retry_after']), (1, 1015.0))   # 15 s, not the failure back-off
+        self.assertNotIn('error', entry)
+        self.assertNotIn('attempts', entry)
+        self.assertIn('closed', log)
+        self.assertEqual(uq.next_job({'copies': {'orig1': entry}}, clock=lambda: 1000.0), None)
+        self.assertEqual(uq.next_job({'copies': {'orig1': entry}}, clock=lambda: 1016.0), 'orig1')
+        again = dict(entry, net_attempts=3)
+        self.assertEqual(__import__('debrid_drive').net_wait(again['net_attempts']), 60)
+
+    def test_a_permanent_failure_still_fails(self):
+        done, entry, _, _ = self.run_one(Native(fail=RuntimeError('The video is HDR')))
+        self.assertTrue(done)
+        self.assertEqual(entry['status'], 'blocked')
+        done, entry, _, _ = self.run_one(Native(fail=RuntimeError('The converter said no')))
+        self.assertEqual((entry['status'], entry['attempts']), ('failed', 1))
+        self.assertNotIn('net_attempts', entry)
+
+    def test_an_encoder_that_stops_is_tried_again_not_failed(self):
+        """ISSUE-241 (owner log 1ae21097): "encode: Generic error in an external library" failed an AI Upscale copy."""
+        error = RuntimeError('video conversion: encode: Generic error in an external library')
+        with tempfile.TemporaryDirectory() as profile, mock.patch.dict(sys.modules, fake_modules([])):
+            q = queue(profile, Native(fail=error))
+            run = lambda screen, at: upscale_cloud.process_one(q, lambda: True, settings(), lambda job: SHOW, None,
+                                                               clock=lambda: at, on_screen=lambda: screen)
+            # In the background: waits for Kodi to be open, never counted.
+            self.assertFalse(run(False, 1000.0));entry = uq.load(profile)['copies']['orig1']
+            self.assertEqual((entry['status'], entry['note'], entry.get('encoder_tries')), ('waiting', 'Waits for Kodi to be open', 0))
+            self.assertNotIn('attempts', entry)
+            converts = lambda: sum(c[0] == 'convert' for c in q.native.calls)
+            calls = converts();self.assertFalse(run(False, 1001.0))
+            self.assertEqual(converts(), calls)                                # not started again in the background
+            # On screen: one more try with a new encoder in 30 s ...
+            self.assertFalse(run(True, 1002.0));entry = uq.load(profile)['copies']['orig1']
+            self.assertEqual((entry['status'], entry['retry_after'], entry['encoder_tries']), ('waiting', 1032.0, 1))
+            # ... a second refusal on screen is a real failure, with the usual back-off.
+            self.assertTrue(run(True, 1040.0));entry = uq.load(profile)['copies']['orig1']
+            self.assertEqual((entry['status'], entry['attempts']), ('failed', 1))
+            # A copy made after it forgets the encoder trouble.
+            q.native.fail = None;entry['retry_after'] = 0;data = uq.load(profile);data['copies']['orig1'] = entry;uq.save(profile, data)
+            self.assertTrue(run(True, 5000.0));entry = uq.load(profile)['copies']['orig1']
+            self.assertEqual(entry['status'], 'ready');self.assertNotIn('encoder_tries', entry);self.assertNotIn('needs_screen', entry)
+
     def test_only_4x_models_block_a_1080p_copy_instead_of_closing_kodi(self):
         native = Native()
         native.support = {'os26': 1, 'image': {'supported': 1, 'fits': 1, 'scale': 4}, 'video': {'supported': 1, 'fits': 0, 'scale': 0}}
@@ -178,6 +226,52 @@ class MakesACopy(unittest.TestCase):
         done, entry, _, _ = self.run_one(Native(), setting=settings(picture.OFF))
         self.assertFalse(done)
         self.assertIsNone(entry)
+
+
+class CarriesOn(unittest.TestCase):
+    """ISSUE-242 (handoff): an AI Upscale copy started again from the beginning after every stop."""
+    def test_a_stopped_copy_carries_on_from_its_last_mark(self):
+        import resume_store
+
+        class Resuming(Native):
+            resumes = True
+
+            def convert_to(self, source, sink, keep_going, progress, paused, waiting, upscale=None, resume=None):
+                self.calls.append(('convert', resume))
+                if self.fail:
+                    sink.kw['on_checkpoint'](dict(url='session', offset=10, tail=b'ab', mark='in 0 0 0 0 0 600', pieces=[]))
+                    raise self.fail
+        native = Resuming(fail=Stop('a video waits to be prepared'))
+        with tempfile.TemporaryDirectory() as profile, mock.patch.dict(sys.modules, fake_modules([])), \
+                mock.patch.object(resume_store, 'confirmed', return_value=12):
+            q = queue(profile, native)
+            run = lambda setting=None: upscale_cloud.process_one(q, lambda: True, setting or settings(), lambda job: SHOW, None,
+                                                                 clock=lambda: 1000.0, on_screen=lambda: True)
+            self.assertFalse(run())
+            self.assertEqual(native.calls[-1], ('convert', None))
+            self.assertIsNotNone(resume_store.load(profile, 'upscale-orig1', ('upscale', 'orig1', '4K UHD', 1920, 1080, 0)))
+            native.fail = None
+            self.assertTrue(run())
+            self.assertEqual(native.calls[-1], ('convert', 'in 0 0 0 0 0 600'))   # carried on from the mark
+            self.assertEqual(uq.load(profile)['copies']['orig1']['status'], 'ready')
+            self.assertEqual(list(resume_store.folder(profile).glob('upscale-orig1.*')), [])   # done: the mark is gone
+        # A mark for another size never carries on: the size asked for is part of its identity.
+        with tempfile.TemporaryDirectory() as profile:
+            resume_store.save(profile, 'upscale-orig1', ('upscale', 'orig1', '4K UHD', 1920, 1080, 0),
+                              dict(url='s', offset=1, tail=b'', mark='m', pieces=[]))
+            self.assertIsNone(resume_store.load(profile, 'upscale-orig1', ('upscale', 'orig1', '1440p', 1920, 1080, 0)))
+        src = (LIB / 'upscale_cloud.py').read_text()
+        self.assertIn("identity = ('upscale', key, label, width, height,", src)
+
+    def test_a_cancel_or_a_failure_forgets_the_mark(self):
+        import resume_store
+        ident = ('upscale', 'orig1', '4K UHD', 1920, 1080, 0)
+        for fail in (RuntimeError('The converter said no'),):
+            with tempfile.TemporaryDirectory() as profile, mock.patch.dict(sys.modules, fake_modules([])):
+                resume_store.save(profile, 'upscale-orig1', ident, dict(url='s', offset=1, tail=b'', mark='m', pieces=[]))
+                q = queue(profile, Native(fail=fail))
+                upscale_cloud.process_one(q, lambda: True, settings(), lambda job: SHOW, None, clock=lambda: 1000.0)
+                self.assertIsNone(resume_store.load(profile, 'upscale-orig1', ident))
 
 
 class RemovesCopies(unittest.TestCase):
@@ -229,6 +323,21 @@ class PlaysTheCopy(unittest.TestCase):
             picture.apply(data, 'show', {'tmdb': '31910', 'type': 'tv'}, upscale='1440p')    # smaller than the copy
             picture.save(profile, data)
             self.assertIn('item_id=orig1', ios_library.upscaled_path(path, params, profile))
+
+
+class RealWaitingReason(unittest.TestCase):
+    """ISSUE-265 (owner log 0b99a266): the page said "Starts when nothing is converting" with nothing converting."""
+    def test_the_next_copy_says_why_it_waits(self):
+        with tempfile.TemporaryDirectory() as profile:
+            data = {'copies': {'v1': {'label': '4K UHD', 'status': 'waiting', 'name': 'a.mkv', 'added': 1}}}
+            uq.save(profile, data)
+            upscale_cloud.hold(profile, 'Waits while a video is made ready for Kodi')
+            self.assertEqual(uq.load(profile)['copies']['v1']['note'], 'Waits while a video is made ready for Kodi')
+        self.assertEqual(uq.may_run({'charging': 0, 'battery': 1.0}, {})[1], 'Waiting for a charger')
+        self.assertEqual(uq.may_run({'charging': 1, 'battery': 1.0, 'thermal': 'serious'}, {})[1], 'Phone is warm · waiting')
+        page = (LIB / 'upscale_page.py').read_text()
+        self.assertNotIn('Starts when nothing is converting', page)
+        self.assertIn("upscale_cloud.hold(profile,", (LIB.parents[1] / 'service.py').read_text())
 
 
 if __name__ == '__main__':

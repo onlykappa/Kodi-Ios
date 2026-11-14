@@ -140,8 +140,15 @@ title 78, title2 → 58, headline/body 44–46, subhead 40, footnote 35, caption
 - Titles: white. Secondary text: `GREY` (60 %). Tertiary `DIM` (30 %) is **not readable text** (see §6).
 - **No two text runs may overlap.** If two labels share a line, the leading label's width must end before the
   trailing label starts (or use a single label / an auto-width grouplist). Every label that can receive
-  variable-length text needs an explicit width and truncation (`<scroll>false</scroll>` truncates with "…").
-  Long file names must be shown as the cleaned title or truncated. See ISSUE-101.
+  variable-length text needs an explicit width. See ISSUE-101.
+- **No text is ever cut off (owner, 2026-11-14; DEC-050).** No "…", no clipped chips, no text running out of its box,
+  in pages, sheets, rows, chips, notices and mockups alike. When text may not fit:
+  1. Say it shorter: clean titles, not raw file names (`quality_choice.short`, `drivelibrary.display_title`), the
+     episode first ("S1 E5 · Show"), a number instead of a sentence.
+  2. Wrap it: the row grows to the lines its text needs (`choice_sheet` wrapped forms; the show page's two-line titles).
+  3. Move the rest to a second line or the detail screen. Never rely on `<scroll>false</scroll>` truncating.
+  Mockups follow the same rule: a mockup that shows "…" or clipped text is not ready for approval. The rig render
+  (§7 step 5) checks it with real, long data (the longest title and file name the feature can show).
 
 ### 4.3 Colour
 
@@ -289,7 +296,8 @@ For every UI change:
    `test_glassbar.py`, `test_native_ui.py`, and `test_activity.py` once PR #9 lands).
 5. **Render and look:** render the changed pages in the desktop Kodi rig, `scripts/kodi_rig.py` (guide:
    [KODI-RIG.md](KODI-RIG.md); `boards` renders every approved board next to its mockup), and mockups in a browser.
-   Inspect them for overlap, truncation, contrast, hit areas and alignment. Keep the screenshots out of Git.
+   Inspect them for overlap, cut-off text (any "…" or clipped chip fails, §4.2), contrast, hit areas and alignment,
+   with the longest real text the page can show. Keep the screenshots out of Git.
 6. **Fix and repeat** steps 4–5 until clean.
 7. **Report** what was verified, with which evidence class (§9), and what still needs review on the iPhone.
 

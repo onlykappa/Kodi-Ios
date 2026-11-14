@@ -387,8 +387,7 @@ def client():
  import sys,urllib.request,xbmcaddon,xbmcvfs
  sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
  import driveupload
- common=xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
- if common not in sys.path:sys.path.append(common)
+ import pinned_addons;pinned_addons.use_clouddrive(xbmcaddon,xbmcvfs)   # ISSUE-270: the app's patched copy
  from clouddrive.common.account import AccountManager
  from clouddrive.common.remote.request import tls_context
  drive_addon=xbmcaddon.Addon('plugin.googledrive')
