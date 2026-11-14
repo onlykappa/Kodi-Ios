@@ -27,6 +27,13 @@ import resume_store
 LANES = 3            # converters at once (the native test runs three; each has its own Drive upload)
 TRIES = 3            # starts per file before it is copied plainly instead
 _gate = threading.BoundedSemaphore(LANES)
+_making = [0]   # copies being made ready now (ISSUE-246: a Refresh's file inspection waits for them)
+_making_lock = threading.Lock()
+
+
+def active():
+    """How many downloads are being made ready while they copy right now."""
+    return _making[0]
 
 
 def slot_for(key):
@@ -83,6 +90,8 @@ def copy(q, profile, with_link, name, size, parent, going, progress, key, log=la
             raise driveupload.Stop('Download paused')
     slot, item = slot_for(key), 'debrid-' + slot_for(key)
     outputs, sink, staged = {}, None, None
+    with _making_lock:
+        _making[0] += 1
     try:
         source = stream.add_external(item, with_link)
         before = _probe(native, source, going)
@@ -184,4 +193,6 @@ def copy(q, profile, with_link, name, size, parent, going, progress, key, log=la
                 stream.forget(ident)
         if hasattr(stream, 'unwide'):
             stream.unwide(item)
+        with _making_lock:
+            _making[0] -= 1
         _gate.release()

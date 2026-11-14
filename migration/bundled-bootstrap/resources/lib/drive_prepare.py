@@ -440,6 +440,14 @@ class Sink:
             self._confirmed(t,t.get('track',0))
             if got>start:
                 chunks.observe(got-start,0,elapsed);failures=0
+                if chunks.FAST<=elapsed<=chunks.SLOW and chunks.current<chunks.limit:
+                    # ISSUE-246 (owner log bfde8a13: three episodes made ready at once sent 4-8 MB pieces taking 4-9 s each,
+                    # ~1.3 MB/s per upload, while plain copies reached 13.6 MB/s): pieces grew only after three under 6 s,
+                    # which a shared line never gives. A steady piece now grows toward about ten seconds at the speed it
+                    # just had, so fewer Drive round trips; a slow piece (over 15 s) still shrinks it.
+                    step=256*1024
+                    steady=int((got-start)*chunks.TARGET/elapsed)//step*step
+                    chunks.current=max(chunks.current,min(chunks.limit,steady))
                 if t.get('track',0)==0:learn_piece(chunks.current if elapsed<chunks.SLOW else 0)
             else:failures+=1
             if got == target and not final:return

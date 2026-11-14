@@ -128,6 +128,25 @@ class Ready(unittest.TestCase):
         self.q.native = types.SimpleNamespace(outputs=False)
         self.assertIsNone(self.copy())
 
+    def test_a_refresh_inspection_waits_while_copies_are_made_ready(self):
+        # ISSUE-246 (owner log bfde8a13): a Refresh re-read 47 videos through the converter while three episodes were made
+        # ready as they copied, and uploads crawled. The copies say they are running; the inspection waits for them.
+        seen = []
+        real = self.native.convert_to
+
+        def watching(*args, **kwargs):
+            seen.append(debrid_ready.active())
+            return real(*args, **kwargs)
+        self.native.convert_to = watching
+        self.copy()
+        self.assertEqual((seen, debrid_ready.active()), ([1], 0))
+        self.native.error = RuntimeError('MP4 packet: Invalid argument')
+        self.native.convert_to = real
+        self.copy()
+        self.assertEqual(debrid_ready.active(), 0)                              # back to 0 after a failure too
+        src = (BOOT / 'resources/lib/prepare_downloads.py').read_text()
+        self.assertIn('if making:listing_only=True', src)
+
     def test_at_most_three_at_once(self):
         self.assertEqual(debrid_ready.LANES, 3)
         inside, peak, gate = [0], [0], threading.Event()

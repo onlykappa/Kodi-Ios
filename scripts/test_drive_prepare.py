@@ -521,6 +521,24 @@ class LearnedPieceSize(unittest.TestCase):
    self.assertEqual(max(drive.sizes),16*MB)                   # grows back after fast pieces
    self.assertGreaterEqual(dp.learned_piece(dp.MAIN_CHUNK),8*MB)
   dp.learn_piece(0)
+ def test_steady_pieces_grow_toward_ten_seconds(self):
+  # ISSUE-246: on a shared line every 4 MB piece took ~8 s, so pieces never grew (three under 6 s were needed).
+  MB=1024*1024
+  now=[0.0]
+  class D:
+   def __init__(s):s.got=0;s.sizes=[]
+   def call(s,method,url,body=b'',headers=None):
+    if headers['Content-Range'].startswith('bytes */'):return 308,({'Range':'bytes=0-%d'%(s.got-1)} if s.got else {}),b''
+    now[0]+=len(body)/(0.5*MB)          # 0.5 MB/s: 4 MB takes 8 s
+    s.sizes.append(len(body));s.got+=len(body);return 308,{'Range':'bytes=0-%d'%(s.got-1)},b''
+  with patch.object(dp,'_link_kind',lambda:'wifi'):
+   dp.learn_piece(4*MB)
+   drive=D();sink=dp.Sink(drive,'p','x',lambda:True,clock=lambda:now[0])
+   self.run_file(drive,1,sink=sink)
+   self.assertEqual(sum(drive.sizes),40*MB);self.assertEqual(drive.sizes[0],4*MB)
+   self.assertEqual(drive.sizes[1],5*MB)       # 4 MB in 8 s -> 5 MB (about ten seconds at that speed)
+   self.assertTrue(all(b>=a for a,b in zip(drive.sizes,drive.sizes[1:-1])))
+  dp.learn_piece(0)
  def test_a_change_of_link_forgets_it_and_sidecars_do_not_use_it(self):
   kind={'now':'wifi'}
   with patch.object(dp,'_link_kind',lambda:kind['now']):

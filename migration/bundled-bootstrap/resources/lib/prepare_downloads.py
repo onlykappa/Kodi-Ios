@@ -896,6 +896,15 @@ class Queue:
   try:request=json.loads(requested_text);inspection=bool(request.get('inspect'));asked_at=float(request.get('time') or 0)
   except (ValueError,AttributeError,TypeError):inspection=False;asked_at=0.0
   self.inspection_pending=False
+  if inspection and not listing_only:
+   try:
+    import debrid_ready
+    making=debrid_ready.active()
+   except Exception:making=0
+   # ISSUE-246 (owner log bfde8a13, build 384: "uploads seem sluggish" while three Rick and Morty episodes were made ready
+   # as they copied, a Refresh re-read all 55 videos, probing through the same converter, 47 of them in 4 minutes): the file
+   # inspection waits for those copies, like it waits for queued videos (ISSUE-230); the Drive listing still runs now.
+   if making:listing_only=True
   if listing_only and inspection:
    # ISSUE-234 (owner: "library status doesn't really refresh, it's awful"): while videos wait to be prepared, a Refresh's
    # inspection waits for them (ISSUE-230) and nothing at all was listed, so the page sat on "Checking…". The Drive listing
