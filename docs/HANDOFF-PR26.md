@@ -18,7 +18,7 @@ job as well as the framework build before pinning a KodiAirPlay release.
 
 ## Open
 
-1. Desktop Kodi rig check of the Download problems page after ISSUE-257 (episode-first titles, "Clear All for <show>" row
+1. ~~Done 2026-11-14 (rows and sheet fit; label changed).~~ Desktop Kodi rig check of the Download problems page after ISSUE-257 (episode-first titles, "Clear All for <show>" row
    in the sheet). How: `python3 -B scripts/kodi_rig.py setup` (once), `start`, `sync`, fake data (two failed debrid jobs
    of one show via `debrid_drive.save`), `open copy_problems`, `click 9201`, `shot NAME`.
 2. Delete the Roku / Media Assistant route only after the owner confirms Rokus play well through AirPlay (ISSUE-252).

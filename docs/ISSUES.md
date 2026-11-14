@@ -3713,6 +3713,7 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Owner:** "do 4": "Naruto Shippuuden · S…" was cut off before the part that matters.
 - **Fix:** the row title puts the episode first ("S1 E5 · Naruto Shippuuden"). A copy problem's sheet adds "Clear All for <show>", which asks, then removes every non-prepare problem of that show.
 - **Retest:** test_season_quality `ProblemsPageAndMemory`.
+- **Desktop Kodi rig (2026-11-14, build-406 add-ons):** rows read "S1 E14 · Naruto Shipp…", so the episode is always visible. The first sheet label "Clear All for Naruto Shipp…" was cut off, so it now reads "Clear All for This Show" with the show name on the grey line below, which fits.
 
 ## ISSUE-258 — "Not the quality you picked" loop for a season with no real 1080p (owner, 2026-11-14) — fixed in code
 

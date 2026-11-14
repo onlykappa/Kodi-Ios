@@ -240,7 +240,7 @@ class ProblemsPageAndMemory(unittest.TestCase):
         self.assertEqual(cp.short_title(p), 'S1 E5 · Naruto Shippuuden');self.assertEqual(cp.show_of(p), 'Naruto Shippuuden')
         self.assertEqual(cp.short_title({'title': 'Heat (1995)'}), 'Heat (1995)')
         spec, actions = cp.sheet(p)
-        self.assertEqual(actions[-1], 'clear_show');self.assertEqual(spec['rows'][-1]['label'], 'Clear All for Naruto Shippuuden')
+        self.assertEqual(actions[-1], 'clear_show');self.assertEqual((spec['rows'][-1]['label'], spec['rows'][-1]['detail']), ('Clear All for This Show', 'Naruto Shippuuden'))
 
     def test_a_season_without_real_1080p_is_remembered(self):
         with tempfile.TemporaryDirectory() as p:

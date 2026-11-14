@@ -198,7 +198,7 @@ def sheet(problem):
     rows.append(DONT_SHOW);actions.append('ignore')
     rows.append({'label': 'Remove From List', 'tint': 'FFFF453A', 'glyph': 'trash.png'});actions.append('remove')
     if show_of(problem):   # ISSUE-257: once a season is done, its leftovers go in one tap
-        rows.append({'label': 'Clear All for %s' % show_of(problem), 'tint': 'FFFF453A', 'glyph': 'trash.png'});actions.append('clear_show')
+        rows.append({'label': 'Clear All for This Show', 'detail': show_of(problem), 'tint': 'FFFF453A', 'glyph': 'trash.png'});actions.append('clear_show')
     return {'heading': problem['title'], 'sub': detail_text(problem)[:220], 'rows': rows}, actions
 
 
