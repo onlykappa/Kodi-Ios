@@ -2,14 +2,14 @@
   "framework_release": {
     "tag": "kodi-airplay-r57",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "sha256": "9a11280783684187c357844081cf08f7874a4e19ca0af0f5f309392dfe42fbda"
   },
   "previous": {
     "tag": "kodi-airplay-r56",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "91be96afe8a51cfde1643b79a6675f6c91ba915d9b5fc334591f583c9b9416f7"
   },
-  "source_commit": "4e26d137a7b7c36ba8320629287385f83cbbb4d4",
-  "verified_run": 43545050950,
-  "staged_note": "r57 staged (ISSUE-278: a prepared file the TV takes as sound only, or that fails while the TV has the sound only, restarts once, H.264 too; an H.264 picture restarts in 6-s segments with the picture copied): built and published by airplay-ios on this branch; sha256, source_commit and verified_run are pinned from that run after host-tests pass."
+  "source_commit": "d020c829f023814c427351c14958e6edbfe2cf67",
+  "verified_run": 43622274914,
+  "pin_note": "r57 (ISSUE-278: a prepared file the TV takes as sound only, or that fails while the TV has the sound only, restarts once, H.264 too; an H.264 picture restarts in 6-s segments with the picture copied) published by airplay-ios run 43622274914 from d020c82; the converter host tests (airplay-remux run 43621764007, same native source) passed; release notes, asset digest and downloaded zip all give 9a112807\u202642fbda, and the binary carries the new restart notes."
 }

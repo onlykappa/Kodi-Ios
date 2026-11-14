@@ -4089,7 +4089,7 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - test_play_on_tv_network `test_a_prepared_h264_file_the_tv_turns_down_restarts_in_segments`.
   - test_airplay_remux updated for the one guarded restart path.
   - Host checks only: the Objective-C compiles in the airplay-ios workflow on macOS.
-- **Needs:** an r57 framework build and pin, then an IPA. Both wait for the owner's OK.
+- **Built and pinned (owner OK, 2026-11-14):** r57 was published by airplay-ios run 43622274914. Digest 9a112807…42fbda was checked by download, and the binary carries the new restart notes. Host tests: airplay-remux run 43621764007.
 - **Phone check:** AirPlay a prepared H.264 episode to the Roku. The log should show "restarting in 6-s segments", then `/video/` and `/audio/` segment requests from the TV, and the picture on the TV.
 - **Not done yet:** remembering that this TV needs segments, so the next start skips the failed first try (about 1.5 s).
 
