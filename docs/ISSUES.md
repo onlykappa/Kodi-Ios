@@ -4325,3 +4325,109 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   Inter (`notifications_skin.lines_in`), not a character count, so a one-line status is never given two lines (that was
   the uneven first row). Retest on the rig: three even rows, a speed line on each. The rig's lanes scenario keeps the
   lanes' percentages fixed, so their time left could not show there; test_slim_status covers the estimate.
+
+## ISSUE-291 — Queue and Notifications bypassed the shared library record — fixed in backend
+
+- **Request:** Build 442 item 15: Rick and Morty season 3 must agree in Library status, Transfers and Running now.
+- **Cause:** work-state independently inferred membership and titles from lane/preparation snapshots; a quiet or missing
+  worker report hid indexed videos. The ISSUE-282 NameError previously prevented the index publisher starting at all.
+- **Fix:** library_index decides video membership, titles and counts; work_state attaches worker telemetry by identity.
+  All three consumers use that projection; missing measurements leave the video queued. Ready/problems cannot reappear
+  as active transfers. Pending cancellations are applied to the index. Its publisher refreshes on every service pass,
+  survives a failed pass and updates KodiIOS.LibraryIndex only on a visible change. Concurrent writes use unique temp files.
+- **Retest:** The supplied current build-442 log has 12 repeated NameError restarts, no library summaries and no upload
+  piece timings (raw log retained outside Git). A four-video fixture (copying, converting, problem, ready) agrees across all consumers; missing telemetry and
+  transient publisher failure are covered. Host checks do not establish device behaviour; owner retest remains pending.
+- **Test:** scripts/test_queue_index.py; updated publisher fixture in test_work_state.py; check_project and every test
+  listed in import-review.yml run before commit.
+
+
+## ISSUE-292 — Upload speed omitted first pieces and mixed lane/total rates; graphs arrived in bursts — fixed in backend
+
+- **Request:** Build 442 item 8: actual per-lane rolling MB/s, regular history, total, ETA and progress-ring data.
+- **Cause:** Rate marks started after the first acknowledgement, and the primary lane's rate was overwritten with a sum.
+  History saved every five seconds, independent of the shared work model. An index reader could briefly retain a completed
+  job until the next service pass (caught by the full-suite queue visibility test during ISSUE-291 validation).
+- **Fix:** driveupload emits acknowledged bytes and measured request duration for the first, intermediate and final pieces.
+  Native rates use the very timings printed by the native piece log; partial/recovered acknowledgements cannot multiply
+  the bytes just sent. Each copier lane keeps a time-weighted rolling rate. Ready-on-copy uses Sink upload statistics,
+  never its film percentage as byte speed. Phone uploads carry the same measurements. Work state samples measured rates
+  once per second (60 samples per lane and total); paused/stale work becomes zero, and job changes reset lane history.
+  Transfers and copy detail graphs can read these points directly. Index input fingerprints make current() reflect a
+  newly finished job without waiting for the service. The first piece is also included in lane-count learning.
+- **Retest:** Deterministic 32 MiB / 8 s native pieces report 4 MiB/s including the final piece; two lanes at 2 and 3 MiB/s
+  total 5, with independent graphs. 70 ticks retain 60 one-second points, preserve confirmed bytes and expire stale speed.
+  The supplied build-442 log has no piece timings because startup keeps failing; it cannot establish actual bandwidth.
+  Code already permits six lanes (starts at three, learns gains), native pieces up to 32 MiB, with lower cellular/playback
+  limits. No evidence justifies increasing these caps. The clearly wrong aggregation/first-piece accounting is fixed;
+  native/framework/network limits still require a post-fix device log.
+- **Test:** scripts/test_upload_speed.py; test_season_sources queue visibility; check_project and all workflow-listed tests
+  before commit. Host validation only; device throughput and rendering remain unverified.
+
+
+## ISSUE-293 — Subtitle tracks could belong to another episode or fail the video's timing — filtered in backend
+
+- **Request:** Build 442 item 6: reject clear subtitle mismatches, rank the rest, select the best and expose short reasons.
+- **Cause:** Streams were shown by language only; downloads were ranked by release words and installed without checking
+  cues. A ZIP containing one subtitle from the wrong episode bypassed the episode check. No playback-start matcher ran.
+- **Fix:** A pure scorer reads SRT/VTT/ASS/SSA/MicroDVD and VobSub IDX timestamps, checks duration bounds, distant first/last
+  cues, empty/short tracks (forced tracks exempt), filename/declared/preferred language, episode/absolute numbering and
+  strong supplied/measured timing offsets. Ambiguous offsets do not prove mismatch. Tracks are ranked and clear mismatches
+  cannot be installed. The downloader tries up to five candidates, validating before setSubtitles. A playback-start
+  monitor automatically prefers the best allowed stream, preserves Off/current ties and later manual choices. Rows and
+  KodiIOS.SubtitleMatches expose score/rejection/reason/timing evidence; no menu layout changed.
+- **Retest:** Sixteen host cases include wrong-episode ZIP, bounds, formats, offset, language, forced captions, short/empty,
+  conservative movie filenames, actual controller rejection/fallback, and the service adapter selecting the best stream.
+  Important boundary: Kodi's Python/native probe currently exports embedded subtitle counts/names/languages, not DVD cue
+  packets or speech timing. Such tracks say “Timing not checked”; their speech/timing cannot be verified in Python here.
+  The scorer can use cue/speech intervals when supplied. Naruto DVD speech alignment still needs device/native evidence;
+  no claim that text/speech recognition or an unavailable native cue API was implemented.
+- **Test:** scripts/test_subtitle_match.py; existing test_track_menu, test_subtitle_sources and test_undefined_names;
+  check_project and all workflow-listed tests before commit. Host checks only, owner playback retest pending.
+
+
+## ISSUE-294 — Data for folded notifications, timed steps and live season-quality coverage — implemented without layouts
+
+- **Request:** C1 identical-notice folding and 2/3-line data; N2 up to three timed steps; Q2 per-quality episode coverage
+  as answers arrive, without sample-episode wording or any sheet/menu layout change.
+- **Cause:** Raw notices had no reusable list/detail projection or retained lifecycle times. The quality sheet reported
+  start/middle/end sample episodes and only a found/not-found flag; that was not whole-season coverage.
+- **Fix:** notice_help.folded / notice_models.fold combine exact kind/title/text matches, preserve member IDs/unread state,
+  count notice occurrences (not a stored season's episode count), and expose lines=2/3 from text length. A separate bounded
+  runtime sidecar records copy-start/problem/retry/ready steps, folding starts across a season's concurrent episodes/files;
+  notice_help.detail_model exposes timeline with actual time, colour_kind, kind and text. No notices.py routines changed.
+  The Build Season check now scans every remaining episode once, reuses those answers for the build, and publishes exact
+  found/total/checked/pending/unknown counts per quality plus checking_qualities. Empty/error responses stay unknown,
+  never proof of absence; incomplete checks do not disable a quality. Sample-episode wording/helpers were removed.
+- **Retest:** Exact-repeat folding with an existing episode count, immutable inputs, line count, timed-step reload/cap,
+  pack-file identity, single-episode lookup, the real copier retry producer, partial/failed quality replies, and the real
+  season builder publishing before completion all pass. Existing season sheet/source tests pass. UI binding and visual
+  behaviour belong to the UI agent; this entry makes no rendering/device claim.
+- **Test:** scripts/test_notice_season_data.py (seven cases), updated test_season_sheet, check_project and every listed
+  import-review test before commit.
+
+
+## ISSUE-295 — Permanent copy failures retried unchanged files — stopped and sent to Download problems
+
+- **Request:** Follow up ISSUE-285: audit every RuntimeError in debrid_drive, driveupload and debrid_ready; stop retries
+  that cannot repair a changed source, wrong size or invalid result, and explain the problem.
+- **Cause:** Generic RuntimeErrors all entered the inline/later retry budgets. Permanent source/receipt/position failures
+  were treated like connection failures; a main failure could be overwritten as done. Legacy phone uploads also retried
+  the same unchanged file on each service pass. HTTP 403 was ambiguous without inspecting its reason code.
+- **Fix:** copy_errors distinguishes permanent identity/integrity/access/input failures from transient network/rate/server
+  and expired-session failures. Drive renews a refused access token once before a terminal refusal. All upload paths
+  validate final receipts and confirmed positions. Permanent workers stop before inline retry, retain a clear reason,
+  notify/history once, and expose a Download problem; companion failures stay isolated and completed companions still
+  get their completion callback. Saved known permanent failures retire without another copy/unlock call. Terminal notice
+  details keep the real reason and no longer offer an unhelpful Retry now.
+  An explicitly rejected Drive ID stays a problem even when listed on Drive; a separate valid duplicate still wins.
+  Phone uploads retain a failure fingerprint and mirror a source=phone failed job into the same index/problems record;
+  automatic passes skip that unchanged file. A changed fingerprint or explicit manual retry clears the block/session;
+  synthetic phone hashes are never submitted to AllDebrid. Failure/retry handling never deletes phone media.
+- **Retest:** Changed source/size, native/buffered/resumed receipt/position, HDR verification, permission/quota errors,
+  transient 403/429/5xx, expired sessions, token refresh, persisted errors, companion isolation and phone repeated-pass /
+  fingerprint/manual-retry/index consistency cases pass. Remaining raw RuntimeErrors are recoverable metadata wait,
+  premature source EOF and an upload not yet confirmed. The supplied private log has no RuntimeError or piece lines;
+  it cannot identify the owner's original individual failure. Host checks do not prove device recovery.
+- **Test:** scripts/test_terminal_copy_errors.py (26 cases); updated test_debrid_drive, test_drive_upload and
+  test_library_tools fixtures; check_project and every workflow-listed test before commit.

@@ -92,9 +92,20 @@ def build(listing, prep_state, debrid_state, upscale_state=None, ignored=None, c
     prep = lf._index_prep(prep_state)
     copies = lf._index_copies(upscale_state)
     videos, by_key, duplicates = [], {}, []
+    jobs = (debrid_state or {}).get('jobs', [])
+    failure_rows = debrid_drive.problems(debrid_state or {'jobs': []})
+    failure_by_key = {p['key']: p for p in failure_rows}
+    invalid = {str(j['invalid_drive_id']): j for j in jobs if j.get('invalid_drive_id') and j.get('status') == 'failed'}
 
     def add(entry):
         if entry['key'] in by_key:
+            current = by_key[entry['key']]
+            if current.get('invalid_drive_id') and not entry.get('invalid_drive_id'):
+                # A separate valid version wins regardless of Drive listing order. Keep the rejected ID a duplicate.
+                duplicates.append(dict(current))
+                current.clear()
+                current.update(entry)
+                return current
             duplicates.append(entry)
             return by_key[entry['key']]
         by_key[entry['key']] = entry
@@ -112,6 +123,8 @@ def build(listing, prep_state, debrid_state, upscale_state=None, ignored=None, c
         if job and job.get('forgotten'):
             continue          # deleted by the owner: gone from every page at once, before the next Drive scan
         state, reason, pkey = _prep_state(job)
+        if not job and item.get('state') == 'unreadable':
+            state, reason, pkey = PROBLEM, 'Google Drive could not describe this video', 'prep:' + str(item.get('id') or '')
         copy = copies.get(str(item.get('id') or '')) or {}
         entry = {'key': video_key(kind, title, info.get('season'), info.get('episode'), info.get('year')),
                  'kind': kind, 'show': title if episode else '', 'show_key': show_key(title) if episode else '',
@@ -121,12 +134,19 @@ def build(listing, prep_state, debrid_state, upscale_state=None, ignored=None, c
                  'progress': None, 'hidden': False, 'problem_key': pkey,
                  'ai': copy.get('label', '') if copy.get('status') == 'ready' else '', 'ai_size': int(copy.get('size') or 0),
                  'job_id': str(((job or {}).get('source') or {}).get('id') or ''), 'probe': dict((job or {}).get('probe') or {})}
-        if state == PROBLEM:
+        bad = invalid.get(entry['id'])
+        if bad:
+            reason = bad.get('terminal_reason') or bad.get('error') or 'This Drive upload did not pass verification'
+            pkey = debrid_drive.problem_key(bad)
+            problem = failure_by_key.get(pkey) or {'kind': 'source', 'error': reason}
+            entry.update(state=PROBLEM, reason=reason, problem_key=pkey, invalid_drive_id=entry['id'],
+                         hash=str(bad.get('hash') or '').lower(),
+                         hidden=_ignored(ignored, pkey, problem))
+        elif state == PROBLEM:
             entry['hidden'] = _ignored(ignored, pkey, {'kind': 'prepare', 'error': reason})
         add(entry)
 
     # 2. What AllDebrid is copying (not on Drive yet).
-    jobs = (debrid_state or {}).get('jobs', [])
     for job in jobs:
         if job.get('status') in ('done', 'failed'):
             continue
@@ -155,7 +175,7 @@ def build(listing, prep_state, debrid_state, upscale_state=None, ignored=None, c
     # without a title (owner screenshot: "S1 E6 · Unnamed download") takes its show from its TMDb id, through the copies
     # that have both.
     titles = {str(j.get('show_tmdb')): j['title'] for j in jobs if j.get('show_tmdb') and j.get('title')}
-    for p in debrid_drive.problems(debrid_state or {'jobs': []}):
+    for p in failure_rows:
         job = jobs[p['index']] if 0 <= p['index'] < len(jobs) else {}
         title = (str(job.get('title') or '') or titles.get(str(job.get('show_tmdb') or ''), '') or
                  debrid_drive.problem_title(job))
@@ -169,7 +189,7 @@ def build(listing, prep_state, debrid_state, upscale_state=None, ignored=None, c
         add({'key': key, 'kind': kind, 'show': title if kind == 'episode' else '',
              'show_key': show_key(title) if kind == 'episode' else '', 'tmdb': p.get('show_tmdb') or '',
              'season': season, 'episode': episode, 'title': title, 'year': str(job.get('year') or ''), 'id': None,
-             'name': p.get('name') or '', 'size': 0, 'quality': '', 'state': CANCELLED if cancelled else PROBLEM,
+             'name': p.get('name') or '', 'hash': str(job.get('hash') or '').lower(), 'size': 0, 'quality': '', 'state': CANCELLED if cancelled else PROBLEM,
              'reason': p.get('error') or p.get('reason') or '', 'progress': None,
              'hidden': (not cancelled) and _ignored(ignored, p['key'], p), 'problem_key': p['key'], 'ai': ''})
     videos.sort(key=lambda e: (e['kind'] != 'episode', e['show_key'] or e['title'].casefold(), e['season'], e['episode']))
@@ -266,11 +286,16 @@ def _read(target, default):
 def _write(target, data):
     import json
     import os
+    import tempfile
     os.makedirs(os.path.dirname(target), exist_ok=True)
-    tmp = target + '.tmp'
-    with open(tmp, 'w', encoding='utf-8') as handle:
-        json.dump(data, handle)
-    os.replace(tmp, target)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(target), prefix='.library-')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+            json.dump(data, handle)
+        os.replace(tmp, target)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
 
 
 def load(profile):
@@ -309,7 +334,10 @@ def refresh(profile, drive=None, clock=time.time):
     now = clock()
     prep = prepare_downloads.apply_to(prepare_downloads.load(profile), prepare_downloads.pending_requests(profile), now)
     listing = ((prep.get('library') or {}).get('items')) or []
-    index = build(listing, prep, debrid_drive.load(profile), upscale_queue.load(profile), problem_ignore.load(profile), clock)
+    import transfer_control
+    import work_state
+    copies = work_state.pending_cancels(debrid_drive.load(profile), transfer_control.cancelled_copies(profile), now)
+    index = build(listing, prep, copies, upscale_queue.load(profile), problem_ignore.load(profile), clock)
     intents = pending_intents(profile, now)
     for entry in index['videos']:
         intent = intents.get(entry['key'])
@@ -320,6 +348,7 @@ def refresh(profile, drive=None, clock=time.time):
     index['checked'] = float((prep.get('library') or {}).get('checked') or 0)
     same = (before.get('videos') == index['videos'] and before.get('drive') == index['drive']
             and before.get('duplicates') == index['duplicates'])
+    index['inputs'] = list(fingerprint(profile))
     index['counter'] = int(before.get('counter') or 0) + (0 if same else 1)
     _write(path(profile), index)
     return index
@@ -356,20 +385,18 @@ def check(index, prep_state, debrid_state):
 
 def publish(profile, wait, every=2.0, set_property=None, drive_health=lambda: None, log=lambda text: None, clock=time.time,
             note=None):
-    """The service loop: rebuild when an input changed (and at least every 30 s), keep the counter property current,
+    """The service loop: rebuild on every pass, keep the counter property current,
     write the minute line and run the self-check every five minutes (note: the info log)."""
     note = note or log
-    last_print, last_at, last_counter, last_line, last_check = None, 0.0, None, 0.0, 0.0
+    last_counter, last_line, last_check = None, 0.0, 0.0
     while not wait(every):
         try:
-            mark = fingerprint(profile)
             now = clock()
-            if mark != last_print or now - last_at >= 30:
-                index = refresh(profile, drive_health(), clock)
-                last_print, last_at = mark, now
-                if set_property and index['counter'] != last_counter:
-                    set_property(PROPERTY, str(index['counter']))
-                    last_counter = index['counter']
+            # Pending actions, health and progress must never wait for an mtime change.
+            index = refresh(profile, drive_health(), clock)
+            if set_property and index['counter'] != last_counter:
+                set_property(PROPERTY, str(index['counter']))
+                last_counter = index['counter']
             if now - last_line >= 60:
                 last_line = now
                 note(summary(load(profile)))
@@ -432,6 +459,13 @@ def entry_line(entry):
     if state == CANCELLED:
         return 'Cancelled'
     return entry.get('reason') or 'Needs you'
+
+
+def entry_title(entry):
+    """The same video title on Library status, Transfers and Notifications."""
+    if entry['kind'] == 'episode':
+        return 'S%d E%d · %s' % (entry['season'], entry['episode'], entry['title'])
+    return entry['title'] + (' (%s)' % entry['year'] if entry.get('year') else '')
 
 
 # ---- Rows for the Library pages (step 3): the shapes library_files gave, from the one record -------------------------

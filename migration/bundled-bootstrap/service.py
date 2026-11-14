@@ -254,6 +254,9 @@ def run():
     if command:xbmc.executebuiltin(command)
    except Exception as error:xbmc.log('Kodi iOS picture: saturation not set (%s)'%type(error).__name__,xbmc.LOGWARNING)
  threading.Thread(target=saturation_loop,daemon=True).start()
+ # Check subtitle identity when each video starts, without opening the Subtitles menu.
+ import subtitle_match
+ threading.Thread(target=subtitle_match.run,args=(xbmc,xbmcgui,monitor),daemon=True).start()
  # Roadmap 3.5: one performance line a minute (list runs, opens, Drive proxy requests and seeks), only when something happened.
  import perf_summary,drive_proxy
  threading.Thread(target=perf_summary.watch,args=(xbmcgui.Window(10000),open_timing.take,
@@ -275,7 +278,8 @@ def run():
  threading.Thread(target=upscale_control,daemon=True).start()
  def work_inputs():
   import debrid_drive,prepare_downloads,preparation_runtime
-  phone=[u for u in notices.uploads(profile) if u.get('source')=='phone']
+  import transfer_speed
+  phone=transfer_speed.phone_uploads(profile)
   prep=prepare_downloads.load(profile);flags=work_state.flags(profile)
   import problem_ignore
   need=prepare_downloads.problem_need(prep,problem_ignore.hidden_prep_ids(profile,prep))   # board E3, minus Don't Show Again
@@ -285,7 +289,7 @@ def run():
           'paused':{k:transfer_control.paused(profile,k) for k in transfer_control.KINDS},'slow':slowdown.reason(),
           **flags}
  threading.Thread(target=work_state.publish,args=(profile,work_inputs,monitor.waitForAbort),
-                  kwargs={'set_property':window.setProperty,'log':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGWARNING)},daemon=True).start()
+                  kwargs={'every':1,'set_property':window.setProperty,'log':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGWARNING)},daemon=True).start()
  # A torrent whose real name turns out to be another film (owner, build 156: Fall 2022 → Fall.2.Deadpoint.2026) is
  # stopped once Elementum knows its name, and explained in Notifications.
  import source_guard

@@ -101,7 +101,7 @@ def subdl_parse(body, lang, season=None, episode=None):
         if season and episode and s.get('episode') not in (None, '', 0, '0') and str(s.get('episode')) != str(int(episode)):
             continue
         releases = [str(r) for r in ([s.get('release_name')] + list(s.get('releases') or []) + [s.get('name')]) if r]
-        out.append({'source': 'subdl', 'id': url, 'releases': releases, 'impaired': bool(s.get('hi'))})
+        out.append({'source': 'subdl', 'id': url, 'releases': releases, 'language': lang, 'impaired': bool(s.get('hi'))})
     return out
 
 
@@ -152,7 +152,7 @@ def os_parse(body, lang):
         if not files or not files[0].get('file_id'):
             continue
         releases = [str(r) for r in (a.get('release'), files[0].get('file_name')) if r]
-        out.append({'source': 'opensubtitles', 'id': str(files[0]['file_id']), 'releases': releases,
+        out.append({'source': 'opensubtitles', 'id': str(files[0]['file_id']), 'releases': releases, 'language': lang,
                     'impaired': bool(a.get('hearing_impaired'))})
     return out
 

@@ -17,6 +17,7 @@ import urllib.request
 from pathlib import Path
 
 import alldebrid
+import copy_errors
 import driveupload
 import transfer_history
 
@@ -146,6 +147,10 @@ NETWORK_WORDS = ('timed out', 'timeout', 'connection', 'network', 'temporarily',
 
 def network_error(error):
     """True when an exception (or a saved 'Type: text' error) is network trouble that goes away by itself."""
+    if copy_errors.is_terminal(error):
+        return False
+    if copy_errors.is_retryable(error):
+        return True
     if isinstance(error, BaseException):
         code = getattr(error, 'code', None)
         if isinstance(code, int):
@@ -307,6 +312,8 @@ def problems(state):
                     'error': error.split(': ', 1)[-1] if error.split(': ', 1)[0].isidentifier() else error,
                     'job_kind': job.get('kind') or '', 'name': job.get('name') or '', 'finished': job.get('finished') or 0,
                     'season': job.get('season') or '', 'episode': job.get('episode') or '', 'count': len(job.get('files') or []),
+                    'terminal': bool(job.get('terminal')), 'retryable': not bool(job.get('terminal')),
+                    'source': job.get('source') or 'debrid',
                     'key': problem_key(job), 'show_tmdb': str(job.get('show_tmdb') or '')})
     return out
 
@@ -333,11 +340,21 @@ def retry_failed(profile, kinds=('network', 'source'), only=None):
     have = finished_keys(state)
     picked = {p['index'] for p in problems(state) if p['kind'] in kinds and same_video(state['jobs'][p['index']]) not in have
               and (only is None or p['key'] in only)}
+    phone_paths = []
     for n in picked:
         job = state['jobs'][n]
+        if job.get('source') == 'phone':
+            import phone_failures
+            phone_failures.request_retry(profile, job['phone_path'])
+            phone_paths.append(job['phone_path'])
+            continue
         job.update(status='copying' if job.get('files') else 'new', tries=0, net_tries=0, retry_at=0)
         job.pop('finished', None)
         job.pop('error', None)
+        job.pop('terminal', None)
+        job.pop('terminal_reason', None)
+    for path in phone_paths:
+        phone_failures.remove_from_state(state, path)
     if picked:
         save(profile, state)
     return len(picked)
@@ -1160,9 +1177,18 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     those jobs end as failed with 'Cancelled' and forget(hash) clears each request."""
     say = notify
 
+    def timed_step(target, kind, text):
+        try:
+            import notice_models
+            notice_models.record_step(profile, target, kind, text, clock())
+        except Exception as error:
+            log('notice timeline: %s' % type(error).__name__)
+
     def notify(kind, title_, text, job_=None):
         # ISSUE-268: a download from a season request (its batch) joins that season's one message; one episode's stays its own.
         group = str((job_ or {}).get('batch') or '')
+        if job_ and kind in ('problem', 'drive'):
+            timed_step(job_, 'problem' if kind == 'problem' else 'ready', text)
         if group:
             try:
                 return say(kind, title_, text, group=group)
@@ -1248,7 +1274,31 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     def commit():
         save(profile, state)
 
+    def end_permanent(target, error):
+        if target.get('terminal') and target.get('status') == 'failed':
+            return
+        reason = _said(error)
+        target.update(status='failed', error=reason, terminal=True, terminal_reason=reason, finished=clock(), retry_at=0)
+        invalid_drive_id = getattr(error, 'invalid_drive_id', '')
+        if invalid_drive_id:
+            target['invalid_drive_id'] = invalid_drive_id
+        commit()
+        log('%s: stopped: %s' % (episode_label(target), reason))
+        notify('problem', "Couldn't download to Google Drive", '%s: %s' % (episode_label(target), reason), target)
+        transfer_history.failed(profile, 'up', target.get('title') or target['name'], reason, clock())
+
     title = job.get('title') or job['name']
+    # Older builds left known identity/integrity failures queued for up to twenty tries.
+    # Retire those saved failures before any new unlock, upload or companion attempt.
+    for queued in jobs:
+        if copy_errors.is_terminal(queued.get('error')):
+            end_permanent(queued, queued['error'])
+    if job.get('status') == 'failed':
+        state.pop('current', None)
+        state.pop('current_also', None)
+        state.pop('lanes', None)
+        commit()
+        return 1
     try:
         if job['status'] == 'new':
             job['magnet'], ready = api.add(job['hash'])
@@ -1322,15 +1372,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                         state[key] = fields
                     else:
                         extra[slot] = fields
-                    shown, also = state.get('current'), state.get('current_also')
-                    if shown:
-                        shown.pop('parallel', None)
-                        shown['rate'] = shown.get('rate_own') or 0
-                        live = [f for f in [also] + list(extra.values())
-                                if f and clock() - (f.get('updated') or f.get('phase_at') or 0) < 60]
-                        if live:
-                            shown['rate'] += sum(f.get('rate_own') or 0 for f in live)
-                            shown['parallel'] = 1 + len(live)
+                    if state.get('current'):
+                        state['current']['parallel'] = len(state.get('lanes') or {})
                 commit()
 
             def release(slot):
@@ -1366,7 +1409,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                                 renew_after[0]=clock()+60
                                 fresh,fresh_name,fresh_size=api.unlock(entry['link'])
                                 if fresh_name!=original_name or fresh_size!=size:
-                                    raise RuntimeError('The refreshed download is a different file')
+                                    raise copy_errors.PermanentCopyError('The refreshed download is a different file. Choose another source; this upload has stopped.')
                                 source_link[0]=fresh
                         return action(source_link[0])
                 def open_source(offset):return with_source(lambda source:open_url(source,offset))
@@ -1382,36 +1425,54 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 with guard:   # two uploads must not both create the season's folder
                     parent = drive.folder(parts)
 
+                import transfer_speed
+                pieces = transfer_speed.Pieces()
                 marks = []
                 mode = ['']   # ISSUE-273: 'ready' while the file is made ready on its way (the card says so)
                 lane_job = '%s:%s:%s' % (owner.get('hash', ''), owner.get('season', ''), owner.get('episode', ''))
+                if owner.get('timeline_file') != name:
+                    owner['timeline_file'] = name
+                    timed_step(owner, 'copying', '1 episode started copying' if owner.get('batch') else 'Copy started')
 
                 def progress(sent, total):
                     # Owner (build 170): the speed and the time left, measured over the last ~20 s.
                     now = clock()
-                    with guard:   # E16: this run's confirmed bytes, for the lane count of the next run
-                        moved.setdefault(id(entry), [sent, sent])[1] = sent
                     marks.append((now, sent))
                     # Build 207 (build-206 log: pieces 20-30 s apart): the window always keeps the piece before, or a
                     # slow copy read 0 MB/s on every page between pieces (no graph, Peak and Average 0.0).
                     recent = [m for m in marks if now - m[0] <= 20]
                     marks[:] = recent if len(recent) > 1 else marks[-2:]
                     span = marks[-1][0] - marks[0][0]
-                    rate = (marks[-1][1] - marks[0][1]) / span if span >= 1 else 0.0
+                    measured = pieces.fields(now)
+                    rate = measured['rate_own']
+                    if not measured['measured_at'] and span >= 1:
+                        # Older callers report confirmed positions only; never infer from a UI percentage.
+                        rate = (marks[-1][1] - marks[0][1]) / span
+                        measured['rate_own'] = rate
+                    if mode[0] == 'ready':
+                        measured = dict(getattr(progress, 'upload_fields', {}))
+                        rate = float(measured.get('rate_own') or 0)
+                        with guard:
+                            moved.setdefault(id(entry), [float(measured.get('out_bytes') or 0), 0])[1] = float(measured.get('out_bytes') or 0)
                     # Build 193 (build-192 log): progress carries its time, so a hung piece is never shown as moving,
                     # and a piece that went up resets the tries (six AllDebrid 500s made a later timeout wait 210 s).
                     # Owner (build 205: "i went to download a entire season and it seems only 1 thing is downloading"):
                     # which file of the job this is, so the pages name the episode and count the season.
                     show(slot, {'name': job_title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying', 'job': lane_job,
                                         'rate_own': rate, 'eta_s': (total - sent) / rate if rate else 0, 'updated': now,
-                                        'file': name, 'index': owner['files'].index(entry) + 1, 'count': len(owner['files']), 'mode': mode[0]})
+                                        'file': name, 'index': owner['files'].index(entry) + 1, 'count': len(owner['files']), 'mode': mode[0], **measured})
                     with guard:
                         if owner.get('tries') and sent > (marks[0][1] if len(marks) > 1 else 0):
                             owner['tries'] = 0
                             owner.pop('error', None)
                     commit()
+                def measured_piece(advanced, elapsed, count):
+                    pieces.observe(advanced, elapsed, clock(), count)
+                    with guard:
+                        moved.setdefault(id(entry), [0, 0])[1] += advanced
+                progress.piece = measured_piece
                 hash_ = str(owner['hash']).lower()
-                going = lambda: keep_going() and hash_ not in {str(h).lower() for h in cancelled()} and not link_moved(netgen)
+                going = lambda: keep_going() and owner.get('status') != 'failed' and hash_ not in {str(h).lower() for h in cancelled()} and not link_moved(netgen)
                 def activity(phase,sent,total):
                     # Called on the owner thread, never the read-ahead thread. Percent remains confirmed bytes.
                     now=clock()
@@ -1450,7 +1511,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     result = drive.upload_stream(open_source, size, name, parent, session,
                                                  keep, going, progress,activity=activity)
                     if int(result.get('size') or size) != size:
-                        raise RuntimeError('Google Drive has a different size for %s' % name)
+                        raise copy_errors.PermanentCopyError('Google Drive has a different size for this video. The copy cannot be trusted; choose another source.',
+                                                             invalid_drive_id=result.get('id') or '')
                 with guard:
                     entry.update(done=True, drive_id=result.get('id', ''), drive_name=name)
                     entry['session'] = {}
@@ -1463,12 +1525,18 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                             entry = todo.pop(0) if todo else None
                         if entry is None:
                             return
+                        if entry[0].get('status') == 'failed':
+                            continue
                         try:
                             copy(entry, slot)
                             continue
                         except driveupload.Stop:
                             raise
                         except Exception as error:
+                            if copy_errors.is_terminal(error) and not getattr(error, 'low_quality', False):
+                                with guard:
+                                    end_permanent(entry[0], error)
+                                continue
                             if getattr(error, 'low_quality', False):
                                 # ISSUE-236: not the quality chosen. That copy ends now (failed, so Download problems lists
                                 # it and the next search leaves the version out); nothing of it is on Drive.
@@ -1497,6 +1565,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                                 if again:
                                     todo.append(entry)
                             if again:
+                                timed_step(entry[0], 'problem', _said(error))
+                                timed_step(entry[0], 'retry', 'Tries again after the other downloads')
                                 # ISSUE-285 (owner log 6cf2a4c5: "Rick and Morty: RuntimeError; trying it again after the others",
                                 # with no way to tell which one): the episode and the error's own words.
                                 log('%s: %s: %s; trying it again after the others (%d of %d)' % (
@@ -1553,12 +1623,17 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     with guard:
                         learn_lanes(state, lanes, sum(b - a for a, b in moved.values()), clock() - began, clock())
             for other in group[1:]:
+                if other.get('status') == 'failed':
+                    continue
                 if all(e['done'] for e in other['files']):
                     other['status'] = 'done'
                     other['finished'] = clock()
                     notify('drive', 'Saved to Google Drive', '%s · straight from AllDebrid, nothing kept on the phone'
                            % episode_label(other), other)
-            if job.get('low_quality'):   # ISSUE-236: refused before it was copied; it stays failed
+            for other in group[1:]:
+                if other['status'] == 'done':
+                    on_done(other)
+            if job.get('status') == 'failed':   # a refused or invalid copy stays a Download problem
                 state.pop('current', None)
                 commit()
                 return 1
@@ -1567,9 +1642,6 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             state.pop('current', None)
             state.pop('current_also', None)
             commit()
-            for other in group[1:]:
-                if other['status'] == 'done':
-                    on_done(other)
             files = job.get('files') or []
             if job['kind'] not in ('movie', 'episode') and len(files) == 1:
                 # Owner (build 205): "i pressed full season" and the version picked held episode 1 alone. Say so.
@@ -1600,12 +1672,21 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         transfer_history.failed(profile, 'up', title, str(problem), clock())
         return 1
     except Exception as error:   # network, Drive: try again in a while, from where it got to
+        if copy_errors.is_terminal(error):
+            end_permanent(job, error)
+            state.pop('current', None)
+            state.pop('current_also', None)
+            state.pop('lanes', None)
+            commit()
+            return 1
         if 'Waiting for TMDb' in str(error):
             # ISSUE-254: waiting for TMDb's season sizes is not the copy's fault: it never counts toward giving up.
             job['tmdb_waits'] = job.get('tmdb_waits', 0) + 1
             job['error'] = '%s: %s' % (type(error).__name__, str(error)[:160])
             wait = min(600, 60 * job['tmdb_waits'])
             job['retry_at'] = clock() + wait
+            timed_step(job, 'problem', _said(error))
+            timed_step(job, 'retry', 'Tries again in %d min' % max(1, int(wait / 60)))
             log('%s: %s; again in %d s' % (title, str(error)[:100], wait))
             commit()
             return wait
@@ -1616,6 +1697,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             job['error'] = '%s: %s' % (type(error).__name__, str(error)[:160])
             wait = net_wait(job['net_tries'])
             job['retry_at'] = clock() + wait
+            timed_step(job, 'problem', _said(error))
+            timed_step(job, 'retry', 'Tries again in %d min' % max(1, int(wait / 60)))
             log('%s: network trouble (%s); carrying on in %d s' % (title, job['error'][:100], wait))
             commit()
             return wait
@@ -1623,6 +1706,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         job['error'] = '%s: %s' % (type(error).__name__, str(error)[:160])
         log('%s: try %d, again in %d s: %s' % (title, job['tries'], min(600, 30 * job['tries']), job['error']))
         job['retry_at'] = clock() + min(600, 30 * job['tries'])   # build 193: pages say "trying again in N min"
+        timed_step(job, 'problem', _said(error))
+        timed_step(job, 'retry', 'Tries again in %d min' % max(1, int(min(600, 30 * job['tries']) / 60)))
         commit()
         if job['tries'] >= 20:
             job['status'] = 'failed'

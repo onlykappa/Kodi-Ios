@@ -320,21 +320,28 @@ def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,se
   if search:return search(n,purpose,q)
   return request(home,tmdb,season,n,purpose,q,cancel=lambda:halt['stop'] or bool(card and card.canceled),
                  timeout=timeout or (LANE_SECONDS if purpose=='scan' else 120),lane=lane,title=title,batch=batch if purpose=='queue' else '')
- # Board B3 (DEC-041): three episodes (start, middle, end) are looked up in every quality while the sheet shows the
- # check card, so a quality nobody has is greyed and one is recommended. Their answers are kept for the build below.
+ # Check every remaining episode once, publishing exact coverage as answers arrive; the build reuses these answers.
+ import season_check
  checked={}
  def check(show,stopped):
-  numbers=check.numbers;states={}
+  numbers=check.numbers
+  survey=season_check.Survey(numbers)
   def one(n,lane):
-   try:checked[n]=lookup(n,'scan',lane=lane)
+   answer=None
+   try:answer=lookup(n,'scan',lane=lane)
    except Exception as error:note(xbmc,'check_deferred',episode=n,error=type(error).__name__)
-   got=[q for a in checked.values() for q in (a.get('qualities') or [])]
-   for q in ss.QUALITIES:states[q]='found' if q in got or (q=='720p' and ss.best_for(got,q)) else states.get(q,'')
-  lanes(numbers,one,lambda done,current:show(done,dict(states,**({q:states.get(q) or 'none' for q in ss.QUALITIES} if done>=len(numbers) else {}))),
-        lambda:monitor.waitForAbort(0.01) or stopped(),halt,len(watch.LANES) if not search else 1)
+   if survey.record(n,answer):
+    with survey.lock:checked[n]=answer
+  def update(done,current):
+   model=survey.model()
+   states={r['key']:'found' if r['found'] else 'none' if not model['pending'] and not model['unknown'] else ''
+           for r in model['qualities']}
+   show(model['completed'],dict(states,coverage=model))
+  lanes(numbers,one,update,lambda:monitor.waitForAbort(0.01) or stopped(),halt,len(watch.LANES) if not search else 1)
+  update(len(numbers),None)
   note(xbmc,'quality_checked',episodes=numbers,found={n:checked[n].get('qualities') or [] for n in checked})
   return dict(checked) if checked else None
- check.numbers=ss.check_numbers(remaining)
+ check.numbers=list(remaining)
  quality=ss.pick_quality(gui,title,season,len(remaining),check,monitor.waitForAbort)
  halt['stop']=False
  if not quality:return []

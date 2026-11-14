@@ -610,7 +610,7 @@ class TwoLanes(unittest.TestCase):
    def upload_stream(self,open_at,size,name,parent,session,save,*a,**k):
     if name=='Show.S01E02.mkv' and not failed:
      failed.append(name);session.update(url='https://upload/'+name,size=size);save()
-     raise RuntimeError('Invalid Drive confirmed position')
+     raise ConnectionError('Drive did not advance; upload session retained')
     return super().upload_stream(open_at,size,name,parent,session,save,*a,**k)
   api=self.season(names);drive=Once()
   self.assertEqual(debrid_drive.step(self.p,api,drive),1)

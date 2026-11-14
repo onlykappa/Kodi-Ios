@@ -20,6 +20,7 @@ import types
 import urllib.parse
 
 import drive_prepare
+import copy_errors
 import driveupload
 import prepare_downloads as prep
 import resume_store
@@ -126,6 +127,10 @@ def copy(q, profile, with_link, name, size, parent, going, progress, key, log=la
             now = clock()
             if now - seen[1] >= 1:
                 seen[1] = now
+                stats = sink.stats()
+                progress.upload_fields = {'rate_own': float(stats.get('up_rate') or 0),
+                                          'measured_at': time.time(), 'out_bytes': stats.get('out_bytes', 0),
+                                          'upload_total': stats.get('upload_total', 0)}
                 progress(int(min(0.97, seen[0]) * size), size)
         native.convert_to(source, sink, going, made, None, None, resume=checkpoint['mark'] if checkpoint else None)
         sink.finish()
@@ -136,19 +141,19 @@ def copy(q, profile, with_link, name, size, parent, going, progress, key, log=la
         after = _probe(native, target, going)
         if not after.get('ready') or (before.get('width'), before.get('height'), before.get('hdr')) != (
                 after.get('width'), after.get('height'), after.get('hdr')):
-            raise RuntimeError('Prepared video did not preserve resolution/HDR')
+            raise copy_errors.PermanentCopyError('Prepared video did not preserve resolution/HDR. This copy cannot be trusted; choose another source.')
         native.verify(source, target)   # duration, every track, middle and end seeks, both over HTTP
         base = name.rsplit('.', 1)[0]
         for track, side in outputs.items():   # picture-subtitle files written beside the movie
             if track == '0':
                 continue
-            status, _, _ = q.drive.call('PATCH', driveupload.API + '/' + urllib.parse.quote(side['id'], safe='') +
+            status, _, body = q.drive.call('PATCH', driveupload.API + '/' + urllib.parse.quote(side['id'], safe='') +
                                         '?addParents=' + urllib.parse.quote(parent, safe='') +
                                         '&removeParents=' + urllib.parse.quote(staging, safe=''),
                                         json.dumps({'name': base + side['name'][len(slot):]}).encode(),
                                         {'Content-Type': 'application/json'})
             if status != 200:
-                raise RuntimeError('Subtitle save: HTTP %d' % status)
+                raise copy_errors.http_error('Subtitle save', status, body)
         new = drive_prepare.promote(q.drive, {'name': name}, main, parent, staging)
         staged = None
         progress(size, size)
@@ -174,7 +179,7 @@ def copy(q, profile, with_link, name, size, parent, going, progress, key, log=la
                 except Exception:
                     pass
             resume_store.clear(profile, slot)
-        if debrid_drive.network_error(error) or getattr(error, 'low_quality', False):
+        if copy_errors.is_terminal(error) or debrid_drive.network_error(error) or getattr(error, 'low_quality', False):
             # ISSUE-244 (owner log 3df2f247: six 640x480 episodes "not made ready while copying (LowQuality …); copying it
             # as it is", each copied in full and sent to the Trash minutes later): a refused quality is never copied.
             raise

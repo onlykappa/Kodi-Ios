@@ -52,6 +52,9 @@ def page_state(history,now,wanted,queued,model=None,first_seen=None):
    identity=work_state.job_key(j)
    start=first_seen.setdefault(identity,old.get('start',now))
    start=min(start,old.get('start',start));first_seen[identity]=start
+   if j.get('speed_history'):
+    points=j['speed_history']
+    old=dict(old,points=points,peak=max(p[1] for p in points),sum=sum(p[1] for p in points),n=len(points))
    jobs[k]=dict(old,kind=k,title=j['title'],start=start,last=now,
                 pct=j.get('pct'),done=j.get('sent') or 0,total=j.get('total') or 0)
   history=dict(history,jobs=jobs)
@@ -106,7 +109,8 @@ def page_state(history,now,wanted,queued,model=None,first_seen=None):
   props['other.%d.rate'%n]=''
   props['other.%d.on'%n]='true' if k and k==kind else ''
  if model is not None:
-  queued=[(j['title'],'%s · %.1f GB'%(j['what'],float(j.get('size') or 0)/GB)) for j in model.get('next') or []]
+  queued=[(j['title'],j.get('line') or '%s · %.1f GB'%(j.get('what','prepare'),float(j.get('size') or 0)/GB))
+          for j in (model.get('drive_next') or []) + (model.get('next') or [])]
  # Owner (build 176): "it says finished? but its clearly not finished": stopped attempts stay in History only.
  finished=[f for f in history.get('finished') or [] if now-f.get('end',0)<24*3600 and th.outcome(f)=='done']
  for n in range(1,tp.DONE+1):
@@ -185,12 +189,12 @@ def run(args=()):
     now=time.time();history=th.load(profile)
     nexts=[]   # queue order and words come from the same published snapshot as the jobs
     import work_state
-    model=work_state.load(profile,now) or {'mode':'stale','headline':'Updating…','jobs':[],'next':[]}
+    model=work_state.current(profile,now) or {'mode':'stale','headline':'Updating…','jobs':[],'next':[]}
     props,pct,kind,self.others=page_state(history,now,self.wanted,nexts,model,self.first_seen)
     if kind:
      job=(history.get('jobs') or {}).get(kind) or (history.get('jobs') or {}).get(kind.split('.')[0]) or {}
      if job.get('title')!=props['title']:job={}
-     pts=job.get('points') or []
+     pts=(model_job(model,kind) or {}).get('speed_history') or job.get('points') or []
      # Build 194: no flat zero graph while nothing is measured yet; the card says what it is doing instead (props['wait']).
      props['graph']=self.graphs.image(work_state.job_key(model_job(model,kind)),pts,
       props['tint'],folder,'special://skin/extras/portrait/graph',width=tp.PLOT[2],height=tp.PLOT[3],scale=th.device_scale(),

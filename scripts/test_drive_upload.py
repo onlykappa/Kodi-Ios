@@ -236,7 +236,7 @@ class SameEpisode(unittest.TestCase):
   finally:type(self).DRIVE=[dict(SameEpisode.DRIVE[0],name='Lanterns.S01E01.Pilot.2160p.10bit.WEB-DL.mkv')]
   self.assertEqual(self.uploads,[path]);self.assertEqual(self.parts,[['Kodi Downloads','TV Shows','Lanterns']])
  def test_other_episodes_upload_as_usual(self):
-  path=self.make('Lanterns (2026) - S01E02 - 1080p.mkv');count,_=self.run_once()
+  path=self.make('Lanterns (2026) - S01E02 - 1080p.mkv');count,_=self.run_once(confirm=lambda *a:True)
   self.assertEqual(self.uploads,[path]);self.assertEqual(self.notes,[])
 
 if __name__=='__main__':unittest.main()

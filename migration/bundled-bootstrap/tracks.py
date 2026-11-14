@@ -17,6 +17,7 @@ import zlib
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, 'resources', 'lib'))
 import track_menu as tm
+import subtitle_match as sm
 
 BACK = (9, 10, 92, 110)
 CLOSE, MORE, CTA, LIST, T_MINUS, T_PLUS, B_MINUS, B_PLUS = 9500, 9501, 9510, 9310, 9401, 9402, 9403, 9404
@@ -141,6 +142,7 @@ def run(mode):
             # row shows the value, so the slider is hidden while the menu is open (pages.slider_quiet).
             xbmcgui.Window(10000).setProperty('KodiIOS.TrackMenu', 'open')
             self.rows, self.results, self.added = [], [], set()
+            self.track_evidence, self.auto_chosen = {}, False
             self.page = 'tracks'
             self.setProperty('mode', mode)
             self.setProperty('title', {'subtitles': 'Subtitles', 'speed': 'Playback speed'}.get(mode, 'Audio'))
@@ -179,8 +181,17 @@ def run(mode):
                 self.rows = tm.file_rows(getattr(self, 'files', []))
             elif mode == 'subtitles':
                 cur = (p.get('currentsubtitle') or {}).get('index')
-                subs = [dict(s, downloaded=s.get('index') in self.added) for s in p.get('subtitles') or []]
-                self.rows = tm.subtitle_rows(subs, cur, p.get('subtitleenabled'))
+                subs = self.with_evidence(p.get('subtitles') or [])
+                video = self.video()
+                if not self.auto_chosen:
+                    self.auto_chosen = True
+                    chosen = sm.preferred(subs, cur, p.get('subtitleenabled'), video)
+                    if p.get('subtitleenabled') and chosen != cur:
+                        rpc(xbmc, 'Player.SetSubtitle', {'playerid': pid, 'subtitle': chosen if chosen is not None else 'off',
+                                                       'enable': chosen is not None})
+                        cur = chosen
+                        p['subtitleenabled'] = chosen is not None
+                self.rows = tm.subtitle_rows(subs, cur, p.get('subtitleenabled'), video)
             else:
                 self.rows = tm.audio_rows(p.get('audiostreams'), (p.get('currentaudiostream') or {}).get('index'))
             items = []
@@ -190,6 +201,10 @@ def run(mode):
                 li.setProperty('on', 'true' if r['on'] else '')
                 li.setProperty('new', 'true' if r['tag'] == 'NEW' else '')
                 li.setProperty('sep', 'true' if n < len(self.rows) - 1 else '')
+                # Backend evidence for the approved menu; its layout is wired separately.
+                for key in ('match_reason', 'match_score', 'match_rejected', 'match_timing_checked', 'match_offset_s'):
+                    value = r.get(key)
+                    li.setProperty(key, str(value).lower() if isinstance(value, bool) else '' if value is None else str(value))
                 items.append(li)
             self.setProperty('rows', str(max(1, min(6 if mode == 'speed' else 3, len(self.rows)))))   # the cards and the menu fit the rows shown
             lst = self.getControl(SPEED_LIST if mode == 'speed' else LIST)
@@ -229,6 +244,9 @@ def run(mode):
                 xbmcgui.Dialog().notification(said, '', xbmcgui.NOTIFICATION_INFO, 2000, False)
                 return
             if mode == 'subtitles':
+                if r.get('match_rejected'):
+                    self.setProperty('hint', r['match_reason'])
+                    return
                 if r['index'] is None:
                     rpc(xbmc, 'Player.SetSubtitle', {'playerid': pid, 'subtitle': 'off'})
                     said = 'Subtitles off'
@@ -247,6 +265,22 @@ def run(mode):
         def item(self):
             it = rpc(xbmc, 'Player.GetItem', {'playerid': pid, 'properties': ['title', 'showtitle', 'year', 'season', 'episode', 'file', 'uniqueid']}) or {}
             return it.get('item') or {}
+
+        def video(self):
+            it = self.item()
+            name = os.path.basename(str(it.get('file') or '').split('?')[0].split('|')[0])
+            guess = tm.from_release(name) or tm.from_release(it.get('title')) or {}
+            try:
+                duration = xbmc.Player().getTotalTime()
+            except Exception:
+                duration = 0
+            return {'filename': name, 'duration': duration, 'language': lang,
+                    'season': it.get('season') if it.get('season') is not None and it['season'] >= 0 else guess.get('season'),
+                    'episode': it.get('episode') if it.get('episode') is not None and it['episode'] > 0 else guess.get('episode')}
+
+        def with_evidence(self, streams):
+            return [dict(s, downloaded=s.get('index') in self.added, **self.track_evidence.get(s.get('index'), {}))
+                    for s in streams]
 
         def search(self):
             it = self.item()
@@ -270,14 +304,18 @@ def run(mode):
             self.episode = ep
             tmdb = (it.get('uniqueid') or {}).get('tmdb') if not ep[0] else None
             log('search %s %r %s S%sE%s via %s' % (lang, title, year, ep[0], ep[1], ', '.join(ss.sources(keys))))
-            return ss.find(http_get, keys, lang, title, year, ep[0], ep[1], name, tmdb, log=lambda m: log('subtitles ' + m))
+            return sm.rank(ss.find(http_get, keys, lang, title, year, ep[0], ep[1], name, tmdb,
+                                   log=lambda m: log('subtitles ' + m)), self.video())
 
-        def apply(self, result):
+        def fetch_result(self, result):
             import subtitle_sources as ss
             ep = getattr(self, 'episode', (None, None))
-            got = ss.fetch(http_get, http_post, ss.load_keys(keys_folder(xbmcvfs)), result, ep[0], ep[1])
-            if not got:
-                raise ValueError('no subtitle file in the download')
+            return ss.fetch(http_get, http_post, ss.load_keys(keys_folder(xbmcvfs)), result, ep[0], ep[1])
+
+        def apply(self, result, got=None):
+            if got is None:
+                result, name, data = sm.choose_download([result], self.fetch_result, self.video())
+                got = (name, data)
             name, data = got
             os.makedirs(folder, exist_ok=True)
             # Owner log 20b1ca76: SubDL's id is its download path ('/subtitle/…zip?…'), which made an absolute, missing
@@ -290,7 +328,10 @@ def run(mode):
             xbmc.Player().setSubtitles(path)
             xbmc.sleep(400)
             after = (rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['subtitles']}) or {}).get('subtitles') or []
-            self.added |= {s.get('index') for s in after} - before
+            added = {s.get('index') for s in after} - before
+            self.added |= added
+            for index in added:
+                self.track_evidence[index] = {'filename': name, 'cues': sm.cue_times(data, name), 'language': lang}
             log('applied %s (%d bytes)' % (result['id'], len(data)))
 
         def download_and_apply(self, result=None):
@@ -302,15 +343,17 @@ def run(mode):
                         self.state(self.missing('none'))
                         log('nothing found')
                         return
-                    result = self.results[0]
                 self.state('download')
-                self.apply(result)
+                selected, name, data = sm.choose_download(self.results if result is None else [result], self.fetch_result, self.video())
+                self.apply(selected, (name, data))
                 self.state('done')
                 self.fill()
                 xbmcgui.Dialog().notification('%s subtitles on' % lang_name, '', xbmcgui.NOTIFICATION_INFO, 2000, False)
             except Exception as error:
                 log('download and apply failed: %s: %s' % (type(error).__name__, error))
                 self.state(self.missing('error'))
+                if isinstance(error, sm.Mismatch):
+                    self.setProperty('hint', str(error))
 
         def always_on(self):
             try:
@@ -354,9 +397,26 @@ def run(mode):
                 self.more('files')
             elif isinstance(what, str) and what.startswith('sub:'):
                 path = self.files[int(what[4:])]
+                try:
+                    with open(path, 'rb') as source:
+                        data = source.read(8 * 1024 * 1024 + 1)
+                    if len(data) > 8 * 1024 * 1024:
+                        raise sm.Mismatch('Subtitle file is too large to check')
+                    evidence = {'filename': os.path.basename(path), 'data': data}
+                    match = sm.assess(evidence, self.video())
+                    if match['rejected']:
+                        raise sm.Mismatch(match['reason'])
+                except (OSError, sm.Mismatch) as error:
+                    self.setProperty('hint', str(error))
+                    return
+                before = {s.get('index') for s in (rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['subtitles']}) or {}).get('subtitles') or []}
                 xbmc.Player().setSubtitles(path)
                 log('subtitle file turned on: %s' % os.path.basename(path))
                 xbmc.sleep(400)
+                after = (rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['subtitles']}) or {}).get('subtitles') or []
+                for stream in after:
+                    if stream.get('index') not in before:
+                        self.track_evidence[stream['index']] = {'filename': os.path.basename(path), 'cues': sm.cue_times(data, path)}
                 self.more('tracks')
             elif what == 'nofiles':
                 pass
@@ -380,7 +440,7 @@ def run(mode):
 
         def subtitle_streams(self):
             p = rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': FIELDS}) or {}
-            subs = [dict(x, downloaded=x.get('index') in self.added) for x in p.get('subtitles') or []]
+            subs = self.with_evidence(p.get('subtitles') or [])
             return subs, (p.get('currentsubtitle') or {}).get('index'), p.get('subtitleenabled')
 
         def onClick(self, control):

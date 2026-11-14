@@ -223,7 +223,7 @@ def run():
    with self.lock:
     show_live=self.filter in ('all','downloads')
     import work_state
-    model=work_state.load(profile) if show_live else None
+    model=work_state.current(profile) if show_live else None
     jobs=(model or {}).get('jobs') or []
     self.downloads=[transfer_card(j) for j in jobs if j['kind']=='down']
     ups=[transfer_card(j) for j in jobs if j['kind'] in ('copy','upload')]

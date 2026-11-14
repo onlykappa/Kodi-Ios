@@ -16,6 +16,8 @@ import re
 import urllib.parse
 import zipfile
 
+import subtitle_match
+
 SEARCH = 'https://www.podnapisi.net/subtitles/search/advanced'
 DOWNLOAD = 'https://www.podnapisi.net/subtitles/%s/download'
 LANGUAGES = {'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German', 'it': 'Italian', 'pt': 'Portuguese',
@@ -40,17 +42,21 @@ def _words(text):
     return str(text or '').lower()
 
 
-def subtitle_rows(streams, current, enabled):
+def subtitle_rows(streams, current, enabled, video=None):
     """[{'label', 'tag', 'on', 'index'}]: Off first, then each subtitle stream. index None is Off."""
     out = [{'label': 'Off', 'tag': '', 'on': not enabled or not streams, 'index': None}]
-    for s in streams or []:
+    streams = subtitle_match.rank(streams or [], video) if video is not None else streams or []
+    for s in streams:
         name = _words(s.get('name'))
         tag = 'FORCED' if s.get('isforced') or 'forced' in name else \
               'SDH' if s.get('isimpaired') or 'sdh' in name or 'hearing' in name or ' cc' in ' ' + name else ''
         if not tag and s.get('downloaded'):
             tag = 'NEW'
-        out.append({'label': language_name(s.get('language'), s.get('name')), 'tag': tag,
-                    'on': bool(enabled and current is not None and s.get('index') == current), 'index': s.get('index')})
+        row = {'label': language_name(s.get('language'), s.get('name')), 'tag': tag,
+               'on': bool(enabled and current is not None and s.get('index') == current), 'index': s.get('index')}
+        row.update({k: v for k, v in s.items() if k.startswith('match_')})
+        row.setdefault('match_reason', 'Timing not checked')
+        out.append(row)
     return out
 
 
@@ -132,7 +138,8 @@ def parse(body, lang):
             continue
         seen.add(pid)
         releases = [str(r) for r in (d.get('releases') or []) + (d.get('custom_releases') or []) if r]
-        out.append({'id': str(pid), 'releases': releases, 'impaired': 'hearing_impaired' in (d.get('flags') or [])})
+        out.append({'id': str(pid), 'releases': releases, 'language': lang,
+                    'impaired': 'hearing_impaired' in (d.get('flags') or [])})
     return out
 
 
@@ -164,9 +171,14 @@ def subtitle_from_zip(blob, season=None, episode=None):
     except zipfile.BadZipFile:
         return None
     names = [n for n in z.namelist() if n.lower().endswith(('.srt', '.ass', '.ssa', '.vtt', '.sub'))]
-    if season and episode and len(names) > 1:
+    if season is not None and episode:
         mark = re.compile(r'(?i)(?:s0*%d[ ._-]?e0*%d|\b0*%dx0*%d)(?!\d)' % (int(season), int(episode), int(season), int(episode)))
-        names = [n for n in names if mark.search(n.rsplit('/', 1)[-1])]
+        matching = [n for n in names if mark.search(n.rsplit('/', 1)[-1])]
+        # Even a zip with one file may be the wrong episode. An unnumbered single file remains a candidate.
+        if len(names) == 1:
+            names = matching or [n for n in names if not subtitle_match.episode_identity(n)]
+        else:
+            names = matching
     names.sort(key=lambda n: (not n.lower().endswith('.srt'), len(n)))
     return (names[0].rsplit('/', 1)[-1], z.read(names[0])) if names else None
 
@@ -292,7 +304,10 @@ def result_rows(results):
     """Found subtitles as rows (the way back is the header's link); index is the result's position."""
     rows = []
     for n, r in enumerate(results):
-        rows.append({'label': r['releases'][0] if r['releases'] else 'Subtitle %s' % r['id'],
-                     'tag': 'SDH' if r['impaired'] else '', 'on': False, 'index': n})
+        row = {'label': r['releases'][0] if r['releases'] else 'Subtitle %s' % r['id'],
+               'tag': 'SDH' if r['impaired'] else '', 'on': False, 'index': n}
+        row.update({k: v for k, v in r.items() if k.startswith('match_')})
+        row.setdefault('match_reason', 'Timing not checked')
+        rows.append(row)
     return rows
 

@@ -311,7 +311,7 @@ def _copies(debrid, now):
     fresh = lambda c: now - max(float(c.get('updated') or 0), float(c.get('phase_at') or 0)) < 600
     lanes = [c for _, c in sorted((debrid.get('lanes') or {}).items(), key=lambda kv: int(kv[0]))
              if c.get('total') and fresh(c) and by_key.get(str(c.get('job')))]
-    if len(lanes) > 1:
+    if lanes:
         out = []
         for lane in lanes:
             owner = by_key[str(lane['job'])]
@@ -362,10 +362,12 @@ def _copy(debrid, now):
             ahead=min(float(current.get('rate') or 0)*max(0.0,now-float(updated)),float(current.get('rate') or 0)*MAX_GLIDE)
             sent=min(total*0.995,sent+ahead)
         out = {'kind': 'copy', 'title': title, 'name': current.get('name', ''), 'step': step, 'pct': int(100 * sent / total),
-               'indeterminate': False, 'rate': 0.0 if quiet else float(current.get('rate') or 0),
+               'indeterminate': False, 'rate': 0.0 if quiet else float(current.get('rate_own', current.get('rate')) or 0),
                'eta_s': 0 if quiet else float(current.get('eta_s') or 0), 'tint': BLUE, 'sent': sent, 'total': total,
                'hash': job.get('hash', ''), 'folder': current.get('folder', ''),'phase_detail':phase in words or ready,'transfer_phase':phase,
-               'slot': current.get('slot'), 'job': current.get('job', ''), 'ready_copy': ready}
+               'file': current.get('file', ''), 'slot': current.get('slot'), 'job': current.get('job', ''), 'ready_copy': ready,
+               'confirmed_bytes': float(current.get('sent') or 0),
+               **{k: current.get(k) for k in ('measured_at', 'piece_bytes', 'piece_seconds', 'out_bytes', 'upload_total')}}
         if quiet and phase!='paused_playback':
             out['wait'] = ('Getting it ready · waiting for Google Drive' if ready else 'Waiting for download' if phase=='reading'
                            else 'Waiting for Google Drive')+' · no answer for %d min' % max(1,int((now-float(updated))//60))
@@ -473,7 +475,8 @@ def build(inp, now):
     for u in inp.get('phone') or ():
         add({'kind': 'upload', 'title': u.get('title', ''), 'name': u.get('title', ''), 'step': STEP['upload'],
              'pct': int(u.get('progress') or 0), 'indeterminate': False, 'rate': float(u.get('rate') or 0), 'eta_s': 0,
-             'tint': BLUE, 'folder': u.get('folder', '')}, held=bool(paused.get('up')))
+             'tint': BLUE, 'folder': u.get('folder', ''),
+             **{k: u.get(k) for k in ('sent','total','measured_at','piece_bytes','piece_seconds')}}, held=bool(paused.get('up')))
     for d in inp.get('torrents') or ():
         add({'kind': 'down', 'title': d.get('title', ''), 'name': d.get('title', ''), 'step': STEP['down'],
              'pct': int(d.get('progress') or 0), 'indeterminate': False, 'rate': float(d.get('rate') or 0),
@@ -518,7 +521,7 @@ def build(inp, now):
         j.update(state=PAUSED if paused.get('up') else QUEUED,step=j['line'],pct=0,indeterminate=True,
                  tint=BLUE,tint_now=GREY if paused.get('up') else BLUE,rate=0,eta_s=0)
         if paused.get('up'):j['line']='Uploads paused · waiting to download'
-    return {'at': now, 'mode': mode, 'slow': slow, 'slow_words': SLOW_WORDS.get(slow, ''), 'jobs': jobs, 'next': nexts,
+    state = {'at': now, 'mode': mode, 'slow': slow, 'slow_words': SLOW_WORDS.get(slow, ''), 'jobs': jobs, 'next': nexts,
             'drive_next': drive_next,
             # Unfinished AllDebrid -> Drive copies (the Library status sheet offers Cancel All when there are several).
             'copies_waiting': sum(1 for j in ((inp.get('debrid') or {}).get('jobs') or []) if j.get('status') not in ('done', 'failed')),
@@ -527,6 +530,77 @@ def build(inp, now):
             'bell': {'state': mode, 'pct': lead['pct'] if lead and lead['state'] in MOVING else 0,
                      'tint': (GREY if mode == SLOWED else lead['tint']) if lead and mode in MOVING else '',
                      'count': len(moving), 'needs': len(needs)}}
+
+    return from_index(state, inp['index'], paused) if 'index' in inp else state
+
+
+def from_index(state, index, paused=None):
+    """Index owns video membership/state/title; worker cards supply measurements only.
+
+    Missing telemetry leaves an indexed video queued, never absent or falsely running.
+    Non-library jobs (phone uploads, torrents, Drive checks) remain separate.
+    """
+    import library_index as li
+    paused = paused or {}
+    telemetry = list(state.get('jobs') or [])
+    jobs = [j for j in telemetry if j['kind'] not in ('conv', 'repack', 'copy')]
+    nexts, drive_next = [], []
+    for e in (index or {}).get('videos', []):
+        if e['state'] not in li.WORKING:
+            continue
+        copying = e['state'] == li.COPYING
+        def same_copy(j):
+            if j['kind'] != 'copy' or str(e.get('hash') or '').lower() != str(j.get('hash') or '').lower():
+                return False
+            if j.get('job') and j['job'].endswith(':%s:%s' % (e['season'], e['episode'])):
+                return True
+            info = li._parse(j.get('file') or '')
+            if info.get('season') and info.get('episode'):
+                return str(info['season']) == str(e['season']) and str(info['episode']) == str(e['episode'])
+            return not j.get('job') and sum(1 for video in index.get('videos', [])
+                if video['state'] == li.COPYING and video.get('hash') == e.get('hash')) == 1
+        match = next((j for j in telemetry if
+                      (copying and same_copy(j)) or
+                      (not copying and j['kind'] in ('conv', 'repack') and
+                       (e.get('id') == j.get('id') or e.get('name') == j.get('name')))), None)
+        title = li.entry_title(e)
+        identity = {'key': e['key'], 'library_state': e['state'], 'title': title,
+                    'name': e.get('name') or '', 'hash': e.get('hash') or '',
+                    'id': ('debrid:%s:%s:%s' % (e.get('hash', ''), e['season'], e['episode'])) if copying else e['id'],
+                    'size': e.get('size') or 0}
+        if match:
+            card = dict(match, **identity)
+            if e.get('pending'):
+                card.update(state=QUEUED, line=li.entry_line(e), rate=0, eta_s=0)
+            jobs.append(card)
+        elif copying:
+            why = 'Uploads paused · waiting to download' if paused.get('up') and not e.get('pending') else li.entry_line(e)
+            drive_next.append(dict(identity, kind='copy', state=PAUSED if paused.get('up') else QUEUED,
+                                   line=why, step=why, pct=e.get('progress') or 0, rate=0, eta_s=0,
+                                   indeterminate=e.get('progress') is None, tint=BLUE, tint_now=GREY))
+        else:
+            queued = next((q for q in state.get('next', []) if q.get('id') == e.get('id')), {})
+            nexts.append(dict(queued, **identity, what=queued.get('what', 'prepare'),
+                              line=queued.get('line') or li.entry_line(e), paused=bool(paused.get('conv'))))
+    order = {j.get('id'): n for n, j in enumerate(state.get('next', []))}
+    nexts.sort(key=lambda j: order.get(j['id'], len(order)))
+    moving = [j for j in jobs if j['state'] in MOVING]
+    needs = state.get('needs') or []
+    if needs: mode = NEEDS
+    elif moving: mode = SLOWED if all(j['state'] == SLOWED for j in moving) else RUNNING
+    elif any(j['state'] == PAUSED for j in jobs + drive_next) or any(j.get('paused') for j in nexts): mode = PAUSED
+    elif state.get('wait') or any(j['state'] == NETWORK for j in jobs): mode = NETWORK
+    elif nexts or drive_next or any(j['state'] == QUEUED for j in jobs): mode = QUEUED
+    elif any(j['state'] == STALE_STATE for j in jobs): mode = STALE_STATE
+    else: mode = IDLE
+    lead = (moving or jobs or [None])[0]
+    return dict(state, jobs=jobs, next=nexts, drive_next=drive_next, mode=mode, running=len(moving),
+                library_index=index, library_counts=li.counts(index), library_videos=(index or {}).get('videos', []),
+                copies_waiting=li.counts(index)['copying'],
+                headline=headline(mode, jobs, nexts + drive_next, needs, state.get('wait', ''), state.get('slow', '')),
+                bell={'state': mode, 'pct': lead['pct'] if lead and lead['state'] in MOVING else 0,
+                      'tint': lead.get('tint_now', lead['tint']) if lead and mode in MOVING else '',
+                      'count': len(moving), 'needs': len(needs)})
 
 
 def headline(mode, jobs, nexts, needs, wait_text, slow):
@@ -615,11 +689,22 @@ def current(profile, now=None):
     elif any(j['state']==STALE_STATE for j in jobs):mode=STALE_STATE
     else:mode=IDLE
     lead=(moving or jobs or [None])[0]
-    return dict(state,jobs=jobs,drive_next=drive_next,mode=mode,running=len(moving),
+    result = dict(state,jobs=jobs,drive_next=drive_next,mode=mode,running=len(moving),
                 headline=headline(mode,jobs,nexts+drive_next,needs,state.get('wait',''),state.get('slow','')),
                 bell={'state':mode,'pct':lead['pct'] if lead and lead['state'] in MOVING else 0,
                       'tint':(GREY if mode==SLOWED else lead['tint']) if lead and mode in MOVING else '',
                       'count':len(moving),'needs':len(needs)})
+
+    import library_index
+    index = library_index.load(profile)
+    import prepare_downloads
+    if (not index.get('built') or index.get('inputs') != list(library_index.fingerprint(profile))
+            or transfer_control.cancelled_copies(profile) or prepare_downloads.pending_requests(profile)):
+        index = library_index.refresh(profile)
+    import transfer_speed
+    history = transfer_speed.History()
+    history.restore(state)
+    return history.sample(from_index(result, index, paused), now)
 
 
 def stale(state, now):
@@ -660,12 +745,20 @@ def bell_properties(state):
 def publish(profile, gather, wait, every=EVERY, set_property=None, clock=time.time, log=lambda text: None):
     """The service loop: gather() -> build() input; write the snapshot every `every` seconds and keep the bell's
     properties current (only when they change)."""
+    import transfer_speed
+    history = transfer_speed.History()
+    history.restore(load(profile) or {})
     last = None
     while not wait(every):
         try:
             inp = gather()
+            import library_index
+            inp.setdefault('index', library_index.load(profile))
             inp.setdefault('show_names', show_names(profile))
-            state = build(inp, clock())
+            now = clock()
+            state = build(inp, now)
+            state['copy_left'] = copy_bytes_left(inp.get('debrid'))
+            history.sample(state, now)
             save(profile, state)
             if set_property:
                 props = bell_properties(state)
