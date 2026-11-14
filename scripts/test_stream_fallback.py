@@ -20,6 +20,10 @@ SRC = 'https://alldebrid.example/dl/abc/Episode.mkv'
 
 
 class Fallback(unittest.TestCase):
+    # The route is off by default since the owner's build-442 report (ISSUE-281 continued); these check it when on.
+    def setUp(self):
+        on = mock.patch.object(rm, 'KODI_PLAYBACK', True); on.start(); self.addCleanup(on.stop)
+
     def run_for_kodi(self, sizes):
         calls, seen = [], iter(sizes)
         def call(endpoint, payload):
