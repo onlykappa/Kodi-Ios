@@ -4129,3 +4129,5 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - `pages.umbrella_ready` shows the line. The bar fills by Fill or slides, and Umbrella's own percent stays the fallback.
   - Test: test_pages `OpeningStages` (3).
   - Desktop Kodi rig render of stages a, b and c: matches the boards, no cut-off text (screenshots kept out of Git). Phone check pending.
+
+**Delivery (owner OK, 2026-11-14):** IPA build-442 was built from f1d6447 (import-review run 43623141308) and carries ISSUE-276 to 280 and AirPlay r57. It was downloaded and checked: sha256 982d4a24…4ed7dbb, the zip is valid, and the framework carries the r57 restart note. The library index, poll_fetching, the for_kodi route, the tap-to-hide area and the stage line are all inside. Phone checks are pending for every item.
