@@ -84,6 +84,20 @@ def _encoder_trouble(error):
     return any(word in str(error) for word in ENCODER_TROUBLE)
 
 
+def planning_state(profile, prep_state):
+    """ISSUE-288: the videos AI Upscale plans copies for come from library_index (the one record), as on the page; the
+    preparation queue alone until the index exists."""
+    try:
+        import library_index
+        import upscale_page
+        index = library_index.load(profile)
+        if index.get('videos'):
+            return upscale_page.jobs_from_index(index, prep_state)
+    except Exception:
+        pass
+    return prep_state
+
+
 def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_bytes=None, clock=time.time, on_screen=_on_screen):
     """Plans and makes at most one copy. Returns True when it did work (a copy made, or a step that changed state)."""
     import drive_prepare
@@ -124,7 +138,7 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
         uq.save(profile, data)
     if uq.paused(profile):
         return False
-    added = uq.plan(q.state, data, settings, media_for, clock)
+    added = uq.plan(planning_state(profile, q.state), data, settings, media_for, clock)
     if added:
         q.log('upscale: %d copy%s to make (%s)' % (len(added), '' if len(added) == 1 else ' copies',
                                                   ', '.join(data['copies'][k]['label'] for k in added)))

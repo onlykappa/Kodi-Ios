@@ -4230,3 +4230,17 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - Videos on Drive keep the existing Delete (Drive's Trash).
 - **Test:** test_library_remove (two failed versions of an untitled episode both go; a running copy is stopped; a Drive
   video is untouched; the sheet and Delete Season use the path). The test fails with `whole_video=False`.
+
+## ISSUE-288 — AI Upscale did not list Naruto season 2 (owner, build 442) — fixed in code
+
+- **Cause:** the AI Upscale page (`upscale_page.library`) and its copy planner (`upscale_queue.plan`) read only the
+  preparation queue's finished jobs (`status == 'done'`). A video that was never prepared (it played as it was), was kept
+  as it is, or whose job was superseded never appeared, while Library (library_index) showed it.
+- **Fix:** `upscale_page.jobs_from_index(index, prep)` turns every video in library_index that is on Drive and plays
+  (ready or kept) into a finished job: its own probe when it has one, otherwise the size from the quality in its name
+  (480p, 576p, 720p, 1080p). A video of unknown size is left out. `upscale_cloud.planning_state` feeds it to both the
+  page (`upscale_settings.model`) and the service's planner, falling back to the queue before the first index exists.
+  Videos that were never prepared get a copy only when the owner chooses a size on their show's page, never from
+  "Upscale new downloads" (ISSUE-245: "I want full control").
+- **Test:** test_upscale_from_index (season 2 episodes without a finished job are listed; unknown size and converting are
+  not; never-prepared videos wait for the owner; service and page share the path).
