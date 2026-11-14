@@ -326,6 +326,19 @@ def run():
  threading.Thread(target=activity.watch,args=(lambda:activity.read_box(xbmc,xbmcgui),notices.downloads,lambda:notices.uploads(profile),
   activity_setting,lambda:xbmc.Player().isPlayingVideo(),lambda props:[window.setProperty(k,v) for k,v in props.items()],
   lambda text:notices.add(profile,'problem','Elementum Burst',text),monitor.waitForAbort),kwargs={'posters':posters},daemon=True).start()
+ # ISSUE-267: the add-ons the app patches stay its own copies (a repository update had hidden them; no copy ran).
+ try:
+  import pinned_addons
+  write=lambda text:xbmc.log(text,xbmc.LOGINFO)
+  pinned_addons.block_updates(pinned_addons.addons_database(xbmcvfs.translatePath('special://database/')),log=write)
+  moved=pinned_addons.restore(xbmcvfs.translatePath('special://home/addons/'),xbmcvfs.translatePath('special://xbmc/addons/'),
+                              xbmcvfs.translatePath('special://temp/shadowed-addons/'),log=write)
+  if moved:
+   xbmc.executebuiltin('UpdateLocalAddons');monitor.waitForAbort(3)
+   notices.add(profile,'general','Add-ons put back',"%s had been updated from a repository without the app's fixes; the app's own copies are back. Restart Kodi iOS to finish."%
+               ' and '.join({'plugin.googledrive':'Google Drive','script.module.clouddrive.common':'its library',
+                             'plugin.video.elementum':'Elementum','script.elementum.burst':'Burst'}.get(a,a) for a,_,_ in moved))
+ except Exception as error:diagnostics.log_exception(xbmc,'pinned_addons',error)
  # Kept Elementum videos go to Google Drive in the background, never during playback.
  try:
   if xbmcaddon.Addon().getSettingBool('drive_upload') or xbmcaddon.Addon().getSettingBool('prepare_downloads'):
@@ -388,9 +401,20 @@ def drive_uploads(monitor,home,profile):
  slowdown.configure(lambda:'airplay' if airplay_busy() else ('buffering' if xbmc.getCondVisibility('Player.Caching') else 'video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
  common=xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
- if common not in sys.path:sys.path.append(common)
+ # ISSUE-267: the app's patched copy first, whatever Kodi resolved (a repository update may still be registered).
+ bundled=xbmcvfs.translatePath('special://xbmc/addons/script.module.clouddrive.common/')
+ if os.path.isfile(os.path.join(bundled,'addon.xml')):common=bundled
+ if common not in sys.path:sys.path.insert(0,common)
  from clouddrive.common.account import AccountManager
- from clouddrive.common.remote.request import tls_context
+ try:from clouddrive.common.remote.request import tls_context
+ except ImportError:
+  # An unpatched clouddrive (a repository update): copies must still run, not stop for good (ISSUE-267).
+  xbmc.log('Kodi iOS Drive: clouddrive has no tls_context (not the app\'s patched copy); using a plain one',xbmc.LOGWARNING)
+  def tls_context(mode=None):
+   import ssl
+   try:
+    import certifi;return ssl.create_default_context(cafile=certifi.where())
+   except Exception:return ssl.create_default_context()
  import remote_media
  drive_addon=xbmcaddon.Addon('plugin.googledrive')
  if signin_server.migrate(drive_addon):xbmc.log('Kodi iOS Drive: sign-in server set to the owner worker',xbmc.LOGINFO)

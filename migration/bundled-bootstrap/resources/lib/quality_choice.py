@@ -188,6 +188,10 @@ def notice(record, season):
     """Board A: (title, text) of the one notice for the season."""
     best = record.get('best') or {}
     title = 'No real %s for season %s' % (word(record.get('quality')), season)
+    found = next(iter((record.get('found') or {}).values()), '')
+    if not best.get('quality') and found:   # from a refused copy (ISSUE-267): the best is not known yet
+        return title, '%s \u00b7 the version named %s is really %s. Tap to choose.' % (
+            record.get('title') or 'This show', word(record.get('quality')), found.replace('x', '\u00d7'))
     text = '%s · the best is %s%s. Tap to choose.' % (
         record.get('title') or 'This show', word(best.get('quality')),
         (' (%s)' % short(best.get('name'), record.get('title'))) if best.get('name') else '')
@@ -209,7 +213,7 @@ def sheet(record, season):
         why += ' A version named %s turned out to be %s.' % (asked, found.replace('x', '×'))
     why += ' The best real version is %s.' % word(best.get('quality')) if best.get('quality') else ' No real %s version exists.' % asked
     n = len(record.get('episodes') or [])
-    rows = [{'label': 'Use the Best · %s' % word(best.get('quality')),
+    rows = [{'label': 'Use the Best · %s' % word(best.get('quality')) if best.get('quality') else 'Use the Best Available',
              'detail': ' · '.join(x for x in ('%d episode%s waiting' % (n, '' if n == 1 else 's') if n else '',
                                                short(best.get('name'), record.get('title'))) if x),
              'tint': 'FF0A84FF', 'glyph': 'check.png'},

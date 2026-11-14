@@ -3868,3 +3868,28 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Retest:** test_quality_choice (new, in import-review.yml); test_season_sources
   `test_selected_quality_missing_queues_the_best_available_as_a_fallback` (held first, queued after "Use the Best", end to
   end through the real route).
+
+## ISSUE-267 — No AllDebrid copy or Drive upload ran ("frozen waiting for AllDebrid"); Repair queued the 640x480 "1080p" pack again (owner log b98d5fc2, build 421) — fixed in code
+
+- **Seen:** 21 Naruto S2 episodes "new" for 7 minutes, with no copy lane and nothing logged by the copy loop.
+- **Cause 1, the freeze:** the service thread that runs every AllDebrid copy and Drive upload died at start: "cannot import
+  name 'tls_context' from 'clouddrive.common.remote.request'". Kodi's own add-on updater had installed
+  plugin.googledrive 1.6.13 and script.module.clouddrive.common 1.5.20 from the official repository into
+  special://home/addons. Those copies shadow the app's patched 1.6.8 / 1.5.11 (scripts/build_customized_ipa.py
+  DRIVE_PATCHES).
+- **Fix 1 (`pinned_addons`, run by the service before the copy thread starts):**
+  - Kodi's per-add-on "don't update automatically" rule (Addons DB update_rules, rule 1) for the four add-ons the build
+    patches: Google Drive, its library, Elementum and Burst.
+  - A home copy whose version differs from the bundled one is moved to special://temp/shadowed-addons. Kodi rescans
+    (UpdateLocalAddons), and a notice asks for a restart. A home copy of the same version, as in the desktop rig, stays.
+  - The copy thread puts the bundled clouddrive first on its path. If `tls_context` is still missing it uses a plain
+    certifi one instead of dying.
+- **Cause 2, the pack again:** Repair queued all 21 episodes from "Naruto Shippuden (001-500) [Complete Series + Movies
+  (1080p)]". The refusals made by build 415 were saved without the version's list name, so ISSUE-264's season-wide match
+  had nothing to match.
+- **Fix 2:** the first refused copy of a pack holds the season's other unstarted episodes from the same torrent
+  (`debrid_drive.hold_pack`), records the real size, and asks once (DEC-049 notice: "the version named 1080p is really
+  640×480"). Board B then offers "Use the Best Available". The jobs now carry `pick_name`, so the next pick knows the pack.
+- **Retest:** test_pinned_addons (new); test_quality_choice `RefusedPackHoldsItsSeason`.
+- **Phone check:** after installing, the log says "automatic updates blocked for …" and "… was moved aside", with one
+  "Add-ons put back" notice. After a restart, copies start.

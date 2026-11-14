@@ -751,9 +751,34 @@ def refusal_noted(profile, job, error):
         real = re.search(r'(\d{2,5}x\d{2,5})', str(error))
         if real and job.get('pick_name'):
             quality_choice.note_found(profile, tmdb, season, pack_root(job['pick_name']), real.group(1))
-        return quality_choice.state(profile, tmdb, season) in ('asking', 'looking')
+        value = quality_choice.state(profile, tmdb, season)
+        if quality_choice.lets_fallback(value) or not job.get('quality'):
+            return False
+        # ISSUE-267: the season asks once (DEC-049 board A) from the first refusal, not after every episode is refused.
+        fresh = quality_choice.hold(profile, tmdb, season, job.get('episode'), job['quality'], job.get('title') or '',
+                                    keep=value == 'looking')
+        if fresh:
+            import notices
+            record = quality_choice.load(profile)['seasons'].get(quality_choice.key(tmdb, season)) or {}
+            title, text = quality_choice.notice(record, season)
+            notices.add(profile, 'problem', title, text,
+                        'RunScript(service.kodi.ios.bootstrap,quality_choice,tmdb=%s,season=%s)' % (tmdb, season))
+        return True
     except Exception:
         return False
+
+
+def hold_pack(state, job, error, clock=time.time):
+    """ISSUE-267 (owner log b98d5fc2, build 421: Repair queued all 21 season-2 episodes from the "1080p" pack whose season 2
+    is 640x480): once one episode of a pack is refused for its quality, the season's other episodes from the same torrent
+    that have not started are not copied and refused one by one; they wait for the owner's choice with it. Returns them."""
+    held = []
+    for other in state.get('jobs', []):
+        if (other is not job and other.get('hash') == job.get('hash') and str(other.get('season')) == str(job.get('season'))
+                and other.get('kind') == 'episode' and other.get('status') in ('new', 'fetching', 'copying') and not _started(other)):
+            other.update(status='failed', error=str(error), low_quality=True, finished=clock(), pick_name=other.get('pick_name') or job.get('pick_name'))
+            held.append(other)
+    return held
 
 
 def avoid_names(state, tmdb, season, episode):
@@ -1302,7 +1327,13 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                                 # it and the next search leaves the version out); nothing of it is on Drive.
                                 with guard:
                                     entry[0].update(status='failed', error=str(error), low_quality=True, finished=clock())
+                                    same_pack = hold_pack(state, entry[0], error, clock)
                                 log('%s: %s; not copied' % (entry[0].get('title') or entry[0]['name'], error))
+                                for other in same_pack:   # the season's other episodes of this pack wait with it
+                                    refusal_noted(profile, other, error)
+                                if same_pack:
+                                    log('%s: %d more episodes of this version wait for the quality choice' % (
+                                        entry[0].get('title') or entry[0]['name'], len(same_pack)))
                                 if not refusal_noted(profile, entry[0], error):
                                     notify('problem', 'Not the quality you picked', '%s: %s. Another version will be looked for.' % (
                                         entry[0].get('title') or entry[0]['name'], str(error).split(': ', 1)[-1]))

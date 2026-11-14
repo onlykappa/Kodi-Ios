@@ -155,6 +155,7 @@ jobs:
           python3 -B scripts/test_upscale_cancel.py
           python3 -B scripts/test_season_quality.py
           python3 -B scripts/test_quality_choice.py
+          python3 -B scripts/test_pinned_addons.py
           python3 -B scripts/test_library_show_menu.py
           python3 -B scripts/test_upscale_page.py
           python3 -B scripts/test_ios_remove.py

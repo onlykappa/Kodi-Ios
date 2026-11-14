@@ -110,6 +110,31 @@ class Gate(unittest.TestCase):
         self.assertEqual(len(ranked), 2)
 
 
+class RefusedPackHoldsItsSeason(unittest.TestCase):
+    """ISSUE-267 (build 421 log b98d5fc2): 21 episodes queued from one "1080p" pack that is 640x480."""
+    def test_the_first_refusal_holds_the_rest_and_asks_once(self):
+        import debrid_drive
+        jobs = [{'hash': 'h' * 40, 'kind': 'episode', 'season': '2', 'episode': str(n), 'status': 'new', 'title': 'Naruto Shippuden',
+                 'show_tmdb': '31910', 'quality': '1080p', 'files': [], 'pick_name': FOLDER + 'Episode %03d.mkv' % n} for n in (33, 34, 35)]
+        jobs.append(dict(jobs[0], hash='o' * 40, episode='36'))                          # another torrent: not held
+        state = {'jobs': jobs}
+        error = RuntimeError('Not the quality you picked: 640x480, you chose 1080p')
+        held = debrid_drive.hold_pack(state, jobs[0], error, clock=lambda: 1)
+        self.assertEqual([j['episode'] for j in held], ['34', '35'])
+        self.assertTrue(all(j['status'] == 'failed' and j['low_quality'] for j in held));self.assertEqual(jobs[3]['status'], 'new')
+        with tempfile.TemporaryDirectory() as p:
+            notes = []
+            with mock.patch.dict(sys.modules, {'notices': types.SimpleNamespace(add=lambda *a: notes.append(a))}):
+                for j in held + [jobs[0]]:
+                    self.assertTrue(debrid_drive.refusal_noted(p, j, error))
+            self.assertEqual(len(notes), 1)                                              # one notice for the season
+            self.assertEqual(notes[0][2], 'No real 1080p for season 2')
+            self.assertIn('really 640\u00d7480', notes[0][3])
+            self.assertEqual(qc.state(p, '31910', 2), 'asking')
+            self.assertEqual(qc.load(p)['seasons']['31910:2']['episodes'], [33, 34, 35])
+            self.assertEqual(qc.sheet(qc.load(p)['seasons']['31910:2'], 2)[0]['rows'][0]['label'], 'Use the Best Available')
+
+
 class Repair(unittest.TestCase):
     def test_a_held_episode_is_not_nothing_found(self):
         import library_repair
