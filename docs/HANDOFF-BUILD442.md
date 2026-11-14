@@ -81,3 +81,30 @@ Play on TV of an Umbrella episode; Roku AirPlay of Naruto S1 E1 (r57); "AllDebri
 15. **One brain everywhere.** The Queue and the notification centre must read the same library index (`library_index`)
     as Library status, TV Shows and Download problems: counts, titles and states agree everywhere. Add a test that compares
     them for one fixture (e.g. Rick and Morty S3 copying).
+
+## Handover, 2026-11-14 (end of the second session)
+
+Done on `claude/build442-feedback` (each has its ISSUE entry and test):
+- ISSUE-281 stream fallback · 282 NameError · 283 controls 3 s · 284 Remove From Continue Watching
+- ISSUE-285 retry log names the error (cause still waits for a log) · 286 remove videos not on Drive · 288 AI Upscale from
+  library_index · 289 no Trakt/Elementum start notices · 290 notification centre C1 · 291 row title opens a grid ·
+  292 Library status slim rows (DEC-051 board A) with speed line and time left on every row.
+
+Owner decisions this session: N2 (notification detail with timeline) and Q2 (Build Season chips) approved; C1 approved
+and coded; the activity pill and its sheet are to be removed entirely ("I use Library status or the notification tray").
+
+Open:
+1. **Activity pill removal (ISSUE-287 reserved).** A helper agent worked on it in a local worktree that is not pushed;
+   it is lost if the container ended. Redo it if branch `claude/remove-activity-pill` is not on the remote: remove
+   activity.py, activity_page.py, activity_skin.py and its service loop, keep the ring_00..20 textures (now used by
+   Notifications and Library status) and the fonts `p_pill`/`p_pill_s` (used by Notifications).
+2. **Backend from the owner's ChatGPT agent** (branch `codex/build442-backend`, PR into this branch): one brain for
+   Queue/Notifications (item 15), real upload speed and graph data (item 8), subtitle filter (item 6), the data for N2
+   (timeline) and Q2 (per-quality counts), RuntimeError follow-up. Review it in the rig; never merge without the owner.
+3. **UI to code (Claude):** N2 sheet and Q2 sheet skins on that data; DEC-051 board B (copy sheet like the conversion
+   sheet); item 9 smooth scrolling on every page (compare Home/Movies/TV grouplist settings with the other pages).
+4. Ask the owner for kodi.old.log (ISSUE-281 crash) and a log after a copy retry (ISSUE-285).
+5. Update PR #28's description; list phone tests; no IPA without the owner's OK.
+
+Rig notes: the profile is `~/.cache/kodi-rig/home/.kodi/userdata`; `SendClick` does not reach buttons inside the hub
+grouplist, use `DISPLAY=:5 xdotool mousemove X Y click 1`; Kodi conditions group with `![…]`, never `!(…)`.
