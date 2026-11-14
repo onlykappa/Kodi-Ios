@@ -549,7 +549,7 @@ def drive_uploads(monitor,home,profile):
      return debrid_ready.copy(q,profile,with_link,name,size,parent,going,progress,key,
                               log=lambda text:xbmc.log('Kodi iOS AllDebrid: '+diagnostics.redact(text),xbmc.LOGINFO),hold=slowdown.holding,
                               quality=quality)
-    delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),ready_copy=ready_copy,
+    delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text,group='':notices.add(profile,kind,title,text,group=group),ready_copy=ready_copy,
                             keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not wifi_only_hold(),on_done=done,
                             cancelled=lambda:transfer_control.cancelled_copies(profile),
                             forget=lambda h:transfer_control.clear_cancelled(profile,h),

@@ -140,7 +140,7 @@ def _profile():
  import xbmcvfs
  return xbmcvfs.translatePath('special://profile/')
 
-def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=None,cancel=None,timeout=None,lane='',title=''):
+def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=None,cancel=None,timeout=None,lane='',title='',batch=''):
  import elementum_cloud
  if watch.active_request(home,lane=lane):raise RuntimeError('Another episode search is running. Try again when it finishes.')
  ident=uuid.uuid4().hex
@@ -148,6 +148,7 @@ def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=Non
  target={'tmdb':str(tmdb),'season':int(season),'episode':int(episode) if episode else None,'title':str(title or '')}
  wanted={'request_id':ident,'target':target,'purpose':purpose,'mode':0,'until':time.time()+600,
          'profile':dict({'quality':quality,'strict_quality':True} if quality else {},runtime=episode_minutes(tmdb,season,episode))}
+ if batch:wanted['batch']=batch   # ISSUE-268: the season request this episode belongs to (one message per season)
  if purpose=='queue' and episode:
   # ISSUE-244 (owner log 3df2f247: Repair of Naruto S1 E5/E6 picked a torrent AllDebrid could not fetch, "File not
   # available due to no peer", and nothing stopped the next Repair picking it again): versions of this episode that failed
@@ -207,6 +208,7 @@ def _run(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,search=Non
  remaining=[n for n in numbers if n not in have]
  if not remaining:
   dialog.ok('Download season','Every aired episode is already downloaded or queued.');return []
+ batch='season:%s:%s:%d'%(tmdb,season,int(time.time()))   # ISSUE-268: one message for this season's downloads
  progress=gui.DialogProgress();progress.create('Checking available sources','Finding episode qualities…')
  sources={};deadline=time.monotonic()+SCAN_SECONDS;monitor=xbmc.Monitor()
  def canceled():return progress.iscanceled() or monitor.abortRequested()
@@ -215,7 +217,7 @@ def _run(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,search=Non
   scanning=purpose=='scan'
   stop=(lambda:canceled() or time.monotonic()>=deadline) if scanning else canceled
   timeout=min(EPISODE_SECONDS,max(.1,deadline-time.monotonic())) if scanning else 120
-  return request(home,tmdb,season,n,purpose,q,cancel=stop,timeout=timeout)
+  return request(home,tmdb,season,n,purpose,q,cancel=stop,timeout=timeout,batch=batch if purpose=='queue' else '')
  try:
   for i,n in enumerate(remaining):
    if canceled():return []
@@ -312,10 +314,11 @@ def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,se
  if not remaining:
   dialog.ok('Download season','Every aired episode is already downloaded or queued.');return []
  monitor=xbmc.Monitor();halt={'stop':False};card=None
+ batch='season:%s:%s:%d'%(tmdb,season,int(time.time()))   # ISSUE-268: one message for this season's downloads
  def lookup(n,purpose,q=None,lane='',timeout=None):
   if search:return search(n,purpose,q)
   return request(home,tmdb,season,n,purpose,q,cancel=lambda:halt['stop'] or bool(card and card.canceled),
-                 timeout=timeout or (LANE_SECONDS if purpose=='scan' else 120),lane=lane,title=title)
+                 timeout=timeout or (LANE_SECONDS if purpose=='scan' else 120),lane=lane,title=title,batch=batch if purpose=='queue' else '')
  # Board B3 (DEC-041): three episodes (start, middle, end) are looked up in every quality while the sheet shows the
  # check card, so a quality nobody has is greyed and one is recommended. Their answers are kept for the build below.
  checked={}

@@ -173,14 +173,15 @@ def route(url,quiet=False,request_id=None):
                                  quality=((auto or {}).get('profile') or {}).get('quality') if (auto or {}).get('profile',{}).get('strict_quality') and not (auto or {}).get('_fallback')
                                  and not debrid_drive.fallback_known(profile, tracked.get('tmdb'), choice.get('season') or tracked.get('season'),
                                                                      ((auto or {}).get('profile') or {}).get('quality')) else '')
-        if (auto or {}).get('_pick_name') and job.get('pick_name') != auto['_pick_name']:
-            debrid_drive.set_pick_name(profile, job, auto['_pick_name'])
+        if auto:   # ISSUE-264 / ISSUE-268: the version's list name, and the season request it belongs to
+            debrid_drive.tag(profile, job, pick_name=auto.get('_pick_name') or '', batch=auto.get('batch') or '')
         if auto is not None and auto.get('_fallback') and (auto.get('profile') or {}).get('quality'):
             debrid_drive.remember_fallback(profile, tracked.get('tmdb'), choice.get('season') or tracked.get('season'), auto['profile']['quality'])
             # ISSUE-236: the owner chose a quality nothing has; the best that exists was taken, and they are told once.
-            notices.note('info', 'No %s version' % auto['profile']['quality'],
+            notices.note_group('info', 'No %s version' % auto['profile']['quality'],
                          '%s: no real %s version exists, so the best available was downloaded.' % (
-                             job['title'] + (' · S%s E%s' % (job.get('season'), job.get('episode')) if job.get('episode') else ''), auto['profile']['quality']))
+                             job['title'] + (' · S%s E%s' % (job.get('season'), job.get('episode')) if job.get('episode') else ''), auto['profile']['quality']),
+                         group=auto.get('batch') or '')
         try:
             import xbmc,diagnostics,transfer_control
             # Roadmap B.11: this runs in Elementum's interpreter; join the app's session so the line names the build.

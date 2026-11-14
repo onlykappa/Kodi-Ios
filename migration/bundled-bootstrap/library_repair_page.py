@@ -45,6 +45,9 @@ def run(argv):
     import quality_choice
     profile = xbmcvfs.translatePath('special://profile/')
     many = len(pending) > 1
+    import time as _time
+    # ISSUE-268: several episodes are one request; their downloads' messages join one entry. One episode keeps its own.
+    batch = 'repair:%s:%d' % (tmdb, int(_time.time())) if many else ''
     # DEC-049 board A (owner screenshot, build 415: Notifications filled with "Repair" lines): one line for a run of several
     # episodes, not two per episode.
     if many:
@@ -66,7 +69,7 @@ def run(argv):
             continue
         if not many:
             dialog.notification('Repair', 'Looking up %s again%s' % (label, ' at %s' % quality_name if quality_name else ''), xbmcgui.NOTIFICATION_INFO, 3000)
-        request = lambda *args, **kw: season_sources.request(*args, cancel=lambda: library_repair.cancelled(home, key), **kw)
+        request = lambda *args, **kw: season_sources.request(*args, cancel=lambda: library_repair.cancelled(home, key), batch=batch, **kw)
         state, detail = library_repair.repair(request, home, tmdb, a.get('title', ''),
                                               season, episode, tries, log=lambda text: xbmc.log(text, xbmc.LOGINFO))
         library_repair.mark_searching(home, [key], add=False)

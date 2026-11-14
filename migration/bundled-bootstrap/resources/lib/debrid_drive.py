@@ -718,6 +718,20 @@ def drive_episodes(profile):
     return found
 
 
+def tag(profile, job, **fields):
+    """Store extra fields on a queued job (and every job of the same torrent and episode): pick_name (ISSUE-264), batch
+    (ISSUE-268: the season request it came from, for one message per season)."""
+    fields = {k: v for k, v in fields.items() if v}
+    if not fields:
+        return
+    state = load(profile)
+    for other in state.get('jobs', []):
+        if other.get('hash') == job.get('hash') and str(other.get('episode')) == str(job.get('episode')) and str(other.get('season')) == str(job.get('season')):
+            other.update(fields)
+    job.update(fields)
+    save(profile, state)
+
+
 def set_pick_name(profile, job, name):
     """ISSUE-264: keep the name the version had in the list on its job (the job's own name is often the info-hash), so a
     refusal can be matched to that version, and to its pack, next time."""
@@ -737,6 +751,14 @@ def pack_root(name):
     if '/' in text:
         return text.rsplit('/', 1)[0].strip().casefold()
     return text.strip().casefold()
+
+
+def episode_label(job):
+    """'Naruto Shippuuden · S2 E33' for an episode, the title otherwise (ISSUE-268: a one-episode message names it)."""
+    title = job.get('title') or job.get('name') or ''
+    if job.get('kind') == 'episode' and job.get('season') and job.get('episode'):
+        return '%s \u00b7 S%s E%s' % (title, job['season'], job['episode'])
+    return title
 
 
 def refusal_noted(profile, job, error):
@@ -1044,6 +1066,18 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     """Move the oldest unfinished job on by one step. Returns seconds until the next step is worth trying
     (None when nothing is queued). cancelled(): info hashes the owner cancelled (long press in Notifications);
     those jobs end as failed with 'Cancelled' and forget(hash) clears each request."""
+    say = notify
+
+    def notify(kind, title_, text, job_=None):
+        # ISSUE-268: a download from a season request (its batch) joins that season's one message; one episode's stays its own.
+        group = str((job_ or {}).get('batch') or '')
+        if group:
+            try:
+                return say(kind, title_, text, group=group)
+            except TypeError:
+                pass
+        return say(kind, title_, text)
+
     state = load(profile)
     drop = {str(h).lower() for h in cancelled()}
     for job in state['jobs']:
@@ -1110,7 +1144,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             job['magnet'], ready = api.add(job['hash'])
             job['status'] = 'copying' if ready else 'fetching'
             if not ready:
-                notify('download', 'AllDebrid is fetching it', title)
+                notify('download', 'AllDebrid is fetching it', episode_label(job), job)
             commit()
             return 1
         if job['status'] == 'fetching':
@@ -1336,7 +1370,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                                         entry[0].get('title') or entry[0]['name'], len(same_pack)))
                                 if not refusal_noted(profile, entry[0], error):
                                     notify('problem', 'Not the quality you picked', '%s: %s. Another version will be looked for.' % (
-                                        entry[0].get('title') or entry[0]['name'], str(error).split(': ', 1)[-1]))
+                                        episode_label(entry[0]), str(error).split(': ', 1)[-1]), entry[0])
                                 commit()
                                 if entry[0] is job:
                                     return
@@ -1408,7 +1442,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     other['status'] = 'done'
                     other['finished'] = clock()
                     notify('drive', 'Saved to Google Drive', '%s · straight from AllDebrid, nothing kept on the phone'
-                           % (other.get('title') or other['name']))
+                           % episode_label(other), other)
             if job.get('low_quality'):   # ISSUE-236: refused before it was copied; it stays failed
                 state.pop('current', None)
                 commit()
@@ -1430,7 +1464,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                        'version for the rest.' % (title, work_state.episode_label(files[0].get('drive_name') or files[0].get('path'))))
             else:
                 notify('drive', 'Saved to Google Drive', '%s%s · straight from AllDebrid, nothing kept on the phone'
-                       % (title, ' · %d episodes' % len(files) if len(files) > 1 else ''))
+                       % (episode_label(job), ' · %d episodes' % len(files) if len(files) > 1 else ''), job)
             on_done(job)
             return 1
     except driveupload.Stop:
@@ -1441,7 +1475,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         job['error'] = str(problem)
         state.pop('current', None)
         commit()
-        notify('problem', "Couldn't download to Google Drive", '%s: %s' % (title, problem))
+        notify('problem', "Couldn't download to Google Drive", '%s: %s' % (episode_label(job), problem), job)
         transfer_history.failed(profile, 'up', title, str(problem), clock())
         return 1
     except Exception as error:   # network, Drive: try again in a while, from where it got to
@@ -1472,7 +1506,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         if job['tries'] >= 20:
             job['status'] = 'failed'
             commit()
-            notify('problem', "Couldn't download to Google Drive", '%s: %s' % (title, job['error']))
+            notify('problem', "Couldn't download to Google Drive", '%s: %s' % (episode_label(job), job['error']), job)
             transfer_history.failed(profile, 'up', title, 'gave up after 20 tries: ' + job['error'].split(': ', 1)[0], clock())
             return 1
         return min(600, 30 * job['tries'])

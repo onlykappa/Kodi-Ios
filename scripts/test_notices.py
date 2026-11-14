@@ -169,4 +169,30 @@ class BellMatchesPage(unittest.TestCase):
   shown={'down','copy','upload','conv','repack','check'}
   self.assertTrue(kinds<=shown,kinds-shown)
 
+class OnePerSeasonRequest(unittest.TestCase):
+ """ISSUE-268 (owner: "per episode alerts only when I download per episode, full season alerts when I do a full season")."""
+ def test_a_season_request_is_one_entry_and_single_episodes_stay_their_own(self):
+  import tempfile
+  with tempfile.TemporaryDirectory() as p:
+   for e in range(33,54):
+    notices.add(p,'drive','Saved to Google Drive','Naruto Shippuuden \u00b7 S2 E%d \u00b7 straight from AllDebrid'%e,now=1000+e*100,group='season:31910:2:1')
+   notices.add(p,'drive','Saved to Google Drive','Naruto Shippuuden \u00b7 S3 E1 \u00b7 straight from AllDebrid',now=9000)   # one episode
+   notices.add(p,'drive','Saved to Google Drive','Naruto Shippuuden \u00b7 S3 E2 \u00b7 straight from AllDebrid',now=9100)
+   items=notices.load(p)
+   self.assertEqual(len(items),3)
+   self.assertEqual((items[2]['count'],items[2]['text']),(21,'Naruto Shippuuden \u00b7 21 episodes \u00b7 straight from AllDebrid'))
+   self.assertEqual(items[0]['text'],'Naruto Shippuuden \u00b7 S3 E2 \u00b7 straight from AllDebrid')
+   notices.add(p,'problem',"Couldn't download to Google Drive",'Naruto Shippuuden \u00b7 S2 E40: no peer',now=9600,group='season:31910:2:1')
+   notices.add(p,'problem',"Couldn't download to Google Drive",'Naruto Shippuuden \u00b7 S2 E41: no video file',now=9700,group='season:31910:2:1')
+   self.assertEqual(notices.load(p)[0]['text'],'Naruto Shippuuden \u00b7 2 episodes \u00b7 no video file')
+ def test_the_copy_loop_tags_its_messages(self):
+  import importlib
+  dd=importlib.import_module('debrid_drive')
+  self.assertEqual(dd.episode_label({'title':'Naruto Shippuuden','kind':'episode','season':'2','episode':'33'}),'Naruto Shippuuden \u00b7 S2 E33')
+  src=(Path(dd.__file__)).read_text()
+  self.assertIn("return say(kind, title_, text, group=group)",src)
+  for f in ('season_sources.py','../../library_repair_page.py','elementum_cloud.py'):
+   self.assertIn('batch',(Path(dd.__file__).parent/f).read_text())
+
+
 if __name__=='__main__':unittest.main()

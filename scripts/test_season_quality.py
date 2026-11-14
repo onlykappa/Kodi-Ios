@@ -284,7 +284,7 @@ class RefusedPackForTheSeason(unittest.TestCase):
         self.assertEqual(best['name'], sd['name'])
         self.assertEqual(debrid_drive.avoid_names(state, '31910', 3, 1)[1], [])     # another season: not affected
         cloud = (LIB / 'elementum_cloud.py').read_text()
-        self.assertIn("wanted['_pick_name']", cloud);self.assertIn('debrid_drive.set_pick_name(profile, job', cloud)
+        self.assertIn("wanted['_pick_name']", cloud);self.assertIn('debrid_drive.tag(profile, job, pick_name=', cloud)
 
 
 if __name__ == '__main__':

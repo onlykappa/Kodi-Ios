@@ -3893,3 +3893,20 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Retest:** test_pinned_addons (new); test_quality_choice `RefusedPackHoldsItsSeason`.
 - **Phone check:** after installing, the log says "automatic updates blocked for …" and "… was moved aside", with one
   "Add-ons put back" notice. After a restart, copies start.
+
+## ISSUE-268 — One message per season request, one per episode only for a single episode (owner, 2026-11-14) — fixed in code
+
+- **Owner:** "ensure it's only one stating the full season needs help, not 23 notifications if there are 23 episodes" and
+  "per episode alerts should only appear when I download per episode, and full season alerts need to appear when I do a
+  full season".
+- **Before:** every download in a season posted its own messages ("AllDebrid is fetching it", "Saved to Google Drive",
+  "Couldn't download to Google Drive", "No 1080p version"). A season meant tens of entries. "Saved to Google Drive" did not
+  even name the episode.
+- **Fix:**
+  - A season request tags its downloads with a batch: Build Season (both paths), Repair of several episodes, and the
+    quality choice's look-up (it runs Repair).
+  - `notices.add(group=…)` merges a message of the same kind and title from the same batch into one unread entry, which
+    moves to the top: "Naruto Shippuuden · 21 episodes · straight from AllDebrid…".
+  - A single episode (no batch) keeps its own message, which now names the episode ("Naruto Shippuuden · S2 E33").
+  - The quality question was already once per season (DEC-049). Repair already gives one start line and one summary.
+- **Retest:** test_notices `OnePerSeasonRequest`.
