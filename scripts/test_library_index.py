@@ -137,5 +137,40 @@ class SharedRecord(unittest.TestCase):
         self.assertIn('target=library_index.publish,args=(profile,', (ROOT / 'migration/bundled-bootstrap/service.py').read_text())
 
 
+class PagesReadTheIndex(unittest.TestCase):
+    """Step 3, the owner's bug: a stale saved Drive list (season 1, 28 episodes) no longer decides what TV Shows shows."""
+    def test_tv_shows_and_the_show_page_match_library_status(self):
+        import importlib.util, json, os, prepare_downloads, debrid_drive
+        with tempfile.TemporaryDirectory() as profile:
+            listing, prep, debrid = owner_state()
+            prep['library'] = {'items': listing, 'checked': 900.0}
+            prepare_downloads.save(profile, prep);debrid_drive.save(profile, debrid)
+            state = os.path.join(profile, 'addon_data', 'service.kodi.ios.bootstrap')
+            stale = {'tv:': {'entries': [{'id': 'folder1', 'title': 'Naruto Shippuuden', 'year': 2007}], 'driveid': 'd'},
+                     'tv:folder1': {'entries': [l for l in listing if 'S01E' in l['name']], 'driveid': 'd'},
+                     'movie:': {'entries': [], 'driveid': 'd'}}
+            with open(os.path.join(state, 'drive-library.json'), 'w') as f:
+                json.dump(stale, f)
+            spec = importlib.util.spec_from_file_location('library_manager_idx', ROOT / 'migration/bundled-bootstrap/library_manager.py')
+            lm = importlib.util.module_from_spec(spec);spec.loader.exec_module(lm)
+            data = lm.model(profile)
+            index = li.load(profile)
+        naruto = next(r for r in data['shows'] if r['title'] == 'Naruto Shippuuden')
+        c = li.counts(index, ('show', 'Naruto Shippuuden'))
+        self.assertEqual(naruto['seasons'], [1, 2])                                   # season 2 is there, while it lands
+        self.assertEqual(naruto['episodes'], c['total'])
+        self.assertEqual(naruto['ready_text'], '%d of %d ready' % (c['ready'] + c['kept'], c['total']))
+        props, shown, seasons = lm.fill_show(data, naruto, season=2, slots=60)
+        self.assertEqual(seasons, [1, 2])
+        self.assertEqual(len(shown), li.counts(index, ('season', 'Naruto Shippuuden', 2))['total'])
+        self.assertEqual(sum(1 for r in shown if r['state'] == 'copying'), 5)
+        props_all, _, _ = lm.fill_show(data, naruto, slots=60)
+        self.assertEqual(props_all['n.episodes'], str(c['total']))
+        self.assertEqual(props_all['n.ready'], str(c['problems']))                  # something needs the owner: that number
+        self.assertEqual(props_all['n.ready.label'], 'not added')
+        # Library status' whole-library numbers are the same counts.
+        self.assertEqual(li.counts(index)['total'], li.counts(index, 'tv')['total'] + li.counts(index, 'movies')['total'])
+
+
 if __name__ == '__main__':
     unittest.main()

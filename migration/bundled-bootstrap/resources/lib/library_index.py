@@ -117,7 +117,8 @@ def build(listing, prep_state, debrid_state, upscale_state=None, ignored=None, c
                  'title': title, 'year': str(info.get('year') or ''), 'id': str(item.get('id') or ''), 'name': name,
                  'size': int(item.get('size') or 0), 'quality': _quality(name), 'state': state, 'reason': reason,
                  'progress': None, 'hidden': False, 'problem_key': pkey,
-                 'ai': copy.get('label', '') if copy.get('status') == 'ready' else ''}
+                 'ai': copy.get('label', '') if copy.get('status') == 'ready' else '', 'ai_size': int(copy.get('size') or 0),
+                 'job_id': str(((job or {}).get('source') or {}).get('id') or ''), 'probe': dict((job or {}).get('probe') or {})}
         if state == PROBLEM:
             entry['hidden'] = _ignored(ignored, pkey, {'kind': 'prepare', 'error': reason})
         add(entry)
@@ -376,3 +377,78 @@ def entry_line(entry):
     if state == CANCELLED:
         return 'Cancelled'
     return entry.get('reason') or 'Needs you'
+
+
+# ---- Rows for the Library pages (step 3): the shapes library_files gave, from the one record -------------------------
+
+ROW_STATE = {READY: 'ready', KEPT: 'ready', CONVERTING: 'converting', COPYING: 'copying', PROBLEM: 'problem'}
+
+
+def _row(e, watched=()):
+    """A library_files-shaped row for one entry (its state words from entry_line)."""
+    state = ROW_STATE.get(e['state'], 'ready')
+    if e['state'] == PROBLEM and e.get('hidden'):
+        state = 'ready' if e.get('id') else 'problem'
+    return {'state': state, 'progress': e.get('progress'), 'ai': bool(e.get('ai')), 'ai_label': e.get('ai') or '',
+            'ai_size': int(e.get('ai_size') or 0), 'problem': e.get('reason') if e['state'] == PROBLEM else '',
+            'watched': bool(e.get('id')) and (e['id'] in watched or e.get('name') in watched),
+            'job_id': e.get('job_id') or '', 'probe': e.get('probe') or {}, 'id': e.get('id'), 'file': e.get('name') or '',
+            'quality': e.get('quality') or '', 'season': e['season'], 'episode': e['episode'], 'size': e['size'],
+            'name': e.get('title') if e['kind'] == 'movie' else '', 'line': entry_line(e), 'key': e['key'],
+            'pending': e.get('pending', ''),
+            'repair': e['state'] == PROBLEM and not e.get('hidden') and not e.get('pending')}
+
+
+def show_rows(index, watched=()):
+    """Library › TV Shows: one row per show with its counts and chips, every number from counts()."""
+    import library_files as lf
+    rows = []
+    for s in shows(index):
+        c = counts(index, ('show', s['key']))
+        entries = [e for e in index.get('videos', []) if in_scope(e, ('show', s['key'])) and e['state'] != CANCELLED
+                   and not (e['state'] == PROBLEM and e.get('hidden') and not e.get('id'))]
+        legacy = {lf.READY: c['ready'] + c['kept'] + c['hidden'], lf.CONVERTING: c['converting'], lf.COPYING: c['copying'],
+                  lf.PROBLEM: c['problems'], lf.UNKNOWN: 0}
+        total = len(entries)
+        ai = sum(1 for e in entries if e.get('ai'))
+        rows.append({'id': s['key'], 'title': s['title'], 'year': '', 'tmdb': s['tmdb'], 'seasons': sorted(s['seasons']),
+                     'season_counts': s['seasons'], 'episodes': total, 'size': sum(e['size'] for e in entries if e.get('id')),
+                     'counts': legacy, 'ai': ai, 'chips': lf.chips(legacy, ai, total),
+                     'ready_text': '%d of %d ready' % (c['ready'] + c['kept'], total)})
+    return rows
+
+
+def episode_rows(index, key, names=None, watched=()):
+    """One show's episodes, season by season: every episode on Drive, copying, or needing the owner (hidden copy problems
+    left out). names: (season, episode) -> TMDb title."""
+    names = names or {}
+    out = []
+    for e in index.get('videos', []):
+        if not in_scope(e, ('show', key)) or e['state'] == CANCELLED or (e['state'] == PROBLEM and e.get('hidden') and not e.get('id')):
+            continue
+        row = _row(e, watched)
+        row['name'] = names.get((e['season'], e['episode'])) or ''
+        out.append(row)
+    out.sort(key=lambda r: (r['season'], r['episode']))
+    return out
+
+
+def movie_rows(index, watched=(), sort='recent'):
+    """Library › Movies, from the same record (a movie still copying shows with its badge)."""
+    rows = []
+    for e in index.get('videos', []):
+        if e['kind'] != 'movie' or e['state'] == CANCELLED or (e['state'] == PROBLEM and e.get('hidden') and not e.get('id')):
+            continue
+        row = _row(e, watched)
+        badge = {'ready': 'Ready', 'converting': 'Converting', 'problem': 'Problem', 'copying': 'Copying'}[row['state']]
+        if row['state'] == 'copying' and e.get('progress') is not None:
+            badge = '%d %%' % e['progress']
+        if row['ai']:
+            badge = 'AI ' + (row['ai_label'] or '4K')
+        row.update(title=e['title'], year=e.get('year') or '', badge=badge)
+        rows.append(row)
+    if sort == 'name':
+        rows.sort(key=lambda r: str(r['title']).casefold())
+    elif sort == 'size':
+        rows.sort(key=lambda r: -r['size'])
+    return rows
