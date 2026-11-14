@@ -236,8 +236,26 @@ def problem_key(job):
 def problems(state):
     """The copies that ended: [{'title', 'reason', 'kind' ('network', 'source', 'cancelled'), 'hash', 'index'}]."""
     out = []
-    for n, job in enumerate(state.get('jobs', [])):
+    # ISSUE-250 (owner screenshots, build 393: Naruto's card said "2 problems" while Download problems listed 13): every
+    # failed version was listed, also for episodes since copied from another version or being copied again, and once per
+    # version tried. A video is listed once (its latest failure), and only while no other version is copying or done.
+    jobs = state.get('jobs', [])
+    def video(job):
+        title = str(job.get('title') or '').strip().casefold()
+        if not title:
+            return ('hash', job.get('hash'), job.get('season'), job.get('episode'))
+        return (title, str(job.get('season') or ''), str(job.get('episode') or ''))
+    alive = {video(j) for j in jobs if j.get('status') != 'failed'}
+    latest = {}
+    for n, job in enumerate(jobs):
+        if job.get('status') == 'failed':
+            k = video(job) + (job.get('error') == 'Cancelled',)
+            if k not in latest or float(job.get('finished') or 0) >= float(jobs[latest[k]].get('finished') or 0):
+                latest[k] = n
+    for n, job in enumerate(jobs):
         if job.get('status') != 'failed':
+            continue
+        if video(job) in alive or latest.get(video(job) + (job.get('error') == 'Cancelled',)) != n:
             continue
         error = str(job.get('error') or 'unknown')
         kind = 'cancelled' if error == 'Cancelled' else 'network' if network_error(error) else 'source'

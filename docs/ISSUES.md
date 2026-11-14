@@ -3655,3 +3655,11 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Retest:** test_library_show_menu (`SheetGlyphs`), test_library_files, test_choice_sheet. Rig: re-render the Download problems sheet.
 - **Seen, not changed (older page):** Download problems row titles end in "…" ("Naruto Shippuuden · S…"); the owner dislikes "…" (DEC-046).
 - **Rig re-render (2026-11-14, desktop Kodi rig):** the Download problems choice sheet shows the eye-slash (Don't Show Again) and trash (Remove From List) tiles, no bare squares; the show page's Select · ••• capsule with focus on ••• has no square highlight. Phone check pending.
+
+## ISSUE-250 — Download problems listed 13 Naruto problems while the show's card said 2 (owner screenshots and log 2095825c, build 393) — fixed in code
+
+- **Seen:** TV Shows › Naruto Shippuuden: "28 ready · 2 problems · 21 copying"; Download problems: about 13 Naruto rows ("No one is sharing this source", "Not the quality you picked"). The log: 16 failed copy jobs, 21 copying.
+- **Cause:** Download problems listed every failed copy job, once per version tried, including episodes since copied from another version or being copied again right now. The card counted each episode once and left out those on Drive (but counted ones being copied again as both copying and a problem).
+- **Fix:** one rule on both: an episode (or movie) is a problem only while no other version of it is copying, waiting or done, and it is listed once (its latest failure). `debrid_drive.problems` and `library_files._copying_episodes`.
+- **Retest:** test_season_quality `ProblemsAgree`; test_debrid_drive updated (a failed Inception is no longer listed beside a finished one).
+

@@ -203,5 +203,24 @@ class RefreshLists(unittest.TestCase):
             self.assertGreater(q.marker_time(), 0)
 
 
+class ProblemsAgree(unittest.TestCase):
+    """ISSUE-250 (owner, build 393): Naruto's card said "2 problems" while Download problems listed 13."""
+    def test_a_video_is_listed_once_and_not_while_another_version_copies_or_is_done(self):
+        def j(h, e, status, error='', fin=0):
+            return {'hash': h * 40, 'title': 'Naruto Shippuuden', 'kind': 'episode', 'season': '1', 'episode': str(e),
+                    'status': status, 'error': error, 'finished': fin, 'added': fin}
+        state = {'jobs': [j('a', 5, 'failed', 'Problem: No one is sharing this source', 1), j('b', 5, 'failed', 'Not the quality you picked', 2),
+                          j('c', 7, 'failed', 'Not the quality you picked', 1), j('d', 7, 'copying'),
+                          j('e', 8, 'failed', 'Problem: dead', 1), j('f', 8, 'done'),
+                          j('g', 9, 'failed', 'Cancelled', 1)]}
+        found = debrid_drive.problems(state)
+        self.assertEqual(sorted((p['episode'], p['hash'][0]) for p in found), [('5', 'b'), ('9', 'g')])   # one per video, latest
+        import library_files as lf
+        running, failed = lf._copying_episodes(state)
+        shows = [{'id': 's', 'title': 'Naruto Shippuuden'}]
+        row = lf.show_rows(shows, {'s': []}, {'jobs': {}}, state)[0]
+        self.assertEqual(row['counts'][lf.PROBLEM], 1)                                  # E5 only: the same as the page
+
+
 if __name__ == '__main__':
     unittest.main()

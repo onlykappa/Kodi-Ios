@@ -416,7 +416,8 @@ class NetworkTrouble(unittest.TestCase):
                  {'hash':'d'*40,'kind':'movie','status':'failed','error':'Problem: blocked'}]}
   self.assertEqual(debrid_drive.revive(state,lambda:5),[])
   titles=[p['title'] for p in debrid_drive.problems(state)]
-  self.assertEqual(titles[0],'Inception');self.assertTrue(titles[1].startswith('Heat'));self.assertEqual(titles[2],'Unnamed download')
+  # ISSUE-250: the failed Inception is not listed while another Inception is done.
+  self.assertTrue(titles[0].startswith('Heat'));self.assertEqual(titles[1],'Unnamed download');self.assertEqual(len(titles),2)
   debrid_drive.save(self.p,state)
   self.assertEqual(debrid_drive.retry_failed(self.p),2)                                   # not the finished Inception
 
