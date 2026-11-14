@@ -1613,6 +1613,9 @@ def portrait_files(skin,profile):
  files.update(library_tools_page.files(ns))
  # Settings › Customisation › Tabs & Rows › a tab (rows_page.py, filled by customise_rows.py).
  files.update(rows_page.files(ns))
+ # ISSUE-298 (owner: the flick "just sucks" on every screen but Home, Movies and TV): every page scrolls like the hubs.
+ for rel in list(files):
+  if rel.startswith(FOLDER+'/') and rel.endswith('.xml'):files[rel]=smooth_scroll(files[rel])
  # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.
  files['1080i/VideoOSD.xml']=player_osd.window().encode()
  # Fuse's seek bar flashed up at every video start (buffering, the resume jump): ours shows only while seeking.
@@ -1623,6 +1626,29 @@ def portrait_files(skin,profile):
  # Build 206: "Buffering 45%" over the video while Kodi fills its buffer.
  files['1080i/'+player_osd.BUFFER_WINDOW]=player_osd.buffering_window().encode()
  return files
+
+# ISSUE-298: the hubs' scroll feel. The touch flick and its momentum come from the Kodi patch and are the same for every
+# group list; what differed is the move when a tap changes focus (Kodi's default: a linear 200 ms jump). Every group
+# list without its own scrolltime gets the hubs' (Home's 5000: cubic ease-out, 380 ms).
+HUB_SCROLL='<scrolltime tween="cubic" easing="out">380</scrolltime>'
+_GROUPLIST=re.compile(r'<control type="grouplist"[^>]*>')
+
+
+def smooth_scroll(data):
+ """data (bytes or str) with HUB_SCROLL in every group list that has no scrolltime of its own."""
+ text=data.decode('utf-8') if isinstance(data,bytes) else data
+ if 'type="grouplist"' not in text:return data
+ out=[];at=0
+ for m in _GROUPLIST.finditer(text):
+  end=m.end();nxt=text.find('<control ',end)
+  own=text[end:nxt if nxt>=0 else len(text)]
+  out.append(text[at:end])
+  if '<scrolltime' not in own:out.append(HUB_SCROLL)
+  at=end
+ out.append(text[at:])
+ text=''.join(out)
+ return text.encode('utf-8') if isinstance(data,bytes) else text
+
 
 def row_files(skin,profile):
  """Only the files the widget lists feed: the hubs (Home, Movies, TV) and their row variables, exactly as

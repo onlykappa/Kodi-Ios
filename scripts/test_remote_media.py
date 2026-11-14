@@ -196,6 +196,12 @@ class Warm(Broker):
   self.assertIn("if airplay.converts(playback_lib):",text);self.assertIn("cache_tune.link_kind()=='wifi'",text)
   self.assertIn('target=remote_media.watch',text)
 class KodiPlays(Broker):
+ def setUp(self):
+  super().setUp()
+  self._kodi=patch.object(remote,'KODI_PLAYBACK',True);self._kodi.start();self.addCleanup(self._kodi.stop)
+ def test_the_route_is_off_by_default(self):
+  # Owner, build 442: no Umbrella stream played. Kodi reads the real link (build 430's route) until proven.
+  self.assertIn('\nKODI_PLAYBACK=False;',(ROOT/'migration/bundled-bootstrap/resources/lib/remote_media.py').read_text())
  """ISSUE-280 (owner, build 430 log 72b62563: an Umbrella episode sat at "Getting ready to play… 0%" for 32 s, 19 s of
  it in Kodi's own open of the MKV over one AllDebrid connection): Kodi's player reads it through the cache."""
  SRC='https://media.example/Black.Clover.S02E07.1080p.CR.WEB.mkv'
@@ -228,6 +234,27 @@ class KodiPlays(Broker):
   with patch.object(time,'time',return_value=time.time()+remote.KODI_IDLE+1):
    self.assertTrue(self.broker.reap(now=self.broker.opened+remote.KODI_IDLE+1))
   self.assertIsNone(self.broker.current);self.assertFalse(self.broker.kodi)
+ def test_a_paused_source_survives_while_kodi_has_it_open(self):
+  # ISSUE-281 (owner: stuck, then a crash on Resume): a paused player reads nothing; after KODI_IDLE the source was
+  # closed under it and Resume reopened a dead address. Kept while it is Kodi's playing file, up to KODI_CAP.
+  url=remote.for_kodi(self.SRC,self.home);current=self.broker.current;self.settle(current)
+  self.broker.playing=lambda:url+'|User-Agent=Kodi'
+  later=time.time()+remote.KODI_IDLE+60
+  with patch.object(time,'time',return_value=later):
+   self.assertFalse(self.broker.reap(now=self.broker.opened+remote.KODI_IDLE+60))
+  self.assertIs(self.broker.current,current)
+  with patch.object(time,'time',return_value=time.time()+remote.KODI_CAP+1):        # open but unread for 30 min
+   self.assertTrue(self.broker.reap(now=self.broker.opened+remote.KODI_CAP+1))
+  remote.for_kodi(self.SRC,self.home);self.settle(self.broker.current)
+  self.broker.playing=lambda:'https://other.example/next.mkv'                         # Kodi moved on: released
+  with patch.object(time,'time',return_value=time.time()+remote.KODI_IDLE+1):
+   self.assertTrue(self.broker.reap(now=self.broker.opened+remote.KODI_IDLE+1))
+  self.broker.playing=lambda:1/0                                                       # unsure: kept
+  remote.for_kodi(self.SRC,self.home);self.settle(self.broker.current)
+  with patch.object(time,'time',return_value=time.time()+remote.KODI_IDLE+1):
+   self.assertFalse(self.broker.reap(now=self.broker.opened+remote.KODI_IDLE+1))
+  service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
+  self.assertIn("playing=lambda:xbmc.Player().getPlayingFile() if xbmc.getCondVisibility('Player.HasVideo') else ''",service)
  def test_umbrella_unlock_hands_kodi_the_cache(self):
   import umbrella_recovery
   class Home:

@@ -20,6 +20,7 @@ on:
       - 'scripts/test_native_ui.py'
       - 'scripts/test_polling_loops.py'
       - 'scripts/test_skin_textures.py'
+      - 'scripts/test_smooth_scroll.py'
       - 'scripts/test_search_categories.py'
       - 'scripts/test_updates_calibration.py'
       - 'scripts/test_drive_upload.py'
@@ -65,6 +66,7 @@ on:
       - 'scripts/test_native_ui.py'
       - 'scripts/test_polling_loops.py'
       - 'scripts/test_skin_textures.py'
+      - 'scripts/test_smooth_scroll.py'
       - 'scripts/test_search_categories.py'
       - 'scripts/test_updates_calibration.py'
       - 'scripts/test_drive_upload.py'
@@ -127,6 +129,7 @@ jobs:
           python3 -B scripts/test_native_ui.py
           python3 -B scripts/test_polling_loops.py
           python3 -B scripts/test_skin_textures.py
+          python3 -B scripts/test_smooth_scroll.py
           python3 -B scripts/test_updates_calibration.py
           python3 -B scripts/test_drive_upload.py
           python3 -B scripts/test_service_scoping.py

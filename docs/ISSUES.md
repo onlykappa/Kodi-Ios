@@ -4457,3 +4457,18 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - Kodi's own grey progress box never appears.
   - More › Library status opens Library status.
   - A Burst error still shows in Notifications.
+
+**ISSUE-281 follow-up: the likely cause of the crash on Resume (review of the build-442 code, 2026-11-14).**
+- **Cause:** `remote_media.Broker.reap` closed a source Kodi's player opened once nothing had read it for KODI_IDLE (120 s). A paused player reads nothing, so after a pause of more than 2 minutes the source was closed under it. Resume then reopened a dead 127.0.0.1 address: stuck, then the crash.
+- **Fix:**
+  - The broker gets Kodi's playing file (`remote_media.start(..., playing=...)` from the service: the file while `Player.HasVideo`).
+  - A source that is still that file (playing or paused) is kept, up to KODI_CAP (30 min) with no read. When unsure (the check fails), it is kept.
+  - It is released 120 s after Kodi moves on.
+- **Evidence:** the owner's kodi.old.log (f31bd6db, 10:45:00–10:49:39) holds no Umbrella playback. It ends mid-run with no shutdown lines, so the app was killed or crashed around 10:49:40. It neither confirms nor rules out this cause.
+- **Test:** test_remote_media `test_a_paused_source_survives_while_kodi_has_it_open`: kept past 120 s while it is the playing file; released at the 30-minute cap; released once Kodi plays something else; kept when the check fails.
+- **Phone check:** play an Umbrella MKV, pause for 3 minutes or more, then Resume. It carries on.
+- **Top priority from the owner (build 442: no Umbrella stream plays, fresh or resumed from Continue Watching): the cache route for Kodi's own player is OFF by default** (`remote_media.KODI_PLAYBACK=False`).
+  - Kodi reads the AllDebrid link itself again, as in build 430.
+  - Play on TV still uses the cache, and the reap fix above applies when the route is turned on again.
+  - Test: test_remote_media `KodiPlays.test_the_route_is_off_by_default`. The route's own tests switch it on.
+
