@@ -47,6 +47,38 @@ def snapshot(profile,downloads,uploads):
  view=library_rows.with_model(view,model)
  return state,view
 
+
+def slim_rows(conv,speed,left,lanes,downs):
+ """DEC-051 board A: the WORKING NOW card's slim rows (library_page.RUN_SLOTS): ring, number, one status line, line
+ counts (rows grow instead of cutting text, DEC-050), first/mid/last, and the heading with the count."""
+ import library_page,library_rows,notifications_skin as ns
+ out={};live=[]
+ def put(k,title,pct,status,tint,warn=False,indeterminate=False):
+  out.update({k+'title':title,k+'ring':library_rows.ring_name(0 if indeterminate else pct),k+'num':'' if indeterminate or not title else '%d'%int(pct or 0),
+              k+'status':status,k+'warn':'true' if warn else '',k+'tint':tint,
+              k+'tl':str(ns.lines(title,library_page.SLIM_TITLE_CHARS,2) or 1),k+'sl':str(ns.lines(status,library_page.SLIM_LINE_CHARS,2) or 1)})
+  if title:live.append(k)
+ if conv:
+  moving=conv.get('state')=='running'
+  part=lambda t:str(t or '').strip().strip('\u00b7').strip()
+  status=' \u00b7 '.join(x for x in map(part,(conv.get('step') or conv.get('line') or '',speed,left)) if x) if moving else (conv.get('line') or conv.get('step') or '')
+  put('work.',str(conv.get('title') or ''),float(conv.get('pct') or 0),status,
+      str(conv.get('tint') if conv.get('state')=='slowed' else conv.get('tint_now','')) or 'FFBF5AF2',
+      warn=conv.get('state') in ('paused','waiting','stale'),indeterminate=bool(conv.get('indeterminate')))
+ else:put('work.','',0,'','')
+ for n in range(library_page.LANES):
+  j=lanes[n] if n<len(lanes) else {}
+  put('lane.%d.'%n,str(j.get('title') or ''),float(j.get('pct') or 0),str(j.get('line') or j.get('step') or ''),
+      '4DEBEBF5' if j.get('state') in ('paused','stale') else 'FFBF5AF2',warn=j.get('state') in ('paused','stale'))
+ for n in range(6):
+  i=downs[n] if n<len(downs) else {}
+  r=i.get('row',{})
+  put('down.%d.'%n,str(i.get('label') or ''),float(r.get('pct') or 0),str(i.get('label2') or ''),'FF0A84FF')
+ for k in [k for k,_ in library_page.RUN_SLOTS]:
+  out[k+'pos']='' if k not in live else 'only' if len(live)==1 else 'first' if k==live[0] else 'last' if k==live[-1] else 'mid'
+ out['run.heading']='WORKING NOW \u00b7 %d'%len(live) if live else ''
+ return out
+
 def run(args=()):
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
  import drivelibrary,notices,transfer_artwork
@@ -240,6 +272,7 @@ def run(args=()):
     except Exception as error:xbmc.log('Library status: graph not drawn (%s)'%type(error).__name__,xbmc.LOGWARNING)
     self.setProperty('work.graph',graph)
     self.draw_rows(pools,props)
+    for k,v in slim_rows(conv,speed,left,lanes,pools.get('down',[])).items():self.setProperty(k,v)
   def graph(self,conv):
     graph=''
     if conv:

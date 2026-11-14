@@ -4298,3 +4298,22 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   titles and the heading "Netflix Originals". Rig evidence, not the phone. (SendClick from a script did not reach it; a
   pointer tap did.)
 - **Test:** test_row_title_grid.
+
+## ISSUE-292 — Library status still showed the big "Working on now" card and thick copy cards (owner, build 442; DEC-051) — board A coded
+
+- **Request:** owner, build 442: "the agent didn't update Library status to make AllDebrid downloads look like the
+  others". DEC-051 board A round 2 (unified-status-mockups.html), approved 2026-11-14.
+- **Cause:** DEC-051 was approved but not coded: the conversion had its 398-unit card, each AllDebrid copy its own
+  231-unit card with a bar, and the extra lanes their own cards. The subtitle line was also cut ("checked just n…").
+- **Fix (`library_page.py`, `library_status.py`):**
+  - The summary card moves to the top. Then one grouped card "WORKING NOW · N" with one slim row per running job (the
+    conversion, each extra lane, each AllDebrid copy; `RUN_SLOTS`): a 34 pt ring with the percentage, the title, one
+    status line (step · speed · time left; orange when it waits), the speed line for the conversion. About 47 pt a row;
+    a long title or status grows the row to two lines instead of cutting it (`k.tl` / `k.sl`, DEC-050).
+  - The tap targets stay (WORK / WORK+100, LANE+n, 9310+n), so each row opens the sheet it opened before.
+  - Up next and Kept rows are slim too (126 units). The subtitle under the title wraps.
+  - `library_status.slim_rows` builds the rows' properties (ring, number, status, first/mid/last, the heading).
+- **Not yet:** board B (a copy's sheet like the conversion sheet). The copy rows open their existing sheet.
+- **Retest:** desktop Kodi rig, scenario `lanes`: three running rows in one card, Up next and Kept slim, nothing cut.
+  Rig evidence, not the phone.
+- **Test:** test_slim_status; test_library_status `test_the_rows_are_drawn` now looks for the WORKING NOW heading.

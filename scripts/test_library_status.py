@@ -505,7 +505,7 @@ class PreparationLanes(unittest.TestCase):
  def test_the_rows_are_drawn(self):
   xml=library_page.page(portrait)
   for n in range(library_page.LANES):self.assertIn('id="%d"'%(library_page.LANE+n),xml);self.assertIn('id="%d"'%(library_page.LANE_BARS+n),xml)
-  self.assertIn("Window().Property(work.eyebrow)",xml)
+  self.assertIn("Window().Property(run.heading)",xml)   # DEC-051: the WORKING NOW heading counts every running job (was the card eyebrow)
 
 
 class LongPressCancel(unittest.TestCase):

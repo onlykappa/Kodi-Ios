@@ -13,7 +13,7 @@ BLUE = 'FF0A84FF'
 SLOTS, SLOT, WORK, NEED, MORE, PREVIOUS = 40, 9400, 9005, 9004, 9050, 9051
 # Build 194: one pool of rows per section, each drawn as in the approved mockups (boards 1 and 2):
 # (key, first control id, rows, row height). The page's script fills them; no Previous/More paging.
-POOLS = (('down', 9310, 6, 231), ('next', 9400, 40, 161), ('kept', 9450, 15, 161))   # DEC-047: no Ready list
+POOLS = (('down', 9310, 6, 231), ('next', 9400, 40, 126), ('kept', 9450, 15, 126))   # DEC-051: slim rows   # DEC-047: no Ready list
 SEGMENTS = 9811        # summary bar: ready, working, up next, kept (widths set by the script)
 DOWN_BARS = 9330       # the AllDebrid copy bars, one per 'down' row
 WORK_BAR = 9350        # the 'Working on now' bar (running card, then the still card), DEC-036
@@ -117,6 +117,61 @@ def _summary(p, u):
     return u.group(p, 355 + u.GAP, b, u.has('headline'))
 
 
+# DEC-051 board A round 2 (unified-status-mockups.html, approved 2026-11-14): every running job (the conversion, the
+# extra preparation lanes, each AllDebrid copy) is one slim row of one grouped list "WORKING NOW · N": a 34 pt ring
+# with the percentage, the title (episode first), one status line (step · speed · time left, or why it waits in
+# orange), and the speed line when there is one. Rows grow to two lines rather than cut text (DEC-050).
+RUN_SLOTS = [('work.', WORK)] + [('lane.%d.' % n, LANE + n) for n in range(LANES)] + [('down.%d.' % n, 9310 + n) for n in range(6)]
+SLIM_PAD, SLIM_TITLE, SLIM_LINE, RING = 22, 46, 40, 92
+SLIM_TITLE_CHARS, SLIM_LINE_CHARS = 28, 42     # what a line surely holds (status_rows.lines counts with these)
+
+
+def slim_height(tl, sl):
+    return 2 * SLIM_PAD + tl * SLIM_TITLE + sl * SLIM_LINE
+
+
+def _slim(p, u, k, ident):
+    """One slim row (k: the slot's property prefix). Its height variant is chosen by k+'tl' / k+'sl' (1 or 2 lines)."""
+    S, w, M, P = p.SIDE, p.WIDTH - 2 * p.SIDE, p.MEDIA, u.P
+    out = ''
+    tw = w - 150 - 32 - 150
+    for tl in (1, 2):
+        for sl in (1, 2):
+            h = slim_height(tl, sl)
+            b = u.row_back(p, k, w, h) + u.tap(p, ident, S, 0, w, h)
+            if k == 'work.':   # a still conversion opens its own sheet (WORK + 100), as before
+                b = u.row_back(p, k, w, h) + (
+                    '<control type="group"><visible>String.IsEqual(Window().Property(work.state),running)</visible>%s</control>'
+                    '<control type="group"><visible>!String.IsEqual(Window().Property(work.state),running)</visible>%s</control>') % (
+                        u.tap(p, WORK, S, 0, w, h), u.tap(p, WORK + 100, S, 0, w, h))
+            ry = (h - RING) // 2
+            b += p.image(S + 32, ry, RING, RING, M + 'ring_20.png', u.TRACK)
+            b += p.image(S + 32, ry, RING, RING, M + P(k + 'ring'), P(k + 'tint'))
+            b += u.text(p, S + 32, ry, RING, RING, P(k + 'num'), 'p_cap', p.WHITE, 'center')
+            b += p.textbox(S + 150, SLIM_PAD, tw, tl * SLIM_TITLE, P(k + 'title'), 'p_foot_b', p.WHITE)
+            y = SLIM_PAD + tl * SLIM_TITLE
+            b += ('<control type="group"><visible>!%s</visible>%s</control><control type="group"><visible>%s</visible>%s</control>') % (
+                u.has(k + 'warn'), p.textbox(S + 150, y, tw, sl * SLIM_LINE, P(k + 'status'), 'p_cap', p.GREY),
+                u.has(k + 'warn'), p.textbox(S + 150, y, tw, sl * SLIM_LINE, P(k + 'status'), 'p_cap', u.ORANGE))
+            b += p.image(S + w - 32 - 130, (h - 48) // 2, 130, 48, P(k + 'graph'), p.WHITE, '<visible>%s</visible>' % u.has(k + 'graph'), '>stretch')
+            cond = '%s + String.IsEqual(Window().Property(%stl),%d) + String.IsEqual(Window().Property(%ssl),%d)' % (u.has(k + 'title'), k, tl, k, sl)
+            out += u.group(p, h, b, cond)
+    return out
+
+
+def _running(p, u):
+    """The WORKING NOW card: its heading with the count, every slot's slim row, and the old bars (the page script still
+    fills them; DEC-051 shows rings) kept hidden."""
+    S, w = p.SIDE, p.WIDTH - 2 * p.SIDE
+    out = _header(p, u, u.P('run.heading'), u.has('run.heading'))
+    for k, ident in RUN_SLOTS:
+        out += _slim(p, u, k, ident)
+    hidden = ''.join(u.id_bar(p, i, S, 0, 10, 4, u.BLUE) for i in
+                     [WORK_BAR, WORK_BAR + 1] + [LANE_BARS + n for n in range(LANES)] + [DOWN_BARS + n for n in range(6)])
+    out += '<control type="group"><height>0</height><visible>false</visible>%s</control>' % hidden
+    return out + u.group(p, u.GAP, '', u.has('run.heading'))
+
+
 def _pool(p, u, key, base, slots, h):
     S, w, M, P = p.SIDE, p.WIDTH - 2 * p.SIDE, p.MEDIA, u.P
     out = ''
@@ -133,13 +188,14 @@ def _pool(p, u, key, base, slots, h):
         b = u.row_back(p, k, w, h) + u.tap(p, base + n, S, 0, w, h)
         fade = '<animation effect="fade" start="100" end="45" time="0" condition="%s">Conditional</animation>' % u.has(k + 'off')
         if key == 'next':
-            b += p.image(S + 38, 40, 81, 81, M + 'avatar_s.png', '2E0A84FF')
-            b += u.text(p, S + 38, 40, 81, 81, P(k + 'number'), 'p_foot_b', p.ACCENT, 'center')
-            b += u.text(p, S + 150, 32, w - 188, 54, P(k + 'title'), 'p_body')
-            b += u.text(p, S + 150, 89, w - 188, 43, P(k + 'sub'), 'p_foot', p.GREY)
+            # DEC-051: a slim row like WORKING NOW's (numbered circle, title, one line).
+            b += p.image(S + 32, 22, 81, 81, M + 'avatar_s.png', '2E0A84FF')
+            b += u.text(p, S + 32, 22, 81, 81, P(k + 'number'), 'p_foot_b', p.ACCENT, 'center')
+            b += u.text(p, S + 150, 18, w - 182, 46, P(k + 'title'), 'p_foot_b')
+            b += u.text(p, S + 150, 64, w - 182, 40, P(k + 'sub'), 'p_cap', p.GREY)
         elif key == 'kept':
-            b += u.text(p, S + 38, 32, w - 76, 54, P(k + 'title'), 'p_body')
-            b += u.text(p, S + 38, 89, w - 76, 43, P(k + 'sub'), 'p_foot', p.GREY)
+            b += u.text(p, S + 38, 18, w - 76, 46, P(k + 'title'), 'p_foot_b')
+            b += u.text(p, S + 38, 64, w - 76, 40, P(k + 'sub'), 'p_cap', p.GREY)
         else:   # ready
             b += u.glyph(p, S + 38, 40, 59, 'circle-check.png', p.GREEN)
             b += u.text(p, S + 129, 0, w - 129 - 300, h, P(k + 'title'), 'p_body')
@@ -167,7 +223,7 @@ def page(p):
                       u.group(p, u.GAP, '', u.has('%s.0.title' % key)))
     listing = ('<control type="grouplist" id="9300"><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
                '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>' % (LIST_TOP, W) +
-               _needs(p, u) + _work(p, u) + _lanes(p, u) + pools['down'] + _summary(p, u) + pools['next'] + pools['kept'] +
+               _needs(p, u) + _summary(p, u) + _running(p, u) + pools['next'] + pools['kept'] +
                u.group(p, 150, u.text(p, S, 30, w, 60, P('empty'), 'p_foot', p.GREY), u.has('empty')) +
                u.group(p, 200, '') + '</control>')
     body = p.backdrop() + p.nav_button(BACK, S, 36, 'chevron-left.png', [('String.IsEqual(Window().Property(filter),all)', 'Close')])
@@ -176,7 +232,7 @@ def page(p):
              '<texturefocus /><texturenofocus /><onclick>noop</onclick></control>' % (CHECK, W - S - 118))
     body += u.glyph(p, W - S - 85, 74, 52, 'arrow-rotate-right.png', p.ACCENT,
                    '<animation effect="fade" start="100" end="65" time="0" condition="Control.HasFocus(%d)">Conditional</animation>' % CHECK)
-    body += u.text(p, S, 160, w, 110, P('title'), 'p_large') + u.text(p, S, 268, w, 56, P('sub'), 'p_sub', p.GREY) + listing
+    body += u.text(p, S, 160, w, 110, P('title'), 'p_large') + p.textbox(S, 268, w, 92, P('sub'), 'p_cap', p.GREY) + listing
     return '<?xml version="1.0" encoding="UTF-8"?>\n<!-- Build 194: approved boards 1 and 2 -->\n<window><defaultcontrol always="true">9001</defaultcontrol><controls>' + body + '</controls></window>'
 
 
