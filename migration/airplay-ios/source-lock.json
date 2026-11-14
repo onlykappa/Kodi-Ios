@@ -1,15 +1,15 @@
 {
   "framework_release": {
+    "tag": "kodi-airplay-r57",
+    "asset": "KodiAirPlay.framework.zip",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "previous": {
     "tag": "kodi-airplay-r56",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "91be96afe8a51cfde1643b79a6675f6c91ba915d9b5fc334591f583c9b9416f7"
   },
-  "previous": {
-    "tag": "kodi-airplay-r55",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "5ba3eca8a0c5e185c66af406da813eb4bc3f7b5c9dad9b401b0328d3c23f1c94"
-  },
   "source_commit": "4e26d137a7b7c36ba8320629287385f83cbbb4d4",
   "verified_run": 43545050950,
-  "pin_note": "r56 (ISSUE-251: Apple's AirPlay list opens only if no AirPlay device was chosen) published by airplay-ios run 43545050950 from 4e26d13; the converter host tests (airplay-remux run 43545050788, host-tests) passed; release notes, asset digest and downloaded zip all give 91be96af\u2026416f7."
+  "staged_note": "r57 staged (ISSUE-278: a prepared file the TV takes as sound only, or that fails while the TV has the sound only, restarts once, H.264 too; an H.264 picture restarts in 6-s segments with the picture copied): built and published by airplay-ios on this branch; sha256, source_commit and verified_run are pinned from that run after host-tests pass."
 }
