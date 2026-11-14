@@ -4245,8 +4245,48 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_upscale_from_index (season 2 episodes without a finished job are listed; unknown size and converting are
   not; never-prepared videos wait for the owner; service and page share the path).
 
+## ISSUE-289 — "Trakt connected" and "Elementum daemon has started" filled Notifications at every start (owner, build 442) — fixed in code
 
-## ISSUE-290 — Queue and Notifications bypassed the shared library record — fixed in backend
+- **Request:** owner, 2026-11-14: "hide these notifications permanently; the only time it should appear is if it doesn't
+  start or there is an error with Trakt/Elementum, because it's a given that Elementum will start and Trakt will start
+  every time".
+- **Cause:** Kodi's own pop-ups (`toasts.jsonl`) are all recorded (`notices.ingest`), so each start added the two
+  successes again (twice after a restart).
+- **Fix:** `notices.routine(item)` marks a Trakt connected/authorised/signed-in or Elementum started/running notice
+  that is not a problem and has no trouble words (failed, error, could not, stopped, refused, timed out, not started).
+  `notices.add` does not record it, and `notices.load` drops ones already saved, so they leave the page and the unread
+  count at once. A failure still shows.
+- **Test:** test_routine_notices (starts dropped, failures kept, old saved ones disappear).
+
+## ISSUE-290 — Notification centre: a lot of grey space, cut-off text (owner, build 442) — fixed in code (C1, approved)
+
+- **Request:** owner screenshot, 2026-11-14: "there is a lot of grey open space, can be cleaner … the notifications
+  themselves look good but the grey space and everything just looks poor". C1 in `docs/design/build442-mockups.html`
+  approved the same day ("i love the mock, code it").
+- **Cause:** every message row was a fixed 236-unit block: a 97-unit tile, the title, then the text pinned at y=138
+  whatever the title's length, so a one-line title left a grey band and a long text was clipped ("stopped (name
+  'window' is not"). Repeated notices took a row each. The Fix capsule took the text's width.
+- **Fix (`notifications_skin.py`, `notifications.py`):**
+  - A message row is stacked from parts the page's grouplist lays out: the title part (1, 2 or 3 lines, `msg.N.tl`),
+    the text part (1 to 4 lines, `msg.N.ll`), a Fix part, and an end part. `notifications_skin.lines` counts the
+    lines conservatively (whole words, a few characters short of the real width), so a row can be a little tall but
+    text is never cut (DEC-050).
+  - 30 pt tiles, the time on the right with the unread dot before it, "Fix ›" as a blue text action under the text.
+  - The same notice again (kind, title, text) folds into one row with a "×N" chip (`notifications.fold`).
+  - TODAY and EARLIER are separate grouped cards (first/last per section).
+  - Running now is one grouped card of 64 pt rows: poster, title, line and a progress ring (ring_00..20).
+  - One tap area per row reaches under its parts (each part has no button of its own).
+- **Retest:** desktop Kodi rig (Kodi 21.3, synthetic notices with a 168-character text, a two-line title, a repeat
+  and an old notice): rows sized to their content, corners round per card, nothing cut. Rig evidence, not the phone.
+  Two faults found on the rig and fixed before commit: `!(…)` is not a Kodi condition (Kodi uses `![…]`), so the
+  square background covered the rounded one; and a one-line title's header is shorter than its tile, so the tile is
+  drawn by the following part.
+- **Unlike the mockup:** the unread dot sits before the time, not after the title (Kodi cannot place an image after
+  wrapped text). A two- or three-line title shows its "×N" under the time.
+- **Test:** test_notification_centre_c1 (line counting, every height has its part, no `!(` and no "…" in the window,
+  folding, sections and per-section positions).
+
+## ISSUE-291 — Queue and Notifications bypassed the shared library record — fixed in backend
 
 - **Request:** Build 442 item 15: Rick and Morty season 3 must agree in Library status, Transfers and Running now.
 - **Cause:** work-state independently inferred membership and titles from lane/preparation snapshots; a quiet or missing
@@ -4262,12 +4302,12 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   listed in import-review.yml run before commit.
 
 
-## ISSUE-291 — Upload speed omitted first pieces and mixed lane/total rates; graphs arrived in bursts — fixed in backend
+## ISSUE-292 — Upload speed omitted first pieces and mixed lane/total rates; graphs arrived in bursts — fixed in backend
 
 - **Request:** Build 442 item 8: actual per-lane rolling MB/s, regular history, total, ETA and progress-ring data.
 - **Cause:** Rate marks started after the first acknowledgement, and the primary lane's rate was overwritten with a sum.
   History saved every five seconds, independent of the shared work model. An index reader could briefly retain a completed
-  job until the next service pass (caught by the full-suite queue visibility test during ISSUE-290 validation).
+  job until the next service pass (caught by the full-suite queue visibility test during ISSUE-291 validation).
 - **Fix:** driveupload emits acknowledged bytes and measured request duration for the first, intermediate and final pieces.
   Native rates use the very timings printed by the native piece log; partial/recovered acknowledgements cannot multiply
   the bytes just sent. Each copier lane keeps a time-weighted rolling rate. Ready-on-copy uses Sink upload statistics,
@@ -4283,3 +4323,24 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   native/framework/network limits still require a post-fix device log.
 - **Test:** scripts/test_upload_speed.py; test_season_sources queue visibility; check_project and all workflow-listed tests
   before commit. Host validation only; device throughput and rendering remain unverified.
+
+
+## ISSUE-293 — Subtitle tracks could belong to another episode or fail the video's timing — filtered in backend
+
+- **Request:** Build 442 item 6: reject clear subtitle mismatches, rank the rest, select the best and expose short reasons.
+- **Cause:** Streams were shown by language only; downloads were ranked by release words and installed without checking
+  cues. A ZIP containing one subtitle from the wrong episode bypassed the episode check. No playback-start matcher ran.
+- **Fix:** A pure scorer reads SRT/VTT/ASS/SSA/MicroDVD and VobSub IDX timestamps, checks duration bounds, distant first/last
+  cues, empty/short tracks (forced tracks exempt), filename/declared/preferred language, episode/absolute numbering and
+  strong supplied/measured timing offsets. Ambiguous offsets do not prove mismatch. Tracks are ranked and clear mismatches
+  cannot be installed. The downloader tries up to five candidates, validating before setSubtitles. A playback-start
+  monitor automatically prefers the best allowed stream, preserves Off/current ties and later manual choices. Rows and
+  KodiIOS.SubtitleMatches expose score/rejection/reason/timing evidence; no menu layout changed.
+- **Retest:** Sixteen host cases include wrong-episode ZIP, bounds, formats, offset, language, forced captions, short/empty,
+  conservative movie filenames, actual controller rejection/fallback, and the service adapter selecting the best stream.
+  Important boundary: Kodi's Python/native probe currently exports embedded subtitle counts/names/languages, not DVD cue
+  packets or speech timing. Such tracks say “Timing not checked”; their speech/timing cannot be verified in Python here.
+  The scorer can use cue/speech intervals when supplied. Naruto DVD speech alignment still needs device/native evidence;
+  no claim that text/speech recognition or an unavailable native cue API was implemented.
+- **Test:** scripts/test_subtitle_match.py; existing test_track_menu, test_subtitle_sources and test_undefined_names;
+  check_project and all workflow-listed tests before commit. Host checks only, owner playback retest pending.

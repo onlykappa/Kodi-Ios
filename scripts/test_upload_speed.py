@@ -1,4 +1,4 @@
-"""ISSUE-291: actual piece timings, independent lane speeds and regular histories without fabricated progress."""
+"""ISSUE-292: actual piece timings, independent lane speeds and regular histories without fabricated progress."""
 import json
 import sys
 import unittest

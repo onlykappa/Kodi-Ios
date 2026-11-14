@@ -1,4 +1,4 @@
-"""ISSUE-290: one fake library agrees on all three backend consumers, even with missing/stale telemetry."""
+"""ISSUE-291: one fake library agrees on all three backend consumers, even with missing/stale telemetry."""
 import sys
 import tempfile
 import unittest

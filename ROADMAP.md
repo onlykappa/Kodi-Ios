@@ -550,6 +550,7 @@ Order: P1 (Python, small) → P4 mockup → P2/P3 native release → P5 → P6 w
 ## Build 442 backend follow-up (2026-11-14)
 
 Authorized scope: Python backend only, stacked on claude/build442-feedback; no merge or IPA.
-1. Shared Queue/Notifications index: host implementation and regression fixture (ISSUE-290), device retest pending.
-2. Upload measurements/history: host implementation and regression tests (ISSUE-291); device log after startup fix needed.
-3. Subtitle matching; 4. notice/season data; 5. terminal retry classification: in progress.
+1. Shared Queue/Notifications index: host implementation and regression fixture (ISSUE-291), device retest pending.
+2. Upload measurements/history: host implementation and regression tests (ISSUE-292); device log after startup fix needed.
+3. Subtitle matching: backend implemented and tested (ISSUE-293); embedded DVD timing/speech evidence unavailable.
+4. Notice/season data; 5. terminal retry classification: in progress.

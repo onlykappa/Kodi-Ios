@@ -268,6 +268,9 @@ def run():
     if command:xbmc.executebuiltin(command)
    except Exception as error:xbmc.log('Kodi iOS picture: saturation not set (%s)'%type(error).__name__,xbmc.LOGWARNING)
  threading.Thread(target=saturation_loop,daemon=True).start()
+ # Check subtitle identity when each video starts, without opening the Subtitles menu.
+ import subtitle_match
+ threading.Thread(target=subtitle_match.run,args=(xbmc,xbmcgui,monitor),daemon=True).start()
  # Roadmap 3.5: one performance line a minute (list runs, opens, Drive proxy requests and seeks), only when something happened.
  import perf_summary,drive_proxy
  threading.Thread(target=perf_summary.watch,args=(xbmcgui.Window(10000),open_timing.take,

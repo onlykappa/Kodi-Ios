@@ -2,7 +2,7 @@
 
 Python data only. No layout changes, merge or IPA. Device retesting remains pending.
 
-## Shared library / Queue / Notifications (ISSUE-290)
+## Shared library / Queue / Notifications (ISSUE-291)
 
 Read `work_state.current(profile)` for the current backend model (also persisted by the service).
 `library_index` is the authoritative record; workers only contribute measurements.
@@ -20,7 +20,7 @@ The existing Notifications layout has one preparation slot and a fixed number of
 in the model; the UI agent should draw all required rows from it. Missing telemetry means queued, never invented speed.
 
 
-## Upload rates / ring / graphs (ISSUE-291)
+## Upload rates / ring / graphs (ISSUE-292)
 
 `work_state.current(profile)` and the persisted work-state share these fields. Rate units are bytes/s;
 `speed_mb_s` uses 1,048,576 bytes/MB, matching the existing app/log convention.
@@ -40,3 +40,28 @@ in the model; the UI agent should draw all required rows from it. Missing teleme
 
 Use per-job points in the slim status row and large copy graph; use `upload.speed_history` for a combined graph.
 Existing backend graph binding now prefers these points; no layout or ring drawing was changed.
+
+
+## Subtitle match evidence (ISSUE-293)
+
+`subtitle_match.assess(track, video)` accepts a track's `filename`, `language`, `data` or `cues=[(start,end)]`, and a video's
+`duration`, `season`, `episode`, preferred `language`, optional `absolute_episode`, optional measured `speech` intervals.
+A trusted `offset_s` plus `offset_confidence` can also be supplied. It never invents speech evidence.
+
+- `track_menu.subtitle_rows(..., video)` and `result_rows(...)` keep `match_reason`, `match_score`, `match_rejected`,
+  `match_timing_checked`, `match_offset_s`, `match_cue_count`, `match_offset_confidence` in each row model.
+  Example: `match_reason="Matches this episode", match_score=98, match_rejected=false, match_timing_checked=true`.
+  Rejection example: `match_reason="Timing does not fit this video", match_score=0, match_rejected=true`.
+- Existing Subtitles ListItems bind the first five `match_*` fields as strings (`"false"`, `"98"`, empty offset when
+  unknown). The UI agent can show `ListItem.Property(match_reason)` without changing the selection logic.
+- Window(Home) `KodiIOS.SubtitleMatches` is JSON of stream `index` and every `match_*` field, refreshed per opened video.
+  Example: `[{"index":1,"match_reason":"Timing not checked","match_score":88,"match_rejected":false,
+  "match_timing_checked":false,"match_cue_count":0,"match_offset_s":null,"match_offset_confidence":0.0}]`.
+
+Embedded DVD tracks without cues remain explicitly unchecked for timing/speech. Their language/name evidence is still
+scored. Python has no exposed DVD cue or speech API in the current native framework; do not label these as verified.
+
+
+Issue numbering note: the target branch added its own UI ISSUE-290 while this work was underway. The backend entries
+are ISSUE-291 onward. The first two commit subjects retain their original pre-collision references (queue 290→291,
+upload metrics 291→292); no pushed history was rewritten.
