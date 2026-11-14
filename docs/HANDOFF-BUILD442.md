@@ -108,3 +108,60 @@ Open:
 
 Rig notes: the profile is `~/.cache/kodi-rig/home/.kodi/userdata`; `SendClick` does not reach buttons inside the hub
 grouplist, use `DISPLAY=:5 xdotool mousemove X Y click 1`; Kodi conditions group with `![…]`, never `!(…)`.
+
+## Handover, 2026-11-14 (end of the third session) — read this first
+
+**State.**
+- `claude/build442-feedback` (PR #28) is pushed and the full import-review list passes.
+- Last owner build: **build-470** (from 1bc5d1e). It carries everything below plus ISSUE-300/301.
+- PR #30 (ChatGPT backend) is merged into this branch (ISSUE-293 to 297, renumbered).
+
+**Done this session:**
+- ISSUE-287: activity pill removed.
+- ISSUE-298: review fixes. A sign-in waits instead of failing copies; the HTTP 4xx rule is Drive-only; subtitles are never switched off; the 3 s timer applies on first open.
+- ISSUE-299: Continue Watching works while Drive is signed out, and logs what it follows.
+- ISSUE-281 continued: a paused stream keeps its source.
+- ISSUE-300: Umbrella opens through the stream cache again; desktop rig 29 s → 7.3 s.
+- ISSUE-301: Refresh logs why each video is re-read.
+
+**Unfinished agent work, on its own branches (WIP, untested; review before using):**
+- `claude/wip-scroll-and-logs` (91b67f5): item 9 smooth scrolling (`portrait.py` hook, `scripts/test_smooth_scroll.py`). It also holds the remote_media/service changes already applied on PR #28; take only the scrolling part.
+- `claude/wip-n2-q2-copy-sheets` (8389839): N2 notification detail, Q2 Build Season sheet and the copy sheet (`notice_page.py`, `season_sheet.py`, `season_check.py`, `library_rows.py`, `pages.py`, `notifications.py`, `scripts/test_build442_sheets.py`). Unfinished, with no rig check.
+
+### Next, in this order (the owner's priority)
+
+**1. Finish PR #29 (Favourites list import and the anticipated-episodes bell), test it, then build an IPA for the owner.**
+- Branch `claude/modest-hopper-8z5ar8`, based on old `main`.
+- Review findings (third session, a throwaway merge into PR #28's head):
+  - It merges with only three conflicts. In `default.py` PAGES, keep both lists but drop `activity_page`, which was removed in ISSUE-287. `scripts/check_project.py`'s mockup list keeps both. `docs/DECISIONS.md` keeps both.
+  - **Renumber its decision**: it uses DEC-047, which this branch already uses for the show page. Use the next free DEC number and update references.
+  - After that, every import-review test passes. Its own tests are test_favourites_import, test_favourites_flow and test_anticipated_bell.
+- To do before an IPA:
+  1. Merge it into `claude/build442-feedback` (or rebase it onto it), with the fixes above. Give each feature an ISSUE entry.
+  2. Render boards G–J in the desktop rig next to `docs/design/favourites-import-bell-mockups.html`, following `docs/FAVOURITES-IMPORT-BELL-RIG.md`. Nothing has been seen in Kodi yet. Check: the bell on a TMDb Helper seasons page (that `Container(50).ListItem.Property(tvshow.tmdb_id)` is set, else `bell_lookup_failed`); no bell on an ended show; the "New episodes" sheet; the Download sheet has two rows; Library › Favourites, the empty state, the chips, the Import/Sort toolbar, `#rank`/`3×` badges; Import → Paste/Text file → progress → report; the sort sheet; open a show, and resume or start a movie. No cut-off text (DEC-050).
+  3. Recommended fixes from the review, mostly where it differs from the approved mockups. Do them, or ask the owner when it is a choice:
+     - **The bell sheet.** The mockup (G3) has real switches and a Done button. The code uses On/Off rows on the choice sheet with Cancel. Recommend building G3 as drawn: the owner approved it.
+     - **Import.** No "Name this list…" step and no search-by-hand for Not found. The report is a choice sheet, not the page in the mockup. Ask the owner whether the sheet is acceptable; otherwise build the approved page.
+     - **J3** (a show's in-progress episode marked Continue) was not built. Check whether the show page already shows it; if not, add it.
+     - **The grid** now shows up to 90 favourites (was 36). Check that scrolling stays smooth.
+  4. Run the whole test list, then build an IPA (`import-review.yml` workflow_dispatch on this branch; the release is `build-<run>`). Check the download, then send the link with a phone test list. The owner asked for this IPA in the current request.
+
+**2. Then the remaining gaps:**
+- **Item 9: smooth scrolling on every page.** Take it from `claude/wip-scroll-and-logs`. Compare the Home/Movies/TV grouplist settings with the other pages, and check in the rig.
+- **N2 notification detail (timeline), Q2 Build Season chips, DEC-051 board B copy sheet.** Owner-approved, in `docs/design/build442-mockups.html` and `unified-status-mockups.html`. Start from `claude/wip-n2-q2-copy-sheets`. The data is from PR #30 (`docs/HANDOFF-BUILD442-BACKEND.md`). The owner wants PR #29 before N2.
+- **ISSUE-301: Refresh speed.** Read the owner's next log for the new `preparation: checking <title> (<reason>)` lines. If unchanged videos are still re-read, find out why `settled()` misses them. Reading several videos at once needs its own design: the native prober is shared with the converter.
+- **ISSUE-300 on the phone:** confirm `open timing … via umbrella` for a resume is about 5–8 s.
+- **ISSUE-285:** the cause of the copy `RuntimeError` retries still waits for a log taken after a copy retries.
+- **Reviewer's low items:**
+  - Remove the orphaned settings strings #32001–#32010 in `strings.po`.
+  - The video controls' Continue Watching panel path has no stamp (`player_osd.py`, `CONTINUE`).
+  - `scripts/rig_smoke.py` still references the pill.
+
+**Rules:**
+- AGENTS.md and docs/design/APPLE-UI-POLICY.md apply.
+- Every fix gets an ISSUE entry and a test listed in import-review.yml.
+- Run check_project and every test before each commit; commit and push as you go.
+- Check UI in the rig, and keep screenshots out of Git.
+- Never merge a PR without the owner's OK.
+- Leave model IDs out of commits and PRs.
+- Use one agent at a time: the owner asked for no parallel sub-agents, to save usage.
