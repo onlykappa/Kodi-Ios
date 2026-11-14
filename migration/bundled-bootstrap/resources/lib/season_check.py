@@ -44,4 +44,37 @@ def properties(model):
         props[prefix + 'text'] = '%d of %d episodes found' % (row['found'], row['total'])
         props['check.q.%d' % n] = '%s · %s%s' % (row['label'], props[prefix + 'text'],
                                                 ' · checking' if row['state'] == 'checking' else '')
+    props.update(chips(model))
     return props
+
+
+CHIPS = 3
+
+
+def chips(model):
+    """Q2 (owner-approved, docs/design/build442-mockups.html): found qualities as chips, in quality order. Green
+    ('whole') when every episode has it, orange ('part') otherwise; 'check.looking' says what is still being checked,
+    and nothing names sample episodes (owner, build 442: "always says looking at episodes 1, 6 and 10")."""
+    rows = model['qualities']
+    found = [r for r in rows if r['found'] > 0]
+    out = {}
+    for n in range(1, CHIPS + 1):
+        r = found[n - 1] if n <= len(found) else None
+        whole = bool(r) and r['found'] >= r['total']
+        out['check.chip.%d.text' % n] = '' if not r else '%s · %s' % (r['label'], 'all %d' % r['total'] if whole else '%d of %d' % (r['found'], r['total']))
+        out['check.chip.%d.whole' % n] = 'true' if whole else ''
+        out['check.chip.%d.part' % n] = 'true' if r and not whole else ''
+    pending = model['pending'] > 0
+    missing = [r['label'] for r in rows if r['found'] < r['total']]
+    none = [r['label'] for r in rows if r['found'] == 0]
+    out['check.found'] = 'Found so far:' if found else ''
+    out['check.intro'] = '' if found else ('Looking through the sources for whole-season and single-episode versions. '
+                                           'This takes about half a minute.')
+    if pending:
+        out['check.looking'] = 'Still looking \u00b7 %s' % ', '.join(missing) if missing else 'Still looking'
+    elif none:
+        out['check.looking'] = 'None found \u00b7 %s' % ', '.join(none)
+    else:
+        out['check.looking'] = ''
+    out['check.busy'] = 'true' if pending else ''
+    return out

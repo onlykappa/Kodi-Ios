@@ -738,14 +738,27 @@ def season_quality_sheet(p):
    p.image(S+w-98,y+(rh-60)//2,60,60,M+'dot.png','FF0A84FF',colour(on))+p.icon(S+w-84,y+(rh-60)//2+14,32,'check.png',p.WHITE,colour(on))+
    '<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus colordiffuse="14FFFFFF" border="32">%sround.png</texturefocus>'
    '<texturenofocus /><enable>!%s</enable><onup>%d</onup><ondown>%d</ondown></control>'%(9700+n,S,y,w,rh,M,off,up,down))
- ch=330
+ # Q2 (owner-approved, docs/design/build442-mockups.html; ISSUE-298): found qualities as chips (green: the whole
+ # season, orange: part), a sliding bar while it looks, one line on what is still being checked. The card fills the
+ # rows' place, so nothing is left as an empty gap; no sample-episode numbers, no "4K · …" placeholders.
+ ch=3*rh+2*gap;iw=w-76;cw=(iw-24)//2
+ chip=lambda n,x,y:('<control type="group"><visible>%s</visible>'%has('check.chip.%d.text'%n)+
+  p.image(x,y,cw,84,M+'round.png','2E30D158','<visible>%s</visible>'%has('check.chip.%d.whole'%n),border=32)+
+  p.image(x,y,cw,84,M+'round.png','2EFF9F0A','<visible>%s</visible>'%has('check.chip.%d.part'%n),border=32)+
+  p.label(x,y,cw,84,'[B]%s[/B]'%P('check.chip.%d.text'%n),'p_foot',p.GREEN,'center','<scroll>false</scroll><visible>%s</visible>'%has('check.chip.%d.whole'%n))+
+  p.label(x,y,cw,84,'[B]%s[/B]'%P('check.chip.%d.text'%n),'p_foot','FFFF9F0A','center','<scroll>false</scroll><visible>%s</visible>'%has('check.chip.%d.part'%n))+
+  '</control>')
+ cy=list_y+32
  check=('<control type="group"><visible>%s</visible>'%checking+p.image(S,list_y,w,ch,M+'round.png',p.SURFACE2,border=32)+
-  p.label(S+38,list_y+30,w-76,56,'[B]%s[/B]'%P('check.title'),'p_body',p.WHITE,'left','<scroll>false</scroll>')+
-  p.label(S+38,list_y+96,w-76,50,P('check.sub'),'p_foot',p.GREY,'left','<scroll>false</scroll>')+
-  p.image(S+38,list_y+176,w-76,12,M+'white.png','33EBEBF5')+
-  # Rig: a progress control does not read a window property; the bar is 20 steps, each shown from its percentage.
-  ''.join(p.image(S+38,list_y+176,(w-76)*k//20,12,M+'white.png','FF0A84FF','<visible>Integer.IsGreaterOrEqual(Window().Property(check.pct),%d)</visible>'%(k*5)) for k in range(1,21))+
-  ''.join(p.label(S+38+i*(w-76)//3,list_y+226,(w-76)//3,50,P('check.q.%d'%(i+1)),'p_foot',p.GREY,('left','center','right')[i],'<scroll>false</scroll>') for i in range(3))+
+  p.label(S+38,cy,iw,56,'[B]%s[/B]'%P('check.title'),'p_body',p.WHITE,'left','<scroll>false</scroll>')+
+  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>170</height><font>p_foot</font><textcolor>%s</textcolor>'
+  '<label>%s</label></control>'%(S+38,cy+80,iw,'FFD1D1D6',P('check.intro'))+
+  p.label(S+38,cy+80,iw,50,P('check.found'),'p_foot','FFD1D1D6','left','<scroll>false</scroll>')+
+  chip(1,S+38,cy+150)+chip(2,S+38+cw+24,cy+150)+chip(3,S+38,cy+256)+
+  slide_bar(M,S+38,cy+380,iw,extra='<visible>%s</visible>'%has('check.busy'))+
+  p.image(S+38,cy+380,iw,11,M+'dot.png','FF0A84FF','<visible>!%s</visible>'%has('check.busy'),border=6)+
+  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>110</height><font>p_foot</font><textcolor>%s</textcolor>'
+  '<label>%s</label></control>'%(S+38,cy+414,iw,p.GREY,P('check.looking'))+
   '</control>')
  off_btn=has('button.off')
  body=(_header(p,P('season.title'),P('season.sub'))+

@@ -4431,3 +4431,30 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   it cannot identify the owner's original individual failure. Host checks do not prove device recovery.
 - **Test:** scripts/test_terminal_copy_errors.py (26 cases); updated test_debrid_drive, test_drive_upload and
   test_library_tools fixtures; check_project and every workflow-listed test before commit.
+
+## ISSUE-298 — Build Season check named sample episodes and showed empty "4K · …" placeholders (owner, build 442) — Q2 coded
+
+- **Cause:** the check card was drawn for a fixed three-episode lookup ("Looking at episodes 1, 6 and 10") with one placeholder slot per quality, a fixed 330-unit card and a gap below it. The header read "· 10 episodes" when the show title was empty.
+- **Fix:** owner-approved Q2 (docs/design/build442-mockups.html), on the backend's live coverage (ISSUE-296).
+  - `season_check.chips` turns the found qualities into up to three chips: green "1080p · all 21" for the whole season, orange "720p · 18 of 21" for part of it.
+  - It writes one plain intro line until something is found, and "Still looking · …" or "None found · …" under the bar. No sample-episode numbers.
+  - `pages.season_quality_sheet` draws the chips in a card that fills the rows' place, with a sliding bar while it looks and no gap.
+  - `season.sub` drops an empty title.
+- **Test:** test_build442_sheets `Q2Chips`.
+- **Retest:** desktop Kodi rig render of three states (none found yet, part, whole). The phone check is pending.
+
+## ISSUE-299 — Notification detail sheet: a fixed tall card with gaps, no sense of what happened when (owner, build 442) — N2 coded
+
+- **Fix:** owner-approved N2 (docs/design/build442-mockups.html).
+  - `notifications.detail_properties` reads `notice_help.detail_model` with the profile, which loads the retained steps (ISSUE-296).
+  - It publishes up to three `tl.N.time / text / tint` steps (blue copying, orange problem or retry, green ready). Old notices get no invented steps.
+  - `notice_page.sheet` stacks what happened, the timeline, what you can do, the other fixes and Technical details in a vertical grouplist, so parts that aren't there close up instead of leaving gaps.
+  - Also fixed: the plain view's condition was built as `!!String.IsEmpty`. It now uses `status_ui.neg`.
+- **Test:** test_build442_sheets `N2Timeline`.
+
+## ISSUE-300 — A copy's details sheet used conversion steps and blank Average / Started (DEC-051 board B) — coded
+
+- **Fix:** owner-approved board B (docs/design/unified-status-mockups.html).
+  - A copy's sheet keeps the conversion sheet's layout (speed ring, graph, Pause and Cancel) with its own steps: "Found on AllDebrid" (or "Fetching on AllDebrid"), "Copying to Drive · N%", "Ready for Kodi and AirPlay".
+  - `library_rows.speed_card_text` fills Average, Done and Started from the lane's own samples and Drive's confirmed bytes (ISSUE-294) when there is no older history record.
+- **Test:** test_build442_sheets `BoardBCopySheet`.

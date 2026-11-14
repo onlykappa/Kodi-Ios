@@ -126,7 +126,7 @@ def short(text):
  import re
  return re.sub(r'/(?:private/)?var/(?:mobile|containers)/\S*?/((?:[^/\s"]+/)?[^/\s"]+)(?=["\s,:)]|$)',r'…/\1',str(text))
 
-def detail_properties(item,records,now=None):
+def detail_properties(item,records,now=None,profile=None):
  """Window properties for the details sheet (portrait/IOSNoticeDetail.xml) and its log rows [(label, label2, level)]."""
  import time as _time
  glyph,tint=ICON.get(item.get('kind'),ICON['info'])
@@ -136,7 +136,13 @@ def detail_properties(item,records,now=None):
         'nolog':'' if records else NO_LOG}
  # DEC-046 (boards G/H): plain words, "nothing was lost", the fixes, Technical details' facts.
  import notice_help
- help_=notice_help.explain(item)
+ # N2 (owner-approved, docs/design/build442-mockups.html; ISSUE-299): up to three timed steps (notice_models).
+ help_=notice_help.detail_model(item,records,profile=profile)
+ tone={'blue':'FF0A84FF','orange':'FFFF9F0A','green':'FF30D158'}
+ for n in range(1,4):
+  step=help_['timeline'][n-1] if n<=len(help_['timeline']) else {}
+  props.update({'tl.%d.time'%n:str(step.get('time') or ''),'tl.%d.text'%n:str(step.get('text') or ''),
+                'tl.%d.tint'%n:tone.get(step.get('colour_kind'),'FF8E8E93') if step else ''})
  props.update(title=help_['title'],happened=help_['happened'],safe=help_['safe'],good='true' if help_['good'] else '',
               tint=('FF30D158' if help_['good'] else 'FFFF9F0A' if help_['warn'] else tint))
  if help_['good']:props['icon']='circle-check.png'
@@ -378,7 +384,7 @@ def run():
      # An AirPlay message opens the AirPlay check: the last Play on TV as steps, and what to try.
      import tool_windows;tool_windows.open_airplay(profile);return
     sheet=Detail(notice_page.SHEET,home,'Default','1080i')
-    sheet.setup(*detail_properties(item,records_for(profile,item,log_path)))
+    sheet.setup(*detail_properties(item,records_for(profile,item,log_path),profile=profile))
     sheet.doModal();chosen=sheet.chosen;del sheet
     self.run_fix(item,chosen)
 

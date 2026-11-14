@@ -84,11 +84,11 @@ def checking_props(title, season, episodes, checked, done, states):
         # Initial and older callers have not supplied per-episode evidence: keep counts unknown/zero.
         coverage = season_check.Survey(range(episodes)).model()
     props = {'season.title': 'Season %s' % season,
-             'season.sub': '%s · %d episode%s' % (title, episodes, '' if episodes == 1 else 's'),
-             'checking': 'true', 'check.title': 'Checking available qualities',
+             'season.sub': ' · '.join(x for x in (title, '%d episode%s' % (episodes, '' if episodes == 1 else 's')) if x),
+             'checking': 'true', 'check.title': 'Finding versions of season %s' % season,
              'check.sub': '%d of %d episodes checked' % (coverage['completed'], coverage['total']),
              'check.pct': str(int(100 * coverage['completed'] / max(1, coverage['total']))),
-             'how': 'Results appear as each episode is checked.', 'button': 'Build Season', 'button.off': 'true'}
+             'how': '', 'button': 'Build Season', 'button.off': 'true'}
     props.update(season_check.properties(coverage))
     return props
 
@@ -101,7 +101,8 @@ def quality_props(title, season, episodes, found=None, chosen=None):
     found = found or {}
     rec = None if unchecked else recommend(found, episodes)
     chosen = chosen or rec or '1080p'
-    props = {'season.title': 'Season %s' % season, 'season.sub': '%s · %d episode%s' % (title, episodes, '' if episodes == 1 else 's'),
+    props = {'season.title': 'Season %s' % season,
+             'season.sub': ' · '.join(x for x in (title, '%d episode%s' % (episodes, '' if episodes == 1 else 's')) if x),
              'checking': ''}
     for n, q in enumerate(QUALITIES, 1):
         each = each_size(found.get(q))

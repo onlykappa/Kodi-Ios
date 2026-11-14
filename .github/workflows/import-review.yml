@@ -173,6 +173,7 @@ jobs:
           python3 -B scripts/test_upload_speed.py
           python3 -B scripts/test_subtitle_match.py
           python3 -B scripts/test_notice_season_data.py
+          python3 -B scripts/test_build442_sheets.py
           python3 -B scripts/test_terminal_copy_errors.py
           python3 -B scripts/test_upscale_page.py
           python3 -B scripts/test_ios_remove.py

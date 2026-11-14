@@ -39,37 +39,49 @@ def sheet(p):
     has = lambda k: '!String.IsEmpty(Window().Property(%s))' % k
     height = 1780
     top = p.HEIGHT - height
-    plain, tech = '!' + has('tech'), has('tech')
+    plain, tech = u.neg(has('tech')), has('tech')
     wrap = '<wrapmultiline>true</wrapmultiline>'
     close = p.close_button(CLOSE, W - S - HIT + 13, top + 40, navigation='<ondown>%d</ondown>' % ACTION)
     head = (p.surface(S, top + 64, 110, 110, 'round_s.png', P('tint'), 24) +
             p.icon(S + 27, top + 91, 56, p.ICONS + P('icon'), p.WHITE) +
             p.label(S + 140, top + 52, w - 140 - HIT, 140, P('title'), 'p_h3', p.WHITE, 'left', wrap + '<aligny>top</aligny>') +
             p.label(S + 140, top + 196, w - 140, 50, P('ago'), 'p_cap', p.GREY, 'left', '<scroll>false</scroll>'))
-    # The plain view.
-    card = ('<control type="group"><left>%d</left><top>%d</top><visible>%s</visible>' % (S, top + 270, plain) +
-            p.image(0, 0, w, 360, M + 'round.png', p.SURFACE2, border=32) +
+    # The plain view, stacked (N2, owner-approved; ISSUE-299): what happened, the timeline when there is one, what you
+    # can do and Technical details. A grouplist closes up the parts that are not there, so a notice without a timeline
+    # or without fixes leaves no gap.
+    card = ('<control type="group"><height>380</height><visible>%s</visible>' % plain +
+            p.image(S, 0, w, 360, M + 'round.png', p.SURFACE2, border=32) +
+            '<control type="group"><left>%d</left>' % S +
             '<control type="group"><visible>%s</visible>%s</control>' % (u.neg(has('good')), p.label(30, 22, w - 60, 46, 'WHAT HAPPENED', 'p_foot_b', p.GREY)) +
             p.label(30, 74, w - 60, 200, P('happened'), 'p_pill_s', p.WHITE, 'left', wrap + '<aligny>top</aligny>') +
             '<control type="group"><visible>%s</visible>%s%s</control>' % (
                 has('safe'), u.glyph(p, 30, 284, 40, 'circle-check.png', p.GREEN), p.label(84, 270, w - 114, 80, P('safe'), 'p_foot', p.WHITE, 'left', wrap)) +
-            '</control>')
-    todo = ('<control type="group"><top>%d</top><visible>%s + %s</visible>' % (top + 660, plain, has('fix0.label')) +
+            '</control></control>')
+    steps = ''
+    for n in range(1, 4):
+        k = 'tl.%d.' % n
+        steps += ('<control type="group"><top>%d</top><visible>%s</visible>' % ((n - 1) * 70, has(k + 'text')) +
+                  p.label(S + 12, 0, 150, 64, P(k + 'time'), 'p_foot', p.GREY, 'left', '<scroll>false</scroll>') +
+                  p.image(S + 176, 22, 20, 20, M + 'dot.png', P(k + 'tint')) +
+                  p.label(S + 220, 0, w - 232, 64, P(k + 'text'), 'p_foot', p.WHITE, 'left', '<scroll>false</scroll>') + '</control>')
+    timeline = '<control type="group"><height>230</height><visible>%s + %s</visible>%s</control>' % (plain, has('tl.1.text'), steps)
+    todo = ('<control type="group"><height>210</height><visible>%s + %s</visible>' % (plain, has('fix0.label')) +
             p.label(S + 12, 0, w - 24, 50, 'WHAT YOU CAN DO', 'p_foot_b', p.GREY) +
             p.pill_button(ACTION, S, 64, w, 124, P('fix0.label'), [('', 'noop')], 'primary', '', '<onup>%d</onup><ondown>%d</ondown>' % (CLOSE, FIX1)) +
             '</control>')
     rows = ''
     for n, ident in ((1, FIX1), (2, FIX2)):
         k = 'fix%d.' % n
-        y = top + 880 + (n - 1) * 166
-        rows += ('<control type="group"><top>%d</top><visible>%s + %s</visible>' % (y, plain, has(k + 'label')) +
+        rows += ('<control type="group"><height>166</height><visible>%s + %s</visible>' % (plain, has(k + 'label')) +
                  u.card(p, S, 0, w, 150, p.SURFACE2) +
                  u.tap(p, ident, S, 0, w, 150) +
                  p.label(S + 30, 22, w - 140, 56, P(k + 'label'), 'p_body', p.WHITE, 'left', '<scroll>false</scroll>') +
                  p.label(S + 30, 80, w - 140, 46, P(k + 'sub'), 'p_foot', p.GREY, 'left', '<scroll>false</scroll>') +
                  p.icon(S + w - 70, 55, 40, 'chevron-right.png', p.GREY) + '</control>')
-    link = ('<control type="group"><top>%d</top><visible>%s + %s</visible>%s</control>' % (
-        top + 1230, plain, has('tech.available'), u.link(p, TECH, S, 0, w, 118, 'Technical details ›', align='center')))
+    link = ('<control type="group"><height>130</height><visible>%s + %s</visible>%s</control>' % (
+        plain, has('tech.available'), u.link(p, TECH, S, 0, w, 118, 'Technical details ›', align='center')))
+    stack = ('<control type="grouplist"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
+             '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>%s</control>') % (top + 270, W, height - 270, card + timeline + todo + rows + link)
     # Technical details: the facts as a table, the kodi.log lines, Share Log.
     facts = '<control type="group"><top>%d</top><visible>%s</visible>' % (top + 270, tech)
     facts += u.link(p, TECH + 100, S - 10, -10, 420, 118, '‹ What happened', align='left')
@@ -96,7 +108,7 @@ def sheet(p):
             '<animation effect="slide" start="0,0" end="0,%d" time="220" tween="cubic" easing="in">WindowClose</animation>' % (height, height) +
             p.image(0, top, W, height + 140, M + 'sheet_bg.png', p.SURFACE, border=102) +
             p.image((W - 100) // 2, top + 22, 100, 14, M + 'dot.png', '4DFFFFFF', border=7) +
-            head + close + card + todo + rows + link + facts + listing + share + '</control>')
+            head + close + stack + facts + listing + share + '</control>')
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s notice detail (DEC-046) -->\n<window><defaultcontrol always="true">%d</defaultcontrol>'
             '<controls>%s</controls></window>\n') % (p.MARKER, CLOSE, body)
 
