@@ -30,6 +30,12 @@ class StreamChunks:
    if self.fast>=3:self.current=min(self.limit,self.current*2);self.fast=0
   else:self.fast=0
 
+def _measured(progress, advanced, elapsed, piece_bytes):
+ """Optional telemetry callback; existing two-argument progress callers remain compatible."""
+ callback=getattr(progress,'piece',None)
+ if callback:callback(max(0,advanced),max(.001,elapsed),piece_bytes)
+
+
 class Stop(Exception):pass
 
 @contextlib.contextmanager
@@ -199,9 +205,13 @@ class Drive(object):
     f.seek(offset);chunk=f.read(CHUNK);end=offset+len(chunk)-1
     began=time.monotonic()
     status,headers,body=self.call('PUT',session['url'],chunk,{'Content-Range':'bytes %d-%d/%d'%(offset,end,size)})
-    if status in (200,201):return self._done(path,sessions,save,body)
+    if status in (200,201):
+     _measured(progress,size-offset,time.monotonic()-began,len(chunk));progress(size,size)
+     return self._done(path,sessions,save,body)
     if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
-    offset=_next_offset(headers);progress(offset,size)
+    confirmed=_next_offset(headers)
+    _measured(progress,confirmed-offset,time.monotonic()-began,len(chunk))
+    offset=confirmed;progress(offset,size)
     gate.after(time.monotonic()-began,len(chunk),download=True)
   raise RuntimeError('Drive did not confirm the upload')
  def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda done,total:None,activity=lambda phase,done,total:None):
@@ -261,7 +271,9 @@ class Drive(object):
     chunks.observe(len(chunk),read_s,put_s)
     _note('Drive copy: %.1f MB read in %.1f s (%.2f MB/s from the source), sent in %.1f s (%.2f MB/s to Google Drive), %.1f%% done'%(
      mb,read_s,mb/max(read_s,.001),put_s,mb/max(put_s,.001),100.0*(end+1)/size))
-    if status in (200,201):progress(size,size);return json.loads(body or b'{}')
+    if status in (200,201):
+     _measured(progress,size-offset,max(read_s,put_s),len(chunk));progress(size,size)
+     return json.loads(body or b'{}')
     if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
     confirmed=_next_offset(headers)
     if confirmed!=end+1:   # Drive kept less than sent: drop what was read ahead and read again from where it got to
@@ -272,6 +284,7 @@ class Drive(object):
      try:source[0].close()
      except Exception:pass
      source[0]=open_at(confirmed)
+    _measured(progress,confirmed-offset,max(read_s,put_s),len(chunk))
     offset=confirmed;save();progress(offset,size)
     if _slow.reason() in _slow.HOLD:activity('paused_playback',offset,size)
     gate.after(put_s,len(chunk),download=True)
@@ -314,6 +327,7 @@ class Drive(object):
    if status in (200,201):
     receipt=json.loads(body or b'{}')
     if not receipt.get('id') or int(receipt.get('size',-1))!=size:raise RuntimeError('Invalid completed upload receipt')
+    _measured(progress,size-offset,elapsed,count)
     progress(size,size);save();return receipt
    if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
    confirmed=_next_offset(headers)
@@ -330,6 +344,7 @@ class Drive(object):
    pace.observe(max(0,confirmed-offset),elapsed)
    if confirmed>offset:LinkMemory.remember(link,chunks.current,pace.rate)
    _note('Drive copy native: %.1f MB piece in %.1f s (deadline %.0f s); confirmed %.1f%%'%(count/1048576,elapsed,deadline,100.0*confirmed/size))
+   _measured(progress,min(count,max(0,confirmed-offset)),elapsed,count)
    offset=confirmed;save();progress(offset,size);gate.after(elapsed,count,download=True)
   raise RuntimeError('Drive did not confirm the upload')
  def _done(self,path,sessions,save,body):
@@ -489,8 +504,12 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
   else:
    if remote is not None:parts=drivelibrary.show_folder(drive,parts)   # the show's existing folder, never a second one
    # What is uploading now, for the notification center's Uploading card (notices.uploads).
+   import transfer_speed
+   pieces=transfer_speed.Pieces()
    def progress(done,total,name=os.path.basename(path),folder=' › '.join(['Drive']+list(parts))):
-    state['current']={'name':name,'folder':folder,'sent':done,'total':total};save()
+    state['current']={'name':name,'folder':folder,'sent':done,'total':total,
+                      'updated':time.time(),**pieces.fields(time.time())};save()
+   progress.piece=lambda advanced,elapsed,count:pieces.observe(advanced,elapsed,time.time(),count)
    try:meta=drive.upload(path,drive.folder(parts),sessions,save,keep_going,progress)
    finally:
     if state.pop('current',None) is not None:save()

@@ -18,3 +18,25 @@ Read `work_state.current(profile)` for the current backend model (also persisted
 
 The existing Notifications layout has one preparation slot and a fixed number of copy slots. The full set is exposed
 in the model; the UI agent should draw all required rows from it. Missing telemetry means queued, never invented speed.
+
+
+## Upload rates / ring / graphs (ISSUE-291)
+
+`work_state.current(profile)` and the persisted work-state share these fields. Rate units are bytes/s;
+`speed_mb_s` uses 1,048,576 bytes/MB, matching the existing app/log convention.
+
+- Each upload/copy in `jobs`: `lane_id` (stable video/worker identity), `key`, `title`, `rate`, `speed_mb_s` (e.g. `4.0`),
+  `speed_history` (up to 60 `[unix_second, bytes_per_second]` pairs, e.g. `[[1000,4194304],[1001,4194304]]`),
+  `eta_s` (e.g. `24.0`, zero when unknown/paused), `progress_pct` (e.g. `25.0`).
+- `confirmed_bytes` is Drive's actual position; `sent`/`pct` may retain the existing bounded display glide. Use
+  `confirmed_bytes / total` for a strictly acknowledged ring. `piece_bytes=33554432`, `piece_seconds=8.0`,
+  `measured_at=1000.0` explain a native measurement. `slot` is the physical lane; identity must use `lane_id`.
+- Ready-on-copy jobs expose `ready_copy=true`, `out_bytes` and `upload_total` (zero until known); their percentage is
+  film progress, while speed comes from confirmed output uploads. ETA is unknown until remaining output is known.
+- `upload`: `rate`, `speed_mb_s`, `eta_s`, `lane_count`, `speed_history`, `lanes` (per-lane field dictionaries).
+  Example: two lanes at 2 and 3 MB/s give `speed_mb_s=5.0`, `lane_count=2`.
+- Measurements are held between confirmed pieces for graph continuity, then expire after 60 seconds; pauses sample zero.
+  Scheduler gaps are left as gaps. No graph sample advances confirmed bytes. The publisher runs every second.
+
+Use per-job points in the slim status row and large copy graph; use `upload.speed_history` for a combined graph.
+Existing backend graph binding now prefers these points; no layout or ring drawing was changed.

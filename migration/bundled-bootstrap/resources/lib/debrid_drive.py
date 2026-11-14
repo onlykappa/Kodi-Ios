@@ -1322,15 +1322,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                         state[key] = fields
                     else:
                         extra[slot] = fields
-                    shown, also = state.get('current'), state.get('current_also')
-                    if shown:
-                        shown.pop('parallel', None)
-                        shown['rate'] = shown.get('rate_own') or 0
-                        live = [f for f in [also] + list(extra.values())
-                                if f and clock() - (f.get('updated') or f.get('phase_at') or 0) < 60]
-                        if live:
-                            shown['rate'] += sum(f.get('rate_own') or 0 for f in live)
-                            shown['parallel'] = 1 + len(live)
+                    if state.get('current'):
+                        state['current']['parallel'] = len(state.get('lanes') or {})
                 commit()
 
             def release(slot):
@@ -1382,6 +1375,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 with guard:   # two uploads must not both create the season's folder
                     parent = drive.folder(parts)
 
+                import transfer_speed
+                pieces = transfer_speed.Pieces()
                 marks = []
                 mode = ['']   # ISSUE-273: 'ready' while the file is made ready on its way (the card says so)
                 lane_job = '%s:%s:%s' % (owner.get('hash', ''), owner.get('season', ''), owner.get('episode', ''))
@@ -1389,27 +1384,40 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 def progress(sent, total):
                     # Owner (build 170): the speed and the time left, measured over the last ~20 s.
                     now = clock()
-                    with guard:   # E16: this run's confirmed bytes, for the lane count of the next run
-                        moved.setdefault(id(entry), [sent, sent])[1] = sent
                     marks.append((now, sent))
                     # Build 207 (build-206 log: pieces 20-30 s apart): the window always keeps the piece before, or a
                     # slow copy read 0 MB/s on every page between pieces (no graph, Peak and Average 0.0).
                     recent = [m for m in marks if now - m[0] <= 20]
                     marks[:] = recent if len(recent) > 1 else marks[-2:]
                     span = marks[-1][0] - marks[0][0]
-                    rate = (marks[-1][1] - marks[0][1]) / span if span >= 1 else 0.0
+                    measured = pieces.fields(now)
+                    rate = measured['rate_own']
+                    if not measured['measured_at'] and span >= 1:
+                        # Older callers report confirmed positions only; never infer from a UI percentage.
+                        rate = (marks[-1][1] - marks[0][1]) / span
+                        measured['rate_own'] = rate
+                    if mode[0] == 'ready':
+                        measured = dict(getattr(progress, 'upload_fields', {}))
+                        rate = float(measured.get('rate_own') or 0)
+                        with guard:
+                            moved.setdefault(id(entry), [float(measured.get('out_bytes') or 0), 0])[1] = float(measured.get('out_bytes') or 0)
                     # Build 193 (build-192 log): progress carries its time, so a hung piece is never shown as moving,
                     # and a piece that went up resets the tries (six AllDebrid 500s made a later timeout wait 210 s).
                     # Owner (build 205: "i went to download a entire season and it seems only 1 thing is downloading"):
                     # which file of the job this is, so the pages name the episode and count the season.
                     show(slot, {'name': job_title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying', 'job': lane_job,
                                         'rate_own': rate, 'eta_s': (total - sent) / rate if rate else 0, 'updated': now,
-                                        'file': name, 'index': owner['files'].index(entry) + 1, 'count': len(owner['files']), 'mode': mode[0]})
+                                        'file': name, 'index': owner['files'].index(entry) + 1, 'count': len(owner['files']), 'mode': mode[0], **measured})
                     with guard:
                         if owner.get('tries') and sent > (marks[0][1] if len(marks) > 1 else 0):
                             owner['tries'] = 0
                             owner.pop('error', None)
                     commit()
+                def measured_piece(advanced, elapsed, count):
+                    pieces.observe(advanced, elapsed, clock(), count)
+                    with guard:
+                        moved.setdefault(id(entry), [0, 0])[1] += advanced
+                progress.piece = measured_piece
                 hash_ = str(owner['hash']).lower()
                 going = lambda: keep_going() and hash_ not in {str(h).lower() for h in cancelled()} and not link_moved(netgen)
                 def activity(phase,sent,total):

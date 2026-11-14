@@ -330,6 +330,7 @@ def refresh(profile, drive=None, clock=time.time):
     index['checked'] = float((prep.get('library') or {}).get('checked') or 0)
     same = (before.get('videos') == index['videos'] and before.get('drive') == index['drive']
             and before.get('duplicates') == index['duplicates'])
+    index['inputs'] = list(fingerprint(profile))
     index['counter'] = int(before.get('counter') or 0) + (0 if same else 1)
     _write(path(profile), index)
     return index

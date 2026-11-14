@@ -41,7 +41,7 @@ class IdleWakeups(unittest.TestCase):
   clock=Clock()
   with patch.object(transfer_history,'load',return_value={}),patch.object(transfer_history,'save'):
    transfer_history.watch('p',lambda:{'download':{'title':'a','rate':1,'done':1,'total':2}},clock.wait,clock=clock.time)
-  self.assertEqual(clock.wakes,30)                # a running transfer is still drawn every 2 s
+  self.assertEqual(clock.wakes,60)                # active histories sample once per second; idle still backs off
 
  def test_background_idle_and_busy(self):
   clock=Clock();background.watch(lambda v:None,lambda:'',clock.wait)

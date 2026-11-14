@@ -551,4 +551,5 @@ Order: P1 (Python, small) → P4 mockup → P2/P3 native release → P5 → P6 w
 
 Authorized scope: Python backend only, stacked on claude/build442-feedback; no merge or IPA.
 1. Shared Queue/Notifications index: host implementation and regression fixture (ISSUE-290), device retest pending.
-2. Upload measurements/history; 3. subtitle matching; 4. notice/season data; 5. terminal retry classification: in progress.
+2. Upload measurements/history: host implementation and regression tests (ISSUE-291); device log after startup fix needed.
+3. Subtitle matching; 4. notice/season data; 5. terminal retry classification: in progress.

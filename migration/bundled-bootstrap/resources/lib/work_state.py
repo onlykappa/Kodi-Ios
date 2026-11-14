@@ -362,10 +362,12 @@ def _copy(debrid, now):
             ahead=min(float(current.get('rate') or 0)*max(0.0,now-float(updated)),float(current.get('rate') or 0)*MAX_GLIDE)
             sent=min(total*0.995,sent+ahead)
         out = {'kind': 'copy', 'title': title, 'name': current.get('name', ''), 'step': step, 'pct': int(100 * sent / total),
-               'indeterminate': False, 'rate': 0.0 if quiet else float(current.get('rate') or 0),
+               'indeterminate': False, 'rate': 0.0 if quiet else float(current.get('rate_own', current.get('rate')) or 0),
                'eta_s': 0 if quiet else float(current.get('eta_s') or 0), 'tint': BLUE, 'sent': sent, 'total': total,
                'hash': job.get('hash', ''), 'folder': current.get('folder', ''),'phase_detail':phase in words or ready,'transfer_phase':phase,
-               'file': current.get('file', ''), 'slot': current.get('slot'), 'job': current.get('job', ''), 'ready_copy': ready}
+               'file': current.get('file', ''), 'slot': current.get('slot'), 'job': current.get('job', ''), 'ready_copy': ready,
+               'confirmed_bytes': float(current.get('sent') or 0),
+               **{k: current.get(k) for k in ('measured_at', 'piece_bytes', 'piece_seconds', 'out_bytes', 'upload_total')}}
         if quiet and phase!='paused_playback':
             out['wait'] = ('Getting it ready · waiting for Google Drive' if ready else 'Waiting for download' if phase=='reading'
                            else 'Waiting for Google Drive')+' · no answer for %d min' % max(1,int((now-float(updated))//60))
@@ -473,7 +475,8 @@ def build(inp, now):
     for u in inp.get('phone') or ():
         add({'kind': 'upload', 'title': u.get('title', ''), 'name': u.get('title', ''), 'step': STEP['upload'],
              'pct': int(u.get('progress') or 0), 'indeterminate': False, 'rate': float(u.get('rate') or 0), 'eta_s': 0,
-             'tint': BLUE, 'folder': u.get('folder', '')}, held=bool(paused.get('up')))
+             'tint': BLUE, 'folder': u.get('folder', ''),
+             **{k: u.get(k) for k in ('sent','total','measured_at','piece_bytes','piece_seconds')}}, held=bool(paused.get('up')))
     for d in inp.get('torrents') or ():
         add({'kind': 'down', 'title': d.get('title', ''), 'name': d.get('title', ''), 'step': STEP['down'],
              'pct': int(d.get('progress') or 0), 'indeterminate': False, 'rate': float(d.get('rate') or 0),
@@ -695,9 +698,13 @@ def current(profile, now=None):
     import library_index
     index = library_index.load(profile)
     import prepare_downloads
-    if not index.get('built') or transfer_control.cancelled_copies(profile) or prepare_downloads.pending_requests(profile):
+    if (not index.get('built') or index.get('inputs') != list(library_index.fingerprint(profile))
+            or transfer_control.cancelled_copies(profile) or prepare_downloads.pending_requests(profile)):
         index = library_index.refresh(profile)
-    return from_index(result, index, paused)
+    import transfer_speed
+    history = transfer_speed.History()
+    history.restore(state)
+    return history.sample(from_index(result, index, paused), now)
 
 
 def stale(state, now):
@@ -738,6 +745,9 @@ def bell_properties(state):
 def publish(profile, gather, wait, every=EVERY, set_property=None, clock=time.time, log=lambda text: None):
     """The service loop: gather() -> build() input; write the snapshot every `every` seconds and keep the bell's
     properties current (only when they change)."""
+    import transfer_speed
+    history = transfer_speed.History()
+    history.restore(load(profile) or {})
     last = None
     while not wait(every):
         try:
@@ -745,7 +755,10 @@ def publish(profile, gather, wait, every=EVERY, set_property=None, clock=time.ti
             import library_index
             inp.setdefault('index', library_index.load(profile))
             inp.setdefault('show_names', show_names(profile))
-            state = build(inp, clock())
+            now = clock()
+            state = build(inp, now)
+            state['copy_left'] = copy_bytes_left(inp.get('debrid'))
+            history.sample(state, now)
             save(profile, state)
             if set_property:
                 props = bell_properties(state)

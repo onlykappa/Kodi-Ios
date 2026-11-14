@@ -122,6 +122,7 @@ def run(args=()):
     j=next((v for k,v in jobs.items() if k.split('.')[0]=='up' and v.get('job')==s['live_job']),j)
    points=j.get('points') or [] if (j.get('title')==s['title'] or (s.get('live_job') and j.get('job')==s['live_job'])) else []
    live=s.get('live') or {}
+   points=live.get('speed_history') or points
    rate=float(live.get('rate') or 0)
    moving=live.get('state') in ('running','slowed') and rate>0
    props=dict(library_rows.speed_card_text(live,j,self.row.get('size'),s.get('bar')))

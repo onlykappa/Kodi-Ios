@@ -4260,3 +4260,26 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   transient publisher failure are covered. Host checks do not establish device behaviour; owner retest remains pending.
 - **Test:** scripts/test_queue_index.py; updated publisher fixture in test_work_state.py; check_project and every test
   listed in import-review.yml run before commit.
+
+
+## ISSUE-291 — Upload speed omitted first pieces and mixed lane/total rates; graphs arrived in bursts — fixed in backend
+
+- **Request:** Build 442 item 8: actual per-lane rolling MB/s, regular history, total, ETA and progress-ring data.
+- **Cause:** Rate marks started after the first acknowledgement, and the primary lane's rate was overwritten with a sum.
+  History saved every five seconds, independent of the shared work model. An index reader could briefly retain a completed
+  job until the next service pass (caught by the full-suite queue visibility test during ISSUE-290 validation).
+- **Fix:** driveupload emits acknowledged bytes and measured request duration for the first, intermediate and final pieces.
+  Native rates use the very timings printed by the native piece log; partial/recovered acknowledgements cannot multiply
+  the bytes just sent. Each copier lane keeps a time-weighted rolling rate. Ready-on-copy uses Sink upload statistics,
+  never its film percentage as byte speed. Phone uploads carry the same measurements. Work state samples measured rates
+  once per second (60 samples per lane and total); paused/stale work becomes zero, and job changes reset lane history.
+  Transfers and copy detail graphs can read these points directly. Index input fingerprints make current() reflect a
+  newly finished job without waiting for the service. The first piece is also included in lane-count learning.
+- **Retest:** Deterministic 32 MiB / 8 s native pieces report 4 MiB/s including the final piece; two lanes at 2 and 3 MiB/s
+  total 5, with independent graphs. 70 ticks retain 60 one-second points, preserve confirmed bytes and expire stale speed.
+  The supplied build-442 log has no piece timings because startup keeps failing; it cannot establish actual bandwidth.
+  Code already permits six lanes (starts at three, learns gains), native pieces up to 32 MiB, with lower cellular/playback
+  limits. No evidence justifies increasing these caps. The clearly wrong aggregation/first-piece accounting is fixed;
+  native/framework/network limits still require a post-fix device log.
+- **Test:** scripts/test_upload_speed.py; test_season_sources queue visibility; check_project and all workflow-listed tests
+  before commit. Host validation only; device throughput and rendering remain unverified.

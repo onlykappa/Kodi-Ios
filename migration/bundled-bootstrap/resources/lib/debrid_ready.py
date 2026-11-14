@@ -126,6 +126,10 @@ def copy(q, profile, with_link, name, size, parent, going, progress, key, log=la
             now = clock()
             if now - seen[1] >= 1:
                 seen[1] = now
+                stats = sink.stats()
+                progress.upload_fields = {'rate_own': float(stats.get('up_rate') or 0),
+                                          'measured_at': time.time(), 'out_bytes': stats.get('out_bytes', 0),
+                                          'upload_total': stats.get('upload_total', 0)}
                 progress(int(min(0.97, seen[0]) * size), size)
         native.convert_to(source, sink, going, made, None, None, resume=checkpoint['mark'] if checkpoint else None)
         sink.finish()

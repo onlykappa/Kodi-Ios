@@ -52,6 +52,9 @@ def page_state(history,now,wanted,queued,model=None,first_seen=None):
    identity=work_state.job_key(j)
    start=first_seen.setdefault(identity,old.get('start',now))
    start=min(start,old.get('start',start));first_seen[identity]=start
+   if j.get('speed_history'):
+    points=j['speed_history']
+    old=dict(old,points=points,peak=max(p[1] for p in points),sum=sum(p[1] for p in points),n=len(points))
    jobs[k]=dict(old,kind=k,title=j['title'],start=start,last=now,
                 pct=j.get('pct'),done=j.get('sent') or 0,total=j.get('total') or 0)
   history=dict(history,jobs=jobs)
@@ -191,7 +194,7 @@ def run(args=()):
     if kind:
      job=(history.get('jobs') or {}).get(kind) or (history.get('jobs') or {}).get(kind.split('.')[0]) or {}
      if job.get('title')!=props['title']:job={}
-     pts=job.get('points') or []
+     pts=(model_job(model,kind) or {}).get('speed_history') or job.get('points') or []
      # Build 194: no flat zero graph while nothing is measured yet; the card says what it is doing instead (props['wait']).
      props['graph']=self.graphs.image(work_state.job_key(model_job(model,kind)),pts,
       props['tint'],folder,'special://skin/extras/portrait/graph',width=tp.PLOT[2],height=tp.PLOT[3],scale=th.device_scale(),

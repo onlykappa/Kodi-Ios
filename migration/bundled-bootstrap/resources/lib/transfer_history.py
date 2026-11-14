@@ -242,7 +242,7 @@ def pick(data, wanted, now):
 IDLE_EVERY = 5   # Roadmap 1E.7: no transfer running, none being drawn: look every 5 s
 
 
-def watch(profile, read, wait, every=2, save_every=5, clock=time.time, idle_every=IDLE_EVERY):
+def watch(profile, read, wait, every=1, save_every=1, clock=time.time, idle_every=IDLE_EVERY):
     """The service loop: read() -> activity(); looks every `every` s (`idle_every` s while nothing runs), saves every
     `save_every` s."""
     data = load(profile)
