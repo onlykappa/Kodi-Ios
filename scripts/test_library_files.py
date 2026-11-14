@@ -238,9 +238,15 @@ class ShowPage(Page):
         props, shown, seasons = self.lm.fill_show(data, show, slots=10)
         self.assertEqual(seasons, [1, 2])
         self.assertEqual((props['season.0'], props['season.1'], props['season.2'], props['season.on']), ('Season 1', 'Season 2', '', '0'))
-        self.assertEqual((props['n.episodes'], props['n.ready'], props['fanart']), ('7', '3', 'fan.jpg'))
+        # DEC-047 board B: with problems the third number says what needs the owner, in red; titles are the episode's own
+        # (TMDb, else "Episode N", never the show's name), the number goes on the still.
+        self.assertEqual((props['n.episodes'], props['n.ready'], props['n.ready.tint'], props['fanart']), ('7', '2', 'FFFF453A', 'fan.jpg'))
+        self.assertIn(props['n.ready.label'], ('not added', 'need you'))
         self.assertEqual([r['episode'] for r in shown], [1, 2, 3, 4, 5, 9])
-        self.assertEqual(props['ep.0.title'], '1 \u00b7 Naruto Shippuden')
+        self.assertEqual((props['ep.0.title'], props['ep.0.num'], props['ep.0.two']), ('Episode 1', 'E1', ''))
+        meta = {(1, 1): {'title': 'Homecoming', 'thumb': 'still1.jpg'}, (1, 2): {'title': 'The Akatsuki Makes Its Move', 'thumb': 's2.jpg'}}
+        props2, _, _ = self.lm.fill_show(data, show, slots=10, meta=meta)
+        self.assertEqual((props2['ep.0.title'], props2['ep.0.thumb'], props2['ep.1.two']), ('Homecoming', 'still1.jpg', 'true'))
         self.assertEqual((props['ep.3.state'], props['ep.3.repair']), ('problem', 'true'))
         self.assertEqual((props['ep.4.state'], props['ep.4.bar']), ('copying', 'true'))   # 61 % known
         self.assertEqual(props['ep.2.bar'], '')                                          # converting, no percentage yet
@@ -406,9 +412,10 @@ class ShowBack(unittest.TestCase):
         # Build 347 log: twelve taps on IOSLibraryShow.xml control 9001, none handled (the round button has no onclick).
         root = Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap'
         manager = (root / 'library_manager.py').read_text()
-        show = manager[manager.index('class Show(xbmcgui.WindowXML):'):]
+        show = manager[manager.index('class Show(xbmcgui.WindowXMLDialog):'):]   # DEC-047 board C: a dialog
         self.assertIn('if control == show_page.BACK:\n                # Build 347', show)
-        self.assertIn('self.close()', show[show.index('if control == show_page.BACK'):][:200])
+        self.assertIn('self.finish()', show[show.index('if control == show_page.BACK'):][:200])
+        self.assertNotIn('Dialog().contextmenu', show[:show.index("if 'freeup' in sys.argv")])   # the menu is the page's own
 
 
 class DriveProblems(unittest.TestCase):

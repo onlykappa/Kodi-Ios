@@ -71,6 +71,27 @@ def repair(request, home, tmdb, title, season, episode, tries, log=lambda text: 
     return 'none', why
 
 
+SEARCHING, CANCEL = 'KodiIOS.Repairing', 'KodiIOS.RepairCancel'
+
+
+def mark_searching(home, keys, add=True):
+    """DEC-047 B2: Window(Home).Property(KodiIOS.Repairing) lists 'tmdb:season:episode' of the episodes Repair is looking
+    up (the show page reads it every 2 s)."""
+    now = [k for k in str(home.getProperty(SEARCHING) or '').split(';') if k]
+    now = (now + [k for k in keys if k not in now]) if add else [k for k in now if k not in keys]
+    home.setProperty(SEARCHING, ';'.join(now))
+
+
+def cancelled(home, key):
+    """The ✕ on the show page asked this episode's search to stop."""
+    return key in str(home.getProperty(CANCEL) or '').split(';')
+
+
+def clear_cancel(home, keys):
+    left = [k for k in str(home.getProperty(CANCEL) or '').split(';') if k and k not in keys]
+    home.setProperty(CANCEL, ';'.join(left))
+
+
 def script_args(tmdb, title, rows, quality):
     """RunScript arguments for library_repair_page: one season's episodes, 'episodes=1;5;9'."""
     clean = lambda text: str(text).replace(',', ' ')

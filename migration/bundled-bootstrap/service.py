@@ -495,6 +495,11 @@ def drive_uploads(monitor,home,profile):
    try:
     def done(job):
      remember_shows([job])
+     try:   # DEC-047 board D: a Better Version saved; the old file goes to Drive's Trash
+      import better_version,drivelibrary
+      better_version.finished(profile,job,lambda i:drivelibrary.trash(drive,i),lambda ids:prepare_downloads.forget(profile,ids),
+                              log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+     except Exception as error:xbmc.log('Kodi iOS better version: %s'%type(error).__name__,xbmc.LOGWARNING)
      driveupload.invalidate_library(str(profile/'addon_data/service.kodi.ios.bootstrap'))
      prepare_downloads.request_check(profile)   # preparation for Kodi and AirPlay picks it up from Drive
     def ready_copy(with_link,name,size,parent,going,progress,key,quality=''):

@@ -644,7 +644,7 @@ def drive_episodes(profile):
     return found
 
 
-def drop_on_drive(state, on_drive):
+def drop_on_drive(state, on_drive, keep=lambda job: False):
     """Owner (build 325): "Naruto Shippuuden - 002" was on Drive and converting while S1 E2 waited to be copied again.
     A waiting episode job that has not copied anything leaves the queue when that episode is already on Drive."""
     dropped = []
@@ -657,7 +657,7 @@ def drop_on_drive(state, on_drive):
             key = (show_match(job.get('title') or title_from_name(job.get('name'))), int(job.get('season') or 0), int(job.get('episode') or 0))
         except (TypeError, ValueError):
             continue
-        if key[0] and key[2] and key in on_drive:
+        if key[0] and key[2] and key in on_drive and not keep(job):   # keep: a Better Version on its way (DEC-047)
             dropped.append(job)
     forget_jobs(state, dropped)
     return dropped
@@ -910,7 +910,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         log('%s: back in line (it had stopped for network trouble: %s)' % (job_.get('title') or job_['name'], str(job_.get('error'))[:80]))
         save(profile, state)
     renamed = retitle(profile, state, names=show_names(profile), lookup=show_lookup(profile)) + one_spelling(state)
-    dropped = drop_duplicates(state) + drop_on_drive(state, drive_episodes(profile))
+    import better_version
+    dropped = drop_duplicates(state) + drop_on_drive(state, drive_episodes(profile), lambda job: better_version.replacing(profile, job))
     CONVERTING[0] = lambda: conversion_running(profile, clock())
     OFFSET[0] = offset_lookup(profile)
     for job_ in dropped:

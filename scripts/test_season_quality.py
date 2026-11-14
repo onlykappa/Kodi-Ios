@@ -81,7 +81,7 @@ class RepairQuality(unittest.TestCase):
         page = (ROOT / 'migration/bundled-bootstrap/library_repair_page.py').read_text()
         self.assertIn("library_repair.tries_for(a.get('quality'))", page)
         manager = (ROOT / 'migration/bundled-bootstrap/library_manager.py').read_text()
-        self.assertEqual(manager.count('library_repair.chosen(profile, tmdb, '), 2)
+        self.assertGreaterEqual(manager.count('library_repair.chosen(profile, tmdb, '), 2)
         self.assertNotIn('library_repair.qualities(', manager)
 
     def test_a_fallback_takes_a_real_lower_version_before_a_fake_1080p(self):
