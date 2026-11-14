@@ -44,6 +44,12 @@ Kept list), each with its own rules.
 4. **"S1 E6 · Unnamed download".** A failed copy job with no title, name or file name (`debrid_drive.problem_title` falls
    back to "Unnamed download"); its show is known from `show_tmdb` but not used for the title.
 
+## The rule (owner, 2026-11-14)
+
+"It just needs to be one coherent brain instead of different pages doing different things": if something is deleted or
+stopped in one place, it is deleted or stopped everywhere. No page keeps its own copy of the library, its own counts or
+its own idea of what a problem is; every page reads the index and every action goes through it.
+
 ## Proposal: one Library index, every screen reads it
 
 A service-owned `library-index.json`, rebuilt whenever its inputs change (and at most every few seconds), is the only
@@ -79,3 +85,17 @@ live layer on top for progress, reading the same entries.
 **Owner's answer (DEC-052):** both, from the same index: Library status keeps "84 of 87 ready" for the whole library, and
 each show shows its own ("Naruto Shippuuden · 49 of 53 ready"). Approved additions: one action path, instant redraws, a
 self-check, a health line, matching log numbers, season progress on the chips, Undo after Delete (see DEC-052).
+
+## Handoff (next agent starts here)
+
+Branch `claude/library-one-source`, draft PR #27 (stacked on PR #26). Approved: DEC-052. Build order:
+1. `resources/lib/library_index.py` (pure) + `scripts/test_library_index.py` (add to import-review.yml): entries and
+   `counts(scope)` from the preparation listing, prep jobs, debrid jobs, upscale state and `problem_ignore`; reproduce
+   log 8d661d6e's state (season 2 copying and landing, 212 jobs with 94 failed, two kept videos) and check that Library
+   status, TV Shows, the show card, the show page and Download problems get the same numbers.
+2. One action path: `library_index.act(profile, action, ids)` writes the intent (delete / stop / retry / hide / clear) the
+   service applies; every page shows it at once from the index.
+3. Service writes `library-index.json` with a change counter after scans, copy and preparation steps and actions; pages
+   redraw when it changes. Then move each page's data source to the index, one page per commit.
+4. Self-check, health line, minute log numbers, season chip progress and Undo after Delete (mockups first for the UI ones).
+5. Desktop Kodi rig with one fake library: every page's numbers must match. Then the owner's OK for an IPA.
