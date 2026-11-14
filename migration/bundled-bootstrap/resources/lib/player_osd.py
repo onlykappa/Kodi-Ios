@@ -89,10 +89,14 @@ def group(anchor,width,body,extra=''):
 # the controls open it becomes DEFAULT_TIMEOUT seconds, once (ios_osd_timeout_default), so emptying it later still
 # means never.
 TIMEOUT='Skin.String(OSD_Timeout)'
-DEFAULT_TIMEOUT=5
+DEFAULT_TIMEOUT=3   # ISSUE-283 (owner, build 442): 3 s, not 5
 DEFAULTED='Skin.HasSetting(ios_osd_timeout_default)'
+# ISSUE-283: installs that got the earlier 5 s default move to 3 s once (ios_osd_timeout_3); a later choice of 5 stays.
+MOVED='Skin.HasSetting(ios_osd_timeout_3)'
 DEFAULT_ONLOAD=(('String.IsEmpty(%s) + !%s'%(TIMEOUT,DEFAULTED),'Skin.SetString(OSD_Timeout,%d)'%DEFAULT_TIMEOUT),
-                ('!%s'%DEFAULTED,'Skin.SetBool(ios_osd_timeout_default)'))
+                ('!%s'%DEFAULTED,'Skin.SetBool(ios_osd_timeout_default)'),
+                ('String.IsEqual(%s,5) + !%s'%(TIMEOUT,MOVED),'Skin.SetString(OSD_Timeout,%d)'%DEFAULT_TIMEOUT),
+                ('!%s'%MOVED,'Skin.SetBool(ios_osd_timeout_3)'))
 ARM_WHEN='!String.IsEmpty(%s) + !String.IsEqual(%s,0) + !Player.Paused + !Skin.HasSetting(ios_osd_continue)'%(TIMEOUT,TIMEOUT)
 # ISSUE-279 (owner: "if i tap outside of the pause or play or skip it should hide the menu anywhere i tap"; log 72b62563:
 # ten taps on no control, "control 0 (not handled)"): a clear button under everything closes the controls, as a tap

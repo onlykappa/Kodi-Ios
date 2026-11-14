@@ -4173,3 +4173,11 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Also:** test_library_tools `test_failures_are_noted_where_jobs_fail` expects 4 failure records in debrid_drive. PR #27
   added one for jobs that end while AllDebrid fetches, and the test still said 3, so the import-review list failed on
   this branch before this change.
+
+## ISSUE-283 — Video controls hide after 3 s, not 5 (owner, build 442) — fixed in code
+
+- **Owner:** the controls should hide after 3 s. They still stay up while paused (confirmed working on build 442).
+- **Fix:** `player_osd.DEFAULT_TIMEOUT` is 3. A second one-time step (`ios_osd_timeout_3`) moves installs that got the earlier
+  5 s default (ISSUE-279) to 3 s. A value the owner sets later, 5 included, is kept. `ARM_WHEN` still waits while paused.
+- **Test:** test_customisation `test_tap_anywhere_hides_and_five_seconds_by_default` (the first default is 3, the 5 to 3 move
+  happens once, paused keeps them).
