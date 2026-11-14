@@ -1425,7 +1425,9 @@ def deck_page(original=''):
   '<control type="textbox"><left>%d</left><top>800</top><width>%d</width><height>200</height><font>p_sub</font><textcolor>%s</textcolor><align>center</align><label>%s</label></control>'%(SIDE+40,WIDTH-2*SIDE-80,GREY,prop('empty'))+
   pill_button(32512,(WIDTH-360)//2,1010,360,112,'Try Again',[('','SetProperty(deck.retry,true)')],'primary','','<onup>32500</onup>')+'</control>')
  body='<controls>%s%s%s%s%s%s%s%s</controls>'%(backdrop(),normal,all_page,links,sort,searching,empty,back)
- return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">32503</defaultcontrol>'
+ # ISSUE-248: "Control 32503 … has been asked to focus, but it can't" in every log: the list is empty until the picker
+ # fills it (deck_picker.fill, which then focuses it), so the page opens on Back.
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">32500</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>%s</window>\n')%(MARKER,body)
 
 NOTICE_SLOTS=4;NOTICE_ROWS=15

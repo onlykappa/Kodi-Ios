@@ -226,6 +226,10 @@ def save_sidecars(drive,item,folder,sessions,commit,keep_going):
   ids.append(drive.upload(path,parents[0],sessions,commit,keep_going,name=name).get('id',''))
  return ids
 
+def same_content(a,b):
+ """ISSUE-248: the same video bytes (Drive id, checksum, size), whatever its name or folder (a rename changes 'version')."""
+ return identity(a)[:3]==identity(b)[:3]
+
 def identity(item):return (str(item['id']),str(item.get('md5Checksum','')).lower(),int(item.get('size') or 0),str(item.get('version') or ''))
 def key(item):return hashlib.sha256(('|'.join(map(str,identity(item)[:3]))).encode()).hexdigest()[:32]
 

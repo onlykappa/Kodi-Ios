@@ -200,6 +200,11 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
             drive_prepare.bin(q.drive,item['id'])
             return finished(prep.metadata(q.drive,job['promoted']))
         current = prep.metadata(q.drive,item['id'])
+        if prep.identity(current)!=prep.identity(item) and prep.same_content(current,item) and not job.get('cloud_output'):
+            # ISSUE-248 (owner logs 3df2f247 16:18:38, 6984524f 16:34:17: "failed … Drive source changed; preparation will
+            # rescan" seconds after a copy landed): the copier names and files a new download right after it is saved, which
+            # changes Drive's version but not the video. Same id, checksum and size: carry on with the current record.
+            job['source']=item=dict(current,folderName=item.get('folderName',''));q.commit()
         if prep.ready(current) and not job.get('repack') and not job.get('audit'):
             job['status']='done';clear_temps();q.commit();return True
         if q.skip_compatible(slot,job,current,job.get('probe')):

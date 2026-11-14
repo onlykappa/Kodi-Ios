@@ -148,5 +148,14 @@ class BetterVersion(unittest.TestCase):
         self.assertIn('better_version.finished(profile,job,', service)
 
 
+class VersionPickerFocus(unittest.TestCase):
+    def test_the_picker_opens_on_back_and_focuses_its_list_once_filled(self):
+        # ISSUE-248: "Control 32503 in window 13002 has been asked to focus, but it can't" in every log.
+        src = (LIB / 'portrait.py').read_text()
+        self.assertIn('<defaultcontrol always="true">32500</defaultcontrol>', src)
+        self.assertNotIn('<defaultcontrol always="true">32503</defaultcontrol>', src)
+        self.assertIn('self.setFocusId(self.list_id())', (ROOT / 'migration/deck-picker/deck_picker.py').read_text())
+
+
 if __name__ == '__main__':
     unittest.main()
