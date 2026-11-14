@@ -307,7 +307,7 @@ def problems(state):
                     'error': error.split(': ', 1)[-1] if error.split(': ', 1)[0].isidentifier() else error,
                     'job_kind': job.get('kind') or '', 'name': job.get('name') or '', 'finished': job.get('finished') or 0,
                     'season': job.get('season') or '', 'episode': job.get('episode') or '', 'count': len(job.get('files') or []),
-                    'key': problem_key(job)})
+                    'key': problem_key(job), 'show_tmdb': str(job.get('show_tmdb') or '')})
     return out
 
 

@@ -222,6 +222,21 @@ def detail_text(problem):
     return '%s. %s' % (why, full)
 
 
+def auto_find(profile, problem):
+    """ISSUE-263 (owner: "have it select highest quality available then I can upscale later"): Find on an episode of a
+    known show runs the automatic Repair search instead of a manual one: the show's chosen quality first, and the best
+    version with seeds when that quality does not exist (dead torrents left out). RunScript arguments, or None for a movie
+    or a download with no show (the manual search then)."""
+    tmdb = str(problem.get('show_tmdb') or '')
+    season, episode = str(problem.get('season') or ''), str(problem.get('episode') or '')
+    if problem.get('job_kind') != 'episode' or not (tmdb and season.isdigit() and episode.isdigit()):
+        return None
+    import library_repair
+    quality = library_repair.chosen(profile, tmdb, [])
+    show = str(problem.get('title') or '').split(' · S')[0]
+    return library_repair.script_args(tmdb, show, [{'season': season, 'episode': episode}], quality)
+
+
 def search_path(problem):
     """Find Another Source: the title's TMDb search, movies or shows (the Search page's own results)."""
     import searchbar
@@ -306,6 +321,11 @@ def run():
                                           nolabel='Cancel', yeslabel='Clear All'):
                     debrid_drive.clear_failed(profile, only=keys)
             elif action == 'find':
+                args = auto_find(profile, problem)
+                if args:
+                    xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,library_repair_page,%s)' % ','.join(args))
+                    self.note('Looking for the best version with seeds')
+                    return
                 xbmc.executebuiltin('ActivateWindow(Videos,%s,return)' % search_path(problem))
                 return
 

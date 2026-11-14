@@ -251,5 +251,23 @@ class ProblemsPageAndMemory(unittest.TestCase):
         self.assertIn('debrid_drive.fallback_known(', (LIB / 'elementum_cloud.py').read_text())
 
 
+class FindTakesTheBestVersion(unittest.TestCase):
+    """ISSUE-263 (owner: "have it select highest quality available then I can upscale later")."""
+    def test_find_on_an_episode_runs_the_automatic_search(self):
+        spec2 = importlib.util.spec_from_file_location('copy_problems', ROOT / 'migration/bundled-bootstrap/copy_problems.py')
+        cp = importlib.util.module_from_spec(spec2);spec2.loader.exec_module(cp)
+        p = {'title': 'Naruto Shippuuden · S1 E6', 'job_kind': 'episode', 'season': '1', 'episode': '6', 'show_tmdb': '31910'}
+        with tempfile.TemporaryDirectory() as profile:
+            args = cp.auto_find(profile, p)
+            self.assertIn('tmdb=31910', args);self.assertIn('episodes=1:6', args);self.assertIn('title=Naruto Shippuuden', args)
+            self.assertIsNone(cp.auto_find(profile, dict(p, show_tmdb='')))            # no show: the manual search
+            self.assertIsNone(cp.auto_find(profile, dict(p, job_kind='movie')))
+        src = (ROOT / 'migration/bundled-bootstrap/copy_problems.py').read_text()
+        self.assertIn("RunScript(service.kodi.ios.bootstrap,library_repair_page,%s)", src)
+        state = {'jobs': [{'title': 'Naruto Shippuuden', 'kind': 'episode', 'season': '1', 'episode': '6', 'status': 'failed',
+                           'error': 'Problem: File not available due to no peer', 'show_tmdb': 31910, 'hash': 'a' * 40}]}
+        self.assertEqual(debrid_drive.problems(state)[0]['show_tmdb'], '31910')
+
+
 if __name__ == '__main__':
     unittest.main()

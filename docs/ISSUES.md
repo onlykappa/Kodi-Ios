@@ -3781,3 +3781,16 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   still passes.
 - **Also on the page, not this bug:** "S1 E6 · Unnamed download · No one is sharing this source" is a dead torrent whose job
   had no title.
+
+## ISSUE-263 — Find on a dead or missing episode opened a manual search instead of taking the best version (owner, 2026-11-14) — fixed in code
+
+- **Owner:** "it's probably because I asked for 1080p and it only is in 480p. As I said earlier have it select highest quality
+  available then I can upscale later."
+- **Before:** "Find" on a Download problems row ("No one is sharing this source", "no video file") opened the TMDb search,
+  and the owner had to pick a version by hand.
+- **Fix:**
+  - Find on an episode of a known show runs the automatic Repair search (library_repair_page) for that episode at the
+    show's chosen quality. Its pick takes a real match when one exists, otherwise the best version that exists, with one
+    notice (ISSUE-236), and leaves out dead torrents (ISSUE-244). ISSUE-258 then remembers that season.
+  - Movies and downloads with no show keep the manual search. `problems()` now carries `show_tmdb`.
+- **Retest:** test_season_quality `FindTakesTheBestVersion`.
