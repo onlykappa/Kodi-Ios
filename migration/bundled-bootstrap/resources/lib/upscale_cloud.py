@@ -40,6 +40,20 @@ def _status_text(entry, why):
     return entry
 
 
+def hold(profile, why, clock=time.time):
+    """ISSUE-265 (owner log 0b99a266, build 415: "it says after a conversion but there is no conversion"): the next copy
+    says why it is not being made when the service does not reach process_one (a video being prepared goes first).
+    Before, its line kept the page's default "Starts when nothing is converting" whatever the real reason."""
+    try:
+        data = uq.load(profile)
+        key = uq.next_job(data, clock)
+        if key and data['copies'][key].get('status') != 'running' and data['copies'][key].get('note') != why:
+            _status_text(data['copies'][key], why)
+            uq.save(profile, data)
+    except Exception:
+        pass
+
+
 def _prep_waiting(q):
     """A video waits to be prepared (it goes before an AI Upscale copy)."""
     try:

@@ -3816,3 +3816,20 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   choice sheet ("Use the Best · 480p / Choose Another Version / Keep Looking / Always Use the Best for This Show"), a
   versions list with each version's real picture size, and the show page's waiting card. It waits for approval.
 - **Retest:** test_season_quality `RefusedPackForTheSeason`.
+
+## ISSUE-265 — AI Upscale said "Starts when nothing is converting" with nothing converting (owner log 0b99a266, build 415) — fixed in code
+
+- **Owner:** "fix AI upscaling … it doesn't start, it says after a conversion but there is no conversion".
+- **Cause:** "Starts when nothing is converting" was the page's default line for a waiting copy, whatever held it. The real
+  holds were `upscale_queue.may_run`: copies are made only while charging (default on; the log says charging 0) and not
+  while the phone is hot (the log says thermal serious). The service writes those reasons only once it reaches the copy,
+  and it does not reach it while a video waits to be prepared, so that reason was never written either.
+- **Fix:**
+  - The service writes "Waits while a video is made ready for Kodi" on the next copy when preparation goes first
+    (`upscale_cloud.hold`).
+  - The page's default is "Up next".
+  - The charger, battery, Low Power Mode and heat reasons were already written by process_one, and now show.
+- **The test (measurement) did run:** the AI video model (4x) on a 640x480 episode made 122 pictures in 60 s at 485 ms each,
+  about 0.07x real time, with the phone at thermal "serious". The log ends 1.2 min in. A 24-minute SD episode to 4K is
+  hours of work, which is why copies are made in the background while charging.
+- **Retest:** test_upscale_cloud `RealWaitingReason`.

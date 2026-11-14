@@ -147,7 +147,7 @@ def rows(settings, data, groups, engine):
         bits = ['To %s' % e['label'], '%d %%' % int(e.get('progress') or 0)] + ([e['eta']] if e.get('eta') else [])
         out.append({'kind': 'button', 'label': _title(e.get('name')), 'sub': ' · '.join(bits), 'action': ''})
     elif waiting:
-        note = waiting[0].get('note') or 'Starts when nothing is converting'
+        note = waiting[0].get('note') or 'Up next'   # ISSUE-265: the service writes the real reason
         out.append({'kind': 'button', 'label': _title(waiting[0].get('name')), 'sub': note, 'action': ''})
     else:
         out.append({'kind': 'button', 'label': 'Nothing being made', 'sub': 'Choose a size for a show below', 'action': ''})

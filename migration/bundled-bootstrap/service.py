@@ -717,6 +717,8 @@ def drive_uploads(monitor,home,profile):
         # Owner log 20d8a992 (build 360): a failed preparation also returns False, and AI Upscale then ran for 15 min
         # while 23 videos waited. Upscaling starts only when no video waits to be prepared.
         import upscale_cloud
+        if delay==20 and not transfer_control.paused(profile,'conv') and (getattr(preparation,'running_slots',None) or upscale_cloud._prep_waiting(preparation)):
+         upscale_cloud.hold(profile,'Waits while a video is made ready for Kodi')   # ISSUE-265: the real reason
         if delay==20 and not transfer_control.paused(profile,'conv') and not getattr(preparation,'running_slots',None) and not upscale_cloud._prep_waiting(preparation):
          import upscale_cloud,upscale_queue,drivelibrary
          if not getattr(preparation,'upscale_recovered',False):

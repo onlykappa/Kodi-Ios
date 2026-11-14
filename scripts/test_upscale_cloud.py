@@ -325,5 +325,20 @@ class PlaysTheCopy(unittest.TestCase):
             self.assertIn('item_id=orig1', ios_library.upscaled_path(path, params, profile))
 
 
+class RealWaitingReason(unittest.TestCase):
+    """ISSUE-265 (owner log 0b99a266): the page said "Starts when nothing is converting" with nothing converting."""
+    def test_the_next_copy_says_why_it_waits(self):
+        with tempfile.TemporaryDirectory() as profile:
+            data = {'copies': {'v1': {'label': '4K UHD', 'status': 'waiting', 'name': 'a.mkv', 'added': 1}}}
+            uq.save(profile, data)
+            upscale_cloud.hold(profile, 'Waits while a video is made ready for Kodi')
+            self.assertEqual(uq.load(profile)['copies']['v1']['note'], 'Waits while a video is made ready for Kodi')
+        self.assertEqual(uq.may_run({'charging': 0, 'battery': 1.0}, {})[1], 'Waiting for a charger')
+        self.assertEqual(uq.may_run({'charging': 1, 'battery': 1.0, 'thermal': 'serious'}, {})[1], 'Phone is warm · waiting')
+        page = (LIB / 'upscale_page.py').read_text()
+        self.assertNotIn('Starts when nothing is converting', page)
+        self.assertIn("upscale_cloud.hold(profile,", (LIB.parents[1] / 'service.py').read_text())
+
+
 if __name__ == '__main__':
     unittest.main()

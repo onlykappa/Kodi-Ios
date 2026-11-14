@@ -391,3 +391,16 @@ Owner: "we should try and maybe speed up the refresh like if its already good to
 smarter refresh system please". This replaces the earlier rule that every Refresh re-reads every file. Library status
 Refresh lists Drive and opens only new, changed or not-ready videos (ISSUE-247); holding Refresh offers Check Every Video,
 which reads every file after asking.
+
+## DEC-049 — Ask once per season when the chosen quality does not exist (2026-11-14)
+
+The owner approved docs/design/quality-choice-mockups.html ("Yes"), boards A–D:
+
+- **A:** one notice per season, not one per episode.
+- **B:** a choice sheet: "Use the Best · <quality>", "Choose Another Version", "Keep Looking for <quality>", "Always Use the
+  Best for This Show", Cancel.
+- **C:** the season's versions with the real picture size a copy found.
+- **D:** the show page's season card "Waiting for your choice" with Choose.
+
+The first refusal or fallback in a season asks instead of downloading; the answer is kept per season, or per show with
+"Always". Until it ships, the best real version is taken automatically (ISSUE-264).
