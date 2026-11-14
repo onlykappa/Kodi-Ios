@@ -35,15 +35,25 @@ job as well as the framework build before pinning a KodiAirPlay release.
    - Log 3848afa9 07:53-07:59: three "made ready while it copies" lanes (704x480 HEVC) crawled at 0.03-0.1 MB/s on Wi-Fi
      that did ~24 MB/s a minute earlier, and sat at 92-94 %. Cause not proven (likely three converters reading AllDebrid
      at once). Look in the next log; consider at most one made-ready lane at a time if it repeats.
-3. **Library status redesign (owner: "I still don't like this")**: docs/design/unified-status-mockups.html.
-   - Board A was rejected twice: round 1 cards "way too thick"; round 2 (slim grouped rows with a 34 pt ring, one title line,
-     one status line, a small speed line) still not liked. The owner's screenshot of round 2 showed status lines wrapping
-     ("1 min / left") and the summary as plain text (an early render before its CSS was fixed). **Remake board A from
-     scratch**: ask the owner what they want first (e.g. bars instead of rings, no speed line, one line per job, density),
-     make 2-3 options side by side, follow APPLE-UI-POLICY (DEC-050: nothing cut off, no wrapping that looks broken).
-   - Board B (copy sheet like the conversion sheet: big ring + speed graph) not yet commented on; it and any ring change
-     DEC-036 (bars everywhere), so record the owner's decision as a new DEC.
-   - Do not code the redesign until the owner approves a board.
+3. **Code the approved Library status redesign (DEC-051, docs/design/unified-status-mockups.html, boards A round 2 and B).**
+   All mockups are approved, including DEC-049 (already coded) and DEC-051. Kodi skin XML, portrait units (2.687/pt):
+   - Board A: replace the "Downloading to Google Drive" cards and the Working section of IOSLibraryStatus.xml
+     (resources/lib/library_page.py `_lanes`/`_work`/`_pool`, filled by library_status.py and library_rows/work_state) with
+     one grouped list of slim rows (~118 units tall). Each row has a 34 pt ring with its percentage, the title (episode
+     first, e.g. "S2 E48 · Naruto Shippuden"), one status line, and a small speed line.
+     - The status line is short enough for one line ("Downloading · 7.2 MB/s · 1 min", "Getting ready · 3.1 MB/s · 3 min",
+       "Converting · 1.4× · 22 min", "AI Upscale · needs a charger" in orange).
+     - Kinds: copies (work_state copy cards, smooth glide already in code), getting ready while copying (mode 'ready'),
+       conversions (conv/repack), AI Upscale (upscale_queue).
+     - Up next becomes a grouped list with numbered circles.
+   - Rings in Kodi: no arc drawing. Use pre-rendered ring textures, one PNG per 5 % step (portrait.py has texture
+     generators: `ring`), chosen by a window property (the ring's step), tinted per kind. The speed line can reuse
+     transfer_history.render at a small size, or a set of tiny textures.
+   - Board B: in resources/lib/library_page.py `item_sheet`/`speed_card`, add the large ring beside the speed number (same
+     texture approach, larger size). The graph already exists; ISSUE-273 gives every copy lane its own graph.
+   - Keep everything updating every 1-2 s (the page loop is library_status.py `loop`).
+   - Verify in the desktop Kodi rig (`python3 -B scripts/kodi_rig.py setup/start/sync`, fake debrid lanes as in
+     docs/ISSUES.md ISSUE-257/273), with the longest real titles. Nothing may be cut off (DEC-050). Then build.
 4. **Already in code, needs the phone**: one notice per season request (ISSUE-268); the quality question (DEC-049, boards
    A-D; board D rig render still pending); pinned add-ons restored ("Add-ons put back" then restart, ISSUE-267/270);
    "Downloads stopped" watchdog (ISSUE-269); pseudo/Anime4K treated as upscales (ISSUE-272); smooth copy cards, "Getting it

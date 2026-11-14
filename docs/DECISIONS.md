@@ -417,3 +417,17 @@ and §7 now say:
 
 The choice sheet gained wrapped row forms (title up to three lines, detail up to two). Existing pages that still truncate
 are fixed when next touched.
+
+## DEC-051 — Unified status approved: slim rows with a progress circle, and the copy sheet like the conversion sheet (2026-11-14)
+
+The owner approved docs/design/unified-status-mockups.html: "actually wait I like the redesign, all mocks are approved now".
+
+- **Board A, round 2:** Library status lists every job (download, getting ready, converting, AI Upscale) as one slim row of
+  a grouped list, about 44 pt. Each row has a 34 pt progress circle with the percentage, the title with the episode first,
+  one status line (step · speed · time left, or why it waits, in orange), and a small speed line. Up next is a grouped list
+  with numbered circles. The four-number summary stays.
+- **Board B:** a copy's sheet matches the conversion sheet, with the steps, a large progress circle beside the speed, the
+  speed graph with its peak, Average / Done / Started, and Pause / Cancel.
+- This replaces DEC-036 for the working rows and the detail sheet: a circle there, bars elsewhere (summary, steps).
+- Colours: blue downloading, purple getting ready or converting, green AI Upscale, orange for why something waits.
+- DEC-050 applies: no text cut off.
