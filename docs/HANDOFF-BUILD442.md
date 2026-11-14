@@ -51,3 +51,33 @@ Play on TV of an Umbrella episode; Roku AirPlay of Naruto S1 E1 (r57); "AllDebri
 - AI Upscale never starts by itself.
 - Don't Show Again.
 - The show page ••• menu and Select.
+
+## Progress (2026-11-14, this session)
+- **Done:** item 2 is ISSUE-282 (`window` NameError in `drive_uploads`, test_undefined_names); item 1 is ISSUE-281 (one stream
+  cache per run, the real link if the link does not answer within 5 s, test_stream_fallback). Both are pushed on this branch.
+  The owner was asked for kodi.old.log of the crash.
+- **Key finding (owner log b9a3a059, build 442):** "Drive: downloads stopped (NameError)" six seconds after every start.
+  On build 442 nothing in `drive_uploads` past that point ran:
+  - no AllDebrid copies or Drive uploads;
+  - no preparation;
+  - **the library index (`library_index.publish`) never published.**
+
+  That is why the owner saw Rick and Morty season 3 "downloading" but not in Library status, the Queue or Notifications
+  ("not linked to our one synced library"). ISSUE-282 fixes the cause. After the next build, check with a log that the
+  index publishes (its change counter property moves) and that the Queue, Notifications, Library status and Download
+  problems all read `library_index`.
+- Items 3 to 12 above are still to do (item 3's RuntimeError may also come from the dead loop; re-check after ISSUE-282).
+
+## New owner requests (2026-11-14, after build 442)
+13. **Row titles open a grid.** Tapping a row's title on Home / Movies / TV ("Trending Movies ›", "Trakt Trending Movies ›",
+    "Continue Watching ›", and every other row) opens a grid view of that row's items, with the artwork only. Make it like
+    the Downloaded Movies / TV Shows grid. Apply it to all rows.
+    - Reuse the existing downloaded grid layout (portrait.py / pages.py). The row's `path` is the grid's content.
+    - Check in the desktop Kodi rig.
+14. **Library status still shows AllDebrid copies the old way.** DEC-051 (approved, unified-status-mockups.html boards A
+    round 2 and B) was never coded on PR #26. Code it: slim rows with a 34 pt ring, the title with the episode first, one
+    status line and a small speed line, for every kind of job, plus the copy sheet like the conversion sheet. See
+    docs/HANDOFF-PR26.md "Open" item 3 for files and approach.
+15. **One brain everywhere.** The Queue and the notification centre must read the same library index (`library_index`)
+    as Library status, TV Shows and Download problems: counts, titles and states agree everywhere. Add a test that compares
+    them for one fixture (e.g. Rick and Morty S3 copying).
