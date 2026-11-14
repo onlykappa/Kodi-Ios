@@ -61,6 +61,34 @@ def lines(text, per_line, most):
     return min(count, most)
 
 
+_NARROW, _MID, _WIDE = set("iljI.,:;!|'\u00b7 "), set('frt()-/"'), set('mwMW')
+
+
+def text_width(text, size, bold=False):
+    """About how wide Inter draws `text` at `size` (skin units), from per-character widths a little above Inter's
+    own: narrow 0.3 em, f r t ( ) 0.38, digits 0.6, lower case 0.56, capitals 0.7, m w 0.88."""
+    em = 0.0
+    for ch in str(text or ''):
+        em += (0.3 if ch in _NARROW else 0.38 if ch in _MID else 0.9 if ch in _WIDE else 0.6 if ch.isdigit()
+               else 0.7 if ch.isupper() else 0.56)
+    return em * size * (1.06 if bold else 1.0)
+
+
+def lines_in(text, size, width, most, bold=False):
+    """Lines `text` takes in a box `width` units wide (whole words wrap), at most `most`; 0 for no text."""
+    words = str(text or '').split()
+    if not words:
+        return 0
+    count, line = 1, ''
+    for word in words:
+        trial = (line + ' ' + word) if line else word
+        if line and text_width(trial, size, bold) > width:
+            count, line = count + 1, word
+        else:
+            line = trial
+    return min(count, most)
+
+
 def compact(p, key, ident, bar):
     """C1's running row: a 30 x 44 pt poster, the title, the model's line, a progress ring. One grouped card
     (key+'pos', set by notifications.py)."""

@@ -4317,3 +4317,11 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Retest:** desktop Kodi rig, scenario `lanes`: three running rows in one card, Up next and Kept slim, nothing cut.
   Rig evidence, not the phone.
 - **Test:** test_slim_status; test_library_status `test_the_rows_are_drawn` now looks for the WORKING NOW heading.
+- **Follow-up (owner screenshot of the rig render: "no graph on the bottom 2 and no time, they should all look like the
+  first one; uneven spacing"):** every row now has the same parts. Its speed line comes from the service's history for
+  that title (transfer_history) or from the speeds the page has seen for the row (`sparks`). Its time left is the
+  job's own estimate or, without one, worked out from how fast its percentage moves (`with_eta`, after 10 s). Each copy
+  row is matched to its model job by title for speed and time. Line counts now come from the text's estimated width in
+  Inter (`notifications_skin.lines_in`), not a character count, so a one-line status is never given two lines (that was
+  the uneven first row). Retest on the rig: three even rows, a speed line on each. The rig's lanes scenario keeps the
+  lanes' percentages fixed, so their time left could not show there; test_slim_status covers the estimate.

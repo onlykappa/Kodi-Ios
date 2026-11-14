@@ -123,7 +123,7 @@ def _summary(p, u):
 # orange), and the speed line when there is one. Rows grow to two lines rather than cut text (DEC-050).
 RUN_SLOTS = [('work.', WORK)] + [('lane.%d.' % n, LANE + n) for n in range(LANES)] + [('down.%d.' % n, 9310 + n) for n in range(6)]
 SLIM_PAD, SLIM_TITLE, SLIM_LINE, RING = 22, 46, 40, 92
-SLIM_TITLE_CHARS, SLIM_LINE_CHARS = 28, 42     # what a line surely holds (status_rows.lines counts with these)
+SLIM_TEXT_W = 972 - 150 - 32 - 150             # the title and status box width (units), beside the ring and graph
 
 
 def slim_height(tl, sl):
@@ -134,7 +134,7 @@ def _slim(p, u, k, ident):
     """One slim row (k: the slot's property prefix). Its height variant is chosen by k+'tl' / k+'sl' (1 or 2 lines)."""
     S, w, M, P = p.SIDE, p.WIDTH - 2 * p.SIDE, p.MEDIA, u.P
     out = ''
-    tw = w - 150 - 32 - 150
+    tw = SLIM_TEXT_W
     for tl in (1, 2):
         for sl in (1, 2):
             h = slim_height(tl, sl)
