@@ -9,34 +9,26 @@ job as well as the framework build before pinning a KodiAirPlay release.
 
 ## State
 
-- Owner's last IPA: **build-393** (8aa612d): everything through ISSUE-245.
-- Committed and pushed after build-393, **not built**: ISSUE-246 (Refresh inspection waits while downloads are made ready;
-  upload pieces grow on a steady line), ISSUE-247 / DEC-048 (smart Refresh; hold Refresh = Check Every Video), ISSUE-248
-  (preparation carries on after a rename; version picker opens on Back), ISSUE-249 (rig render fixes).
-- The owner asked for these recommendations and then an IPA. **Next step: finish the open items below, then build the IPA
-  (`import-review.yml` workflow_dispatch on this branch; the release is `build-<run number>`) and send the link.** The
-  owner said "push the ipa", so building is approved for this batch.
-- All 96+ scripts in the import-review test list pass on the host (one known environment-only error in
-  test_build193_pages `test_landscape_airplay_sheet_unchanged`: `git show` in a shallow clone).
+- Owner's last IPA: **build-406** (7a50b2a): everything through ISSUE-258, AirPlay r56 pinned, Media Assistant kept
+  (`cast.DIRECT_AIRPLAY = False`). Any new IPA needs the owner's OK in the current request.
+- In progress after build-406: faster Play on TV start (ISSUE-253 "Not done": open the source when a video starts in Kodi;
+  a second conversion lane for 10-bit H.264). A native change needs a new KodiAirPlay release: both the airplay-ios run and
+  the airplay-remux host-tests job green, and the downloaded zip's sha256 checked, before pinning.
+- All scripts in the import-review test list pass on the host.
 
-## Open (do these)
+## Open
 
-1. ~~Done 2026-11-14: rig shows both glyph tiles.~~ **Re-render the Download problems choice sheet in the desktop Kodi rig** after the `choice_sheet.glyph_path` fix
-   (ISSUE-249): tiles must show the eye-slash and trash glyphs, no bare squares. How: `python3 -B scripts/kodi_rig.py start`,
-   `sync`, write fake data with the script below, `open copy_problems`, `click 9201`, `shot NAME` (screenshots stay out of
-   Git; they are in ~/.cache/kodi-rig/shots). The fake Library data script used this session was in the scratchpad
-   (not in Git): it writes drive-library.json (`tv:` with one show, `tv:<id>` with episodes), drive-library-art.json
-   (`tv:<title lower>:<year>` → tmdb_id, `season:<tmdb>:<n>` → titles/thumbs), a preparation state (prepare_downloads.save)
-   and two failed debrid jobs (debrid_drive.save) into ~/.cache/kodi-rig/home/.kodi/userdata/addon_data/service.kodi.ios.bootstrap.
-   A Trakt 401 dialog may cover the rig: `builtin "Dialog.Close(all,true)"`.
-2. ~~Done 2026-11-14: no square highlight.~~ Re-render the show page's ••• capsule after its focus change (no square highlight).
-3. Optional (owner dislikes "…"): Download problems row titles truncate ("Naruto Shippuuden · S…"); would need the
-   row to wrap or shorten (approved page; small change, mention to the owner).
-4. Build the IPA, send the link, update the PR #26 description (ISSUE-246 to ISSUE-249 are not in it yet).
+1. Desktop Kodi rig check of the Download problems page after ISSUE-257 (episode-first titles, "Clear All for <show>" row
+   in the sheet). How: `python3 -B scripts/kodi_rig.py setup` (once), `start`, `sync`, fake data (two failed debrid jobs
+   of one show via `debrid_drive.save`), `open copy_problems`, `click 9201`, `shot NAME`.
+2. Delete the Roku / Media Assistant route only after the owner confirms Rokus play well through AirPlay (ISSUE-252).
+3. AI Upscale: the host tests pass; the phone proof is a 4K copy that finishes (ISSUE-241).
 
 ## Needs the owner's phone
 
-Smart Refresh and Check Every Video; uploads while a season is made ready; AI Upscale only on request; Repair skipping
+Build-406: Play on TV opens Apple's list at once, tapping it again stops a start, the 10-bit question; Naruto season 2
+copies; no "Waiting for the network" while online; Clear All for a show; a season without real 1080p stops looping.
+Earlier: Smart Refresh and Check Every Video; uploads while a season is made ready; AI Upscale only on request; Repair skipping
 dead/low versions and its live "Looking for 1080p…" ✕; show page ••• menu, Select toolbar and Better Version (old file to
 Trash after the new one is saved); Don't Show Again; no "Window id does not exist"; DVD subtitles shown; AI Upscale hold menu
 and Cancel All; waiting for Wi-Fi on mobile data; deleting while converting.
