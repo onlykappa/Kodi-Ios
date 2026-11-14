@@ -290,6 +290,8 @@ def remove_copies(settings, data, g):
     """Board C "Remove the copies…" (after the alert): the show goes Off (so nothing is made again) and the service
     sends each copy to Drive's Trash (upscale_cloud.process_one). Returns (settings, data)."""
     settings = set_show(settings, g, picture.OFF)
+    import upscale_queue
+    upscale_queue.ask(data, g.get('videos') or [], picture.OFF)   # ISSUE-245: no longer asked for
     ids = [i['id'] for i in g.get('items') or [] if i['state'] in ('ready', 'waiting', 'failed', 'running')]
     data.setdefault('remove', [])
     data['remove'] = sorted(set(data['remove']) | set(ids))

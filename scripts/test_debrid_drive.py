@@ -453,10 +453,27 @@ class DownloadProblemsPage(unittest.TestCase):
   props,_=cp.model(found*5,'all',slots=6)
   self.assertTrue(props['more'].startswith('And '))
   spec,actions=cp.sheet(dict(found[1],why='This source has no video file',group='source'))
-  self.assertEqual(actions,['find','retry','remove']);self.assertEqual(spec['heading'],'The Lorax')
-  self.assertEqual(cp.sheet(dict(found[3],why='Cancelled',group='cancelled'))[1],['retry','remove'])
+  # Owner (2026-11-14): every problem can be hidden for good ("Don't Show Again"); Remove has its trash glyph.
+  self.assertEqual(actions,['find','retry','ignore','remove']);self.assertEqual(spec['heading'],'The Lorax')
+  self.assertEqual(cp.sheet(dict(found[3],why='Cancelled',group='cancelled'))[1],['retry','ignore','remove'])
+  self.assertEqual([r.get('glyph') for r in spec['rows'] if r.get('tint')],['eye-slash.png','trash.png'])   # no bare red square
   self.assertIn("R(9459,'Download problems','RunScript(service.kodi.ios.bootstrap,copy_problems)'",(root/'resources/lib/settings_page.py').read_text())
   self.assertIn("'copy_problems'",(root/'default.py').read_text())
+ def test_dont_show_again_hides_a_problem_until_it_fails_another_way(self):
+  # Owner (2026-11-14, screenshot of Naruto S1 E30): "clears it for good and only will show up if there is a different issue".
+  import tempfile,problem_ignore as pi
+  _,cp=self.load()
+  with tempfile.TemporaryDirectory() as profile:
+   low={'key':'k30','kind':'failed','error':'Not the quality you picked: 640x480, you chose 1080p','title':'Naruto Shippuuden · S1 E30'}
+   other={'key':'k5','kind':'failed','error':'File not available due to no peer'}
+   pi.ignore(profile,low)
+   self.assertEqual(pi.visible(profile,[low,other]),[other])
+   self.assertEqual(pi.visible(profile,[dict(low,error='Not the quality you picked: 704x480, you chose 1080p')]),[])   # numbers don't count
+   self.assertEqual(len(pi.visible(profile,[dict(low,error='File not available due to no peer')])),1)               # a different issue shows
+  # The sheet says the reason once ("Not the quality you picked. Not the quality you picked: …" before).
+  spec,_=cp.sheet(dict(low,why='Not the quality you picked',group='source'))
+  self.assertEqual(spec['sub'],'Not the quality you picked: 640x480, you chose 1080p')
+  self.assertEqual(cp.plain({'kind':'failed','error':'File not available due to no peer'}),('No one is sharing this source','source'))
  def test_preparation_problems_are_listed_with_the_copy_problems(self):
   # ISSUE-226 / P4 (approved board E): Naruto says problems on its show page and in Library status, so Download problems lists them.
   import prepare_downloads as prep
@@ -485,15 +502,15 @@ class DownloadProblemsPage(unittest.TestCase):
   props,_=cp.model(cp.prep_problems(state,{'dvd_subs':True}),'prepare',now=1000)
   self.assertEqual(props['retry.label'],'Try Again 3')                                 # a converter that keeps them: all can retry
   spec,actions=cp.sheet(dict([f for f in found if f['id']=='a'][0],why="DVD subtitles can't be kept",group='prepare'))
-  self.assertEqual(actions,['find','retry','keep']);self.assertEqual([r['label'] for r in spec['rows']],['Find Another Version','Try Again','Keep as It Is'])
-  self.assertIn('Nothing was lost',spec['sub']);self.assertFalse(any(r.get('tint') for r in spec['rows']))
+  self.assertEqual(actions,['find','retry','keep','ignore']);self.assertEqual([r['label'] for r in spec['rows']],['Find Another Version','Try Again','Keep as It Is',"Don't Show Again"])
+  self.assertIn('Nothing was lost',spec['sub']);self.assertFalse(any(r.get('tint')=='FFFF453A' for r in spec['rows']))   # board E2: nothing red
  def test_the_page_has_four_tiles_and_five_filters(self):
   import portrait,copy_problems_page as page
   xml=page.page(portrait)
   self.assertEqual(len(page.FILTERS),5);self.assertIn('id="%d"'%(page.FILTER0+4),xml);self.assertIn('Not ready',xml)
   root,_=self.load()
   self.assertIn("'prepare' in sys.argv[1:]",(root/'copy_problems.py').read_text())
-  self.assertIn('prepare_downloads.problem_need(prep)',(root/'service.py').read_text())
+  self.assertIn('prepare_downloads.problem_need(prep,problem_ignore.hidden_prep_ids(profile,prep))',(root/'service.py').read_text())
  def test_retry_and_remove_one_problem_by_its_key(self):
   with tempfile.TemporaryDirectory() as p:
    state={'jobs':[{'hash':'a'*40,'title':'A','kind':'movie','status':'failed','error':'Problem: x','added':1},

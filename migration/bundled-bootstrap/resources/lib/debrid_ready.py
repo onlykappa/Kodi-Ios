@@ -165,7 +165,9 @@ def copy(q, profile, with_link, name, size, parent, going, progress, key, log=la
                 except Exception:
                     pass
             resume_store.clear(profile, slot)
-        if debrid_drive.network_error(error):
+        if debrid_drive.network_error(error) or getattr(error, 'low_quality', False):
+            # ISSUE-244 (owner log 3df2f247: six 640x480 episodes "not made ready while copying (LowQuality …); copying it
+            # as it is", each copied in full and sent to the Trash minutes later): a refused quality is never copied.
             raise
         resume_store.clear(profile, slot)
         log('%s: not made ready while copying (%s: %s); copying it as it is' % (name, type(error).__name__, str(error)[:120]))

@@ -89,6 +89,12 @@ def plan(prep_state, data, settings, media_for, clock=time.time):
         entry = copies.get(original)
         if not label:
             continue
+        if not settings.get('downloads', {}).get('prepare') and original not in data.get('asked', {}):
+            # ISSUE-245 (owner log 3a30b6ef, 16:26: a 4K copy of a Naruto episode downloaded after the show was set to 4K,
+            # with Upscale new downloads off: "I want full control over it"): a copy is made only of a video the owner
+            # asked for (the size chosen on its show's AI Upscale page, for the videos there then), or of every new
+            # download when Upscale new downloads is on.
+            continue
         if entry and entry.get('label') == label and entry.get('status') in ('waiting', 'running', 'ready', 'blocked'):
             continue
         if entry and entry.get('status') == 'failed' and entry.get('label') == label:
@@ -258,6 +264,18 @@ def preview(profile, data, clock=time.time):
     shown = copy.deepcopy(data)
     _apply(control(profile), shown, clock)
     return shown
+
+
+def ask(data, originals, label):
+    """ISSUE-245: the owner chose `label` for these videos (a show's AI Upscale page): copies of them may be made. Off
+    takes them back."""
+    asked = data.setdefault('asked', {})
+    for key in originals:
+        if label and label != picture.OFF:
+            asked[str(key)] = label
+        else:
+            asked.pop(str(key), None)
+    return data
 
 
 def revive(data, originals):

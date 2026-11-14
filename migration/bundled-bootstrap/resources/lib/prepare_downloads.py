@@ -122,9 +122,10 @@ def preparation_problems(state):
   out.append({'id':str(source.get('id') or ''),'name':str(source.get('name') or ''),'error':str(job.get('error') or ''),
               'blocked':bool(job.get('blocked')),'size':int(source.get('size') or 0)})
  return sorted(out,key=lambda p:line_key(p['name']))
-def problem_need(state):
- """The Library status 'Needs you' entry (board E3): how many videos can't be made ready. None when there are none."""
- n=sum(1 for p in preparation_problems(state) if p['blocked'])
+def problem_need(state,hidden=()):
+ """The Library status 'Needs you' entry (board E3): how many videos can't be made ready. None when there are none.
+ hidden: Drive ids the owner chose not to see again (Download problems › Don't Show Again)."""
+ n=sum(1 for p in preparation_problems(state) if p['blocked'] and str(p['id']) not in hidden)
  if not n:return None
  return {'key':'prep_problems','title':'%d can\'t be made ready'%n if n>1 else '1 can\'t be made ready',
          'text':'They play in Kodi; they just aren\'t made ready for AirPlay. Review them to try again, keep them as they are or find another version.',

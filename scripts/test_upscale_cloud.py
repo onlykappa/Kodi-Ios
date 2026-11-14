@@ -80,6 +80,7 @@ class Native:
 
 
 def queue(profile, native):
+    uq.save(profile, dict(uq.load(profile), asked={'orig1': '4K UHD'}))   # the owner chose its show's size (ISSUE-245)
     prep = {'jobs': {'s': {'status': 'done', 'prepared_id': 'orig1', 'source': {'id': 'orig1', 'name': 'Naruto S01E03.mp4'},
                            'probe': {'width': 1920, 'height': 1080, 'duration': 1400, 'hdr': False}}}}
     return types.SimpleNamespace(profile=profile, drive=FakeDrive(), native=native, state=prep, log=lambda m: None,

@@ -644,6 +644,18 @@ def drive_episodes(profile):
     return found
 
 
+def avoid_names(state, tmdb, season, episode):
+    """(excluded, lower): names of this episode's versions that failed (a dead torrent, "File not available due to no
+    peer", a broken file: never picked again) and that a copy found lower than the quality chosen (ISSUE-236: only when
+    nothing else exists). Cancelled copies are neither. Used by episode_watch and Repair (ISSUE-244)."""
+    mine = [j for j in state.get('jobs', []) if str(j.get('show_tmdb') or '') == str(tmdb or '') and str(tmdb or '')
+            and str(j.get('season')) == str(season) and str(j.get('episode')) == str(episode) and j.get('name')]
+    excluded = [j['name'] for j in mine if j.get('status') == 'failed' and 'cancel' not in str(j.get('error', '')).lower()
+                and not j.get('low_quality')][-20:]
+    lower = [j['name'] for j in mine if j.get('low_quality')][-20:]
+    return excluded, lower
+
+
 def drop_on_drive(state, on_drive, keep=lambda job: False):
     """Owner (build 325): "Naruto Shippuuden - 002" was on Drive and converting while S1 E2 waited to be copied again.
     A waiting episode job that has not copied anything leaves the queue when that episode is already on Drive."""

@@ -136,6 +136,10 @@ def episode_minutes(tmdb,season,episode,cache_path=None,key=None,get=None):
  except Exception:
   return 0
 
+def _profile():
+ import xbmcvfs
+ return xbmcvfs.translatePath('special://profile/')
+
 def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=None,cancel=None,timeout=None,lane='',title=''):
  import elementum_cloud
  if watch.active_request(home,lane=lane):raise RuntimeError('Another episode search is running. Try again when it finishes.')
@@ -144,6 +148,14 @@ def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=Non
  target={'tmdb':str(tmdb),'season':int(season),'episode':int(episode) if episode else None,'title':str(title or '')}
  wanted={'request_id':ident,'target':target,'purpose':purpose,'mode':0,'until':time.time()+600,
          'profile':dict({'quality':quality,'strict_quality':True} if quality else {},runtime=episode_minutes(tmdb,season,episode))}
+ if purpose=='queue' and episode:
+  # ISSUE-244 (owner log 3df2f247: Repair of Naruto S1 E5/E6 picked a torrent AllDebrid could not fetch, "File not
+  # available due to no peer", and nothing stopped the next Repair picking it again): versions of this episode that failed
+  # are left out, and ones found lower than the chosen quality are tried last, as in the automatic episode checks.
+  try:
+   import debrid_drive
+   wanted['excluded_names'],wanted['lower_names']=debrid_drive.avoid_names(debrid_drive.load(_profile()),tmdb,int(season),int(episode))
+  except Exception:pass
  watch.canceled(home,target,clear=True)
  home.clearProperty(watch.RESULT+lane);home.clearProperty('KodiIOS.AutoPick.Queued'+lane)
  home.setProperty(watch.AUTO+lane,json.dumps(wanted));result={}

@@ -290,7 +290,8 @@ def run():
   import debrid_drive,prepare_downloads,preparation_runtime
   phone=[u for u in notices.uploads(profile) if u.get('source')=='phone']
   prep=prepare_downloads.load(profile);flags=work_state.flags(profile)
-  need=prepare_downloads.problem_need(prep)   # board E3: videos that can't be made ready, with Review
+  import problem_ignore
+  need=prepare_downloads.problem_need(prep,problem_ignore.hidden_prep_ids(profile,prep))   # board E3, minus Don't Show Again
   if need:flags=dict(flags,needs=list(flags['needs'])+[need])
   return {'prep':prep,'runtime':preparation_runtime.read(profile),'debrid':debrid_drive.load(profile),
           'phone':phone,'torrents':notices.downloads(),

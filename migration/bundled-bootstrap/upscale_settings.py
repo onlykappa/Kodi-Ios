@@ -376,11 +376,13 @@ def run():
                 self.close()
                 return
             if sp.SEG <= control < sp.SEG + sp.SEGS and control - sp.SEG < len(self.view['choices']):
-                picture.save(profile, up.set_show(settings, self.g, self.view['choices'][control - sp.SEG]))
-                uq.save(profile, uq.revive(uq.load(profile), self.g['videos']))   # DEC-044: chosen again, cancelled copies may be made
+                label = self.view['choices'][control - sp.SEG]
+                picture.save(profile, up.set_show(settings, self.g, label))
+                # DEC-044: chosen again, cancelled copies may be made; ISSUE-245: only the videos there now are asked for.
+                uq.save(profile, uq.ask(uq.revive(uq.load(profile), self.g['videos']), self.g['videos'], label))
             elif control == sp.PRIMARY and self.view['primary']:
                 picture.save(profile, up.set_show(settings, self.g, self.view['primary_size']))
-                uq.save(profile, uq.revive(uq.load(profile), self.g['videos']))   # DEC-044: chosen again, cancelled copies may be made
+                uq.save(profile, uq.ask(uq.revive(uq.load(profile), self.g['videos']), self.g['videos'], self.view['primary_size']))
                 dialog.notification('AI Upscale', 'Copies are made in the background, one at a time', xbmcgui.NOTIFICATION_INFO, 3000)
             elif control == sp.REMOVE and self.view['remove']:
                 if not dialog.yesno('Remove the copies?', 'The upscaled copies of %s go to Google Drive\'s Trash, where they stay for '

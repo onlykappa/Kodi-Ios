@@ -58,7 +58,8 @@ class BeforeTheDownload(unittest.TestCase):
         best = dp.auto_choose([pack], lower)
         self.assertEqual((best['name'], best['fallback']), (pack['name'], True))                # the absolute only one: taken
         rt = (LIB / 'episode_watch_runtime.py').read_text()
-        self.assertIn("request['lower_names']", rt);self.assertIn("and not j.get('low_quality')][-20:]", rt)
+        self.assertIn("request['lower_names']", rt)
+        dd = (LIB / 'debrid_drive.py').read_text();self.assertIn("and not j.get('low_quality')][-20:]", dd)   # ISSUE-244: one helper
         cloud = (LIB / 'elementum_cloud.py').read_text()
         self.assertIn("wanted['_fallback'] = bool(selected.get('fallback'))", cloud)
         self.assertIn("and not (auto or {}).get('_fallback')", cloud)
@@ -125,7 +126,7 @@ class AfterTheCopy(unittest.TestCase):
             self.assertEqual(cp.plain(found[0]), ('Not the quality you picked', 'source'))
         # The next automatic search for the episode leaves that version out (failed, not cancelled).
         rt = (LIB / 'episode_watch_runtime.py').read_text()
-        self.assertIn("j.get('status')=='failed' and 'cancel' not in str(j.get('error','')).lower()", rt)
+        self.assertIn("j.get('status') == 'failed' and 'cancel' not in str(j.get('error', '')).lower()", (LIB / 'debrid_drive.py').read_text())
 
     def test_the_guard_is_wired(self):
         cloud = (LIB / 'prepare_cloud.py').read_text()

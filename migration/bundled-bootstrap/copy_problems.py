@@ -19,6 +19,7 @@ TINT = {'retry': 'orange', 'source': 'red', 'cancelled': 'grey', 'prepare': 'ora
 
 # (words in the error, the plain reason, the group). The first match wins; the raw error stays in kodi.log.
 PLAIN = (('not the quality you picked', 'Not the quality you picked', 'source'),
+         ('no peer', 'No one is sharing this source', 'source'),   # AllDebrid: "File not available due to no peer"
          ('cannot read', 'AllDebrid was busy', 'retry'),
          ('too many', 'AllDebrid is full · it waits its turn', 'retry'),
          ('right now', "AllDebrid can't fetch it right now", 'retry'),
@@ -169,18 +170,37 @@ def sheet(problem):
     rows, actions = [], []
     if group == 'prepare':
         # Board E2: nothing is deleted, so nothing is red.
-        rows = [{'label': 'Find Another Version'}, {'label': 'Try Again'}, {'label': 'Keep as It Is'}]
+        rows = [{'label': 'Find Another Version'}, {'label': 'Try Again'}, {'label': 'Keep as It Is'}, DONT_SHOW]
         why = ("It has DVD picture subtitles or a second video track an MP4 can't keep, so it isn't made ready for AirPlay. "
                if 'cannot preserve' in str(problem.get('error') or '') else '%s. ' % problem['why'])
         return {'heading': problem['title'], 'sub': (why + 'Nothing was lost: it is on Google Drive and still plays in Kodi.')[:220],
-                'rows': rows}, ['find', 'retry', 'keep']
+                'rows': rows}, ['find', 'retry', 'keep', 'ignore']
     if group != 'cancelled':
         rows.append({'label': 'Find Another Source'});actions.append('find')
     rows.append({'label': 'Restart' if group == 'cancelled' else 'Try This Source Again'});actions.append('retry')
-    rows.append({'label': 'Remove From List', 'tint': 'FFFF453A'});actions.append('remove')
-    full = str(problem.get('error') or problem.get('reason') or '')
-    detail = problem['why'] if group == 'cancelled' else ('%s. %s' % (problem['why'], full) if full and full.lower() not in problem['why'].lower() else problem['why'])
-    return {'heading': problem['title'], 'sub': detail[:220], 'rows': rows}, actions
+    rows.append(DONT_SHOW);actions.append('ignore')
+    rows.append({'label': 'Remove From List', 'tint': 'FFFF453A', 'glyph': 'trash.png'});actions.append('remove')
+    return {'heading': problem['title'], 'sub': detail_text(problem)[:220], 'rows': rows}, actions
+
+
+# Owner (2026-11-14): "one more option that clears it for good and only will show up if there is a different issue"
+# (problem_ignore). A grey tile with the eye-slash glyph; the grey line says when it comes back.
+DONT_SHOW = {'label': "Don't Show Again", 'detail': 'It comes back only if something else goes wrong', 'tint': 'FF636366',
+             'glyph': 'eye-slash.png'}
+
+
+def detail_text(problem):
+    """The sheet's grey line: the plain reason, then the full one when it says more. Owner screenshot (build 384): "Not the
+    quality you picked. Not the quality you picked: 640x480, you chose 1080p" said the same words twice."""
+    why = str(problem.get('why') or '')
+    if problem['group'] == 'cancelled':
+        return why
+    full = str(problem.get('error') or problem.get('reason') or '').strip().rstrip('.')
+    if not full or full.lower() in why.lower():
+        return why
+    if full.lower().startswith(why.lower().rstrip('.')):
+        return full[:1].upper() + full[1:]
+    return '%s. %s' % (why, full)
 
 
 def search_path(problem):
@@ -218,7 +238,8 @@ def run():
             self.caps = prepare_downloads.capabilities(profile)
             # What the owner asked for shows at once (the service applies it at its next pass).
             queue = prepare_downloads.apply_to(prepare_downloads.load(profile), prepare_downloads.pending_requests(profile), time.time())
-            self.found = debrid_drive.problems(debrid_drive.load(profile)) + prep_problems(queue, self.caps)
+            import problem_ignore
+            self.found = problem_ignore.visible(profile, debrid_drive.problems(debrid_drive.load(profile)) + prep_problems(queue, self.caps))
             props, self.entries = model(self.found, self.filter, poster=poster)
             for key, value in props.items():
                 self.setProperty(key, str(value))
@@ -244,6 +265,11 @@ def run():
                 xbmc.executebuiltin('ActivateWindow(Videos,%s,return)' % search_path(problem))
 
         def act(self, action, problem):
+            if action == 'ignore':
+                import problem_ignore
+                problem_ignore.ignore(profile, problem)
+                self.note("Hidden · it comes back only if something else goes wrong")
+                return
             if problem.get('kind') == 'prepare':
                 return self.act_prepare(action, problem)
             if action == 'retry':
