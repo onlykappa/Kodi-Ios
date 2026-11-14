@@ -203,7 +203,7 @@ def run(args=()):
     # Build 194: one pool of rows per section (library_page.POOLS), as the approved boards draw them.
     pools=library_rows.pools(items)
     self.pools=pools
-    self.setProperty('empty','' if items or (view.get('model') or {}).get('jobs') else 'No downloaded videos here yet.')
+    self.setProperty('empty','' if items or (view.get('model') or {}).get('jobs') or view.get('total') else 'No downloaded videos here yet.')
     model=view.get('model') or {}
     self.setProperty('queue','true' if model.get('next') or model.get('drive_next') or any(j.get('kind') in ('copy','upload','down') for j in model.get('jobs',[])) else '')
     self.setProperty('queue.label','Edit order' if model.get('next') else 'View queue')

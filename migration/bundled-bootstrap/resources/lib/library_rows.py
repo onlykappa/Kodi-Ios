@@ -50,7 +50,9 @@ def list_items(view, filter_key='all'):
     """[{kind: row|folder|foot, label, label2, props}] for list 9300, in order. One layout draws them all (Kodi's
     conditional item layouts follow global conditions, not each item, so the kind is a property its parts show by)."""
     rows = view['rows']
-    keys = ('downloading','waiting','ready','kept') if filter_key == 'all' else SHOWN.get(filter_key, ())
+    # DEC-047 board A (owner, 2026-11-14: "we have a section for it elsewhere so it can be removed entirely"): ready videos
+    # are no longer listed here; Library › Movies and TV Shows list them with their quality and state.
+    keys = ('downloading','waiting','kept') if filter_key == 'all' else SHOWN.get(filter_key, ()) if filter_key != 'ready' else ()
     out = []
     headings = dict(SECTIONS, preparing='WORKING ON NOW', downloading='DOWNLOADING TO GOOGLE DRIVE', waiting='UP NEXT')
     for key in keys:

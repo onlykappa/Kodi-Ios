@@ -450,10 +450,10 @@ class Board194(unittest.TestCase):
         near(self,lp.BAR_Y,421-377,'summary bar top in its card');near(self,lp.BAR_H,8,'summary bar height')
         near(self,lp.BAR_GAP,3,'gap between bar segments')
         rows={key:h for key,_,_,h in lp.POOLS}
-        near(self,rows['next'],60,'Up next row');near(self,rows['ready'],52,'Ready row')
+        near(self,rows['next'],60,'Up next row');self.assertNotIn('ready',rows)   # DEC-047: no Ready list on this page
         near(self,ui.CARD_R,16,'card radius');near(self,ui.PAD,14,'card padding');near(self,p.SIDE,20,'side margin')
         xml=lp.page(p)
-        for n in (9101,9102,9103,9104):
+        for n in (9102,9103,9104):   # DEC-047: the Ready count (9101's place) is a number, not a button
             c=control(xml,n);near(self,c.findtext('height'),56,'count button %d height'%n)
         self.assertIn('Window().Property(next.0.number)',xml)
         self.assertIn('FF4FA8FF',xml)   # accent text: refresh glyph, Edit order, Up next numbers

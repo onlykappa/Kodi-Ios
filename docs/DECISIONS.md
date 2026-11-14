@@ -373,3 +373,14 @@ the fixes as one primary capsule and rows, Technical details behind a link with 
 Details / Share Log; a Fix button on problem rows in the Notifications list) and H (good news in one line with no log;
 a vague problem with plain words, Run Setup Again / Share the log / Restart Kodi; a warning that fixes itself). Condition:
 titles and lines wrap to a second line instead of ending in "…" (the list rows and the sheet).
+
+## DEC-047 — Library status without Ready, the show page, its ••• menu and Select approved (2026-11-14)
+
+Owner, on docs/design/library-show-mockups.html: "for board a, we can remove the ready and a2. We have a section for it
+elsewhere so it can be removed entirely otherwise i approve and it looks good". Approved scope: board A1 without its Ready
+card and tiles (Library status lists only what needs the owner, what is working and what is up next; ready videos are listed
+in Library › Movies / TV Shows), no A2; board B (episode stills and titles, one state line, a round outlined Repair, titles
+that wrap, the row changing at once after Repair); board C (the ••• menu drawn by the show page, which becomes a dialog,
+with Delete asking first); board D (Select with stills, names, checks, a count and a toolbar: Better Version, Prepare Again,
+Delete with confirmation). No IPA until the owner has tested build 384 and sent its log; the work is committed without
+being pushed until then.
