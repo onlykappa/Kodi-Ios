@@ -261,7 +261,7 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
  if airplay.converts(lib) and remote_media.eligible(raw):
   import xbmcgui
   source,lease=remote_media.acquire(raw,xbmcgui.Window(10000))
-  diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','source_cache',enabled=bool(lease))
+  diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','source_cache',enabled=bool(lease),warmed=bool(getattr(lease,'warmed',False)))
  import time as _time,xbmcgui as _gui
  _home=_gui.Window(10000)
  def _mark(key,value=None):
@@ -512,7 +512,7 @@ def tv_link(xbmc,library,url,playing,kind,safe=False,preserve_picture=False,star
   if remote_media.eligible(raw_source):
    import xbmcgui
    raw_source,source_lease=remote_media.acquire(raw_source,xbmcgui.Window(10000))
-   diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'cast','source_cache',enabled=bool(source_lease),receiver=kind)
+   diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'cast','source_cache',enabled=bool(source_lease),receiver=kind,warmed=bool(getattr(source_lease,'warmed',False)))
   source=raw_source.encode('utf-8')
   # r41 (ISSUE-138, owner's build-209 log: a Roku read the prepared playlists and the init, then nothing): Roku's own
   # player does not take HLS whose fragments carry audio and video together, and wants 4-6 s chunks (Roku's streaming

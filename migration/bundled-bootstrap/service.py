@@ -407,6 +407,15 @@ def drive_uploads(monitor,home,profile):
  xbmc.log('Kodi iOS Drive: media reads use %s'%('system networking' if native_reader else 'Python networking'),xbmc.LOGINFO)
  try:remote_media.start(monitor,xbmcgui.Window(10000),context=tls_context(),open_url=native_reader)
  except Exception as error:diagnostics.log_exception(xbmc,'media_source_bridge',error)
+ # ISSUE-259: read the start and the index of a video playing in Kodi (Wi-Fi only) so a later Play on TV starts sooner.
+ if airplay.converts(playback_lib):
+  def playing_file():
+   try:return xbmc.Player().getPlayingFile() if xbmc.getCondVisibility('Player.HasVideo') else ''
+   except Exception:return ''
+  import cache_tune
+  threading.Thread(target=remote_media.watch,args=(xbmcgui.Window(10000),playing_file,
+                   lambda:xbmc.getCondVisibility('Player.Playing + !Player.Caching'),lambda:cache_tune.link_kind()=='wifi',
+                   monitor.waitForAbort),kwargs={'log':lambda text:xbmc.log(text,xbmc.LOGINFO)},daemon=True).start()
  send=driveupload.sender(tls_context(),log=lambda message:xbmc.log(message,xbmc.LOGINFO),native=native)
  def refresh(refresh_token):
   server=signin_server.server(drive_addon.getSetting('sign-in-server'))

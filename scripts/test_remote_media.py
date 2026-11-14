@@ -147,6 +147,54 @@ class Broker(unittest.TestCase):
    self.assertEqual(remote.acquire('https://media.example/episode.mkv',home),('https://media.example/episode.mkv',None))
  def test_control_endpoint_rejects_an_unknown_token(self):
   with self.assertRaises(urllib.error.HTTPError):remote._call(self.broker.url+'bad',{'action':'open','source':'https://media.example/a.mkv'})
+class Warm(Broker):
+ """ISSUE-259: the video Kodi plays is read ahead (start and end) so Play on TV takes a warm source."""
+ def test_warm_source_is_taken_by_play_on_tv_with_its_blocks(self):
+  endpoint=self.broker.url;src='https://media.example/episode.mkv'
+  ident=remote._call(endpoint,{'action':'warm','source':src})['id']
+  warm=self.broker.current
+  for _ in range(100):
+   if warm.blocks.misses>=2 and not warm.blocks.pending:break
+   time.sleep(.02)
+  self.assertIn(('media',0),warm.blocks.data);self.assertIn(('media',(len(DATA)-1)//remote.BLOCK),warm.blocks.data)
+  url,lease=remote.acquire(src,self.home)
+  self.assertTrue(lease.warmed);self.assertIs(self.broker.current,warm);self.assertNotEqual(lease.ident,ident)
+  remote._call(endpoint,{'action':'cool','id':ident});self.assertIs(self.broker.current,warm)   # the TV keeps it
+  self.assertEqual(remote._call(endpoint,{'action':'warm','source':'https://media.example/other.mkv'}),{'busy':True})
+  lease.close();self.assertIsNone(self.broker.current)
+ def test_cool_releases_an_untaken_source_and_another_video_replaces_it(self):
+  endpoint=self.broker.url
+  one=remote._call(endpoint,{'action':'warm','source':'https://media.example/one.mkv'})['id']
+  first=self.broker.current
+  remote._call(endpoint,{'action':'warm','source':'https://media.example/two.mkv'})
+  self.assertIsNot(self.broker.current,first)
+  remote._call(endpoint,{'action':'cool','id':one});self.assertIsNotNone(self.broker.current)   # stale id
+  two=self.broker.ident;remote._call(endpoint,{'action':'cool','id':two});self.assertIsNone(self.broker.current)
+  _,lease=remote.acquire('https://media.example/three.mkv',self.home);self.assertFalse(lease.warmed);lease.close()
+ def run_watch(self,files,steady=True,wifi=True):
+  calls=[];ticks=iter(range(10**6));seq=iter(files)
+  def call(endpoint,payload):calls.append(payload['action']);return {'id':'w1'} if payload['action']=='warm' else {}
+  def wait(_):
+   try:self.now=next(seq);return False
+   except StopIteration:return True
+  clock=lambda:next(ticks)*3
+  with patch.object(remote,'_call',call):
+   remote.watch(self.home,lambda:self.now,lambda:steady,lambda:wifi,wait,clock=clock)
+  return calls
+ def test_watch_warms_once_after_steady_play_and_releases_on_stop(self):
+  src='https://media.example/episode.mkv|User-Agent=x'
+  self.assertEqual(self.run_watch([src]*8+['']),['warm','cool'])
+  self.assertEqual(self.run_watch([src]*8+[src]*5),['warm'])   # a pause or more playing keeps it, warmed once
+ def test_watch_reads_nothing_on_cellular_buffering_or_local_links(self):
+  src='https://media.example/episode.mkv'
+  self.assertEqual(self.run_watch([src]*8+[''],wifi=False),[])
+  self.assertEqual(self.run_watch([src]*8+[''],steady=False),[])
+  self.assertEqual(self.run_watch(['http://127.0.0.1:5000/a.mkv']*8+['']),[])
+  self.assertEqual(self.run_watch(['https://media.example/a.m3u8']*8),[])
+ def test_service_warms_only_with_a_converting_framework_on_wifi(self):
+  text=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
+  self.assertIn("if airplay.converts(playback_lib):",text);self.assertIn("cache_tune.link_kind()=='wifi'",text)
+  self.assertIn('target=remote_media.watch',text)
 class Controller(Broker):
  def test_airplay_controller_passes_the_cached_source_and_releases_it(self):
   import importlib.util,types

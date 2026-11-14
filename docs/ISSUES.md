@@ -3746,3 +3746,20 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Retest:** test_slowdown `TVShortOfTheMovie`.
 - **Phone check:** the same movie on the Apple TV, and the log's TV GET times. If segments still take more than about 6 s
   with nothing else running (try Pause on transfers), the Wi-Fi between the phone and the TV is the limit.
+
+## ISSUE-259 — Play on TV opened the source and read its index only when tapped (owner: "faster start", item 7) — fixed in code
+
+- **Seen (ISSUE-253, log a176bcec):** Play on TV spent about 6 s opening an Umbrella or AllDebrid source and reading its index
+  before the first segment could start, although Kodi had been playing that same file.
+- **Fix:**
+  - While Kodi plays a remote file (an http(s) link, not local, not Drive through the app proxy, not HLS), the service's
+    `remote_media.watch` waits for 8 s of steady play on Wi-Fi. It then asks the media broker to warm that file once:
+    it reads the first two 4 MiB blocks and the last block (the start, and Matroska's or MP4's index).
+  - Play on TV's `acquire` then takes the warm source with its blocks (`warmed` in the source_cache event).
+  - Stopping or changing the video releases a warm source no TV took. A TV playing from the cache is never disturbed
+    (`busy`).
+  - Nothing is read on cellular or while Kodi buffers.
+- **Not done:** a second conversion lane for 10-bit H.264 (native; needs a KodiAirPlay release). The audio reader re-reading
+  an MP4 source's interleaved bytes is also open (ISSUE-261).
+- **Retest:** test_remote_media `Warm` (5 tests). Phone check: the log says "the playing video is ready for the TV", and the
+  next Play on TV's source_cache event has warmed=true and a shorter "indexed inspection finished after".
