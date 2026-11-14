@@ -502,7 +502,24 @@ class LearnedPieceSize(unittest.TestCase):
    with self.assertRaises(RuntimeError):
     sink=dp.Sink(failing,'p','x',lambda:True);t=dict(url='u',offset=0,buffer=bytearray(b'a'*(40*1024*1024)),md5=None,name='x',chunk=1,track=0)
     sink._send_parts(t,len(t['buffer']),False,attempts=1,sleep=lambda s:None)
-   self.assertEqual(dp.learned_piece(dp.MAIN_CHUNK),0)      # a failed piece forgets it
+   self.assertEqual(dp.learned_piece(dp.MAIN_CHUNK),8*1024*1024)   # ISSUE-240: a dropped piece halves it, not 1 MB
+  dp.learn_piece(0)
+ def test_a_dropped_connection_halves_the_piece_and_it_grows_back(self):
+  # ISSUE-240: drops used to send every piece back to 1 MB.
+  class D:
+   def __init__(s,drops):s.got=0;s.sizes=[];s.drops=list(drops);s.n=0
+   def call(s,method,url,body=b'',headers=None):
+    if headers['Content-Range'].startswith('bytes */'):return 308,({'Range':'bytes=0-%d'%(s.got-1)} if s.got else {}),b''
+    s.n+=1
+    if s.n in s.drops:raise ConnectionError('The network connection was lost (-1005)')
+    s.sizes.append(len(body));s.got+=len(body);return 308,{'Range':'bytes=0-%d'%(s.got-1)},b''
+  MB=1024*1024
+  with patch.object(dp,'_link_kind',lambda:'wifi'):
+   dp.learn_piece(16*MB)
+   drive=D(drops=[2]);self.run_file(drive,2)
+   self.assertEqual(drive.sizes[:2],[16*MB,8*MB])             # one drop: half, not 1 MB
+   self.assertEqual(max(drive.sizes),16*MB)                   # grows back after fast pieces
+   self.assertGreaterEqual(dp.learned_piece(dp.MAIN_CHUNK),8*MB)
   dp.learn_piece(0)
  def test_a_change_of_link_forgets_it_and_sidecars_do_not_use_it(self):
   kind={'now':'wifi'}

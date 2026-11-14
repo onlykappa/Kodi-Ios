@@ -418,8 +418,11 @@ class Sink:
             if status != 308:
                 # Lost answer or a Drive hiccup: ask how far it got, then carry on from there.
                 failures+=1
-                chunks.observe(max(1,len(body)),0,max(6,elapsed))
-                if t.get('track',0)==0:learn_piece(0)
+                # ISSUE-240 (owner log 47e2276a: ~1.3 MB/s while Drive dropped the connection 7 times, each drop sending
+                # the pieces back to 1 MB and forgetting the line): a dropped piece halves the piece size once, and the
+                # next file starts at the halved size; three fast pieces double it again. Only repeated drops reach 1 MB.
+                chunks.current=max(chunks.minimum,(chunks.current//2)//(256*1024)*(256*1024));chunks.fast=0
+                if t.get('track',0)==0:learn_piece(chunks.current)
                 sleep(min(30, 2 ** (failures-1)))
                 try:status, headers, answer = self.drive.call('PUT', t['url'], b'', {'Content-Range':'bytes */%s' % (str(target) if final else '*')})
                 except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):continue
