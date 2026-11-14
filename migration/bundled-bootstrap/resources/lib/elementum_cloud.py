@@ -171,6 +171,8 @@ def route(url,quiet=False,request_id=None):
                                  quality=((auto or {}).get('profile') or {}).get('quality') if (auto or {}).get('profile',{}).get('strict_quality') and not (auto or {}).get('_fallback')
                                  and not debrid_drive.fallback_known(profile, tracked.get('tmdb'), choice.get('season') or tracked.get('season'),
                                                                      ((auto or {}).get('profile') or {}).get('quality')) else '')
+        if (auto or {}).get('_pick_name') and job.get('pick_name') != auto['_pick_name']:
+            debrid_drive.set_pick_name(profile, job, auto['_pick_name'])
         if auto is not None and auto.get('_fallback') and (auto.get('profile') or {}).get('quality'):
             debrid_drive.remember_fallback(profile, tracked.get('tmdb'), choice.get('season') or tracked.get('season'), auto['profile']['quality'])
             # ISSUE-236: the owner chose a quality nothing has; the best that exists was taken, and they are told once.
@@ -294,6 +296,7 @@ def auto_season(window, now=None, choice=None, request_id=None):
                     reasons.append(why)
                     continue
                 wanted['_fallback'] = bool(selected.get('fallback'))   # ISSUE-236: nothing was really the chosen quality
+                wanted['_pick_name'] = str(selected.get('name') or '')  # ISSUE-264: the version's name in the list
             return wanted
         except Exception:
             continue

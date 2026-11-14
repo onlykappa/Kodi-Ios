@@ -718,6 +718,27 @@ def drive_episodes(profile):
     return found
 
 
+def set_pick_name(profile, job, name):
+    """ISSUE-264: keep the name the version had in the list on its job (the job's own name is often the info-hash), so a
+    refusal can be matched to that version, and to its pack, next time."""
+    state = load(profile)
+    for other in state.get('jobs', []):
+        if other.get('hash') == job.get('hash') and str(other.get('episode')) == str(job.get('episode')) and str(other.get('season')) == str(job.get('season')):
+            other['pick_name'] = name
+    job['pick_name'] = name
+    save(profile, state)
+
+
+def pack_root(name):
+    """The part of a version's name every episode of its pack shares: up to its first number of two or more digits after
+    the start ("Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio) Season 02 (033-053)/Episode 033"
+    and ".../Episode 034" share the folder). Folder paths: the folders."""
+    text = str(name or '')
+    if '/' in text:
+        return text.rsplit('/', 1)[0].strip().casefold()
+    return text.strip().casefold()
+
+
 def avoid_names(state, tmdb, season, episode):
     """(excluded, lower): names of this episode's versions that failed (a dead torrent, "File not available due to no
     peer", a broken file: never picked again) and that a copy found lower than the quality chosen (ISSUE-236: only when
@@ -727,7 +748,14 @@ def avoid_names(state, tmdb, season, episode):
     excluded = [j['name'] for j in mine if j.get('status') == 'failed' and 'cancel' not in str(j.get('error', '')).lower()
                 and not j.get('low_quality')][-20:]
     lower = [j['name'] for j in mine if j.get('low_quality')][-20:]
-    return excluded, lower
+    # ISSUE-264 (owner screenshot and log bd7af2c1, build 415): a "1080p" complete-series pack whose season 2 is 640x480 was
+    # refused for S2E33, then picked again for E34, E35 … (Repair looped). A refusal now counts for the whole season: every
+    # version of the same pack (its shared folder) is "lower" for the season's other episodes, under its list name too.
+    season_refused = [j for j in state.get('jobs', []) if j.get('low_quality') and str(j.get('show_tmdb') or '') == str(tmdb or '')
+                      and str(tmdb or '') and str(j.get('season')) == str(season)]
+    lower += [j['pick_name'] for j in season_refused if j.get('pick_name')]
+    lower += ['pack:' + pack_root(j['pick_name']) for j in season_refused if j.get('pick_name')]
+    return excluded, list(dict.fromkeys(lower))[-60:]
 
 
 def drop_on_drive(state, on_drive, keep=lambda job: False):

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quality choice mockups</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt,
+     tokens from portrait.py / pages.py (§4.3), the style of ai-upscale-settings-mockups.html. -->
+<style>
+:root{--bg:#000;--s1:#1c1c1e;--s2:#2c2c2e;--grey:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);--sep:rgba(235,235,245,.16);
+ --blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a;--purple:#bf5af2}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro{max-width:1180px;margin:0 auto 10px}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:880px;margin-bottom:8px}
+.board{max-width:1180px;margin:30px auto 0;padding-top:16px;border-top:1px solid #26272b}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board>p{color:var(--grey);font-size:14px;line-height:1.5;max-width:880px;margin-bottom:16px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.4;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:44px 14px 16px;font-size:14px}
+.nb{color:var(--blue-text);font-size:15px;font-weight:600;margin-bottom:4px}
+.ps h3{font-size:30px;font-weight:800;margin-bottom:12px;letter-spacing:-.01em}
+.sh{color:var(--grey);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:14px 6px 6px}
+.grp{background:var(--s1);border-radius:12px;overflow:hidden}
+.pr{position:relative;display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 12px}
+.pr+.pr::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.pr .t{flex:1;min-width:0}.pr .t b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .t span{display:block;color:var(--grey);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .v{color:var(--grey);font-size:14px;white-space:nowrap}
+.go{color:var(--dim);font-size:17px;font-weight:600}
+.ico{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:15px}
+.tile{width:30px;height:44px;border-radius:5px;flex:none}
+.toggle{flex:none;width:46px;height:28px;border-radius:14px;background:#39393d;position:relative}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:#fff}
+.toggle.on{background:var(--green)}.toggle.on::after{left:20px}
+.foot{color:var(--grey);font-size:12px;margin:6px 6px 0;line-height:1.35}
+.thin{height:4px;border-radius:2px;background:rgba(235,235,245,.2);overflow:hidden;margin-top:6px}.thin i{display:block;height:100%;background:var(--blue)}
+.chip{font-size:11px;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap}
+.chip.g{background:rgba(48,209,88,.18);color:var(--green)}.chip.b{background:rgba(10,132,255,.2);color:var(--blue-text)}
+.chip.n{background:rgba(235,235,245,.12);color:var(--grey)}
+.status{background:var(--s1);border-radius:12px;padding:12px;display:flex;gap:12px;align-items:center}
+.status .t b{font-size:15px}.status .t span{color:var(--grey);font-size:12.5px;display:block;margin-top:2px}
+.seg{display:flex;background:var(--s2);border-radius:9px;padding:2px;margin:0 0 8px}
+.seg div{flex:1;text-align:center;padding:6px 0;border-radius:7px;font-size:13px;font-weight:600;color:var(--grey)}.seg div.on{background:#636366;color:#fff}
+.btn{margin-top:12px;height:46px;border-radius:23px;background:#fff;color:#000;display:grid;place-items:center;font-weight:700;font-size:15.5px}
+.red{color:var(--red);text-align:center;font-weight:600;font-size:15px;margin-top:12px}
+.hero{display:flex;gap:12px;align-items:center;margin-bottom:6px}
+.hero i{width:58px;height:84px;border-radius:7px;flex:none}
+.hero b{display:block;font-size:22px;font-weight:800}.hero span{color:var(--grey);font-size:13px}
+.slider{background:var(--s1);border-radius:12px;padding:12px}
+.slider .row{display:flex;justify-content:space-between;align-items:baseline}.slider .row b{font-size:15px}.slider .row span{color:var(--blue-text);font-weight:700}
+.track{position:relative;height:4px;background:rgba(235,235,245,.25);border-radius:2px;margin:16px 6px 8px}
+.track i{position:absolute;left:0;top:0;bottom:0;width:100%;background:var(--blue);border-radius:2px}
+.track em{position:absolute;top:-10px;right:-12px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--grey)}.ticks .on{color:#fff;font-weight:700}
+.notes{max-width:1180px;margin:30px auto 0;color:#b4b4ba;font-size:14px;line-height:1.55}.notes h3{color:#fff;font-size:16px;margin:16px 0 6px}.notes li{margin:3px 0 3px 18px}
+</style><style>
+.sheetwrap{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--s2);border-radius:22px 22px 0 0;padding:16px 14px 18px}
+.sheet .grab{width:36px;height:5px;border-radius:3px;background:rgba(235,235,245,.3);margin:0 auto 12px}
+.sheet h4{text-align:center;font-size:16.5px;font-weight:700}
+.sheet .why{text-align:center;color:var(--grey);font-size:12.5px;line-height:1.4;margin:6px 8px 12px}
+.srow{display:flex;gap:11px;align-items:center;padding:10px 4px;position:relative}
+.srow+.srow::before{content:"";position:absolute;top:0;left:46px;right:0;height:1px;background:var(--sep)}
+.srow .ico{width:32px;height:32px}
+.srow .t{flex:1;min-width:0}.srow .t b{display:block;font-size:15px;font-weight:600}
+.srow .t span{display:block;color:var(--grey);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cancel{margin-top:10px;height:46px;border-radius:23px;background:var(--s1);display:grid;place-items:center;font-weight:600;font-size:15px}
+.nrow{position:relative;display:flex;gap:11px;padding:11px 12px;align-items:flex-start}
+.nrow+.nrow::before{content:"";position:absolute;top:0;left:56px;right:0;height:1px;background:var(--sep)}
+.nrow .dot{width:7px;height:7px;border-radius:50%;background:var(--blue);margin-top:12px;flex:none}
+.nrow .t{flex:1;min-width:0}.nrow .t b{display:block;font-size:14.5px;font-weight:700}
+.nrow .t span{display:block;color:var(--grey);font-size:12.5px;line-height:1.35;margin-top:3px}
+.nrow .tm{color:var(--grey);font-size:12px}
+.vrow{display:flex;gap:10px;align-items:center;padding:10px 12px;position:relative}
+.vrow+.vrow::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.vrow .t{flex:1;min-width:0}.vrow .t b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vrow .t span{display:block;color:var(--grey);font-size:12px;margin-top:3px}
+.chip.o{background:rgba(255,159,10,.18);color:var(--orange)}.chip.r{background:rgba(255,69,58,.18);color:var(--red)}
+.card{background:var(--s1);border-radius:14px;padding:12px;display:flex;gap:12px;align-items:center}
+.card .t{flex:1;min-width:0}.card .t b{display:block;font-size:15px;font-weight:700}.card .t span{display:block;color:var(--grey);font-size:12.5px;margin-top:2px;line-height:1.35}
+.pill{flex:none;border-radius:16px;padding:7px 13px;font-size:13px;font-weight:700;background:var(--s2);color:var(--blue-text)}
+.post2{width:40px;height:58px;border-radius:6px;flex:none;background:linear-gradient(160deg,#e8873a,#5b7fb8)}
+</style></head><body>
+<div class="intro"><span class="mk">MOCKUP · not a render of Kodi</span>
+<h1>When the quality you chose does not exist</h1>
+<p>Owner (2026-11-14, build 415): Repair kept queueing a "1080p" Naruto Shippuden pack whose season 2 is really 640×480; each
+copy was refused and searched again, and Notifications filled with "Repair" and "Not the quality you picked".
+"Notify me saying hey this isn't the quality you asked and the best one is xxxx, do you approve or would you like this one
+instead." These boards replace the loop with one question per season.</p>
+<p>Reuses: the Notifications list (notifications_skin), the choice sheet (choice_sheet: heading, reason line, rows with a
+glyph tile and a grey detail line, Cancel), the show page card and its capsule (DEC-047), colour tokens §4.3. No new
+colour, font size, radius or button style.</p></div>
+
+<div class="board"><div class="n">BOARD A</div><h2>One notice per season, not one per episode</h2>
+<p>The first refused copy of a season stops that season's automatic searches and posts one notice. No more "Repair:
+looking up … again" / "Not the quality you picked" pairs for every episode. Tapping it opens board B.</p>
+<div class="shots"><div class="slot"><div class="pframe"><div class="ps">
+<div class="nb">‹</div><h3>Notifications</h3>
+<div class="seg"><div class="on">All</div><div>General</div><div>Downloads</div><div>Problems</div></div>
+<div class="grp">
+ <div class="nrow"><i class="dot"></i><div class="ico" style="background:rgba(255,159,10,.2);color:var(--orange)">!</div>
+  <div class="t"><b>No real 1080p for season 2</b><span>Naruto Shippuden · the best is 480p (Netflix). Tap to choose.</span></div><span class="tm">now</span></div>
+ <div class="nrow"><i class="dot" style="background:transparent"></i><div class="ico" style="background:var(--s2)">🔔</div>
+  <div class="t"><b>Repair</b><span>Naruto Shippuden S01E06 is downloading · 480p</span></div><span class="tm">2m</span></div>
+</div></div></div>
+<p class="cap"><b>Orange</b> warning tile (a choice is waiting, nothing failed). Body names the best that exists.</p></div></div></div>
+
+<div class="board"><div class="n">BOARD B</div><h2>The question (choice sheet)</h2>
+<p>Opened from the notice, from Download problems, or from the show page (board D). It says what was asked, what was
+found, and what the best real version is. One tap answers for the whole season.</p>
+<div class="shots"><div class="slot"><div class="pframe"><div class="ps">
+<div class="nb">‹</div><h3>Naruto Shippuden</h3>
+<div class="sheetwrap"></div>
+<div class="sheet"><div class="grab"></div>
+ <h4>Season 2 isn't in real 1080p</h4>
+ <p class="why">You chose 1080p. The "1080p" complete-series pack is really 640×480 for these episodes. The best real version is 480p.</p>
+ <div class="srow"><div class="ico" style="background:var(--blue)">✓</div><div class="t"><b>Use the Best · 480p</b><span>Netflix WEB-DL · 21 episodes · about 3.8 GB</span></div><span class="go">›</span></div>
+ <div class="srow"><div class="ico" style="background:#636366">≡</div><div class="t"><b>Choose Another Version</b><span>Every version, with its real picture size</span></div><span class="go">›</span></div>
+ <div class="srow"><div class="ico" style="background:#636366">↻</div><div class="t"><b>Keep Looking for 1080p</b><span>Checks again each day · nothing downloads</span></div><span class="go">›</span></div>
+ <div class="srow"><div class="ico" style="background:#636366">★</div><div class="t"><b>Always Use the Best for This Show</b><span>Later seasons don't ask</span></div><span class="go">›</span></div>
+ <div class="cancel">Cancel</div>
+</div></div></div>
+<p class="cap"><b>Use the Best</b> queues every missing episode of the season at that version (Upscale can be asked for later
+from the show page). <b>Cancel</b> leaves the question in Download problems.</p></div></div></div>
+
+<div class="board"><div class="n">BOARD C</div><h2>Choose Another Version</h2>
+<p>The season's versions, best first, each with what it claims and what a copy found. Tapping one uses it for the season.
+A version found lower than its name says is marked, never hidden, so the owner can still pick it.</p>
+<div class="shots"><div class="slot"><div class="pframe"><div class="ps">
+<div class="nb">‹ Season 2</div><h3>Versions</h3>
+<div class="sh">Real picture size</div>
+<div class="grp">
+ <div class="vrow"><div class="t"><b>Naruto.Shippuden.S02.480p.NF.WEB-DL</b><span>21 episodes · 180 MB each · 1 seed</span></div><span class="chip n">480p</span></div>
+ <div class="vrow"><div class="t"><b>Naruto Shippuden 1-79 HD [960p]</b><span>21 episodes · 300 MB each · 9 seeds</span></div><span class="chip n">720p</span></div>
+ <div class="vrow"><div class="t"><b>Naruto Shippuden (001-500) Complete Series</b><span>Says 1080p · a copy found 640×480</span></div><span class="chip o">640×480</span></div>
+ <div class="vrow"><div class="t"><b>[uP] Naruto Shippuden Vol.05 BDRip</b><span>Episodes 33-45 only · 800 MB each · 2 seeds</span></div><span class="chip n">1080p</span></div>
+</div>
+<p class="foot">Sizes a copy has checked are shown as numbers; the others are what the name says.</p>
+</div></div>
+<p class="cap">Rows reuse the Download problems row (title, grey line, chip). A version covering part of the season says so.</p></div></div></div>
+
+<div class="board"><div class="n">BOARD D</div><h2>The show page while a choice waits</h2>
+<p>The season's card says it is waiting for the owner instead of "Looking for 1080p…" forever. The capsule opens board B.</p>
+<div class="shots"><div class="slot"><div class="pframe"><div class="ps">
+<div class="nb">‹</div><div class="hero"><i style="background:linear-gradient(160deg,#e8873a,#5b7fb8)"></i><div><b>Naruto Shippuden</b><span>Season 1 ready · Season 2 waiting</span></div></div>
+<div class="sh">Season 2</div>
+<div class="card"><div class="post2"></div><div class="t"><b>Waiting for your choice</b><span>No real 1080p · best is 480p · 21 episodes</span></div><span class="pill">Choose</span></div>
+</div></div>
+<p class="cap">Same card and capsule as DEC-047's show page.</p></div></div></div>
+
+<div class="notes"><h3>Behaviour behind the boards (already in code where marked)</h3><ul>
+<li>Done (ISSUE-264): a refused copy counts for the whole season's pack, so Repair no longer picks it again as "1080p".</li>
+<li>Until these boards are approved, the app takes the best real version automatically (owner, earlier: "select highest quality available").</li>
+<li>After approval: the first refusal or a fallback in a season asks (board A/B) instead of downloading; the answer is kept per season (and per show with "Always").</li>
+</ul></div>
+</body></html>

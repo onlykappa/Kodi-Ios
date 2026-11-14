@@ -3794,3 +3794,25 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
     notice (ISSUE-236), and leaves out dead torrents (ISSUE-244). ISSUE-258 then remembers that season.
   - Movies and downloads with no show keep the manual search. `problems()` now carries `show_tmdb`.
 - **Retest:** test_season_quality `FindTakesTheBestVersion`.
+
+## ISSUE-264 — Repair looped on a "1080p" pack whose season 2 is 640x480 (owner screenshot and log bd7af2c1, build 415) — loop fixed in code; approval question in mockup
+
+- **Seen:** Notifications full of "Repair: looking up Naruto Shippuuden S02E38 again at 1080p", "S02E38 is downloading ·
+  1080p", "Not the quality you picked: 640x480, you chose 1080p". The log shows "repair: S02E33 … S02E47 queued (1080p)" and
+  matching refusals.
+- **Cause:**
+  - ISSUE-262 made the pack's episodes findable, and Repair picked "Naruto Shippuden (001-500) [Complete Series + Movies
+    (1080p)]" for each episode. Its season 2 files are 640x480, so each copy was refused.
+  - The refusal was remembered only for that episode and only under the job's name. That name was the info-hash, while
+    the list shows the version by its folder and file name. So E34 picked the same pack again, as real 1080p (no fallback
+    flag), and was refused again.
+- **Fix:**
+  - The job keeps the name the version had in the list (`pick_name`, from the automatic pick's result).
+  - `avoid_names` counts a refusal for the whole season, by that name and by its pack folder (`pack:<folder>`).
+  - `deck_picker.is_lower` matches either.
+  - The season's next episode therefore takes a real 1080p if one exists, otherwise the best that exists as a fallback.
+    The copy is then not refused, and ISSUE-258 remembers the season.
+- **Owner's request, mockup only (not coded):** docs/design/quality-choice-mockups.html. It shows one notice per season, a
+  choice sheet ("Use the Best · 480p / Choose Another Version / Keep Looking / Always Use the Best for This Show"), a
+  versions list with each version's real picture size, and the show page's waiting card. It waits for approval.
+- **Retest:** test_season_quality `RefusedPackForTheSeason`.

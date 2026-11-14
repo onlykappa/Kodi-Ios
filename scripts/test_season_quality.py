@@ -269,5 +269,23 @@ class FindTakesTheBestVersion(unittest.TestCase):
         self.assertEqual(debrid_drive.problems(state)[0]['show_tmdb'], '31910')
 
 
+class RefusedPackForTheSeason(unittest.TestCase):
+    """ISSUE-264 (owner screenshot and log bd7af2c1, build 415): Repair looped on a "1080p" pack whose season 2 is 640x480."""
+    FOLDER = 'Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio) Season 02 (033-053)/'
+    def test_a_refusal_counts_for_the_seasons_other_episodes_of_that_pack(self):
+        e33 = self.FOLDER + 'Naruto Shippuden Episode 033 The New Target.mkv'
+        state = {'jobs': [{'show_tmdb': '31910', 'season': '2', 'episode': '33', 'name': 'ee34425d' * 5, 'status': 'failed',
+                           'low_quality': True, 'pick_name': e33}]}
+        _, lower = debrid_drive.avoid_names(state, '31910', 2, 34)
+        e34 = item(self.FOLDER + 'Naruto Shippuden Episode 034 Formation.mkv', 0.26, seeds=232)
+        sd = item('Naruto.Shippuden.S02E34.480p.NF.WEB-DL.AAC2.0.H.264.mkv', 0.18, quality='480p', seeds=1)
+        best = dp.auto_choose([e34, sd], {'quality': '1080p', 'strict_quality': True, 'runtime': 23, 'lower_names': lower})
+        self.assertTrue(best['fallback'])                                # never the refused pack as "1080p" again
+        self.assertEqual(best['name'], sd['name'])
+        self.assertEqual(debrid_drive.avoid_names(state, '31910', 3, 1)[1], [])     # another season: not affected
+        cloud = (LIB / 'elementum_cloud.py').read_text()
+        self.assertIn("wanted['_pick_name']", cloud);self.assertIn('debrid_drive.set_pick_name(profile, job', cloud)
+
+
 if __name__ == '__main__':
     unittest.main()

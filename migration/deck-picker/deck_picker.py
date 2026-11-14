@@ -858,6 +858,18 @@ def below_quality(item, quality, minutes=0):
     return u''
 
 
+def _pack_root(name):
+    """debrid_drive.pack_root: what every episode of a pack shares (its folders)."""
+    text = _s(name)
+    return (text.rsplit(u'/', 1)[0] if u'/' in text else text).strip().casefold()
+
+
+def is_lower(item, lower):
+    """ISSUE-264: a version a copy found lower than chosen, by its list name or by its pack (a refusal counts for the
+    season's other episodes of the same pack)."""
+    return item['name'] in lower or (u'pack:' + _pack_root(item['name'])) in lower
+
+
 def auto_choose(kept, want):
     """The version closest to the first pick: its quality (else the nearest lower, then higher), its HDR kind and
     codec, never AV1 when avoidable, seeds, then the size nearest the first pick's. None when nothing has seeds."""
@@ -866,7 +878,7 @@ def auto_choose(kept, want):
     if want.get('strict_quality'):
         minutes_ = int(want.get('runtime') or 0)
         real = [p for p in kept if p['quality'] == want.get('quality') and not is_bad(p)
-                and not below_quality(p, want.get('quality'), minutes_) and p['name'] not in lower]
+                and not below_quality(p, want.get('quality'), minutes_) and not is_lower(p, lower)]
         if real:
             kept = real
         else:
@@ -894,7 +906,7 @@ def auto_choose(kept, want):
         # ISSUE-237: in a fallback, a version that only claims the quality (an uploader's upscale, an SD name, far too
         # small) comes after every real one: it is the lower quality, many times larger.
         fake = fallback and bool(below_quality(it, it['quality'], minutes))
-        return (is_bad(it), it['seeds'] <= 0, it['name'] in lower, fake, bool(WHOLE_SERIES.search(_s(it.get('name')))), bool(it.get('multi')), distance,
+        return (is_bad(it), it['seeds'] <= 0, is_lower(it, lower), fake, bool(WHOLE_SERIES.search(_s(it.get('name')))), bool(it.get('multi')), distance,
                 hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
                 slow_to_prepare(it), converts_for_tv(it), too_heavy(it), prep_cost(it), size_fit(it, minutes), seed_bucket(it),
                 SOURCE_RANK.get(source_type(it), 3), abs(it['size'] - size) if size else -size_step(it), -it['seeds'])
