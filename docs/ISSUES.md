@@ -4559,3 +4559,27 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Validation failure retained:** initial combined checks found stale fallback mocks expecting size alone, a brittle source-text assertion, and a real regression in changed-file rejection when only `blocks.sizes` knew the prior total. Restored that identity check; renewed-file regression suite passes. Updated the old readiness fixtures to assert actual completed readiness.
 - **Regression protection:** real socket stalled-body/native-buffered/next-playback/resume tests, range-integrity and resource-cleanup tests, native redirect/deadline tests; added the new suites to the IPA workflow. Final counts and artifact follow in [UMBRELLA-473-PROGRESS.md](UMBRELLA-473-PROGRESS.md).
 - **Limits:** all-probe admission can deliberately fall back on a valid slow provider. Five seconds bounds the cache attempt, not total playback time; direct Kodi/provider throughput remains independent. Host tests cannot prove a fix on the owner's iPhone. Owner authorized a testing IPA on 2026-11-14; no merge requested.
+
+## ISSUE-304 — Favourites import glued an unnumbered line onto the line before it (owner, PR #29 review, 2026-11-14) — fixed in code
+
+- **Seen:** in a numbered list, "‼️ Attack on Titan" (no number) merged into "Naruto Shippuden", giving one entry
+  "Naruto Shippuden Attack on Titan". The numbered-list reader joined every line before splitting at the numbers, so a
+  title without a number vanished into its neighbour.
+- **Owner's real list** (56 lines: numbers, ✅ ‼️ 🎥 markers, "(3)" watch counts, "(STARTED)", "//" splits, "RYANNE"
+  notes) is now the test's sample.
+- **Fix (`favourites_import._lines`):** a line without a number is its own entry. It rejoins the line before only when it
+  is plainly the tail of a wrapped title: it starts in lower case or with a bracket and the line before ends in a letter
+  or digit (no tick or marker). Whatever precedes number 1 (the list's key or legend) is still dropped. A paste with no
+  line breaks still splits at each number.
+- **Test:** test_favourites_import `OwnersList` (the real list reads one title per number; an unnumbered line is its own
+  entry, with or without markers; a wrapped tail rejoins).
+
+## ISSUE-305 — PR #29 merged into build442: Favourites list import and the anticipated-episodes bell (DEC-053)
+
+- **What:** PR #29's branch (claude/modest-hopper-8z5ar8, features coded 2026-11-14, owner-approved mockups G–J) is merged
+  into this branch. Conflicts: default.py's page list keeps both lists and drops `activity_page` (ISSUE-287);
+  check_project's mockup list, DECISIONS.md and PROGRESS.md keep both. Its decision, which used DEC-047 (taken by the show
+  page here), is DEC-053.
+- **Host tests:** test_favourites_import, test_favourites_flow, test_anticipated_bell; the full list passes.
+- **Gaps against the approved mockups (from the review), handled in the next entries:** the bell sheet (G3), the import
+  report, J3.

@@ -796,6 +796,12 @@ def profiles_page(p):
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9601</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
 
+def rank_badge(p,prop,x,y,tag):
+ """A small dark pill on a poster: the imported list's rank ("#3") or watch count ("3x"). Drawn only while the property is set.
+ A flat translucent chip (a Kodi-drawn surface, not glass): at least 70 % black so it reads over any artwork."""
+ return ('<control type="group"><left>%d</left><top>%d</top><visible>!String.IsEmpty(Window().Property(%s))</visible>'%(x,y,prop[len('Window().Property('):-1])+
+  p.surface(0,0,104,48,'pill_96.png','B3000000',24)+p.label(0,0,104,48,'$INFO[%s]'%prop,'p_foot_b',p.WHITE,'center')+'</control>')
+
 def favourite_cell(p,n,x,y,cw,ch):
  """Poster n (shown while its title is set): the Movies grid's poster card and art, its title under it, and in Edit mode a
  red remove badge on the favourites Favourites.AddFavourite can remove. Button 9700+n opens it (or removes it in Edit)."""
@@ -809,6 +815,7 @@ def favourite_cell(p,n,x,y,cw,ch):
   p.image(0,0,cw,ch,p.MEDIA+'white.png',p.SURFACE,'','',p.MEDIA+'poster_mask.png')+
   p.image(0,0,cw,ch,'$INFO[%s]'%flag('thumb'),p.WHITE,'','>scale',p.MEDIA+'poster_mask.png',background=True)+
   p.label(0,ch+14,cw,cap-14,'$INFO[%s]'%flag('title'),'p_foot_b',p.WHITE,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+
+  rank_badge(p,flag('rank'),12,12,'top')+rank_badge(p,flag('watched'),12,ch-60,'bottom')+
   '<control type="group"><left>%d</left><top>14</top><visible>%s</visible>'%(cw-70,badge)+
   p.image(0,0,56,56,p.MEDIA+'avatar_s.png',RED)+p.image(2,2,52,52,p.MEDIA+'close_cross.png',p.WHITE)+'</control></control></control>')
 
@@ -821,10 +828,11 @@ def favourites_page(p):
    p.WIDTH,row_h,3*r+1,''.join(favourite_cell(p,3*r+c+1,p.SIDE+c*(cw+p.GAP),0,cw,ch) for c in range(cols)))
    for r in range(favourites_rows.MAX//cols))
  # DEC-045 board F1: the star in a yellow-tinted disc, what is empty, and how to add one (policy §6).
- empty=('<control type="group"><width>%d</width><height>560</height><visible>String.IsEmpty(Window().Property(count)) | String.IsEqual(Window().Property(count),0)</visible>'%p.WIDTH+
+ empty=('<control type="group"><width>%d</width><height>760</height><visible>String.IsEmpty(Window().Property(count)) | String.IsEqual(Window().Property(count),0)</visible>'%p.WIDTH+
   p.image(p.WIDTH//2-86,180,172,172,p.MEDIA+'avatar_s.png','29FFD60A')+p.icon(p.WIDTH//2-66,200,132,'star.png','FFFFD60A')+
   p.label(p.SIDE,390,w,70,favourites_rows.EMPTY,'p_h3',p.WHITE,'center')+
-  p.label(p.SIDE+60,470,w-120,60,favourites_rows.EMPTY_LINE,'p_foot',p.GREY,'center','<wrapmultiline>true</wrapmultiline>')+'</control>')
+  p.label(p.SIDE+60,470,w-120,100,favourites_rows.EMPTY_LINE,'p_foot',p.GREY,'center','<wrapmultiline>true</wrapmultiline>')+
+  p.pill_button(9032,p.SIDE+90,600,w-180,124,'Import a List',[],'primary','')+'</control>')
  none=('<control type="group"><width>%d</width><height>160</height><visible>!String.IsEmpty(Window().Property(none))</visible>'%p.WIDTH+
   p.label(p.SIDE,40,w,60,'$INFO[Window().Property(none)]','p_foot',p.GREY,'center')+'</control>')
  import importlib.util as _u,os as _os
@@ -832,10 +840,17 @@ def favourites_page(p):
  ns=_u.module_from_spec(_sp);_sp.loader.exec_module(ns)
  chips=('<control type="group"><width>%d</width><height>130</height><visible>!String.IsEmpty(Window().Property(chips))</visible>'%p.WIDTH+
   ns.segmented(p,favourites_rows.FILTERS,y=0,base=9020)+'</control>')
+ tool=('<control type="group"><width>%d</width><height>130</height><visible>!String.IsEmpty(Window().Property(chips))</visible>'%p.WIDTH+
+  '<control type="button" id="9030"><left>%d</left><top>6</top><width>420</width><height>118</height><label>Import a List</label>'
+  '<font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>left</align><aligny>center</aligny>'
+  '<texturefocus /><texturenofocus /></control>'%(p.SIDE,p.ACCENT,p.ACCENT)+
+  '<control type="button" id="9031"><left>%d</left><top>6</top><width>520</width><height>118</height><label>$INFO[Window().Property(sortlabel)]</label>'
+  '<font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny>'
+  '<texturefocus /><texturenofocus /></control>'%(p.WIDTH-p.SIDE-520,p.ACCENT,p.ACCENT)+'</control>')
  lst=('<control type="grouplist" id="9300"><left>0</left><top>200</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
       '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%p.WIDTH+
       p.label(p.SIDE,0,w,130,favourites_rows.TITLE,'p_large',p.WHITE,'left','<scroll>false</scroll>')+
-      spacer(14)+chips+rows+none+empty+spacer(160)+'</control>')
+      spacer(14)+chips+tool+rows+none+empty+spacer(160)+'</control>')
  has='!String.IsEmpty(Window().Property(fav.1.title))';editing='!String.IsEmpty(Window().Property(editing))'
  # Edit and Done are text buttons in the header's right corner, in the accent blue like Cancel and Done in the sheets.
  edit=('<control type="button" id="9010"><left>%d</left><top>36</top><width>240</width><height>108</height><label>Edit</label>'

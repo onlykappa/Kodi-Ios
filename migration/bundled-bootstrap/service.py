@@ -63,6 +63,9 @@ def run():
  if not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
   import episode_watch_runtime
   threading.Thread(target=episode_watch_runtime.run,args=(monitor,profile,setup_done.is_set),daemon=True).start()
+  # The show page's bell (anticipated.py): shows only for a show with an episode still to come.
+  import anticipated,source_match,xbmcgui
+  threading.Thread(target=anticipated.bell_service,args=(monitor,profile,xbmcgui.Window(10000),xbmc.getInfoLabel,source_match.tmdb_key),daemon=True).start()
   portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),kwargs={'ready':setup_done,'native_ui_started':_EARLY_UI_STARTED},daemon=True);portrait_thread.start()
  # Owner build-136 log: the tab bar answered ~8 s after launch, 2 s of it this fixed wait. Only setup waits now.
  if monitor.waitForAbort(2):return

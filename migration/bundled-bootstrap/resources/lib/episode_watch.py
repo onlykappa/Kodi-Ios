@@ -75,6 +75,37 @@ def register(profile,tmdb,title,season,episode,preference,now=None):
   return True
  return update(profile,change)
 
+def option(profile,tmdb,key):
+ """The show's bell switches: 'alert' (tell me when an episode comes out) and 'auto' (download it as well).
+ A show followed before the bell existed keeps downloading ('auto' true); alerts are only ever switched on from the bell."""
+ show=load(profile)['shows'].get(str(tmdb))
+ if not show:return False
+ return bool(show.get(key,key=='auto'))
+
+def set_option(profile,tmdb,title,key,value,floor=(1,1),preference=None,now=None):
+ """Switch 'alert' or 'auto' for one show. Turning either on starts following from now (floor = the first upcoming
+ episode), so nothing that already aired is alerted or downloaded behind the owner's back. With both off the show is no
+ longer followed, unless a season plan still waits on it."""
+ if key not in ('alert','auto'):return False
+ try:tmdb=str(int(tmdb))
+ except (ValueError,TypeError):return False
+ now=time.time() if now is None else now
+ def change(state):
+  show=state['shows'].get(tmdb)
+  if show is None:
+   if not value:return True
+   show=state['shows'].setdefault(tmdb,{'since':now,'floor':[int(floor[0]),int(floor[1])],'episodes':{},'last_check':0,
+                                       'tmdb':tmdb,'title':str(title or ''),'auto':False,'alert':False,'preference':{}})
+  was=bool(show.get(key,key=='auto'))
+  if value and not was:
+   show['since']=now;show['floor']=[int(floor[0]),int(floor[1])]
+  show[key]=bool(value)
+  if title:show['title']=str(title)
+  if key=='auto' and value and preference:show['preference']={k:preference[k] for k in ('quality','hdr','codec','source','size','strict_quality') if k in preference}
+  if not show.get('alert',False) and not show.get('auto',True) and not show.get('planned'):state['shows'].pop(tmdb,None)
+  return True
+ return update(profile,change)
+
 def plan_season(profile,tmdb,title,season,numbers,quality,now=None):
  """Explicit back-catalogue requests, separate from the date floor for following future releases. Owner log
  4e7b2fb2 (build 284, Naruto Shippuden): register() declined the show (it returns False rather than raising, e.g. for a
@@ -147,7 +178,7 @@ def seasons(details,show,today):
   if isinstance(n,int) and n>=show['floor'][0]:wanted.add(n)
  return sorted(wanted)[:4]
 
-def sweep(profile,get_show,get_season,existing,download,clock=time.time,keep_going=lambda:True,log=lambda *args,**kwargs:None):
+def sweep(profile,get_show,get_season,existing,download,clock=time.time,keep_going=lambda:True,log=lambda *args,**kwargs:None,notify=None,auto_allowed=True):
  """One bounded opening pass. Dependencies allow future release dates and restarts to be tested now."""
  now=clock();today=datetime.datetime.fromtimestamp(now,datetime.timezone.utc).date();started=now;attempted=queued=0
  shows=sorted(load(profile)['shows'].values(),key=lambda s:s.get('last_check',0))[:MAX_SHOWS]
@@ -176,6 +207,17 @@ def sweep(profile,get_show,get_season,existing,download,clock=time.time,keep_goi
     key='%d:%d'%(row['season_number'],row['episode_number'])
     # Queue success, rather than a selected source alone, owns the durable marker.
     prior=planned.get(key) or (show.get('episodes') or {}).get(key) or {}
+    # The bell's Alert switch: one notification per episode, whether or not it is also downloaded. A failed
+    # notification is tried again next time (the marker is written only after it was sent).
+    if show.get('alert') and notify and not (show.get('episodes') or {}).get(key,{}).get('alerted'):
+     try:sent=notify(show,row) is not False
+     except Exception as error:sent=False;log('alert_deferred',error=type(error).__name__)
+     if sent:
+      def alerted(state,key=key):
+       target=state['shows'].get(ident)
+       if target:target.setdefault('episodes',{}).setdefault(key,{})['alerted']=True
+      update(profile,alerted);log('episode_alerted',season=row['season_number'],episode=row['episode_number'])
+    if not show.get('auto',True) or not auto_allowed:continue   # alert-only (or downloads switched off): never searches, never touches Drive
     if prior.get('status') in ('owned','canceled'):continue
     owned=existing(show,row)
     if prior.get('status')=='queued' and owned!='failed':continue
@@ -188,7 +230,7 @@ def sweep(profile,get_show,get_season,existing,download,clock=time.time,keep_goi
     def record(state):
      target=state['shows'].get(ident)
      if target:
-      target.setdefault('episodes',{})[key]={'status':status,'checked':clock()}
+      target.setdefault('episodes',{}).setdefault(key,{}).update(status=status,checked=clock())
       if key in target.get('planned',{}):target['planned'][key].update(status=status,checked=clock())
     update(profile,record)
     log('episode_checked',status=status,season=row['season_number'],episode=row['episode_number'])
