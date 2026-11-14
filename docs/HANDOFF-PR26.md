@@ -21,7 +21,7 @@ job as well as the framework build before pinning a KodiAirPlay release.
 
 ## Open (do these)
 
-1. **Re-render the Download problems choice sheet in the desktop Kodi rig** after the `choice_sheet.glyph_path` fix
+1. ~~Done 2026-11-14: rig shows both glyph tiles.~~ **Re-render the Download problems choice sheet in the desktop Kodi rig** after the `choice_sheet.glyph_path` fix
    (ISSUE-249): tiles must show the eye-slash and trash glyphs, no bare squares. How: `python3 -B scripts/kodi_rig.py start`,
    `sync`, write fake data with the script below, `open copy_problems`, `click 9201`, `shot NAME` (screenshots stay out of
    Git; they are in ~/.cache/kodi-rig/shots). The fake Library data script used this session was in the scratchpad
@@ -29,7 +29,7 @@ job as well as the framework build before pinning a KodiAirPlay release.
    (`tv:<title lower>:<year>` → tmdb_id, `season:<tmdb>:<n>` → titles/thumbs), a preparation state (prepare_downloads.save)
    and two failed debrid jobs (debrid_drive.save) into ~/.cache/kodi-rig/home/.kodi/userdata/addon_data/service.kodi.ios.bootstrap.
    A Trakt 401 dialog may cover the rig: `builtin "Dialog.Close(all,true)"`.
-2. Re-render the show page's ••• capsule after its focus change (no square highlight).
+2. ~~Done 2026-11-14: no square highlight.~~ Re-render the show page's ••• capsule after its focus change (no square highlight).
 3. Optional (owner dislikes "…"): Download problems row titles truncate ("Naruto Shippuuden · S…"); would need the
    row to wrap or shorten (approved page; small change, mention to the owner).
 4. Build the IPA, send the link, update the PR #26 description (ISSUE-246 to ISSUE-249 are not in it yet).

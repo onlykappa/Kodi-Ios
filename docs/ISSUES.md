@@ -3654,3 +3654,4 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Choice sheet tiles (Download problems):** "Don't Show Again" and "Remove From List" drew bare coloured squares because the glyph was a bare name; `choice_sheet.glyph_path` adds the skin's icon path. Its grey line is shorter. **Not re-rendered yet** (interrupted).
 - **Retest:** test_library_show_menu (`SheetGlyphs`), test_library_files, test_choice_sheet. Rig: re-render the Download problems sheet.
 - **Seen, not changed (older page):** Download problems row titles end in "…" ("Naruto Shippuuden · S…"); the owner dislikes "…" (DEC-046).
+- **Rig re-render (2026-11-14, desktop Kodi rig):** the Download problems choice sheet shows the eye-slash (Don't Show Again) and trash (Remove From List) tiles, no bare squares; the show page's Select · ••• capsule with focus on ••• has no square highlight. Phone check pending.
