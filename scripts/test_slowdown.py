@@ -54,6 +54,23 @@ class AirPlayNotStutter(Reset):
   self.assertEqual(slowdown.share('airplay',now+slowdown.STRAIN_HOLD+1),0.25)   # back once the TV keeps up again
   self.assertEqual(slowdown.share('video',now+10),0.35)                          # strain is about AirPlay only
 
+class TVShortOfTheMovie(Reset):
+ """ISSUE-261 (owner log dd13eb14, build 406): the Apple TV spun while the phone sent it seg0 at ~1 Mbit/s."""
+ def test_failed_and_starved_lines_mark_strain(self):
+  now=1000.0
+  self.assertTrue(slowdown.note_served(['GET /video/seg0.m4s -200 786432 B 11995 ms: Receiver write failed (32)'],now))
+  slowdown._state['strain_until']=0.0
+  self.assertFalse(slowdown.note_served(['GET /video/seg0.m4s -200 131072 B 38 ms: Receiver write failed (32)'],now))  # the TV's first probe
+  self.assertTrue(slowdown.note_served(['player: error log: -16830 CoreMediaErrorDomain Media file not received in 29s (seg0.m4s)'],now))
+ def test_background_work_waits_while_the_tv_is_short(self):
+  slowdown._state['strain_until']=2000.0;slept=[]
+  g=slowdown.Gate(why=lambda:'airplay',sleep=slept.append,now=lambda:1000.0)
+  g.after(1.0,nbytes=1024*1024,download=True)
+  self.assertGreaterEqual(sum(slept),slowdown.STRAIN_WAIT)            # waited first
+  slowdown._state['strain_until']=0.0;slept.clear()
+  g=slowdown.Gate(why=lambda:'airplay',sleep=slept.append,now=lambda:1000.0)
+  g.after(1.0);self.assertAlmostEqual(sum(slept),3.0)                  # the TV keeps up: the usual share again
+
 class Build192Cause1(Reset):
  def test_converter_lines_are_not_airplay(self):
   """Build-192 log 13:10:00-13:10:36: 'prepare: unit started …' marked AirPlay busy; 16 s later the conversion said

@@ -3720,3 +3720,29 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Owner:** "do 5": early Naruto Shippuuden has no real 1080p, and each episode was copied, refused and searched again.
 - **Fix:** when the picker takes a fallback for a tracked show, `debrid_drive.remember_fallback` records show, season and quality in `addon_data/service.kodi.ios.bootstrap/quality-fallbacks.json` (on the phone, not in Git). Later episodes of that season are copied without the strict-quality refusal. The picker still prefers a real match whenever one exists.
 - **Retest:** test_season_quality `ProblemsPageAndMemory`.
+
+## ISSUE-261 — AirPlay to the Apple TV sat loading for 2 minutes (owner photo and log dd13eb14, build 406) — partly fixed in code
+
+- **Seen:** a Drive movie (MP4, 8-bit H.264 1920x1040, AAC 5.1; no conversion) sent to an Apple TV: source opened at +0.6 s,
+  index at +8.4 s, first segment ready at +14.1 s, the TV asked at +14.5 s. Then the phone sent the TV its first video segment
+  at about 1 Mbit/s: 786 KB in 12 s ("Receiver write failed"), then 3.3 MB in 29.8 s. Apple's player gave up ("Media file not
+  received in 29s (seg0)", "No response for media file in 10.4 s (seg1)"), so the TV showed the spinner at 0:00 until the
+  owner stopped it at +125 s.
+- **Causes (log):**
+  - The segments were already in the phone's memory, so this was the phone-to-TV Wi-Fi, not the converter. That link was
+    shared with two AllDebrid copies, a "made ready while it copies" preparation of two Rick and Morty episodes, and the
+    movie's own Drive reads.
+  - While AirPlay plays, background downloads were still allowed 1 MB/s (8 Mbit/s), several times what reached the TV.
+  - The strain check that should slow them saw none of it: a write the TV gave up on is logged as "-200 …" and did not
+    match, and Apple's "Media file not received" lines were ignored.
+  - Separately, the audio reader read 50 s of Drive data for audio segment 1. It reads the movie's interleaved bytes again
+    instead of sharing the video reader's. That is native work, left for the faster-start branch.
+- **Fix:** `slowdown`:
+  - A failed write and Apple's "not received" or "no response" lines now count as strain. So does KodiAirPlay's
+    "the TV is waiting for a video segment".
+  - While the TV is short of the movie, every background worker waits up to 30 s per piece. Then downloads keep under
+    0.25 MB/s until the TV keeps up again (60 s after the last strain).
+  - Work still never stops for good while AirPlay plays (owner rule, build 192).
+- **Retest:** test_slowdown `TVShortOfTheMovie`.
+- **Phone check:** the same movie on the Apple TV, and the log's TV GET times. If segments still take more than about 6 s
+  with nothing else running (try Pause on transfers), the Wi-Fi between the phone and the TV is the limit.
