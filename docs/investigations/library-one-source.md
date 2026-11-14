@@ -76,5 +76,6 @@ live layer on top for progress, reading the same entries.
 4. Stale-data line on each page when Drive cannot be listed; retire the second listing.
 5. Desktop Kodi rig render of each page with the same fake library; numbers must match across pages.
 
-Open question for the owner: should Library status show only the TV and movie totals that match Library › TV Shows /
-Movies ("Naruto Shippuuden · 49 of 53 ready"), or keep the whole-library "84 of 87"? Both will come from the same index.
+**Owner's answer (DEC-052):** both, from the same index: Library status keeps "84 of 87 ready" for the whole library, and
+each show shows its own ("Naruto Shippuuden · 49 of 53 ready"). Approved additions: one action path, instant redraws, a
+self-check, a health line, matching log numbers, season progress on the chips, Undo after Delete (see DEC-052).
