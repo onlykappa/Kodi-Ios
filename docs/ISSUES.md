@@ -4499,3 +4499,16 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Fix 1:** the stream cache route for Kodi's own player (ISSUE-280) is off: `remote_media.KODI_PLAYBACK=False`. Kodi reads the AllDebrid link itself, as in build 430, so Umbrella's unlock no longer waits on the cache. Play on TV still uses the cache. The route can come back once it is proven on the phone.
 - **Fix 2:** the broker never closes a source that is still Kodi's playing file, paused or not, up to 30 min with no read. Before, it closed it after 120 s with no read, so Resume met a dead 127.0.0.1 address (found by the PR #30 review).
 - **Tests:** test_remote_media `test_the_route_is_off_by_default` and `test_a_paused_source_survives_while_kodi_has_it_open`. The ISSUE-280 route tests still run with the route switched on.
+
+## ISSUE-300 — A resumed Umbrella episode took 23.5 s to open (owner, build 466, log 074adcd9) — fixed in code; rig-measured
+
+- **Seen:** Continue Watching › Black Clover S2 E7: "open timing: 23.5 s via umbrella (handoff 3.2 s, open 20.2 s)". The hand-off was already quick; the 20 s was Kodi opening the MKV over one AllDebrid connection.
+- **Cause (desktop Kodi rig, a local server at 0.7 MB/s per connection with 0.4 s per request):**
+  - A plain MKV opened in 2.2 s. The same MKV with 20 MB of attached fonts, as Crunchyroll WEB releases carry, took 29 s.
+  - Kodi read it in one sequential pass from byte 0, through all the font data, over one connection.
+- **Fix:**
+  - The stream cache route is back on (`remote_media.KODI_PLAYBACK=True`). It was switched off for build 466 because of the build-442 failure, which came from the ISSUE-282 restart loop (a new cache on every restart, with Kodi pointed at an old one); that loop is fixed.
+  - The ISSUE-281 fallback was effectively always taken: it waited for the file's size, which was only known after the whole first 4 MB block (~6 s at 0.7 MB/s, more than its 5 s limit). The size now comes from the link's first answer (`Foreground.answered_size`), so the cache is used and the fallback is kept for a link that truly doesn't answer.
+- **Rig result (`for_kodi` end to end, same file and speed):** hand-off 0.5 s, then Kodi's open 7.3 s, against 29 s direct. The cache read the start with four connections at once.
+- **Tests:** test_remote_media `test_the_route_is_on_by_default` and `test_size_is_known_from_the_first_answer`; test_stream_fallback is unchanged and passes.
+- **Phone check:** the `open timing … via umbrella` line for a resume, expected about 5–8 s instead of 20 s.

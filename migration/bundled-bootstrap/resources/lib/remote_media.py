@@ -18,7 +18,12 @@ WARM_BLOCKS=2;WARM_AFTER=8
 # with no read. False: Kodi reads the link itself, as before.
 # OFF (owner, build 442: no Umbrella stream plays, fresh or resumed from Continue Watching): Kodi reads the AllDebrid
 # link itself again, as in build 430, until this route is proven on the phone. Play on TV still uses the cache.
-KODI_PLAYBACK=False;KODI_IDLE=120
+KODI_IDLE=120
+# ISSUE-300 (owner log 074adcd9, build 466: a resumed Umbrella episode took 23.5 s, 20.2 s of it Kodi opening the MKV over
+# one AllDebrid connection): the route is back on. The build-442 failure came from the ISSUE-282 restart loop (a new
+# cache every restart, Kodi pointed at an old one), fixed since; the fallback (FIRST_ANSWER) now sees the link's first
+# answer at once. Desktop Kodi rig, 0.7 MB/s per connection, an MKV with 20 MB of fonts: 29 s direct, 7.3 s via the cache.
+KODI_PLAYBACK=True
 # ISSUE-281 (owner: stuck, then a crash on Resume): a paused player reads nothing, so the idle rule closed the source
 # under it and Resume reopened a dead 127.0.0.1 address. While Kodi still has this source open (playing or paused) it
 # is kept, up to KODI_CAP seconds with no read.
@@ -44,6 +49,9 @@ class Foreground(drive_stream.DriveStream):
   raw,_,extra=source.partition('|');p=urllib.parse.urlsplit(raw)
   if p.scheme not in ('http','https') or not p.hostname:raise ValueError('Not an HTTP media source')
   self.remote_url=raw
+  # ISSUE-300: the file's size as soon as the link's first answer arrives (its Content-Range), not after the whole first
+  # 4 MB block: at ~0.7 MB/s that block takes ~6 s, longer than for_kodi's FIRST_ANSWER, so Kodi always fell back.
+  self.answered_size=0
   self.renew_lock=threading.Lock();self.renewal=None;self.renew_link=None;self.renewed=False;self.renewal_state='unavailable'
   self.renew_clock=clock;self.renew_after=0.0
   self.remote_headers={k:v for k,v in urllib.parse.parse_qsl(extra,keep_blank_values=True)
@@ -59,6 +67,7 @@ class Foreground(drive_stream.DriveStream):
     if error.code not in (401,403,404,410) or not self._renew(attempted):raise
     response=opener(urllib.request.Request(self.remote_url,headers=headers),timeout)
    span=drive_stream.SPAN.match(response.headers.get('Content-Range') or '')
+   if span:self.answered_size=int(span.group(3))
    start=int(headers['Range'][6:].split('-')[0])
    if (getattr(response,'status',None) or response.getcode())==206 and (not span or int(span.group(1))!=start):
     response.close();raise ConnectionError('Stream server returned the wrong byte range')
@@ -145,7 +154,7 @@ class Broker:
       elif action=='stats':
        # ISSUE-280: the opening card also needs whose source it is and how much of it is in memory (no URL, no id).
        answer={'stats':dict(broker.current.stats(),kodi=broker.kodi,cached_blocks=len(broker.current.blocks.data),
-                            block_size=broker.current.block_size,size=int(broker.current.blocks.sizes.get('media') or 0),
+                            block_size=broker.current.block_size,size=int(broker.current.blocks.sizes.get('media') or broker.current.answered_size or 0),
                             source_id=fingerprint(broker.ident)) if broker.current else {}}
       elif action=='status':
        answer={'renewal':broker.current.renewal_state if broker.current and request.get('id')==broker.ident else 'closed'}

@@ -199,9 +199,10 @@ class KodiPlays(Broker):
  def setUp(self):
   super().setUp()
   self._kodi=patch.object(remote,'KODI_PLAYBACK',True);self._kodi.start();self.addCleanup(self._kodi.stop)
- def test_the_route_is_off_by_default(self):
+ def test_the_route_is_on_by_default(self):
   # Owner, build 442: no Umbrella stream played. Kodi reads the real link (build 430's route) until proven.
-  self.assertIn('\nKODI_PLAYBACK=False;',(ROOT/'migration/bundled-bootstrap/resources/lib/remote_media.py').read_text())
+  # ISSUE-300: back on, now that the ISSUE-282 restart loop is fixed and the fallback sees the first answer at once.
+  self.assertIn('\nKODI_PLAYBACK=True\n',(ROOT/'migration/bundled-bootstrap/resources/lib/remote_media.py').read_text())
  """ISSUE-280 (owner, build 430 log 72b62563: an Umbrella episode sat at "Getting ready to play… 0%" for 32 s, 19 s of
  it in Kodi's own open of the MKV over one AllDebrid connection): Kodi's player reads it through the cache."""
  SRC='https://media.example/Black.Clover.S02E07.1080p.CR.WEB.mkv'
@@ -255,6 +256,14 @@ class KodiPlays(Broker):
    self.assertFalse(self.broker.reap(now=self.broker.opened+remote.KODI_IDLE+1))
   service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn("playing=lambda:xbmc.Player().getPlayingFile() if xbmc.getCondVisibility('Player.HasVideo') else ''",service)
+ def test_size_is_known_from_the_first_answer(self):
+  # ISSUE-300: the whole first 4 MB block took ~6 s at AllDebrid's speed, longer than FIRST_ANSWER (5 s), so the fallback
+  # always gave Kodi the slow direct link. The size now comes from the first answer's Content-Range.
+  src=remote.Foreground(self.SRC,open_url=lambda req,timeout:Reply(DATA,0,99));self.addCleanup(src.close)
+  src.open_url(urllib.request.Request('http://x',headers={'Range':'bytes=0-99'}),5)
+  self.assertEqual(src.answered_size,len(DATA))
+  text=(ROOT/'migration/bundled-bootstrap/resources/lib/remote_media.py').read_text()
+  self.assertIn("blocks.sizes.get('media') or broker.current.answered_size",text)
  def test_umbrella_unlock_hands_kodi_the_cache(self):
   import umbrella_recovery
   class Home:
