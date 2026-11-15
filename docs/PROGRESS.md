@@ -1,5 +1,29 @@
 # Persistent progress
 
+## Sports › A game's page: boards 12–13 implemented — 2026-11-15
+
+Upcoming rows now open `IOSSportsGame.xml` with the same game, provider and clock. The card shows the league code,
+start status, time/day and both teams. Crests use the provider's runtime image, with code-in-circle fallbacks for
+the sample's empty crests. Sources are ranked Best, Also good, then the remaining provider order; tapping any part
+of a source row calls `sports_provider.play` with the original source and opaque play value. Board 13 keeps the
+same card and shows the approved no-sources message. Fetching and refresh run behind the cached card; errors go
+to the log with plain recovery wording on screen when no game is available. Back keeps the Upcoming league filter
+and focus (ISSUE-331); long source descriptions grow their rows (ISSUE-332), and two-digit start hours fit in full
+between the crests (ISSUE-333).
+
+Evidence: compared the approved HTML in Chromium with both actual windows in desktop Kodi 21.3 at 603 × 1167,
+using sample data and a fixed sample clock. Checked board 12, board 13, refresh, both sample source taps through
+the play door, Upcoming → NBA game → Back, and long team/source wrapping. Borussia Mönchengladbach, Brighton &
+Hove Albion, Golden State Warriors and the long source fixture display completely. The game's board uses UCL,
+not the full league name; UEFA Champions League belongs to the later Leagues page. No new artwork is committed.
+The rig isolates Sports windows from background add-on services and uses the Kodi fallback tab bar. Screenshots
+remain outside Git; this is not iPhone, native-bar, live-provider, real-crest or actual-stream playback evidence.
+The sample play door only logs, as specified in the brief. Boards 14–15 and the Leagues pages remain pending.
+
+Validation: thirteen new cases in `scripts/test_sports_game.py` (listed in import-review), two new shared-rule cases
+in `test_sports_model.py`, and a returning-window check in `test_sports_upcoming.py`. All 137 listed scripts and the
+project/UI guidance checks pass before commit. The preceding board-11 commit also passed all 136 scripts then listed.
+
 ## Sports › Upcoming: board 11 scrolled view — 2026-11-15
 
 Verified the remaining day groups in desktop Kodi 21.3 against approved board 11. The list now leaves enough room

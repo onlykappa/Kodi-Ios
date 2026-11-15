@@ -72,21 +72,26 @@ def model(games, updated, now, offset, league='All', state='ready'):
     return props, rows, codes, league
 
 
-def open_game(game, log):
-    """Board 12 follows in its own commit; keep the game's stable identity for that page."""
+def open_game(game, log, provider=None, clock=time.time):
+    """Keep the same provider and game identity when opening boards 12–13."""
     log('sports: game %s' % game['id'])
+    import sports_game
+    sports_game.run(game,provider=provider,clock=clock)
 
 
-def run(args=(), provider=None, clock=time.time, on_game=open_game):
+def run(args=(), provider=None, clock=time.time, on_game=None):
     import xbmc
     import xbmcgui
     import xbmcvfs
     global _CACHE
     provider = provider or sports_provider.get()
+    on_game = on_game or (lambda game,log:open_game(game,log,provider,clock))
     log = lambda text: xbmc.log(text, xbmc.LOGINFO)
 
     class Upcoming(xbmcgui.WindowXML):
         def onInit(self):
+            if hasattr(self,'stop'):
+                return  # Kodi re-enters this window after the game's page closes.
             self.stop = threading.Event()
             self.lock = threading.Lock()
             self.fetching = False

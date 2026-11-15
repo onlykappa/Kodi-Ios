@@ -5070,3 +5070,34 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   times, counts and source details above the fallback tab bar. Device gestures remain unverified.
 - **Test:** `scripts/test_sports_upcoming.py` checks the shared six-game, three-day projection and generated XML;
   the actual scroll range was checked visually in the desktop rig.
+
+## ISSUE-331 — Returning from a game reset the Upcoming filter — fixed in the desktop rig
+
+- **Seen:** choosing NBA, opening its game, then pressing Back restored All rather than the chosen league.
+- **Cause:** Kodi calls the parent window's `onInit` again when the child closes; it reset the filter and created
+  another timer. The unconditional default focus also discarded the row's navigation position.
+- **Fix:** initialize each Sports window once and let Kodi restore its existing focus on return.
+- **Retest:** desktop Kodi 21.3: NBA → game → Back preserves the NBA chip, one-game count and selected row. The
+  controller regression simulates the repeated `onInit` and checks the existing filter and stop event survive.
+- **Test:** `scripts/test_sports_upcoming.py` and `scripts/test_sports_game.py` cover re-entry without new workers.
+
+## ISSUE-332 — A long source description lost its final line — fixed in the desktop rig
+
+- **Seen:** the long-source fixture ended after “Loop Guide, Sports”, clipping “Hub” in the Also on line.
+- **Cause:** the estimate allowed too many characters per line beside the Also good badge. The language and
+  alternative-provider text needed six actual Kodi lines, while the model reserved five.
+- **Fix:** use more conservative wrapping estimates for each badge width, grow the row to fit and provide forms
+  for up to nine detail lines. The source title and details remain complete.
+- **Retest:** desktop Kodi 21.3: International Sports Network, French Canadian commentary and all three alternative
+  provider names now fit, including the final Hub line. Standard board 12's row sizes remain the same.
+- **Test:** `scripts/test_sports_game.py` keeps the exact long fixture and checks its required line allocation.
+
+## ISSUE-333 — Two-digit start hours were shortened in the game card — fixed in the desktop rig
+
+- **Seen:** opening the later Manchester City game drew “12:30 …” instead of its complete start time.
+- **Cause:** the central clock's 360-unit label was narrower than the existing headline font's 12:30 PM text.
+- **Fix:** widen the centered label to 430 units, within the gap between the crest/code columns. Keep the same font
+  and center point, so board 12's 7:30 PM appearance is unchanged.
+- **Retest:** desktop Kodi 21.3 shows 12:30 PM and the day in full without touching either crest. An offline font
+  check of every 12-hour clock string found a maximum width of 386 units.
+- **Test:** `scripts/test_sports_game.py` checks the later-day value and enough clock space between the crests.

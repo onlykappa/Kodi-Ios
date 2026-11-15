@@ -149,5 +149,22 @@ class Door(unittest.TestCase):
             sp.reset()
 
 
+class GameRules(unittest.TestCase):
+    def test_game_status_uses_countdown_days_and_local_offset(self):
+        self.assertEqual(sm.start_text(NOW+45*60,NOW,0),'Starts in 45 min')
+        self.assertEqual(sm.start_text(NOW+2*3600,NOW,0),'Starts today')
+        self.assertEqual(sm.start_text(NOW+24*3600,NOW,0),'Starts tomorrow')
+        self.assertEqual(sm.start_text(NOW-1,NOW,0),'Started')
+        self.assertEqual(sm.start_text(NOW+45*60,NOW,-5*3600),'Starts in 45 min')
+
+    def test_source_ranking_is_stable_and_does_not_rewrite_play_values(self):
+        plain={'tag':'','play':object()};good={'tag':'good','play':object()}
+        best1={'tag':'best','play':object()};best2={'tag':'best','play':object()}
+        sources=[plain,good,best1,best2]
+        self.assertEqual(sm.order_sources(sources),[best1,best2,good,plain])
+        self.assertEqual(sources,[plain,good,best1,best2])
+        self.assertIs(sm.order_sources(sources)[0],best1)
+
+
 if __name__ == '__main__':
     unittest.main()

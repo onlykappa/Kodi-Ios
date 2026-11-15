@@ -109,6 +109,10 @@ class Controller(unittest.TestCase):
                 index=self.codes.index('NBA')
                 self.onClick(page.CHIP+index*7+1)
                 assert self.props['subtitle'].startswith('1 game coming up')
+                stop=self.stop
+                self.onInit()  # Returning from a child window must keep the filter and timer.
+                assert self.stop is stop
+                assert self.league=='NBA'
                 self.onClick(page.ROW+int(self.props['row.0.lines'])-1)
                 self.onClick(page.BACK)
         xbmc=types.SimpleNamespace(log=lambda *a:None,LOGINFO=1,

@@ -89,7 +89,7 @@ def page(p):
                  LIST,content,u.group(p,SCROLL_CLEAR,p.image(0,0,1,SCROLL_CLEAR,p.MEDIA+'white.png','00000000')))
     body += p.tabbar('library')
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Sports Upcoming, approved board 10 -->\n'
-            '<window><defaultcontrol always="true">9001</defaultcontrol><controls>%s</controls></window>') % body
+            '<window><defaultcontrol always="false">9001</defaultcontrol><controls>%s</controls></window>') % body
 
 
 def files(p):

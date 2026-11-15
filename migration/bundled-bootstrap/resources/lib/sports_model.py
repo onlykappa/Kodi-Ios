@@ -64,6 +64,22 @@ def soon_text(start, now):
     return 'in %d min' % max(1, minutes) if 0 <= start - now < 3600 else ''
 
 
+def start_text(start, now, offset):
+    """The upcoming game's status, using the same countdown/day rules as the list."""
+    if start < now:
+        return 'Started'
+    soon = soon_text(start, now)
+    if soon:
+        return 'Starts %s' % soon
+    day = day_label(start, now, offset)
+    return 'Starts %s' % (day.lower() if day in ('Today', 'Tomorrow') else day)
+
+
+def order_sources(sources):
+    """Best, then Also good, then other sources; preserve the provider's order within each rank."""
+    return sorted(sources, key=lambda s: {'best': 0, 'good': 1}.get(s.get('tag'), 2))
+
+
 def count_text(n, one, many=None):
     """'1 game', '3 games'."""
     return '%d %s' % (n, one if n == 1 else (many or one + 's'))
