@@ -15,7 +15,9 @@ MAX_CHOICES = 4
 
 
 def norm(text):
-    return re.sub(r'[^a-z0-9]+', ' ', str(text or '').lower()).strip()
+    # ISSUE-324 (owner, build 486: "Seven deadly sins" offered four obscure shows named exactly that, and not "The Seven
+    # Deadly Sins", the anime): a leading article is not part of the name for matching.
+    return re.sub(r'^(the|a|an) ', '', re.sub(r'[^a-z0-9]+', ' ', str(text or '').lower()).strip())
 
 
 def _name(result):

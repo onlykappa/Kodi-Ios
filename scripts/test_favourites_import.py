@@ -79,6 +79,7 @@ class Reading(unittest.TestCase):
 
 
 def fake_search(table):
+    table = {fm.norm(k): v for k, v in table.items()}
     return lambda query: table.get(fm.norm(query), [])
 
 
@@ -95,6 +96,13 @@ class Matching(unittest.TestCase):
         search = fake_search({'one piece': [tv(1, 'One Piece', 200), tv(2, 'One Piece', 20, '2023-01-01')]})
         status, found = fm.resolve('One Piece', search)
         self.assertEqual((status, found['tmdb']), ('match', '1'))
+
+    def test_a_leading_article_does_not_hide_the_famous_title(self):
+        # ISSUE-324 (owner, build 486): "Seven deadly sins" offered four obscure shows of that exact name, not the anime.
+        search = fake_search({'seven deadly sins': [tv(1, 'Seven Deadly Sins', 2, '2010-01-01'), tv(2, 'Seven Deadly Sins', 1, '1966-01-01'),
+                                                    tv(3, 'The Seven Deadly Sins', 120, '2014-10-05')]})
+        status, found = fm.resolve('Seven deadly sins', search)
+        self.assertEqual((status, found['tmdb']), ('match', '3'))
 
     def test_equal_exact_titles_are_asked_not_guessed(self):
         search = fake_search({'the batman': [movie(1, 'The Batman', 50), tv(2, 'The Batman', 45)]})

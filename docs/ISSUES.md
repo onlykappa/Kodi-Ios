@@ -4903,3 +4903,17 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   up". The log names the titles not found, failed and waiting for an answer, so the next import shows which it was.
 - **Test:** test_favourites_menu `Lookups`.
 
+
+## ISSUE-324 — "Seven deadly sins" asked between four obscure shows and never offered the anime (owner, build 486) — matcher fixed; poster picker mocked up
+
+- **Seen (screenshot):** Last import › Needs your answer: "Seven deadly sins" offered four "Seven Deadly Sins" (TV 2010,
+  1966, 2008, 1993), each shown only by its year; "The Seven Deadly Sins" (the 2014 anime) was not among them. Not found
+  opened the keyboard for each name in turn ("a typing page").
+- **Cause:** `favourites_match.norm` kept a leading "the", so the exact-named obscure titles scored 1.0 and the anime
+  scored lower; only titles within 0.02 of the top are offered.
+- **Fix:** a leading The / A / An is ignored when matching. The anime now scores 1.0 too and, being far more popular
+  (ISSUE-305's 3x rule), is matched without asking.
+- **Not built yet:** choosing by poster instead of by year (boards K7 and K8 in docs/design/favourites-manager-mockups.html,
+  for owner approval with K1-K6).
+- **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
+  normalises its own keys).
