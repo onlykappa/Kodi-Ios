@@ -10,6 +10,7 @@
 #include "kr_video.h"
 #include "kr_audio.h"
 #include "kr_source.h"
+#include "kr_mp4.h"
 #include "kr_upscale.h"
 #include <libavcodec/avcodec.h>
 #include <libavutil/pixdesc.h>
@@ -561,6 +562,9 @@ typedef struct resume_ctx {
     prep_state frag_start,pending,resumed;
     char layout[600];
     AVFormatContext **side;
+    // ISSUE-346: the picture's keyframes, read from each fragment header on its way out (the same scan a cast makes),
+    // with each one's fragment offset for the marks. kstate: 0 collecting, -1 given up (the cast scans instead).
+    int vtrack,kstate,kfrags,kemitted;kr_mp4_keys keys;int64_t *koff;int kcount;
 } resume_ctx;
 static int rc_forward(output_sink *s,const uint8_t *d,int n) {
     if(n<=0)return 1;
@@ -632,17 +636,39 @@ static int rc_mark(output_sink *s,int64_t offset,uint32_t seq) {
     for(int k=0;k<rc->nstreams;k++){out_track *t=&rc->tracks[k];
         av_bprintf(&b,"track %d %lld %d %lld %lld\n",k+1,(long long)t->end,t->has_start,(long long)t->start,(long long)t->shift);}
     for(int i=0;i<TRACKS;i++)if(rc->side && rc->side[i])av_bprintf(&b,"side %d %lld\n",i,(long long)st->side[i]);
+    // ISSUE-346: the picture's keyframes before here; like the tfra lines, the caller keeps those of every mark.
+    if(rc->kstate==0 && rc->keys.has_first) {
+        int count=0;while(count<rc->keys.n && rc->koff[count]<offset)count++;
+        av_bprintf(&b,"kfirst %lld\nkcount %d\n",(long long)rc->keys.first,count);
+        for(;rc->kemitted<count;rc->kemitted++)av_bprintf(&b,"kf %lld %lld\n",(long long)rc->koff[rc->kemitted],(long long)rc->keys.ticks[rc->kemitted]);
+    }
     for(;rc->emitted<rc->ntfra && rc->tfra[rc->emitted].offset<offset;rc->emitted++){tfra_entry *e=&rc->tfra[rc->emitted];
         av_bprintf(&b,"tfra %u %lld %lld\n",e->id,(long long)e->time,(long long)e->offset);}
     int ok=av_bprint_is_complete(&b) && s->write(MARK_TRACK,"mark",(const uint8_t*)b.str,(int)b.len,s->context);
     av_bprint_finalize(&b,NULL);rc->marks++;
     return ok;
 }
+// ISSUE-346: a cast reads the fragments its index lists for the picture (those with picture samples) and needs the
+// first of them to hold a keyframe; anything else gives up here and the cast scans as before.
+static void keys_add(resume_ctx *rc,int before,int64_t offset) {
+    if(rc->kstate<0)return;
+    int listed=0;for(int i=before;i<rc->ntfra;i++)listed|=rc->tfra[i].id==(uint32_t)rc->vtrack;
+    if(!listed)return;
+    int had=rc->keys.n;
+    if(rc->vtrack<1 || kr_mp4_moof_keys(rc->moof,(uint32_t)rc->moof_size,rc->vtrack,&rc->keys)<0 || (!rc->kfrags && rc->keys.n<1)){rc->kstate=-1;return;}
+    rc->kfrags++;
+    if(rc->keys.n>had) {
+        int64_t *g=realloc(rc->koff,sizeof *g*(size_t)rc->keys.cap);if(!g){rc->kstate=-1;return;}
+        rc->koff=g;for(int i=had;i<rc->keys.n;i++)rc->koff[i]=offset;
+    }
+}
 static int moof_done(output_sink *s) {
     resume_ctx *rc=s->rc;int64_t offset=rc->box_start;
     // A fragment that starts on a picture keyframe, after the first of this run, is a place to carry on from.
     if(marks_on && rc->frag_start.markable && rc->moofs>0 && !rc_mark(s,offset,moof_seq(rc->moof,rc->moof_size)))return -1;
+    int before=rc->ntfra;
     if(moof_parse(rc,rc->moof,rc->moof_size,offset)<0)return -1;
+    keys_add(rc,before,offset);
     if(!rc_forward(s,rc->moof,rc->moof_size))return -1;
     rc->moofs++;rc->frag_start=rc->pending;   // the packet being written now starts the next fragment
     return 0;
@@ -694,6 +720,9 @@ static int write_mfra(output_sink *s) {
     av_bprint_append_data(&b,(const char*)f,16);
     int ok=av_bprint_is_complete(&b);
     if(ok){AV_WB32((uint8_t*)b.str,(uint32_t)b.len);ok=rc_forward(s,(const uint8_t*)b.str,(int)b.len);}
+    // ISSUE-346 (owner: do the keyframe scan during preparation): the cast finds this under the finished file's key.
+    if(ok && rc->kstate==0 && rc->keys.n>0)
+        kr_mp4_cache_save(kr_mp4_cache_key((const uint8_t*)b.str,(uint32_t)b.len,rc->at,rc->vtrack),&rc->keys,1);
     av_bprint_finalize(&b,NULL);return ok?0:-1;
 }
 // Parse a mark (the text rc_mark wrote, with the tfra lines of every earlier mark) into a fresh context.
@@ -711,7 +740,22 @@ static int rc_load(resume_ctx *rc,const char *text,int *ninputs) {
             rc->base[i-1]=a;rc->tracks[i-1].end=a;rc->tracks[i-1].has_start=h;rc->tracks[i-1].start=b2;rc->tracks[i-1].shift=c;rc->tracks[i-1].from_mark=h;}
         else if(sscanf(at,"side %d %lld",&i,&a)==2){if(i<0 || i>=TRACKS)return -1;rc->resumed.side[i]=a;}
         else if(sscanf(at,"tfra %u %lld %lld",&id,&a,&b2)==3){if(b2>=rc->resume_at)continue;if(tfra_add(rc,id,a,b2)<0)return -1;}
+        else if(sscanf(at,"kfirst %lld",&a)==1){rc->keys.first=a;rc->keys.has_first=1;}
+        else if(sscanf(at,"kcount %d",&i)==1)rc->kcount=i;
+        else if(sscanf(at,"kf %lld %lld",&a,&b2)==2 && a<rc->resume_at && rc->kstate==0) {
+            if(rc->keys.n==rc->keys.cap) {
+                int c=rc->keys.cap?rc->keys.cap*2:256;int64_t *t=realloc(rc->keys.ticks,sizeof *t*(size_t)c),*o=t?realloc(rc->koff,sizeof *o*(size_t)c):NULL;
+                if(t)rc->keys.ticks=t;
+                if(!o){rc->kstate=-1;continue;}
+                rc->koff=o;rc->keys.cap=c;
+            }
+            rc->koff[rc->keys.n]=a;rc->keys.ticks[rc->keys.n++]=b2;
+        }
     }
+    // ISSUE-346: a mark without the picture's keyframes (an older one, or one whose earlier lines were not all kept)
+    // still resumes; the finished file is then scanned by its first cast.
+    if(!rc->keys.has_first || rc->keys.n!=rc->kcount || rc->keys.n<1)rc->kstate=-1;
+    rc->kfrags=1;rc->kemitted=rc->keys.n;
     if(rc->resume_at<=0 || !rc->resume_seq || !rc->layout[0] || !*ninputs)return -1;
     rc->resume=1;rc->shift_known=1;rc->emitted=rc->ntfra;return 0;
 }
@@ -886,7 +930,7 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
     if(writer) {
         rc=calloc(1,sizeof *rc);if(!rc)return fail(err,en,"out of memory",0);
         sinks[0].rc=rc;rc->side=side;
-        if(resume_text && rc_load(rc,resume_text,&resumed_inputs)<0){free(rc->tfra);free(rc);return fail(err,en,"Resume record is not valid",0);}
+        if(resume_text && rc_load(rc,resume_text,&resumed_inputs)<0){free(rc->tfra);kr_mp4_keys_free(&rc->keys);free(rc->koff);free(rc);return fail(err,en,"Resume record is not valid",0);}
     }char partial[4096],spools[TRACKS][4096]={{0}},sides[TRACKS][4200]={{0}};
     if(err && en>0)*err=0;
     if(!local_input(input) || (!writer && (!output || output[0]!='/' || !strcmp(input,output))))return fail(err,en,"A local or loopback input and a separate local output are required",0);
@@ -1012,6 +1056,7 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
         for(int k=0;k<TRACKS && n<(int)sizeof layout-16;k++)if(side[k])n+=snprintf(layout+n,sizeof layout-(size_t)n,"/s%d",k);
         if(rc->resume && (strcmp(layout,rc->layout) || resumed_inputs!=ninputs)){fail(err,en,"Resume record does not match this video",0);goto end;}
         snprintf(rc->layout,sizeof rc->layout,"%s",layout);rc->nstreams=(int)out->nb_streams;rc->ninputs=ninputs;
+        rc->vtrack=video_out+1;if(video_out<0)rc->kstate=-1;
     }
     AVDictionary *opts=NULL;av_dict_set(&opts,"movflags",writer?"+empty_moov+default_base_moof+frag_keyframe+use_metadata_tags+skip_trailer":"+faststart+use_metadata_tags",0);
     if(writer) {
@@ -1120,7 +1165,7 @@ end:
     if(out){if(writer)sink_close(out);else if(out->pb)avio_closep(&out->pb);avformat_free_context(out);}
     avformat_close_input(&original);if(r && !writer)unlink(partial);
     for(int i=0;i<=TRACKS;i++)av_free(sinks[i].init);
-    if(rc){av_free(rc->moof);free(rc->tfra);free(rc);}
+    if(rc){av_free(rc->moof);free(rc->tfra);kr_mp4_keys_free(&rc->keys);free(rc->koff);free(rc);}
     // r48: the upscale asked for was for this conversion only; the next one is an ordinary preparation unless the
     // add-on asks again (a stopped copy that carries on sets it again before resuming).
     if(up_box_w || up_box_h){kr_video_set_upscale(0,0,-1,0);up_box_w=up_box_h=0;up_engine=KR_UP_AUTO;up_kbps=0;}

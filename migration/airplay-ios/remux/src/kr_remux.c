@@ -1502,46 +1502,8 @@ typedef kr_mp4_fragment prep_frag;
 #define PREPARED_MAX_FRAGMENT_SECONDS 10.0
 
 // ISSUE-335 fix 2 (owner log 65cca4ce: "segmented: 171 keyframes inside 29 storage fragments … (metadata 5587 ms)" on
-// every cast): the keyframe timeline of a prepared file depends only on its bytes, so it is kept on the phone, keyed
-// by the file size, the track and a hash of the file's own fragment index (mfra). KR_KEYFRAME_CACHE overrides the
-// folder (host tests); otherwise Library/Caches/KodiAirPlay under the app's home.
-#define KF_MAGIC "KRKF1"
-static void keyframe_cache_path(char *out,size_t len,uint64_t key) {
-    const char *dir=getenv("KR_KEYFRAME_CACHE");char made[1024]="";
-    if(!dir || !*dir) {
-        const char *home=getenv("HOME");if(!home || !*home){*out=0;return;}
-        snprintf(made,sizeof made,"%s/Library/Caches/KodiAirPlay",home);
-        char parent[1024];snprintf(parent,sizeof parent,"%s/Library/Caches",home);
-        mkdir(parent,0755);mkdir(made,0755);dir=made;
-    } else mkdir(dir,0755);
-    snprintf(out,len,"%s/keyframes-%016llx.bin",dir,(unsigned long long)key);
-}
-static uint64_t keyframe_key(const uint8_t *mfra,uint32_t len,int64_t size,int track) {
-    uint64_t h=1469598103934665603ULL;   // FNV-1a 64
-    for(uint32_t i=0;i<len;i++){h^=mfra[i];h*=1099511628211ULL;}
-    h^=(uint64_t)size;h*=1099511628211ULL;h^=(uint64_t)(uint32_t)track;h*=1099511628211ULL;
-    return h;
-}
-static int keyframe_cache_load(uint64_t key,double **times,int *n) {
-    char path[1100];keyframe_cache_path(path,sizeof path,key);if(!*path)return -1;
-    FILE *f=fopen(path,"rb");if(!f)return -1;
-    char magic[6]={0};int32_t count=0;double *t=NULL;int ok=-1;
-    if(fread(magic,1,6,f)==6 && !memcmp(magic,KF_MAGIC,6) && fread(&count,sizeof count,1,f)==1 && count>0 && count<10000000 &&
-       (t=malloc((size_t)count*sizeof *t)) && fread(t,sizeof *t,(size_t)count,f)==(size_t)count) {
-        ok=0;for(int i=1;i<count;i++)if(!(t[i]>t[i-1])){ok=-1;break;}   // a damaged file is ignored
-    }
-    fclose(f);
-    if(ok){free(t);return -1;}
-    *times=t;*n=count;return 0;
-}
-static void keyframe_cache_save(uint64_t key,const double *times,int n) {
-    char path[1100],tmp[1120];keyframe_cache_path(path,sizeof path,key);if(!*path || n<=0)return;
-    snprintf(tmp,sizeof tmp,"%s.%d.tmp",path,(int)getpid());
-    FILE *f=fopen(tmp,"wb");if(!f)return;
-    int32_t count=n;int ok=fwrite(KF_MAGIC,1,6,f)==6 && fwrite(&count,sizeof count,1,f)==1 && fwrite(times,sizeof *times,(size_t)n,f)==(size_t)n;
-    if(fclose(f)!=0)ok=0;
-    if(ok)rename(tmp,path);else unlink(tmp);
-}
+// every cast): the keyframe timeline of a prepared file is kept on the phone (kr_mp4_cache_*); since ISSUE-346 the
+// preparation saves it as it writes the file, so even the first cast does not scan.
 static double prepared_longest;
 // align_plan: 0 byte-range playlists over the fragments, 1 keyframe plan for the segmented path, 2 measure only.
 // ISSUE-337 (owner log d8524f8d, build 502): Kodi opened a prepared episode by its index ("opening MP4 by its fragment
@@ -1634,16 +1596,20 @@ static int prepared_playlists(int align_plan) {
         // then choose actual keyframes around six seconds without changing the stored file or 4K picture.
         double *times=NULL;int keys=0;double began=now_ms();
         double first_time=st->start_time!=AV_NOPTS_VALUE?(double)st->start_time*tb:(double)fr[0].time*tb;
-        uint64_t key=keyframe_key(m,mfra_size,S.prepared_size,st->id);
-        if(keyframe_cache_load(key,&times,&keys)==0) {
+        uint64_t key=kr_mp4_cache_key(m,mfra_size,S.prepared_size,st->id);
+        kr_mp4_keys raw={0};int origin=0;
+        if(kr_mp4_cache_load(key,&raw,&origin)==0 && kr_mp4_keys_times(&raw,tb,first_time,&times,&keys)==0) {
+            kr_mp4_keys_free(&raw);
             ok=gm_stream_plan_keyframes(S.gm,times,keys);free(times);
-            if(!ok)log_line("segmented: %d keyframes from this phone's saved scan give %d streaming segments (%.0f ms)",keys,gm_stream_segment_count(S.gm),now_ms()-began);
-        } else if(kr_mp4_keyframes(S.src,fr,n,st->id,tb,first_time,source_interrupted,(void *)(uintptr_t)atomic_load(&S.ticket),&times,&keys)==0) {
+            if(!ok)log_line("segmented: %d keyframes from this phone's saved scan (%s) give %d streaming segments (%.0f ms)",keys,
+                            origin==1?"made while preparing":"made by an earlier cast",gm_stream_segment_count(S.gm),now_ms()-began);
+        } else if((kr_mp4_keys_free(&raw),kr_mp4_keyframe_ticks(S.src,fr,n,st->id,source_interrupted,(void *)(uintptr_t)atomic_load(&S.ticket),&raw))==0 &&
+                  kr_mp4_keys_times(&raw,tb,first_time,&times,&keys)==0) {
             ok=gm_stream_plan_keyframes(S.gm,times,keys);
-            if(!ok)keyframe_cache_save(key,times,keys);
-            free(times);
+            if(!ok)kr_mp4_cache_save(key,&raw,0);
+            free(times);kr_mp4_keys_free(&raw);
             if(!ok)log_line("segmented: %d keyframes inside %d storage fragments give %d streaming segments (metadata %.0f ms)",keys,n,gm_stream_segment_count(S.gm),now_ms()-began);
-        } else if(!source_interrupted((void *)(uintptr_t)atomic_load(&S.ticket))) {
+        } else if((kr_mp4_keys_free(&raw),!source_interrupted((void *)(uintptr_t)atomic_load(&S.ticket)))) {
             times=malloc((size_t)n*sizeof *times);if(!times)goto end;
             for(int i=0;i<n;i++)times[i]=(double)fr[i].time*tb;
             ok=gm_stream_plan_keyframes(S.gm,times,n);free(times);

@@ -68,10 +68,11 @@ MARK_CAP = 256 * 1024 * 1024  # independent of adaptive HTTP pieces; retain larg
 
 
 def parse_mark(text):
-    """(offset, header lines, tfra lines) of a KodiAirPlay mark."""
+    """(offset, header lines, tfra and kf lines) of a KodiAirPlay mark. Each mark lists only the index entries and
+    (ISSUE-346) picture keyframes since the one before; the resume record needs them all."""
     head, tfra, offset = [], [], -1
     for line in text.splitlines():
-        if line.startswith('tfra '):tfra.append(line)
+        if line.startswith(('tfra ', 'kf ')):tfra.append(line)
         else:
             head.append(line)
             if line.startswith('offset '):offset = int(line.split()[1])

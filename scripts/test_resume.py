@@ -23,7 +23,7 @@ class Pieces(unittest.TestCase):
   """A first run: the movie in 100 KB writes, marks as the converter gives them; it stops after stop_at bytes."""
   sink=dp.Sink(drive,'staging','slot',lambda:True,background=background,spool=self.tmp.name,on_checkpoint=saved.append)
   for at in range(0,stop_at,100*1024):
-   for m in [m for m in marks if at<=m<at+100*1024]:sink.mark_from(mark(m,['tfra 1 %d %d'%(m,m)]))
+   for m in [m for m in marks if at<=m<at+100*1024]:sink.mark_from(mark(m,['tfra 1 %d %d'%(m,m),'kf %d %d'%(m-1,m)]))
    sink.write(0,'.mp4',data[at:min(at+100*1024,stop_at)])
   return sink
  def test_pieces_end_at_marks_and_a_new_run_carries_on(self):
@@ -35,6 +35,7 @@ class Pieces(unittest.TestCase):
   m=cp['offset']+len(cp['tail']);self.assertIn(m,marks);self.assertLess(len(cp['tail']),STEP)
   self.assertEqual(cp['tail'],data[cp['offset']:m])
   self.assertEqual(cp['mark'].count('tfra '),marks.index(m)+1)   # every index line up to that mark
+  self.assertEqual(cp['mark'].count('\nkf '),marks.index(m)+1)   # ISSUE-346: and every picture keyframe line
   for c in saved:self.assertEqual(c['offset']%STEP,0)
   # Kodi closed: everything in RAM is gone. The next run gets the converter's output from the mark on.
   resume_store.save(self.tmp.name,'slot',('src','md5',1,'1'),cp)

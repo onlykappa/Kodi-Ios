@@ -21,9 +21,11 @@ class QuietConnection(unittest.TestCase):
   self.assertIn('if(!sequential || !slow || AHEAD_HELPERS<1)return;',SRC)
   self.assertIn('pthread_join(c->ahead_thread[h],NULL);',SRC)   # helpers stop with the last reader
  def test_keyframe_scan_is_saved(self):
-  self.assertIn('keyframe_cache_load(key,&times,&keys)==0',REMUX)
-  self.assertIn('if(!ok)keyframe_cache_save(key,times,keys);',REMUX)
-  self.assertIn('Library/Caches/KodiAirPlay',REMUX)
+  # ISSUE-346: the cache moved to kr_mp4.c, which the preparation shares.
+  MP4=(ROOT/'migration/airplay-ios/remux/src/kr_mp4.c').read_text()
+  self.assertIn('kr_mp4_cache_load(key,&raw,&origin)==0',REMUX)
+  self.assertIn('if(!ok)kr_mp4_cache_save(key,&raw,0);',REMUX)
+  self.assertIn('Library/Caches/KodiAirPlay',MP4)
  def test_a_tv_stuck_after_a_stall_is_played_again_then_reloaded(self):
   # ISSUE-336 (owner log 53a92f39): the TV paused at 7.4 s after a source stall and never resumed.
   objc=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()

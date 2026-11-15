@@ -4918,6 +4918,26 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-346 — A prepared movie's first cast still scanned every storage fragment for keyframes (owner: "do the keyframe during prep") — fixed in code (needs an AirPlay framework build)
+
+- **Seen:** ISSUE-335 saved the keyframe scan only after a cast had made it, so each prepared movie's first cast still
+  read every fragment header before the TV got its playlist (`segmented: 171 keyframes inside 29 storage fragments …
+  (metadata 5587 ms)`, owner log 65cca4ce).
+- **Cause:** nothing knew the keyframes until a cast read the finished file.
+- **Fix:** the preparation reads each fragment header as it goes out (`kr_mp4_moof_keys`, the same parser the cast
+  uses) and, after the index (mfra) is written, saves the list under the key a cast computes (mfra bytes, file size,
+  picture track; `kr_mp4_cache_*`, moved from `kr_remux.c` to `kr_mp4.c`). The saved list is in the track's own ticks
+  (`KRKF2`) and the cast turns it into seconds as before, so a saved and a fresh scan give the same segments. A
+  preparation that carries on after Kodi was closed gets the earlier keyframes from its mark (`kfirst`, `kcount`,
+  `kf` lines, kept across marks by `drive_prepare.parse_mark` like the `tfra` lines); a mark without them (an older
+  one) or with some missing still resumes, and then nothing is saved and the first cast scans. The cast logs
+  `from this phone's saved scan (made while preparing)`. Saved scans from before (`KRKF1`) are read again once.
+- **Retest:** CI host tests (`airplay-remux`). Device: needs a framework build (new rNN tag) and the owner's iPhone:
+  the first cast of a movie prepared after the update should log "made while preparing".
+- **Test:** `tests/test_remux.c` (`prepared_scan_matches`: a straight and a resumed preparation save exactly the
+  keyframes a fresh scan finds; a record missing keyframe lines saves none); `scripts/test_prepared_keyframes.py`;
+  `scripts/test_resume.py` (marks keep the `kf` lines).
+
 ## ISSUE-345 — Play on TV showed nothing while the stream was made ready, so it was tapped again and again (owner log a83e06c7, build 513; mockup C chosen) — fixed in code
 
 - **Seen (08:31):** after Play on TV the phone showed no progress for about 25 s while the source was inspected and
