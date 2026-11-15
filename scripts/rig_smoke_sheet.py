@@ -28,6 +28,11 @@ SPECS = {
     'bell': {'heading': 'New episodes \u00b7 Black Clover', 'sub': 'Next: Season 5 \u00b7 Episode 1 \u00b7 Fri 21 Nov',
              'rows': anticipated.rows({'alert': True, 'auto': False, 'on': True}), 'button': 'Done',
              'foot': 'Switch on only Alert to be told without downloading anything.'},
+    'report': {'heading': 'Import finished', 'sub': '48 added to Favourites \u00b7 56 lines read',
+               'rows': [{'label': 'Duplicates', 'detail': 'Tap to see which', 'tag': '3'},
+                        {'label': 'Needs your answer', 'detail': 'Misspellings and several matches', 'tag': '4', 'tag_kind': 'warn'},
+                        {'label': 'Not found', 'detail': 'Tap to see which', 'tag': '1', 'tag_kind': 'warn'}],
+               'foot': 'Nothing was removed from your list.'},
 }
 
 name = sys.argv[1] if len(sys.argv) > 1 else 'watch'

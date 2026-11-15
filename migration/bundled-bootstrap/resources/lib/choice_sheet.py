@@ -18,6 +18,7 @@ TALL0 = 9850        # the same rows when they wrap: one id range per form (title
 BACK_KEYS = (9, 10, 92, 110)
 SIDE = 32           # the sheet's distance from the screen's sides
 ROW_H = 176
+SWITCH_ROOM = 110   # ISSUE-307: the extra width a switch takes over a chevron
 # Owner (2026-11-14): no text is cut off with "…". A row whose title or detail does not fit on one line wraps: the title on
 # up to three lines, the detail on two, the row as tall as its lines (TITLE_LINE per title line, DETAIL_LINE per detail line).
 # Characters per line (rig render 2026-11-14, Inter on the 1080-unit canvas): a title beside a tile 30, minus 5 for a chip,
@@ -42,6 +43,8 @@ def shape(row):
     """(title lines 1-3, detail lines 1-2) for a row."""
     title_fit = FIT_TITLE - (5 if row.get('tag') else 0) + (0 if row.get('tint') else 5)
     detail_fit = FIT_DETAIL + (0 if row.get('tint') else 6)
+    if row.get('switch') is not None:   # ISSUE-307: a switch is wider than a chevron, so its row's text wraps sooner
+        title_fit, detail_fit = title_fit - 6, detail_fit - 8
     return min(3, lines(row.get('label'), title_fit)), min(2, lines(row.get('detail'), detail_fit)) if row.get('detail') else 0
 
 
@@ -64,7 +67,8 @@ def properties(spec):
     rows = list(spec.get('rows') or [])[:MAX_ROWS]
     props = {'art': spec.get('art') or '', 'badge': spec.get('badge') or '', 'art_title': spec.get('art_title') or '',
              'heading': spec.get('heading') or '', 'sub': spec.get('sub') or '', 'link': spec.get('link') or '',
-             'foot': spec.get('foot') or '', 'rows': str(len(rows)), 'button': spec.get('button') or 'Cancel'}
+             'foot': spec.get('foot') or '', 'rows': str(len(rows)), 'button': spec.get('button') or 'Cancel',
+             'switches': 'true' if any(r.get('switch') is not None for r in rows) else ''}
     for n in range(1, MAX_ROWS + 1):
         row = rows[n - 1] if n <= len(rows) else {}
         cover = row.get('cover')
@@ -219,13 +223,15 @@ def window(p):
         return out
 
     def chevron_or_switch(h, k):
-        """The row's right edge: a chevron, or (G3) a switch: a 124 x 75 track, green when on, with a white knob."""
+        """The row's right edge: a chevron, or (G3) a switch. Owner (rig render, 2026-11-15: "the switches look a little bulky,
+        should be more pill shaped, not so fat"): a full pill, 112 x 56 (ends fully round), green when on, with a 46 knob."""
         on, off = is_(k + 'switch', 'on'), is_(k + 'switch', 'off')
-        x, y = W - 48 - 124, (h - 75) // 2
+        tw, th, kd = 112, 56, 46
+        x, y = W - 48 - tw, (h - th) // 2
         chevron = '<control type="group"><visible>!%s + !%s</visible>%s</control>' % (on, off, p.icon(W - 72, (h - 34) // 2, 34, 'chevron-right.png', p.GREY))
-        track = lambda cond, color: p.image(x, y, 124, 75, p.MEDIA + 'r27.png', color, '<visible>%s</visible>' % cond, border=27)
-        knob = lambda cond, kx: p.image(kx, y + 4, 67, 67, p.MEDIA + 'avatar_s.png', p.WHITE, '<visible>%s</visible>' % cond)
-        return chevron + track(on, p.GREEN) + track(off, 'FF39393D') + knob(on, x + 124 - 4 - 67) + knob(off, x + 4)
+        track = lambda cond, color: p.image(x, y, tw, th, p.MEDIA + 'pill_56.png', color, '<visible>%s</visible>' % cond, border=28)
+        knob = lambda cond, kx: p.image(kx, y + (th - kd) // 2, kd, kd, p.MEDIA + 'avatar_s.png', p.WHITE, '<visible>%s</visible>' % cond)
+        return chevron + track(on, p.GREEN) + track(off, 'FF39393D') + knob(on, x + tw - 5 - kd) + knob(off, x + 5)
 
     def row(n):
         k = 'row.%d.' % n
@@ -238,8 +244,8 @@ def window(p):
                  % ((ROW_H - 96) // 2, P(k + 'tint'), p.MEDIA, tile) +
                  p.icon(72, (ROW_H - 48) // 2, 48, P(k + 'glyph'), p.WHITE, '<visible>%s</visible>' % tile))
 
-        def text(x, visible):
-            w = text_w - (x - 48)
+        def text(x, visible, narrow=False):
+            w = text_w - (x - 48) - (SWITCH_ROOM if narrow else 0)
             title = ('<control type="grouplist"><left>%d</left><top>28</top><width>%d</width><height>64</height><orientation>horizontal</orientation>'
                      '<itemgap>14</itemgap><usecontrolcoords>true</usecontrolcoords>' % (x, w) +
                      '<control type="label"><width max="%d">auto</width><height>64</height><font>p_h3</font><textcolor>%s</textcolor>'
@@ -255,9 +261,9 @@ def window(p):
                                '<visible>%s</visible>' % is_(k + 'cover', t))
             return '<control type="group"><visible>%s</visible>%s%s%s</control>' % (visible, title, detail, bar)
 
-        def tall_text(x, visible, lines_, dlines):
+        def tall_text(x, visible, lines_, dlines, narrow=False):
             # The title on `lines_` lines (the chip on its right), then the detail on up to two: wrapped, never "…".
-            w = text_w - (x - 48)
+            w = text_w - (x - 48) - (SWITCH_ROOM if narrow else 0)
             th = TITLE_LINE * lines_
             chip = ('<control type="grouplist"><left>%d</left><top>28</top><width>%d</width><height>64</height><orientation>horizontal</orientation>'
                     '<align>right</align><usecontrolcoords>true</usecontrolcoords>' % (x, w) + tag_button(n) + '</control>')
@@ -288,12 +294,14 @@ def window(p):
         for index, (lines_, dlines) in enumerate(FORMS):
             h = tall_height(lines_, dlines)
             talls += block(h, sep + button(h, index) + tiles_at(h) + tall_text(tx_tile, tile, lines_, dlines) +
-                           tall_text(tx_plain, '!' + tile, lines_, dlines) + chevron_or_switch(h, k),
+                           tall_text(tx_plain, '!' + tile + ' + !' + has('switches'), lines_, dlines) +
+                           tall_text(tx_plain, '!' + tile + ' + ' + has('switches'), lines_, dlines, True) + chevron_or_switch(h, k),
                            has(k + 'label') + ' + ' + is_(k + 'tall', index + 1))
         inner = (sep + '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
                  '<texturefocus /><texturenofocus /><onup>%s</onup><ondown>%s</ondown></control>'
                  % (ROW0 + n - 1, W, ROW_H, ROW0 + n - 2 if n > 1 else ROW0, ROW0 + n if n < MAX_ROWS else LINK) +
-                 tiles + text(tx_tile, tile) + text(tx_plain, '!' + tile) + chevron_or_switch(ROW_H, k))
+                 tiles + text(tx_tile, tile) + text(tx_plain, '!' + tile + ' + !' + has('switches')) +
+                 text(tx_plain, '!' + tile + ' + ' + has('switches'), True) + chevron_or_switch(ROW_H, k))
         return block(ROW_H, inner, has(k + 'label') + ' + ' + '!' + has(k + 'tall')) + talls
 
     link = block(132, p.image(0, 0, W, 2, p.MEDIA + 'white.png', p.SEP) +
