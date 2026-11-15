@@ -66,3 +66,22 @@ Also open: ISSUE-285 (waiting for an owner log after a Drive copy retry).
   both runs of a resumed preparation). Needs the AirPlay host tests (CI, or a host FFmpeg) and a new rNN tag + the owner's
   OK to build.
 - Item 2 (speech check): waiting for the owner's explicit yes.
+
+## Progress (2026-11-15, later)
+- Owner chose mockup C and said yes to the speech check and to the keyframe scan during preparation.
+- ISSUE-343 (AirPlay subtitles doubled and out of sync on the TV, log 1f143748): fixed in native code (MPEGTS:0, one
+  cue per line drawn on layers). A host-test row shift it caused is fixed (`&fx[5]`).
+- ISSUE-344 (AllDebrid refused ranged reads during an Umbrella cast, log a83e06c7): fixed in `remote_media.py`.
+- ISSUE-345 (item 4): the Play on TV banner (mockup C) is built and checked in the desktop rig (landscape 1311x603).
+- ISSUE-346 (item 3): the keyframe scan is saved while preparing, including resumed preparations (marks carry `kf`
+  lines). Host tests passed in CI (run 43739879161: only the two `fx[4]` checks failed, fixed after).
+- ISSUE-347 (item 2): the speech check is in code (`kr_speech.c/.m`, `speech_check.py`, wired into Download and apply
+  and the dub captions). **Waiting for the owner's OK for the next framework build (r62)**, which must also change
+  `build-airplay.sh` (pushing that file publishes the staged tag):
+  - compile `"$REMUX/src/kr_speech.m"` like `kr_upscale.m` (`-fobjc-arc -fmodules -I"$REMUX/src"`) and add the object;
+  - link `-framework Speech`;
+  - add `_kodi_speech_words`, `_kodi_speech_authorize`, `_kodi_speech_state` to the exports list and to the `nm`
+    export check (its count goes up by three).
+  ISSUE-343 and ISSUE-346 are native too and ride the same build.
+- Log a83e06c7, still open with the owner: which cast was audio-only (08:21 copied HEVC 10-bit to the Apple TV; an
+  Apple TV that cannot show HEVC Main10 would play only the sound), and a screenshot of the "weird screen".
