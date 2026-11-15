@@ -502,3 +502,19 @@ it show me different options if there are more than one it recommends". Approved
 - The **nothing-live** page ("No games live right now", the next game's time, a "See Upcoming" button) was approved too (owner: "looks great").
 
 Rule detail for the foundation: [design/sports-live-data.md](design/sports-live-data.md).
+
+## DEC-056 — Sports › Upcoming: option A, a tap opens the game's page; a league is a filter (2026-11-15)
+
+The owner, on the round-3 mockups (PR #36): "I pick A and yeah have it open its page". Approved boards are in
+`docs/design/sports-approved-pages.html`.
+
+- **Upcoming (option A):** a compact list by day (Today, Tomorrow, then the date), soonest first. Each row: the start time (and "in 45
+  min" when it is within the hour), who plays whom, the league label and how many sources are ready ("2 sources", "No sources yet").
+  The same league chips as Live Now filter it. A game that has started moves to Live Now by itself. Times are in the phone's time zone.
+- **A tap on a game opens its page:** the teams, the start time where a score would be, "Starts in 45 min", and the sources found so far,
+  best first, which play at once (the same source lines as Live Now); or "No sources yet. Check back closer to the start."
+- **Leagues (owner, same day):** "leagues is just a good way to look at only those games". A league page is the approved Live Now cards and
+  the approved Upcoming list filtered to one league; no new game layouts are drawn for it. Only the list of leagues is new (PR for round 4).
+
+Rule detail for the foundation: [design/sports-upcoming-data.md](design/sports-upcoming-data.md).
+

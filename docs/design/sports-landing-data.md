@@ -12,7 +12,7 @@ combined answer**, not one per add-on.
 | Live Now: "4 live" badge | number of games live right now | 0 means the tile goes grey and says when the next game starts |
 | Live Now: "Football, Basketball and 2 more" | the sports with a live game, in a fixed order, plus how many more | omit the line when nothing is live |
 | Upcoming: "Next at 7:30 PM, 9 more today" | the start time of the next game today and how many more today | "Nothing more today" |
-| Leagues: "12 leagues" | number of leagues with games | hide the number, keep the tile |
+| Leagues: "12 leagues" | number of leagues the add-ons list (the Leagues page lists every one, with or without games) | hide the number, keep the tile |
 | Finished today: "6 replays" | number of games finished today that can be watched | hide the row when 0 |
 | Refresh button (top right) | an action that asks for a fresh combined answer | |
 | Can't load | one failure for the whole page (no add-on answered), with the reason kept in the log, not on the screen | plain words and "Try again" |

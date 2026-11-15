@@ -1,12 +1,18 @@
 # Persistent progress
 
-## Sports › Upcoming: mockups, round 3 — 2026-11-15
+## Sports › Leagues: mockups, round 4 — 2026-11-15
 
-Mockups only: [docs/design/sports-upcoming-mockups.html](design/sports-upcoming-mockups.html) (evidence class: mockup). The
-owner also approved the Live Now "nothing live" page. Upcoming: the games not started yet, soonest first, a day at a time, with
-the same league chips. Option A is a compact list by day (start time, teams, league label, how many sources are ready; recommended),
-option B is cards like Live Now. A tap opens the game's page (start time, the sources found so far, or "No sources yet"). Plus
-nothing-coming-up and can't-load states. Waiting for the owner's pick.
+Mockups only: [docs/design/sports-leagues-mockups.html](design/sports-leagues-mockups.html) (evidence class: mockup). The owner
+approved Upcoming option A with a tap opening the game's page (DEC-056). Leagues: a league is only a way to look at that league's games,
+so a league page is the approved Live Now cards plus the approved Upcoming list, filtered; only the list of leagues is new. Option A is
+by sport (recommended), option B tiles. Plus a league page (NBA), a league with no games and a can't-load state. Waiting for the
+owner's pick and the order of the list.
+
+## Sports › Upcoming: option A approved — 2026-11-15
+
+The owner chose option A (a compact list by day, soonest first) and that a tap opens the game's page (DEC-056). The approved boards are
+in [docs/design/sports-approved-pages.html](design/sports-approved-pages.html); the options are in
+[sports-upcoming-mockups.html](design/sports-upcoming-mockups.html). Mockups only; no app code.
 
 ## Sports › Live Now: option B approved — 2026-11-15
 
