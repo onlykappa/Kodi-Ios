@@ -8,6 +8,8 @@ on:
       - 'scripts/build_import_review.py'
       - 'scripts/build_customized_ipa.py'
       - 'scripts/fetch_elementum_inputs.py'
+      - 'scripts/provider_addons.py'
+      - 'migration/provider-fallback/**'
       - 'migration/elementum-ios/source-lock.json'
       - 'migration/airplay-ios/source-lock.json'
       - 'migration/glassbar-ios/source-lock.json'
@@ -53,6 +55,8 @@ on:
       - 'scripts/build_import_review.py'
       - 'scripts/build_customized_ipa.py'
       - 'scripts/fetch_elementum_inputs.py'
+      - 'scripts/provider_addons.py'
+      - 'migration/provider-fallback/**'
       - 'migration/elementum-ios/source-lock.json'
       - 'migration/airplay-ios/source-lock.json'
       - 'migration/glassbar-ios/source-lock.json'
@@ -117,9 +121,14 @@ jobs:
         with:
           python-version: '3.11'
           update-environment: false
+      - name: Acquire pinned provider fixtures
+        run: python3 -B scripts/provider_addons.py --output "$RUNNER_TEMP/provider-inputs"
       - name: Test staged import and navigation safety
         env:
           KODI_IOS_PYTHON311: ${{ steps.py311.outputs.python-path }}
+          KODI_PROVIDER_INPUTS: ${{ runner.temp }}/provider-inputs
+          PROVIDER_FIXTURES: ${{ runner.temp }}/provider-inputs
+          KODI_REQUIRE_PROVIDER_FIXTURES: '1'
         run: |
           python3 -B scripts/test_startup_sequence.py
           python3 -B scripts/test_ios_navigation.py
@@ -166,6 +175,15 @@ jobs:
           python3 -B scripts/test_quality_choice.py
           python3 -B scripts/test_undefined_names.py
           python3 -B scripts/test_stream_fallback.py
+          python3 -B scripts/test_provider_fallback.py
+          python3 -B scripts/test_provider_probe.py
+          python3 -B scripts/test_provider_queue_bridge.py
+          python3 -B scripts/test_provider_worker.py
+          python3 -B scripts/test_provider_addons.py
+          python3 -B scripts/test_provider_direct_queue.py
+          python3 -B scripts/test_provider_adapters_primary.py
+          python3 -B scripts/test_provider_adapters_secondary.py
+          python3 -B scripts/test_provider_fallback_hooks.py
           python3 -B scripts/test_build442_logs.py
           python3 -B scripts/test_library_remove.py
           python3 -B scripts/test_upscale_from_index.py
@@ -302,7 +320,7 @@ jobs:
         run: |
           # The bundle was just rebuilt from pinned, hash-checked sources; pin the IPA to that exact bundle.
           bundle_sha=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['sha256'])" "$RUNNER_TEMP/kodi-import-review/import-review-report.json")
-          python3 -B scripts/build_customized_ipa.py --app "$RUNNER_TEMP/customized-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/customized-foundation/foundation.deb" --bundle "$RUNNER_TEMP/kodi-import-review/Kodi-iOS-Customized-Import.zip" --expected-sha256 "$bundle_sha" --work "$RUNNER_TEMP/customized-app" --output "$RUNNER_TEMP/customized-ipa" --elementum "$RUNNER_TEMP/elementum-inputs" --portrait-inputs "$RUNNER_TEMP/portrait-inputs"
+          python3 -B scripts/build_customized_ipa.py --app "$RUNNER_TEMP/customized-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/customized-foundation/foundation.deb" --bundle "$RUNNER_TEMP/kodi-import-review/Kodi-iOS-Customized-Import.zip" --expected-sha256 "$bundle_sha" --work "$RUNNER_TEMP/customized-app" --output "$RUNNER_TEMP/customized-ipa" --elementum "$RUNNER_TEMP/elementum-inputs" --portrait-inputs "$RUNNER_TEMP/portrait-inputs" --providers "$RUNNER_TEMP/provider-inputs"
       # The owner installs the raw .ipa: publish it as a prerelease asset instead of a zipped artifact.
       - name: Publish raw IPA as a prerelease download
         if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'build-ipa')

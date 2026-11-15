@@ -198,6 +198,9 @@ class RedirectBoundary(unittest.TestCase):
   import test_elementum_cloud
   self.fixture=test_elementum_cloud.Route('test_cancel_never_enqueues_or_starts_a_player')
   self.fixture.setUp();self.addCleanup(self.fixture.doCleanups)
+  # Primary-provider regression: no backup add-ons are configured and the user has not canceled.
+  self.fixture.mods['xbmc'].Monitor.return_value.abortRequested.return_value=False
+  self.fixture.mods['xbmc'].getCondVisibility.return_value=False
   self.home=Home();self.fixture.mods['xbmcgui'].Window=lambda ident:self.home
   self.exp=source_match.expected('episode',['Sample Show'],tmdb='123',season=1,episode=2)
   self.rows=[line('Sample.Show.S01E02.1080p.HEVC')]

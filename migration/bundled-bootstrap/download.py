@@ -53,13 +53,14 @@ def run():
    xbmc.log('Kodi iOS download: season sheet unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
    pick=dialog.select(heading,[xbmcgui.ListItem(label=n,label2=d) for n,d in rows])
   if pick<0:return
+ engine_missing=False
  if not elementum_engine.running():
   # Not started at launch (performance 1E.1): start it now, with the busy ring while it loads.
   xbmc.executebuiltin('ActivateWindow(busydialognocancel)')
   try:started=elementum_engine.ensure_here()
+  except (OSError,RuntimeError,TimeoutError):started=False
   finally:xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
-  if not started:
-   dialog.ok('Download','Elementum is not running. Gear menu › Retry Elementum engine, then try again.');return
+  engine_missing=not started
  wait=lambda:xbmc.Monitor().waitForAbort(1)
  def check(k,s='',e=''):
   # Library status › "Find a version without converting" (replace=1): the copy we have is the one being replaced.
@@ -90,7 +91,13 @@ def run():
   if k=='episode':
    import episode_watch
    episode_watch.canceled(xbmcgui.Window(10000),{'tmdb':tmdb,'season':season,'episode':e},clear=True)
-  dl.follow(url)
+  import provider_fallback_hooks,source_match
+  exp=source_match.expected('movie' if k=='movie' else 'episode',[title],year=year if k=='movie' else None,
+                           tmdb=tmdb,season=season if k!='movie' else None,episode=e if k=='episode' else None)
+  def primary(url):
+   if engine_missing:raise OSError('Primary source engine unavailable')
+   return dl.follow(url)
+  provider_fallback_hooks.download_follow(url,exp,primary,cancel=xbmc.Monitor().abortRequested)
  if kind=='season':
   if pick==1:
    import json

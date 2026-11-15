@@ -78,6 +78,10 @@ banner, problem sheet and Roku banner checked in the desktop Kodi rig. Phone res
 ISSUE-333, 334, 338, 339, 340. 136 Python suites passed; season row and Favourites picker checked in the desktop
 Kodi rig. Phone results pending. Next steps and rules: [HANDOFF-PR31.md](HANDOFF-PR31.md).
 
+## PR #32 — movie/TV fallback providers — ready for draft review
+
+Existing provider stays first; Jacktook, POV/Magneto, mapped Otaku, The Crew and Prism supply backups through the existing picker. 431 Python3.11 tests and17/17 realKodi desktop fixture scenarios pass. See [implementation](PROVIDER-FALLBACK.md), [progress](PROVIDER-FALLBACK-PROGRESS.md) and reports/provider-fallback-validation.json. Live accounts/iPhone/AirPlay remain unverified; noIPA or merge.
+
 ## Build 502: one IPA with everything from the build-486 feedback — 2026-11-15
 
 [Testing IPA 502](https://github.com/onlykappa/Kodi-Ios/releases/download/build-502/Kodi-iOS-Customized-Touch-r10.ipa)

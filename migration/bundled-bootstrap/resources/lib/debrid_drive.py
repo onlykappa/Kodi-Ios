@@ -453,9 +453,99 @@ def queue(profile, torrent, kind, title='', season='', episode='', now=None, epi
         return _queue(profile,torrent,kind,title,season,episode,now,episodes,watch,show_tmdb,quality)
 
 
-def _queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False,show_tmdb=None,quality=''):
+def direct_parts(url):
+    import urllib.parse
+    raw, _, extra = str(url).partition('|')
+    parsed = urllib.parse.urlsplit(raw)
+    if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError('Unsupported direct video source')
+    headers = dict(urllib.parse.parse_qsl(extra, keep_blank_values=True))
+    if any('\r' in k+v or '\n' in k+v for k,v in headers.items()):
+        raise ValueError('Invalid source headers')
+    headers = {k:v for k,v in headers.items() if k.lower() not in ('range','host','content-length','connection')}
+    return raw, headers
+
+
+def probe_direct(url, cancel=None, timeout=10, open_url=None):
+    """Verify exact size/seekability with one byte, without adding a job or reading the movie."""
+    import provider_fallback
+    raw, headers = direct_parts(provider_fallback.safe_url(url))
+    deadline = time.monotonic()+max(0,float(timeout))
+    def check(): provider_fallback._check(cancel,deadline)
+    check()
+    opener = open_url or urllib.request.urlopen
+    # A byte-range probe proves an exact length and seekability without fetching the movie.
+    req = urllib.request.Request(raw,headers=dict(headers,Range='bytes=0-0'))
+    answer={};responses=[];finished=threading.Event()
+    def probe():
+        try:
+            with opener(req,timeout=max(.001,deadline-time.monotonic())) as response:
+                responses.append(response)
+                check()
+                import re
+                span = re.fullmatch(r'bytes 0-0/(\d+)',response.headers.get('Content-Range',''))
+                if response.getcode()!=206 or not span or int(span.group(1))<=0:
+                    raise ValueError('The source does not provide a verified video byte range')
+                if len(response.read(2))!=1: raise ValueError('The source returned an invalid video range')
+                answer['size']=int(span.group(1))
+        except Exception as error:answer['error']=error
+        finally:finished.set()
+    thread=threading.Thread(target=probe,daemon=True);thread.start()
+    try:
+        while not finished.wait(.025):check()
+        check()
+        if 'error' in answer:raise answer['error']
+        size=answer['size']
+    except BaseException:
+        # Interrupt a body read without waiting on HTTPResponse's buffered-reader lock.
+        import socket
+        for response in tuple(responses):
+            sock=getattr(getattr(getattr(response,'fp',None),'raw',None),'_sock',None)
+            if sock is not None:
+                try:sock.shutdown(socket.SHUT_RDWR)
+                except OSError:pass
+            threading.Thread(target=response.close,daemon=True).start()
+        raise
+    check()
+    return size
+
+
+def queue_direct(profile, url, candidate, request, watch=False, open_url=None, cancel=None, timeout=10):
+    """Queue an already-resolved video through the existing Drive copier, without treating it as a torrent."""
+    import hashlib
+    import provider_fallback
+    deadline=time.monotonic()+max(0,float(timeout))
+    def check():provider_fallback._check(cancel,deadline)
+    check()
+    size=probe_direct(url,cancel=cancel,timeout=max(0,deadline-time.monotonic()),open_url=open_url)
+    check()
+    target=location(profile);target.parent.mkdir(parents=True,exist_ok=True)
+    ident=hashlib.sha1(('direct:'+str(candidate.get('provider'))+':'+str(candidate.get('_id') or candidate.get('name'))+':'+str(request.get('tmdb'))).encode()).hexdigest()
+    kind='movie' if request.get('media_type')=='movie' else 'episode'
+    name=str(candidate.get('name') or request.get('title') or 'Video')
+    if not name.lower().endswith(('.mkv','.mp4','.avi','.webm','.mov','.m4v','.ts')): name+='.mkv'
+    with open(str(target)+'.enqueue.lock','a') as guard:
+        fcntl.flock(guard,fcntl.LOCK_EX)
+        check()
+        if kind=='movie' and request.get('tmdb'):
+            for queued in load(profile).get('jobs',[]):
+                if queued.get('kind')=='movie' and str(queued.get('movie_tmdb') or '')==str(request['tmdb']) and queued.get('status') not in ('done','failed'):
+                    return queued
+        job=_queue(profile,{'id':ident,'name':name},kind,request.get('show_title') or request.get('title') or '',
+                   request.get('season') or '',request.get('episode') or '',watch=watch,
+                   show_tmdb=request.get('tmdb') if kind=='episode' else None, quality=request.get('quality') or '',
+                   _direct={'status':'copying','direct_source':True,'source_provider':str(candidate.get('provider') or ''),
+                            'movie_tmdb':str(request.get('tmdb') or '') if kind=='movie' else '',
+                            'files':[{'path':name,'size':size,'link':url,'direct':True,'session':{},'done':False}]},_enqueue_check=check)
+        os.chmod(target,0o600)
+        return job
+
+
+
+def _queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False,show_tmdb=None,quality='',_direct=None,_enqueue_check=None):
     """Add a Download to the queue (once per torrent and episode). Returns the job."""
     state = load(profile)
+    if _enqueue_check:_enqueue_check()
     h = info_hash(torrent)
     if not h:
         raise ValueError('torrent without an info-hash')
@@ -484,7 +574,9 @@ def _queue(profile, torrent, kind, title='', season='', episode='', now=None, ep
                     job['name'] = str(torrent.get('name') or title)
                 changed=True
             if watch:job['watch_requested']=time.time();changed=True
-            if changed:save(profile,state,enqueue=True)
+            if changed:
+                if _enqueue_check:_enqueue_check()
+                save(profile,state,enqueue=True)
             return job
     job = {'hash': h, 'name': str(torrent.get('name') or title or h), 'title': title, 'kind': kind,
            'season': str(season or ''), 'episode': str(episode or ''), 'episodes': sorted(int(n) for n in episodes or ()),
@@ -492,6 +584,8 @@ def _queue(profile, torrent, kind, title='', season='', episode='', now=None, ep
            'added': time.time() if now is None else now}
     if show_tmdb:job['show_tmdb']=str(show_tmdb)
     if quality:job['quality']=str(quality)   # ISSUE-231: the quality the owner chose (an automatic pick); checked once on Drive
+    if _direct:job.update(_direct)
+    if _enqueue_check:_enqueue_check()
     state['jobs'].append(job)
     save(profile, state, enqueue=True)
     return job
@@ -1036,7 +1130,9 @@ def adopt(profile, torrents, playing, now=None):
 
 
 def default_open(url, offset, timeout=60):
-    req = urllib.request.Request(url, headers={'Range': 'bytes=%d-' % offset} if offset else {})
+    raw, headers = direct_parts(url)
+    if offset: headers['Range'] = 'bytes=%d-' % offset
+    req = urllib.request.Request(raw, headers=headers)
     return urllib.request.urlopen(req, timeout=timeout)
 
 
@@ -1058,6 +1154,8 @@ def companions(state, later, api, clock, log=lambda text: None):
         if len(out) >= LANES - 1:
             break
         if other['status'] not in ('new', 'copying') or other.get('retry_at', 0) > clock():
+            continue
+        if other.get('direct_source') and (other['status']!='copying' or not other.get('files')):
             continue
         try:
             if other['status'] == 'new':
@@ -1301,6 +1399,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         return 1
     try:
         if job['status'] == 'new':
+            if job.get('direct_source'):
+                raise copy_errors.PermanentCopyError('The backup download has no verified source file. Choose this video again.')
             job['magnet'], ready = api.add(job['hash'])
             job['status'] = 'copying' if ready else 'fetching'
             if not ready:
@@ -1319,6 +1419,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             return 1 if code == alldebrid.READY else 15
         if job['status'] == 'copying':
             if not job['files']:
+                if job.get('direct_source'):
+                    raise copy_errors.PermanentCopyError('The backup download has no verified source file. Choose this video again.')
                 try:
                     chosen = alldebrid.pick(api.files(job['magnet']), job['kind'], job.get('season'), job.get('episode'), job.get('episodes'),
                                             offset=offset_for(job))
@@ -1394,7 +1496,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             def copy(item, slot):
                 owner, entry = item
                 job_title = owner.get('title') or owner['name']
-                url, name, size = api.unlock(entry['link'])
+                url, name, size = (entry['link'],entry['path'],entry['size']) if entry.get('direct') else api.unlock(entry['link'])
                 original_name=name
                 source_link=[url];source_guard=threading.Lock();renew_after=[0.0]
                 def with_source(action):
@@ -1403,6 +1505,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     except urllib.error.HTTPError as error:
                         error.close()
                         if error.code not in (401,403,404,410):raise
+                        if entry.get('direct'):
+                            raise copy_errors.PermanentCopyError('The selected backup link expired. Choose this video again; the partial upload has stopped.')
                         with source_guard:
                             if source_link[0]==attempted:
                                 if clock()<renew_after[0]:raise
@@ -1415,7 +1519,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 def open_source(offset):return with_source(lambda source:open_url(source,offset))
                 if callable(getattr(drive,'copy_piece',None)):
                     def copy_to(target,headers,offset,count,total,timeout=20):
-                        return with_source(lambda source:drive.copy_piece(source,{},target,headers,offset,count,total,timeout))
+                        return with_source(lambda source:drive.copy_piece(direct_parts(source)[0],direct_parts(source)[1],target,headers,offset,count,total,timeout))
                     copy_to.max=getattr(drive.copy_piece,'max',8*1024*1024)
                     copy_to.streams=getattr(drive.copy_piece,'streams',False)
                     open_source.copy_to=copy_to

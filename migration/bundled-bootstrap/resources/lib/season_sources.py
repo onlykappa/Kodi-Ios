@@ -173,12 +173,24 @@ def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=Non
   # A scan reaches the search route, but consumes any selected-media redirect.
   options={'timeout':timeout if timeout is not None else (600 if purpose=='packs' else 120),'route':route}
   if cancel is not None:options['cancel']=cancel
-  reached=(follow or dl.follow)(url,**options)
+  primary_error=None;reached=None
+  try:reached=(follow or dl.follow)(url,**options)
+  except dl.Canceled:raise
+  except (OSError,RuntimeError,TimeoutError) as error:primary_error=error
   try:result=json.loads(home.getProperty(watch.RESULT+lane) or '{}')
   except ValueError:result={}
   if not result and purpose in ('scan','packs') and reached==url.replace(dl.PLUGIN_PREFIX,dl.ENGINE,1):
    # Elementum answers a no-results search without opening a picker. A failed HTTP request raises above.
    result={'request_id':ident,'qualities':[],'packs':False}
+  empty=(not result or result.get('error') or (purpose=='scan' and not result.get('qualities')) or
+         (purpose=='queue' and not result.get('found') and not result.get('queued')))
+  if empty and purpose in ('scan','queue') and not (cancel and cancel()):
+   try:
+    import provider_fallback_hooks
+    backup=provider_fallback_hooks.season_fallback(home,target,dict(wanted,_lane=lane),cancel=cancel,timeout=timeout or 60)
+    if backup:result=backup;primary_error=None
+   except (ImportError,RuntimeError,OSError,ValueError):pass
+  if primary_error:raise primary_error
   if result.get('request_id')!=ident or result.get('error'):return {}
   if purpose=='queue':
    try:receipt=json.loads(home.getProperty('KodiIOS.AutoPick.Queued'+lane) or '{}')
@@ -188,6 +200,7 @@ def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=Non
   if cancel and cancel() and not result.get('queued'):raise dl.Canceled('Source search canceled')
   return result
  finally:
+  home.clearProperty('KodiIOS.ProviderFallback.Done.'+ident)
   if result.get('request_id')!=ident or (purpose=='queue' and not result.get('queued')):watch.cancel_request(home,wanted)
   try:current=json.loads(home.getProperty(watch.AUTO+lane) or '{}')
   except ValueError:current={}

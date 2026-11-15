@@ -1,0 +1,214 @@
+{
+  "host_python": "3.11",
+  "host_tests": 431,
+  "suites": [
+    {
+      "suite": "provider_fallback",
+      "tests": 11,
+      "returncode": 0
+    },
+    {
+      "suite": "provider_probe",
+      "tests": 5,
+      "returncode": 0
+    },
+    {
+      "suite": "provider_queue_bridge",
+      "tests": 5,
+      "returncode": 0
+    },
+    {
+      "suite": "provider_worker",
+      "tests": 10,
+      "returncode": 0
+    },
+    {
+      "suite": "provider_addons",
+      "tests": 22,
+      "returncode": 0
+    },
+    {
+      "suite": "provider_adapters_primary",
+      "tests": 15,
+      "returncode": 0
+    },
+    {
+      "suite": "provider_adapters_secondary",
+      "tests": 26,
+      "returncode": 0
+    },
+    {
+      "suite": "provider_direct_queue",
+      "tests": 17,
+      "returncode": 0
+    },
+    {
+      "suite": "provider_fallback_hooks",
+      "tests": 17,
+      "returncode": 0
+    },
+    {
+      "suite": "source_match",
+      "tests": 44,
+      "returncode": 0
+    },
+    {
+      "suite": "deck_picker",
+      "tests": 32,
+      "returncode": 0
+    },
+    {
+      "suite": "choose_source",
+      "tests": 4,
+      "returncode": 0
+    },
+    {
+      "suite": "auto_season",
+      "tests": 9,
+      "returncode": 0
+    },
+    {
+      "suite": "season_sources",
+      "tests": 34,
+      "returncode": 0
+    },
+    {
+      "suite": "episode_watch",
+      "tests": 30,
+      "returncode": 0
+    },
+    {
+      "suite": "continue_downloads",
+      "tests": 20,
+      "returncode": 0
+    },
+    {
+      "suite": "watch_continue",
+      "tests": 14,
+      "returncode": 0
+    },
+    {
+      "suite": "debrid_drive",
+      "tests": 72,
+      "returncode": 0
+    },
+    {
+      "suite": "customized_ipa",
+      "tests": 14,
+      "returncode": 0
+    },
+    {
+      "suite": "bundled_bootstrap",
+      "tests": 16,
+      "returncode": 0
+    },
+    {
+      "suite": "import_builder",
+      "tests": 14,
+      "returncode": 0
+    }
+  ],
+  "rig": {
+    "evidence_class": "desktop Kodi rig",
+    "version": {
+      "major": 21,
+      "minor": 3,
+      "revision": "20261023-nogitfound",
+      "tag": "stable"
+    },
+    "passed": 17,
+    "total": 17,
+    "cases": [
+      {
+        "case": "adapter:jacktook",
+        "status": "pass",
+        "seconds": 1.341
+      },
+      {
+        "case": "adapter:pov",
+        "status": "pass",
+        "seconds": 1.207
+      },
+      {
+        "case": "adapter:prism",
+        "status": "pass",
+        "seconds": 1.286
+      },
+      {
+        "case": "adapter:thecrew",
+        "status": "pass",
+        "seconds": 2.497
+      },
+      {
+        "case": "adapter:otaku",
+        "status": "pass",
+        "seconds": 1.298
+      },
+      {
+        "case": "strict",
+        "status": "pass",
+        "seconds": 1.396
+      },
+      {
+        "case": "chain",
+        "status": "pass",
+        "seconds": 3.767
+      },
+      {
+        "case": "empty",
+        "status": "pass",
+        "seconds": 3.013
+      },
+      {
+        "case": "timeout",
+        "status": "pass",
+        "seconds": 0.5
+      },
+      {
+        "case": "cancel",
+        "status": "pass",
+        "seconds": 0.5
+      },
+      {
+        "case": "auto-primary",
+        "status": "pass",
+        "seconds": 0.502
+      },
+      {
+        "case": "auto-queue",
+        "status": "pass",
+        "seconds": 1.409
+      },
+      {
+        "case": "mapped-auto",
+        "status": "pass",
+        "seconds": 1.39
+      },
+      {
+        "case": "resolver-offline",
+        "status": "pass",
+        "seconds": 3.904
+      },
+      {
+        "case": "primary-picker",
+        "status": "pass",
+        "seconds": 1.502
+      },
+      {
+        "case": "fallback-picker",
+        "status": "pass",
+        "seconds": 1.527
+      },
+      {
+        "case": "cancel-picker",
+        "status": "pass",
+        "seconds": 1.509
+      }
+    ],
+    "private_report_sha256": "024422535882c1dbb9c41d660843156f3201a4688d550ac17ce9d925eb6467f7"
+  },
+  "live_accounts_tested": false,
+  "iphone_airplay_tested": false,
+  "ipa_built": false,
+  "limitations": "Rig uses Kodi21.3/Python3.14 with deterministic upstream-interface fixtures. Host suites use Python3.11 and hash-checked upstream API fixtures. Public provider uptime/account playback remains unverified."
+}
