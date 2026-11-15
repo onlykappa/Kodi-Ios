@@ -205,9 +205,9 @@ def video_on_screen(xbmc):
 class Banner:
  """ISSUE-345 (owner-approved mockup C): the slim banner at the top from the moment a TV is picked: the step, a thin
  bar and Stop (which sets TV_STOP, as Play on TV tapped again used to); "Playing on your TV" for two seconds at the end."""
- def __init__(self,xbmc,xbmcgui):
+ def __init__(self,xbmc,xbmcgui,tv=''):
   import airplay_flow
-  self.xbmc,self.flow,self.win=xbmc,airplay_flow,None
+  self.xbmc,self.flow,self.win,self.tv=xbmc,airplay_flow,None,tv
   home=xbmcgui.Window(10000)
   def stop():
    home.setProperty(TV_STOP,'1');self.apply({'title':'Stopping…','sub':'','stop':''})
@@ -226,7 +226,7 @@ class Banner:
     import xbmcvfs
     xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'1080i')+'/')
     self.win=Win(airplay_flow.BANNER,here,'Default','1080i')
-   self.win.props=airplay_flow.banner_view('opening');self.win.show()
+   self.win.props=airplay_flow.banner_view('opening',tv=tv);self.win.show()
   except Exception as error:
    self.win=None;xbmc.log('Kodi iOS Play on TV: banner unavailable (%s)'%type(error).__name__,getattr(xbmc,'LOGWARNING',2))
  def apply(self,props):
@@ -235,10 +235,10 @@ class Banner:
   if self.win is not None:
    try:self.win.apply(props)
    except Exception:pass
- def stage(self,stage,converting=False):self.apply(self.flow.banner_view(stage,converting))
+ def stage(self,stage,converting=False):self.apply(self.flow.banner_view(stage,converting,tv=self.tv))
  def done(self,at=None):
   if self.win is None:return
-  self.apply(self.flow.banner_done(at));self.xbmc.sleep(2000);self.close()
+  self.apply(self.flow.banner_done(at,tv=self.tv));self.xbmc.sleep(2000);self.close()
  def close(self):
   if self.win is not None:
    try:self.win.finish()
@@ -332,6 +332,7 @@ class FlowUI:
 def send_airplay(xbmc,dialog,player,library,url,title,playing):
  if QUIET_PROGRESS:
   import xbmcgui as _g
+  if _BANNER[0]:_BANNER[0].close()   # a Roku that refused hands over to AirPlay: one banner, not two
   _BANNER[0]=Banner(xbmc,_g)   # ISSUE-345: progress at once, before the source is opened
  lib=airplay.load(library);lease=None;source=None;retained=False
  import remote_media
@@ -622,6 +623,19 @@ def tv_link(xbmc,library,url,playing,kind,safe=False,preserve_picture=False,star
  return url,None
 
 def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing='',preserve_picture=False,restore_on_failure=False):
+ if tv['kind'] in ('roku','dlna','chromecast') and QUIET_PROGRESS and not _BANNER[0]:
+  # Owner (2026-11-15: "make airplay work seemless on any device mainly roku"): a TV's own player gets the same banner
+  # (ISSUE-345) from the tap until it plays; a second tap only shows it, Stop stops.
+  import xbmcgui as _g
+  _BANNER[0]=Banner(xbmc,_g,tv.get('name') or 'your TV')
+  _g.Window(10000).setProperty(TV_STOP,'');_g.Window(10000).setProperty(TV_STARTING,'%f|%s'%(__import__('time').time(),title or ''))
+  try:return _send_tv(xbmc,dialog,player,library,tv,url,title,needs_phone,playing,preserve_picture,restore_on_failure)
+  finally:
+   _g.Window(10000).clearProperty(TV_STARTING);_g.Window(10000).clearProperty(TV_STOP)
+   if _BANNER[0]:_BANNER[0].close();_BANNER[0]=None
+ return _send_tv(xbmc,dialog,player,library,tv,url,title,needs_phone,playing,preserve_picture,restore_on_failure)
+
+def _send_tv(xbmc,dialog,player,library,tv,url,title,needs_phone,playing='',preserve_picture=False,restore_on_failure=False):
  original_url=url;served=None;paused_here=False;safe=False
  def restore_phone():
   if (paused_here or restore_on_failure) and xbmc.getCondVisibility('Player.Paused'):player.pause()
@@ -713,6 +727,10 @@ def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing='',preserve
    ui=FlowUI(xbmc,xbmcgui,dialog,title);choice=ui.ask(props,monitor);ui.close()
    if choice=='retry':send(xbmc,dialog,player,library,tv,original_url,title,needs_phone,playing,preserve_picture=preserve_picture,restore_on_failure=restore_on_failure)
    return
+ if _BANNER[0]:   # "Playing on <TV>" for two seconds while the phone's video is still on screen, then it goes
+  try:_BANNER[0].done(start if tv['kind'] in ('roku','dlna','chromecast') else None)
+  except Exception:pass
+  _BANNER[0]=None
  player.stop();notices.note('info',('Streaming to ' if served else 'Sent to ')+tv['name'],title or '')
  if served:
   import time,xbmcgui

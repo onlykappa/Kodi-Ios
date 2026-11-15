@@ -53,7 +53,7 @@ class Wiring(unittest.TestCase):
 
     def test_playing_then_two_seconds_then_gone(self):
         self.assertIn('_BANNER[0].done(at);_BANNER[0]=None', self.src)
-        self.assertIn('self.apply(self.flow.banner_done(at));self.xbmc.sleep(2000);self.close()', self.src)
+        self.assertIn('self.apply(self.flow.banner_done(at,tv=self.tv));self.xbmc.sleep(2000);self.close()', self.src)
 
 
 class NoVideoOnScreen(unittest.TestCase):
@@ -86,6 +86,31 @@ class NoVideoOnScreen(unittest.TestCase):
     def test_long_titles_wrap_in_the_sheet(self):
         import choice_sheet
         self.assertTrue(choice_sheet.tall({'label': 'Pause uploads and try again', 'tint': 'FFFF9F0A'}))
+
+
+class RokuToo(unittest.TestCase):
+    """Owner (2026-11-15): "make airplay work seemless on any device mainly roku": a TV's own player (Roku, DLNA,
+    Chromecast) gets the banner too, in two steps and with the TV's name."""
+    src = (BOOT / 'cast.py').read_text()
+
+    def test_two_steps_with_the_tvs_name(self):
+        self.assertEqual(af.banner_view('opening', tv='Living Room Roku')['sub'], 'Step 1 of 2 · usually a few seconds')
+        v = af.banner_view('connecting', tv='Living Room Roku')
+        self.assertEqual((v['title'], v['sub']), ('Waiting for your TV to start playing', 'Step 2 of 2 · Living Room Roku'))
+        self.assertEqual(af.banner_done(65, tv='Living Room Roku')['sub'], 'Living Room Roku · From 1:05')
+        self.assertEqual(af.banner_view('connecting')['sub'], 'Step 3 of 3 · up to 15 s')   # AirPlay unchanged
+
+    def test_the_tv_route_shows_it_and_guards_a_second_tap(self):
+        send = self.src[self.src.index('def send('):self.src.index('def _send_tv(')]
+        self.assertIn("_BANNER[0]=Banner(xbmc,_g,tv.get('name') or 'your TV')", send)
+        self.assertIn('setProperty(TV_STARTING', send)
+        self.assertIn('clearProperty(TV_STARTING)', send)
+        tv = self.src[self.src.index('def _send_tv('):]
+        self.assertLess(tv.index('_BANNER[0].done('), tv.index("player.stop();notices.note('info'"))
+
+    def test_a_roku_handing_over_to_airplay_keeps_one_banner(self):
+        start = self.src.index('def send_airplay(')
+        self.assertLess(self.src.index('if _BANNER[0]:_BANNER[0].close()', start), self.src.index('_BANNER[0]=Banner(xbmc,_g)', start))
 
 
 if __name__ == '__main__':

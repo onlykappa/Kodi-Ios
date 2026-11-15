@@ -273,20 +273,27 @@ BANNER_STEPS = {
 }
 
 
-def banner_view(stage, converting=False):
-    """Properties of the banner for a running step."""
+def banner_view(stage, converting=False, tv=''):
+    """Properties of the banner for a running step. tv: a TV's own player (Roku, DLNA, Chromecast) by name: two steps,
+    no AirPlay list to choose from."""
     key = 'converting' if converting and stage == 'opening' else stage if stage in BANNER_STEPS else 'opening'
     title, sub = BANNER_STEPS[key]
+    if tv:   # the name goes on the smaller line: in the title a long Roku name was cut off (landscape rig)
+        if key == 'connecting':
+            sub = 'Step 2 of 2 · %s' % tv
+        else:
+            sub = sub.replace('Step 1 of 3', 'Step 1 of 2')
     return {'title': title, 'sub': sub, 'bar': str(BAR_PCT.get(stage, 22)), 'icon': 'tv.png', 'tint': '380A84FF',
             'stop': 'Stop', 'done': ''}
 
 
-def banner_done(at=None):
+def banner_done(at=None, tv=''):
     """'Playing on your TV · From 27:03' with a green tick, no bar and no Stop."""
     sub = ''
     if at:
         at = int(at)
         sub = 'From %d:%02d:%02d' % (at // 3600, at // 60 % 60, at % 60) if at >= 3600 else 'From %d:%02d' % (at // 60, at % 60)
+    sub = ' · '.join(x for x in (tv, sub) if x)
     return {'title': 'Playing on your TV', 'sub': sub, 'bar': '', 'icon': 'check.png', 'tint': '3830D158', 'stop': '', 'done': '1'}
 
 

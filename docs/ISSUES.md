@@ -4918,6 +4918,21 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-349 — Play on TV to a Roku (its own player) showed no progress while the phone made the stream ready (owner: "make airplay work seemless on any device mainly roku") — fixed in code
+
+- **Seen (review):** ISSUE-345's banner was only made on the AirPlay route (`send_airplay`). Play on TV to a Roku, a
+  smart TV (DLNA) or a Chromecast goes through `send`, where the progress card has been hidden since ISSUE-251
+  (`QUIET_PROGRESS`): nothing showed while the stream was made and the Roku launched it, so a second tap started it
+  again.
+- **Fix (`cast.send`):** that route makes the banner too, in two steps (getting ready → waiting for the TV, no AirPlay
+  list), with the TV's name on the small line ("Step 2 of 2 · TCL 55 inch Roku TV Living Room"; in the title a long
+  name was cut off in the rig), "Playing on your TV · <name> · From m:ss" before the phone's video stops, and the
+  same start guard (a second tap only logs, Stop stops). A Roku that refuses and hands over to AirPlay keeps one
+  banner.
+- **Retest:** desktop Kodi rig, landscape 1311x603, with a 30-character TV name: all three states fit. Device: needs
+  the owner's iPhone and Roku.
+- **Test:** `scripts/test_tv_banner.py` (`RokuToo`).
+
 ## ISSUE-348 — Play on TV's problem card drawn stretched over the upright app, title cut off (owner screenshot IMG_0156, log a83e06c7) — fixed in code
 
 - **Seen:** "The movie took too long …" with the icon tile, the close button and "Try again" drawn as tall ovals over the
