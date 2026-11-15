@@ -1,5 +1,13 @@
 # Persistent progress
 
+## Sports › Upcoming: mockups, round 3 — 2026-11-15
+
+Mockups only: [docs/design/sports-upcoming-mockups.html](design/sports-upcoming-mockups.html) (evidence class: mockup). The
+owner also approved the Live Now "nothing live" page. Upcoming: the games not started yet, soonest first, a day at a time, with
+the same league chips. Option A is a compact list by day (start time, teams, league label, how many sources are ready; recommended),
+option B is cards like Live Now. A tap opens the game's page (start time, the sources found so far, or "No sources yet"). Plus
+nothing-coming-up and can't-load states. Waiting for the owner's pick.
+
 ## Sports › Live Now: option B approved — 2026-11-15
 
 The owner chose option B ("I like B"): one card per live game with its sources under it, the game closest to its end first,
