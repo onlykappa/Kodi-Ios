@@ -145,6 +145,12 @@ int gm_stream_audio_segment(gm_stream *s, int src, int i, gm_buf *out, char *err
 /// with ABSOLUTE movie timestamps). A cue straddling a boundary is emitted in both
 /// neighbouring segments. Only valid for text subs (subrip/ass/mov_text); image subs
 /// (PGS/VobSub) are not carryable. Returns 0 on success.
+// Kodi iOS (ISSUE-343, owner log 1f143748: subtitles on the Apple TV "so out of sync"): every WebVTT segment starts with
+// this header. Cue times are the source's absolute times and the video/audio segments keep those same absolute times
+// (gm_ts, "absolute tfdt"), so cue time 0 is media time 0: MPEGTS:0. Apple's segmenter writes MPEGTS:900000 because its
+// own media starts at 10 s; with ours it put every subtitle 10 s late.
+#define GM_VTT_HEADER "WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000\n\n"
+
 int gm_stream_subtitle_segment(gm_stream *s, int src, int i, gm_buf *out, char *err, int errlen);
 
 /// Number of segments in the plan.

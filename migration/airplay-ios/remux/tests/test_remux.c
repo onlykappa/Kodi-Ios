@@ -306,6 +306,12 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
         reply vtt = http_get(port, path, NULL);
         CHECK(vtt.status == 200 && !strncmp(vtt.body, "WEBVTT", 6), "%s: WebVTT segment", fx->file);
         CHECK(strstr(vtt.body, fx->sub_text) != NULL && !strchr(vtt.body, '{'), "%s: cue text %s (tags stripped) in\n%s", fx->file, fx->sub_text, vtt.body);
+        // ISSUE-343: cue times are media times (the segments keep absolute times), and a line is shown once even when
+        // the file draws it on several layers.
+        CHECK(strstr(vtt.body, "X-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000") != NULL, "%s: WebVTT time map is media time 0:\n%s", fx->file, vtt.body);
+        int copies = 0;
+        for (const char *q = vtt.body; (q = strstr(q, fx->sub_text)); q++) copies++;
+        CHECK(copies == 1, "%s: %s appears %d times in\n%s", fx->file, fx->sub_text, copies, vtt.body);
         // r9: cues of later segments (owner build-138: every segment after a seek was the bare header). The SRT's
         // second cue (6.5-7.5 s) sits in the segment whose window holds 6.5 s, fetched out of order (last first).
         if (strstr(fx->sub_text, "SRT")) {
@@ -2420,6 +2426,7 @@ int main(int argc, char **argv) {
     fixture fx[] = {
         { "h264_aac_srt.mkv", "avc1.42C0", "mp4a.40.2", 1, 1, 0, 0, "Hello from SRT" },
         { "hevc_ac3_ass.mkv", "hvc1.2.4.L", "ac-3", 1, 1, 1, 0, "Hello from ASS" },
+        { "h264_aac_layers.mkv", "avc1.", "mp4a.40.2", 1, 1, 0, 0, "Hello from layers" },   // ISSUE-343
         { "h264_dts.mkv", "avc1.", "mp4a.40.2", 1, 0, 0, 1, NULL },
         { "h264_truehd.mkv", "avc1.", "mp4a.40.2", 1, 0, 0, 1, NULL },
         { "h264_ac3_dts_srt.mkv", "avc1.", "ac-3,mp4a.40.2", 2, 1, 0, 1, "Hello from SRT" },

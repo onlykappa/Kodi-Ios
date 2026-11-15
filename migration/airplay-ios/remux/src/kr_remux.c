@@ -751,7 +751,7 @@ static struct {
 // position, a cue file behind it is answered at once with an empty one; afterwards the ordinary wait applies, capped
 // below Apple's six-second timeout.
 static atomic_int sub_resume_seg=ATOMIC_VAR_INIT(-1);
-static const char empty_vtt[]="WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:900000,LOCAL:00:00:00.000\n\n";
+static const char empty_vtt[]=GM_VTT_HEADER;   // ISSUE-343: the same time map as every cue file
 #define SUB_WAIT_SECONDS 4
 int kr_remux_subtitle_answer_now(int seg) {   // 1: answer this cue file empty without waiting (tests use it too)
     int resume=atomic_load(&sub_resume_seg);

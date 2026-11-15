@@ -979,9 +979,8 @@ int gm_stream_subtitle_segment(gm_stream *s, int src, int i, gm_buf *out, char *
     double seg_end = (i + 1 < s->n_seg) ? s->seg_starts[i + 1] : s->duration;
 
     out->len = 0;
-    // Fixed header matching Apple's mediasubtitlesegmenter (MPEGTS:900000 = 10s @ 90kHz,
-    // LOCAL 0 -> WebVTT cue times ARE absolute media times).
-    vtt_append(out, "WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:900000,LOCAL:00:00:00.000\n\n", -1);
+    // Cue times ARE absolute media times (GM_VTT_HEADER: MPEGTS:0 <-> LOCAL 0, ISSUE-343).
+    vtt_append(out, GM_VTT_HEADER, -1);
 
     AVCodecContext *dec = open_sub_decoder(s, src);
     if (!dec) { set_err(err, errlen, "open sub decoder", 0); return -1; }
@@ -1003,6 +1002,14 @@ int gm_stream_subtitle_segment(gm_stream *s, int src, int i, gm_buf *out, char *
     AVPacket *pkt = av_packet_alloc();
     AVSubtitle sub;
     int got = 0, ncues = 0, guard = 0, rr = 0;
+    // ISSUE-343 (owner: subtitles "doubled up" on the TV): anime subtitle files draw one line several times on stacked
+    // layers (outline, fill, a sign's copies). Kodi's renderer stacks them into one line; as WebVTT each was its own cue
+    // and the TV showed the line twice. A cue with the same text as one already written here, overlapping it in time,
+    // is skipped (its window is merged into the first).
+    enum { SEEN_MAX = 256 };
+    typedef struct { double start, end; uint32_t hash; int len; } vtt_seen;
+    vtt_seen seen[SEEN_MAX];
+    int nseen = 0;
     while (guard++ < 100000 && (rr = av_read_frame(s->in, pkt)) >= 0) {
         if (pkt->stream_index != src) { av_packet_unref(pkt); continue; }
         double pts = (pkt->pts != AV_NOPTS_VALUE ? pkt->pts : pkt->dts) * av_q2d(ist->time_base);
@@ -1035,7 +1042,13 @@ int gm_stream_subtitle_segment(gm_stream *s, int src, int i, gm_buf *out, char *
             // Trim trailing whitespace/newlines.
             while (text.len > 0 && (text.data[text.len - 1] == '\n' || text.data[text.len - 1] == ' '))
                 text.len--;
-            if (text.len > 0) {
+            uint32_t hash = 2166136261u;
+            for (int c = 0; c < text.len; c++) { hash ^= (uint8_t)text.data[c]; hash *= 16777619u; }
+            int dup = 0;
+            for (int k = 0; k < nseen && !dup; k++)
+                dup = seen[k].hash == hash && seen[k].len == text.len && cstart < seen[k].end + 0.05 && cend > seen[k].start - 0.05;
+            if (text.len > 0 && !dup && nseen < SEEN_MAX) seen[nseen++] = (vtt_seen){cstart, cend, hash, text.len};
+            if (text.len > 0 && !dup) {
                 vtt_time(out, cstart);
                 vtt_append(out, " --> ", 5);
                 vtt_time(out, cend);

@@ -4918,6 +4918,24 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-343 — AirPlay subtitles on the Apple TV doubled and badly out of sync (owner log 1f143748, build 513) — fixed in code (needs an AirPlay framework build)
+
+- **Seen:** a prepared HEVC episode cast to the Apple TV (`segmented: … 148 streaming segments`, picture copied,
+  `SUBTITLES="subs"`, `player: subtitles on: Unknown`): the owner saw each line twice and the timing far off. On the Apple TV
+  the subtitles come only from the WebVTT rendition (the burn-in is for third-party receivers' converted picture).
+- **Causes (gm_stream.c):**
+  - Every WebVTT segment said `X-TIMESTAMP-MAP=MPEGTS:900000,LOCAL:00:00:00.000`, the value Apple's segmenter writes for
+    media that starts at 10 s. Our video and audio segments keep the source's own absolute times (`gm_ts`, the test
+    table's "absolute tfdt"), and the cue times are those same times, so every subtitle was shown 10 s late (also the
+    "subtitles delayed" of ISSUE-335).
+  - Anime subtitle files draw one line several times on stacked layers (outline, fill, sign copies). Kodi's renderer
+    stacks them into one line; each became its own WebVTT cue and the TV showed the line twice.
+- **Fix:** one header for every cue file and the empty answer (`GM_VTT_HEADER`: `MPEGTS:0` ↔ `LOCAL 0`); in a segment, a
+  cue with the same text as one already written that overlaps it in time is skipped.
+- **Retest:** the AirPlay host tests (CI `airplay-remux`); the phone check needs the next AirPlay framework (rNN) and IPA.
+- **Test:** test_remux.c (every subtitle fixture: the media-time map and the line exactly once; new fixture
+  h264_aac_layers.mkv with a line on two layers); test_airplay_subtitle_sync (wiring).
+
 ## ISSUE-342 — Dubbed video with no caption made from the dub: none was downloaded at playback start (owner, after ISSUE-339) — fixed in code
 
 - **Seen:** ISSUE-339 ranks CC / SDH / dub tracks first, but when the file had only a plain English track (the translation
