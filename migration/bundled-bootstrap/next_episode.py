@@ -4,7 +4,11 @@ Kodi's playlist when it holds the next episode (a library show, an add-on that q
 next episode of the same show the way the owner starts episodes: TMDb Helper's play, which asks Umbrella (or the
 player the owner chose) for a source. Umbrella and TMDb Helper play one episode at a time, with no playlist."""
 import json
+import os
+import sys
 import urllib.parse
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', 'lib'))
 
 TMDB_PLAY = 'plugin://plugin.video.themoviedb.helper/?'
 
@@ -28,7 +32,44 @@ def current_entry(data, item):
     return dict(entry, key=data.get('current')) if same else None
 
 
-def plan(item, position, size, current=None):
+def aired_seasons(show):
+    """ISSUE-341: {season: episodes aired} from TMDb's /tv/{id} answer (specials, season 0, left out). The season that is
+    airing counts up to its last aired episode; later seasons count 0, so Next Episode never asks for one not out yet."""
+    show = show or {}
+    last = show.get('last_episode_to_air') or {}
+    try:
+        last_season, last_episode = int(last.get('season_number')), int(last.get('episode_number'))
+    except (TypeError, ValueError):
+        last_season = last_episode = None
+    out = {}
+    for s in show.get('seasons') or []:
+        try:
+            number, count = int(s.get('season_number')), int(s.get('episode_count') or 0)
+        except (TypeError, ValueError):
+            continue
+        if number < 1:
+            continue
+        if last_season is not None:
+            if number > last_season:
+                count = 0
+            elif number == last_season:
+                count = min(count, last_episode) if count else last_episode
+        out[number] = count
+    return out
+
+
+def next_of(season, episode, seasons=None):
+    """(season, episode) to play after this one, or None after the last aired episode. Without the season sizes
+    (TMDb not reachable) it is the next episode of the same season, as before."""
+    if not seasons or episode < int(seasons.get(season) or 0):
+        return season, episode + 1
+    for later in sorted(n for n in seasons if n > season):
+        if int(seasons[later] or 0) > 0:
+            return later, 1
+    return None
+
+
+def plan(item, position, size, current=None, seasons=None):
     """('playlist', None) | ('play', url) | (None, why). item: Player.GetItem's item (type, showtitle, season, episode,
     uniqueid); position/size: the video playlist's; current: current_entry() for the playing episode, or None.
     ISSUE-331 (owner, build 486: Next Episode "seemed to lag out"; "it should only show up for tv shows and it should
@@ -47,7 +88,11 @@ def plan(item, position, size, current=None):
         season = episode = -1
     if not show or season < 0 or episode < 0:
         return None, 'This video is not an episode of a show.'
-    query = {'info': 'play', 'tmdb_type': 'tv', 'season': season, 'episode': episode + 1}
+    # ISSUE-341 (owner): after a season's last episode, the next season's first (seasons: aired_seasons()).
+    following = next_of(season, episode, seasons)
+    if following is None:
+        return None, 'That was the last episode out so far.'
+    query = {'info': 'play', 'tmdb_type': 'tv', 'season': following[0], 'episode': following[1]}
     ids = item.get('uniqueid') or {}
     # Umbrella and TMDb Helper tag an episode with its show's TMDb id under 'tvshow.tmdb'; a bare 'tmdb' may be the
     # episode's own id, so the show's title is used instead.
@@ -60,6 +105,24 @@ def plan(item, position, size, current=None):
     if current and current.get('key'):
         query['ios_next'] = current['key']
     return 'play', TMDB_PLAY + urllib.parse.urlencode(query)
+
+
+def show_seasons(item, current, timeout=4):
+    """The playing show's aired season sizes from TMDb (TMDb Helper's key), or None when its id or TMDb is not there."""
+    ids = (item or {}).get('uniqueid') or {}
+    show = str(ids.get('tvshow.tmdb') or '') if str(ids.get('tvshow.tmdb') or '').isdigit() else str((current or {}).get('tmdb_id') or '')
+    if not show.isdigit():
+        return None
+    try:
+        import source_match
+        import urllib.request
+        key = source_match.tmdb_key()
+        if not key:
+            return None
+        with urllib.request.urlopen('https://api.themoviedb.org/3/tv/%s?api_key=%s' % (show, key), timeout=timeout) as response:
+            return aired_seasons(json.loads(response.read(1024 * 1024)))
+    except Exception:
+        return None
 
 
 def wait_stopped(xbmc, limit=6.0, step=0.1):
@@ -109,17 +172,18 @@ def run():
             f.close()
     except Exception:
         current = None
-    how, what = plan(item, int(props.get('position', -1)), size, current)
+    how, what = plan(item, int(props.get('position', -1)), size, current, show_seasons(item, current))
     if how:
         home.setProperty(BUSY, str(time.time()))
     if how == 'playlist':
         xbmc.Player().playnext()
     elif how == 'play':
-        xbmc.log('Kodi iOS Next Episode: %s S%02dE%02d via TMDb Helper' % (item.get('showtitle'), int(item['season']), int(item['episode']) + 1), xbmc.LOGINFO)
+        target = dict(urllib.parse.parse_qsl(what.split('?', 1)[1]))
+        xbmc.log('Kodi iOS Next Episode: %s S%02dE%02d via TMDb Helper' % (item.get('showtitle'), int(target['season']), int(target['episode'])), xbmc.LOGINFO)
         # Roadmap 2.9 (owner log e8ab5995 09:32:47): the source question opened while this video was still closing and
         # was dismissed 0.12 s later ("picked -1", "lib.player - Failure!"). Stop first, start once it has closed.
         try:
-            xbmcgui.Dialog().notification('Next Episode', 'S%d, E%d' % (int(item['season']), int(item['episode']) + 1),
+            xbmcgui.Dialog().notification('Next Episode', 'S%d, E%d' % (int(target['season']), int(target['episode'])),
                                           xbmcgui.NOTIFICATION_INFO, 2500)
         except (TypeError, ValueError, KeyError):
             pass

@@ -4918,6 +4918,28 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-342 — Dubbed video with no caption made from the dub: none was downloaded at playback start (owner, after ISSUE-339) — fixed in code
+
+- **Seen:** ISSUE-339 ranks CC / SDH / dub tracks first, but when the file had only a plain English track (the translation
+  of the original script) nothing better was fetched by itself; the owner had to open Subtitles › Download and apply.
+- **Fix (`dub_captions.py`, started from `subtitle_match.run`):** once the playback-start check has run for a video, when
+  it is dubbed (`subtitle_match.dubbed`), subtitles are on, no track is marked CC / SDH / dub (`dub_marked`) and a SubDL or
+  OpenSubtitles key is saved, a background thread searches with the dub preference (`subtitle_sources.find(dubbed=True)`),
+  keeps only results marked CC / SDH / dub, downloads up to three with the usual timing check (`choose_download`), and turns
+  the best on with `Player.setSubtitles`, only if the same video is still playing. Once per video; logged as
+  "Kodi iOS dub captions: …". Without a key, or with no marked result, nothing changes.
+- **Retest:** host tests; the phone check is a dubbed anime episode whose file has only plain English subtitles.
+- **Test:** test_subtitle_match `DubCaptions`.
+
+## ISSUE-341 — Next Episode after a season's last episode asked for an episode that does not exist (owner) — fixed in code
+
+- **Cause:** `next_episode.plan` always asked TMDb Helper for episode + 1 of the same season.
+- **Fix:** `show_seasons` reads the show's seasons from TMDb (TMDb Helper's key, 4 s) and `aired_seasons` counts the
+  episodes aired in each (specials left out; the airing season up to its last aired episode; later seasons 0). After a
+  season's last aired episode `next_of` gives the next season's episode 1; after the last aired episode of the show,
+  "That was the last episode out so far." Without TMDb it is episode + 1, as before. The notice and log name the episode.
+- **Test:** test_next_episode `AcrossSeasons`.
+
 ## ISSUE-340 — Umbrella: a 5 s cache wait that could not finish before opening directly (owner log 218a6000, build 502) — fixed in code
 
 - **Seen:** "route=direct wait_ms=5017 ready=False blocks=0/3 … bytes=3145728": the opening blocks (3 × 4 MB) were

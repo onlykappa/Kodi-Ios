@@ -63,4 +63,33 @@ class StopFirst(unittest.TestCase):
         self.assertFalse(ne.wait_stopped(fake, limit=0.3))
 
 
+class AcrossSeasons(unittest.TestCase):
+    """ISSUE-341 (owner): after a season's last episode, the next season's episode 1."""
+    show = {'seasons': [{'season_number': 0, 'episode_count': 5}, {'season_number': 1, 'episode_count': 12},
+                        {'season_number': 2, 'episode_count': 12}, {'season_number': 3, 'episode_count': 10}],
+            'last_episode_to_air': {'season_number': 2, 'episode_number': 7}}
+    item = {'type': 'episode', 'showtitle': 'Show', 'season': 1, 'episode': 12, 'uniqueid': {'tvshow.tmdb': '42'}}
+
+    def test_aired_sizes(self):
+        self.assertEqual(ne.aired_seasons(self.show), {1: 12, 2: 7, 3: 0})
+
+    def test_the_last_episode_of_a_season_goes_to_the_next_seasons_first(self):
+        how, url = ne.plan(self.item, -1, 0, None, ne.aired_seasons(self.show))
+        self.assertEqual(how, 'play')
+        self.assertIn('season=2&episode=1', url)
+
+    def test_inside_a_season_it_is_the_next_episode(self):
+        how, url = ne.plan(dict(self.item, season=2, episode=3), -1, 0, None, ne.aired_seasons(self.show))
+        self.assertIn('season=2&episode=4', url)
+
+    def test_after_the_last_aired_episode_there_is_none_yet(self):
+        how, why = ne.plan(dict(self.item, season=2, episode=7), -1, 0, None, ne.aired_seasons(self.show))
+        self.assertEqual(how, None)
+        self.assertIn('last episode out', why)
+
+    def test_without_tmdb_it_is_the_next_episode_as_before(self):
+        how, url = ne.plan(self.item, -1, 0, None, None)
+        self.assertIn('season=1&episode=13', url)
+
+
 if __name__=='__main__':unittest.main()
