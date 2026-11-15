@@ -1,15 +1,15 @@
 {
   "framework_release": {
+    "tag": "kodi-airplay-r62",
+    "asset": "KodiAirPlay.framework.zip",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "previous": {
     "tag": "kodi-airplay-r61",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "16f4199931b556f67d89ffe3ec730ba5e6ed6886db7ff4602857606d6ae17617"
   },
-  "previous": {
-    "tag": "kodi-airplay-r60",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "883f1a4033aead604ef559d32f35ae081e74363809c65adf4e4e86b8def16f96"
-  },
   "source_commit": "2e9f832",
   "verified_run": 43731540855,
-  "pin_note": "r61 (ISSUE-335 quiet Drive reads cut after 4 s, helper connections for slow sources, saved keyframe scan; ISSUE-336 a TV stuck after a source stall is played again then reloaded; ISSUE-337 an out-of-order or missing prepared index is repaired or served in 6-s segments, a failed player is replaced) published by airplay-ios run 43731540855 from 2e9f832; the converter host tests passed in airplay-remux run 43730358862 (9d5b77f, the same native source); release notes, asset digest and downloaded zip all give 16f41999\u202617617, and the binary carries the new segment, saved-scan, stall-recovery and player-replacement lines. r60/r59 were never pinned or shipped."
+  "pin_note": "r62 staged (ISSUE-343: WebVTT cue files map media time 0 (MPEGTS:0) and a line drawn on stacked ASS layers is one cue; ISSUE-346: the keyframe scan is saved while a download is prepared, resumed preparations included; ISSUE-347: kr_speech (sound reader) and kr_speech.m (on-device speech recognition, Speech framework, kodi_speech_* exports) for the subtitle speech check). Converter host tests passed in airplay-remux runs 43739940681 and 43741042132. sha256 pinned after the framework build. Until then verified_run stays r61\u2019s airplay-ios run 43731540855."
 }

@@ -112,6 +112,40 @@ def problem_view(kind, title='', reason='', busy='', settings=False):
     return props
 
 
+# Owner screenshot IMG_0156 (log a83e06c7): the problem card opened after the video had been closed, so Kodi drew the
+# landscape (1080i) card on the upright screen: stretched, capsules turned into ovals, the title cut off. With no video
+# on screen the problem is asked in the portrait choice sheet instead (choice_sheet.py, the app's own bottom sheet).
+GLYPHS = {'retry': ('arrow-rotate-right.png', 'FF0A84FF'), 'pause_retry': ('pause.png', 'FFFF9F0A'),
+          'settings': ('gear.png', 'FF8E8E93'), 'watch': ('mobile-screen.png', 'FF8E8E93')}
+
+
+def _split(text):
+    """(first sentence, the rest) of a problem's text."""
+    text = str(text or '').strip()
+    cut = text.find('. ')
+    return (text, '') if cut < 0 else (text[:cut + 1], text[cut + 2:].strip())
+
+
+def sheet_spec(props):
+    """(choice_sheet spec, the action of each row) for problem_view's properties. Cancel / Back means 'watch'."""
+    first, rest = _split(props.get('text'))
+    checks = [c + (' (%s)' % props['%s.note' % k] if props.get('%s.note' % k) else '')
+              for k in ('check1', 'check2') for c in [props.get(k)] if c]
+    foot = ' '.join(x for x in (rest, ('Check: ' + '; '.join(checks) + '.') if checks else '') if x)
+    rows, actions = [], []
+    for n in (1, 2, 3):
+        label, action = props.get('b%d.label' % n), props.get('b%d.action' % n)
+        if label and action != 'watch':
+            glyph, tint = GLYPHS.get(action, GLYPHS['retry'])
+            rows.append({'label': label, 'glyph': glyph, 'tint': tint})
+            actions.append(action)
+    spec = {'heading': props.get('title') or 'Play on TV', 'sub': first, 'rows': rows, 'foot': foot,
+            # No video on screen, so not "Keep watching here".
+            'button': next((props.get('b%d.label' % n) for n in (1, 2, 3) if props.get('b%d.action' % n) == 'watch'), '')
+            or ('Not now' if props.get('link.label') else 'Cancel')}
+    return spec, actions
+
+
 # --- layout (Fuse 1920x1080 landscape canvas; 1 pt of the approved boards = 2.687 units) ---------------------------
 W, PAD = 1500, 54
 MEDIA, ICONS = 'special://skin/extras/portrait/', 'special://skin/extras/icons/'

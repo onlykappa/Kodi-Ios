@@ -4918,6 +4918,25 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-348 — Play on TV's problem card drawn stretched over the upright app, title cut off (owner screenshot IMG_0156, log a83e06c7) — fixed in code
+
+- **Seen:** "The movie took too long …" with the icon tile, the close button and "Try again" drawn as tall ovals over the
+  show page ("Starting the video… 7 s"): the owner had closed the video (08:32:18) while Play on TV was still starting,
+  and its problem card opened afterwards.
+- **Cause:** the card (`IOSAirPlayFlow.xml`) and ISSUE-345's banner (`IOSTVBanner.xml`) are landscape (1080i) windows
+  with no portrait copy (`portrait.VIDEO_ONLY`); opened with no video on screen, Kodi draws them on the upright screen,
+  stretched.
+- **Fix (`cast.py`, `airplay_flow.sheet_spec`):** with no full-screen video (`video_on_screen`), the problem is asked in
+  the app's portrait choice sheet: the title, the first sentence under it, one row per action (Try again, Pause uploads
+  and try again, Open Settings), the rest of the advice and the checklist as its footnote, and "Not now" (no video
+  to keep watching). The banner opens only over the video (waiting up to 3 s for Library's Play on TV to bring it up)
+  and closes itself when the video goes.
+- **Also (`choice_sheet.py`):** a row title wraps from 24 characters beside a tile (was 30): "Pause uploads and try
+  again" (27) was cut at 24 in the rig.
+- **Retest:** desktop Kodi rig (portrait 603x1167): the slow-source, unreachable and busy-internet sheets; every word
+  shows, nothing cut off. Device: needs the owner's iPhone.
+- **Test:** `scripts/test_tv_banner.py` (`NoVideoOnScreen`).
+
 ## ISSUE-347 — Subtitles were checked by timing and names only, never against what is said (owner: "match subtitle check needs to be added") — built in code (needs an AirPlay framework build)
 
 - **Seen:** a downloaded subtitle could be for another release or for the original script of a dub, or seconds out of
@@ -4936,9 +4955,9 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - It listens only when a download is checked (not at every playback start: another reader on a debrid link can make
     the host refuse ranges, ISSUE-344), once per video (`KodiIOS.SpeechHeard`). The first time, iOS asks for
     permission (`NSSpeechRecognitionUsageDescription` in the IPA's Info.plist).
-- **Not yet:** `build-airplay.sh` must compile `kr_speech.m`, link `-framework Speech` and export the three
-  `kodi_speech_*` symbols. That edit publishes an AirPlay tag, so it waits for the owner's OK with the next framework
-  build (r62). Until then `listen()` finds no `kodi_speech_words` and the check is skipped (logged).
+- **Build:** `build-airplay.sh` compiles `kr_speech.m`, links `-framework Speech`, exports the three `kodi_speech_*`
+  functions and checks them with `nm`; staged as AirPlay r62 with the owner's OK (2026-11-15). Before r62 is in the
+  app, `listen()` finds no `kodi_speech_words` and the check is skipped (logged).
 - **Retest:** CI host tests (`test_speech_sound`). Device: needs the framework build; the owner's iPhone log should
   show `speech check: ok at … s: N words` and `applied … (speech fits|shift …)`.
 - **Test:** `scripts/test_speech_check.py`; `tests/test_remux.c` (`test_speech_sound`: a tone is heard after the

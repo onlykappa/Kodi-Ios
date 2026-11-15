@@ -195,6 +195,13 @@ DIRECT_AIRPLAY=False   # owner (2026-11-14): keep Media Assistant until AirPlay 
 _BANNER=[None]
 
 
+def video_on_screen(xbmc):
+ """True while Kodi shows the video full screen (landscape). Play on TV's card and banner are landscape (1080i)
+ windows: shown over the upright app (the video closed meanwhile) they are drawn stretched (owner screenshot IMG_0156)."""
+ try:return bool(xbmc.getCondVisibility('Window.IsVisible(fullscreenvideo)'))
+ except Exception:return True
+
+
 class Banner:
  """ISSUE-345 (owner-approved mockup C): the slim banner at the top from the moment a TV is picked: the step, a thin
  bar and Stop (which sets TV_STOP, as Play on TV tapped again used to); "Playing on your TV" for two seconds at the end."""
@@ -205,6 +212,12 @@ class Banner:
   def stop():
    home.setProperty(TV_STOP,'1');self.apply({'title':'Stopping…','sub':'','stop':''})
    xbmc.log('Kodi iOS Play on TV: Stop tapped on the banner',xbmc.LOGINFO)
+  try:   # Library's Play on TV starts the video, then this: give the full-screen video a moment to come up
+   for _ in range(6):
+    if video_on_screen(xbmc) or not xbmc.Player().isPlayingVideo():break
+    xbmc.sleep(500)
+  except Exception:pass
+  if not video_on_screen(xbmc):return   # no landscape video to sit on (see video_on_screen)
   try:
    Win=airplay_flow.make_banner(xbmc,xbmcgui,stop);here=os.path.dirname(os.path.abspath(__file__))
    try:self.win=Win(airplay_flow.BANNER,here,'Default','1080i')
@@ -217,6 +230,8 @@ class Banner:
   except Exception as error:
    self.win=None;xbmc.log('Kodi iOS Play on TV: banner unavailable (%s)'%type(error).__name__,getattr(xbmc,'LOGWARNING',2))
  def apply(self,props):
+  if self.win is not None and not video_on_screen(self.xbmc):
+   self.close();return   # the video was closed: a landscape banner over the upright app would be stretched
   if self.win is not None:
    try:self.win.apply(props)
    except Exception:pass
@@ -284,6 +299,18 @@ class FlowUI:
  def ask(self,props,monitor):
   """Show a problem and wait for its button: 'retry', 'pause_retry', 'settings', 'watch' or 'cancel'."""
   if _BANNER[0]:_BANNER[0].close();_BANNER[0]=None   # ISSUE-345: the problem card replaces the banner
+  if not video_on_screen(self.xbmc):
+   # ISSUE-348 (owner screenshot IMG_0156): the video was closed while Play on TV was starting; the landscape card
+   # would be drawn stretched over the upright app. The portrait choice sheet asks instead.
+   self.close()
+   try:
+    import choice_sheet
+    spec,actions=self.flow.sheet_spec(props)
+    pick=choice_sheet.choose(spec,xbmcgui=self.xbmcgui,xbmc=self.xbmc)
+    return actions[pick] if 0<=pick<len(actions) else 'watch'
+   except Exception as error:
+    self.xbmc.log('Kodi iOS Play on TV: problem sheet unavailable (%s)'%type(error).__name__,getattr(self.xbmc,'LOGWARNING',2))
+    self.dialog.ok('Play on TV',props.get('plain') or '%s. %s'%(props['title'],props.get('text','')));return 'watch'
   if self.win is not None:
    self.win.chosen='';self.win.apply(props)
    if not self.shown():self.win.show()

@@ -1422,13 +1422,18 @@ done
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -O2 -fobjc-arc -fmodules \
   -I"$FF/include" -I"$REMUX/src" -c "$REMUX/src/kr_upscale.m" -o "$WORK/kr_upscale.o"
 OBJS+=("$WORK/kr_upscale.o")
+# ISSUE-347: Apple's speech recognition (on the phone only) for the subtitle speech check (Objective-C, ARC).
+xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -O2 -fobjc-arc -fmodules \
+  -I"$FF/include" -I"$REMUX/src" -c "$REMUX/src/kr_speech.m" -o "$WORK/kr_speech.o"
+OBJS+=("$WORK/kr_speech.o")
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
 printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_keep_dvd_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n_kodi_airplay_serve_segmented\n' > "$WORK/exports"
 printf '_kodi_http_copy_max\n_kodi_http_copy_streams\n_kodi_http_copy\n_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
 printf '_kodi_airplay_prepare_upscale\n_kodi_airplay_upscale_support\n_kodi_airplay_upscale_model\n_kodi_device_state\n' >> "$WORK/exports"   # r48
+printf '_kodi_speech_words\n_kodi_speech_authorize\n_kodi_speech_state\n' >> "$WORK/exports"   # ISSUE-347 (r62)
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
-  -framework VideoToolbox -framework CoreVideo -framework CoreText -framework Metal \
+  -framework VideoToolbox -framework CoreVideo -framework CoreText -framework Metal -framework Speech \
   -I"$REMUX/src" -Wl,-exported_symbols_list,"$WORK/exports" \
   -o "$FW/KodiAirPlay" "$WORK/KodiAirPlay.m" "${OBJS[@]}" \
   "$ASS/lib/libass.a" "$ASS/lib/libharfbuzz.a" "$ASS/lib/libfribidi.a" "$ASS/lib/libfreetype.a" -lc++ \
@@ -1472,6 +1477,10 @@ nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(prepare_upscale|upscale_sup
 nm -m "$FW/KodiAirPlay" | grep -E '_OBJC_CLASS_\$_VT(LowLatency)?SuperResolutionScaler(Configuration|Parameters)'
 [[ "$(nm -m "$FW/KodiAirPlay" | grep -E 'weak external _OBJC_CLASS_\$_VT(SuperResolutionScalerConfiguration|SuperResolutionScalerParameters|LowLatencySuperResolutionScalerConfiguration|LowLatencySuperResolutionScalerParameters|FrameProcessor|FrameProcessorFrame)' | wc -l | tr -d ' ')" -ge 6 ]] || { echo 'r48 super resolution classes not weak-linked' >&2; exit 1; }
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(kr_upscale_open|kr_upscale_frame|kr_video_set_upscale)$')" == 3 ]] || { echo 'r48 upscaler not linked' >&2; exit 1; }
+# ISSUE-347 (r62): the speech check's entry points are exported and its sound reader is linked (private).
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_speech_(words|authorize|state)$'
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_speech_(words|authorize|state)$')" == 3 ]] || { echo 'speech check exports missing' >&2; exit 1; }
+[[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _kr_speech_pcm$')" == 1 ]] || { echo 'speech sound reader not linked' >&2; exit 1; }
 # r7: the picture bridge needs Apple's hardware H.264 encoder in this FFmpeg.
 grep -q -- '--enable-encoder=h264_videotoolbox' "$FF/FFMPEG-CONFIG.txt" || { echo 'FFmpeg built without h264_videotoolbox' >&2; exit 1; }
 lipo -info "$FW/KodiAirPlay"

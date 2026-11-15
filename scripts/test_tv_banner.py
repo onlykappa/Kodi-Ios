@@ -56,5 +56,37 @@ class Wiring(unittest.TestCase):
         self.assertIn('self.apply(self.flow.banner_done(at));self.xbmc.sleep(2000);self.close()', self.src)
 
 
+class NoVideoOnScreen(unittest.TestCase):
+    """ISSUE-348 (owner screenshot IMG_0156): the landscape card drawn stretched over the upright app."""
+    src = (BOOT / 'cast.py').read_text()
+
+    def test_the_problem_is_asked_in_the_portrait_sheet(self):
+        spec, actions = af.sheet_spec(af.problem_view('slow_source', 'Ep', busy='Interstellar is uploading'))
+        self.assertEqual(spec['heading'], 'The movie took too long to load')
+        self.assertTrue(spec['sub'].endswith('took too long for playback to start.'))
+        self.assertIn('Try again to reconnect', spec['foot'])
+        self.assertEqual(actions, ['retry'])
+        self.assertEqual(spec['button'], 'Not now')   # no video on screen to keep watching
+        spec, actions = af.sheet_spec(af.problem_view('unreachable', 'Ep', settings=True))
+        self.assertEqual(actions, ['settings', 'retry'])
+        self.assertEqual(spec['button'], 'Cancel')
+        self.assertIn('Local Network is on for Kodi (Settings › Kodi)', spec['foot'])
+        spec, actions = af.sheet_spec(af.problem_view('mirroring', 'Ep', reason='Not this one.'))
+        self.assertEqual((actions, spec['button']), ([], 'OK'))
+
+    def test_the_card_and_the_banner_only_over_the_video(self):
+        self.assertIn("xbmc.getCondVisibility('Window.IsVisible(fullscreenvideo)')", self.src)
+        ask = self.src[self.src.index(' def ask(self,props,monitor):'):self.src.index(' def shown(self):')]
+        self.assertLess(ask.index('if not video_on_screen(self.xbmc):'), ask.index('if self.win is not None:'))
+        self.assertIn('choice_sheet.choose(spec,xbmcgui=self.xbmcgui,xbmc=self.xbmc)', ask)
+        banner = self.src[self.src.index('class Banner:'):self.src.index('class FlowUI:')]
+        self.assertIn('if not video_on_screen(xbmc):return', banner)
+        self.assertIn('if self.win is not None and not video_on_screen(self.xbmc):', banner)
+
+    def test_long_titles_wrap_in_the_sheet(self):
+        import choice_sheet
+        self.assertTrue(choice_sheet.tall({'label': 'Pause uploads and try again', 'tint': 'FFFF9F0A'}))
+
+
 if __name__ == '__main__':
     unittest.main()
