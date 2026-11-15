@@ -1424,8 +1424,8 @@ xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$
 OBJS+=("$WORK/kr_upscale.o")
 # ISSUE-347: Apple's speech recognition (on the phone only) for the subtitle speech check (Objective-C, ARC).
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -O2 -fobjc-arc -fmodules \
-  -I"$FF/include" -I"$REMUX/src" -c "$REMUX/src/kr_speech.m" -o "$WORK/kr_speech.o"
-OBJS+=("$WORK/kr_speech.o")
+  -I"$FF/include" -I"$REMUX/src" -c "$REMUX/src/kr_speech.m" -o "$WORK/kr_speech_objc.o"   # not kr_speech.o: that is kr_speech.c's
+OBJS+=("$WORK/kr_speech_objc.o")
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
 printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_keep_dvd_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n_kodi_airplay_serve_segmented\n' > "$WORK/exports"
 printf '_kodi_http_copy_max\n_kodi_http_copy_streams\n_kodi_http_copy\n_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"

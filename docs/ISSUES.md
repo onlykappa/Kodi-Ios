@@ -4973,6 +4973,9 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Build:** `build-airplay.sh` compiles `kr_speech.m`, links `-framework Speech`, exports the three `kodi_speech_*`
   functions and checks them with `nm`; staged as AirPlay r62 with the owner's OK (2026-11-15). Before r62 is in the
   app, `listen()` finds no `kodi_speech_words` and the check is skipped (logged).
+- **Follow-up (airplay-ios run 43743217717, nothing published):** the first r62 build failed to link
+  (`_kr_speech_pcm` undefined): `kr_speech.m` was compiled to `kr_speech.o`, over `kr_speech.c`'s object. It is now
+  `kr_speech_objc.o`; `test_airplay_exports.py` checks that no two sources make the same object.
 - **Retest:** CI host tests (`test_speech_sound`). Device: needs the framework build; the owner's iPhone log should
   show `speech check: ok at … s: N words` and `applied … (speech fits|shift …)`.
 - **Test:** `scripts/test_speech_check.py`; `tests/test_remux.c` (`test_speech_sound`: a tone is heard after the
