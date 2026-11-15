@@ -2,6 +2,7 @@
 import calendar
 import importlib.util
 import re
+import subprocess
 import sys
 import unittest
 import xml.etree.ElementTree as ET
@@ -140,6 +141,17 @@ class Page(unittest.TestCase):
         self.assertIn('IOSSports.xml', portrait.sports_page.WINDOW)
 
 
+class Skin(unittest.TestCase):
+    def test_portrait_loads_its_sports_pages_from_a_clean_path(self):
+        """The rig's sync and the phone load portrait.py by path, with nothing else imported: a page module that imports another
+        by name must find it (sync once failed with "No module named 'sports_page'")."""
+        code = ("import importlib.util as i;s=i.spec_from_file_location('portrait_clean',%r);m=i.module_from_spec(s);s.loader.exec_module(m);"
+                "print(m.sports_page.WINDOW,m.sports_live_page.WINDOW)") % str(BOOT / 'resources/lib/portrait.py')
+        done = subprocess.run([sys.executable, '-B', '-I', '-c', code], capture_output=True, text=True)
+        self.assertEqual(done.returncode, 0, done.stderr[-600:])
+        self.assertEqual(done.stdout.split(), ['IOSSports.xml', 'IOSSportsLive.xml'])
+
+
 class Routes(unittest.TestCase):
     def test_library_has_the_sports_row_between_tv_shows_and_favourites(self):
         names = [n for n, _, _ in portrait.LIBRARY]
@@ -148,7 +160,8 @@ class Routes(unittest.TestCase):
 
     def test_only_pages_that_exist_are_started(self):
         self.assertTrue(ctl.available('sports'))
-        self.assertFalse(ctl.available('sports_live'))   # an unknown name would run the recovery script
+        self.assertTrue(ctl.available('sports_live'))
+        self.assertFalse(ctl.available('sports_no_such_page'))   # an unknown name would run the recovery script
         self.assertEqual(set(ctl.ROUTES.values()), {'sports_live', 'sports_upcoming', 'sports_leagues'})
 
 

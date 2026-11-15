@@ -5,7 +5,6 @@ the refresh button asks again; no add-on answering shows "Can't load sports righ
 Live Now, Upcoming and Leagues. A page that is not built yet is never started: an unknown RunScript name would run the recovery
 script, so the tile says it is coming instead.
 """
-import importlib.util
 import os
 import sys
 import threading
@@ -15,6 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, 'resources', 'lib'))
 import sports_model as sm  # noqa: E402
 import sports_page as sp  # noqa: E402
+from sports_routes import available  # noqa: E402,F401  (the page tests and the tiles use it)
 
 ROUTES = {sp.LIVE: 'sports_live', sp.UPCOMING: 'sports_upcoming', sp.LEAGUES: 'sports_leagues'}
 BACK_KEYS = (9, 10, 92, 110)
@@ -99,14 +99,6 @@ def load(provider, now=None, offset=None, refresh=False):
         return props_for(provider.overview(), now, offset)
     except sm.SportsUnavailable:
         return dict(ERROR)
-
-
-def available(route):
-    """True when RunScript(service.kodi.ios.bootstrap,<route>) is a page this add-on has (default.PAGES)."""
-    spec = importlib.util.spec_from_file_location('kodi_ios_default', os.path.join(HERE, 'default.py'))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return route in module.PAGES
 
 
 def run(args=()):

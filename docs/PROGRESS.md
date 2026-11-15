@@ -1,5 +1,14 @@
 # Persistent progress
 
+## Sports page 2 coded: Live Now — 2026-11-15
+
+`Library › Sports › Live Now` opens `IOSSportsLive.xml` (`sports_live_page.py`, filled by `sports_live.py`), approved boards 6-9 (option B): league chips,
+then one card per live game (closest to its end first) with the league label, the clock, both teams and scores, and the game's sources under it
+(best first, "Also on …", Best / Also good), a tap on a source plays it at once; nothing-live and can't-load pages. Checked in the **desktop Kodi rig**
+against the boards (the list, the NBA chip, a tap on a source, nothing live, can't load); not yet on the iPhone. Capacity: 12 cards and 4 sources
+a card (the rest is behind the chips and a "N more games not shown" line); chips wrap to up to three rows. `sports_provider.play` hands a real source's
+`play` path to Kodi's player; the sample provider only logs.
+
 ## Sports page 1 coded: Library › Sports and the landing page — 2026-11-15
 
 `Library › Sports` (between TV Shows and Favourites) opens `IOSSports.xml` (`sports_page.py`, filled by `sports.py`): back, refresh, "Sports" with
