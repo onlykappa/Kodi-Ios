@@ -24,7 +24,7 @@ PICTURE='RunScript(service.kodi.ios.bootstrap,picture_page)'   # V1: the Picture
 # Owner-approved Subtitles / Audio menus (tracks.py) instead of Kodi's settings dialogs.
 TRACKS='RunScript(service.kodi.ios.bootstrap,tracks,%s)'
 NEXT_EPISODE='RunScript(service.kodi.ios.bootstrap,next_episode)'
-EPISODE='!String.IsEmpty(VideoPlayer.TVShowTitle) + !String.IsEmpty(VideoPlayer.Episode)'
+EPISODE='!String.IsEmpty(VideoPlayer.TVShowTitle) + !String.IsEmpty(VideoPlayer.Episode) + ![VideoPlayer.Content(movies)]'   # ISSUE-331: shows only
 CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type=all'
 # ISSUE-311: the same stamp as the hubs' rows (portrait.CONTINUE_STAMP), so Remove From Continue Watching refreshes this panel too.
 CONTINUE_STAMP='&stamp=$INFO[Window(Home).Property(KodiIOS.ContinueStamp)]'

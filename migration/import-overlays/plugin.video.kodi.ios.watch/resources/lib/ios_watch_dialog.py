@@ -39,6 +39,16 @@ def continuing(argv=None):
  argv=sys.argv if argv is None else argv
  return len(argv)>2 and 'ios_continue=1' in str(argv[2]).lstrip('?').split('&')
 
+NEXT_PROPERTY='KodiIOS.Next.Source'   # ISSUE-331: deck_picker.next_wanted reads it
+
+def following(argv=None):
+ """ISSUE-331: the Continue Watching key of the episode Next Episode was pressed on (ios_next=<key>), or ''."""
+ import sys
+ from urllib.parse import parse_qs
+ argv=sys.argv if argv is None else argv
+ if len(argv)<=2:return ''
+ return (parse_qs(str(argv[2]).lstrip('?')).get('ios_next') or [''])[0]
+
 def downloaded_item(player,candidates,find=None,folders=None,cloud=False):
  """A TMDb Helper local player item for the downloaded copy of this title, or None."""
  try:
@@ -82,7 +92,7 @@ def choosing(player=None,argv=None):
 def choose_player(player):
  import xbmc,xbmcgui,xbmcaddon,xbmcvfs
  player.allow_playlist=False
- home=xbmcgui.Window(10000);home.clearProperty(RESUME_PROPERTY)
+ home=xbmcgui.Window(10000);home.clearProperty(RESUME_PROPERTY);home.clearProperty(NEXT_PROPERTY)
  resume=continuing()
  if getattr(player,'_ios_copy_selected',False):
   xbmcgui.Dialog().ok('Downloaded copy','The completed copy could not be opened. Check the file or Drive connection. No replacement download was started.')
@@ -123,6 +133,7 @@ def choose_player(player):
   except DownloadLookupError:copy=None
   if copy is not None:rows.insert(0,('Downloaded copy','play',copy));kind_of=(lambda item,old=kind_of:getattr(item,'ios_download_source','local') if item is copy else old(item))
   xbmc.log('Kodi iOS watch: choose source asked; offering %d options'%len(rows),xbmc.LOGINFO)
+ after='' if choosing(player) else following()
  # A finished download on the phone plays at once (owner build-132: Home fetched the torrent again).
  # Roadmap 2.8: every way in also finds a Drive copy (saved listing only, no wait), not just Continue Watching.
  try:downloaded=None if choosing(player) else downloaded_item(player,candidates,cloud=True if resume else 'cached')
@@ -153,6 +164,20 @@ def choose_player(player):
    saved=saved_choice(read,player_key(player))
   except Exception:
    xbmcgui.Dialog().ok('Continue Watching','The saved player could not be read. Try again or use Choose source.');return None
+ elif after:
+  # ISSUE-331: Next Episode: the player the previous episode used, and its quality for the version page to match.
+  try:
+   from ios_continue import saved_choice
+   saved=saved_choice(read,after)
+  except Exception:saved={}
+  if saved.get('player') not in ('umbrella','elementum'):saved={}
+  version=saved.pop('version',None) or {}
+  if saved and version.get('quality'):
+   import json,time
+   home.setProperty(NEXT_PROPERTY,json.dumps({'quality':version['quality'],'size':version.get('size') or 0,'time':time.time(),
+                                              'tmdb':str(getattr(player,'tmdb_id','') or ''),'season':str(getattr(player,'season','') or ''),
+                                              'episode':str(getattr(player,'episode','') or '')}))
+  xbmc.log('Kodi iOS watch: next episode with %s%s'%(saved.get('player') or 'a choice',' at '+version['quality'] if saved and version.get('quality') else ''),xbmc.LOGINFO)
  selected=next((n for n,(_,action,item) in enumerate(rows) if action=='play' and saved.get('player')==kind_of(item)),None)
  if resume and selected is None and saved.get('player'):
   xbmcgui.Dialog().ok('Continue Watching','The previous player or completed copy is unavailable. Use Choose source to change it. No new download was started.')

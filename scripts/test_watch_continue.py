@@ -20,6 +20,23 @@ class ContinueTests(unittest.TestCase):
   self.assertEqual([r['kind'] for r in module.entries(self.data(),'movie')],['movie'])
   self.assertEqual(module.play_url(rows[0]),'plugin://plugin.video.themoviedb.helper/?info=play&tmdb_type=tv&tmdb_id=2&season=1&episode=3&ios_continue=1')
   self.assertNotIn('clearart',rows[1]['art'])
+ def test_one_card_per_show_with_the_latest_episode(self):
+  # ISSUE-330 (owner screenshot, build 486): Phony S1 E2 and Phony S1 E1 were two cards.
+  self.record('tv','9','1','1',title='Pilot',show='Phony');module.update(self.read,self.write,300,2400,lambda:self.t)
+  self.record('tv','9','1','2',title='Two',show='Phony');module.update(self.read,self.write,200,2400,lambda:self.t+1)
+  self.record('movie','1',title='Movie');module.update(self.read,self.write,300,6000,lambda:self.t+2)
+  rows=module.entries(self.data())
+  self.assertEqual([(r['kind'],r.get('episode')) for r in rows],[('movie',None),('episode','2')])
+  # Kodi's own library copy of the same show (no TMDb id, lower-case name) is the same show.
+  lib=[{'kind':'episode','title':'Pilot','tvshowtitle':'phony','season':'1','episode':'1','played':self.t-50,'position':5,'total':9,'file':'/x'}]
+  self.assertEqual(len([r for r in module.entries(self.data(),'all',lib) if r['kind']=='episode']),1)
+  # Finishing E2 does not bring the older, unfinished E1 back.
+  self.record('tv','9','1','2',title='Two',show='Phony');module.update(self.read,self.write,2390,2400,lambda:self.t+3)
+  module.stopped(self.read,self.write,lambda:self.t+4)
+  self.assertEqual([r['kind'] for r in module.entries(self.data())],['movie'])
+  # A later episode played afterwards shows again.
+  self.record('tv','9','1','3',title='Three',show='Phony');module.update(self.read,self.write,100,2400,lambda:self.t+10)
+  self.assertEqual([r.get('episode') for r in module.entries(self.data())][0],'3')
  def test_not_started_is_hidden_and_finished_is_dropped(self):
   self.record('movie','1');self.assertEqual(module.entries(self.data()),[])
   module.update(self.read,self.write,5900,6000);module.stopped(self.read,self.write)

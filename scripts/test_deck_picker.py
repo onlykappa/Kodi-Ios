@@ -133,6 +133,19 @@ class UmbrellaPage(unittest.TestCase):
   # Gone from the list: the normal page.
   with mock.patch.object(dp,'resume_wanted',lambda:{'name':'Not.There','time':time.time()}),mock.patch.object(dp,'choose_quality',lambda labels,*a:-1):
    self.assertEqual(dp.run('Orange Is the New Black S01E01',ITEMS),-1)
+ def test_next_episode_picks_the_closest_to_the_previous_quality(self):
+  # ISSUE-331: Next Episode: no page; the version nearest the previous episode's quality and size.
+  import json,time
+  home=mock.Mock();home.getProperty.return_value=json.dumps({'quality':'720p','size':0.3,'time':time.time(),'tmdb':'9','season':'1','episode':'3'})
+  self.assertIsNone(dp.next_wanted({'tmdb':'9','season':'1','episode':'4'},home));home.clearProperty.assert_not_called()   # another episode
+  self.assertEqual(dp.next_wanted({'tmdb':'9','season':'1','episode':'3'},home)['quality'],'720p');home.clearProperty.assert_called_with(dp.NEXT_PROPERTY)
+  stale=mock.Mock();stale.getProperty.return_value=json.dumps({'quality':'720p','time':time.time()-dp.RESUME_FRESH-5});self.assertIsNone(dp.next_wanted(None,stale))
+  remembered=[]
+  with mock.patch.object(dp,'resume_wanted',lambda:None),mock.patch.object(dp,'next_wanted',lambda exp=None:{'quality':'720p','size':0.3}),\
+       mock.patch.object(dp,'remember',lambda item,title:remembered.append(item['quality'])),\
+       mock.patch.object(dp,'choose_source',side_effect=AssertionError('asked')),mock.patch.object(dp,'choose_quality',side_effect=AssertionError('asked')):
+   choice=dp.run('Orange Is the New Black S01E01',ITEMS)
+  self.assertEqual(dp.parse_all(ITEMS)[choice]['quality'],'720p');self.assertEqual(remembered,['720p'])
  def test_a_pick_is_remembered_for_the_title_just_started(self):
   import json,tempfile,time,os
   with tempfile.TemporaryDirectory() as tmp:

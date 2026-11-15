@@ -4918,6 +4918,39 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-331 — Next Episode lagged and asked again; it should pick the next episode by itself (owner, build 486) — fixed in code; needs phone retest
+
+- **Request:** "review the next episode button as it seemed to lag out … it should only show up for tv shows and it should
+  simply select the next episode if its downloaded through elementum then it should find and recognize that, if its
+  through umbrella it should auto select best source based off the first quality i originally picked".
+- **Cause:** the button sent TMDb Helper a link without the show's TMDb id whenever the playing item had no
+  `tvshow.tmdb` id (a search by name, slower, and it skipped the fast path that plays a downloaded copy at once), and
+  without any sign that it came from Next Episode, so the watch menu asked "How would you like to watch?" again and the
+  version page asked for a quality again. A second tap while it was starting started it twice.
+- **Fix:** `next_episode.py` takes the show's TMDb id from Continue Watching's entry for the playing episode and adds
+  `ios_next=<that episode's key>`; a second tap within 10 s is ignored and a short "S1, E3" notice shows at once; a
+  movie never gets it (the button also hides when `VideoPlayer.Content(movies)`). With the TMDb id, a downloaded copy
+  (Elementum on the phone or Drive) plays before TMDb Helper loads (fast_copy, unchanged). Otherwise the watch menu
+  (`ios_watch_dialog.following`) uses the player the previous episode used, without asking, and passes its quality and
+  size; the version page (`deck_picker.next_wanted`) takes the version closest to them (`auto_choose`, the Build Season
+  ranking) without showing, and remembers it so the episode after follows the same way. With no saved player it asks
+  as before.
+- **Not covered:** the last episode of a season does not move on to the next season's first episode.
+- **Test:** test_next_episode (FromContinueWatching), test_watch_dialog (next episode reuses the player and quality;
+  without a saved player it asks), test_deck_picker (next episode picks the closest quality without the page).
+- **Retest:** phone: Next Episode on an Umbrella episode (no menus, same quality), on a downloaded episode (plays the
+  copy), and on a movie (no button).
+
+## ISSUE-330 — Continue Watching showed every episode of a show (owner screenshot, build 486) — fixed in code
+
+- **Seen:** "Phony S1, E2" and "Phony S1, E1" as two cards. Owner: "it needs to go by per show and keep the most recent
+  episode i watched".
+- **Cause:** `ios_continue.entries` listed every started title; each episode is its own entry.
+- **Fix:** one card per show, its most recently played episode, matching the show by TMDb id or by name (Kodi's library
+  copies have no TMDb id). When an episode is finished, older unfinished episodes of that show stay off the row
+  (`show_done`); a later episode played afterwards shows again. Saved positions are untouched.
+- **Test:** test_watch_continue (test_one_card_per_show_with_the_latest_episode).
+
 ## ISSUE-329 — Settings › Library: four rows the owner no longer needs (owner screenshot, 2026-11-15) — done in code; rig-checked
 
 - **Request:** "remove check drive for problems and download problems, as all problems will show elsewhere … we can also

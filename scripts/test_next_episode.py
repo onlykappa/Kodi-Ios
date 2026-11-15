@@ -21,6 +21,25 @@ class Plan(unittest.TestCase):
  def test_not_an_episode(self):
   self.assertEqual(ne.plan({'title':'Fall'},-1,0)[0],None)
 
+class FromContinueWatching(unittest.TestCase):
+ """ISSUE-331: the show's TMDb id and the playing episode's key come from Continue Watching's entry."""
+ data={'current':'episode:312359:1:2','items':{'episode:312359:1:2':{'kind':'episode','tmdb_id':'312359','season':'1','episode':'2','player':'umbrella'}}}
+ item={'type':'episode','showtitle':'Phony','season':1,'episode':2,'uniqueid':{}}
+ def test_tmdb_id_and_next_key(self):
+  current=ne.current_entry(self.data,self.item)
+  how,url=ne.plan(self.item,-1,0,current)
+  self.assertEqual(how,'play');self.assertIn('tmdb_id=312359',url);self.assertNotIn('query=',url)
+  self.assertIn('ios_next=episode%3A312359%3A1%3A2',url);self.assertIn('episode=3',url)
+ def test_another_episode_entry_is_not_used(self):
+  self.assertIsNone(ne.current_entry(self.data,dict(self.item,episode=5)))
+  how,url=ne.plan(dict(self.item,episode=5),-1,0,None);self.assertIn('query=Phony',url);self.assertNotIn('ios_next',url)
+ def test_movies_never(self):
+  self.assertEqual(ne.plan({'type':'movie','showtitle':'X','season':1,'episode':1},-1,0)[0],None)
+  osd=load('player_osd_ne2',LIB/'player_osd.py');self.assertIn('![VideoPlayer.Content(movies)]',osd.EPISODE)
+ def test_a_second_tap_is_ignored_while_starting(self):
+  src=(BOOT/'next_episode.py').read_text()
+  self.assertIn("home.setProperty(BUSY, str(time.time()))",src);self.assertIn('BUSY_SECONDS = 10',src)
+
 class Button(unittest.TestCase):
  def test_top_left_beside_back_only_for_episodes(self):
   osd=load('player_osd_ne',LIB/'player_osd.py');xml=osd.window()

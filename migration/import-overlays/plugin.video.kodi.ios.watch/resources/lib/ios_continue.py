@@ -110,6 +110,10 @@ def stopped(read,write,now=time.time):
  data=load(read);current=data.pop('current',None);entry=data['items'].get(current)
  if entry and entry.get('total') and entry['position']>=FINISHED*entry['total']:
   del data['items'][current]
+  if entry.get('kind')=='episode':   # ISSUE-330: older unfinished episodes of this show stay off the row
+   marks=data.setdefault('show_done',{})
+   for i in show_ids(entry):marks[i]=now()
+   if len(marks)>WATCHED_KEEP:data['show_done']=dict(sorted(marks.items(),key=lambda kv:-kv[1])[:WATCHED_KEEP])
   watched=data.setdefault('watched',{})
   for k in watched_keys(entry):watched[k]=now()
   if len(watched)>WATCHED_KEEP:data['watched']=dict(sorted(watched.items(),key=lambda kv:-kv[1])[:WATCHED_KEEP])
@@ -194,11 +198,33 @@ def hide_action(entry):
  from urllib.parse import quote
  return 'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=continue_hide&key=%s)'%quote(hide_key(entry),safe='')
 
+def show_ids(entry):
+ """ISSUE-330: what an episode's show is known by: its TMDb id (the phone's own titles) and its name (Kodi's library
+ items carry no TMDb id), so the same show matches whichever way it was played."""
+ import re
+ ids=[]
+ if entry.get('tmdb_id'):ids.append('tmdb:%s'%entry['tmdb_id'])
+ name=re.sub(r'[^0-9a-z]+','',str(entry.get('tvshowtitle') or '').casefold())
+ if name:ids.append('name:'+name)
+ return ids
+
 def entries(data,kind='all',library=()):
- """Started (position > 0) titles plus library in-progress items, newest first; removed ones left out until played again."""
+ """Started (position > 0) titles plus library in-progress items, newest first; removed ones left out until played again.
+ ISSUE-330 (owner, build 486: "continue watching seems to go by per episode and it needs to go by per show and keep the
+ most recent episode i watched"): one card per show, its most recently played episode; an episode played before the
+ show's last finished one does not come back."""
  rows=[dict(e,source='phone') for e in data['items'].values() if e.get('position',0)>0 and kind in ('all',e['kind'])]
  rows+=[e for e in library if kind in ('all',e['kind'])]
- return sorted([e for e in rows if not hidden(data,e)],key=lambda e:-e.get('played',0))
+ rows=sorted([e for e in rows if not hidden(data,e)],key=lambda e:-e.get('played',0))
+ done=(data or {}).get('show_done') or {};seen=set();out=[]
+ for e in rows:
+  if e.get('kind')=='episode':
+   ids=show_ids(e)
+   if any(i in seen for i in ids):continue
+   if any(float(e.get('played') or 0)<=float(done.get(i) or 0) for i in ids):continue
+   seen.update(ids)
+  out.append(e)
+ return out
 
 def library_items(rpc):
  """Kodi's own in-progress movies and episodes (downloaded media in the library)."""

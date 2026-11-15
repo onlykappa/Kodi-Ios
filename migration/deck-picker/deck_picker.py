@@ -648,6 +648,32 @@ def resume_wanted(home=None, now=None):
         return None
 
 
+NEXT_PROPERTY = 'KodiIOS.Next.Source'   # set by the watch menu for Next Episode (ios_watch_dialog.py, ISSUE-331)
+
+
+def next_wanted(exp=None, home=None, now=None):
+    """ISSUE-331 (owner: Next Episode "should auto select best source based off the first quality i originally picked"):
+    the previous episode's quality and size, once, for this episode (when the page knows which episode it is)."""
+    import json
+    import time
+    try:
+        home = home if home is not None else _home()
+        raw = home.getProperty(NEXT_PROPERTY)
+        if not raw:
+            return None
+        wanted = json.loads(raw)
+        if (now if now is not None else time.time()) - float(wanted.get('time', 0)) > RESUME_FRESH:
+            home.clearProperty(NEXT_PROPERTY)
+            return None
+        if exp and exp.get('episode') and any(str(exp.get(k) or '') != str(wanted.get(k) or '')
+                                              for k in ('tmdb', 'season', 'episode') if wanted.get(k)):
+            return None   # another episode's page: leave it for the right one
+        home.clearProperty(NEXT_PROPERTY)
+        return wanted
+    except Exception:
+        return None
+
+
 def find_same(parsed, wanted):
     """The entry with the same release name (and quality, if several share the name), or None."""
     name = _s((wanted or {}).get('name')).strip().lower()
@@ -1198,6 +1224,15 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
     same = find_same(kept, resume_wanted())
     if same is not None:
         return same['idx']
+    # Next Episode (ISSUE-331): the version closest to the previous episode's quality and size, without asking.
+    like = next_wanted(exp) if kept else None
+    if like:
+        best = auto_choose(kept, {'quality': like.get('quality'), 'size': like.get('size') or 0})
+        if best is not None:
+            if sm is not None:
+                sm.log(u'Choose a version (next episode, like %s): %s' % (like.get('quality'), best['name']))
+            remember(best, title)
+            return best['idx']
     if not kept:
         if exp and exp.get('revealed'):                     # already asked to see them (Burst)
             return show_hidden(title, hidden)
