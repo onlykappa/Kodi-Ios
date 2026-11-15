@@ -1,5 +1,15 @@
 # Persistent progress
 
+## Sports › Upcoming: board 11 scrolled view — 2026-11-15
+
+Verified the remaining day groups in desktop Kodi 21.3 against approved board 11. The list now leaves enough room
+below the final day to reach the board's scrolled position (ISSUE-330). Tomorrow's two games and the last day's
+Manchester City / Brighton & Hove Albion row remain complete and clear of the fixed fallback tab bar. The header
+and the owner's six wrapped league chips scroll with the list. Checked wheel scrolling and the list's Last Page
+action using the same fixed sample clock as board 10. Screenshots remain outside Git; iPhone scrolling is pending.
+The shared Upcoming fixture and XML checks in `test_sports_upcoming.py` still cover all six games and three days.
+The game's page follows in its own commit.
+
 ## Sports › Upcoming: board 10 implemented — 2026-11-15
 
 `RunScript(service.kodi.ios.bootstrap,sports_upcoming)` opens the Upcoming list with the shared Sports provider and

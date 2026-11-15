@@ -5058,3 +5058,15 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Retest:** the page controller tests and the stop-aware-loop regression checks pass. The desktop rendering was
   checked before this wait-only correction; it is not iPhone evidence.
 - **Test:** `scripts/test_speed_fixes.py` (`PageLoops`) and `scripts/test_sports_upcoming.py` (controller lifecycle).
+
+## ISSUE-330 — Upcoming could not reach the approved scrolled position — fixed in the desktop rig
+
+- **Seen:** board 11 needs the later days higher in the viewport than the original list's scroll range allowed.
+- **Cause:** its 260-unit trailing clearance allowed only about 208 pt of scrolling with the sample's wrapped
+  league chips; the approved board scrolls 330 pt before allowing for the extra chip row.
+- **Fix:** reserve 720 units after the final day, so the header can scroll away and the later games can occupy
+  the approved positions without the tab bar covering their text.
+- **Retest:** desktop Kodi 21.3: wheel scrolling and Last Page show Tomorrow and Sat, Nov 21 with complete titles,
+  times, counts and source details above the fallback tab bar. Device gestures remain unverified.
+- **Test:** `scripts/test_sports_upcoming.py` checks the shared six-game, three-day projection and generated XML;
+  the actual scroll range was checked visually in the desktop rig.

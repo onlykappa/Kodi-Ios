@@ -5,6 +5,7 @@ WINDOW = 'IOSSportsUpcoming.xml'
 BACK, REFRESH, LIST, RETRY, LEAGUES = 9001, 9002, 9300, 9003, 9004
 CHIP, CHIPS, ROW, SLOTS = 40000, 16, 45000, 120
 CHIP_LINES = 4
+SCROLL_CLEAR = 720  # Board 11 leaves room below the final day as the header scrolls away.
 TITLE_LINE, DETAIL_H, PAD, MIN_ROW = 57, 56, 32, 194
 FORMS = range(1, 5)
 
@@ -84,7 +85,8 @@ def page(p):
     body = p.backdrop()
     body += ('<control type="grouplist" id="%d"><top>0</top><width>1080</width><bottom>0</bottom>'
              '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
-             '<scrolltime tween="cubic" easing="out">220</scrolltime>%s%s</control>') % (LIST,content,u.group(p,260,''))
+             '<scrolltime tween="cubic" easing="out">220</scrolltime>%s%s</control>') % (
+                 LIST,content,u.group(p,SCROLL_CLEAR,p.image(0,0,1,SCROLL_CLEAR,p.MEDIA+'white.png','00000000')))
     body += p.tabbar('library')
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Sports Upcoming, approved board 10 -->\n'
             '<window><defaultcontrol always="true">9001</defaultcontrol><controls>%s</controls></window>') % body
