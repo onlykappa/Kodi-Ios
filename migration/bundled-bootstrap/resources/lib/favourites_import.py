@@ -253,7 +253,8 @@ def save_report(profile, parsed, result, added, already, list_name, now=None):
             'duplicates': [{'title': d['title'], 'lines': list(d['lines'])} for d in list(parsed['duplicates']) + list(result['duplicates'])],
             'already': [m.get('title') or m.get('asked', '') for m in already],
             'questions': [{'entry': q['entry'], 'choices': q['choices']} for q in result['questions']],
-            'missing': [{'title': e['title'], 'line': e['line'], 'rank': e.get('rank'), 'watched': e.get('watched', 0)}
+            'missing': [dict({'title': e['title'], 'line': e['line'], 'rank': e.get('rank'), 'watched': e.get('watched', 0)},
+                             **({'failed': True} if e.get('failed') else {}))   # ISSUE-323: "Not checked" (board K3)
                         for e in result['missing']]}
     target = report_path(profile)
     os.makedirs(os.path.dirname(target), exist_ok=True)
