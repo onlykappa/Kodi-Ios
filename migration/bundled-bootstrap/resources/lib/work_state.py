@@ -552,7 +552,11 @@ def from_index(state, index, paused=None):
         def same_copy(j):
             if j['kind'] != 'copy' or str(e.get('hash') or '').lower() != str(j.get('hash') or '').lower():
                 return False
-            if j.get('job') and j['job'].endswith(':%s:%s' % (e['season'], e['episode'])):
+            # ISSUE-310 (owner, build 477: a 4K film copying and being made ready showed nowhere as running): a job id is
+            # hash:season:episode; a movie's is "hash::" while its index entry says season 0, episode 0, so movies never
+            # matched and every running movie copy was shown as queued. Empty and 0 are the same here.
+            parts = str(j.get('job') or '').rsplit(':', 2)
+            if j.get('job') and len(parts) == 3 and (parts[1] or '0') == str(e['season'] or 0) and (parts[2] or '0') == str(e['episode'] or 0):
                 return True
             info = li._parse(j.get('file') or '')
             if info.get('season') and info.get('episode'):

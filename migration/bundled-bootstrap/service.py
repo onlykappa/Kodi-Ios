@@ -206,7 +206,7 @@ def run():
   threading.Thread(target=later,daemon=True).start()
  import slowdown
  playback_lib=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
- slowdown.configure(lambda:'airplay' if airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time()) else ('buffering' if xbmc.getCondVisibility('Player.Caching') else 'video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
+ slowdown.configure(lambda:slowdown.play_reason(airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time()),xbmc.getCondVisibility('Player.Caching'),xbmc.getCondVisibility('Player.HasVideo'),xbmcgui.Window(10000).getProperty('KodiIOS.Open')))   # ISSUE-309: an opening holds downloads too
  # Build 207: one thread asks Kodi; the downloads only read its answer (slowdown.reason).
  threading.Thread(target=slowdown.watch,args=(monitor.waitForAbort,),kwargs={'log':lambda m:xbmc.log(m,xbmc.LOGINFO)},daemon=True).start()
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs. Each message also gets
@@ -407,7 +407,7 @@ def drive_uploads(monitor,home,profile):
  playback_lib=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
  airplay_busy=lambda:airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time())
  import slowdown
- slowdown.configure(lambda:'airplay' if airplay_busy() else ('buffering' if xbmc.getCondVisibility('Player.Caching') else 'video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
+ slowdown.configure(lambda:slowdown.play_reason(airplay_busy(),xbmc.getCondVisibility('Player.Caching'),xbmc.getCondVisibility('Player.HasVideo'),xbmcgui.Window(10000).getProperty('KodiIOS.Open')))   # ISSUE-309
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
  # ISSUE-267 / ISSUE-270: the app's patched copy first, whatever Kodi resolved, and nothing left from a moved copy.
  import pinned_addons;pinned_addons.use_clouddrive(xbmcaddon,xbmcvfs)

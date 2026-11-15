@@ -56,6 +56,35 @@ class SharedIndex(unittest.TestCase):
         props = library_rows.page_properties(view, index=self.index)
         self.assertEqual((props['headline'], props['count.working']), ('1 of 4 ready', '2'))
 
+    def test_a_movie_copy_being_made_ready_shows_as_running(self):
+        """ISSUE-310 (owner, build 477: Iron Man 4K copied and was made ready for AirPlay; Library status and Running now
+        showed nothing running). A movie's job id is "hash::"; its index entry is season 0, episode 0."""
+        debrid = {'jobs': [{'hash': 'film', 'title': 'Iron Man', 'year': '2008', 'kind': 'movie', 'season': '', 'episode': '',
+                            'status': 'copying', 'size': 6035021543, 'copied': 5101308600}],
+                  'lanes': {'0': {'job': 'film::', 'name': 'Iron.Man.2008.IMAX.2160p.4K.WEB.x265.mkv', 'stage': 'copying',
+                                  'mode': 'ready', 'sent': 5101308600, 'total': 6035021543, 'updated': NOW, 'slot': 0,
+                                  'rate': 2e6, 'eta_s': 400}}}
+        debrid_drive.save(self.profile, debrid)
+        prepare_downloads.save(self.profile, {'library': {'items': []}, 'jobs': {}})
+        index = li.refresh(self.profile, clock=lambda: NOW)
+        state = ws.build({'debrid': debrid, 'index': index}, NOW)
+        film = [e['key'] for e in index['videos'] if e['title'] == 'Iron Man'][0]
+        self.assertNotIn(film, [j['key'] for j in state['drive_next']])                 # not demoted to "queued"
+        card = [j for j in state['jobs'] if j.get('key') == film][0]
+        self.assertEqual(card['state'], ws.RUNNING)
+        # Owner: "ensure all screens use the library index": Library status, the Queue/Transfers, Running now and the
+        # bell all show the film as running, from the same record.
+        ws.save(self.profile, state)
+        with patch('time.time', return_value=NOW):
+            current = ws.current(self.profile, NOW)
+        view = library_rows.with_model(prepare_downloads.library_view({'jobs': {}}), current)
+        queue = [j for _, j in transfers.model_entries(current)]
+        running = [notifications.transfer_card(j) for j in current['jobs']]
+        for rows in (queue, running, view['rows']['downloading']):
+            self.assertIn(film, [j['key'] for j in rows])
+        self.assertEqual(ws.bell_properties(current)['Notices.Active'], 'true')
+        self.assertEqual((card['kind'], card['step'], card['pct']), ('copy', 'Getting it ready for Kodi and AirPlay', 84))
+
     def test_no_measurement_never_hides_an_indexed_copy(self):
         state = ws.build({'index': self.index}, NOW)
         self.assertEqual(len(state['next']) + len(state['drive_next']), 2)

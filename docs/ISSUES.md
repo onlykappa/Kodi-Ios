@@ -4646,3 +4646,42 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Retest:** desktop Kodi rig: the message with the star and Review ›, the report page; nothing cut. Not the phone.
 - **Test:** test_favourites_flow (no pop-up, the message, the saved report, the page's groups act, Last import row, "and N
   more", the message's star/Review and its tap).
+
+## ISSUE-309 — Umbrella still took 13-28 s to open and glitched just after it started (owner, build 477, log 47ee1590) — fixed in code; needs the phone
+
+- **What the log shows (build 477, Black Clover S02E07, three plays):** ISSUE-306 worked: no more source cycling, every
+  play started. Timings: 15.9 s (cache; hand-off 7.5 s, Kodi's open 8.4 s), 28.4 s (direct: the cache had 1 of its 3
+  opening blocks after its 5 s budget; Kodi's open 20.5 s), 12.9 s (cache; 5.2 + 7.7 s).
+- **Concrete cause:** while each stream opened, the app was copying a 4K film (Iron Man 2160p) from AllDebrid to Drive
+  and preparing it for AirPlay ("AirPlay: prepare: carrying on from 6206 s, byte 4978723283") at full speed. Its Drive
+  pieces took 0.2-0.7 s before the open and 3.6-9 s during it: the phone's line was shared. The slowdown rule
+  (`slowdown.reason`) only looked at `Player.HasVideo` and `Player.Caching`, which are false while Umbrella resolves a
+  link and Kodi opens the file, so nothing slowed until the picture appeared (16:31:45.48 "Slower while a video plays",
+  9 s after the open began). Then copies were held but preparation went on at its share; the audio stalled 4 s after the
+  picture ("CVideoPlayerAudio::Process - stream stalled"): the glitch the owner saw.
+- **Fix (`slowdown.play_reason`, service.py):** the watch add-on's start mark (Home `KodiIOS.Open`, set when Stream is
+  tapped) counts as `buffering` (copies, uploads, preparation and background downloads wait) until the video has played
+  for 15 s (`SETTLE`), 120 s at most (`OPENING_LIMIT`). Then the usual 'video' rule applies. AirPlay and Kodi's own
+  buffering keep their rules. The stream cache's own reads are not slowed (its gate is the foreground one).
+- **Expected on the phone:** the cache's opening blocks within its budget every time (no `route=direct` from a busy
+  line), Kodi's open close to the rig's 7 s, no stall after the picture. Background work pauses for about 15-30 s per play.
+- **Test:** test_opening_hold.
+
+## ISSUE-310 — A movie copying (and being made ready) showed nowhere as running (owner, build 477, log 47ee1590) — fixed in code
+
+- **Seen:** Iron Man 4K was copying from AllDebrid and being made ready for AirPlay ("made ready while it copies",
+  5.1 of 6.0 GB). The library index logged it every minute ("1 working (1 copying)"), but Library status and the
+  Notifications page never showed anything running when the app opened.
+- **Cause:** every screen (Library status, Transfers/Queue, Running now, the bell) reads one model that
+  `work_state.from_index` builds from the library index (ISSUE-293); a live copy is attached to its index entry by
+  `same_copy`. That compared the copy's job id (`hash:season:episode`) with the entry's season/episode: a movie's job id
+  is `hash::` and its entry is season 0, episode 0, so no movie ever matched. Each running movie copy was demoted to a
+  quiet "queued" row (`drive_next`): not under Working now, not in Running now, no bell ring. Episodes have numbers, so
+  they matched; that is why only films disappeared.
+- **Fix:** an empty season or episode counts as 0 when matching; a positive match returns at once, anything else falls
+  through to the existing file-name and season-pack checks.
+- **Audit (owner: "ensure all screens use the library index"):** Library status, Transfers/Queue, Notifications' Running
+  now and the bell all read that one model; the remaining direct reads of the copy/preparation state only pick which
+  job a card's Cancel/Pause acts on. Library, AI Upscale (ISSUE-288), Download problems and deletes use the index.
+- **Test:** test_queue_index `test_a_movie_copy_being_made_ready_shows_as_running` (running, not queued; "Getting it
+  ready for Kodi and AirPlay"; the same in Library status, the Queue, Running now and the bell). Fails on the old code.
