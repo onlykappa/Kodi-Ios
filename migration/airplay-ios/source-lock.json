@@ -2,14 +2,14 @@
   "framework_release": {
     "tag": "kodi-airplay-r62",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "sha256": "6c5a441acd7268176bf65012fad5e28574dea99e1080e13cda7bd5d9e158e349"
   },
   "previous": {
     "tag": "kodi-airplay-r61",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "16f4199931b556f67d89ffe3ec730ba5e6ed6886db7ff4602857606d6ae17617"
   },
-  "source_commit": "2e9f832",
-  "verified_run": 43731540855,
-  "pin_note": "r62 staged (ISSUE-343: WebVTT cue files map media time 0 (MPEGTS:0) and a line drawn on stacked ASS layers is one cue; ISSUE-346: the keyframe scan is saved while a download is prepared, resumed preparations included; ISSUE-347: kr_speech (sound reader) and kr_speech.m (on-device speech recognition, Speech framework, kodi_speech_* exports) for the subtitle speech check). Converter host tests passed in airplay-remux runs 43739940681 and 43741042132. sha256 pinned after the framework build. Until then verified_run stays r61\u2019s airplay-ios run 43731540855."
+  "source_commit": "c09d2f1",
+  "verified_run": 43744491417,
+  "pin_note": "r62 (ISSUE-343 WebVTT cue files map media time 0 and a line drawn on stacked ASS layers is one cue; ISSUE-346 the keyframe scan is saved while a download is prepared, resumed preparations included; ISSUE-347 on-device speech recognition for the subtitle speech check: kr_speech sound reader, kr_speech.m, Speech framework, kodi_speech_* exports) published by airplay-ios run 43744491417 from c09d2f1; the converter host tests passed in airplay-remux runs 43739940681 and 43741042132 (the same native source but for the build script); release notes, asset digest and downloaded zip all give 6c5a441a\u2026e349, and the binary carries the MPEGTS:0 time map, the \"made while preparing\" line and the speech entry points. The first r62 build (run 43743217717) failed to link and published nothing."
 }
