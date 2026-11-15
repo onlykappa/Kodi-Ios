@@ -185,7 +185,7 @@ def os_fetch(get, post, keys, result):
 
 
 # --- all together ----------------------------------------------------------------------------------------------------
-def find(get, keys, lang, title, year=None, season=None, episode=None, filename='', tmdb_id=None, log=lambda m: None):
+def find(get, keys, lang, title, year=None, season=None, episode=None, filename='', tmdb_id=None, log=lambda m: None, dubbed=False):
     """Ranked results from every source with a key. get(url, headers) -> bytes. A source that fails is logged and
     skipped; raises only when every source failed (so the menu can say the sites did not answer)."""
     results, errors = [], []
@@ -208,7 +208,7 @@ def find(get, keys, lang, title, year=None, season=None, episode=None, filename=
             errors.append(error)
     if not results and errors and len(errors) == len(sources(keys)):
         raise errors[0]
-    return tm.rank(results, filename)
+    return tm.rank(results, filename, dubbed)
 
 
 def fetch(get, post, keys, result, season=None, episode=None):

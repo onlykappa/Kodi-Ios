@@ -147,9 +147,10 @@ TOKENS = re.compile(r'[a-z0-9]+')
 QUALITY = ('2160p', '1080p', '720p', 'web', 'webrip', 'web-dl', 'bluray', 'remux', 'hdtv', 'amzn', 'nf', 'dsnp', 'hmax', 'atvp')
 
 
-def rank(results, filename):
+def rank(results, filename, dubbed=False):
     """Best match first: the most release-name words shared with the playing file (group and source count most),
-    hearing-impaired versions after plain ones."""
+    hearing-impaired versions after plain ones. ISSUE-339: for a dubbed video, captions made from the English audio
+    (CC / SDH / dub, hearing impaired) come first, ahead of release words."""
     mine = set(TOKENS.findall(_words(filename)))
     group = TOKENS.findall(_words(re.sub(r'\.[a-z0-9]{2,4}$', '', str(filename or ''))))[-1:] if filename else []
 
@@ -159,6 +160,9 @@ def rank(results, filename):
             theirs = set(TOKENS.findall(_words(rel)))
             s = len(mine & theirs) + 3 * len(set(group) & theirs) + 2 * len(mine & theirs & set(QUALITY))
             best = max(best, s)
+        if dubbed:
+            marked = r['impaired'] or bool(subtitle_match.DUB_MARK.search(' '.join(r['releases'] or [])))
+            return (1 if marked else 0, best)
         return (best, 0 if r['impaired'] else 1)
     return sorted(results, key=score, reverse=True)
 

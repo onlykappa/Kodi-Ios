@@ -645,6 +645,20 @@ def fingerprint(ident):
  return hashlib.sha256(('kodi-ios:'+str(ident or '')).encode()).hexdigest()[:12] if ident else ''
 
 
+# ISSUE-340 (owner log 218a6000: "route=direct wait_ms=5017 ready=False blocks=0/3 … bytes=3145728"; Umbrella took 15.8 s):
+# the cache waited its whole 5 s for opening blocks that were arriving at ~0.6 MB/s and could not finish, then Kodi
+# opened the link directly anyway. After EARLY_LOOK seconds the wait stops when, at the speed so far, the opening
+# blocks cannot be complete within the budget (or nothing has arrived).
+EARLY_LOOK=1.5
+
+def hopeless(st,elapsed,limit):
+ if elapsed<EARLY_LOOK:return False
+ need=int(st.get('opening_blocks') or 0)*BLOCK-int(st.get('read_bytes') or 0)
+ if need<=0:return False
+ rate=int(st.get('read_bytes') or 0)/max(elapsed,.001)
+ return rate<=0 or need/rate>(limit-elapsed)*1.2
+
+
 def answered(endpoint,ident,wait=None,clock=time.monotonic,limit=None,sample=None):
  """True only when this source's first/second/tail probes contain validated bytes within the opening budget."""
  wait=wait or time.sleep;limit=FIRST_ANSWER if limit is None else limit
@@ -658,6 +672,7 @@ def answered(endpoint,ident,wait=None,clock=time.monotonic,limit=None,sample=Non
    if clock()-began>=limit:return False
    if st.get('source_id')==fingerprint(ident) and st.get('opening_ready'):return True
    if st.get('source_id')!=fingerprint(ident):return False
+   if hopeless(st,clock()-began,limit):return False
   except Exception:return False
   if clock()-began>=limit:return False
   if wait(min(.05,max(0,limit-(clock()-began)))):return False

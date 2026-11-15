@@ -139,6 +139,27 @@ def _file_language(filename):
     return ''
 
 
+# ISSUE-339 (owner, Naruto Shippuden 1x01 in English: "the subtitles … were near but not exactly what they say"): a
+# subtitle written from the original-language script is a translation, not the English dub's words. Captions made from
+# the English audio are marked CC / SDH / dub (or hearing impaired). When the video is dubbed (dubbed()), those come
+# first and an unmarked track in the audio's language comes after them.
+DUB_MARK = re.compile(r'(?i)(?:\b(?:dub|dubbed|dubtitles?|cc|sdh|closed[ ._-]?captions?|hearing[ ._-]?impaired)\b|\[cc\]|\(cc\))')
+
+
+def dubbed(audio_streams, current_audio, subtitle_language):
+    """True when the file carries audio in more than one language and the one playing is the subtitle language: the
+    usual dual-audio anime or foreign release with its English dub on."""
+    langs = {language(a.get('language')) for a in (audio_streams or []) if language(a.get('language'))}
+    playing = language((current_audio or {}).get('language'))
+    wanted = language(subtitle_language)
+    return bool(wanted and playing == wanted and len(langs) > 1)
+
+
+def dub_marked(track):
+    text = ' '.join(str(t or '') for t in [track.get('name'), track.get('filename')] + list(track.get('releases') or []))
+    return bool(track.get('isimpaired') or track.get('impaired') or DUB_MARK.search(text))
+
+
 def assess(track, video):
     """Return score/rejected/reason/timing_checked/cue_count/offset_s for one track.
 
@@ -181,6 +202,8 @@ def assess(track, video):
         return refuse('Different language')
     if wanted_language and (tagged or declared) == wanted_language:
         score += 10
+    if video.get('dubbed'):   # ISSUE-339: the dub's own captions before a translation of the original script
+        score += 12 if dub_marked(track) else -8
     forced = bool(track.get('isforced') or track.get('forced') or re.search(r'(?i)\bforced\b', name))
     duration = max(0.0, float(video.get('duration') or 0))
     if checked and not cues:
@@ -329,7 +352,8 @@ def run(xbmc, xbmcgui, monitor):
             def snapshot():
                 player_id[0] = next(p['playerid'] for p in rpc('Player.GetActivePlayers') if p.get('type') == 'video')
                 props = rpc('Player.GetProperties', {'playerid': player_id[0],
-                                                    'properties': ['subtitles', 'currentsubtitle', 'subtitleenabled']}) or {}
+                                                    'properties': ['subtitles', 'currentsubtitle', 'subtitleenabled',
+                                                                   'audiostreams', 'currentaudiostream']}) or {}
                 item = (rpc('Player.GetItem', {'playerid': player_id[0],
                                               'properties': ['file', 'title', 'season', 'episode']}) or {}).get('item') or {}
                 preference = (rpc('Settings.GetSettingValue', {'setting': 'locale.subtitlelanguage'}) or {}).get('value')
@@ -337,6 +361,7 @@ def run(xbmc, xbmcgui, monitor):
                 return {'streams': props.get('subtitles'), 'current': (props.get('currentsubtitle') or {}).get('index'),
                         'enabled': props.get('subtitleenabled'),
                         'video': {'duration': xbmc.Player().getTotalTime(), 'language': language(preference),
+                                  'dubbed': dubbed(props.get('audiostreams'), props.get('currentaudiostream'), preference),
                                   'season': item.get('season') if item.get('season') is not None and item['season'] >= 0 else identity[0] if identity else None,
                                   'episode': item.get('episode') if item.get('episode') is not None and item['episode'] > 0 else identity[1] if identity else None}}
 

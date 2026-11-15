@@ -278,6 +278,38 @@ class Controller(unittest.TestCase):
         self.assertEqual(json.loads(properties['KodiIOS.SubtitleMatches'])[0]['index'], 1)
 
 
+class Dubbed(unittest.TestCase):
+    """ISSUE-339 (owner, Naruto Shippuden 1x01 in English): the file's English subtitles translate the Japanese script, so
+    the words were "near but not exactly what they say"; captions made from the English audio come first for a dub."""
+    def test_dual_audio_with_english_on_is_a_dub(self):
+        streams = [{'language': 'jpn'}, {'language': 'eng'}]
+        self.assertTrue(sm.dubbed(streams, {'language': 'eng'}, 'en'))
+        self.assertFalse(sm.dubbed(streams, {'language': 'jpn'}, 'en'))          # original audio: subtitles are right
+        self.assertFalse(sm.dubbed([{'language': 'eng'}], {'language': 'eng'}, 'en'))   # one language only
+    def test_dub_captions_beat_a_translation_track(self):
+        video = dict(VIDEO, dubbed=True)
+        plain = {'index': 0, 'name': 'English', 'language': 'eng'}
+        cc = {'index': 1, 'name': 'English [CC]', 'language': 'eng'}
+        sdh = {'index': 2, 'name': 'English', 'language': 'eng', 'isimpaired': True}
+        self.assertEqual([t['index'] for t in sm.rank([plain, cc, sdh], video)][:2], [1, 2])
+        self.assertEqual(sm.preferred([plain, cc], 0, True, video), 1)
+        self.assertEqual(sm.preferred([plain, cc], 0, True, dict(VIDEO)), 0)   # not dubbed: the current one stays
+    def test_downloads_put_captions_first_for_a_dub(self):
+        results = [{'releases': ['Show.S01E05.1080p.WEB.x264-GRP'], 'impaired': False},
+                   {'releases': ['Show.S01E05.Dub.CC'], 'impaired': False},
+                   {'releases': ['Show.S01E05'], 'impaired': True}]
+        ranked = tm.rank(results, 'Show.S01E05.1080p.WEB.x264-GRP.mkv', dubbed=True)
+        self.assertTrue(ranked[0]['impaired'] or 'Dub' in ranked[0]['releases'][0])
+        self.assertFalse(ranked[-1]['impaired'] or 'Dub' in ranked[-1]['releases'][0])
+        self.assertEqual(tm.rank(results, 'Show.S01E05.1080p.WEB.x264-GRP.mkv')[0]['releases'][0], 'Show.S01E05.1080p.WEB.x264-GRP')
+    def test_the_monitor_and_the_menu_pass_it(self):
+        self.assertIn("'dubbed': dubbed(props.get('audiostreams'), props.get('currentaudiostream'), preference),",
+                      (BOOT / 'resources/lib/subtitle_match.py').read_text())
+        tracks = (BOOT / 'tracks.py').read_text()
+        self.assertIn("dubbed = sm.dubbed(a.get('audiostreams'), a.get('currentaudiostream'), lang)", tracks)
+        self.assertIn("dubbed=video.get('dubbed')", tracks)
+
+
 class ConservativeNames(unittest.TestCase):
     def test_movie_title_is_not_a_language_suffix(self):
         result = sm.assess({'filename': 'It.2017.srt', 'language': 'eng'}, {'language': 'en'})

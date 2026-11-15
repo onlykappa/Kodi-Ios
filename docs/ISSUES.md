@@ -4918,6 +4918,24 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-340 — Umbrella: a 5 s cache wait that could not finish before opening directly (owner log 218a6000, build 502) — fixed in code
+
+- **Seen:** "route=direct wait_ms=5017 ready=False blocks=0/3 … bytes=3145728": the opening blocks (3 × 4 MB) were
+  arriving at ~0.6 MB/s, the cache waited its whole 5 s budget, then Kodi opened the link directly; 15.8 s in all.
+- **Fix (remote_media.hopeless):** after 1.5 s the wait stops when, at the speed so far, the opening blocks cannot be
+  complete within the budget, or nothing has arrived; fast sources keep the cache route.
+- **Test:** test_umbrella_early_exit. Needs the phone: Umbrella opening times in the log.
+
+## ISSUE-339 — Dubbed episodes: the file's English subtitles translate the original script (owner, Naruto Shippuden 1x01) — fixed in code
+
+- **Seen:** English audio, the file's one "English" track on: "near but not exactly what they say".
+- **Cause:** for dual-audio anime the English track is usually the translation of the Japanese dialogue, not the dub's
+  words; downloads put hearing-impaired (CC/SDH) versions after plain ones.
+- **Fix:** `subtitle_match.dubbed` (more than one audio language, the one playing is the subtitle language): tracks and
+  downloads marked CC / SDH / dub / hearing impaired come first, an unmarked one is ranked down (playback-start choice,
+  the Subtitles menu and Download and apply). Not yet: a dub caption is not downloaded on its own at playback start.
+- **Test:** test_subtitle_match `Dubbed`.
+
 ## ISSUE-338 — Favourites search "nearly kicks me out"; the "Most likely" badge never showed (owner log a42d17d7, build 502) — fixed in code; rig-checked
 
 - **Seen:** on the poster picker (IOSFavPick) Kodi logged "Trying to add unsupported control type 7" four times and

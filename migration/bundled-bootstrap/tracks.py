@@ -274,7 +274,12 @@ def run(mode):
                 duration = xbmc.Player().getTotalTime()
             except Exception:
                 duration = 0
-            return {'filename': name, 'duration': duration, 'language': lang,
+            try:   # ISSUE-339: a dub with the original language's audio beside it
+                a = rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['audiostreams', 'currentaudiostream']}) or {}
+                dubbed = sm.dubbed(a.get('audiostreams'), a.get('currentaudiostream'), lang)
+            except Exception:
+                dubbed = False
+            return {'filename': name, 'duration': duration, 'language': lang, 'dubbed': dubbed,
                     'season': it.get('season') if it.get('season') is not None and it['season'] >= 0 else guess.get('season'),
                     'episode': it.get('episode') if it.get('episode') is not None and it['episode'] > 0 else guess.get('episode')}
 
@@ -304,8 +309,9 @@ def run(mode):
             self.episode = ep
             tmdb = (it.get('uniqueid') or {}).get('tmdb') if not ep[0] else None
             log('search %s %r %s S%sE%s via %s' % (lang, title, year, ep[0], ep[1], ', '.join(ss.sources(keys))))
+            video = self.video()
             return sm.rank(ss.find(http_get, keys, lang, title, year, ep[0], ep[1], name, tmdb,
-                                   log=lambda m: log('subtitles ' + m)), self.video())
+                                   log=lambda m: log('subtitles ' + m), dubbed=video.get('dubbed')), video)
 
         def fetch_result(self, result):
             import subtitle_sources as ss
