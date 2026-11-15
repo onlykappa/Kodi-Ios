@@ -4918,6 +4918,22 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-334 — Tapping a season hid the season row; it came back only after Back (owner screenshot + log 88be95be, build 502) — fixed in code; rig-checked
+
+- **Seen:** on a show page (Naruto), tapping Season 2 showed its episodes under the show's header with no season row;
+  the row returned only after Back. Log: `Click … MyVideoNav.xml … control 50 (handled)`.
+- **Cause:** the season row is the page's own view list (id 50). Kodi sends a tap on a view list to the window, which opens
+  the season as its own episodes page (Content(episodes), list 52); a skin `<onclick>` cannot stop that (CGUIBaseContainer
+  OnClick: only lists with their own `<content>` run their onclick). The episodes page had no season row. Reproduced in
+  the desktop Kodi rig (Naruto, Season 2: Content episodes, no row).
+- **Fix:** the episodes page of a TMDb Helper show now shows the same season row (list 48, from the show's seasons folder,
+  `tvshow.tmdb_id` of its episodes), the shown season white. A tap goes up to the show and into the other season
+  (`Action(ParentDir)` then `Container.Update`), so Back still returns to the show; `Container.Update(…,replace)` was
+  tried first and cleared the history (Back left the add-on).
+- **Rig (desktop Kodi rig):** Naruto Season 2 page shows Season 1-4 chips with Season 2 white; Season 3 chip opens Season 3;
+  Back returns to the seasons page. Needs the phone: tapping chips, scrolling the page.
+- **Test:** test_portrait `test_episode_page_keeps_the_season_row`.
+
 ## ISSUE-333 — Show page: "Misplaced [" errors; Continue badge and bell condition never true (owner log 218a6000, build 502) — fixed in code
 
 - **Seen:** opening a TV show page logged `Misplaced [` and `Error parsing boolean expression

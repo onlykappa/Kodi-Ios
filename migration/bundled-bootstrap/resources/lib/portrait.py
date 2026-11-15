@@ -1057,6 +1057,17 @@ def video_nav(original):
  chips=('<control type="list" id="50"><left>%d</left><top>%d</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
   '<ondown>60</ondown><onup condition="%s">9002</onup><onup condition="%s">9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'
   '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,0,WIDTH-SIDE,'['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)]','!'+DOWNLOADED_SHOW+' + System.HasAddon(plugin.video.elementum)',chip(False),chip(True))
+ # ISSUE-334 (owner, build 502: "anytime i click a season … it hides the season selector, it only shows them if i press
+ # back"): Kodi opens a tapped season as its own episodes page (a view container's click goes to the window, which no
+ # skin onclick can stop). That page now carries the same season row, read from the show's seasons folder; a tap goes
+ # up to the show, then into the other season, so Back still returns to the show (Container.Update's "replace" clears
+ # the whole history instead: Back then left the add-on, desktop Kodi rig).
+ episode_chips=('<control type="list" id="48"><left>%d</left><top>0</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
+  '<ondown>52</ondown><onup>9001</onup><scrolltime tween="cubic">250</scrolltime><visible>%s</visible>'
+  '<onclick>Action(ParentDir)</onclick><onclick>Container.Update($INFO[ListItem.FolderPath])</onclick>'
+  '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout>'
+  '<content>plugin://plugin.video.themoviedb.helper/?info=seasons&amp;tmdb_type=tv&amp;tmdb_id=$INFO[Container(52).ListItem.Property(tvshow.tmdb_id)]</content>'
+  '</control>')%(SIDE,WIDTH-SIDE,SEASON_EPISODES,season_chip(False),season_chip(True))
  episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
   '<itemlayout height="420">%s</itemlayout><focusedlayout height="420">%s</focusedlayout>%s</control>')
@@ -1080,7 +1091,7 @@ def video_nav(original):
  show_page=('<control type="grouplist" id="9900"><left>0</left><top>0</top><width>%d</width><height>%d</height>'
   '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'
-  '%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,
+  '%s%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,episode_chips,
   episodes%(60,0,WIDTH,HEIGHT,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'),
   episodes%(52,0,WIDTH,HEIGHT,'9002','Container.Content(episodes)',episode_item(False),episode_item(True),''))
  # Owner (build 229): "If i scroll down after i select a season the season selecter disappears". Once the page has
@@ -1097,6 +1108,16 @@ def video_nav(original):
    '<content>$INFO[Container.FolderPath]</content></control>')%(SIDE,WIDTH-SIDE,pinned_chip(False),pinned_chip(True))+'</control>')
  body=('<controls>'+backdrop()+show_page+generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+pinned+back+plain_title+refresh+bell_button()+'</controls>')
  return window(original,body,'50','<views>50,51,52,53</views>')
+
+SEASON_EPISODES=('Container.Content(episodes) + String.StartsWith(Container.FolderPath,plugin://plugin.video.themoviedb.helper/) + '
+                 '!String.IsEmpty(Container(52).ListItem.Property(tvshow.tmdb_id))')   # ISSUE-334
+def season_chip(focused):
+ """ISSUE-334: a season on an episodes page: white for the season the page shows."""
+ on='String.IsEqual(ListItem.Season,Container(52).ListItem.Season)'
+ return ('<control type="group"><visible>String.IsEqual(ListItem.DBType,season)</visible>'+
+  surface(0,8,250,96,'pill_96.png',WHITE,48,'<visible>%s</visible>'%on)+surface(0,8,250,96,'glass_96.png',WHITE,48,'<visible>!%s</visible>'%on)+
+  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b','FF000000','center','<visible>%s</visible>'%on)+
+  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b',WHITE,'center','<visible>!%s</visible>'%on)+'</control>')
 
 def pinned_chip(focused):
  """A season in the pinned row: white when it is the season the page shows (the row on the page decides)."""

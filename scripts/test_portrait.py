@@ -203,6 +203,15 @@ class PortraitTests(unittest.TestCase):
   self.assertNotIn('RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/',text)
   path,argv=d.target(['default.py','download','kind=season','season=2']);self.assertTrue(path.endswith('download.py'));self.assertEqual(argv[1:],['kind=season','season=2'])
   path,argv=d.target(['default.py']);self.assertTrue(path.endswith('recover.py'))
+ def test_episode_page_keeps_the_season_row(self):
+  # ISSUE-334 (owner, build 502): tapping a season opened its episodes page without the season row.
+  xml=portrait.portrait_files(self.skin,self.profile)['portrait/MyVideoNav.xml'].decode()
+  root=ET.fromstring(xml);row=root.find(".//control[@id='48']")
+  self.assertIsNotNone(row);self.assertIn('Container.Content(episodes)',row.findtext('visible'))
+  self.assertIn('info=seasons&tmdb_type=tv&tmdb_id=$INFO[Container(52).ListItem.Property(tvshow.tmdb_id)]',row.findtext('content'))
+  self.assertEqual([c.text for c in row.findall('onclick')],['Action(ParentDir)','Container.Update($INFO[ListItem.FolderPath])'])
+  self.assertNotIn('replace',''.join(c.text for c in row.findall('onclick')))   # replace clears the history
+  self.assertIsNotNone(root.find(".//control[@id='9900']/control[@id='48']"))   # in the page's own scroll
  def test_no_infolabel_markup_inside_conditions(self):
   # ISSUE-333 (owner log 218a6000, "Misplaced [" / "Error parsing boolean expression"): Kodi cannot parse $INFO[...]
   # inside a condition; a bare infolabel is compared instead (GUIInfoManager: string bools translate param 2).
