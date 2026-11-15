@@ -24,6 +24,24 @@ class QuietConnection(unittest.TestCase):
   self.assertIn('keyframe_cache_load(key,&times,&keys)==0',REMUX)
   self.assertIn('if(!ok)keyframe_cache_save(key,times,keys);',REMUX)
   self.assertIn('Library/Caches/KodiAirPlay',REMUX)
+ def test_a_tv_stuck_after_a_stall_is_played_again_then_reloaded(self):
+  # ISSUE-336 (owner log 53a92f39): the TV paused at 7.4 s after a source stall and never resumed.
+  objc=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('if (errors.count > errorsSeen) lastErrorTick = ticks;',objc)
+  self.assertIn('lastErrorTick >= stuckSince - 15',objc)
+  self.assertIn('kr_remux_video_waiting() == 0',objc[objc.index('ISSUE-336 (owner log 53a92f39'):])
+  self.assertIn('recoveries < 3',objc)
+  self.assertIn('[player replaceCurrentItemWithPlayerItem:next];',objc[objc.index('ISSUE-336 (owner log 53a92f39'):])
+ def test_prepared_index_is_repaired_or_segmented(self):
+  # ISSUE-337 (owner log d8524f8d): "no usable fragment index; Apple's player gets the MP4 itself", then -11819.
+  self.assertIn('qsort(fr,(size_t)n,sizeof *fr,frag_by_offset);',REMUX)
+  self.assertIn('serving six-second segments instead of the MP4 itself',REMUX)
+  self.assertNotIn('if(n && (o<=fr[n-1].offset || t<fr[n-1].time))goto end;',REMUX)
+  objc=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('__block AVPlayer *player = [AVPlayer playerWithURL:address];',objc)
+  self.assertIn('if (player.status == AVPlayerStatusFailed) {',objc)
+  self.assertIn('airplayController.player = fresh;',objc)
+  self.assertIn('test_prepared_index_repairs();',TEST)
  def test_host_tests_run(self):
   self.assertIn('static void test_quiet_connection(const char *base)',TEST)
   self.assertIn('test_quiet_connection(argv[2]);',TEST)

@@ -1544,6 +1544,13 @@ static void keyframe_cache_save(uint64_t key,const double *times,int n) {
 }
 static double prepared_longest;
 // align_plan: 0 byte-range playlists over the fragments, 1 keyframe plan for the segmented path, 2 measure only.
+// ISSUE-337 (owner log d8524f8d, build 502): Kodi opened a prepared episode by its index ("opening MP4 by its fragment
+// index") but AirPlay said "no usable fragment index" and gave the TV the 168 MB MP4 itself, which the TV read for 12 s
+// and refused. One entry out of order rejected the whole index (preparations that resumed write it from both runs).
+// Entries are now sorted by offset and only the ones that do not run forward are dropped; the reason is logged.
+static int frag_by_offset(const void *a,const void *b) {
+    int64_t x=((const prep_frag *)a)->offset,y=((const prep_frag *)b)->offset;return x<y?-1:x>y;
+}
 static int prepared_playlists(int align_plan) {
     AVFormatContext *f=gm_stream_format_context(S.gm);
     int v=gm_stream_selected_video(S.gm);
@@ -1551,16 +1558,27 @@ static int prepared_playlists(int align_plan) {
     AVStream *st=f->streams[v];
     if(st->time_base.num<=0 || st->time_base.den<=0)return -1;
     uint8_t tail[16];
-    if(prepared_read_all(S.prepared_size-16,tail,16) || memcmp(tail+4,"mfro",4))return -1;
+    if(prepared_read_all(S.prepared_size-16,tail,16) || memcmp(tail+4,"mfro",4)) {
+        if(align_plan==2)log_line("prepared: index check: the file does not end with an index (mfro)");
+        return -1;
+    }
     uint32_t mfra_size=AV_RB32(tail+12);
-    if(mfra_size<16 || mfra_size>16*1024*1024 || (int64_t)mfra_size>S.prepared_size)return -1;
+    if(mfra_size<16 || mfra_size>16*1024*1024 || (int64_t)mfra_size>S.prepared_size) {
+        if(align_plan==2)log_line("prepared: index check: index size %u does not fit the file",mfra_size);
+        return -1;
+    }
     int64_t mfra_at=S.prepared_size-mfra_size;
     uint8_t *m=malloc(mfra_size);if(!m)return -1;
     prep_frag *fr=NULL;int n=0,cap=0,ok=-1;char *media=NULL,*master=NULL;
-    if(prepared_read_all(mfra_at,m,(int)mfra_size) || memcmp(m+4,"mfra",4))goto end;
+    int tracks_seen=0,dropped=0;
+    if(prepared_read_all(mfra_at,m,(int)mfra_size) || memcmp(m+4,"mfra",4)) {
+        if(align_plan==2)log_line("prepared: index check: no mfra box where the file says it is");
+        goto end;
+    }
     for(uint32_t at=8;at+8<=mfra_size;) {
         uint32_t size=AV_RB32(m+at);
         if(size<8 || at+size>mfra_size)break;
+        if(!memcmp(m+at+4,"tfra",4))tracks_seen++;
         if(!memcmp(m+at+4,"tfra",4) && size>=24 && (int)AV_RB32(m+at+12)==st->id) {
             int version=m[at+8];uint32_t lengths=AV_RB32(m+at+16),count=AV_RB32(m+at+20);
             int skip=(int)(((lengths>>4)&3)+((lengths>>2)&3)+(lengths&3)+3),entry=(version==1?16:8)+skip;
@@ -1568,14 +1586,26 @@ static int prepared_playlists(int align_plan) {
             for(uint32_t i=0;i<count;i++) {
                 const uint8_t *e=m+at+24+i*(uint32_t)entry;
                 int64_t t=version==1?(int64_t)AV_RB64(e):AV_RB32(e),o=version==1?(int64_t)AV_RB64(e+8):AV_RB32(e+4);
-                if(n && (o<=fr[n-1].offset || t<fr[n-1].time))goto end;   // the index must run forward
                 if(n==cap){cap=cap?cap*2:512;prep_frag *g=realloc(fr,sizeof *g*(size_t)cap);if(!g)goto end;fr=g;}
                 fr[n++]=(prep_frag){t,o};
             }
         }
         at+=size;
     }
-    if(n<1 || fr[0].offset<16 || fr[n-1].offset>=mfra_at)goto end;
+    if(n>1) {
+        qsort(fr,(size_t)n,sizeof *fr,frag_by_offset);
+        int kept=1;
+        for(int i=1;i<n;i++) {   // the index must run forward in both offset and time
+            if(fr[i].offset<=fr[kept-1].offset || fr[i].time<fr[kept-1].time){dropped++;continue;}
+            fr[kept++]=fr[i];
+        }
+        n=kept;
+    }
+    if(n<1 || fr[0].offset<16 || fr[n-1].offset>=mfra_at) {
+        if(align_plan==2)log_line("prepared: index check: %d usable entries for video track %d (%d track indexes in the file)",n,st->id,tracks_seen);
+        goto end;
+    }
+    if(dropped && align_plan==2)log_line("prepared: index check: %d entries out of order dropped, %d kept",dropped,n);
     double tb=av_q2d(st->time_base),total=gm_stream_duration(S.gm);
     double end_time=total>0?total+(double)fr[0].time*tb:0;
     if(st->duration>0 && st->duration!=AV_NOPTS_VALUE)end_time=(double)(st->duration+fr[0].time)*tb;
@@ -1744,8 +1774,13 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         S.prepared_size=kr_source_size(S.src);prepared_longest=0;
         const char *limit_env=getenv("KR_PREPARED_MAX_FRAGMENT_S");   // host tests of the byte-range path raise it
         double limit=limit_env && atof(limit_env)>0?atof(limit_env):PREPARED_MAX_FRAGMENT_SECONDS;
-        if(S.prepared_size>0 && prepared_playlists(2)==0 && prepared_longest>limit) {
+        int indexed=S.prepared_size>0 && prepared_playlists(2)==0;
+        if(indexed && prepared_longest>limit) {
             log_line("prepared: fragments run up to %.1f s; serving six-second segments instead",prepared_longest);
+            segmented=1;
+        } else if(!indexed && S.prepared_size>0) {
+            // ISSUE-337: without its index the TV would read the whole MP4 fragment by fragment and give up.
+            log_line("prepared: no usable fragment index; serving six-second segments instead of the MP4 itself");
             segmented=1;
         }
     }

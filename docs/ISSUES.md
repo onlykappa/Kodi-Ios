@@ -4918,6 +4918,39 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-337 — AirPlay of a prepared episode: the TV got the raw MP4, then "Cannot Complete Action" (owner log d8524f8d, build 502) — fixed in code (AirPlay r60 staged); needs phone retest
+
+- **Seen:** Kodi opened the prepared HEVC 10-bit episode "by its fragment index", but Play on TV logged "prepared: no
+  usable fragment index; Apple's player gets the MP4 itself": the TV read the 168 MB file in jumps for 12 s, then "the
+  player failed while the TV had the sound only"; the H.264 restart made its first segment in 2.9 s, yet 1.3 s later
+  "could not open the stream: … -11819 Cannot Complete Action". The owner's retry took the raw MP4 path again and failed
+  the same way.
+- **Cause:** (1) the AirPlay index reader rejected the whole index when one entry did not run forward (preparations that
+  resumed write it from both runs; Kodi's reader tolerates that), and with no index the TV was given the MP4 itself;
+  (2) the first failure left Apple's player itself failed (AVPlayerStatusFailed), which cannot be used again, and the
+  restart put the converted stream into that same player.
+- **Fix:** (1) entries are sorted by offset and only those that do not run forward are dropped; why an index is
+  unusable is logged; a prepared file without a usable index goes as six-second segments (picture copied), never as the
+  MP4 itself. (2) A restart replaces a failed player with a new one of the same settings (every watcher follows it).
+- **Test:** C host test `test_prepared_index_repairs` (a copy with two index entries swapped, and one without an index:
+  both served in segments covering the whole film, each logs why); test_airplay_source_stall (wiring). The player
+  replacement runs only on the phone.
+
+## ISSUE-336 — After a source stall the TV paused itself and never resumed (owner log 53a92f39, build 502) — fixed in code (AirPlay r60 staged); needs phone retest
+
+- **Seen:** casting a Drive copy (06:26): video segment 1 took 32.6 s (one quiet Drive read, ISSUE-335); the TV logged
+  "-12889 No response for media file in 10.416s (seg1.m4s)" and "-15628", then sat at 7.4 s with rate 0.0 for 7 minutes
+  ("120s: at 7.4 s, rate 0.0 … segments served video 26") although every later segment had been made. The owner gave up
+  and pressed Play on TV again (06:34; a second press 10 s later was ignored while it started). The same session's audio
+  segment 1 also took 32 s with 1.3 s of its own I/O: it waited on a cache block the stuck video read was loading.
+- **Cause:** the player watcher restarts for receivers that refuse the picture and reports a failed item, but a TV that
+  paused itself after a stall (item not failed) was left alone.
+- **Fix (build-airplay.sh, the native player watcher):** when the TV's position has not moved for 6 s, an error-log entry
+  came within 15 s of it stopping, and no video segment is still owed, the player is told to play again; if it still
+  does not move, the stream is reloaded at that position (at most three recoveries). A pause long after any error is
+  left alone. The quiet read itself is cut after 4 s (ISSUE-335), which also frees the waiting audio.
+- **Test:** test_airplay_source_stall (wiring). The watcher runs only in the iOS framework (macOS build): phone retest.
+
 ## ISSUE-335 — AirPlay froze 30 s and read Drive too slowly (owner logs 87d9a389, 65cca4ce, build 502) — fixed in code (AirPlay r59 staged); needs phone retest
 
 - **Seen:** casting a Drive copy took 10.6 s to the first picture (0.6 open, 1.2 index, **5.6 keyframe scan**, 2.8 first

@@ -490,7 +490,8 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
         if (!address || !root) return;
         [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback mode:AVAudioSessionModeMoviePlayback options:0 error:nil];
         [[AVAudioSession sharedInstance] setActive:YES error:nil];
-        AVPlayer *player = [AVPlayer playerWithURL:address];
+        // ISSUE-337: __block so a restart can hand every watcher below a new player when this one has failed for good.
+        __block AVPlayer *player = [AVPlayer playerWithURL:address];
         if (@available(iOS 15.0, *)) player.audiovisualBackgroundPlaybackPolicy=AVPlayerAudiovisualBackgroundPlaybackPolicyContinuesIfPossible;
         const double startAt = atomic_exchange(&pendingStart, 0.0);
         __block BOOL initialSeekAllowed = YES;
@@ -550,6 +551,9 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
             const BOOL preparedLink = [link hasSuffix:@"/prepared.mp4"] || [link hasSuffix:@"/prepared.m3u8"];   // r38: HLS over the prepared file
             __block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO, everExternal = NO, slowNoted = NO;
             __block double resumeAt = -1;
+            // ISSUE-336: position watch for recovery after a source stall.
+            __block double lastPos = -1;
+            __block int stuckTicks = 0, stuckSince = 0, recoveries = 0, lastErrorTick = -1000;
             // r7: once per stream: restart with the picture converted to H.264 at the same position. NO when it cannot
             // (already tried, or no source to restart).
             BOOL (^restartCompat)(BOOL) = ^BOOL(BOOL hevc) {
@@ -600,6 +604,21 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                             return;
                         }
                         AVPlayerItem *next = [AVPlayerItem playerItemWithURL:address];
+                        // ISSUE-337 (owner log d8524f8d): the player had failed for good (AVPlayerStatusFailed, -11819)
+                        // before the converted stream was ready; given the new stream it still reported the failure and
+                        // the app said "could not open the stream". A failed AVPlayer cannot be used again: a new one
+                        // with the same settings takes the converted stream.
+                        if (player.status == AVPlayerStatusFailed) {
+                            playerNote(@"the player itself had failed (%@): a new one takes the converted stream",
+                                       player.error.localizedDescription ?: @"");
+                            AVPlayer *fresh = [[AVPlayer alloc] init];
+                            if (@available(iOS 15.0, *)) fresh.audiovisualBackgroundPlaybackPolicy=AVPlayerAudiovisualBackgroundPlaybackPolicyContinuesIfPossible;
+                            fresh.allowsExternalPlayback = YES;
+                            fresh.usesExternalPlaybackWhileExternalScreenIsActive = YES;
+                            [player pause];
+                            player = fresh;
+                            airplayController.player = fresh;
+                        }
                         watchPlayback(player,next,generation);
                         [player replaceCurrentItemWithPlayerItem:next];
                         airplayHolder.ticket=restartTicket;
@@ -627,6 +646,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 }
                 // r6: Apple's player error log (segment / decoder failures it recovered from or not), once each.
                 NSArray<AVPlayerItemErrorLogEvent *> *errors = item.errorLog.events;
+                if (errors.count > errorsSeen) lastErrorTick = ticks;
                 for (NSUInteger i = errorsSeen; i < errors.count; i++)
                     playerNote(@"error log: %ld %@ %@ (%@)", (long)errors[i].errorStatusCode, errors[i].errorDomain,
                                errors[i].errorComment ?: @"", errors[i].URI.lastPathComponent ?: @"");
@@ -711,6 +731,32 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                     const char *m = kr_remux_message();
                     showProblem(m && *m ? @(m) : (player.currentItem.error.localizedDescription ?: @"The TV could not play the converted stream."));
                     [timer invalidate]; return;
+                }
+                // ISSUE-336 (owner log 53a92f39, build 502): after a source stall ("No response for media file in 10.4 s
+                // (seg1.m4s)", then -15628) the TV paused at 7.4 s and stayed there for 7 minutes, rate 0, although every
+                // later segment was ready. A TV that stopped moving within 15 s of such an error, with no video segment
+                // still owed, is asked to play again; if it still does not move, the stream is reloaded at that point
+                // (at most three times). A pause long after any error is the viewer's and is left alone.
+                double here = CMTimeGetSeconds(player.currentTime);
+                if (isfinite(here) && fabs(here - lastPos) > 0.25) { lastPos = here; stuckTicks = 0; stuckSince = ticks; }
+                else stuckTicks++;
+                if (external && stuckTicks >= 6 && recoveries < 3 && lastErrorTick >= stuckSince - 15 &&
+                    kr_remux_video_waiting() == 0 && item.status != AVPlayerItemStatusFailed) {
+                    recoveries++; stuckTicks = 0;
+                    if (recoveries == 1) {
+                        playerNote(@"stuck at %.1f s after a source stall (rate %.1f): playing again", here, player.rate);
+                        [player play];
+                    } else {
+                        NSURL *url = [item.asset isKindOfClass:AVURLAsset.class] ? ((AVURLAsset *)item.asset).URL : nil;
+                        if (url) {
+                            playerNote(@"still stuck at %.1f s after a source stall: reloading the stream there", here);
+                            AVPlayerItem *next = [AVPlayerItem playerItemWithURL:url];
+                            watchPlayback(player, next, generation);
+                            [player replaceCurrentItemWithPlayerItem:next];
+                            [player play];
+                            resumeAt = isfinite(here) && here > 0 ? here : 0; errorsSeen = 0;
+                        }
+                    }
                 }
                 waiting = player.timeControlStatus == AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate ? waiting + 1 : 0;
                 const char *m = kr_remux_message();

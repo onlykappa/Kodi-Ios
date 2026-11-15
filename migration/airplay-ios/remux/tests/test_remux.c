@@ -2196,6 +2196,50 @@ static void test_long_fragments(void) {
 
 // ISSUE-335 fix 1 (owner log 65cca4ce: one Drive read sent nothing and the TV waited 31.7 s): a connection that goes
 // quiet is dropped after a few seconds and the bytes come from a fresh one, intact.
+// ISSUE-337 (owner log d8524f8d): a prepared file whose index has an entry out of order (a resumed preparation) or no
+// index at all was given to the TV as the MP4 itself; it is served in six-second segments instead.
+static int write_variant(const char *from,const char *to,int mode) {
+    FILE *f=fopen(from,"rb");if(!f)return -1;
+    fseek(f,0,SEEK_END);long n=ftell(f);rewind(f);uint8_t *b=malloc((size_t)n);
+    if(!b || fread(b,1,(size_t)n,f)!=(size_t)n){fclose(f);free(b);return -1;}fclose(f);
+    if(n<16 || memcmp(b+n-12,"mfro",4)){free(b);return -1;}
+    uint32_t mfra=AV_RB32(b+n-4);long at=n-(long)mfra;
+    if(mode==1) {   // swap the first two entries of the first tfra
+        for(long k=at+8;k+8<n;) {
+            uint32_t size=AV_RB32(b+k);if(size<8)break;
+            if(!memcmp(b+k+4,"tfra",4)) {
+                int version=b[k+8];uint32_t lengths=AV_RB32(b+k+16),count=AV_RB32(b+k+20);
+                int entry=(version==1?16:8)+(int)(((lengths>>4)&3)+((lengths>>2)&3)+(lengths&3)+3);
+                if(count<2){free(b);return -1;}
+                uint8_t tmp[64];memcpy(tmp,b+k+24,(size_t)entry);memcpy(b+k+24,b+k+24+entry,(size_t)entry);memcpy(b+k+24+entry,tmp,(size_t)entry);
+                break;
+            }
+            k+=size;
+        }
+    } else n=at;     // mode 2: no index (the mfra and mfro cut off)
+    FILE *o=fopen(to,"wb");int ok=o && fwrite(b,1,(size_t)n,o)==(size_t)n;if(o)fclose(o);free(b);return ok?0:-1;
+}
+static void test_prepared_index_repairs(void) {
+    char from[1024],to[1024],url[1100],list[512],log[16384];
+    snprintf(from,sizeof from,"%s/coalesced.mp4",fixture_dir);
+    unsetenv("KR_PREPARED_MAX_FRAGMENT_S");kr_remux_set_prefetch(0);
+    for(int mode=1;mode<=2;mode++) {
+        snprintf(to,sizeof to,"%s/index-variant-%d.mp4",fixture_dir,mode);
+        CHECK(write_variant(from,to,mode)==0,"variant %d written",mode);
+        {char drain[16384];while(kr_remux_log(drain,sizeof drain)>0){}}
+        snprintf(url,sizeof url,"file:%s",to);
+        int st=start_session(url,0,list,sizeof list);
+        kr_remux_log(log,sizeof log);
+        CHECK(st==KR_READY && strstr(list,"/master.m3u8") && !strstr(list,"/prepared."),
+              "index variant %d is served in segments, never as the MP4 itself: %s",mode,list);
+        CHECK(mode==1 ? strstr(log,"entries out of order dropped")!=NULL : strstr(log,"serving six-second segments instead of the MP4 itself")!=NULL,
+              "variant %d logs why: %.400s",mode,log);
+        if(st==KR_READY){reply pl=http_get(kr_remux_port(),"/video/index.m3u8",NULL);double t,m;int g;
+            CHECK(pl.body && playlist_segments(pl.body,&t,&m,&g)>=4 && fabs(t-32)<.5,"variant %d covers the whole film",mode);free(pl.body);}
+        kr_remux_stop();
+    }
+    kr_remux_set_prefetch(1);setenv("KR_PREPARED_MAX_FRAGMENT_S","1e9",1);
+}
 static void test_quiet_connection(const char *base) {
     char url[1024],local[1024],err[256]="";
     snprintf(url,sizeof url,"%s/quiet/coalesced.mp4",base);snprintf(local,sizeof local,"%s/coalesced.mp4",fixture_dir);
@@ -2453,7 +2497,7 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
+        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }
