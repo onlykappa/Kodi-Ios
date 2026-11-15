@@ -264,7 +264,11 @@ def directory(handle,kind):
  fill=filler(xbmcvfs)
  for entry in entries(data,kind,library_items(rpc)):
   entry=fill(entry)
-  episode=entry['kind']=='episode'
+  episode=entry.get('kind')=='episode'
+  # ISSUE-328 (rig: KeyError 'tvshowtitle' emptied the whole Continue Watching row): an entry missing a name still shows,
+  # under whatever name it has, instead of stopping the row.
+  entry.setdefault('title',entry.get('tvshowtitle') or '');entry.setdefault('tvshowtitle',entry['title'])
+  if not entry['title']:continue
   li=xbmcgui.ListItem(label=entry['tvshowtitle'] if episode else entry['title'],offscreen=True)
   art=dict(entry.get('art',{}))
   for name in ('fanart','landscape','poster','clearlogo'):

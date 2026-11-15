@@ -75,7 +75,7 @@ ROOT=[
     '$INFO[Window(Home).Property(KodiIOS.UpscaleSummary)]')],
  # What the profile button's More menu held (round 5: the gear in the header opens Settings instead).
  [R(9171,'Google Drive','ActivateWindow(Videos,plugin://plugin.googledrive/,return)','cloud.png',BLUE),
-  R(9172,'Favourites','RunScript(service.kodi.ios.bootstrap,favourites_page)','star.png',ORANGE),
+  R(9172,'Favourites','RunScript(service.kodi.ios.bootstrap,favourites_manager)','star.png',ORANGE),
   R(9173,'Check for updates','RunScript(service.kodi.ios.bootstrap,check_updates)','cloud-arrow-down.png',GREEN),
   R(9174,'iPhone navigation / recovery','RunScript(service.kodi.ios.bootstrap,navigation_menu)','life-ring.png',RED)],
  # PVR & Live TV and Games are gone (owner, 2026-11-12): the app ships without the PVR clients and game cores

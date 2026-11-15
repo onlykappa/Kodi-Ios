@@ -55,17 +55,17 @@ def _right(p, w, h):
     x = S + w - 70
     out = p.icon(x, (h - 40) // 2, 40, 'chevron-right.png', p.GREY, '<visible>%s</visible>' % _has('go'))
     cnt = (h - 62) // 2
-    out += p.image(x - 130, cnt, 112, 62, M + 'pill_150.png', '33FF9F0A', '<visible>%s + String.IsEqual(ListItem.Property(count_kind),o)</visible>' % _has('count'), border=31)
-    out += p.image(x - 130, cnt, 112, 62, M + 'pill_150.png', '1FEBEBF5', '<visible>%s + !String.IsEqual(ListItem.Property(count_kind),o)</visible>' % _has('count'), border=31)
+    out += p.image(x - 130, cnt, 112, 62, M + 'pill_56.png', '33FF9F0A', '<visible>%s + String.IsEqual(ListItem.Property(count_kind),o)</visible>' % _has('count'), border=28)
+    out += p.image(x - 130, cnt, 112, 62, M + 'pill_56.png', '1FEBEBF5', '<visible>%s + !String.IsEqual(ListItem.Property(count_kind),o)</visible>' % _has('count'), border=28)
     out += p.label(x - 130, cnt, 112, 62, '[B]$INFO[ListItem.Property(count)][/B]', 'p_foot', 'FFFF9F0A', 'center',
                    '<scroll>false</scroll><visible>String.IsEqual(ListItem.Property(count_kind),o)</visible>')
     out += p.label(x - 130, cnt, 112, 62, '[B]$INFO[ListItem.Property(count)][/B]', 'p_foot', p.GREY, 'center',
                    '<scroll>false</scroll><visible>%s + !String.IsEqual(ListItem.Property(count_kind),o)</visible>' % _has('count'))
     out += p.label(x - 330, 0, 310, h, '$INFO[ListItem.Property(value)]', 'p_sub', p.GREY, 'right', '<scroll>false</scroll>')
     act = (h - 76) // 2
-    out += p.image(S + w - 250, act, 220, 76, M + 'pill_150.png', p.SURFACE2, '<visible>%s</visible>' % _has('act'), border=38)
+    out += p.image(S + w - 250, act, 220, 76, M + 'pill_56.png', p.SURFACE2, '<visible>%s</visible>' % _has('act'), border=28)
     out += p.label(S + w - 250, act, 220, 76, '[B]$INFO[ListItem.Property(act)][/B]', 'p_foot', p.ACCENT, 'center', '<scroll>false</scroll>')
-    out += p.image(S + w - 250, act + 8, 220, 60, M + 'pill_150.png', '$INFO[ListItem.Property(chip_back)]', '<visible>%s</visible>' % _has('chip'), border=30)
+    out += p.image(S + w - 250, act + 8, 220, 60, M + 'pill_56.png', '$INFO[ListItem.Property(chip_back)]', '<visible>%s</visible>' % _has('chip'), border=28)
     out += p.label(S + w - 250, act + 8, 220, 60, '[B]$INFO[ListItem.Property(chip)][/B]', 'p_cap', '$INFO[ListItem.Property(chip_tint)]', 'center', '<scroll>false</scroll>')
     return out
 
@@ -78,7 +78,7 @@ def _row(p, w, h, focused):
     out = _row_back(p, w, h) + _press(p, w, h, focused)
     tile = (h - 84) // 2
     out += p.image(S + 30, tile, 84, 84, M + 'round_s.png', '$INFO[ListItem.Property(tint)]', '<visible>%s</visible>' % _has('glyph'), border=24)
-    out += p.image(S + 50, tile + 20, 44, 44, '$INFO[ListItem.Property(glyph)]', p.WHITE, '<visible>%s</visible>' % _has('glyph'), '>keep')
+    out += p.image(S + 50, tile + 20, 44, 44, p.ICONS + '$INFO[ListItem.Property(glyph)]', p.WHITE, '<visible>%s</visible>' % _has('glyph'), '>keep')
     text_w = w - 30 - 330
     for with_tile, x in (('glyph', S + 140), ('', S + 30)):
         cond = _has('glyph') if with_tile else _not('glyph')
@@ -98,10 +98,14 @@ def _poster_row(p, w, focused):
     out += p.image(S + 96, 34, 112, 168, p.MEDIA + 'white.png', p.SURFACE2, '<visible>%s</visible>' % _has('poster_box'))
     out += p.image(S + 96, 34, 112, 168, '$INFO[ListItem.Art(thumb)]', p.WHITE, '<visible>%s</visible>' % _has('poster_box'), '>scale',
                    p.MEDIA + 'poster_mask.png', background=True)
-    tw = w - 230 - 280
-    out += p.textbox(S + 230, 30, tw, 96, '[B]$INFO[ListItem.Label][/B]', 'p_foot_b', p.WHITE)
-    out += p.textbox(S + 230, 126, tw, 42, '$INFO[ListItem.Label2]', 'p_cap', p.GREY)
-    out += p.textbox(S + 230, 168, tw, 42, '$INFO[ListItem.Property(em)]', 'p_cap', 'FFFF9F0A')
+    # ISSUE-325: the text takes the row's width unless a chip or an action sits at its right (it was always narrow, and
+    # "Best guess: The Eminence in Shadow · TV" was cut).
+    side = '[%s | %s]' % (_has('chip'), _has('act'))
+    for cond, tw in (('!' + side, w - 230 - 90), (side, w - 230 - 280)):
+        out += ('<control type="group"><visible>%s</visible>' % cond +
+                p.textbox(S + 230, 30, tw, 96, '[B]$INFO[ListItem.Label][/B]', 'p_foot_b', p.WHITE) +
+                p.textbox(S + 230, 126, tw, 42, '$INFO[ListItem.Label2]', 'p_cap', p.GREY) +
+                p.textbox(S + 230, 168, tw, 42, '$INFO[ListItem.Property(em)]', 'p_cap', 'FFFF9F0A') + '</control>')
     return out + _right(p, w, h)
 
 
@@ -115,17 +119,17 @@ def _stats(p, w):
         for n in range(1, count + 1):
             x = S + 20 + (n - 1) * (tile + 20)
             group += p.image(x, 20, tile, STATS - 70, M + 'round_s.png', p.SURFACE2, border=24)
-            group += p.label(x + 24, 34, tile - 40, 64, '[B]$INFO[ListItem.Property(s%dn)][/B]' % n, 'p_h3', '$INFO[ListItem.Property(s%dt)]', 'left', '<scroll>false</scroll>')
+            group += p.label(x + 24, 34, tile - 40, 64, '[B]$INFO[ListItem.Property(s%dn)][/B]' % n, 'p_h3', '$INFO[ListItem.Property(s%dt)]' % n, 'left', '<scroll>false</scroll>')
             group += p.textbox(x + 24, 100, tile - 36, 80, '$INFO[ListItem.Property(s%dl)]' % n, 'p_cap', p.GREY)
         out += '<control type="group"><visible>String.IsEqual(ListItem.Property(tiles),%d)</visible>%s</control>' % (count, group)
     return out
 
 
-def _layouts(p, focused):
+def _parts(p, focused=False):
+    """[(kind, height, body)]: every row type's drawing, written for a list item (ListItem.*)."""
     S, W, M = p.SIDE, p.WIDTH, p.MEDIA
     w = W - 2 * S
-    tag = 'focusedlayout' if focused else 'itemlayout'
-    parts = [
+    return [
         ('header', HEADER, p.label(S + 30, 22, w - 60, 56, '$INFO[ListItem.Label]', 'p_foot_b', p.GREY, 'left', '<scroll>false</scroll>')),
         ('row', ROW, _row(p, w, ROW, focused)),
         ('row2', ROW2, _row(p, w, ROW2, focused)),
@@ -139,7 +143,47 @@ def _layouts(p, focused):
          (p.image(S, 6, w, LINK - 12, M + 'pill_150.png', '14FFFFFF', border=59) if focused else '')),
         ('gap', GAP, ''),
     ]
-    return ''.join('<%s height="%d" condition="%s">%s</%s>' % (tag, h, _kind(k), body, tag) for k, h, body in parts)
+
+
+def _layouts(p, focused):
+    tag = 'focusedlayout' if focused else 'itemlayout'
+    return ''.join('<%s height="%d" condition="%s">%s</%s>' % (tag, h, _kind(k), body, tag) for k, h, body in _parts(p, focused))
+
+
+# ISSUE-325: Kodi picks ONE layout for a whole list (CGUIListItemLayout::CheckCondition evaluates the condition without the
+# item: DEFAULT_CONTEXT), so a list cannot draw each row by its own kind; every row came out as the first layout (the
+# grey section caption). IOSFavManage.xml is a column of SLOTS slots instead, filled from window properties
+# (r.N.kind, r.N.label, r.N.label2, r.N.thumb, r.N.<prop>): each slot holds every kind's drawing and shows the one its row
+# is. A slot is tapped through its own button (ROW_TAP + N).
+SLOTS = 70
+ROW_TAP = 9700
+TAPPABLE = ('row', 'row2', 'poster', 'stats', 'button', 'link')
+
+
+def to_slot(body, n):
+    """A list-item drawing for slot n: ListItem.* becomes the slot's window properties."""
+    k = 'Window().Property(r.%d.' % n
+    return (body.replace('ListItem.Property(', k).replace('ListItem.Label2', k + 'label2)')
+            .replace('ListItem.Label', k + 'label)').replace('ListItem.Art(thumb)', k + 'thumb)')
+            .replace('ListItem.Art(poster)', k + 'thumb)'))
+
+
+def _slots(p):
+    S, W, M = p.SIDE, p.WIDTH, p.MEDIA
+    w = W - 2 * S
+    parts = _parts(p, False)
+    out = ''
+    for n in range(SLOTS):
+        for kind, h, body in parts:
+            tap = ''
+            if kind in TAPPABLE:
+                tap = ('<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><label></label>'
+                       '<texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>') % (
+                    ROW_TAP + n, S, w, h, M)
+            out += ('<control type="group"><width>%d</width><height>%d</height>'
+                    '<visible>String.IsEqual(Window().Property(r.%d.kind),%s)</visible>%s%s</control>') % (
+                W, h, n, kind, to_slot(body, n), tap)
+    return out
 
 
 def _list(p, ident, top, visible):
@@ -159,7 +203,7 @@ def manage(p):
     body += p.label(S + 120, 36, w - 120, 108, P('back'), 'p_sub', p.ACCENT, 'left', '<scroll>false</scroll>')
     body += p.label(S, 150, w, 110, P('title'), 'p_large', p.WHITE, 'left', '<scroll>false</scroll>')
     body += p.textbox(S, 262, w, 46, P('sub'), 'p_cap', p.GREY)
-    seg = '<control type="group"><top>320</top><visible>%s</visible>' % seg_on
+    seg = '<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>' % (W, TOP_SEG - TOP, seg_on)
     seg += p.image(S, 0, w, 104, M + 'round_s.png', p.SURFACE, border=24)
     for count in (2, 3):
         cw = (w - 12) // count
@@ -172,12 +216,15 @@ def manage(p):
                       '<label>[B]%s[/B]</label><font>p_foot</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
                       '<align>center</align><aligny>center</aligny><texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus>'
                       '<texturenofocus /><ondown>%d</ondown><onup>%d</onup></control>') % (
-                SEG + n - 1, x, cw, P('seg.%d' % n), p.GREY, p.WHITE, M, LIST_SEG, BACK)
+                SEG + n - 1, x, cw, P('seg.%d' % n), p.GREY, p.WHITE, M, ROW_TAP, BACK)
         seg += '<control type="group"><visible>String.IsEqual(Window().Property(seg.count),%d)</visible>%s</control>' % (count, group)
     seg += '</control>'
-    body += seg + _list(p, LIST, TOP, '!' + seg_on) + _list(p, LIST_SEG, TOP_SEG, seg_on)
+    body += ('<control type="grouplist" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom>'
+             '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
+             '<scrolltime tween="cubic" easing="out">380</scrolltime>%s%s'
+             '<control type="group"><width>%d</width><height>200</height></control></control>') % (LIST, TOP - 10, W, seg, _slots(p), W)
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Favourites manager (boards K1-K5) -->\n<window><defaultcontrol always="true">%d</defaultcontrol>'
-            '<controls>%s</controls></window>' % (LIST, body.replace('!!String.IsEmpty', 'String.IsEmpty')))
+            '<controls>%s</controls></window>' % (BACK, body.replace('!!String.IsEmpty', 'String.IsEmpty')))
 
 
 def _cell(p, focused):
@@ -189,8 +236,13 @@ def _cell(p, focused):
     out += p.image(5, 5, CELL_W - 22, CELL_H - 26, M + 'round_s.png', p.SURFACE, '<visible>%s</visible>' % _has('best'), border=20)
     out += p.image(6, 6, pw, ph, M + 'white.png', p.SURFACE2, diffuse=M + 'poster_mask.png')
     out += p.image(6, 6, pw, ph, '$INFO[ListItem.Art(poster)]', p.WHITE, '', '>scale', M + 'poster_mask.png', background=True)
-    out += p.image(18, 18, 190, 50, M + 'pill_150.png', 'FF0A84FF', '<visible>%s</visible>' % _has('best'), border=25)
-    out += p.label(18, 18, 190, 50, '[B]$INFO[ListItem.Property(best)][/B]', 'p_tab', p.WHITE, 'center', '<scroll>false</scroll>')
+    # ISSUE-325 (rig render): "Most likely" ran past a 190-unit pill: the pill fits the text (a button sized by its label).
+    out += ('<control type="button"><left>18</left><top>18</top><width min="120" max="%d">auto</width><height>54</height>'
+            '<label>[B]$INFO[ListItem.Property(best)][/B]</label><font>p_tab</font><textoffsetx>20</textoffsetx>'
+            '<textcolor>%s</textcolor><disabledcolor>%s</disabledcolor><align>center</align><aligny>center</aligny><enable>false</enable>'
+            '<texturenofocus border="27" colordiffuse="FF0A84FF">%spill_56.png</texturenofocus>'
+            '<texturefocus border="27" colordiffuse="FF0A84FF">%spill_56.png</texturefocus><visible>%s</visible></control>') % (
+        CELL_W - 48, p.WHITE, p.WHITE, M, M, _has('best'))
     out += p.textbox(14, ph + 16, CELL_W - 40, 84, '[B]$INFO[ListItem.Label][/B]', 'p_cap', p.WHITE)
     out += p.textbox(14, ph + 100, CELL_W - 40, 80, '$INFO[ListItem.Label2]', 'p_tab', p.GREY)
     if focused:

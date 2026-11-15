@@ -4928,3 +4928,32 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Fix:** the same `handle_error`: a reset, broken pipe, aborted connection or timeout from a reader is ignored; any other
   error is still reported. Less log I/O while playing, and logs readable again.
 - **Test:** test_quiet_hangups (both servers stay quiet on hang-ups and still report other errors).
+
+## ISSUE-325 — Settings › Favourites as the Favourites manager (boards K1-K8, owner-approved) — done in code; rig-checked
+
+- **Request:** the owner-approved boards K1-K8 (docs/design/favourites-manager-mockups.html): a manager page from Settings
+  with what needs a look (Needs your answer, Not found, Duplicates), each imported list, and Import / Order / Open
+  Favourites; K7/K8 pick a title by its poster.
+- **Cause of the draft's failure (rig render):** the WIP drew every page as ONE Kodi list whose `<itemlayout>`s had
+  `condition="String.IsEqual(ListItem.Property(kind),…)"`. Kodi picks one layout for the whole list
+  (`CGUIListItemLayout::CheckCondition` evaluates with DEFAULT_CONTEXT, no item), so every row came out as the first
+  layout (grey section captions) and the cards, counts, chips and buttons never showed.
+- **Fix:** IOSFavManage.xml is a column of `SLOTS` (70) slots, filled from window properties (`r.N.kind`, `r.N.label`, …);
+  each slot holds every kind's drawing (the WIP's layouts, `to_slot` points them at the slot) and shows the one its row
+  is; a slot is tapped through its own button (`ROW_TAP` + N). The segmented control is the column's first group. A page
+  clears what the last one set (`slot_properties`). Rig fixes on the way: the stat tiles' number colour, row icons'
+  path, round count/action/chip pills, the poster row's text full-width unless a chip or action sits at its right
+  ("Best guess: The Eminence in Shadow · TV" was cut), "Most likely" sized to its text. `start=ask|missing|dups|list:<name>`
+  opens a page directly. Settings › Favourites opens it.
+- **Retest:** desktop Kodi rig: K1 landing (stats, Needs a look with counts, Your lists, Manage), K2 Needs your answer,
+  K3 Not found (segments, Search, Skip All), K4 Duplicates, K5 a list (segments, stats, ranked poster rows, Added chips),
+  K7 picker (three posters, kind · year · seasons, Most likely). Nothing cut off. Not the phone; posters need TMDb art.
+- **Test:** test_favourites_manager (no per-row list layouts; every slot has every kind and its tap; every kind the model
+  makes is drawn; slots never keep a previous page's values; Settings opens it).
+
+## ISSUE-328 — One Continue Watching entry without a show title emptied the whole row (rig) — fixed in code
+
+- **Seen:** `KeyError: 'tvshowtitle'` in `ios_continue.directory` (plugin.video.kodi.ios.watch): the whole Continue
+  Watching row failed to list because one saved episode had no show title.
+- **Fix:** a missing title or show title takes the other; an entry with neither is skipped; the row lists the rest.
+- **Test:** test_favourites_manager `ContinueRow`.

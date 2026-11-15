@@ -20,6 +20,21 @@ BACK_ACTIONS = (9, 10, 92, 110)
 DETAILS_TIMEOUT = 6
 
 
+def slot_properties(rows, before=()):
+    """ISSUE-325: window properties for the page's slots: r.N.kind/label/label2/thumb and every row property. Every
+    property the last page set (`before`) that this one does not is emptied, so no count or chip is left behind and unused
+    slots hide (their kind is empty)."""
+    out = {key: '' for key in before}
+    for n, r in enumerate(rows[:page.SLOTS]):
+        out['r.%d.label' % n] = str(r.get('label', ''))
+        out['r.%d.label2' % n] = str(r.get('label2', ''))
+        out['r.%d.thumb' % n] = str(r.get('thumb', ''))
+        for k, v in r.items():
+            if k not in ('label', 'label2', 'thumb', 'action'):
+                out['r.%d.%s' % (n, k)] = str(v)
+    return out
+
+
 def run():
     import xbmc
     import xbmcgui
@@ -223,23 +238,13 @@ def run():
             self.setProperty('seg.on', str(spec.get('seg_on') or 1))
             for n in range(1, 4):
                 self.setProperty('seg.%d' % n, seg[n - 1] if n <= len(seg) else '')
-            items = []
-            for r in spec['rows']:
-                li = xbmcgui.ListItem(r.get('label', ''), r.get('label2', ''))
-                if r.get('thumb'):
-                    li.setArt({'thumb': r['thumb']})
-                for k, v in r.items():
-                    if k not in ('label', 'label2', 'thumb', 'action'):
-                        li.setProperty(k, str(v))
-                items.append(li)
-            ident = page.LIST_SEG if seg else page.LIST
-            try:
-                lst = self.getControl(ident)
-                lst.reset()
-                lst.addItems(items)
-                self.setFocusId(ident)
-            except Exception as error:
-                xbmc.log('Kodi iOS favourites manager: list unavailable (%s)' % type(error).__name__, xbmc.LOGWARNING)
+            # ISSUE-325: the page is a column of slots (favourites_manager_page.SLOTS), one per row, filled from properties.
+            props = slot_properties(spec['rows'], getattr(self, 'slot_keys', ()))
+            for key, value in props.items():
+                self.setProperty(key, value)
+            self.slot_keys = [k for k, v in props.items() if v]
+            if len(spec['rows']) > page.SLOTS:
+                xbmc.log('Kodi iOS favourites manager: %d rows, %d shown' % (len(spec['rows']), page.SLOTS), xbmc.LOGWARNING)
 
         def go(self, name, arg=None):
             self.stack.append((name, arg))
@@ -269,9 +274,9 @@ def run():
                     self.stack[-1] = ('list', (arg[0], ('all', 'added', 'need')[n]))
                 self.render()
                 return
-            if control not in (page.LIST, page.LIST_SEG):
+            if not page.ROW_TAP <= control < page.ROW_TAP + page.SLOTS:
                 return
-            position = self.getControl(control).getSelectedPosition()
+            position = control - page.ROW_TAP
             rows = self.spec['rows']
             if 0 <= position < len(rows) and rows[position].get('action'):
                 self.act(rows[position]['action'])
