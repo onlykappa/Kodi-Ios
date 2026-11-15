@@ -184,7 +184,8 @@ class OpeningFallback(unittest.TestCase):
   diagnostics=json.dumps(remote.stats(self.home))
   xbmc=SimpleNamespace(log=lambda message,level:logged.append(message),LOGINFO=1)
   with mock.patch.dict(sys.modules,{'xbmc':xbmc}):self.assertEqual(remote.for_kodi(self.SRC,self.home),self.SRC)
-  self.assertEqual(len(logged),1);self.assertIn('route=direct',logged[0]);self.assertIn('blocks=',logged[0])
+  opening=[line for line in logged if 'stream opening' in line]   # ISSUE-317: the read/block trace lines are checked below too
+  self.assertEqual(len(opening),1);self.assertIn('route=direct',opening[0]);self.assertIn('blocks=',opening[0])
   diagnostics+='\n'.join(logged)
   for private in ('fixture.invalid','synthetic-source-token','synthetic-auth','synthetic-cookie',ident,secret,self.SRC):
    self.assertNotIn(private,diagnostics)

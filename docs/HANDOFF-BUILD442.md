@@ -212,3 +212,16 @@ the PR branch triggers that build, so merge it only once approved.
 `System.FPS` via `kodi_rig.py rpc XBMC.GetInfoLabels '{"labels":["System.FPS"]}'` while dragging with xdotool; the rig's
 Kodi source (`~/.cache/kodi-rig/kodi-src`) currently has the ISSUE-316 change applied (rebuild: `make -j kodi` in
 kodi-build, ~15 s). Kodi conditions use `![…]`, never `!(…)`. Screenshots never go into Git.
+
+## Progress, 2026-11-15 (fifth session): Umbrella opening (ISSUE-317)
+
+- Owner logs cf038697 / 6fb90ab2 (build 482). The cache route admitted all 3 blocks in 4.3 s, then Kodi's reads from the
+  cache were cut three times (`Transferred a partial file(18)`), giving 31.3 s. Fixed in code: the opening budget covers
+  only the route-deciding blocks, a failed block is fetched again before a read is cut, blocks Kodi waits on get request
+  places first, and every read and block is logged for 90 s (`Kodi iOS cache read` / `cache block`). See ISSUE-317.
+- Rig set up like the phone: probe-limit hunk applied to the rig's Kodi source; null ALSA device in the rig HOME
+  (`.asoundrc`), without which Kodi's start waits 5 s for audio; TMDb Helper disabled (the rig crashed loading its Home
+  widgets). Test MKVs had their font data turned into EBML Void elements, so FFmpeg seeks past fonts as the phone's
+  patched FFmpeg does. 30 fonts at 0.7 MB/s and 0.4 s per request: direct 16.9 s, cache 8.5 s, and 24 MB before
+  admission 8.5 s (it only moves the wait).
+- Next: the owner's log from this IPA after an Umbrella play. If it is still slow, read the `cache read` lines.

@@ -43,6 +43,12 @@ SPLIT=4;PIECES=8;SPLIT_MIN=256*1024
 TYPES={'mkv':'video/x-matroska','avi':'video/x-msvideo','webm':'video/webm'}
 RACE=20          # ISSUE-315: a Kodi source replaced this soon after it was opened is kept beside the new one
 KODI_AHEAD=4     # ISSUE-315: blocks after the opening ones fetched at once for Kodi (it reads the file's start next)
+# ISSUE-317 (owner log d3c14036, build 482: the cache route with all three opening blocks ready in 4.3 s still took 31.3 s
+# for Kodi to open; the direct link 19.6 s): every read Kodi makes through the cache (offset, length, time, how long it
+# waited for blocks) and every block fetched, for READ_LOG_FOR seconds after the source opens (READ_LOG_MAX lines at most).
+READ_LOG_FOR=90;READ_LOG_MAX=150
+BLOCK_RETRIES=2  # ISSUE-317: more tries for a block a reader waits on (each try is up to 3 requests per piece)
+OPEN_BLOCKS=2    # ISSUE-317: leading blocks a Kodi source must hold before Kodi is handed it (with the last block)
 LOOP_WINDOW=90   # ISSUE-306: seconds in which a second hand-off after one Kodi never read means Umbrella is cycling its sources
 _LAST=[0.0]
 
@@ -57,6 +63,27 @@ def eligible(source):
 
 
 class _SourceClosed(RuntimeError):pass
+
+
+class _Gate:
+ """ISSUE-317: at most `size` requests at once, like the semaphore it replaces, but a free place goes to the most urgent
+ waiter first: 0 a block Kodi is waiting on, 1 the opening blocks, 2 read-ahead nobody has asked for yet."""
+ def __init__(self,size):
+  self.free=size;self.cond=threading.Condition();self.waiting=[]
+ def acquire(self,timeout=None,priority=2,since=None):
+  with self.cond:
+   ticket=[priority,since or time.monotonic()];self.waiting.append(ticket)
+   try:
+    end=None if timeout is None else time.monotonic()+timeout
+    while self.free<=0 or min(self.waiting)!=ticket:
+     left=None if end is None else end-time.monotonic()
+     if left is not None and left<=0:return False
+     self.cond.wait(left if left is None else min(left,.05))
+    self.free-=1;return True
+   finally:
+    self.waiting.remove(ticket);self.cond.notify_all()
+ def release(self):
+  with self.cond:self.free+=1;self.cond.notify_all()
 
 
 class _Response:
@@ -96,7 +123,7 @@ class Foreground(drive_stream.DriveStream):
   # 4 MB block: at ~0.7 MB/s that block takes ~6 s, longer than for_kodi's FIRST_ANSWER, so Kodi always fell back.
   self.answered_size=0
   self.cancelled=threading.Event();self.response_lock=threading.Lock();self.responses=set()
-  self.pieces=threading.BoundedSemaphore(PIECES);self.connect_timeout=20;self.opening_deadline=None
+  self.pieces=_Gate(PIECES);self.urgent=set();self.connect_timeout=20;self.opening_deadline=None
   self.renew_lock=threading.Lock();self.renewal=None;self.renew_link=None;self.renewed=False;self.renewal_state='unavailable'
   self.renew_clock=clock;self.renew_after=0.0
   self.remote_headers={k:v for k,v in urllib.parse.parse_qsl(extra,keep_blank_values=True)
@@ -104,15 +131,21 @@ class Foreground(drive_stream.DriveStream):
   if not any(k.lower()=='user-agent' for k in self.remote_headers):self.remote_headers['User-Agent']='Kodi-iOS-AirPlay/1'
   opener=open_url or (lambda request,timeout:urllib.request.urlopen(request,timeout=timeout,context=context))
   def remote(request,timeout):
+   since=time.monotonic()   # ISSUE-317: its place in the queue is kept while it re-checks cancellation and urgency
    while not self.cancelled.is_set():
-    if self.pieces.acquire(timeout=.05):break
+    if self.pieces.acquire(timeout=.05,priority=self._priority(request),since=since):break
    else:raise _SourceClosed('Stream cache closed')
    response=None;tracked=False
    try:
     if self.cancelled.is_set():raise _SourceClosed('Stream cache closed')
-    remaining=None if self.opening_deadline is None else self.opening_deadline-time.monotonic()
+    # ISSUE-317 (owner log cf038697, build 482: three "Transferred a partial file" cuts while Kodi opened through the cache,
+    # 31.3 s): the opening's budget (deadline, short timeouts) is for the blocks that decide the route, not for the next
+    # blocks started at 4.3 s with under a second left, nor for Kodi's own reads or read-ahead.
+    budgeted=self._priority(request)==1;deadline=self.opening_deadline if budgeted else None
+    remaining=None if deadline is None else deadline-time.monotonic()
     if remaining is not None and remaining<=0:raise _SourceClosed('Stream opening budget expired')
-    try:response=self._open_remote(request,min(timeout,self.connect_timeout,remaining if remaining is not None else timeout),opener)
+    limit=timeout if deadline is None else min(timeout,self.connect_timeout,remaining)
+    try:response=self._open_remote(request,limit,opener,budgeted=budgeted)
     except Exception:
      if self.cancelled.is_set():raise _SourceClosed('Stream cache closed') from None
      raise
@@ -136,18 +169,22 @@ class Foreground(drive_stream.DriveStream):
   name=urllib.parse.unquote(urllib.parse.urlsplit(raw).path.rsplit('/',1)[-1]) or 'video.mkv'
   self.content_type=TYPES.get(name.rsplit('.',1)[-1].lower(),'video/x-matroska')
   self.served=0
+  self.born=time.monotonic();self.reads=[];self.logged=0   # ISSUE-317: the read trace of the opening
+  self.open_blocks=WARM_BLOCKS   # ISSUE-317: leading blocks the opening needs (OPEN_BLOCKS for Kodi's own player)
+  self.block_retries=BLOCK_RETRIES   # ISSUE-317: a failed block is fetched again before a reader's read is cut
   self.media_url=self.url('media').rsplit('/',1)[0]+'/'+urllib.parse.quote(name,safe='')
 
- def _open_remote(self,request,timeout,opener):
+ def _open_remote(self,request,timeout,opener,budgeted=True):
    headers=dict(self.remote_headers);headers['Range']=request.get_header('Range')
    attempted=self.remote_url
    def open_source(url):
     if self.cancelled.is_set():raise _SourceClosed('Stream cache closed')
-    remaining=timeout if self.opening_deadline is None else min(timeout,self.opening_deadline-time.monotonic())
+    deadline=self.opening_deadline if budgeted else None   # read now: a renewal may have used up the budget
+    remaining=timeout if deadline is None else min(timeout,deadline-time.monotonic())
     if remaining<=0:raise _SourceClosed('Stream opening budget expired')
     request=urllib.request.Request(url,headers=headers)
     # The system opener buffers a piece and may follow redirects internally; share the entire opening deadline.
-    request._kodi_open_deadline=self.opening_deadline;request._kodi_cancelled=self.cancelled.is_set
+    request._kodi_open_deadline=deadline;request._kodi_cancelled=self.cancelled.is_set
     return opener(request,remaining)
    try:response=open_source(attempted)
    except urllib.error.HTTPError as error:
@@ -174,6 +211,48 @@ class Foreground(drive_stream.DriveStream):
 
  def _fetch(self,item,start,end):
   """ISSUE-302: the block as SPLIT ranges read at once (joined in order); small or single-piece ranges as before."""
+  began=time.monotonic()
+  try:
+   result=self._fetch_block(item,start,end)
+  except Exception as error:
+   self._trace('block',start//self.block_size,began,error=type(error).__name__);raise
+  self._trace('block',start//self.block_size,began,size=len(result[0]))
+  return result
+
+ def want(self,index):
+  """ISSUE-317: a reader (Kodi) waits on this block now: its pieces go before read-ahead."""
+  with self.response_lock:self.urgent.add(index)
+
+ def _priority(self,request):
+  try:index=int(request.get_header('Range')[6:].split('-')[0])//self.block_size
+  except Exception:return 2
+  if index in self.urgent:return 0
+  total=self.answered_size or self.blocks.sizes.get('media') or 0
+  if index<self.open_blocks or (total and index==(total-1)//self.block_size):return 1
+  return 2
+
+ def on_read(self,start,end,sent,took,waited,waits):
+  """ISSUE-317: two lines per read Kodi makes through the cache: as it asks (sent is None) and as it ends."""
+  at=time.monotonic()-took-self.born
+  if sent is None:
+   self._log('Kodi iOS cache read: at=+%.2fs offset=%d asked=%d'%(at,start,end-start+1));return
+  self.reads.append((round(at,3),start,end,sent,round(took,3),round(waited,3)))
+  self._log('Kodi iOS cache read done: at=+%.2fs offset=%d sent=%d took=%.2fs waited=%.2fs%s'%(
+   at,start,sent,took,waited,(' waited_for=%s'%','.join(map(str,waits[:8]))) if waits else ''))
+
+ def _trace(self,kind,index,began,size=0,error=''):
+  now=time.monotonic()
+  self._log('Kodi iOS cache %s: index=%d at=+%.2fs took=%.2fs %s'%(kind,index,began-self.born,now-began,
+            ('error=%s'%error) if error else 'bytes=%d'%size))
+
+ def _log(self,line):
+  if time.monotonic()-self.born>READ_LOG_FOR or self.logged>=READ_LOG_MAX:return
+  self.logged+=1
+  try:
+   import xbmc;xbmc.log(line,xbmc.LOGINFO)
+  except Exception:pass
+
+ def _fetch_block(self,item,start,end):
   if self.cancelled.is_set():raise _SourceClosed('Stream cache closed')
   total=self.blocks.sizes.get(item);stop=end if total is None else min(end,total-1)
   if stop-start+1<=SPLIT*SPLIT_MIN:return super()._fetch(item,start,end)
@@ -258,7 +337,8 @@ class Broker:
        if broker.kodi and not warmed:
         broker.current.connect_timeout=min(20,FIRST_ANSWER)
         broker.current.opening_deadline=broker.opened+FIRST_ANSWER
-        threading.Thread(target=prefetch,args=(broker.current,),kwargs={'extra':KODI_AHEAD},daemon=True).start()
+        broker.current.open_blocks=OPEN_BLOCKS
+        threading.Thread(target=prefetch,args=(broker.current,),kwargs={'blocks':OPEN_BLOCKS,'extra':KODI_AHEAD},daemon=True).start()
        answer={'url':broker.current.media_url,'id':broker.ident,'warmed':warmed}
       elif action=='warm':
        source=request.get('source','')
@@ -286,7 +366,7 @@ class Broker:
         snapshot=current.stats()
         with current.blocks.lock:
          size=int(current.blocks.sizes.get('media') or current.answered_size or 0)
-         wanted={0,1,(size-1)//current.block_size} if size else set()
+         wanted=set(range(getattr(current,'open_blocks',WARM_BLOCKS)))|{(size-1)//current.block_size} if size else set()
          wanted={i for i in wanted if size and i*current.block_size<size}
          complete=lambda index:len(current.blocks.data.get(('media',index),b''))==min(current.block_size,size-index*current.block_size)
          ready=bool(wanted) and all(complete(index) for index in wanted)
@@ -377,11 +457,18 @@ def prefetch(source,blocks=None,extra=0):
    try:cache.get('media',index)
    except Exception:pass
   threads=[threading.Thread(target=one,args=(i,),daemon=True) for i in sorted({i for i in range(1,blocks or WARM_BLOCKS) if i<=last}|{last}-{0})]
+  # ISSUE-315: and the next blocks Kodi reads while it opens the file (an MKV's start: its tracks and attached fonts).
+  # ISSUE-317: started with the opening ones, not after them: the request gate gives the opening blocks their places
+  # first, and the rest use whatever places are left instead of waiting idle.
+  first=blocks or WARM_BLOCKS
+  more=[threading.Thread(target=one,args=(i,),daemon=True) for i in range(first,first+extra) if i<last]
   for t in threads:t.start()
-  for t in threads:t.join()
-  # ISSUE-315: then the next blocks Kodi reads while it opens the file (an MKV's start: its tracks and attached fonts)
-  more=[threading.Thread(target=one,args=(i,),daemon=True) for i in range(2,2+extra) if i<last]
+  # the opening blocks' requests queue first (the gate only orders waiters; a free place goes to whoever asks first)
+  gate=getattr(source,'pieces',None);want=min(PIECES,SPLIT*len(threads))
+  until=time.monotonic()+1
+  while gate is not None and more and time.monotonic()<until and PIECES-gate.free+len(gate.waiting)<want:time.sleep(.01)
   for t in more:t.start()
+  for t in threads:t.join()
  except Exception:pass
 
 

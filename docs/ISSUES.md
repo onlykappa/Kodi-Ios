@@ -4741,3 +4741,47 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Unknown:** why Umbrella resolves two links for one play (its code is not in the repo). Both now finish on the cache.
 - **Test:** test_stream_race (a second hand-off keeps the first source alive and serving; each sees its own stats; one
   previous at most; the next blocks are fetched with the opening). Fails on the old code.
+
+## ISSUE-317 — Umbrella: 12 MB loads fast, then "loading video" sits ~30 s (owner, build 482, logs d3c14036 / cf038697) — fixed in code; needs the phone
+
+- **Seen (owner):** play 1 on the cache route, all 3 opening blocks ready in 4.3 s, then Kodi's open took 31.3 s. Play 2
+  fell back to the direct link (2/3 blocks after 5.3 s) and opened in 19.6 s. The card loads 0–12 MB quickly, then sits
+  at "loading video". So the network was fine, and the time goes after the hand-off, inside Kodi's open through the cache.
+- **Rig (desktop Kodi rig, set up like the phone):** the portrait patch's 3 MB / 3 s probe limits, filecache 96 MB /
+  readfactor 1000, a null ALSA device. The test MKV's attachment data was turned into EBML Void elements, so FFmpeg
+  seeks past each font as the phone's patched FFmpeg does. A throttled server ran at 0.7 MB/s per connection with
+  0.4 s per request, and `for_kodi` was tested end to end.
+  - Kodi's open seeks across the font area (e.g. 10.8, 17.0, 20.7, 21.0 MB), then reads from the first cluster. Those
+    offsets are in blocks 2–5, outside the three opening blocks, so Kodi waits for them.
+  - 30-font MKV (about 20 MB): direct 16.9 s (15.2 s seeking); cache as in build 482 3.8 s hand-off + 4.7 s = 8.5 s;
+    24 MB before admission with a 15 s wait 7.4 s + 1.1 s = 8.5 s (only moves the wait); 16 connections instead of 8:
+    Kodi's demux wait 3.7 → 1.9 s.
+  - The rig does not reproduce a 30 s stall with a fast link.
+- **Concrete cause (owner log cf038697, play 1, 18:35):** `stream opening: route=cache wait_ms=4282 blocks=3/3 errors=0`,
+  `Creating Demuxer` 46.21, then Kodi's reads from the cache were cut three times: `CCurlFile … Transferred a partial
+  file(18)` at 51.60, 05.45 and 16.61 (with `CFileCache::Seek … failed to get remaining data` and `source read returned 0!
+  Will retry`), and `probe limits` only at 17.46: 31.3 s. The loopback server cuts a read only when the block it waits on
+  fails (`drive_stream` closes the connection), and each cut cost Kodi 5-14 s before it read again. Weak spots found in
+  the code: (1) the opening's 5 s budget (deadline + 5 s connect timeout) applied to every request of the source,
+  including the KODI_AHEAD blocks started at ~4.3 s, which got well under a second to download a 1 MB piece (the phone's
+  native opener buffers the whole piece within that timeout), and to Kodi's own reads made before the budget was cleared;
+  (2) a block that failed after its 3 tries per piece cut Kodi's read instead of being fetched again. The exact error of
+  each failed block is not in the build-482 log; the new `cache block: … error=` lines will name it.
+- **Changed (`remote_media.py`, `drive_stream.py`):**
+  - Every read Kodi makes through the cache is logged as it starts and as it ends (`Kodi iOS cache read: at= offset=
+    asked=` / `read done: sent= took= waited= waited_for=`), and every block fetch with its time or error (`Kodi iOS
+    cache block:`). This covers the first READ_LOG_FOR (90) seconds, at most 150 lines, with no URLs.
+  - Served bytes are written in 1 MiB slices, so `sent=` and `served=` count what a reader really took.
+  - Upstream requests go through `_Gate`: the same cap (PIECES), but a free place goes to a block Kodi waits on, then
+    the opening blocks, then read-ahead. The KODI_AHEAD blocks start with the opening ones once those have queued.
+  - `OPEN_BLOCKS` (default 2, as before) sets how many leading blocks must be in before Kodi is handed the cache.
+  - The opening budget applies only to the blocks that decide the route (the opening blocks and the last); the next
+    blocks, read-ahead and blocks Kodi waits on always get the normal 20 s timeout (`budgeted` in `remote`, the deadline
+    read live so a renewal still uses up the budget).
+  - A block a reader waits on is fetched again up to BLOCK_RETRIES (2) more times before the read is cut.
+- **Rig after the fix:** same file and speed, the cache route 3.8 s + 4.6-4.7 s, no block errors, 60 read lines logged.
+- **Expected on the phone:** no `Transferred a partial file` while an Umbrella stream opens; `open` a few seconds. If it is
+  still slow, the `cache read` / `cache block` lines show which read waits and why.
+- **Test:** test_stream_reads (read trace without the address, the log window, gate order, priorities, OPEN_BLOCKS, the
+  budget only for the opening blocks, a failed block fetched again; the last two fail on the build-482 code).
+  test_stream_opening_fallback now counts only the `stream opening` line, and still checks all lines for private data.

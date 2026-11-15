@@ -217,12 +217,35 @@ class DriveStream(object):
                 self.end_headers()
                 if not body:
                     return
+                # Task 1 (owner log d3c14036): every read a reader makes, how long it waited for blocks, for the open log.
+                began, waited, waits, position = time.monotonic(), 0.0, [], start
+                hook = getattr(stream, 'on_read', None)
+                if hook:
+                    try:
+                        hook(start, end, None, 0.0, 0.0, [])
+                    except Exception:
+                        pass
                 try:
-                    position = start
                     while position <= end:
                         index = position // stream.block_size
                         try:
-                            block = stream.blocks.get(item, index)
+                            asked = time.monotonic()
+                            if getattr(stream, 'want', None):
+                                stream.want(index)   # ISSUE-317: this reader waits on it: its pieces go first
+                            # ISSUE-317 (owner log cf038697): a failed block cut Kodi's read ("Transferred a partial
+                            # file"), and Kodi waited 11-14 s before reading again. A stream that allows it tries again.
+                            for retry in range(getattr(stream, 'block_retries', 0), -1, -1):
+                                try:
+                                    block = stream.blocks.get(item, index)
+                                    break
+                                except Exception:
+                                    if not retry or getattr(getattr(stream, 'cancelled', None), 'is_set', lambda: False)():
+                                        raise
+                                    time.sleep(0.2)
+                            took = time.monotonic() - asked
+                            if took > 0.01:
+                                waited += took
+                                waits.append(index)
                         except Exception as error:
                             import preparation_runtime
                             stream.last_problem = preparation_runtime.problem(error)
@@ -238,11 +261,20 @@ class DriveStream(object):
                         if not piece:
                             self.close_connection = True
                             return
-                        self.wfile.write(piece)    # the converter closing to seek ends this read: that is fine
-                        stream.served = getattr(stream, 'served', 0) + len(piece)   # ISSUE-306: bytes a reader really took
-                        position += len(piece)
+                        # ISSUE-317: in 1 MiB slices, so a reader closing to seek is counted at the bytes it really took.
+                        for cut in range(0, len(piece), CHUNK):
+                            part = piece[cut:cut + CHUNK]
+                            self.wfile.write(part)    # the converter closing to seek ends this read: that is fine
+                            stream.served = getattr(stream, 'served', 0) + len(part)   # ISSUE-306: bytes a reader really took
+                            position += len(part)
                 except (BrokenPipeError, ConnectionResetError, OSError):
                     self.close_connection = True
+                finally:
+                    if hook:
+                        try:
+                            hook(start, end, position - start, time.monotonic() - began, waited, waits)
+                        except Exception:
+                            pass
 
         self.server = _Server(('127.0.0.1', 0), Handler)
         self.port = self.server.server_address[1]
