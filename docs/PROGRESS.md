@@ -1,5 +1,12 @@
 # Persistent progress
 
+## Sports: landing page approved (option A) — 2026-11-15
+
+The owner approved option A (tiles) and its can't-load state after viewing the mockups on the iPhone ("these are money").
+Recorded as DEC-054 and in [docs/design/sports-approved-pages.html](design/sports-approved-pages.html), which gains one
+page per round (next: Live Now, Upcoming, Leagues, a league, a game). Still mockups only; no app code. PR #33 holds the
+round-1 options.
+
 ## Sports: landing page mockups, round 1 — 2026-11-15
 
 Mockups only, nothing built: [docs/design/sports-landing-mockups.html](design/sports-landing-mockups.html) (evidence class:

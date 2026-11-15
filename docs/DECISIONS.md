@@ -459,3 +459,18 @@ names in capitals are skipped, a bare "(3)" is a watch count shown as 3×, "//" 
 (TMDb Helper's API key), keeps list order as rank, and ends with a report of duplicates, questions and names not found;
 sort by list order, year, name, list or date added; a movie stopped part-way offers Continue Watching. Alerts do not depend on
 the Library automatic-download setting. No IPA, release or merge; device behaviour is pending the owner's phone.
+
+## DEC-054 — Sports: Library › Sports opens a landing page of three tiles (2026-11-15)
+
+The owner, after looking at the round-1 mockups on the iPhone (`docs/design/sports-landing-mockups.html`, PR #33): "these are
+money". Approved: **option A**, the tiles, and its can't-load state. Recorded in `docs/design/sports-approved-pages.html`,
+which grows one approved page at a time and is what the code is built from.
+
+- Library gets a **Sports** row between TV Shows and Favourites (the existing Library list, `portrait.LIBRARY`).
+- The Sports landing page has a back button, a refresh button (top right), the title, "Updated …" and three tiles: **Live
+  Now** (the big one, with the number of live games), **Upcoming** and **Leagues** (side by side), then one slim
+  **Finished today** row. The tiles follow the Search category tiles.
+- Nothing live: Live Now goes grey and says when the next game starts; it still opens. Updating: the same shape, small lines
+  say so. Can't load: plain words and one "Try again" button; details go to the log.
+- Not decided yet: the pages inside each tag (Live Now, Upcoming, Leagues, a league, a game), which add-ons feed the section,
+  and the tag order. Each page is mocked up and approved before it is coded.
