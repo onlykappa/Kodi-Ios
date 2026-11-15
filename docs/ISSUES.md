@@ -4930,6 +4930,12 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   of run 43681992197: the built executable is kept as the run's artifact (no one-hour rebuild). The AirPlay framework
   build (airplay-ios.yml, ISSUE-326) also publishes a release and waits for the same change.
 - **Retest:** release kodi-ios-portrait-r33 exists; then pin it (digests checked by download) and build the IPA.
+- **Update (owner, 13:30Z):** workflow permissions were already "Read and write" and there are no rules, so the setting
+  was not the cause. The publish steps (Kodi, AirPlay framework, IPA) now fall back to tagging the default branch when
+  the branch commit is refused, and kodi-ios-portrait takes `from_run` to publish an earlier run's executable without
+  building. Run 43719679425 (from_run 43681992197) published r33 on its first try, tagged on b6f75b9 (the fallback was
+  not needed): the refusals were tied to tagging 04ffff0; the exact reason is still unknown. Zip 7ebe1377…fb00 and
+  executable 091eb4a4…1435 checked after download (arm64 Mach-O) and pinned. Status: worked around.
 
 ## ISSUE-331 — Next Episode lagged and asked again; it should pick the next episode by itself (owner, build 486) — fixed in code; needs phone retest
 

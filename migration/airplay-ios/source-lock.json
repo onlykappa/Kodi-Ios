@@ -2,14 +2,14 @@
   "framework_release": {
     "tag": "kodi-airplay-r58",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "sha256": "1bff47f3f97cc2c7a51dbc9ffaee1dcb3335fe4fc82f475c250455f1354fc331"
   },
   "previous": {
     "tag": "kodi-airplay-r57",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "9a11280783684187c357844081cf08f7874a4e19ca0af0f5f309392dfe42fbda"
   },
-  "source_commit": "d020c829f023814c427351c14958e6edbfe2cf67",
-  "verified_run": 43622274914,
-  "pin_note": "r58 staged (ISSUE-326: prepared movies with fragments over 10 s go as six-second keyframe segments; subtitle waits end in 4 s; cue files behind the resume point answer empty at once); host tests green in airplay-remux run 43685969642; sha256 pinned after the framework build. Until then verified_run stays r57's airplay-ios run 43622274914."
+  "source_commit": "b6f75b992aaea03ff82322f9832aabf0f6cd87c1",
+  "verified_run": 43719680757,
+  "pin_note": "r58 (ISSUE-326: prepared movies with fragments over 10 s go as six-second keyframe segments; subtitle waits end in 4 s; cue files behind the resume point answer empty at once) published by airplay-ios run 43719680757 from b6f75b9; the converter host tests (airplay-remux run 43685969642, same native source) passed; release notes, asset digest and downloaded zip all give 1bff47f3\u2026fc331, and the binary carries the new segment and empty-cue log lines."
 }
