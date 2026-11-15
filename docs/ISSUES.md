@@ -5048,3 +5048,13 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   Watching row failed to list because one saved episode had no show title.
 - **Fix:** a missing title or show title takes the other; an entry with neither is skipped; the row lists the rest.
 - **Test:** test_favourites_manager `ContinueRow`.
+
+## ISSUE-329 — Upcoming timer could delay closing the page — fixed before first commit
+
+- **Seen:** the host `test_speed_fixes.py` regression check rejected the new Upcoming timer's use of
+  `Monitor.waitForAbort(1)` while a separate stop event controlled the page lifetime.
+- **Cause:** Kodi waits for a script's background threads at exit; that sleep would ignore Back until its timeout.
+- **Fix:** use the existing `page_wait.idle` helper, which wakes when the page closes or Kodi exits.
+- **Retest:** the page controller tests and the stop-aware-loop regression checks pass. The desktop rendering was
+  checked before this wait-only correction; it is not iPhone evidence.
+- **Test:** `scripts/test_speed_fixes.py` (`PageLoops`) and `scripts/test_sports_upcoming.py` (controller lifecycle).

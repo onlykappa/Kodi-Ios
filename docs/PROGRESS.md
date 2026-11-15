@@ -1,5 +1,26 @@
 # Persistent progress
 
+## Sports › Upcoming: board 10 implemented — 2026-11-15
+
+`RunScript(service.kodi.ios.bootstrap,sports_upcoming)` opens the Upcoming list with the shared Sports provider and
+model helpers: day groups, start times, countdowns, sources, league filters and background refresh. The owner's
+clarification keeps `league_codes` order (All, EPL, LIGA, NBA, NFL, NHL for the sample), wrapping onto a second row.
+Rows grow for long team names. Game taps currently log the stable game ID; the game's page is the next separate
+commit after the owner's board-10 review. See Leagues is also a temporary logged action until that page is built.
+
+Evidence: compared the approved HTML in Chromium with the actual window in a desktop Kodi 21.3 rig at 603 × 1167,
+using the provider's sample data and a fixed sample clock. Checked the six wrapped chips, NBA filtering, refresh,
+game-row tap logging, Back, and full wrapping of Borussia Mönchengladbach, Brighton & Hove Albion and Golden State
+Warriors. Upcoming displays the contract's short league code (UCL), rather than the full UEFA Champions League
+name. The header, cards, spacing and text follow board 10; the extra chip row is the owner's approved difference.
+Screenshots remain outside Git. The rig uses Kodi's fallback tab bar and has no iPhone safe-area/status-bar proof.
+No iPhone result is claimed. Board 11's scrolled view and boards 14–15's empty/error layouts remain for review;
+their initial state projections are covered by tests, not a visual approval. No real sports add-on was called.
+
+Validation: `scripts/test_sports_upcoming.py` covers seven projection, XML and asynchronous-controller cases and is
+listed in import-review. Project and UI guidance checks pass; all 136 listed scripts pass after correcting the
+stop-aware timer regression recorded in ISSUE-329 and rerunning its affected checks.
+
 ## Sports: every page approved; the work is split (DEC-057) — 2026-11-15
 
 The owner approved Leagues option A, live-first order and the empty league page: all pages of the section are approved
