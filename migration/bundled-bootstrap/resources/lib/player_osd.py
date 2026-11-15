@@ -24,8 +24,10 @@ PICTURE='RunScript(service.kodi.ios.bootstrap,picture_page)'   # V1: the Picture
 # Owner-approved Subtitles / Audio menus (tracks.py) instead of Kodi's settings dialogs.
 TRACKS='RunScript(service.kodi.ios.bootstrap,tracks,%s)'
 NEXT_EPISODE='RunScript(service.kodi.ios.bootstrap,next_episode)'
-EPISODE='!String.IsEmpty(VideoPlayer.TVShowTitle) + !String.IsEmpty(VideoPlayer.Episode)'
+EPISODE='!String.IsEmpty(VideoPlayer.TVShowTitle) + !String.IsEmpty(VideoPlayer.Episode) + ![VideoPlayer.Content(movies)]'   # ISSUE-331: shows only
 CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type=all'
+# ISSUE-311: the same stamp as the hubs' rows (portrait.CONTINUE_STAMP), so Remove From Continue Watching refreshes this panel too.
+CONTINUE_STAMP='&stamp=$INFO[Window(Home).Property(KodiIOS.ContinueStamp)]'
 # Board 08 (U.6): Info opens the episode card (pages.info_card) over the controls; Fuse's action closed the controls
 # and waited for TMDb Helper's details page.
 INFO='ActivateWindow(1193)'
@@ -89,11 +91,20 @@ def group(anchor,width,body,extra=''):
 # the controls open it becomes DEFAULT_TIMEOUT seconds, once (ios_osd_timeout_default), so emptying it later still
 # means never.
 TIMEOUT='Skin.String(OSD_Timeout)'
-DEFAULT_TIMEOUT=5
+DEFAULT_TIMEOUT=3   # ISSUE-283 (owner, build 442): 3 s, not 5
 DEFAULTED='Skin.HasSetting(ios_osd_timeout_default)'
+# ISSUE-283: installs that got the earlier 5 s default move to 3 s once (ios_osd_timeout_3); a later choice of 5 stays.
+MOVED='Skin.HasSetting(ios_osd_timeout_3)'
 DEFAULT_ONLOAD=(('String.IsEmpty(%s) + !%s'%(TIMEOUT,DEFAULTED),'Skin.SetString(OSD_Timeout,%d)'%DEFAULT_TIMEOUT),
-                ('!%s'%DEFAULTED,'Skin.SetBool(ios_osd_timeout_default)'))
+                ('!%s'%DEFAULTED,'Skin.SetBool(ios_osd_timeout_default)'),
+                ('String.IsEqual(%s,5) + !%s'%(TIMEOUT,MOVED),'Skin.SetString(OSD_Timeout,%d)'%DEFAULT_TIMEOUT),
+                ('!%s'%MOVED,'Skin.SetBool(ios_osd_timeout_3)'))
 ARM_WHEN='!String.IsEmpty(%s) + !String.IsEqual(%s,0) + !Player.Paused + !Skin.HasSetting(ios_osd_continue)'%(TIMEOUT,TIMEOUT)
+# ISSUE-298 (review): Kodi evaluates every onload condition before it runs the actions, so on the open that sets or
+# moves the timer, ARM still saw the old value (none, or 5 s). That open is re-armed with the new value written out.
+FIRST_WHEN='[[String.IsEmpty(%s) + !%s] | [String.IsEqual(%s,5) + !%s]] + !Player.Paused + !Skin.HasSetting(ios_osd_continue)'%(
+    TIMEOUT,DEFAULTED,TIMEOUT,MOVED)
+FIRST_ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(videoosd),00:%02d,silent)'%DEFAULT_TIMEOUT)
 # ISSUE-279 (owner: "if i tap outside of the pause or play or skip it should hide the menu anywhere i tap"; log 72b62563:
 # ten taps on no control, "control 0 (not handled)"): a clear button under everything closes the controls, as a tap
 # does in Apple's player. Drawn first, so every real control is above it and keeps its own taps.
@@ -172,7 +183,7 @@ def window():
   '<control type="list" id="7201"><left>%d</left><right>%d</right><top>590</top><height>270</height><orientation>horizontal</orientation>'%(left,left)+
   '<ondown>7131</ondown><onup>7101</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
   '<itemlayout width="420" height="270">%s</itemlayout><focusedlayout width="420" height="270">%s</focusedlayout>'
-  '<content target="videos">$INFO[Skin.String(ios_osd_continue_path)]</content></control></control>')%(card(False),card(True))
+  '<content target="videos">$INFO[Skin.String(ios_osd_continue_path)]'+CONTINUE_STAMP.replace('&','&amp;')+'</content></control></control>')%(card(False),card(True))
  shade=('<control type="image"><left>0</left><top>0</top><right>0</right><bottom>0</bottom><texture colordiffuse="59000000">%swhite.png</texture></control>'
   '<control type="image"><left>0</left><top>0</top><right>0</right><height>360</height><texture colordiffuse="B3FFFFFF">%sfade_down.png</texture></control>'
   '<control type="image"><left>0</left><bottom>0</bottom><right>0</right><height>520</height><texture colordiffuse="E6FFFFFF">%sfade_up.png</texture></control>')%(MEDIA,MEDIA,MEDIA)
@@ -180,7 +191,8 @@ def window():
   '<animation effect="fade" start="0" end="100" time="150">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
   '<onunload>Skin.Reset(ios_osd_continue)</onunload><onunload>Skin.Reset(ios_osd_continue_path)</onunload><onunload>CancelAlarm(osd_timeout,true)</onunload>'
   +''.join('<onload condition="%s">%s</onload>'%(e(c),e(a)) for c,a in DEFAULT_ONLOAD)
-  +''.join('<onload condition="%s">%s</onload>'%(e(ARM_WHEN),e(a)) for a in ARM)+
+  +''.join('<onload condition="%s">%s</onload>'%(e(ARM_WHEN),e(a)) for a in ARM)
+  +''.join('<onload condition="%s">%s</onload>'%(e(FIRST_WHEN),e(a)) for a in FIRST_ARM)+
   '<controls>%s%s</controls>\n</window>\n')%(MARKER,BACKDROP,rearm(shade+head+centre+title+bar+row+panel))
 
 # r4: never shown. The owner does not want a bar besides the controls' own ("the old one still appears"): the

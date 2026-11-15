@@ -24,7 +24,8 @@ class Cache(unittest.TestCase):
   s=self.source()
   for _ in range(5):self.assertEqual(self.read(s,0,65535),DATA[:65536])
   self.assertEqual(self.read(s,len(DATA)-123,len(DATA)-1),DATA[-123:])
-  self.assertLessEqual(len(self.requests),3)
+  self.assertLessEqual(len(self.requests),3*remote.SPLIT)   # ISSUE-302: a block is SPLIT ranges; the point is that no block is read twice
+  starts=[int(r.get_header('Range')[6:].split('-')[0]) for r in self.requests];self.assertEqual(len(starts),len(set(starts)))
   self.assertTrue(all(r.full_url=='https://media.example/episode.mkv' for r in self.requests))
  def test_source_metrics_explain_cache_and_upstream_reads_without_url_or_headers(self):
   source=self.source('https://media.example/episode.mkv?secret=PRIVATE|Authorization=Bearer%20PRIVATE')
@@ -196,6 +197,13 @@ class Warm(Broker):
   self.assertIn("if airplay.converts(playback_lib):",text);self.assertIn("cache_tune.link_kind()=='wifi'",text)
   self.assertIn('target=remote_media.watch',text)
 class KodiPlays(Broker):
+ def setUp(self):
+  super().setUp()
+  self._kodi=patch.object(remote,'KODI_PLAYBACK',True);self._kodi.start();self.addCleanup(self._kodi.stop)
+ def test_the_route_is_on_by_default(self):
+  # Owner, build 442: no Umbrella stream played. Kodi reads the real link (build 430's route) until proven.
+  # ISSUE-300: back on, now that the ISSUE-282 restart loop is fixed and the fallback sees the first answer at once.
+  self.assertIn('\nKODI_PLAYBACK=True\n',(ROOT/'migration/bundled-bootstrap/resources/lib/remote_media.py').read_text())
  """ISSUE-280 (owner, build 430 log 72b62563: an Umbrella episode sat at "Getting ready to play… 0%" for 32 s, 19 s of
  it in Kodi's own open of the MKV over one AllDebrid connection): Kodi's player reads it through the cache."""
  SRC='https://media.example/Black.Clover.S02E07.1080p.CR.WEB.mkv'
@@ -228,6 +236,39 @@ class KodiPlays(Broker):
   with patch.object(time,'time',return_value=time.time()+remote.KODI_IDLE+1):
    self.assertTrue(self.broker.reap(now=self.broker.opened+remote.KODI_IDLE+1))
   self.assertIsNone(self.broker.current);self.assertFalse(self.broker.kodi)
+ def test_a_paused_source_survives_while_kodi_has_it_open(self):
+  # ISSUE-281 (owner: stuck, then a crash on Resume): a paused player reads nothing; after KODI_IDLE the source was
+  # closed under it and Resume reopened a dead address. Kept while it is Kodi's playing file, up to KODI_CAP.
+  url=remote.for_kodi(self.SRC,self.home);current=self.broker.current;self.settle(current)
+  self.broker.playing=lambda:url+'|User-Agent=Kodi'
+  later=time.time()+remote.KODI_IDLE+60
+  with patch.object(time,'time',return_value=later):
+   self.assertFalse(self.broker.reap(now=self.broker.opened+remote.KODI_IDLE+60))
+  self.assertIs(self.broker.current,current)
+  with patch.object(time,'time',return_value=time.time()+remote.KODI_CAP+1):        # open but unread for 30 min
+   self.assertTrue(self.broker.reap(now=self.broker.opened+remote.KODI_CAP+1))
+  remote.for_kodi(self.SRC,self.home);self.settle(self.broker.current)
+  self.broker.playing=lambda:'https://other.example/next.mkv'                         # Kodi moved on: released
+  with patch.object(time,'time',return_value=time.time()+remote.KODI_IDLE+1):
+   self.assertTrue(self.broker.reap(now=self.broker.opened+remote.KODI_IDLE+1))
+  self.broker.playing=lambda:1/0                                                       # unsure: kept
+  remote.for_kodi(self.SRC,self.home);self.settle(self.broker.current)
+  with patch.object(time,'time',return_value=time.time()+remote.KODI_IDLE+1):
+   self.assertFalse(self.broker.reap(now=self.broker.opened+remote.KODI_IDLE+1))
+  service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
+  self.assertIn("playing=lambda:xbmc.Player().getPlayingFile() if xbmc.getCondVisibility('Player.HasVideo') else ''",service)
+ def test_size_is_known_from_the_first_answer(self):
+  # Keep the useful early size for diagnostics, but never confuse headers/a split piece with usable opening blocks.
+  src=remote.Foreground(self.SRC,open_url=lambda req,timeout:Reply(DATA,0,99))
+  with self.broker.lock:
+   self.broker.current=src;self.broker.ident='headers-only';self.broker.source=self.SRC;self.broker.kodi=True
+  response=src.open_url(urllib.request.Request('http://x',headers={'Range':'bytes=0-99'}),5)
+  response.close()
+  self.assertEqual(src.answered_size,len(DATA))
+  stats=remote.stats(self.home)
+  self.assertEqual(stats['size'],len(DATA));self.assertEqual(stats['first_block_bytes'],0)
+  self.assertFalse(stats['first_block_ready']);self.assertFalse(stats['opening_ready'])
+  self.assertEqual(stats['opening_complete'],0);self.assertFalse(src.blocks.data)
  def test_umbrella_unlock_hands_kodi_the_cache(self):
   import umbrella_recovery
   class Home:

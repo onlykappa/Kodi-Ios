@@ -275,11 +275,11 @@ class ItemSheet(Page):
         self.assertEqual((props['step.1.state'], props['primary'], actions[0]), ('bad', 'Repair', 'retry'))
         self.assertIn('HTTP 503', props['step.1.detail'])
         props, actions = self.lm.fill_item(self.rows()[9], {'title': 'Naruto'})
-        self.assertEqual((props['step.0.title'], props['secondary'], actions), ('Not added', 'Choose a Version', ('repair', 'choose', '')))
+        self.assertEqual((props['step.0.title'], props['secondary'], actions), ('Not added', 'Choose a Version', ('repair', 'choose', 'remove')))   # ISSUE-286
 
     def test_copying_and_movie(self):
         props, actions = self.lm.fill_item(self.rows()[5], {'title': 'Naruto'})
-        self.assertEqual((props['step.0.state'], props['step.0.pct'], actions), ('run', '61', ('close', '', '')))
+        self.assertEqual((props['step.0.state'], props['step.0.pct'], actions), ('run', '61', ('close', '', 'remove')))   # ISSUE-286
         movie = self.data['movies'][0]
         props, actions = self.lm.fill_item(movie, None, 'movie')
         self.assertEqual((props['title'], props['sub'], props['delete']), ('Fall', 'Movie \u00b7 2022', 'Delete Movie\u2026'))
@@ -441,10 +441,30 @@ class DriveProblems(unittest.TestCase):
         self.assertEqual(found['hash1'], 'Named after a download, nothing in it')
         self.assertEqual(ld.drive_problems({}), [])
 
+    def test_drive_problem_notice(self):
+        """ISSUE-329: new Drive problems become one Notifications message that opens the list; not repeated."""
+        import library_delete as ld, tempfile, os
+        h = '3c90db2e05217cc29aef549b4' + '0' * 15
+        cache = {'tv:': {'entries': [{'id': 'hash1', 'title': h}]}, 'tv:hash1': {'entries': []}}
+        with tempfile.TemporaryDirectory() as d:
+            seen, sent = os.path.join(d, 'seen.json'), []
+            add = lambda title, text, action: sent.append((title, text, action))
+            self.assertEqual(ld.notify_drive_problems(cache, seen, add), 1)
+            self.assertEqual(sent[0][0], 'Problems on Google Drive')
+            self.assertTrue(sent[0][1].startswith('1 item to tidy'))
+            self.assertEqual(sent[0][2], 'RunScript(service.kodi.ios.bootstrap,library_manager,check)')
+            self.assertEqual(ld.notify_drive_problems(cache, seen, add), 0)   # already reported
+            self.assertEqual(len(sent), 1)
+            self.assertEqual(ld.notify_drive_problems({}, seen, add), 0)      # fixed: nothing; a new one later is new
+            self.assertEqual(ld.notify_drive_problems(cache, seen, add), 1)
+        svc = (Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap/service.py').read_text()
+        self.assertIn("library_delete.notify_drive_problems(", svc)
+
     def test_settings_row(self):
         root = Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap'
-        self.assertIn("R(9458,'Check Drive for problems','RunScript(service.kodi.ios.bootstrap,library_manager,check)'",
-                      (root / 'resources/lib/settings_page.py').read_text())
+        # ISSUE-329: no Settings row any more; the list opens from a Notifications message (test_drive_problem_notice).
+        self.assertNotIn("R(9458,", (root / 'resources/lib/settings_page.py').read_text())
+        self.assertIn("library_manager,check", (root / 'resources/lib/library_delete.py').read_text())
         self.assertIn("if 'check' in sys.argv[1:]:", (root / 'library_manager.py').read_text())
 
 

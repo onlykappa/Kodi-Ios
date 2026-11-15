@@ -745,6 +745,19 @@ static struct {
     pthread_mutex_t lock; pthread_cond_t changed; pthread_t worker;
     int running,stop; unsigned long clock; sub_cue cues[SUB_CACHE_SLOTS];
 } SC={.lock=PTHREAD_MUTEX_INITIALIZER,.changed=PTHREAD_COND_INITIALIZER};
+// ISSUE-326 (owner's log ebc9c063): resuming at 40 min, Apple's player first asked for subtitle segment 0, waited 8 s
+// for our 503 and gave up ("No response for media file in 6s (seg0.vtt)"). Until the player reaches the resume
+// position, a cue file behind it is answered at once with an empty one; afterwards the ordinary wait applies, capped
+// below Apple's six-second timeout.
+static atomic_int sub_resume_seg=ATOMIC_VAR_INIT(-1);
+static const char empty_vtt[]="WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:900000,LOCAL:00:00:00.000\n\n";
+#define SUB_WAIT_SECONDS 4
+int kr_remux_subtitle_answer_now(int seg) {   // 1: answer this cue file empty without waiting (tests use it too)
+    int resume=atomic_load(&sub_resume_seg);
+    if(resume<0)return 0;
+    if(seg>=resume-1){atomic_store(&sub_resume_seg,-1);return 0;}   // the player reached the resume position
+    return 1;
+}
 static int subtitle_track(int index) {
     gm_track_info track;
     for(int i=0;i<gm_stream_track_count(S.gm);i++)
@@ -826,10 +839,10 @@ static void subtitle_warm(int seg) {
     if(selected<0)return;
     pthread_mutex_lock(&SC.lock);subtitle_queue(selected,seg,1);pthread_mutex_unlock(&SC.lock);
 }
-static int subtitle_part(int track,int seg,gm_buf *out) {
+static int subtitle_part(int track,int seg,int wait_s,gm_buf *out) {
     if(!subtitle_track(track))return -2;
     pthread_mutex_lock(&SC.lock);int i=subtitle_queue(track,seg,1),result=-1;
-    struct timespec until;clock_gettime(CLOCK_REALTIME,&until);until.tv_sec+=8;
+    struct timespec until;clock_gettime(CLOCK_REALTIME,&until);until.tv_sec+=wait_s;
     while(i>=0 && !SC.stop && !atomic_load(&S.stopping)) {
         sub_cue *cue=&SC.cues[i];
         if(cue->track!=track || cue->segment!=seg)break;
@@ -1190,7 +1203,11 @@ static void serve(int fd, const char *method, const char *path, const char *rang
     } else if (sscanf(path, "/subs/%d/seg%d.vtt", &idx, &seg) == 2) {
         int burned = (S.burn_index >= 0 || S.burn_file[0]) && (S.compat || cvideo || third);
         if(burned){fail(fd,404,"Subtitles are in the picture");return;}
-        r=subtitle_part(idx,seg,&buf);
+        if(seg>=0 && seg<gm_stream_segment_count(S.gm) && subtitle_track(idx) && kr_remux_subtitle_answer_now(seg)) {
+            log_line("subs: stream %d segment %d is before the resume position; empty cue file",idx,seg);
+            respond(fd,head,range,"text/vtt",(const uint8_t *)empty_vtt,sizeof empty_vtt-1);return;
+        }
+        r=subtitle_part(idx,seg,SUB_WAIT_SECONDS,&buf);
         if(!r){respond(fd,head,range,"text/vtt",buf.data,(size_t)buf.len);free(buf.data);return;}
         free(buf.data);
         if(r==-2 || seg<0 || seg>=gm_stream_segment_count(S.gm)){fail(fd,404,"Not Found");return;}
@@ -1434,7 +1451,7 @@ static void teardown_locked(void) {
     kr_video_close(video);
     kr_source_close(vsrc);
     pthread_mutex_unlock(&S.vlock);
-    S.compat = 0; S.vindex = -1; S.compat_ok = 0;S.prepared=0;S.prepared_size=0;
+    S.compat = 0; S.vindex = -1; S.compat_ok = 0;S.prepared=0;S.prepared_size=0;atomic_store(&sub_resume_seg,-1);
     free(S.prepared_master);S.prepared_master=NULL;free(S.prepared_media);S.prepared_media=NULL;
     prepared_cache_clear();   // r29
     atomic_store(&S.vlogged, 0);
@@ -1477,6 +1494,13 @@ static int prepared_read_all(int64_t at,uint8_t *buf,int len) {
     return 0;
 }
 typedef kr_mp4_fragment prep_frag;
+// ISSUE-326 (owner's log ebc9c063): the prepared file's fragments ran up to 63 s and 49 MB. Apple's player has to
+// fetch a whole HLS segment before it can show it, so the movie took long to start over Wi-Fi and a slow fragment hit
+// its six-second timeout. Above this length the prepared file is served as six-second keyframe-aligned segments
+// (the path Roku already uses: picture and audio copied, nothing converted) instead of as its own fragments.
+#define PREPARED_MAX_FRAGMENT_SECONDS 10.0
+static double prepared_longest;
+// align_plan: 0 byte-range playlists over the fragments, 1 keyframe plan for the segmented path, 2 measure only.
 static int prepared_playlists(int align_plan) {
     AVFormatContext *f=gm_stream_format_context(S.gm);
     int v=gm_stream_selected_video(S.gm);
@@ -1510,6 +1534,13 @@ static int prepared_playlists(int align_plan) {
     }
     if(n<1 || fr[0].offset<16 || fr[n-1].offset>=mfra_at)goto end;
     double tb=av_q2d(st->time_base),total=gm_stream_duration(S.gm);
+    double end_time=total>0?total+(double)fr[0].time*tb:0;
+    if(st->duration>0 && st->duration!=AV_NOPTS_VALUE)end_time=(double)(st->duration+fr[0].time)*tb;
+    if(align_plan==2) {   // ISSUE-326: only measure the longest fragment
+        double most=0;
+        for(int i=0;i<n;i++){double d=i+1<n?(double)(fr[i+1].time-fr[i].time)*tb:end_time-(double)fr[i].time*tb;if(d>most)most=d;}
+        prepared_longest=most;ok=0;goto end;
+    }
     if(align_plan) {
         // Storage fragments deliberately coalesce many GOPs for efficient Kodi reads. Their first-sample
         // mfra entries are not a complete keyframe index. Inspect only moof sample metadata in parallel,
@@ -1527,8 +1558,6 @@ static int prepared_playlists(int align_plan) {
         }
         goto end;
     }
-    double end_time=total>0?total+(double)fr[0].time*tb:0;
-    if(st->duration>0 && st->duration!=AV_NOPTS_VALUE)end_time=(double)(st->duration+fr[0].time)*tb;
     double longest=0,peak=0;
     AVBPrint b;av_bprint_init(&b,0,AV_BPRINT_SIZE_UNLIMITED);
     for(int i=0;i<n;i++) {
@@ -1659,12 +1688,22 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
     const int copy_only=compat==KR_COMPAT_ROKU_COPY;
     const int roku_safe=compat==KR_COMPAT_ROKU_SAFE;
     S.roku_safe=roku_safe;
-    const int segmented = compat == KR_COMPAT_SEGMENTED || roku_safe || copy_only;
+    const int roku = compat == KR_COMPAT_SEGMENTED || roku_safe || copy_only;
+    int segmented = roku;   // ISSUE-326: also a prepared file with long fragments, for any receiver
+    AVFormatContext *prepared=gm_stream_format_context(S.gm);
+    if(!compat && !segmented && kr_prepare_ready(prepared) && av_dict_get(prepared->metadata,"kodi_airplay_prepared",NULL,0)) {
+        S.prepared_size=kr_source_size(S.src);prepared_longest=0;
+        const char *limit_env=getenv("KR_PREPARED_MAX_FRAGMENT_S");   // host tests of the byte-range path raise it
+        double limit=limit_env && atof(limit_env)>0?atof(limit_env):PREPARED_MAX_FRAGMENT_SECONDS;
+        if(S.prepared_size>0 && prepared_playlists(2)==0 && prepared_longest>limit) {
+            log_line("prepared: fragments run up to %.1f s; serving six-second segments instead",prepared_longest);
+            segmented=1;
+        }
+    }
     if (segmented) {
         compat = roku_safe?1:0;
         log_line("segmented: targeting six-second keyframe-aligned segments, separate audio, picture copied");
     }
-    AVFormatContext *prepared=gm_stream_format_context(S.gm);
     if(segmented && !roku_safe && prepared && prepared->iformat && strstr(prepared->iformat->name,"mov")) {
         S.prepared_size=kr_source_size(S.src);
         // Copying cannot create keyframes. A uniform six-second grid repeats/skips pictures when the source
@@ -1734,7 +1773,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
                  avcodec_get_name(p->codec_id),p->profile,pix?pix->name:"unknown",pix?pix->comp[0].depth:0,
                  p->bits_per_raw_sample,p->width,p->height,p->level);
     }
-    if(segmented && !compat && selected>=0) {
+    if(roku && !compat && selected>=0) {
         AVCodecParameters *p=input->streams[selected]->codecpar;
         if((p->codec_id==AV_CODEC_ID_H264 && (p->width>1920 || p->height>1080 || p->level>42)) ||
            (p->codec_id==AV_CODEC_ID_HEVC && (p->width>3840 || p->height>2160 || p->level>153))) {
@@ -1864,6 +1903,7 @@ int kr_remux_prime_for(unsigned ticket,double seconds) {
     pthread_mutex_lock(&S.lock);
     int r=KR_FAILED;
     if(ticket!=atomic_load(&S.ticket) || ticket!=atomic_load(&request_ticket) || atomic_load(&S.state)!=KR_READY)goto done;
+    {int at=gm_stream_time_to_segment(S.gm,isfinite(seconds) && seconds>0?seconds:0);atomic_store(&sub_resume_seg,at>1?at:-1);}
     if(S.prepared){subtitle_warm(gm_stream_time_to_segment(S.gm,seconds));r=KR_READY;goto done;}
     double began=now_ms();phase_for(ticket,"opening");
     atomic_store(&S.startup_deadline_ms,S.startup_end_ms);

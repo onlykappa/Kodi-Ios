@@ -446,3 +446,16 @@ seven recommendations. Approved: Library status shows the whole library ("84 of 
 6. Season chips show their progress ("Season 2 · 18 of 21 ready · 3 copying").
 7. A 10-second Undo after Delete (files sit in Drive's Trash for 30 days).
 UI parts (4, 6, 7 and the per-show total) get mockups for approval before they are coded.
+
+## DEC-053 — Favourites list import and the anticipated-episodes bell approved and coded (2026-11-14)
+
+Owner, on docs/design/favourites-import-bell-mockups.html (boards G–J, draft PR #29), after rounds of edits to the bell and
+the import boards: "you can code it" and "build also the favorite import". Approved scope: (G) the season Download sheet keeps
+Full season and Choose episodes only; a bell on the show page, top right opposite Back, shown only when the show has an
+episode still to come, bare icon (thick white outline with a black edge; solid white when on); its sheet has two switches,
+Alert me and Add to downloads automatically, kept per show, so a stream-only show can still alert. (H–J) Favourites is a third
+Library row; Import a List reads pasted text or a text file, takes only the names (numbers, ticks, emoji, "(STARTED)" and
+names in capitals are skipped, a bare "(3)" is a watch count shown as 3×, "//" splits a line), matches them through TMDb
+(TMDb Helper's API key), keeps list order as rank, and ends with a report of duplicates, questions and names not found;
+sort by list order, year, name, list or date added; a movie stopped part-way offers Continue Watching. Alerts do not depend on
+the Library automatic-download setting. No IPA, release or merge; device behaviour is pending the owner's phone.

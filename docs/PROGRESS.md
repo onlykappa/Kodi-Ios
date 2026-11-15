@@ -1,5 +1,31 @@
 # Persistent progress
 
+## Build 502: one IPA with everything from the build-486 feedback — 2026-11-15
+
+[Testing IPA 502](https://github.com/onlykappa/Kodi-Ios/releases/download/build-502/Kodi-iOS-Customized-Touch-r10.ipa)
+(commit e9d93ac, PR #28 unmerged; IPA sha256 6df332e1…8498). Kodi r33 (ISSUE-316 smooth long pages; executable
+091eb4a4…1435 checked at build) and AirPlay r58 (ISSUE-326; framework zip 1bff47f3…fc331, segment and empty-cue code
+present in the IPA's binary). Also: Favourites manager (ISSUE-325), Continue Watching per show (ISSUE-330), Next
+Episode (ISSUE-331), shorter Settings › Library (ISSUE-329), quiet Drive proxy hang-ups (ISSUE-327), Continue Watching
+entry fix (ISSUE-328). Publishing needed a workaround (ISSUE-332). 134 Python suites and the AirPlay host tests passed;
+the Library page was checked in the desktop Kodi rig. Phone results pending.
+
+## Umbrella build 473 never-opening repair — 2026-11-14
+
+ISSUE-303 fix published as `2f447c7` in PR #28. [Testing IPA 475](https://github.com/onlykappa/Kodi-Ios/releases/download/build-475/Kodi-iOS-Customized-Touch-r10.ipa) is ready: 125 focused host tests plus the full Python 3.11 CI suite pass. Download digest, ZIP integrity, packaged source and framework pins verified. Cache admission requires complete opening probes within a shared five-second budget; failed probes cancel and preserve direct playback. Phone retest pending; PR remains unmerged. Full evidence: [UMBRELLA-473-PROGRESS.md](UMBRELLA-473-PROGRESS.md).
+
+## Favourites import + anticipated-episodes bell — coded, host-tested — 2026-11-14
+
+Owner approved the mockups (DEC-053) and asked for the code. Draft PR #29. Library gets a Favourites row; Favourites has Import a List
+(paste or text file; names only, "(3)" = watch count, "//" splits; TMDb matching with duplicates / questions / not-found report), sort
+by list/year/name/list name/date added, rank and 3× badges, Continue Watching for a stopped movie. The show page has a bare bell (top
+right, only with an upcoming episode) opening Alert me / Add to downloads switches per show; the season Download sheet is two rows;
+alerts work with automatic downloads off. 53 new host tests pass (import, flow, bell); test_episode_watch updated for the removed
+"Follow new episodes" row; existing portrait/pages/settings/choice-sheet suites pass. test_build193_pages has one error that also fails
+on the base commit (Monitor.abortRequested in a landscape AirPlay test), unrelated. **Not seen in Kodi or on the phone:** see
+[docs/FAVOURITES-IMPORT-BELL-RIG.md](FAVOURITES-IMPORT-BELL-RIG.md) for the rig checklist and known differences from the mockups. No IPA,
+release or merge.
+
 ## PR #19 — 1A.3 fragment-index cache — 2026-11-12
 
 Owner narrowed the remaining work to one item at a time, starting with 1A.3. The Drive proxy now saves only

@@ -19,7 +19,7 @@ NOTE = 'Kodi prepares one video at a time; it slows down while a video plays.'
 
 
 def ring_name(pct):
-    """The ring texture for a percentage (activity_skin draws ring_00..ring_20)."""
+    """The ring texture for a percentage (skin_textures draws ring_00..ring_20)."""
     return 'ring_%02d.png' % max(0, min(20, int(round((pct or 0) / 5.0))))
 
 
@@ -139,10 +139,11 @@ def page_properties(view, checking=False, index=None):
     rows = view['rows']
     counts = {'ready': view['ready'], 'working': len(rows['preparing'])+len(rows['downloading']),
               'next': len(rows['waiting']), 'kept': view['kept']}
-    if (index or {}).get('videos'):
+    index = index if index is not None else (view.get('model') or {}).get('library_index')
+    if index is not None:
         import library_index
         c = library_index.counts(index)
-        counts = {'ready': c['ready'], 'working': max(0, c['working'] - len(rows['waiting'])), 'next': len(rows['waiting']),
+        counts = {'ready': c['ready'], 'working': c['working'], 'next': 0,
                   'kept': c['kept']}
         view = dict(view, ready=c['ready'], total=c['total'], pct=round(100 * c['ready'] / max(1, c['total'])))
     total = sum(counts.values())
@@ -338,6 +339,15 @@ def details(row, view):
                       'FF30D158' if state not in ('downloading','uploading') else DOWN),
                      ('Ready' if ready else SHORT_STEP.get((live or {}).get('step') or sheet['step'] or sheet['status'], (live or {}).get('step') or sheet['step'] or sheet['status']) + (' · %d%%'%float(live.get('pct') or 0) if live and not live.get('indeterminate') else ''),
                       'FF30D158' if ready else (live or {}).get('tint_now') or CONV)]
+    # DEC-051 board B (owner-approved, docs/design/unified-status-mockups.html; ISSUE-320): a copy's sheet is the
+    # conversion sheet with the copy's own three steps.
+    copying = state == 'uploading' or bool(live and live.get('kind') == 'copy')
+    if copying and not ready:
+        fetching = row.get('stage') == 'fetching' or bool(live and live.get('stage') == 'fetching')
+        pct = float((live or {}).get('pct') or row.get('pct') or 0)
+        sheet['steps'] = [('Fetching on AllDebrid' if fetching else 'Found on AllDebrid', DOWN if fetching else 'FF30D158'),
+                          ('Copying to Drive' + ('' if fetching else ' \u00b7 %d%%' % pct), 'FF3A3A3C' if fetching else DOWN),
+                          ('Ready for Kodi and AirPlay', 'FF3A3A3C')]
     sheet['live'] = live
     sheet['need'] = ((model or {}).get('needs') or [{}])[0]
     sheet['facts'] = sheet['facts'][:FACTS]
@@ -364,12 +374,18 @@ def speed_card_text(live, history_job, size=0, bar=0):
     num, unit = (th.mb(rate).split(' ', 1) + [''])[:2] if moving else ('—', '')
     import prepare_downloads
     avg = j.get('sum', 0) / max(1, j.get('n', 1)) if j.get('n') else 0
-    done = float(j.get('done') or 0)
+    # ISSUE-320: a copy lane without an old history record uses the backend's own samples (ISSUE-294) and Drive's
+    # confirmed bytes, so Average and Done are never blank while it copies.
+    points = [float(pt[1]) for pt in (live.get('speed_history') or []) if len(pt) > 1 and float(pt[1]) > 0]
+    if not avg and points:
+        avg = sum(points) / len(points)
+    done = float(j.get('done') or live.get('confirmed_bytes') or 0)
     return {'card.num': num, 'card.unit': unit,
             'card.left': prepare_downloads.eta_text(live.get('eta_s')).replace('about ', '') if moving and live.get('eta_s') else '',
             'card.avg': th.mb(avg) if avg > 0 else '—',
             'card.done': ('%.1f of %.1f GB' % (done / GB, float(size) / GB)) if size and done else '%d%%' % int(float(bar or 0)),
-            'card.started': clock12(j['start']) if j.get('start') else '—'}   # board 3's third step label
+            'card.started': clock12(j['start']) if j.get('start') else clock12(float(live['speed_history'][0][0]))
+                            if live.get('speed_history') else '—'}   # board 3's third step label
 
 
 def name_quality(name):
@@ -409,6 +425,8 @@ def card(history, kind, title, now, step=''):
 def with_model(view, model):
     """Metadata stays in the library; only work_state decides current jobs and queue order."""
     import work_state
+    if model is not None and 'library_index' in model:
+        return indexed_view(view, model)
     rows=view['rows']
     lookup={r['id']:r for rr in rows.values() for r in rr}
     by_title={r['title']:r for r in lookup.values()}
@@ -441,3 +459,49 @@ def with_model(view, model):
     view['total']=sum(len(rr) for rr in rows.values())
     view['pct']=round(100*view['ready']/max(1,view['total']))
     return view
+
+
+def indexed_view(view, model):
+    """Library status rows, including problems and ready, use the exact same index as Transfers and the bell."""
+    import library_index as li
+    import work_state
+    lookup = {r['id']: r for group in view['rows'].values() for r in group}
+    rows = {k: [] for k in view['rows']}
+    live = {j['key']: j for j in model.get('jobs', []) if j.get('key')}
+    for e in model['library_videos']:
+        if e['state'] == li.CANCELLED or (e['state'] == li.PROBLEM and e.get('hidden')):
+            continue
+        j = live.get(e['key'])
+        r = dict(lookup.get(e.get('id')) or {}, id=e.get('id') or e['key'], key=e['key'],
+                 title=li.entry_title(e), name=e.get('name') or '', size=e['size'],
+                 library_state=e['state'], sub=li.entry_line(e), probe=e.get('probe') or {})
+        if j:
+            r.update({k: v for k, v in j.items() if k not in ('state', 'id')})
+            r.update(state='uploading' if e['state'] == li.COPYING else 'preparing', sub=j['line'],
+                     held=j['state'] == work_state.PAUSED, work_key=work_state.job_key(j))
+            group = 'downloading' if e['state'] == li.COPYING else 'preparing'
+        elif e['state'] in li.WORKING:
+            queued = next((j for j in model['next'] + model['drive_next'] if j.get('key') == e['key']), {})
+            base = lookup.get(e.get('id')) or {}
+            r.update(state='space' if base.get('state') == 'space' else 'waiting',
+                     sub=base.get('sub', '') if base.get('state') == 'space' else (queued.get('line') if e['state'] == li.COPYING else queued.get('what')) or li.entry_line(e),
+                     queued_transfer=e['state'] == li.COPYING, what=queued.get('what', 'prepare'),
+                     work_key=work_state.job_key(queued), hash=queued.get('hash') or '')
+            group = 'waiting'
+        elif e['state'] == li.PROBLEM:
+            r.update(state='problem', warn=True, reason=e['reason'])
+            group = 'waiting'
+        else:
+            group = 'kept' if e['state'] == li.KEPT else 'ready'
+            r['state'] = group
+        rows[group].append(r)
+    # These transfers are not library videos yet; retain them without counting them as library entries.
+    for j in model.get('jobs', []):
+        if j['kind'] in ('down', 'upload'):
+            rows['downloading'].append(dict(j, state='downloading', sub=j['line'], id=j.get('id') or str(work_state.job_key(j))))
+    order = {j['id']: n for n, j in enumerate(model['next'])}
+    rows['waiting'].sort(key=lambda r: order.get(r['id'], len(order)))
+    c = model['library_counts']
+    return dict(view, rows=rows, model=model, library_counts=c, library_videos=model['library_videos'],
+                ready=c['ready'], kept=c['kept'], total=c['total'], todo=c['working'] + c['problems'],
+                downloading=c['copying'], pct=round(100 * c['ready'] / max(1, c['total'])))

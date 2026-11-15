@@ -35,11 +35,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          DEFAULT: ${{ github.event.repository.default_branch }}
         run: |
           tag="$(python3 -c "import json;print(json.load(open('migration/airplay-ios/source-lock.json'))['framework_release']['tag'])")"
           if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then echo "$tag already published"; exit 0; fi
           dir="$RUNNER_TEMP/airplay"
+          # ISSUE-332: if the tag cannot be made on this commit (HTTP 403), it is made on the default branch; the pin is the asset's sha256.
           gh release create "$tag" "$dir/KodiAirPlay.framework.zip" --repo "$REPO" --target "$SHA" --prerelease \
+            --title "AirPlay button for iPhoneOS ($tag)" --notes "$(cat "$dir/KodiAirPlay.framework.zip.sha256")" ||
+          gh release create "$tag" "$dir/KodiAirPlay.framework.zip" --repo "$REPO" --target "$DEFAULT" --prerelease \
             --title "AirPlay button for iPhoneOS ($tag)" --notes "$(cat "$dir/KodiAirPlay.framework.zip.sha256")"
   publish-verified:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish_verified_candidate == 'true'

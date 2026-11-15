@@ -59,11 +59,26 @@ class DialogTests(unittest.TestCase):
   self.assertIs(module.choose_player(self.player),umbrella);self.dialog.select.assert_not_called();self.assertEqual(recorded,['umbrella'])
   name,value=self.home.setProperty.call_args[0];self.assertEqual(name,'KodiIOS.Resume.Source')
   import json;self.assertEqual(json.loads(value)['name'],'Film.1080p')
+ def test_next_episode_reuses_the_player_and_asks_for_the_same_quality(self):
+  # ISSUE-331: Next Episode: no question; the previous episode's player; its quality for the version page to match.
+  umbrella,recorded=self.continue_setup({'player':'umbrella','version':{'name':'Show.S01E02.1080p','quality':'1080p','size':1.4}},
+                                        ['plugin://x','1','?info=play&tmdb_type=tv&tmdb_id=9&season=1&episode=3&ios_next=episode%3A9%3A1%3A2'])
+  self.player.tmdb_type='tv';self.player.season='1';self.player.episode='3'
+  self.assertEqual(module.following(['p','1','?info=play&ios_next=episode%3A9%3A1%3A2']),'episode:9:1:2')
+  self.assertIs(module.choose_player(self.player),umbrella);self.dialog.select.assert_not_called();self.assertEqual(recorded,['umbrella'])
+  sets=dict(c[0] for c in self.home.setProperty.call_args_list)
+  import json;want=json.loads(sets['KodiIOS.Next.Source'])
+  self.assertEqual((want['quality'],want['size'],want['episode']),('1080p',1.4,'3'))
+  self.assertNotIn('KodiIOS.Resume.Source',sets)   # not the same release name: the closest version is picked
+ def test_next_episode_without_a_saved_player_asks(self):
+  umbrella,recorded=self.continue_setup({},['plugin://x','1','?info=play&tmdb_type=tv&tmdb_id=9&season=1&episode=3&ios_next=episode%3A9%3A1%3A2'])
+  self.dialog.select.return_value=0
+  self.assertIs(module.choose_player(self.player),self.engine);self.dialog.select.assert_called_once()
  def test_normal_play_still_asks(self):
   umbrella,recorded=self.continue_setup({'player':'umbrella','version':{'name':'Film.1080p'}},['plugin://x','1','?info=play&tmdb_type=movie&tmdb_id=1'])
   self.dialog.select.return_value=0
   self.assertIs(module.choose_player(self.player),self.engine);self.dialog.select.assert_called_once();self.assertEqual(recorded,['elementum'])
-  self.assertNotIn('KodiIOS.Resume.Source',[c[0][0] for c in self.home.setProperty.call_args_list]);self.home.clearProperty.assert_called_with('KodiIOS.Resume.Source')
+  self.assertNotIn('KodiIOS.Resume.Source',[c[0][0] for c in self.home.setProperty.call_args_list]);self.home.clearProperty.assert_any_call('KodiIOS.Resume.Source')
  def test_continue_without_a_saved_pick_asks(self):
   umbrella,recorded=self.continue_setup({},['plugin://x','1','?info=play&tmdb_type=movie&tmdb_id=1&ios_continue=1'])
   self.dialog.select.return_value=1

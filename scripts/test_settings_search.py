@@ -35,12 +35,12 @@ class SettingsSearch(unittest.TestCase):
  def test_script_is_a_bootstrap_page(self):
   self.assertIn('settings_search',default.PAGES);self.assertTrue((BOOT/'settings_search.py').is_file())
   self.assertEqual(sp.SEARCH,'RunScript(service.kodi.ios.bootstrap,settings_search)')
- def test_library_scan_is_discoverable_and_runs_the_scan_dispatcher(self):
-  found=find.search(search.page_entries(sp),'scan iPhone')
-  self.assertEqual(found,[('Scan iPhone files','Library › iPhone Files','RunScript(service.kodi.ios.bootstrap,library_scan)')])
+ def test_library_scan_still_runs_but_left_the_settings_page(self):
+  # ISSUE-329: the rows went from Settings › Library; the script stays (the service and the add-on settings use it).
+  self.assertEqual(find.search(search.page_entries(sp),'scan iPhone'),[])
+  self.assertEqual(find.search(search.page_entries(sp),'refresh library'),[])
   path,argv=default.target(['service.kodi.ios.bootstrap','library_scan'])
   self.assertEqual(Path(path),BOOT/'library_scan.py');self.assertEqual(argv,[path])
-  self.assertIn(('Refresh Library','Library › Library',sp.LIBRARY_REFRESH),find.search(search.page_entries(sp),'refresh library'))
 
 
 class NeverAnInvisibleDialog(unittest.TestCase):

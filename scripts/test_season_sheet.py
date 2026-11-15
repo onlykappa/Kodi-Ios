@@ -46,13 +46,11 @@ class Models(unittest.TestCase):
         self.assertEqual(ss.recommend({'4k': [9.0]}, 8), '4k')         # the only one there is
         self.assertIsNone(ss.recommend({}, 8))
 
-    def test_check_looks_at_start_middle_end_and_counts_lower_for_720p(self):
-        self.assertEqual(ss.check_numbers(range(1, 12)), [1, 6, 11])
-        self.assertEqual(ss.check_numbers([4, 5]), [4, 5])
+    def test_check_counts_lower_for_720p_without_claiming_sample_coverage(self):
         self.assertEqual(ss.survey({1: {'qualities': ['480p'], 'sizes': {'480p': 0.1}}}), {'720p': [0.1]})
         props = ss.checking_props('Rick and Morty', 1, 11, [1, 6, 11], 2, {'4k': 'found', '1080p': 'found'})
         self.assertEqual((props['check.sub'], props['check.q.3'], props['button.off'], props['check.pct']),
-                         ('Looking at episodes 1, 6 and 11', '720p · \u2026', 'true', '66'))
+                         ('0 of 11 episodes checked', '720p · 0 of 11 episodes found · checking', 'true', '0'))
 
     def test_nothing_found_cannot_build_and_no_answer_lets_every_row_be_chosen(self):
         props = ss.quality_props('X', 1, 8, {})
@@ -185,7 +183,11 @@ class QualityWindow(unittest.TestCase):
         ids = {c.get('id') for c in root.iter('control') if c.get('id')}
         self.assertTrue({'9701', '9702', '9703', '9720', '9721'} <= ids)
         self.assertNotIn('9704', ids)                                   # 480p is gone
-        self.assertIn('Integer.IsGreaterOrEqual(Window().Property(check.pct),35)', xml)
+        # Q2 (ISSUE-318): a sliding bar while it looks, chips for what is found, and the sheet's top comes down to the
+        # card while it checks (no gap); the 20-step percentage bar is gone.
+        self.assertIn('Window().Property(check.chip.3.text)', xml)
+        self.assertIn('<animation effect="slide"', xml)
+        self.assertNotIn('Window().Property(check.pct),35', xml)
         self.assertIn('<enable>String.IsEmpty(Window().Property(q.1.off))</enable>', xml)   # greyed rows cannot be chosen
         self.assertIn('<enable>String.IsEmpty(Window().Property(button.off))</enable>', xml)
         self.assertIn('circle_line.png', xml)

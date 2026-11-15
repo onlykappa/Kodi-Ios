@@ -62,23 +62,63 @@ def next_text(titles,room=60):   # Kodi cuts the line short of the link (notific
  share=budget//len(shown);spare=sum(max(0,share-len(t)) for t in shown)
  return 'Up next: '+', then '.join(cut(t,share+spare) for t in shown)+' ·'
 
+import notifications_skin as ns
+IMPORT_REPORT='import_report'   # favourites_import_page.REPORT_ACTION
+
+def ring_texture(pct):
+ """C1's progress ring: the ring_00..ring_20 texture nearest the percentage."""
+ try:pct=float(pct or 0)
+ except (TypeError,ValueError):pct=0
+ return 'ring_%02d.png'%max(0,min(20,int(round(pct/5.0))))
+
 def message_properties(items,filter_key,now=None):
  """Window properties for the Earlier rows under the chosen filter, and the empty state."""
- kinds=notices.FILTERS.get(filter_key,notices.KINDS);shown=[i for i in items if i.get('kind','info') in kinds][:ROWS]
+ kinds=notices.FILTERS.get(filter_key,notices.KINDS);shown=fold([i for i in items if i.get('kind','info') in kinds])[:ROWS]
  props={'has.msg':'true' if shown else ''}
+ import time as _time
+ now_=_time.time() if now is None else now
+ today=_time.localtime(now_)[:3]
+ last_section=None
  for n in range(1,ROWS+1):
   i=shown[n-1] if n<=len(shown) else {}
   glyph,tint=ICON.get(i.get('kind'),ICON['info']) if i else ('','')
+  if i and i.get('action')==IMPORT_REPORT:glyph,tint=('star.png','33FFD60A')   # mockup N: the Favourites star
   # Build 194 (board 5): one grouped card; the tile is the kind's colour at 18 %, its glyph the full colour.
   pos='' if not i else 'only' if len(shown)==1 else 'first' if n==1 else 'last' if n==len(shown) else 'mid'
   import notice_help
   help_=notice_help.explain(i) if i else {'title':'','line':'','fixes':[],'good':True}
   fixable=bool(i and i.get('kind')=='problem' and help_['fixes'] and help_['fixes'][0][2] not in ('share_log',))
-  props.update({'msg.%d.fix'%n:'Fix' if fixable else ''})
+  props.update({'msg.%d.fix'%n:'Fix' if fixable else 'Review' if i and i.get('action')==IMPORT_REPORT and 'need a look' in str(i.get('text') or '') else ''})
   props.update({'msg.%d.title'%n:help_['title'] if i else '','msg.%d.text'%n:(help_['line'] or i.get('text','')) if i else '','msg.%d.ago'%n:notices.ago(i['time'],now) if i else '',
                 'msg.%d.icon'%n:glyph,'msg.%d.tint'%n:('2E'+tint[2:]) if tint else '','msg.%d.glyph'%n:('FF'+tint[2:]) if tint else '',
                 'msg.%d.pos'%n:pos,'msg.%d.unread'%n:'true' if i and not i.get('was_read') else ''})
+  # C1: the row's height parts (title lines, text lines), the folded-repeat chip and the Today / Earlier headings.
+  folded=int(i.get('folded') or 1) if i else 1
+  title=props['msg.%d.title'%n];text=props['msg.%d.text'%n]
+  section=('TODAY' if _time.localtime(float(i.get('time') or 0))[:3]==today else 'EARLIER') if i else ''
+  props.update({'msg.%d.tl'%n:str(ns.lines(title,ns.TITLE_CHARS_CHIP if folded>1 else ns.TITLE_CHARS,3) or 1) if i else '',
+                'msg.%d.ll'%n:str(ns.lines(text,ns.TEXT_CHARS,4)) if i and text else '',
+                'msg.%d.count'%n:'\u00d7%d'%folded if folded>1 else '',
+                'msg.%d.section'%n:section if section and section!=last_section else ''})
+  if section:last_section=section
+ # C1: Today and Earlier are separate cards, so a row is first / last within its own section.
+ secs=[('TODAY' if _time.localtime(float(i.get('time') or 0))[:3]==today else 'EARLIER') for i in shown]
+ for n,sec in enumerate(secs,1):
+  prev=secs[n-2] if n>1 else None;nxt=secs[n] if n<len(secs) else None
+  props['msg.%d.pos'%n]='only' if prev!=sec and nxt!=sec else 'first' if prev!=sec else 'last' if nxt!=sec else 'mid'
  return props,shown
+
+def fold(items):
+ """C1: the same notice again (same kind, title and text) joins the newest one as a count ("×2"), read once all are."""
+ out,seen=[],{}
+ for i in items:
+  k=(i.get('kind'),i.get('title'),i.get('text'))
+  if k in seen:
+   first=seen[k];first['folded']=int(first.get('folded') or 1)+1
+   if not i.get('was_read'):first['was_read']=False
+   continue
+  i=dict(i);seen[k]=i;out.append(i)
+ return out
 
 KIND_WORDS={'download':'Downloads','drive':'Google Drive','problem':'Problem','update':'Update','info':'Kodi iOS','general':'General'}
 NO_LOG='Kodi wrote nothing else about this around that time.'
@@ -88,7 +128,7 @@ def short(text):
  import re
  return re.sub(r'/(?:private/)?var/(?:mobile|containers)/\S*?/((?:[^/\s"]+/)?[^/\s"]+)(?=["\s,:)]|$)',r'…/\1',str(text))
 
-def detail_properties(item,records,now=None):
+def detail_properties(item,records,now=None,profile=None):
  """Window properties for the details sheet (portrait/IOSNoticeDetail.xml) and its log rows [(label, label2, level)]."""
  import time as _time
  glyph,tint=ICON.get(item.get('kind'),ICON['info'])
@@ -98,15 +138,27 @@ def detail_properties(item,records,now=None):
         'nolog':'' if records else NO_LOG}
  # DEC-046 (boards G/H): plain words, "nothing was lost", the fixes, Technical details' facts.
  import notice_help
- help_=notice_help.explain(item)
+ # N2 (owner-approved, docs/design/build442-mockups.html; ISSUE-319): up to three timed steps (notice_models).
+ help_=notice_help.detail_model(item,records,profile=profile)
+ tone={'blue':'FF0A84FF','orange':'FFFF9F0A','green':'FF30D158'}
+ for n in range(1,4):
+  step=help_['timeline'][n-1] if n<=len(help_['timeline']) else {}
+  props.update({'tl.%d.time'%n:str(step.get('time') or ''),'tl.%d.text'%n:str(step.get('text') or ''),
+                'tl.%d.tint'%n:tone.get(step.get('colour_kind'),'FF8E8E93') if step else ''})
  props.update(title=help_['title'],happened=help_['happened'],safe=help_['safe'],good='true' if help_['good'] else '',
               tint=('FF30D158' if help_['good'] else 'FFFF9F0A' if help_['warn'] else tint))
  if help_['good']:props['icon']='circle-check.png'
  for n in range(3):
   label,sub,action=help_['fixes'][n] if n<len(help_['fixes']) else ('','','')
   props.update({'fix%d.label'%n:label,'fix%d.action'%n:action})
-  if n:props['fix%d.sub'%n]=sub   # the white capsule (fix 0) has no second line
+  props['fix%d.sub'%n]=sub
  props['tech.available']='' if help_['good'] and not records else 'true'
+ # N2 board: the fixes and Technical details are one grouped list; each row's place gives its rounded ends.
+ props.update({'tech.label':'Technical details' if props['tech.available'] else '',
+               'tech.sub':'What the app logged, Share Log' if props['tech.available'] else ''})
+ shown=[k for k in ('fix0','fix1','fix2','tech') if props.get(k+'.label')]
+ for k in ('fix0','fix1','fix2','tech'):
+  props[k+'.pos']='' if k not in shown else 'only' if len(shown)==1 else 'first' if k==shown[0] else 'last' if k==shown[-1] else 'mid'
  for n,(label,value) in enumerate((notice_help.facts(item,[{'text':notices.plain_record(r)} for r in records])+[('','')]*5)[:5]):
   props.update({'fact%d.label'%n:label,'fact%d.value'%n:value})
  rows=[]
@@ -185,7 +237,7 @@ def run():
    with self.lock:
     show_live=self.filter in ('all','downloads')
     import work_state
-    model=work_state.load(profile) if show_live else None
+    model=work_state.current(profile) if show_live else None
     jobs=(model or {}).get('jobs') or []
     self.downloads=[transfer_card(j) for j in jobs if j['kind']=='down']
     ups=[transfer_card(j) for j in jobs if j['kind'] in ('copy','upload')]
@@ -207,7 +259,12 @@ def run():
     pairs += [(pre,ups[n] if n<len(ups) else {}) for n,pre in enumerate(copies)]+[('prepare.',current)]
     self.artnames=[j.get('name') or j['title'] for j in jobs]
     bars={pre:bar for pre,_,bar in notifications_skin.cards()}
+    # C1: the running rows are one grouped card: first / mid / last in page order (notifications_skin.cards()).
+    live=[pre for pre,_,_ in notifications_skin.cards() if dict(pairs).get(pre)]
+    for pre,_,_ in notifications_skin.cards():
+     self.setProperty(pre+'pos','' if pre not in live else 'only' if len(live)==1 else 'first' if pre==live[0] else 'last' if pre==live[-1] else 'mid')
     for pre,j in pairs:
+     self.setProperty(pre+'ring',ring_texture(j.get('pct')) if j else '')
      for key in ('title','line'):self.setProperty(pre+key,str(j.get(key,'')))
      self.setProperty(pre+'pct',str(j.get('pct') or 0))
      if pre in bars:self.percent(bars[pre],j.get('pct') or 0)
@@ -295,8 +352,15 @@ def run():
     return
    builtin=notice_help.FIX_ACTIONS.get(action)
    if builtin:self.finish();xbmc.executebuiltin(builtin)
+  def report_row(self,n):
+   """True when message n is a finished import's: its report page opens (favourites_import_page report)."""
+   if not 0<n<=len(self.shown) or self.shown[n-1].get('action')!=IMPORT_REPORT:return False
+   self.finish();xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,favourites_import_page,report)')
+   return True
   def onClick(self,control):
    if control==9001:self.finish()
+   elif (9600<control<=9600+ROWS or 9501<=control<=9500+ROWS) and self.report_row(control%100):
+    pass   # mockup N (owner, 2026-11-15): the import's message opens the report page
    elif 9600<control<=9600+ROWS:
     # DEC-046 board G3: a problem row's Fix button runs its main fix.
     n=control-9600
@@ -335,7 +399,7 @@ def run():
      # An AirPlay message opens the AirPlay check: the last Play on TV as steps, and what to try.
      import tool_windows;tool_windows.open_airplay(profile);return
     sheet=Detail(notice_page.SHEET,home,'Default','1080i')
-    sheet.setup(*detail_properties(item,records_for(profile,item,log_path)))
+    sheet.setup(*detail_properties(item,records_for(profile,item,log_path),profile=profile))
     sheet.doModal();chosen=sheet.chosen;del sheet
     self.run_fix(item,chosen)
 

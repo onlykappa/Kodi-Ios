@@ -188,7 +188,10 @@ class Freshness(unittest.TestCase):
   props={};ticks=[0]
   def wait(s):
    self.assertEqual(s,2);ticks[0]+=1;return ticks[0]>3
-  ws.publish(self.p,lambda:{'prep':conv(updated=time.time())},wait,set_property=props.__setitem__)
+  import library_index
+  index=library_index.build([{'id':'film','name':'Scary.Movie.2026.2160p.mkv','size':100}],
+      {'jobs':{'film':{'source':{'id':'film'},'status':'running'}}}, {})
+  ws.publish(self.p,lambda:{'prep':conv(updated=time.time()),'index':index},wait,set_property=props.__setitem__)
   self.assertEqual(ws.load(self.p)['mode'],'running')
   self.assertEqual({k:props[k] for k in ('Notices.Active','Notices.Pct','Notices.Count')},{'Notices.Active':'true','Notices.Pct':'42','Notices.Count':'1'})
 

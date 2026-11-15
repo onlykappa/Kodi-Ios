@@ -20,14 +20,18 @@ _spec=_iu.spec_from_file_location('settings_page',os.path.join(os.path.dirname(o
 settings_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(settings_page)
 _spec=_iu.spec_from_file_location('pages',os.path.join(os.path.dirname(os.path.abspath(__file__)),'pages.py'))
 pages=_iu.module_from_spec(_spec);_spec.loader.exec_module(pages)
-_spec=_iu.spec_from_file_location('activity_skin',os.path.join(os.path.dirname(os.path.abspath(__file__)),'activity_skin.py'))
-activity_skin=_iu.module_from_spec(_spec);_spec.loader.exec_module(activity_skin)
+_spec=_iu.spec_from_file_location('skin_textures',os.path.join(os.path.dirname(os.path.abspath(__file__)),'skin_textures.py'))
+skin_textures=_iu.module_from_spec(_spec);_spec.loader.exec_module(skin_textures)
 _spec=_iu.spec_from_file_location('library_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_page.py'))
 library_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_page)
 _spec=_iu.spec_from_file_location('library_files_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_files_page.py'))
 library_files_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_files_page)
 _spec=_iu.spec_from_file_location('copy_problems_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'copy_problems_page.py'))
 copy_problems_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(copy_problems_page)
+_spec=_iu.spec_from_file_location('favourites_report_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'favourites_report_page.py'))
+favourites_report_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(favourites_report_page)
+_spec=_iu.spec_from_file_location('favourites_manager_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'favourites_manager_page.py'))
+favourites_manager_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(favourites_manager_page)
 _spec=_iu.spec_from_file_location('library_show_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_show_page.py'))
 library_show_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_show_page)
 _spec=_iu.spec_from_file_location('library_item_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_item_page.py'))
@@ -82,6 +86,8 @@ SPOTLIGHT={'Home.xml':'home','Custom_1101_Hub.xml':'1101','Custom_1102_Hub.xml':
 LIBRARY_FILES=('Custom_1103_Hub.xml','Custom_1104_Hub.xml')
 SEARCH_FILE='Custom_1105_Search.xml'
 CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type='
+# ISSUE-284: the row's path carries the removal stamp, so Kodi loads the row again when an item is removed.
+CONTINUE_STAMP='&stamp=$INFO[Window(Home).Property(KodiIOS.ContinueStamp)]'
 # Floating tab bar (Apple TV app): Home, Movies, TV, Library (downloaded media), Search.
 # Home, Movies and TV are one window (Home.xml) with a group per hub, so all three load their rows at start and
 # switching between them only changes Window(Home).Property(Portrait.Tab); Custom_1101/1102 forward to it.
@@ -101,7 +107,8 @@ def titled_page(title,path):
 # "this needs to be linked to library, not gear to Drive"); the watch add-on lists both (ios_library.py).
 LIBRARY_PAGE='plugin://plugin.video.kodi.ios.watch/?action=library&type='
 # Owner (build 319): the Home Library tab keeps the poster grid; the file manager (DEC-043) opens from Settings › Library.
-LIBRARY=[('Movies','film.png',titled_page('Movies',LIBRARY_PAGE+'movie')),('TV Shows','tv.png',titled_page('TV Shows',LIBRARY_PAGE+'tv'))]
+LIBRARY=[('Movies','film.png',titled_page('Movies',LIBRARY_PAGE+'movie')),('TV Shows','tv.png',titled_page('TV Shows',LIBRARY_PAGE+'tv')),
+         ('Favourites','star.png','RunScript(service.kodi.ios.bootstrap,favourites_page)')]
 TMDB='plugin://plugin.video.themoviedb.helper/'
 SEARCH_ACTION='ActivateWindow(Videos,%s?info=search&tmdb_type=multi,return)'%TMDB
 # Search page categories (TMDb TV genres) with their tile gradients.
@@ -116,9 +123,10 @@ MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Check for updates','cloud-arrow-down.png','FF30D158',UPDATES),
       ('Favourites','star.png','FFFF9F0A','RunScript(service.kodi.ios.bootstrap,favourites_page)'),
       # Roadmap 2.6: Kodi's desktop file manager replaced by the app's own Transfers page.
-      ('Transfers','clapperboard.png','FF5E5CE6','RunScript(service.kodi.ios.bootstrap,activity_page)'),
+      # ISSUE-287: the activity pill's sheet is gone; the owner follows work in Library status.
+      ('Library status','clapperboard.png','FF5E5CE6','RunScript(service.kodi.ios.bootstrap,library_status)'),
       ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
-HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{'Includes_Portrait.xml',SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml',activity_skin.NAME,activity_skin.BOX}|pages.HANDMADE
+HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{'Includes_Portrait.xml',SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml',skin_textures.BOX}|pages.HANDMADE
 # Never shrunk: playback stays landscape, and these are not windows.
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
 # Shown only over landscape playback: no portrait copy, so Kodi always loads them from 1080i with landscape
@@ -134,7 +142,7 @@ FONTS=[('p_large','Inter-Bold.ttf',92),('p_title','Inter-Bold.ttf',78),('p_h2','
        ('p_h3','Inter-Bold.ttf',46),('p_body','Inter-Regular.ttf',44),('p_sub','Inter-Regular.ttf',40),
        ('p_foot','Inter-Regular.ttf',35),('p_foot_b','Inter-Bold.ttf',35),('p_cap','Inter-Regular.ttf',30),
        ('p_tab','Inter-Bold.ttf',27),('p_tile','Inter-Bold.ttf',38),('p_btn','Inter-Bold.ttf',46),
-       ('p_pill','Inter-Bold.ttf',40),('p_pill_s','Inter-Regular.ttf',35)]   # the activity pill (activity_skin.py)
+       ('p_pill','Inter-Bold.ttf',40),('p_pill_s','Inter-Regular.ttf',35)]   # Notifications' rows
 SIDE=54                      # 20 pt margins
 POSTER=(300,450);CARD=(640,360);GAP=26;RADIUS=26
 HERO=1420
@@ -263,11 +271,40 @@ def arc(size,stroke,degrees):
 _GLYPHS={}
 def header_glyphs():
  """The round-5 header textures, drawn once per process (supersampled, so not cheap)."""
- if not _GLYPHS:_GLYPHS.update({'ring_arc.png':arc(132,5,150),'hdr_gear.png':shape(96,gear_inside),'hdr_refresh.png':shape(96,refresh_inside)})
+ if not _GLYPHS:_GLYPHS.update({'ring_arc.png':arc(132,5,150),'hdr_gear.png':shape(96,gear_inside),'hdr_refresh.png':shape(96,refresh_inside),
+  **{'bell_%s.png'%k:shape(96,bell_inside(k),3) for k in ('line','fill','halo_line','halo_fill')}})
  return _GLYPHS
 
+
+# The show page's anticipated-episodes bell (mockup board G): dome with flared lip, knob and clapper on the 24 grid. White
+# line (off) and fill (on), each with a black edge texture under it so the bell reads on any artwork.
+def _bell_body(u,v,d):
+ """Inside the bell's body grown by d (negative shrinks): a dome, straight shoulders, then a curved flare out to the lip."""
+ half=5.3+d
+ if v<10.0:
+  b=5.6+d
+  return b>0 and half>0 and ((v-10.0)/b)**2+((u-12)/half)**2<=1
+ if v<=13.0:return abs(u-12)<=half
+ return v<=17.3+d and abs(u-12)<=half+3.0*((v-13.0)/4.3)**2
+def _bell_strokes(u,v,r):
+ """The knob above and the clapper below, as strokes of half-width r."""
+ import math
+ if abs(u-12)<=r and 3.3<=v<=4.6:return True
+ if math.hypot(u-12,v-3.3)<=r and v<3.3:return True
+ if v>=19.0:return abs(math.hypot(u-12,v-19.0)-1.9)<=r
+ return False
+def bell_inside(kind):
+ """kind: 'line' / 'fill' (white) or 'halo_line' / 'halo_fill' (the black edge, wider by 1.4 each side)."""
+ halo=kind.startswith('halo');r=2.5 if halo else 1.1;filled=kind.endswith('fill')
+ def inside(u,v):
+  grown=_bell_body(u,v,r)
+  if filled:return grown or _bell_strokes(u,v,r)
+  return (grown and not _bell_body(u,v,-r)) or _bell_strokes(u,v,r)
+ return inside
+BELL_TEXTURES=('bell_line.png','bell_fill.png','bell_halo_line.png','bell_halo_fill.png')
+
 def textures():
- return {**header_glyphs(),'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'menu_round.png':rounded(160,160,64),**{'menu_%s.png'%k:activity_skin.corner_texture(types_ns(),160,64,t,b) for k,t,b in (('first',True,False),('last',False,True))},'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
+ return {**header_glyphs(),'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'menu_round.png':rounded(160,160,64),**{'menu_%s.png'%k:skin_textures.corner_texture(types_ns(),160,64,t,b) for k,t,b in (('first',True,False),('last',False,True))},'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
          'fade_down.png':fade(lambda t:(1-t)**1.6*0.85),'fade_up.png':fade(lambda t:t**1.5),
          'hero_fade.png':fade(lambda t:0 if t<0.3 else ((t-0.3)/0.7)**1.25),
          'poster_mask.png':rounded(POSTER[0],POSTER[1],RADIUS),'card_mask.png':rounded(CARD[0],CARD[1],RADIUS),
@@ -647,6 +684,17 @@ def cached_content(name,path,variables,spotlight=None,tab=None):
   name,e(on),WATCH_ON,e(CACHE_ROUTE+key),page,e(path))
  return '$VAR[%s]'%name
 
+def title_tap(id,title,path,visible):
+ """Owner (build 442: "when I tap these bars it opens a grid view of the shows with the meta art only, like how
+ downloaded movies and TV shows work; apply this to all rows"): the row's title opens its whole list as the poster
+ grid (the Videos window, as Library › Movies does), titled with the row's name. A 1-unit group: it adds no height;
+ the button lies over the title, and the grouplist does not move it."""
+ if not path:return ''
+ clicks=''.join('<onclick>%s</onclick>'%e(a) for a in titled_page(title,path).split('\x00'))
+ return ('<control type="group"><height>1</height><visible>%s</visible>'
+         '<control type="button" id="%d"><left>%d</left><top>-129</top><width>%d</width><height>128</height><label></label>'
+         '<texturefocus /><texturenofocus />%s</control></control>')%(visible,id+700,SIDE,WIDTH-2*SIDE,clicks)
+
 def row(index,widget,last,tab='home',variables=None):
  id=5001+index;title=str(widget.get('label') or '')
  style=widget.get('style') or ('poster' if str(widget.get('widget_style') or '').lower()=='poster' else 'card')
@@ -655,6 +703,7 @@ def row(index,widget,last,tab='home',variables=None):
  visible='Integer.IsGreater(Container(%d).NumItems,0) | Container(%d).IsUpdating'%(id,id)
  item=poster_item if style=='poster' else (lambda f:card_item(f,style=='continue'))
  return (label(SIDE,0,WIDTH-2*SIDE,128,'%s  [COLOR %s]›[/COLOR]'%(title,GREY),'p_h2',WHITE,'left','<aligny>bottom</aligny><visible>%s</visible>'%visible).replace('<control type="label">','<control type="label" id="%d">'%(id+500),1)+
+  title_tap(id,title,widget.get('path') or '',visible)+
   # Board 13: while the row is still loading and has nothing yet, its tiles are drawn as placeholders (SURFACE, the
   # item's own size and corners), so the first frame already shows the page's structure. A 1-unit group: the grouplist
   # moves the list down by 1 while it shows.
@@ -728,7 +777,7 @@ def shift(xml,offset):
 
 def hub_body(title,widgets,tab,spotlight,resume='all',variables=None):
  # Continue Watching leads (movies and episodes the owner started); the old in-progress rows would repeat it.
- widgets=[{'label':'Continue Watching','path':CONTINUE+resume,'target':'videos','style':'continue'}]+[w for w in widgets if not in_progress(w)]
+ widgets=[{'label':'Continue Watching','path':CONTINUE+resume+CONTINUE_STAMP,'target':'videos','style':'continue'}]+[w for w in widgets if not in_progress(w)]
  rows=''.join(row(i,w,i==len(widgets)-1,tab,variables) for i,w in enumerate(widgets))
  body=('<control type="grouplist" id="5000"><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<itemgap>0</itemgap><scrolltime tween="cubic" easing="out">380</scrolltime><usecontrolcoords>true</usecontrolcoords>%s%s'
@@ -967,6 +1016,27 @@ def show_header(ids_down):
  header+='<control type="group"><width>%d</width><height>160</height><control type="textbox"><left>%d</left><top>0</top><width>%d</width><height>132</height><font>p_foot</font><textcolor>%s</textcolor><label>$VAR[Portrait_Show_Plot]</label><autoscroll>false</autoscroll></control></control>'%(WIDTH,SIDE,WIDTH-2*SIDE,GREY)
  return header
 
+BELL_SIZE=112
+def bell_button():
+ """The anticipated-episodes bell, top right of a show page, opposite Back. Visible only while the open show is the one the
+ service found an upcoming episode for (anticipated.bell_service sets KodiIOS.Bell.*). Off: a white outline; on: filled white.
+ The 150-unit touch area is the nav buttons'."""
+ prop=lambda k:'Window(Home).Property(KodiIOS.Bell.%s)'%k
+ shown=('Container.Content(seasons) + !String.IsEmpty(%s) + String.IsEqual(%s,$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)])'%(prop('Tmdb'),prop('Tmdb')))
+ on='!String.IsEmpty(%s)'%prop('On')
+ c=54;off=c-BELL_SIZE//2
+ layer=lambda name,color,vis:image(off,off,BELL_SIZE,BELL_SIZE,MEDIA+name,color,'<visible>%s</visible>'%vis,'>keep')
+ click=('RunScript(service.kodi.ios.bootstrap,anticipated_bell,tmdb=$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)],'
+        'title=$ESCINFO[ListItem.TVShowTitle])')
+ return ('<control type="group"><left>%d</left><top>36</top><width>108</width><height>108</height><visible>%s</visible>'%(WIDTH-SIDE-108,shown)+
+  '<control type="button" id="9004"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus /><texturenofocus />'
+  '<onclick>%s</onclick><onleft>9001</onleft><ondown>9002</ondown></control>'%(c-NAV_TOUCH//2,c-NAV_TOUCH//2,NAV_TOUCH,NAV_TOUCH,e(click))+
+  layer('bell_halo_line.png','FF000000','!'+on)+layer('bell_halo_fill.png','FF000000',on)+
+  layer('bell_line.png',WHITE,'!'+on)+layer('bell_fill.png',WHITE,on)+'</control>')
+
+# ISSUE-312: opening a favourite show sets these (favourites_import_page.mark_show); the show's in-progress episode says Continue.
+SHOW_CONTINUE=('String.IsEqual(ListItem.Season,$INFO[Window(Home).Property(KodiIOS.ShowContinueSeason)]) + String.IsEqual(ListItem.Episode,$INFO[Window(Home).Property(KodiIOS.ShowContinueEpisode)]) + '
+ 'String.Contains(Container.FolderPath,tmdb_id=$INFO[Window(Home).Property(KodiIOS.ShowContinueTmdb)]) + !String.IsEmpty(Window(Home).Property(KodiIOS.ShowContinueLeft))')
 def episode_item(focused):
  thumb_w,thumb_h=400,225
  bg=surface(SIDE-18,4,WIDTH-2*SIDE+36,thumb_h+176,'round_s.png','14FFFFFF',26) if focused else ''
@@ -976,6 +1046,7 @@ def episode_item(focused):
   episode_badges(SIDE,18,thumb_w,thumb_h)+
   textbox(SIDE+thumb_w+30,30,WIDTH-2*SIDE-thumb_w-30,116,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE)+
   label(SIDE+thumb_w+30,160,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
+  label(SIDE+thumb_w+30,206,WIDTH-2*SIDE-thumb_w-30,40,'$INFO[Window(Home).Property(KodiIOS.ShowContinueLeft)]','p_cap',ACCENT,'left','<visible>%s</visible>'%SHOW_CONTINUE)+
   textbox(SIDE,thumb_h+36,WIDTH-2*SIDE,84,'$INFO[ListItem.Plot]','p_cap',GREY)+'</control>')
 
 def video_nav(original):
@@ -1022,7 +1093,7 @@ def video_nav(original):
    '<onclick>SetFocus(50,$INFO[Container(49).CurrentItem],absolute)</onclick><onclick>Control.Move(50,-1)</onclick>'
    '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout>'
    '<content>$INFO[Container.FolderPath]</content></control>')%(SIDE,WIDTH-SIDE,pinned_chip(False),pinned_chip(True))+'</control>')
- body=('<controls>'+backdrop()+show_page+generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+pinned+back+plain_title+refresh+'</controls>')
+ body=('<controls>'+backdrop()+show_page+generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+pinned+back+plain_title+refresh+bell_button()+'</controls>')
  return window(original,body,'50','<views>50,51,52,53</views>')
 
 def pinned_chip(focused):
@@ -1576,13 +1647,15 @@ def portrait_files(skin,profile):
  files['extras/portrait/close_cross.png']=close_cross();files['extras/portrait/close_disc.png']=close_disc()
  # Round 2: shared dialogs, Add-ons, Event Log, System Info, File Manager, Umbrella's getting-ready, Play on TV.
  files.update(pages.files(types.SimpleNamespace(**globals()),read))
- # The activity pill in place of Kodi's background progress box, which is never drawn (activity_skin.py).
- ns=types.SimpleNamespace(**globals());files.update(activity_skin.files(ns))
+ # ISSUE-287: no activity pill. Kodi's background progress box stays invisible; rings and row corners (skin_textures.py).
+ ns=types.SimpleNamespace(**globals());files.update(skin_textures.files(ns))
  # Settings › Library › Library status and its details sheet (library_page.py).
  files.update(library_page.files(ns))
  # Library › TV Shows / Movies, the file manager (DEC-043 board A, library_files_page.py).
  files.update(library_files_page.files(ns))
  files.update(copy_problems_page.files(ns))   # Settings › Library › Download problems (approved mockup)
+ files.update(favourites_report_page.files(ns))   # Favourites › Import a List › Last import (board I3)
+ files.update(favourites_manager_page.files(ns))  # Settings › Favourites: the manager and its poster picker (boards K1-K8)
  files.update(library_show_page.files(ns))   # board B, one show (L3)
  files.update(library_item_page.files(ns))   # board C, one episode or movie (L4)
  files.update(upscale_show_page.files(ns))   # Settings › AI Upscale › one show (V3, DEC-042 board C)
@@ -1598,8 +1671,6 @@ def portrait_files(skin,profile):
  files.update(library_tools_page.files(ns))
  # Settings › Customisation › Tabs & Rows › a tab (rows_page.py, filled by customise_rows.py).
  files.update(rows_page.files(ns))
- for rel in list(files):
-  if rel.startswith(FOLDER+'/'):files[rel]=activity_skin.inject(ns,rel[len(FOLDER)+1:],files[rel])
  # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.
  files['1080i/VideoOSD.xml']=player_osd.window().encode()
  # Fuse's seek bar flashed up at every video start (buffering, the resume jump): ours shows only while seeking.
@@ -1619,9 +1690,6 @@ def row_files(skin,profile):
  for name,data in hub_files(skin,profile,row_variables).items():files[FOLDER+'/'+name]=data
  files[FOLDER+'/Includes.xml']=includes(row_variables)
  files['1080i/'+LANDSCAPE_VARS]=landscape_variables(row_variables)
- ns=types.SimpleNamespace(**globals())
- for rel in list(files):
-  if rel.startswith(FOLDER+'/'):files[rel]=activity_skin.inject(ns,rel[len(FOLDER)+1:],files[rel])
  return files
 
 def refresh_rows(xbmc,invoke,skin,profile):
@@ -1657,6 +1725,11 @@ STARTUP=('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: straight to Home afte
 def write(skin,files):
  changed=[]
  # Portrait copies of playback windows from earlier builds would be picked over the landscape ones.
+ # ISSUE-287: the activity pill's windows from earlier builds go too (portrait and landscape).
+ for name in skin_textures.OBSOLETE:
+  for folder in (FOLDER,'1080i'):
+   stale=Path(skin)/folder/name
+   if stale.is_file():stale.unlink();changed.append(folder+'/'+name)
  for name in sorted(VIDEO_ONLY|SKIP_WRAP):
   stale=Path(skin)/FOLDER/name
   if stale.is_file():stale.unlink();changed.append(FOLDER+'/'+name)
@@ -1690,14 +1763,14 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','Custom_1156_Buffering.xml','IOSPlayOnTV.xml','IOSTrackMenu.xml','IOSPictureMenu.xml','IOSAirPlayFlow.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','Custom_1156_Buffering.xml','IOSPlayOnTV.xml','IOSTrackMenu.xml','IOSPictureMenu.xml','IOSAirPlayFlow.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + skin_textures.py, pages.BUSY, player_osd.INSET
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(library_files_page.__file__),Path(copy_problems_page.__file__),Path(library_show_page.__file__),Path(library_item_page.__file__),Path(upscale_show_page.__file__),Path(upscale_main_page.__file__),Path(queue_page.__file__),Path(library_select_page.__file__),Path(library_freeup_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py')):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(library_files_page.__file__),Path(copy_problems_page.__file__),Path(favourites_report_page.__file__),Path(favourites_manager_page.__file__),Path(library_show_page.__file__),Path(library_item_page.__file__),Path(upscale_show_page.__file__),Path(upscale_main_page.__file__),Path(queue_page.__file__),Path(library_select_page.__file__),Path(library_freeup_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(skin_textures.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py')):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())
@@ -1774,9 +1847,15 @@ def first_feed_publisher(info,log,clock,timeout=60,started=None):
   finished=not pending
  return tick
 
-def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{}):
+def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{},log=None):
  """Continue Watching: save the position of what the chooser started, and drop it once finished."""
  state={'playing':False,'saved':float('-inf'),'position':0,'total':0,'started':0,'seed':0,'remote':False,'handoff':False}
+ # ISSUE-299 (owner, build 442: "continue watching is only tracking the downloaded things"): one line per playback
+ # says which title the row will follow, or that nothing was recorded for it (then the row cannot show it).
+ def say(text):
+  if log:
+   try:log(text)
+   except Exception:pass
  def tick():
   try:
    try:remote=external() or {}
@@ -1789,6 +1868,8 @@ def progress_tracker(player,continue_module,read,write,clock,every=10,external=l
      try:
       data=continue_module.load(read);entry=data.get('items',{}).get(data.get('current')) or {}
       state.update(seed=float(entry.get('position') or 0),position=float(entry.get('position') or 0),total=float(entry.get('total') or 0))
+      say('continue watching: following %s · %s'%(entry.get('kind') or '?',entry.get('player') or 'no player') if entry else
+          'continue watching: nothing recorded for this video (not started through the watch menu)')
      except (AttributeError,ValueError,TypeError):pass
     position,total=(remote.get('position',0),remote.get('duration',0)) if on_tv else (player.getTime(),player.getTotalTime())
     if state['remote'] and not on_tv:state.update(seed=state['position'],started=now,handoff=True)
@@ -1807,7 +1888,7 @@ def progress_tracker(player,continue_module,read,write,clock,every=10,external=l
 
 # Read by Kodi when the skin loads (fonts, includes, Home and the windows marked LOAD_ON_GUI_INIT in the owner's log):
 # a change to one shows only after ReloadSkin. Every other window is read the first time it opens.
-LOADED_AT_START={'Font.xml','Includes.xml','Includes_Portrait.xml','Home.xml','Custom_1187_Activity.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
+LOADED_AT_START={'Font.xml','Includes.xml','Includes_Portrait.xml','Home.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
                  'DialogVolumeBar.xml','DialogExtendedProgressBar.xml','DialogSeekBar.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
                  'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml','Custom_1192_SeasonalTheme.xml',
                  'Custom_1194_Debug_Grid.xml','Custom_1198_Dialog_Startup.xml','Custom_1199_Debug_Overlay.xml'}
@@ -1988,7 +2069,8 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
   import airplay
   try:native_player=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
   except Exception:native_player=None
-  tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic,external=lambda:airplay.health(native_player))
+  tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic,external=lambda:airplay.health(native_player),
+                       log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
  except Exception as error:xbmc.log('Kodi iOS continue watching unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  # Listing cache: check the row flags against the copies now, then fill and refresh copies in the background.
  try:

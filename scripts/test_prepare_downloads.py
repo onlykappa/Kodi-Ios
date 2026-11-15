@@ -196,7 +196,7 @@ class Integration(unittest.TestCase):
   setting=ET.parse(ROOT/'migration/bundled-bootstrap/resources/settings.xml').find(".//setting[@id='prepare_downloads']")
   self.assertEqual(setting.findtext('default'),'true')
  def test_notifications_have_preparation_progress(self):
-  source=(ROOT/'migration/bundled-bootstrap/notifications.py').read_text();self.assertIn('model=work_state.load(profile)',source);self.assertIn("j['kind'] in ('copy','upload')",source)   # build 193: the status model
+  source=(ROOT/'migration/bundled-bootstrap/notifications.py').read_text();self.assertIn('model=work_state.current(profile)',source);self.assertIn("j['kind'] in ('copy','upload')",source)   # build 193: the status model
   self.assertIn("self.setProperty(pre+'pct',str(j.get('pct') or 0))",source)
   import portrait
   # Build 194: the card's bar has an id and is filled with setPercent (a property-bound bar stays empty in Kodi 21).

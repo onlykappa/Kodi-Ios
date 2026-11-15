@@ -335,10 +335,11 @@ def fill_item(row, show=None, kind='episode'):
         primary = 'repair' if not row.get('id') else 'retry'
         props.update(primary='Repair', secondary='Choose a Version' if not row.get('id') else '',
                      delete='Remove from Library\u2026' if not row.get('id') else 'Delete %s\u2026' % ('Episode' if kind == 'episode' else 'Movie'))
-        actions = (primary, 'choose' if not row.get('id') else '', 'delete' if row.get('id') else '')
+        actions = (primary, 'choose' if not row.get('id') else '', 'delete' if row.get('id') else 'remove')
     elif s == lf.COPYING:
-        props.update(primary='Close', secondary='', delete='')
-        actions = ('close', '', '')
+        # ISSUE-286: a copy not on Drive yet can be stopped and removed from here too.
+        props.update(primary='Close', secondary='', delete='' if row.get('id') else 'Stop and Remove\u2026')
+        actions = ('close', '', '' if row.get('id') else 'remove')
     else:
         props.update(primary='Play', secondary='Play on TV', delete='Delete %s\u2026' % ('Episode' if kind == 'episode' else 'Movie'))
         actions = ('play', 'tv', 'delete')
@@ -478,6 +479,9 @@ def run():
                     'episode=%d' % row['episode'], 'title=%s' % (show or {}).get('title', '')]
             xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,download,%s)' % ','.join(a.replace(',', ' ') for a in args))
             return False
+        if action == 'remove':
+            remove_rows([row], kind)
+            return False
         if action == 'delete':
             query = urllib.parse.urlencode({'action': 'library_remove', 'kind': 'movie' if kind == 'movie' else 'tv',
                                             'name': row.get('title') if kind == 'movie' else '%s S%02dE%02d' % ((show or {}).get('title', ''), row['season'], row['episode']),
@@ -485,6 +489,28 @@ def run():
             xbmc.executebuiltin('RunPlugin(plugin://plugin.video.kodi.ios.watch/?%s)' % query, True)
             return False
         return action == 'close'
+
+    def remove_rows(rows, kind='episode', ask=True):
+        """ISSUE-286: videos not on Google Drive (a copy that ended, or one still copying) leave the library through
+        library_index.remove. Returns how many."""
+        rows = [r for r in rows if not r.get('id') and r.get('key')]
+        if not rows:
+            return 0
+        if ask:
+            copying = any(r['state'] == lf.COPYING for r in rows)
+            what = '%d %s%s' % (len(rows), kind, '' if len(rows) == 1 else 's') if len(rows) > 1 else 'This ' + kind
+            if not xbmcgui.Dialog().yesno('Remove from Library', '%s %s. Nothing on Google Drive changes.' % (
+                    what, 'stops copying and leaves the library' if copying else 'leaves the library and Download problems'),
+                    nolabel='Cancel', yeslabel='Remove'):
+                return 0
+        try:
+            import library_index
+            n = library_index.remove(profile, [r['key'] for r in rows])
+        except Exception as error:
+            xbmc.log('Kodi iOS remove: %s: %s' % (type(error).__name__, str(error)[:160]), xbmc.LOGWARNING)
+            n = 0
+        xbmcgui.Dialog().notification('Remove from Library', 'Removed' if n else 'Already gone', xbmcgui.NOTIFICATION_INFO, 2500)
+        return n
 
     class Item(xbmcgui.WindowXMLDialog):
         """Board C: one episode or movie."""
@@ -929,10 +955,15 @@ def run():
         def delete_season(self, season):
             """DEC-047 C2: asks first, then the same delete as Library › Select › Delete."""
             import library_delete as ld
-            rows = [r for r in episodes_of(self.data, self.show)
-                    if r['season'] == season and r.get('id')]
+            every = [r for r in episodes_of(self.data, self.show) if r['season'] == season]
+            rows = [r for r in every if r.get('id')]
+            loose = [r for r in every if not r.get('id')]   # ISSUE-286: copies and problems not on Drive
             if not rows:
-                xbmcgui.Dialog().notification('Delete', 'Nothing of this season is on Google Drive', xbmcgui.NOTIFICATION_INFO, 3000)
+                if loose and remove_rows(loose):
+                    self.data = model(profile)
+                    self.draw()
+                elif not loose:
+                    xbmcgui.Dialog().notification('Delete', 'Nothing of this season is on Google Drive', xbmcgui.NOTIFICATION_INFO, 3000)
                 return
             label = 'Season %d' % season if season else 'Specials'
             size = lf.size_text(sum(r['size'] for r in rows))
@@ -942,6 +973,8 @@ def run():
                 return
             items = ld.items_from_rows(rows, self.data.get('upscale'))
             if delete_items(items, ask=False) is not None:
+                if loose:
+                    remove_rows(loose, ask=False)
                 self.data = model(profile)
                 self.draw()
 

@@ -1,5 +1,7 @@
 # Kodi-iOS master roadmap
 
+Current maintenance checkpoint (2026-11-14): ISSUE-303 repairs build-473 Umbrella cache admission and cancellation; testing IPA approved, phone result pending. See [progress](docs/UMBRELLA-473-PROGRESS.md). Historical phase counts below are unchanged.
+
 Status: BLOCKED. Current phase: Phase 4 — diagnostic launch owner-confirmed; fully bundled IPA approved; Touch-r1 startup failure recorded; Touch-r2 device evidence pending. Phase 3 approved; Phase 5 unauthorized.
 Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
 
@@ -545,3 +547,14 @@ again and then naruto isnt showing up in download problems even tho it says ther
 | P6 | **Tell the owner plainly.** Until P2, the episode sheet and notice say why (DVD subtitles), that it still plays in Kodi, and offer Find Another Version; Repair must not look like it worked when it can't. | library_manager.py, notice_help.py | To do |
 
 Order: P1 (Python, small) → P4 mockup → P2/P3 native release → P5 → P6 wording follows each.
+
+
+## Build 442 backend follow-up (2026-11-14)
+
+Authorized scope: Python backend only, stacked on claude/build442-feedback; no merge or IPA.
+1. Shared Queue/Notifications index: host implementation and regression fixture (ISSUE-291), device retest pending.
+2. Upload measurements/history: host implementation and regression tests (ISSUE-292); device log after startup fix needed.
+3. Subtitle matching: backend implemented and tested (ISSUE-293); embedded DVD timing/speech evidence unavailable.
+4. Notification/season data: backend helpers and progressive coverage (ISSUE-294), UI binding remains separate.
+5. Terminal retry classification and legacy phone failures: backend implemented (ISSUE-295), host validation complete
+   before final commit; device retest and the target branch documentation integration remain separate.

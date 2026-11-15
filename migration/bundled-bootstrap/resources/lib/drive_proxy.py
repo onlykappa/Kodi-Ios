@@ -486,6 +486,15 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
+    def handle_error(self, request, client_address):
+        # ISSUE-327 (owner log ebc9c063, build 486: 165 "Connection reset by peer" tracebacks, 1.1 MB of a 1.1 MB log):
+        # Kodi and AirPlay hang up on this server whenever they seek or stop; that is normal, as in drive_stream._Server.
+        # Anything else is still reported.
+        import sys
+        if isinstance(sys.exc_info()[1], (ConnectionResetError, BrokenPipeError, ConnectionAbortedError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
+
 
 def start(token, connect=None, port=0, hold=None, state_dir=None, log=lambda text: None):
     """Start the proxy on 127.0.0.1; returns (server, port). token(force) -> bearer token."""

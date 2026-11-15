@@ -111,13 +111,17 @@ def working(p, key, ident, compact=False, menu=None):
 
 def needs(p, key='need.', ident=9004, elevated=False):
     S,w=p.SIDE,p.WIDTH-2*p.SIDE
-    body=p.surface(S,0,w,290,'round.png',p.SURFACE2 if elevated else p.SURFACE,p.RADIUS)
+    # DEC-050 (rig, board B copy sheet: "…saved sign-in. Downloa…"): the sentence wraps to three lines, never "…".
+    body=p.surface(S,0,w,NEEDS_H,'round.png',p.SURFACE2 if elevated else p.SURFACE,p.RADIUS)
     body+=p.surface(S+30,30,80,80,'round_s.png','33FF9F0A',p.RADIUS)
     body+=glyph(p,S+46,46,48,'triangle-exclamation.png','FFFF9F0A')
     body+=text(p,S+140,22,w-170,56,P(key+'title'),'p_foot_b')
-    body+=text(p,S+140,84,w-170,50,P(key+'text'),'p_cap',p.GREY)
-    body+=p.pill_button(ident,S+140,154,300,124,P(key+'button'),[('','noop')],'primary',extra=NOS)
-    return group(p,310,body,has(key+'title'))
+    body+=p.label(S+140,78,w-170,136,P(key+'text'),'p_cap',p.GREY,'left','<wrapmultiline>true</wrapmultiline><aligny>top</aligny><scroll>false</scroll>')
+    body+=p.pill_button(ident,S+140,206,300,124,P(key+'button'),[('','noop')],'primary',extra=NOS)
+    return group(p,NEEDS_H+20,body,has(key+'title'))
+
+
+NEEDS_H=352
 
 
 def graph(p, key, x, y, w, h):

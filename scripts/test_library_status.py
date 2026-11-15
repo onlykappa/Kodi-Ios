@@ -145,9 +145,9 @@ class Skin(unittest.TestCase):
    self.assertIn('Window().Property(next.0.%s)'%k,self.page,k)
  def test_status_sheet_closes_with_a_cross(self):
   self.assertIn('close_cross.png',self.sheet);self.assertTrue(all(c.findtext('label')!='Done' for c in self.sheetx.iter('control') if c.get('type')=='button'))
- def test_pill_stays_off_this_page(self):
-  skin=(LIB/'activity_skin.py').read_text()
-  self.assertIn('IOSLibraryStatus.xml',skin);self.assertIn('IOSLibraryItem.xml',skin)
+ def test_no_activity_pill(self):
+  # ISSUE-287: the activity pill is gone (the owner follows work here and in Notifications).
+  self.assertFalse((LIB/'activity_skin.py').exists());self.assertNotIn('activity pill tap',self.page)
  def test_registered_in_the_skin(self):
   files=library_page.files(portrait)
   self.assertEqual(sorted(Path(k).name for k in files if k.endswith('.xml')),['IOSLibraryItem.xml','IOSLibraryStatus.xml'])
@@ -172,7 +172,9 @@ def model_for(profile):
  now=time.time()
  state=prep.apply_to(prep.load(profile),prep.pending_requests(profile),now)
  if state.get('current'):state['current']['updated']=now
- return work_state.build({'prep':state},now)
+ import library_index
+ index=library_index.refresh(profile)
+ return work_state.build({'prep':state,'index':index},now)
 
 class FakeKodi:
  """Just enough of xbmc, xbmcgui, xbmcaddon and xbmcvfs to run library_status.run() and tap every button."""
@@ -182,6 +184,7 @@ class FakeKodi:
   self.notes=[];self.windows=[];self.menus=[];self.picks=[];kodi=self
   xbmc=types.ModuleType('xbmc');xbmc.LOGWARNING=2;xbmc.LOGINFO=1;xbmc.log=lambda *a:None
   class Monitor:
+   def abortRequested(self):return True
    def waitForAbort(self,t=0):return True    # the refresh loop ends at once; the test refreshes by tapping
   xbmc.Monitor=Monitor
   def visible(condition):
@@ -277,7 +280,7 @@ class TapEveryButton(unittest.TestCase):
   kodi=FakeKodi(self.profile,script,**kw)
   import work_state
   import notices
-  with patch.dict(sys.modules,kodi.modules),patch.object(notices,'downloads',lambda get=None:[]),patch.object(work_state,'load',side_effect=lambda *a:model_for(self.profile)):
+  with patch.dict(sys.modules,kodi.modules),patch.object(notices,'downloads',lambda get=None:[]),patch.object(work_state,'current',side_effect=lambda *a:model_for(self.profile)):
    module=load('library_status_run',BOOT/'library_status.py');module.run([])
   return kodi
  def page_rows(self, w):
@@ -287,7 +290,7 @@ class TapEveryButton(unittest.TestCase):
   kodi=self.run_page([(library_page.WINDOW,lambda w:seen.update(props=dict(w.props),rows=self.page_rows(w))),(library_page.WINDOW,tap(library_page.BACK))])
   self.assertTrue(kodi.windows[0].closed)
   self.assertEqual(seen['props']['headline'],'10 of 18 ready')
-  self.assertEqual(seen['props']['work.title'],'Lanterns · S1 E1')
+  self.assertEqual(seen['props']['work.title'],'S1 E1 · Lanterns')
   self.assertEqual({r[1] for r in seen['rows']},{'waiting','space','problem','kept'})   # DEC-047: no ready rows
  def test_filters(self):
   seen=[]
@@ -491,6 +494,10 @@ class PreparationLanes(unittest.TestCase):
   state=prep.load(self.profile);now=_t.time()
   state['lanes']={'2':{'title':'Naruto.Shippuden.S01E06.mkv','running':True,'updated':now+3600,'progress':63,'stage':'Step 3 of 3 · Making it start faster'},
                   '3':{'title':'Naruto.Shippuden.S01E07.mkv','running':True,'updated':now+3600,'progress':22}}
+  for n in (6,7):
+   name='Naruto.Shippuden.S01E%02d.mkv'%n
+   state['library']['items'].append(item('lane%d'%n,name))
+   state['jobs']['lane%d'%n]=job('lane%d'%n,name,status='running')
   prep.save(self.profile,state)
   seen={}
   kodi=self.run_page([(library_page.WINDOW,lambda w:seen.update(dict(w.props))),(library_page.WINDOW,tap(library_page.BACK))])
@@ -505,7 +512,7 @@ class PreparationLanes(unittest.TestCase):
  def test_the_rows_are_drawn(self):
   xml=library_page.page(portrait)
   for n in range(library_page.LANES):self.assertIn('id="%d"'%(library_page.LANE+n),xml);self.assertIn('id="%d"'%(library_page.LANE_BARS+n),xml)
-  self.assertIn("Window().Property(work.eyebrow)",xml)
+  self.assertIn("Window().Property(run.heading)",xml)   # DEC-051: the WORKING NOW heading counts every running job (was the card eyebrow)
 
 
 class LongPressCancel(unittest.TestCase):

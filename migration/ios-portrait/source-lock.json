@@ -3,22 +3,23 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "build_tag": "kodi-ios-portrait-r32",
+  "build_tag": "kodi-ios-portrait-r33",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
+    "tag": "kodi-ios-portrait-r33",
+    "asset": "Kodi-portrait-executable.zip",
+    "sha256": "091eb4a4ef75ad1475f5aa0d5d014f5eddb0ff3eb398e6d23b5a5e64a4671435",
+    "archive_sha256": "7ebe1377e8a409f74531ebbc7666d0f915cca9c9bee42cc831093ffd894afb00"
+  },
+  "build_note": "r33 built by run 43681992197 (manual build of 04ffff0, ISSUE-316: a group list skips children far off screen) and published by run 43719679425 (from_run, ISSUE-332): release zip and executable digests checked after download (arm64 Mach-O). r32 kept as previous; device acceptance pending.",
+  "previous_executable_release": {
     "tag": "kodi-ios-portrait-r32",
     "asset": "Kodi-portrait-executable.zip",
     "sha256": "8ebf5aa4027573d3fc02be8952af014d88e1e45d494b993c02e233d995a3fe57",
     "archive_sha256": "7565cddcb792a4aa8cd79a100f7ab96b6705b3065b2deb1a884609c2733c2169"
   },
-  "build_note": "r32 run 43362838057 (manual build of 61510d7, Saturation: SetVideoSaturation built-in and the GLES YUV-to-RGB matrix): release zip and executable digests checked after download (arm64 Mach-O, the built-in present). r31 kept as previous; device acceptance pending.",
-  "previous_executable_release": {
-    "tag": "kodi-ios-portrait-r31",
-    "asset": "Kodi-portrait-executable.zip",
-    "sha256": "a3f8626281731a1c11e2a01df22261632a8944b8da40f10f5db9a77e83264d3c",
-    "archive_sha256": "8bb096ab6e73cc21128da6eb79d732546a0f3abba4ee8e374766d562d356e179"
-  },
   "verified_run": 43362838057,
   "source_commit": "61510d7781025b4c3dc633c571ae9310dbaac0fa",
-  "patch_sha256": "9aabed41268d269c80bc5ed62e9455c4dd2d1597a4d20de8fe5bc96befb8fc93"
+  "patch_sha256": "f7c287f05e61359445a11b7035b414e015ee1d9b38b8b04a5711e431aeb91efb",
+  "build_note_r33": "r33 (owner approved the build 2026-11-15): ISSUE-316, a group list skips children more than a screen away from the visible part, so long pages scroll like the hubs. executable_release stays r32 until r33 is built and checked."
 }

@@ -3,7 +3,7 @@
 Build-229 log: Drive upload pieces crawled (~0.3 MB/s in total, one lane or two, on a 115 Mbps line) while nothing
 played. Python's TLS sends a body 16 KB at a time and every step waits for the interpreter. The framework sends the
 whole request with NSURLSession while this thread waits outside the interpreter (ctypes releases it)."""
-import ctypes,email.message,io,urllib.error,urllib.parse,urllib.request
+import ctypes,email.message,io,time,urllib.error,urllib.parse,urllib.request
 
 HEADERS_MAX = 64 * 1024
 BODY_MAX = 256 * 1024
@@ -93,8 +93,13 @@ def opener(lib):
     if send is None:return None
     def open_url(request,timeout=20):
         url=request.full_url;headers=dict(request.header_items())
+        deadline=getattr(request,'_kodi_open_deadline',None)
+        cancelled=getattr(request,'_kodi_cancelled',lambda:False)
         for _ in range(6):
-            status,answer,body=send(request.get_method(),url,None,headers,timeout)
+            if cancelled():raise ConnectionAbortedError('Stream opening cancelled')
+            remaining=timeout if deadline is None else min(timeout,deadline-time.monotonic())
+            if remaining<=0:raise TimeoutError('Stream opening budget expired')
+            status,answer,body=send(request.get_method(),url,None,headers,remaining)
             if status in (301,302,303,307,308):
                 location=next((v for k,v in answer.items() if k.lower()=='location'),None)
                 if not location:break

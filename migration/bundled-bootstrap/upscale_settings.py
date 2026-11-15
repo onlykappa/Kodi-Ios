@@ -20,7 +20,9 @@ def model(profile):
     import drivelibrary
     settings = picture.load(profile)
     data = uq.preview(profile, uq.load(profile))   # ISSUE-228: a cancel shows at once, before the service applies it
-    groups = up.library(prepare_downloads.load(profile), upscale_cloud.media_lookup(profile, drivelibrary.parse), data)
+    # ISSUE-288: the videos come from library_index, the record Library and Library status read.
+    groups = up.library(upscale_cloud.planning_state(profile, prepare_downloads.load(profile)),
+                        upscale_cloud.media_lookup(profile, drivelibrary.parse), data)
     return settings, data, groups, up.rows(settings, data, groups, data.get('engine') or {})
 
 

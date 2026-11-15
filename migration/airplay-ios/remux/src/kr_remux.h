@@ -81,6 +81,8 @@ int kr_remux_compat_clients(void);
 int kr_remux_prefetched(void);
 // r8: 0 turns making segments ahead off (host tests measure with and without it), 1 on (the default).
 void kr_remux_set_prefetch(int on);
+// ISSUE-326: 1 when a subtitle cue file for segment seg is answered empty at once (behind the resume position).
+int kr_remux_subtitle_answer_now(int seg);
 // r10: the subtitles burned into the converted picture (compat), taken by the next kr_remux_start: ordinal >= 0 is
 // Kodi's subtitle stream number (the ordinal-th subtitle stream of the file; at or past the file's count it is
 // Kodi's external subtitle, `file`); -1 none; -2 automatic (`file` when given, else the file's forced / default

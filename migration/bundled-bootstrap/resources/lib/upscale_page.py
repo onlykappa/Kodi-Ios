@@ -59,6 +59,39 @@ def status_row(engine):
             'value': 'Download', 'action': 'model'}
 
 
+QUALITY_SIZE = {'480p': (854, 480), '576p': (1024, 576), '720p': (1280, 720), '1080p': (1920, 1080)}
+
+
+def jobs_from_index(index, prep_state):
+    """ISSUE-288 (owner, build 442: "AI Upscale is not linked to the brain", Naruto season 2 missing): every video on
+    Google Drive that plays (ready or kept as it is) in library_index, shaped as a finished preparation job, so the AI
+    Upscale page and the copy planner list the same videos as Library. A video's own preparation job gives its picture
+    size; one without (never prepared, or kept as it is) takes it from the quality in its name. A video whose size is
+    not known either way is left out (the slider could offer nothing). Returns {'jobs': {Drive id: job}}."""
+    import library_files as lf
+    import library_index as li
+    prep = lf._index_prep(prep_state)
+    out = {}
+    for e in (index or {}).get('videos', []):
+        if not e.get('id') or e.get('state') not in (li.READY, li.KEPT):
+            continue
+        job = prep.get(str(e['id'])) or {}
+        probe = dict(job.get('probe') or {}) or dict(e.get('probe') or {})
+        if not (probe.get('width') and probe.get('height')):
+            size = QUALITY_SIZE.get(e.get('quality') or '')
+            if not size:
+                continue
+            probe.update(width=size[0], height=size[1])
+        made = dict(job)
+        if not job:
+            made['indexed_only'] = True     # never prepared: copied only when its show's page asks (ISSUE-245)
+        made.update(status='done', prepared_id=str(e['id']), probe=probe,
+                    source=dict(job.get('source') or {}, id=(job.get('source') or {}).get('id') or str(e['id']),
+                                name=(job.get('source') or {}).get('name') or e.get('name') or ''))
+        out[str(e['id'])] = made
+    return {'jobs': out}
+
+
 def library(prep_state, media_for, data):
     """Every prepared download grouped by show/movie: [{'key', 'title', 'kind', 'videos': [...], 'source', 'ready',
     'making', 'waiting', 'kept'}], largest first; 'kept' counts 4K and HDR videos (kept as they are)."""

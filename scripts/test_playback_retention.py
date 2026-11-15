@@ -109,4 +109,20 @@ class Progress(unittest.TestCase):
     'unused',clock=lambda:0,progress_signature=lambda:(states[i[0]][2],100))
   self.assertEqual(refresh,[1,3])
 
+class ContinueWatchingSaysWhatItFollows(unittest.TestCase):
+ """ISSUE-299 (owner, build 442: Continue Watching only showed downloaded things): one log line per playback."""
+ def test_logs_the_followed_title_or_none(self):
+  import importlib.util,types
+  lib=Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'
+  sys.path.insert(0,str(lib))
+  import portrait
+  for data,expect in (({'items':{'k':{'kind':'episode','player':'umbrella','position':0}},'current':'k'},'following episode · umbrella'),
+                      ({'items':{}},'nothing recorded')):
+   logs=[]
+   module=types.SimpleNamespace(load=lambda read,d=data:d,update=lambda *a:None,stopped=lambda *a:None)
+   player=types.SimpleNamespace(isPlayingVideo=lambda:True,getTime=lambda:5.0,getTotalTime=lambda:100.0)
+   tick=portrait.progress_tracker(player,module,None,None,lambda:0.0,log=logs.append)
+   tick()
+   self.assertTrue(any(expect in l for l in logs),logs)
+
 if __name__=='__main__':unittest.main()

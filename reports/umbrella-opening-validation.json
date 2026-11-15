@@ -1,0 +1,128 @@
+{
+  "issue": "ISSUE-303",
+  "baseline_build": 473,
+  "baseline_commit": "ceb06e7f2b48136cb0d66d2d1552ad5a732d421f",
+  "device_verified": false,
+  "private_log_sha256": {
+    "build_473": "3ea31786284de14c35e2a9c98a9a74f22012dbd91f20b881d5aacc9ad0b5bb8c",
+    "build_470": "97c9e567dd5cb200afe227276fc7d9b71573504ed2a64539eb5f8791d816dcf8"
+  },
+  "baseline_reproduction": {
+    "cases": 7,
+    "failures": 5,
+    "passed": 2
+  },
+  "focused_suites": [
+    {
+      "suite": "test_stream_slow_link",
+      "returncode": 0,
+      "seconds": 2.16,
+      "output": "....\n----------------------------------------------------------------------\nRan 4 tests in 2.006s\n\nOK\n"
+    },
+    {
+      "suite": "test_stream_opening_fallback",
+      "returncode": 0,
+      "seconds": 13.49,
+      "output": "............\n----------------------------------------------------------------------\nRan 12 tests in 13.350s\n\nOK\n"
+    },
+    {
+      "suite": "test_stream_integrity",
+      "returncode": 0,
+      "seconds": 6.14,
+      "output": "..........\n----------------------------------------------------------------------\nRan 10 tests in 6.019s\n\nOK\n"
+    },
+    {
+      "suite": "test_native_http",
+      "returncode": 0,
+      "seconds": 1.15,
+      "output": "..............\n----------------------------------------------------------------------\nRan 14 tests in 1.037s\n\nOK\n"
+    },
+    {
+      "suite": "test_umbrella_recovery",
+      "returncode": 0,
+      "seconds": 6.67,
+      "output": "..............\n----------------------------------------------------------------------\nRan 14 tests in 6.536s\n\nOK\n"
+    },
+    {
+      "suite": "test_open_timing",
+      "returncode": 0,
+      "seconds": 0.06,
+      "output": ".........\n----------------------------------------------------------------------\nRan 9 tests in 0.001s\n\nOK\n"
+    }
+  ],
+  "supplementary_checks": {
+    "test_stream_fallback": {
+      "tests": 7,
+      "passed": true
+    },
+    "test_remote_media": {
+      "tests": 55,
+      "passed": true
+    },
+    "test_native_http_transport": {
+      "tests": 5,
+      "skipped": 5,
+      "reason": "Foundation executable tests require macOS; no native transport changes"
+    }
+  },
+  "scope": [
+    "completed opening probes before loopback admission",
+    "shared five-second cache deadline, including redirects and renewed links",
+    "cancel abandoned cache reads and queued requests",
+    "consistent complete byte ranges; eight-request cap",
+    "exact original-source fallback and safe diagnostics"
+  ],
+  "limits": [
+    "Host tests do not prove iPhone playback or speed.",
+    "Five seconds bounds cache admission, not total provider/Kodi startup.",
+    "The logs cannot establish the exact cause of every progress reset."
+  ],
+  "publication": {
+    "approved": "testing IPA",
+    "merge_authorized": false,
+    "state": "testing IPA published and downloaded; digest/ZIP/source/pins verified",
+    "source_commit": "2f447c7759cfd55c92151b58c2cca9e075456ab7",
+    "build": 475,
+    "run_id": 43653853433,
+    "run_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/43653853433",
+    "ci_conclusion": "success",
+    "artifact": {
+      "build": 475,
+      "commit": "c1bb11cbfc10d35df1fc4e32d804bd351e66720f",
+      "source_ref": "claude/build442-feedback",
+      "workflow_run": "43653853433",
+      "frameworks": {
+        "airplay": {
+          "sha256": "9a11280783684187c357844081cf08f7874a4e19ca0af0f5f309392dfe42fbda",
+          "tag": "kodi-airplay-r57"
+        },
+        "glassbar": {
+          "sha256": "ecc883d2fe159e9aa08653a3130efe4003c3d40c4882222494dbb82f960bf16e",
+          "tag": "kodi-glassbar-r6"
+        },
+        "ios-portrait": {
+          "sha256": "8ebf5aa4027573d3fc02be8952af014d88e1e45d494b993c02e233d995a3fe57",
+          "tag": "kodi-ios-portrait-r32"
+        }
+      },
+      "ipa_sha256": "137ea206004941424d03af751326c9205df10994bcbbb8d38f1773b3d1e733b7",
+      "bytes": 493412828,
+      "zip_crc_valid": true,
+      "tested_modules": [
+        {
+          "module": "remote_media.py",
+          "sha256": "7713cd81e13ec1dcca47d0a70a9e26315f9bc1f1611b08c24e6691fe4c4960f6"
+        },
+        {
+          "module": "native_http.py",
+          "sha256": "80cbb48dcf8bff019aae1dbf5e2f4c94a030133d9b0e445458dd1947696c8257"
+        }
+      ],
+      "download": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-475/Kodi-iOS-Customized-Touch-r10.ipa",
+      "phone_verified": false
+    },
+    "embedded_commit_note": "Pull-request test merge c1bb11c; release targets source 2f447c7. Both have the same source tree."
+  },
+  "total_host_tests_passed": 125,
+  "project_check": "passed"
+}

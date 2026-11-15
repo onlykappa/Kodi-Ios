@@ -125,10 +125,11 @@ class ResumeRouting(unittest.TestCase):
   self.enabled.remove('plugin.video.umbrella')
   self.assertIsNone(watch.choose_player(self.player));self.dialog.select.assert_not_called();self.dialog.ok.assert_called_once()
   self.assertEqual(self.saved()['player'],'umbrella')
- def test_lookup_error_stops_instead_of_redownloading(self):
+ def test_lookup_error_lets_a_stream_carry_on(self):
+  # ISSUE-299 (owner log beee3eba): a signed-out Drive stopped every Continue Watching stream. Umbrella streams carry on.
   with patch.object(downloads,'completed_copy',side_effect=OSError('offline')):
-   self.assertIsNone(watch.choose_player(self.player))
-  self.dialog.select.assert_not_called();self.dialog.ok.assert_called_once();self.assertEqual(self.saved()['player'],'umbrella')
+   self.assertIs(watch.choose_player(self.player),self.umbrella)
+  self.dialog.select.assert_not_called();self.dialog.ok.assert_not_called();self.assertEqual(self.saved()['player'],'umbrella')
  def test_missing_previously_local_copy_does_not_start_a_torrent(self):
   history.record(self.player,self.read,self.write,choice='local')
   self.assertIsNone(watch.choose_player(self.player));self.dialog.select.assert_not_called()
@@ -139,5 +140,17 @@ class ResumeRouting(unittest.TestCase):
   sys.argv[2]='?info=play&tmdb_type=movie&tmdb_id=9479'
   self.assertIs(watch.choose_player(self.player),self.engine);self.dialog.select.assert_called_once()
   self.assertEqual(self.saved()['player'],'elementum')
+
+class SignedOutDriveDoesNotBlockStreams(unittest.TestCase):
+ """ISSUE-299 (owner log beee3eba, build 442): Continue Watching did nothing twice ("completed-copy check failed:
+ SignedOut"); a failed copy check now carries on to the saved player instead of stopping."""
+ def test_lookup_error_carries_on(self):
+  src=(Path(__file__).resolve().parents[1]/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_watch_dialog.py').read_text()
+  branch=src[src.index("try:downloaded=None if choosing(player)"):]
+  branch=branch[:branch.index(" if downloaded is not None:")]
+  self.assertIn('downloaded=None',branch)
+  self.assertNotIn('return None',branch)
+  self.assertIn("if lookup_failed and kind_of(item)=='elementum':",src)   # a download still stops
+
 
 if __name__=='__main__':unittest.main()

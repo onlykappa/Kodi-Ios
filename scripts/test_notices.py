@@ -47,14 +47,14 @@ class NoticeTests(unittest.TestCase):
   self.assertEqual(notices.badge(self.profile,lambda url:'[]',now=now+60),('1',''))   # an old snapshot never counts as moving
  def test_ingest_kodi_popups(self):
   path=notices.toasts(self.profile);path.parent.mkdir(parents=True,exist_ok=True)
-  path.write_text('\n'.join([json.dumps({'time':10,'type':'info','caption':'TMDbHelper','description':'Trakt authorized in 1.665s'}),
+  path.write_text('\n'.join([json.dumps({'time':10,'type':'info','caption':'TMDbHelper','description':'Lists refreshed in 1.665s'}),
    'not json',json.dumps({'time':20,'type':'error','caption':'Umbrella','description':'Scraper failed'}),
    json.dumps({'time':30,'type':'default','caption':'','description':''}),
    json.dumps({'time':40,'type':'default','caption':'','description':'Only text'})])+'\n')
   self.assertEqual(notices.ingest(self.profile),3);self.assertFalse(path.exists())
   items=notices.load(self.profile)
   self.assertEqual([(i['kind'],i['title'],i['text']) for i in items],
-   [('general','Kodi','Only text'),('problem','Umbrella','Scraper failed'),('general','TMDbHelper','Trakt authorized in 1.665s')])
+   [('general','Kodi','Only text'),('problem','Umbrella','Scraper failed'),('general','TMDbHelper','Lists refreshed in 1.665s')])   # ISSUE-289: Trakt connecting is not kept
   self.assertEqual(items[2]['time'],10.0);self.assertEqual(notices.ingest(self.profile),0)
   props,shown=page.message_properties(items,'general',now=50);self.assertEqual([i['title'] for i in shown],['Kodi','TMDbHelper'])
   props,shown=page.message_properties(items,'problems',now=50);self.assertEqual([i['title'] for i in shown],['Umbrella'])

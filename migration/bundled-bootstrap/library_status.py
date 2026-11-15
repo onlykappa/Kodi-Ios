@@ -47,6 +47,62 @@ def snapshot(profile,downloads,uploads):
  view=library_rows.with_model(view,model)
  return state,view
 
+
+_PCT={}
+def with_eta(job,now=None):
+ """A job without its own time left gets one from how fast its percentage moved (owner, build 442: every row shows
+ its time). Kept per title for the page's life; needs 10 s of progress."""
+ import time as _t
+ if not job or job.get('eta_s') or not job.get('title'):return job
+ now=_t.time() if now is None else now
+ pct=float(job.get('pct') or 0);seen=_PCT.setdefault(job['title'],[])
+ if not seen or seen[-1][1]!=pct:seen.append((now,pct));del seen[:-30]
+ first=seen[0]
+ if now-first[0]>=10 and pct>first[1] and pct<100:
+  job=dict(job,eta_s=(100-pct)*(now-first[0])/(pct-first[1]))
+ return job
+
+def slim_slots(conv,lanes,downs,jobs):
+ """[(prefix, job)] for the WORKING NOW rows (library_page.RUN_SLOTS): the conversion, the extra lanes, and each copy
+ row matched to its model job by title (for its speed and time left); {} where a slot is empty."""
+ import library_page
+ by_title={str(j.get('title')):j for j in jobs or [] if j.get('title')}
+ out=[('work.',conv or {})]+[('lane.%d.'%n,lanes[n] if n<len(lanes) else {}) for n in range(library_page.LANES)]
+ for n in range(6):
+  i=downs[n] if n<len(downs) else {}
+  if not i:out.append(('down.%d.'%n,{}));continue
+  r=dict(i.get('row') or {});j=by_title.get(str(i.get('label') or ''),{})
+  job=dict(j);job.update(title=str(i.get('label') or ''),pct=r.get('pct',j.get('pct')),fallback=str(i.get('label2') or ''))
+  out.append(('down.%d.'%n,job))
+ return [(k,with_eta(j)) for k,j in out]
+
+def slim_rows(slots):
+ """DEC-051 board A: each WORKING NOW row's properties. Every row reads the same way (owner, build 442: "they should
+ all look like the first one with a graph and time"): its step, speed and time left; why it waits in orange. Line
+ counts come from the text's width (rows grow instead of cutting, DEC-050, and are even otherwise)."""
+ import library_page,library_rows,notifications_skin as ns
+ out={};live=[]
+ part=lambda t:str(t or '').strip().strip('\u00b7').strip()
+ for k,j in slots:
+  title=str(j.get('title') or '')
+  moving=j.get('state') not in ('paused','waiting','stale','queued') if j else False
+  speed,left=library_rows.speed_left(j) if j else ('','')
+  step=j.get('step') or j.get('line') or j.get('fallback') or ''
+  status=' \u00b7 '.join(x for x in map(part,(step,speed,left)) if x) if moving else part(j.get('line') or step)
+  pct=0 if j.get('indeterminate') else float(j.get('pct') or 0)
+  tint=(str(j.get('tint') if j.get('state')=='slowed' else j.get('tint_now','')) or
+        ('FF0A84FF' if k.startswith('down.') else 'FFBF5AF2')) if j else ''
+  if j.get('state') in ('paused','stale'):tint='4DEBEBF5'
+  out.update({k+'title':title,k+'ring':library_rows.ring_name(pct),k+'num':'' if j.get('indeterminate') or not title else '%d'%int(pct),
+              k+'status':status,k+'warn':'' if moving or not title else 'true',k+'tint':tint,
+              k+'tl':str(ns.lines_in(title,35,library_page.SLIM_TEXT_W,2,True) or 1),
+              k+'sl':str(ns.lines_in(status,30,library_page.SLIM_TEXT_W,2) or 1)})
+  if title:live.append(k)
+ for k,_ in slots:
+  out[k+'pos']='' if k not in live else 'only' if len(live)==1 else 'first' if k==live[0] else 'last' if k==live[-1] else 'mid'
+ out['run.heading']='WORKING NOW \u00b7 %d'%len(live) if live else ''
+ return out
+
 def run(args=()):
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
  import drivelibrary,notices,transfer_artwork
@@ -122,6 +178,7 @@ def run(args=()):
     j=next((v for k,v in jobs.items() if k.split('.')[0]=='up' and v.get('job')==s['live_job']),j)
    points=j.get('points') or [] if (j.get('title')==s['title'] or (s.get('live_job') and j.get('job')==s['live_job'])) else []
    live=s.get('live') or {}
+   points=live.get('speed_history') or points
    rate=float(live.get('rate') or 0)
    moving=live.get('state') in ('running','slowed') and rate>0
    props=dict(library_rows.speed_card_text(live,j,self.row.get('size'),s.get('bar')))
@@ -240,6 +297,30 @@ def run(args=()):
     except Exception as error:xbmc.log('Library status: graph not drawn (%s)'%type(error).__name__,xbmc.LOGWARNING)
     self.setProperty('work.graph',graph)
     self.draw_rows(pools,props)
+    slots=slim_slots(conv,lanes,pools.get('down',[]),model.get('jobs'))
+    for k,v in slim_rows(slots).items():self.setProperty(k,v)
+    self.sparks(slots)
+  def sparks(self,slots):
+   """Owner (build 442): every WORKING NOW row has its speed line. A job's own history when the service keeps one
+   (transfer_history, matched by title), else the speeds this page has seen for that row since it opened."""
+   import time as _t,transfer_history as th,work_state
+   hist=list((th.load(profile).get('jobs') or {}).values())
+   seen=self.__dict__.setdefault('_seen',{})
+   folder=os.path.join(xbmcvfs.translatePath('special://skin/'),'extras','portrait','spark')
+   for k,j in slots:
+    graph=''
+    try:
+     if j and j.get('title'):
+      h=next((x for x in hist if x.get('title')==j['title'] and len(x.get('points') or [])>1),None)
+      mine=seen.setdefault(j['title'],[])
+      if float(j.get('rate') or 0)>0:mine.append([_t.time(),float(j['rate']),1]);del mine[:-60]
+      points=(h or {}).get('points') or (mine if len(mine)>1 else [])
+      if points:
+       tint=j.get('tint_now') or ('FF0A84FF' if k.startswith('down.') else 'FFBF5AF2')
+       graph=self.graphs.image(work_state.job_key(j) if j.get('kind') else k+j['title'],points,tint,folder,
+        'special://skin/extras/portrait/spark',width=438,height=81,scale=th.device_scale(),guides=False)
+    except Exception as error:xbmc.log('Library status: speed line not drawn (%s)'%type(error).__name__,xbmc.LOGWARNING)
+    self.setProperty(k+'graph',graph)
   def graph(self,conv):
     graph=''
     if conv:

@@ -59,7 +59,7 @@ def textures(p):
 # Rows: (id, label, actions joined by \x00, glyph, tint, value, badge condition)
 def R(id,text,actions,glyph='',tint=SILVER,value='',badge=''):return (id,text,actions,glyph,tint,value,badge)
 CUSTOM_PAGE='SetProperty(Settings.Page,custom,%s)\x00SetFocus(9401)\x00RunScript(service.kodi.ios.bootstrap,customise_counts)'%WINDOW
-LIBRARY_PAGE='SetProperty(Settings.Page,library,%s)\x00SetFocus(9451)'%WINDOW
+LIBRARY_PAGE='SetProperty(Settings.Page,library,%s)\x00SetFocus(9453)'%WINDOW
 LIBRARY_SCAN='RunScript(service.kodi.ios.bootstrap,library_scan)'
 LIBRARY_STATUS='RunScript(service.kodi.ios.bootstrap,library_status)'
 LIBRARY_REFRESH='RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&all=1)'
@@ -75,7 +75,7 @@ ROOT=[
     '$INFO[Window(Home).Property(KodiIOS.UpscaleSummary)]')],
  # What the profile button's More menu held (round 5: the gear in the header opens Settings instead).
  [R(9171,'Google Drive','ActivateWindow(Videos,plugin://plugin.googledrive/,return)','cloud.png',BLUE),
-  R(9172,'Favourites','RunScript(service.kodi.ios.bootstrap,favourites_page)','star.png',ORANGE),
+  R(9172,'Favourites','RunScript(service.kodi.ios.bootstrap,favourites_manager)','star.png',ORANGE),
   R(9173,'Check for updates','RunScript(service.kodi.ios.bootstrap,check_updates)','cloud-arrow-down.png',GREEN),
   R(9174,'iPhone navigation / recovery','RunScript(service.kodi.ios.bootstrap,navigation_menu)','life-ring.png',RED)],
  # PVR & Live TV and Games are gone (owner, 2026-11-12): the app ships without the PVR clients and game cores
@@ -110,14 +110,11 @@ CUSTOM=[
   'TMDb Helper fills the Home rows. Sign in to Trakt from Accounts.'),
 ]
 LIBRARY=[
- ('iPhone Files',[R(9451,'Scan iPhone files',LIBRARY_SCAN,'magnifying-glass.png',BLUE)],
-  'Find movies and shows in Kodi Downloads or a folder you choose. Upload missing files to Google Drive. Remove phone copies only after their size and checksum match Drive.'),
- ('Library',[R(9452,'Refresh Library',LIBRARY_REFRESH,'arrows-rotate.png',BLUE),
-  R(9453,'Movies','RunScript(service.kodi.ios.bootstrap,library_manager,movie)','film.png',ORANGE),
-  R(9454,'TV Shows','RunScript(service.kodi.ios.bootstrap,library_manager,tv)','tv.png',PURPLE),
-  R(9458,'Check Drive for problems','RunScript(service.kodi.ios.bootstrap,library_manager,check)','magnifying-glass.png',ORANGE),
-  # ISSUE-198: copies that ended, with their reason; Retry All / Clear.
-  R(9459,'Download problems','RunScript(service.kodi.ios.bootstrap,copy_problems)','triangle-exclamation.png',RED)],
+ # ISSUE-329 (owner, 2026-11-15): Scan iPhone files, Refresh Library, Check Drive for problems and Download problems
+ # went: the service scans Kodi Downloads by itself, Library status and the Movies/TV pages have Refresh, and problems
+ # reach Notifications (Download problems from its help, Drive problems as their own message).
+ ('Library',[R(9453,'Movies','RunScript(service.kodi.ios.bootstrap,library_manager,movie)','film.png',ORANGE),
+  R(9454,'TV Shows','RunScript(service.kodi.ios.bootstrap,library_manager,tv)','tv.png',PURPLE)],
   'Includes completed downloads on this iPhone and in Google Drive.'),
  ('Kodi and AirPlay',[R(9457,'Library status',LIBRARY_STATUS,'file-waveform.png',PURPLE)],
   'Every movie and show in Google Drive › Kodi Downloads is prepared once, so seeking on Kodi and AirPlay never waits. Check now to see what is ready, waiting or paused.'),
@@ -349,9 +346,9 @@ def custom_list(p):
 
 def library_list(p):
  moves=nav([(r[0],'') for _,rows,_ in LIBRARY for r in rows]);body=''
- moves[9451]=([('',9001)],moves[9451][1])
+ moves[9453]=([('',9001)],moves[9453][1])   # ISSUE-329: Movies is the first row
  for title,rows,note in LIBRARY:
-  body+=section(p,title)+card(p,rows,moves)+footer(p,note,210 if title=='iPhone Files' else 130)+spacer(GAP-30)
+  body+=section(p,title)+card(p,rows,moves)+footer(p,note,130)+spacer(GAP-30)
  return body+spacer(160)
 
 # Settings home: the header sits lower so the back circle and title clear the status bar like Search's band
@@ -386,13 +383,13 @@ def settings_window(p,original):
        lst(9350,ON_TABS,switch_list(p,TABS_PAGE_ROWS),SETTINGS_TOP)+lst(9360,ON_INFO,switch_list(p,INFO),SETTINGS_TOP)+
        lst(9370,ON_VIEWS,switch_list(p,VIEWS),SETTINGS_TOP)+
        header(p,back,[('Settings',ON_ROOT),('Customisation',ON_CUSTOM),('Library',ON_LIBRARY)]+[(t,c) for _,c,_,_,t in SUBPAGES],SETTINGS_Y,
-              '<ondown condition="%s">9300</ondown><ondown condition="%s">9401</ondown><ondown condition="%s">9451</ondown>'%(ON_ROOT,ON_CUSTOM,ON_LIBRARY)+
+              '<ondown condition="%s">9300</ondown><ondown condition="%s">9401</ondown><ondown condition="%s">9453</ondown>'%(ON_ROOT,ON_CUSTOM,ON_LIBRARY)+
               ''.join('<ondown condition="%s">%d</ondown>'%(c,f) for _,c,f,_,_ in SUBPAGES))+'</controls>')
  extra=('<onload condition="Window.Previous(home)">ClearProperty(Settings.Page,%s)</onload>'%WINDOW+
         '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>')
  # Back from a category opened on the Customisation page: the home rows are hidden, so focus that page instead.
  extra+='<onload condition="%s">SetFocus(9401)</onload>'%ON_CUSTOM
- extra+='<onload condition="%s">SetFocus(9451)</onload>'%ON_LIBRARY
+ extra+='<onload condition="%s">SetFocus(9453)</onload>'%ON_LIBRARY
  extra+='<onload condition="%s">%s</onload>'%(ON_CUSTOM,COUNTS)
  extra+=''.join('<onload condition="%s">SetFocus(%d)</onload>'%(c,f) for _,c,f,_,_ in SUBPAGES)
  extra+='<onload condition="%s">%s</onload>'%(ON_TABS,COUNTS)   # back from a tab's rows: its count again
@@ -796,6 +793,12 @@ def profiles_page(p):
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9601</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
 
+def rank_badge(p,prop,x,y,tag):
+ """A small dark pill on a poster: the imported list's rank ("#3") or watch count ("3x"). Drawn only while the property is set.
+ A flat translucent chip (a Kodi-drawn surface, not glass): at least 70 % black so it reads over any artwork."""
+ return ('<control type="group"><left>%d</left><top>%d</top><visible>!String.IsEmpty(Window().Property(%s))</visible>'%(x,y,prop[len('Window().Property('):-1])+
+  p.image(0,0,104,48,p.MEDIA+'r21.png','B3000000',border=21)+p.label(0,0,104,48,'$INFO[%s]'%prop,'p_foot_b',p.WHITE,'center')+'</control>')
+
 def favourite_cell(p,n,x,y,cw,ch):
  """Poster n (shown while its title is set): the Movies grid's poster card and art, its title under it, and in Edit mode a
  red remove badge on the favourites Favourites.AddFavourite can remove. Button 9700+n opens it (or removes it in Edit)."""
@@ -808,7 +811,8 @@ def favourite_cell(p,n,x,y,cw,ch):
   '<control type="group"><animation effect="zoom" start="100" end="104" time="160" center="auto" tween="cubic" easing="out" condition="Control.HasFocus(%d)">Conditional</animation>'%(9700+n)+
   p.image(0,0,cw,ch,p.MEDIA+'white.png',p.SURFACE,'','',p.MEDIA+'poster_mask.png')+
   p.image(0,0,cw,ch,'$INFO[%s]'%flag('thumb'),p.WHITE,'','>scale',p.MEDIA+'poster_mask.png',background=True)+
-  p.label(0,ch+14,cw,cap-14,'$INFO[%s]'%flag('title'),'p_foot_b',p.WHITE,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+
+  p.label(0,ch+14,cw,cap-14,'$INFO[%s]'%flag('title'),'p_foot_b',p.WHITE,'left','<wrapmultiline>true</wrapmultiline>').replace('<aligny>center</aligny>','<aligny>top</aligny>')+   # label() writes aligny first, so an extra one never wins (ISSUE-310)
+  rank_badge(p,flag('rank'),12,12,'top')+rank_badge(p,flag('watched'),12,ch-60,'bottom')+
   '<control type="group"><left>%d</left><top>14</top><visible>%s</visible>'%(cw-70,badge)+
   p.image(0,0,56,56,p.MEDIA+'avatar_s.png',RED)+p.image(2,2,52,52,p.MEDIA+'close_cross.png',p.WHITE)+'</control></control></control>')
 
@@ -821,10 +825,11 @@ def favourites_page(p):
    p.WIDTH,row_h,3*r+1,''.join(favourite_cell(p,3*r+c+1,p.SIDE+c*(cw+p.GAP),0,cw,ch) for c in range(cols)))
    for r in range(favourites_rows.MAX//cols))
  # DEC-045 board F1: the star in a yellow-tinted disc, what is empty, and how to add one (policy §6).
- empty=('<control type="group"><width>%d</width><height>560</height><visible>String.IsEmpty(Window().Property(count)) | String.IsEqual(Window().Property(count),0)</visible>'%p.WIDTH+
+ empty=('<control type="group"><width>%d</width><height>760</height><visible>String.IsEmpty(Window().Property(count)) | String.IsEqual(Window().Property(count),0)</visible>'%p.WIDTH+
   p.image(p.WIDTH//2-86,180,172,172,p.MEDIA+'avatar_s.png','29FFD60A')+p.icon(p.WIDTH//2-66,200,132,'star.png','FFFFD60A')+
   p.label(p.SIDE,390,w,70,favourites_rows.EMPTY,'p_h3',p.WHITE,'center')+
-  p.label(p.SIDE+60,470,w-120,60,favourites_rows.EMPTY_LINE,'p_foot',p.GREY,'center','<wrapmultiline>true</wrapmultiline>')+'</control>')
+  p.label(p.SIDE+60,470,w-120,100,favourites_rows.EMPTY_LINE,'p_foot',p.GREY,'center','<wrapmultiline>true</wrapmultiline>')+
+  p.pill_button(9032,p.SIDE+90,600,w-180,124,'Import a List',[],'primary','')+'</control>')
  none=('<control type="group"><width>%d</width><height>160</height><visible>!String.IsEmpty(Window().Property(none))</visible>'%p.WIDTH+
   p.label(p.SIDE,40,w,60,'$INFO[Window().Property(none)]','p_foot',p.GREY,'center')+'</control>')
  import importlib.util as _u,os as _os
@@ -832,10 +837,17 @@ def favourites_page(p):
  ns=_u.module_from_spec(_sp);_sp.loader.exec_module(ns)
  chips=('<control type="group"><width>%d</width><height>130</height><visible>!String.IsEmpty(Window().Property(chips))</visible>'%p.WIDTH+
   ns.segmented(p,favourites_rows.FILTERS,y=0,base=9020)+'</control>')
+ tool=('<control type="group"><width>%d</width><height>130</height><visible>!String.IsEmpty(Window().Property(chips))</visible>'%p.WIDTH+
+  '<control type="button" id="9030"><left>%d</left><top>6</top><width>420</width><height>118</height><label>Import a List</label>'
+  '<font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>left</align><aligny>center</aligny>'
+  '<texturefocus /><texturenofocus /></control>'%(p.SIDE,p.ACCENT,p.ACCENT)+
+  '<control type="button" id="9031"><left>%d</left><top>6</top><width>520</width><height>118</height><label>$INFO[Window().Property(sortlabel)]</label>'
+  '<font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny>'
+  '<texturefocus /><texturenofocus /></control>'%(p.WIDTH-p.SIDE-520,p.ACCENT,p.ACCENT)+'</control>')
  lst=('<control type="grouplist" id="9300"><left>0</left><top>200</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
       '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%p.WIDTH+
       p.label(p.SIDE,0,w,130,favourites_rows.TITLE,'p_large',p.WHITE,'left','<scroll>false</scroll>')+
-      spacer(14)+chips+rows+none+empty+spacer(160)+'</control>')
+      spacer(14)+chips+tool+rows+none+empty+spacer(160)+'</control>')
  has='!String.IsEmpty(Window().Property(fav.1.title))';editing='!String.IsEmpty(Window().Property(editing))'
  # Edit and Done are text buttons in the header's right corner, in the accent blue like Cancel and Done in the sheets.
  edit=('<control type="button" id="9010"><left>%d</left><top>36</top><width>240</width><height>108</height><label>Edit</label>'

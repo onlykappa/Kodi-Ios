@@ -48,6 +48,13 @@ def _prep_problem(item, video):
 
 def _copy_problem(item, video):
     text = str(item.get('text') or '')
+    import copy_errors
+    if copy_errors.is_terminal(text):
+        return {'title': "Couldn't copy %s" % video if video else "Couldn't download to Google Drive",
+                'line': 'This copy needs your attention', 'warn': True,
+                'happened': 'The copy stopped: %s.' % _plain(text),
+                'safe': 'No unverified copy replaced the original.',
+                'fixes': [('Open Download problems', 'See the reason and choose what to do', 'problems')]}
     blocked = re.search(r'(?i)blocked|sign-?in|unauthor|401|403', text)
     busy = re.search(r'(?i)busy|503|502|timed out|network|connection', text)
     # ISSUE-277: "is waiting" only when it really waits (busy or blocked); a copy that ended says it couldn't be copied.
@@ -169,6 +176,8 @@ def explain(item):
     if item.get('action') and not any(a == 'notice' for _, _, a in out['fixes']):
         out['fixes'].insert(0, ('Open', 'Where this happened', 'notice'))
     out['fixes'] = out['fixes'][:3]
+    import notice_models
+    out['timeline'] = notice_models.timeline(item)
     return out
 
 
@@ -204,4 +213,21 @@ def facts(item, records, probe=None):
             out.append(('Subtitles', 'DVD picture subtitles'))
     if (item or {}).get('time'):
         out.append(('When', _time.strftime('%d %b %H:%M', _time.localtime(item['time']))))
+    return out
+
+
+def folded(items):
+    """C1 list model, ready for the UI to bind count/lines without changing notices.add/load/filter."""
+    import notice_models
+    return notice_models.fold(items)
+
+
+def detail_model(item, records=(), profile=None):
+    """N2: explanation plus up to three timed steps (time, colour_kind, kind, text, at)."""
+    import notice_models
+    item = dict(item or {})
+    if profile is not None and not item.get('timeline'):
+        item['timeline'] = notice_models.steps_for(profile, item)
+    out = explain(item)
+    out['timeline'] = notice_models.timeline(item, records)
     return out

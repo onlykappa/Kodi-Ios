@@ -23,7 +23,7 @@ class _Late:
   if self._module is None:
    import importlib;self._module=importlib.import_module(self._name)
   return getattr(self._module,attribute)
-activity,signin_server,background,calibration,driveupload,portrait,umbrella_ready=[_Late(n) for n in ('activity','signin_server','background','calibration','driveupload','portrait','umbrella_ready')]
+signin_server,background,calibration,driveupload,portrait,umbrella_ready=[_Late(n) for n in ('signin_server','background','calibration','driveupload','portrait','umbrella_ready')]
 _IMPORT_SECONDS=time.monotonic()-_IMPORT_STARTED
 
 def run():
@@ -63,22 +63,12 @@ def run():
  if not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
   import episode_watch_runtime
   threading.Thread(target=episode_watch_runtime.run,args=(monitor,profile,setup_done.is_set),daemon=True).start()
+  # The show page's bell (anticipated.py): shows only for a show with an episode still to come.
+  import anticipated,source_match,xbmcgui
+  threading.Thread(target=anticipated.bell_service,args=(monitor,profile,xbmcgui.Window(10000),xbmc.getInfoLabel,source_match.tmdb_key),daemon=True).start()
   portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),kwargs={'ready':setup_done,'native_ui_started':_EARLY_UI_STARTED},daemon=True);portrait_thread.start()
  # Owner build-136 log: the tab bar answered ~8 s after launch, 2 s of it this fixed wait. Only setup waits now.
  if monitor.waitForAbort(2):return
- def slow_start(after=3.0):
-  """Board 13 (owner-approved, docs/design/fuse-windows-mockups.html; roadmap U.13): no startup box over Home. Only
-  when the skin's own setup (first start, or after an update) is still running `after` seconds later, the activity
-  pill says so ("Getting things ready · Preparing your library"), through Kodi's background box that the pill reads
-  (activity.classify), until setup is over."""
-  import activity
-  if monitor.waitForAbort(after) or setup_done.is_set():return
-  box=xbmcgui.DialogProgressBG()
-  try:
-   box.create(activity.STARTUP_TITLE,activity.STARTUP_TEXT)
-   while not setup_done.is_set():
-    if monitor.waitForAbort(0.5):break
-  finally:box.close()
  def prepare_generated(sync=True):
   nonlocal generated
   stage('skin_preferences')
@@ -87,7 +77,6 @@ def run():
   stage('phone_menus');update_nodes(profile);phone_defaults(lambda id:xbmc.getInfoLabel('Skin.String('+id+')'),invoke)
   skin=Path(xbmcvfs.translatePath('special://skin/')).resolve()
   if skin.name!=FUSE or not skin.is_relative_to(home):raise RuntimeError('Writable Fuse path not selected')
-  threading.Thread(target=slow_start,daemon=True).start()
   generate(skin,xbmc.getSkinDir,invoke,monitor.waitForAbort,xbmc.getInfoLabel('Skin.String(SkinVariables.SkinUser)'),stage)
   generated=True
  try:
@@ -217,7 +206,7 @@ def run():
   threading.Thread(target=later,daemon=True).start()
  import slowdown
  playback_lib=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
- slowdown.configure(lambda:'airplay' if airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time()) else ('buffering' if xbmc.getCondVisibility('Player.Caching') else 'video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
+ slowdown.configure(lambda:slowdown.play_reason(airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time()),xbmc.getCondVisibility('Player.Caching'),xbmc.getCondVisibility('Player.HasVideo'),xbmcgui.Window(10000).getProperty('KodiIOS.Open')))   # ISSUE-309: an opening holds downloads too
  # Build 207: one thread asks Kodi; the downloads only read its answer (slowdown.reason).
  threading.Thread(target=slowdown.watch,args=(monitor.waitForAbort,),kwargs={'log':lambda m:xbmc.log(m,xbmc.LOGINFO)},daemon=True).start()
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs. Each message also gets
@@ -268,6 +257,9 @@ def run():
     if command:xbmc.executebuiltin(command)
    except Exception as error:xbmc.log('Kodi iOS picture: saturation not set (%s)'%type(error).__name__,xbmc.LOGWARNING)
  threading.Thread(target=saturation_loop,daemon=True).start()
+ # Check subtitle identity when each video starts, without opening the Subtitles menu.
+ import subtitle_match
+ threading.Thread(target=subtitle_match.run,args=(xbmc,xbmcgui,monitor),daemon=True).start()
  # Roadmap 3.5: one performance line a minute (list runs, opens, Drive proxy requests and seeks), only when something happened.
  import perf_summary,drive_proxy
  threading.Thread(target=perf_summary.watch,args=(xbmcgui.Window(10000),open_timing.take,
@@ -289,7 +281,8 @@ def run():
  threading.Thread(target=upscale_control,daemon=True).start()
  def work_inputs():
   import debrid_drive,prepare_downloads,preparation_runtime
-  phone=[u for u in notices.uploads(profile) if u.get('source')=='phone']
+  import transfer_speed
+  phone=transfer_speed.phone_uploads(profile)
   prep=prepare_downloads.load(profile);flags=work_state.flags(profile)
   import problem_ignore
   need=prepare_downloads.problem_need(prep,problem_ignore.hidden_prep_ids(profile,prep))   # board E3, minus Don't Show Again
@@ -299,7 +292,7 @@ def run():
           'paused':{k:transfer_control.paused(profile,k) for k in transfer_control.KINDS},'slow':slowdown.reason(),
           **flags}
  threading.Thread(target=work_state.publish,args=(profile,work_inputs,monitor.waitForAbort),
-                  kwargs={'set_property':window.setProperty,'log':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGWARNING)},daemon=True).start()
+                  kwargs={'every':1,'set_property':window.setProperty,'log':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGWARNING)},daemon=True).start()
  # A torrent whose real name turns out to be another film (owner, build 156: Fall 2022 → Fall.2.Deadpoint.2026) is
  # stopped once Elementum knows its name, and explained in Notifications.
  import source_guard
@@ -313,23 +306,10 @@ def run():
   # ISSUE-280 (board S1): the stage line, from the unlocked link (umbrella_recovery) and the stream cache's own counts.
   kwargs={'linked':lambda:window.getProperty('KodiIOS.UmbrellaRenewal'),
           'cache':lambda:__import__('remote_media').stats(window)},daemon=True).start()
- # The activity pill: Kodi's background progress box (never drawn) read and rewritten, plus Elementum and Drive.
- def activity_setting(key,default):
-  try:
-   value=xbmcaddon.Addon().getSetting(key)
-   return default if value=='' else value.lower()=='true'
-  except Exception:return default
- # The pill shows the poster of what is downloading (TMDb, with TMDb Helper's key, as the Library does).
- try:
-  import drivelibrary,urllib.request
-  key=drivelibrary.tmdb_key(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.themoviedb.helper').getAddonInfo('path')))
-  def get(url):
-   with urllib.request.urlopen(url,timeout=8) as response:return response.read(1024*1024)
-  posters=activity.Posters(activity.poster_lookup(key,get)) if key else None
- except Exception:posters=None
- threading.Thread(target=activity.watch,args=(lambda:activity.read_box(xbmc,xbmcgui),notices.downloads,lambda:notices.uploads(profile),
-  activity_setting,lambda:xbmc.Player().isPlayingVideo(),lambda props:[window.setProperty(k,v) for k,v in props.items()],
-  lambda text:notices.add(profile,'problem','Elementum Burst',text),monitor.waitForAbort),kwargs={'posters':posters},daemon=True).start()
+ # ISSUE-287: no activity pill. Elementum Burst's error lines in Kodi's (invisible) background box still reach Notifications.
+ import background_box
+ threading.Thread(target=background_box.watch,args=(lambda:background_box.read_box(xbmc,xbmcgui),
+  lambda text:notices.add(profile,'problem','Elementum Burst',text),monitor.waitForAbort),daemon=True).start()
  # ISSUE-267: the add-ons the app patches stay its own copies (a repository update had hidden them; no copy ran).
  try:
   import pinned_addons
@@ -412,7 +392,8 @@ def keep_copying(monitor,home,profile,run=None,wait=None):
    notices.add(profile,'problem','Downloads stopped',"The download and upload service stopped (%s). It starts again by itself; if this keeps "
                "coming back, share the log."%why,group='downloads-stopped')
    delay=min(600,30*2**min(failures-1,5))
-   xbmc.log('Kodi iOS Drive: downloads stopped (%s); starting again in %d s (try %d)'%(type(error).__name__,delay,failures),xbmc.LOGWARNING)
+   # ISSUE-282 (log 6cf2a4c5: "downloads stopped (NameError)" on every start, with no hint which name): the message too.
+   xbmc.log('Kodi iOS Drive: downloads stopped (%s: %s); starting again in %d s (try %d)'%(type(error).__name__,diagnostics.redact(str(error))[:200],delay,failures),xbmc.LOGWARNING)
    if wait(delay):return
 
 
@@ -426,7 +407,7 @@ def drive_uploads(monitor,home,profile):
  playback_lib=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
  airplay_busy=lambda:airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time())
  import slowdown
- slowdown.configure(lambda:'airplay' if airplay_busy() else ('buffering' if xbmc.getCondVisibility('Player.Caching') else 'video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
+ slowdown.configure(lambda:slowdown.play_reason(airplay_busy(),xbmc.getCondVisibility('Player.Caching'),xbmc.getCondVisibility('Player.HasVideo'),xbmcgui.Window(10000).getProperty('KodiIOS.Open')))   # ISSUE-309
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
  # ISSUE-267 / ISSUE-270: the app's patched copy first, whatever Kodi resolved, and nothing left from a moved copy.
  import pinned_addons;pinned_addons.use_clouddrive(xbmcaddon,xbmcvfs)
@@ -454,7 +435,9 @@ def drive_uploads(monitor,home,profile):
  except Exception as error:xbmc.log('Kodi iOS Drive: system networking unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
  xbmc.log('Kodi iOS Drive: uploads use %s'%('system networking' if native else 'Python networking'),xbmc.LOGINFO)
  xbmc.log('Kodi iOS Drive: media reads use %s'%('system networking' if native_reader else 'Python networking'),xbmc.LOGINFO)
- try:remote_media.start(monitor,xbmcgui.Window(10000),context=tls_context(),open_url=native_reader)
+ # ISSUE-281: the broker keeps a source Kodi still has open (paused too), so Resume never meets a closed address.
+ try:remote_media.start(monitor,xbmcgui.Window(10000),context=tls_context(),open_url=native_reader,
+                        playing=lambda:xbmc.Player().getPlayingFile() if xbmc.getCondVisibility('Player.HasVideo') else '')
  except Exception as error:diagnostics.log_exception(xbmc,'media_source_bridge',error)
  # ISSUE-259: read the start and the index of a video playing in Kodi (Wi-Fi only) so a later Play on TV starts sooner.
  if airplay.converts(playback_lib):
@@ -606,6 +589,13 @@ def drive_uploads(monitor,home,profile):
     if not accounts.get_accounts():continue
     done=drivelibrary.refresh_stale(state_dir)
     if done:log('Library lists refreshed from Google Drive: %s'%', '.join(done))
+    if any(slot.startswith('tv:') for slot in done):   # ISSUE-329: Drive problems reach Notifications
+     try:
+      import library_delete
+      library_delete.notify_drive_problems(drivelibrary.load_json(os.path.join(state_dir,'drive-library.json'),{}),
+                                           os.path.join(state_dir,'drive-problems-seen.json'),
+                                           lambda title,text,action:notices.add(profile,'problem',title,text,action))
+     except Exception as error:diagnostics.log_exception(xbmc,'drive_problems',error)
     drive_health.update(ok=True,checked=time.time(),error='')
    except (driveupload.SignedOut,driveupload.RefreshBusy):monitor.waitForAbort(60)   # the uploads loop tells the owner
    except Exception as error:
@@ -617,7 +607,7 @@ def drive_uploads(monitor,home,profile):
  # open pages redraw at once.
  import library_index
  threading.Thread(target=library_index.publish,args=(profile,monitor.waitForAbort),
-                  kwargs={'set_property':window.setProperty,'drive_health':lambda:dict(drive_health),
+                  kwargs={'set_property':xbmcgui.Window(10000).setProperty,'drive_health':lambda:dict(drive_health),   # ISSUE-282: not `window` (NameError)
                           'log':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGWARNING),
                           'note':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)},daemon=True).start()
  # Build 193: "idle" only means Kodi is not closing (build-192 log: one busy look made the queue wait 120 s).

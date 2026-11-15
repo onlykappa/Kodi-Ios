@@ -1,7 +1,7 @@
 """Run inside the desktop Kodi rig by rig_smoke.py (RunScript with this file's path): opens the choice sheet the way the
 watch menu and the resume question do, with sample rows, and waits until the smoke runner closes it (Input.Back).
 
-usage (inside Kodi): RunScript(/path/to/rig_smoke_sheet.py, watch|resume|quality)"""
+usage (inside Kodi): RunScript(/path/to/rig_smoke_sheet.py, watch|resume|quality|bell)"""
 import os
 import sys
 
@@ -11,6 +11,7 @@ import xbmcvfs
 
 here = xbmcaddon.Addon('service.kodi.ios.bootstrap').getAddonInfo('path')
 sys.path.insert(0, os.path.join(here, 'resources', 'lib'))
+import anticipated
 import choice_sheet
 
 SPECS = {
@@ -24,9 +25,26 @@ SPECS = {
                          {'label': '1080p', 'detail': '12 versions', 'cover': 60},
                          {'label': '720p', 'detail': '10 versions', 'cover': 30}],
                 'link': 'Show All 25 Links', 'foot': 'Your choice is remembered for this title.'},
+    'bell': {'heading': 'New episodes \u00b7 Black Clover', 'sub': 'Next: Season 5 \u00b7 Episode 1 \u00b7 Fri 21 Nov',
+             'rows': anticipated.rows({'alert': True, 'auto': False, 'on': True}), 'button': 'Done',
+             'foot': 'Switch on only Alert to be told without downloading anything.'},
+    'report': {'heading': 'Import finished', 'sub': '48 added to Favourites \u00b7 56 lines read',
+               'rows': [{'label': 'Duplicates', 'detail': 'Tap to see which', 'tag': '3'},
+                        {'label': 'Needs your answer', 'detail': 'Misspellings and several matches', 'tag': '4', 'tag_kind': 'warn'},
+                        {'label': 'Not found', 'detail': 'Tap to see which', 'tag': '1', 'tag_kind': 'warn'}],
+               'foot': 'Nothing was removed from your list.'},
 }
 
 name = sys.argv[1] if len(sys.argv) > 1 else 'watch'
 xbmc.log('Kodi iOS rig smoke: sheet %s opened' % name, xbmc.LOGINFO)
-answer = choice_sheet.choose(SPECS.get(name, SPECS['watch']), path=here)
+state = [True, False]
+
+
+def flip(index):
+    """The bell sheet's switches flip in place (G3), as anticipated_bell.py does with the saved choice."""
+    state[index] = not state[index]
+    return state[index]
+
+
+answer = choice_sheet.choose(SPECS.get(name, SPECS['watch']), path=here, toggle=flip if name == 'bell' else None)
 xbmc.log('Kodi iOS rig smoke: sheet %s answered %s' % (name, answer), xbmc.LOGINFO)

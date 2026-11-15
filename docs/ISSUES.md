@@ -4131,3 +4131,920 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   - Desktop Kodi rig render of stages a, b and c: matches the boards, no cut-off text (screenshots kept out of Git). Phone check pending.
 
 **Delivery (owner OK, 2026-11-14):** IPA build-442 was built from f1d6447 (import-review run 43623141308) and carries ISSUE-276 to 280 and AirPlay r57. It was downloaded and checked: sha256 982d4a24…4ed7dbb, the zip is valid, and the framework carries the r57 restart note. The library index, poll_fetching, the for_kodi route, the tap-to-hide area and the stage line are all inside. Phone checks are pending for every item.
+
+## ISSUE-281 — Umbrella stream stuck at "Opening the video · 0 of 12 MB", then a crash on Resume (owner, build 442; ISSUE-280 regression) — fixed in code; crash log asked for
+
+- **Seen:** an Umbrella episode never opened; the opening card stayed at "0 of 12 MB". Pressing Resume crashed the app.
+  Log 6cf2a4c5 starts after the crash, so it does not hold the crash itself.
+- **Cause (from the code and log 6cf2a4c5):**
+  - `remote_media.start` runs inside `drive_uploads` before the ISSUE-282 NameError. Every watchdog restart (30 s, 60 s,
+    120 s … 600 s) made a new cache and moved the Home property to it.
+  - Umbrella's unlock (`for_kodi`) could hand Kodi an address on one cache while the opening card (`umbrella_ready`, reading
+    the property's stats) counted another, empty one: "0 of 12 MB" for good.
+  - A later Resume reopened an address whose cache was no longer the one in charge.
+  - `for_kodi` also handed Kodi the cache before knowing the link answered at all.
+- **Fix:**
+  - `remote_media.start` keeps one cache per service run (`_BROKER`). A restarted Drive loop reuses it and points the
+    property back at it.
+  - `for_kodi` gives Kodi the cache only once the cache knows the file's size (the link answered) within FIRST_ANSWER = 5 s.
+    Otherwise Kodi gets the real link, as before ISSUE-280, and the cache lets the source go (`drop`).
+  - The stats name their source by a fingerprint (`source_id`), never the private id.
+  - With ISSUE-282 fixed, the restarts themselves stop.
+- **Asked for:** the crashed session's log (kodi.old.log), to confirm the crash's own cause.
+- **Test:** test_stream_fallback (new: the cache used once the link answered; the real link and `drop` when it does not;
+  one cache per run; no private id in the stats); test_remote_media (52) still passes.
+
+## ISSUE-282 — "Kodi iOS Drive: downloads stopped (NameError); starting again in 30/60/120 s" from startup (owner log 6cf2a4c5, build 442) — fixed in code
+
+- **Seen:** from 10:29:55 the service's Drive loop stopped at once on every start, and the ISSUE-269 watchdog restarted it.
+  The log gave only the error's type.
+- **Cause:** PR #27 (DEC-052, library index step 2) starts `library_index.publish` inside `drive_uploads` with
+  `set_property=window.setProperty`. `window` is a name of `run()`, not of `drive_uploads` (which calls the Home window
+  `home`, a path, and has `xbmcgui`). So `drive_uploads` raised NameError right after the Library lists thread started.
+  Nothing after it ran: no AllDebrid copies, no Drive uploads, no preparation, and the library index never published.
+- **Fix:**
+  - `xbmcgui.Window(10000).setProperty`.
+  - The watchdog logs the message too ("downloads stopped (NameError: name 'window' is not defined)"), redacted, 200
+    characters.
+  - Two latent undefined names in `library_tools_page` (`u` in `_card_row` / `_arrow`) are fixed as well.
+- **Test:** test_undefined_names (new; symtable over the service, the page scripts and every library module: a function
+  may only use its own, an enclosing function's, the module's or a builtin name). It reports `drive_uploads uses window`
+  on the old code.
+- **Also:** test_library_tools `test_failures_are_noted_where_jobs_fail` expects 4 failure records in debrid_drive. PR #27
+  added one for jobs that end while AllDebrid fetches, and the test still said 3, so the import-review list failed on
+  this branch before this change.
+
+## ISSUE-283 — Video controls hide after 3 s, not 5 (owner, build 442) — fixed in code
+
+- **Owner:** the controls should hide after 3 s. They still stay up while paused (confirmed working on build 442).
+- **Fix:** `player_osd.DEFAULT_TIMEOUT` is 3. A second one-time step (`ios_osd_timeout_3`) moves installs that got the earlier
+  5 s default (ISSUE-279) to 3 s. A value the owner sets later, 5 included, is kept. `ARM_WHEN` still waits while paused.
+- **Test:** test_customisation `test_tap_anywhere_hides_and_five_seconds_by_default` (the first default is 3, the 5 to 3 move
+  happens once, paused keeps them).
+
+## ISSUE-284 — "Remove From Continue Watching" did nothing (owner, build 442) — fixed in code
+
+- **Cause:** the long-press entry (`plugin.video.kodi.ios.watch` `continue_hide`) recorded the title as removed and ran
+  `Container.Refresh`. That reloads only the page's own list, never a row of the Home, Movies or TV hubs, so the row kept
+  showing the title until the app reloaded it for some other reason.
+- **Fix:**
+  - The rows' path carries `&stamp=$INFO[Window(Home).Property(KodiIOS.ContinueStamp)]` (`portrait.CONTINUE_STAMP`).
+  - A removal sets that property, so Kodi loads every Continue Watching row again at once.
+  - A library item (a downloaded movie or episode, key `file:…`) also has its resume point in Kodi cleared
+    (`VideoLibrary.SetMovieDetails` / `SetEpisodeDetails`, resume 0), so Kodi's own in-progress lists drop it.
+  - A phone title (Umbrella / Elementum / TMDb) keeps its saved position: owner, 2026-11-13, "don't make it erase the
+    progress … if I watch it again it can show back up". It stays off the rows until it is played again.
+- **Test:** test_watch_continue `RemoveFromContinue`; test_portrait `test_continue_watching_leads_each_hub` (the stamp is in
+  the row's path).
+- **Retest (follow-up):** test_listing_cache `test_a_rows_address_cannot_change_when_the_home_tab_is_shown_again`
+  failed on the stamp (it reads `Window(Home)`). The stamp changes only when a title is removed, never on a tab return,
+  so the test now ignores exactly `portrait.CONTINUE_STAMP` and still rejects any other window info in a row address.
+
+## ISSUE-285 — "AllDebrid … RuntimeError; trying it again after the others" named no cause (owner, build 442) — logging fixed; cause waits for the next log
+
+- **Cause of the blind spot:** `debrid_drive` logged only the error's type (`RuntimeError`) when a copy was queued for a
+  retry. A RuntimeError there can be any of eight things (Drive upload start / upload HTTP status, Drive did not confirm
+  the upload, the download stopped before the end, an invalid receipt or confirmed position, the refreshed download is
+  a different file, Drive has a different size). Log 6cf2a4c5 was not available in this session, so the cause could not
+  be read from it.
+- **Fix:** the retry line now names the episode (`episode_label`) and the error's own words, redacted
+  (`diagnostics.redact`: links, keys, magnets) and cut at 160 characters (`debrid_drive._said`). The startup line of
+  ISSUE-282 does the same for `keep_copying`.
+- **Next:** the owner's next log after a retry shows which one it is; the fix follows in its own entry.
+- **Test:** test_build442_logs (the retry line carries `_said(error)`; `_said` keeps the words and removes a link).
+
+## ISSUE-286 — Deleting the "Unnamed download" did nothing (owner, build 442) — fixed in code
+
+- **Cause:** two parts.
+  - A video that is only an AllDebrid copy or problem (no Drive file) showed "Remove from Library…" on its sheet
+    (`library_manager.fill_item`), but its action was empty, so the tap closed nothing and changed nothing. Delete
+    Season and Select only passed videos with a Drive id, so they left these behind too.
+  - `debrid_drive.clear_failed` removed only the failure Download problems shows. An older failed version of the same
+    video then became the latest, so the problem came back.
+- **Fix:**
+  - `library_index.remove(profile, keys)` is the one path for videos not on Drive: a copy that ended leaves with every
+    failed version (`clear_failed(..., whole_video=True)`), and a running copy is stopped (`transfer_control.cancel_copy`).
+    "Deleting…" shows on every page at once (`intend`), and the index is rebuilt.
+  - The item sheet's "Remove from Library…" (problem) and new "Stop and Remove…" (copying) call it after a confirmation.
+    Delete Season also removes the season's copies and problems that are not on Drive.
+  - Videos on Drive keep the existing Delete (Drive's Trash).
+- **Test:** test_library_remove (two failed versions of an untitled episode both go; a running copy is stopped; a Drive
+  video is untouched; the sheet and Delete Season use the path). The test fails with `whole_video=False`.
+
+## ISSUE-288 — AI Upscale did not list Naruto season 2 (owner, build 442) — fixed in code
+
+- **Cause:** the AI Upscale page (`upscale_page.library`) and its copy planner (`upscale_queue.plan`) read only the
+  preparation queue's finished jobs (`status == 'done'`). A video that was never prepared (it played as it was), was kept
+  as it is, or whose job was superseded never appeared, while Library (library_index) showed it.
+- **Fix:** `upscale_page.jobs_from_index(index, prep)` turns every video in library_index that is on Drive and plays
+  (ready or kept) into a finished job: its own probe when it has one, otherwise the size from the quality in its name
+  (480p, 576p, 720p, 1080p). A video of unknown size is left out. `upscale_cloud.planning_state` feeds it to both the
+  page (`upscale_settings.model`) and the service's planner, falling back to the queue before the first index exists.
+  Videos that were never prepared get a copy only when the owner chooses a size on their show's page, never from
+  "Upscale new downloads" (ISSUE-245: "I want full control").
+- **Test:** test_upscale_from_index (season 2 episodes without a finished job are listed; unknown size and converting are
+  not; never-prepared videos wait for the owner; service and page share the path).
+
+## ISSUE-289 — "Trakt connected" and "Elementum daemon has started" filled Notifications at every start (owner, build 442) — fixed in code
+
+- **Request:** owner, 2026-11-14: "hide these notifications permanently; the only time it should appear is if it doesn't
+  start or there is an error with Trakt/Elementum, because it's a given that Elementum will start and Trakt will start
+  every time".
+- **Cause:** Kodi's own pop-ups (`toasts.jsonl`) are all recorded (`notices.ingest`), so each start added the two
+  successes again (twice after a restart).
+- **Fix:** `notices.routine(item)` marks a Trakt connected/authorised/signed-in or Elementum started/running notice
+  that is not a problem and has no trouble words (failed, error, could not, stopped, refused, timed out, not started).
+  `notices.add` does not record it, and `notices.load` drops ones already saved, so they leave the page and the unread
+  count at once. A failure still shows.
+- **Test:** test_routine_notices (starts dropped, failures kept, old saved ones disappear).
+
+## ISSUE-290 — Notification centre: a lot of grey space, cut-off text (owner, build 442) — fixed in code (C1, approved)
+
+- **Request:** owner screenshot, 2026-11-14: "there is a lot of grey open space, can be cleaner … the notifications
+  themselves look good but the grey space and everything just looks poor". C1 in `docs/design/build442-mockups.html`
+  approved the same day ("i love the mock, code it").
+- **Cause:** every message row was a fixed 236-unit block: a 97-unit tile, the title, then the text pinned at y=138
+  whatever the title's length, so a one-line title left a grey band and a long text was clipped ("stopped (name
+  'window' is not"). Repeated notices took a row each. The Fix capsule took the text's width.
+- **Fix (`notifications_skin.py`, `notifications.py`):**
+  - A message row is stacked from parts the page's grouplist lays out: the title part (1, 2 or 3 lines, `msg.N.tl`),
+    the text part (1 to 4 lines, `msg.N.ll`), a Fix part, and an end part. `notifications_skin.lines` counts the
+    lines conservatively (whole words, a few characters short of the real width), so a row can be a little tall but
+    text is never cut (DEC-050).
+  - 30 pt tiles, the time on the right with the unread dot before it, "Fix ›" as a blue text action under the text.
+  - The same notice again (kind, title, text) folds into one row with a "×N" chip (`notifications.fold`).
+  - TODAY and EARLIER are separate grouped cards (first/last per section).
+  - Running now is one grouped card of 64 pt rows: poster, title, line and a progress ring (ring_00..20).
+  - One tap area per row reaches under its parts (each part has no button of its own).
+- **Retest:** desktop Kodi rig (Kodi 21.3, synthetic notices with a 168-character text, a two-line title, a repeat
+  and an old notice): rows sized to their content, corners round per card, nothing cut. Rig evidence, not the phone.
+  Two faults found on the rig and fixed before commit: `!(…)` is not a Kodi condition (Kodi uses `![…]`), so the
+  square background covered the rounded one; and a one-line title's header is shorter than its tile, so the tile is
+  drawn by the following part.
+- **Unlike the mockup:** the unread dot sits before the time, not after the title (Kodi cannot place an image after
+  wrapped text). A two- or three-line title shows its "×N" under the time.
+- **Test:** test_notification_centre_c1 (line counting, every height has its part, no `!(` and no "…" in the window,
+  folding, sections and per-section positions).
+
+## ISSUE-291 — A row's title opens the row as a poster grid (owner, build 442) — done in code
+
+- **Request:** owner, build 442 screenshots: "when I tap these bars it opens a grid view of the shows with the meta art
+  only, like how downloaded movies and TV shows work; apply this to all rows".
+- **Cause:** the title above each row ("Trending Movies ›") was a label; the chevron promised a page that did not exist.
+- **Fix:** `portrait.title_tap` lays a 128-unit (44 pt+) borderless button over every row's title on Home, Movies and
+  TV (`row()`, ids 5701+). It runs `titled_page`, the same action as Library › Movies: the Videos window with the
+  poster grid, titled with the row's name, showing the row's own list. A 1-unit group, so the page's layout is unchanged.
+- **Retest:** desktop Kodi rig, a real pointer tap on "Netflix Originals ›" on Home: the grid opened with the row's
+  titles and the heading "Netflix Originals". Rig evidence, not the phone. (SendClick from a script did not reach it; a
+  pointer tap did.)
+- **Test:** test_row_title_grid.
+
+## ISSUE-292 — Library status still showed the big "Working on now" card and thick copy cards (owner, build 442; DEC-051) — board A coded
+
+- **Request:** owner, build 442: "the agent didn't update Library status to make AllDebrid downloads look like the
+  others". DEC-051 board A round 2 (unified-status-mockups.html), approved 2026-11-14.
+- **Cause:** DEC-051 was approved but not coded: the conversion had its 398-unit card, each AllDebrid copy its own
+  231-unit card with a bar, and the extra lanes their own cards. The subtitle line was also cut ("checked just n…").
+- **Fix (`library_page.py`, `library_status.py`):**
+  - The summary card moves to the top. Then one grouped card "WORKING NOW · N" with one slim row per running job (the
+    conversion, each extra lane, each AllDebrid copy; `RUN_SLOTS`): a 34 pt ring with the percentage, the title, one
+    status line (step · speed · time left; orange when it waits), the speed line for the conversion. About 47 pt a row;
+    a long title or status grows the row to two lines instead of cutting it (`k.tl` / `k.sl`, DEC-050).
+  - The tap targets stay (WORK / WORK+100, LANE+n, 9310+n), so each row opens the sheet it opened before.
+  - Up next and Kept rows are slim too (126 units). The subtitle under the title wraps.
+  - `library_status.slim_rows` builds the rows' properties (ring, number, status, first/mid/last, the heading).
+- **Not yet:** board B (a copy's sheet like the conversion sheet). The copy rows open their existing sheet.
+- **Retest:** desktop Kodi rig, scenario `lanes`: three running rows in one card, Up next and Kept slim, nothing cut.
+  Rig evidence, not the phone.
+- **Test:** test_slim_status; test_library_status `test_the_rows_are_drawn` now looks for the WORKING NOW heading.
+- **Follow-up (owner screenshot of the rig render: "no graph on the bottom 2 and no time, they should all look like the
+  first one; uneven spacing"):** every row now has the same parts. Its speed line comes from the service's history for
+  that title (transfer_history) or from the speeds the page has seen for the row (`sparks`). Its time left is the
+  job's own estimate or, without one, worked out from how fast its percentage moves (`with_eta`, after 10 s). Each copy
+  row is matched to its model job by title for speed and time. Line counts now come from the text's estimated width in
+  Inter (`notifications_skin.lines_in`), not a character count, so a one-line status is never given two lines (that was
+  the uneven first row). Retest on the rig: three even rows, a speed line on each. The rig's lanes scenario keeps the
+  lanes' percentages fixed, so their time left could not show there; test_slim_status covers the estimate.
+
+## ISSUE-293 — Queue and Notifications bypassed the shared library record — fixed in backend
+
+- **Request:** Build 442 item 15: Rick and Morty season 3 must agree in Library status, Transfers and Running now.
+- **Cause:** work-state independently inferred membership and titles from lane/preparation snapshots; a quiet or missing
+  worker report hid indexed videos. The ISSUE-282 NameError previously prevented the index publisher starting at all.
+- **Fix:** library_index decides video membership, titles and counts; work_state attaches worker telemetry by identity.
+  All three consumers use that projection; missing measurements leave the video queued. Ready/problems cannot reappear
+  as active transfers. Pending cancellations are applied to the index. Its publisher refreshes on every service pass,
+  survives a failed pass and updates KodiIOS.LibraryIndex only on a visible change. Concurrent writes use unique temp files.
+- **Retest:** The supplied current build-442 log has 12 repeated NameError restarts, no library summaries and no upload
+  piece timings (raw log retained outside Git). A four-video fixture (copying, converting, problem, ready) agrees across all consumers; missing telemetry and
+  transient publisher failure are covered. Host checks do not establish device behaviour; owner retest remains pending.
+- **Test:** scripts/test_queue_index.py; updated publisher fixture in test_work_state.py; check_project and every test
+  listed in import-review.yml run before commit.
+
+
+## ISSUE-294 — Upload speed omitted first pieces and mixed lane/total rates; graphs arrived in bursts — fixed in backend
+
+- **Request:** Build 442 item 8: actual per-lane rolling MB/s, regular history, total, ETA and progress-ring data.
+- **Cause:** Rate marks started after the first acknowledgement, and the primary lane's rate was overwritten with a sum.
+  History saved every five seconds, independent of the shared work model. An index reader could briefly retain a completed
+  job until the next service pass (caught by the full-suite queue visibility test during ISSUE-293 validation).
+- **Fix:** driveupload emits acknowledged bytes and measured request duration for the first, intermediate and final pieces.
+  Native rates use the very timings printed by the native piece log; partial/recovered acknowledgements cannot multiply
+  the bytes just sent. Each copier lane keeps a time-weighted rolling rate. Ready-on-copy uses Sink upload statistics,
+  never its film percentage as byte speed. Phone uploads carry the same measurements. Work state samples measured rates
+  once per second (60 samples per lane and total); paused/stale work becomes zero, and job changes reset lane history.
+  Transfers and copy detail graphs can read these points directly. Index input fingerprints make current() reflect a
+  newly finished job without waiting for the service. The first piece is also included in lane-count learning.
+- **Retest:** Deterministic 32 MiB / 8 s native pieces report 4 MiB/s including the final piece; two lanes at 2 and 3 MiB/s
+  total 5, with independent graphs. 70 ticks retain 60 one-second points, preserve confirmed bytes and expire stale speed.
+  The supplied build-442 log has no piece timings because startup keeps failing; it cannot establish actual bandwidth.
+  Code already permits six lanes (starts at three, learns gains), native pieces up to 32 MiB, with lower cellular/playback
+  limits. No evidence justifies increasing these caps. The clearly wrong aggregation/first-piece accounting is fixed;
+  native/framework/network limits still require a post-fix device log.
+- **Test:** scripts/test_upload_speed.py; test_season_sources queue visibility; check_project and all workflow-listed tests
+  before commit. Host validation only; device throughput and rendering remain unverified.
+
+
+## ISSUE-295 — Subtitle tracks could belong to another episode or fail the video's timing — filtered in backend
+
+- **Request:** Build 442 item 6: reject clear subtitle mismatches, rank the rest, select the best and expose short reasons.
+- **Cause:** Streams were shown by language only; downloads were ranked by release words and installed without checking
+  cues. A ZIP containing one subtitle from the wrong episode bypassed the episode check. No playback-start matcher ran.
+- **Fix:** A pure scorer reads SRT/VTT/ASS/SSA/MicroDVD and VobSub IDX timestamps, checks duration bounds, distant first/last
+  cues, empty/short tracks (forced tracks exempt), filename/declared/preferred language, episode/absolute numbering and
+  strong supplied/measured timing offsets. Ambiguous offsets do not prove mismatch. Tracks are ranked and clear mismatches
+  cannot be installed. The downloader tries up to five candidates, validating before setSubtitles. A playback-start
+  monitor automatically prefers the best allowed stream, preserves Off/current ties and later manual choices. Rows and
+  KodiIOS.SubtitleMatches expose score/rejection/reason/timing evidence; no menu layout changed.
+- **Retest:** Sixteen host cases include wrong-episode ZIP, bounds, formats, offset, language, forced captions, short/empty,
+  conservative movie filenames, actual controller rejection/fallback, and the service adapter selecting the best stream.
+  Important boundary: Kodi's Python/native probe currently exports embedded subtitle counts/names/languages, not DVD cue
+  packets or speech timing. Such tracks say “Timing not checked”; their speech/timing cannot be verified in Python here.
+  The scorer can use cue/speech intervals when supplied. Naruto DVD speech alignment still needs device/native evidence;
+  no claim that text/speech recognition or an unavailable native cue API was implemented.
+- **Test:** scripts/test_subtitle_match.py; existing test_track_menu, test_subtitle_sources and test_undefined_names;
+  check_project and all workflow-listed tests before commit. Host checks only, owner playback retest pending.
+
+
+## ISSUE-296 — Data for folded notifications, timed steps and live season-quality coverage — implemented without layouts
+
+- **Request:** C1 identical-notice folding and 2/3-line data; N2 up to three timed steps; Q2 per-quality episode coverage
+  as answers arrive, without sample-episode wording or any sheet/menu layout change.
+- **Cause:** Raw notices had no reusable list/detail projection or retained lifecycle times. The quality sheet reported
+  start/middle/end sample episodes and only a found/not-found flag; that was not whole-season coverage.
+- **Fix:** notice_help.folded / notice_models.fold combine exact kind/title/text matches, preserve member IDs/unread state,
+  count notice occurrences (not a stored season's episode count), and expose lines=2/3 from text length. A separate bounded
+  runtime sidecar records copy-start/problem/retry/ready steps, folding starts across a season's concurrent episodes/files;
+  notice_help.detail_model exposes timeline with actual time, colour_kind, kind and text. No notices.py routines changed.
+  The Build Season check now scans every remaining episode once, reuses those answers for the build, and publishes exact
+  found/total/checked/pending/unknown counts per quality plus checking_qualities. Empty/error responses stay unknown,
+  never proof of absence; incomplete checks do not disable a quality. Sample-episode wording/helpers were removed.
+- **Retest:** Exact-repeat folding with an existing episode count, immutable inputs, line count, timed-step reload/cap,
+  pack-file identity, single-episode lookup, the real copier retry producer, partial/failed quality replies, and the real
+  season builder publishing before completion all pass. Existing season sheet/source tests pass. UI binding and visual
+  behaviour belong to the UI agent; this entry makes no rendering/device claim.
+- **Test:** scripts/test_notice_season_data.py (seven cases), updated test_season_sheet, check_project and every listed
+  import-review test before commit.
+
+
+## ISSUE-297 — Permanent copy failures retried unchanged files — stopped and sent to Download problems
+
+- **Request:** Follow up ISSUE-285: audit every RuntimeError in debrid_drive, driveupload and debrid_ready; stop retries
+  that cannot repair a changed source, wrong size or invalid result, and explain the problem.
+- **Cause:** Generic RuntimeErrors all entered the inline/later retry budgets. Permanent source/receipt/position failures
+  were treated like connection failures; a main failure could be overwritten as done. Legacy phone uploads also retried
+  the same unchanged file on each service pass. HTTP 403 was ambiguous without inspecting its reason code.
+- **Fix:** copy_errors distinguishes permanent identity/integrity/access/input failures from transient network/rate/server
+  and expired-session failures. Drive renews a refused access token once before a terminal refusal. All upload paths
+  validate final receipts and confirmed positions. Permanent workers stop before inline retry, retain a clear reason,
+  notify/history once, and expose a Download problem; companion failures stay isolated and completed companions still
+  get their completion callback. Saved known permanent failures retire without another copy/unlock call. Terminal notice
+  details keep the real reason and no longer offer an unhelpful Retry now.
+  An explicitly rejected Drive ID stays a problem even when listed on Drive; a separate valid duplicate still wins.
+  Phone uploads retain a failure fingerprint and mirror a source=phone failed job into the same index/problems record;
+  automatic passes skip that unchanged file. A changed fingerprint or explicit manual retry clears the block/session;
+  synthetic phone hashes are never submitted to AllDebrid. Failure/retry handling never deletes phone media.
+- **Retest:** Changed source/size, native/buffered/resumed receipt/position, HDR verification, permission/quota errors,
+  transient 403/429/5xx, expired sessions, token refresh, persisted errors, companion isolation and phone repeated-pass /
+  fingerprint/manual-retry/index consistency cases pass. Remaining raw RuntimeErrors are recoverable metadata wait,
+  premature source EOF and an upload not yet confirmed. The supplied private log has no RuntimeError or piece lines;
+  it cannot identify the owner's original individual failure. Host checks do not prove device recovery.
+- **Test:** scripts/test_terminal_copy_errors.py (26 cases); updated test_debrid_drive, test_drive_upload and
+  test_library_tools fixtures; check_project and every workflow-listed test before commit.
+
+## ISSUE-298 — Review of the PR #30 backend (Agent C, host review of 2cd5cdd): four fixes — fixed in code
+
+- **Sign-out retired the whole copy queue.**
+  - Cause: `copy_errors` treated "Sign in to Google Drive", folder access (401/403) and a full Drive as permanent. `debrid_drive` then failed every queued copy for good, which contradicts the Sign-in notice ("copies wait until you sign in").
+  - Fix: `copy_errors.needs_owner()`. AllDebrid copies keep their place and wait 10 min between tries, with no try counted. Phone uploads still record the file's own problem row, so one file never holds up the others.
+- **A blanket HTTP 4xx rule.**
+  - Cause: any saved error text containing "http 4xx" retired the copy, including source/AllDebrid texts.
+  - Fix: the rule now applies only to Google Drive's own answers.
+- **The subtitle filter switched subtitles off.**
+  - Cause: when no track was usable (all rejected), `PlaybackMatcher` selected Off.
+  - Fix: subtitles now stay as they are. The reasons are still published.
+- **Controls timer, first open after an update.**
+  - Cause: Kodi evaluates all onload conditions first, so the open that set or moved the timer armed the old value (none, or 5 s).
+  - Fix: that open is re-armed with a literal 00:03.
+- **Tests:**
+  - test_terminal_copy_errors: `needs_owner` cases, Drive-only 4xx, `test_signed_out_copy_waits_for_the_owner_and_keeps_its_place`.
+  - test_subtitle_match: `test_no_usable_track_never_turns_subtitles_off`.
+  - test_customisation: FIRST_ARM.
+- **Handed to Agent A:** the reviewer's other high finding, the Umbrella source closed after 120 s of pause (the Resume crash, ISSUE-281).
+
+## ISSUE-299 — Continue Watching did nothing for an Umbrella stream; the row only showed downloaded titles (owner, build 442, log beee3eba) — fixed in code
+
+- **Seen (13:18:04 and 13:18:09):**
+  - Two taps on Black Clover S2 E7 from Continue Watching. Each time: "watch: completed-copy check failed: SignedOut", and the menu stopped. Google Drive's sign-in had expired.
+  - A fresh Umbrella play (13:18:37) reached the source card, but Umbrella had not handed the link to Kodi when the owner cancelled 15 s later. That is part of the stream fix (ISSUE-281/280 follow-up).
+- **Cause:** `ios_watch_dialog.choose_player` stopped on any failed completed-copy check, so that a download would never start a second time. That also stopped every stream whenever Drive was signed out.
+  - The row lists only titles with a saved position above 0. A stream that never starts never gets one, which is why only downloaded titles showed.
+- **Fix:**
+  - A failed check now carries on without a copy. Only Elementum (a real download) still stops with the old message.
+  - `portrait.progress_tracker` logs one line per playback: "continue watching: following episode · umbrella", or "nothing recorded for this video". The next log shows what the row follows.
+- **Tests:**
+  - test_continue_downloads: `test_lookup_error_lets_a_stream_carry_on` (replaces the old stop-on-any-error test), `SignedOutDriveDoesNotBlockStreams`, and Elementum still stopping.
+  - test_playback_retention: `ContinueWatchingSaysWhatItFollows`.
+- **Also for the owner:** sign in to Google Drive again (Settings › Accounts). Copies wait for it (ISSUE-298).
+
+## ISSUE-287 — The activity pill and its sheet are removed (owner, build 442: "I use Library status or the notification tray") — done in code
+
+- **Owner decision (2026-11-14):** remove the activity pill and its sheet entirely.
+- **Removed:**
+  - `activity.py`, `activity_skin.py`, `activity_page.py` and the service loop that read Kodi's background box every half second.
+  - The pill windows (Custom_1187_Activity.xml, portrait and landscape) and the sheet (IOSActivity.xml).
+  - The pill's tap area injected into every page.
+  - The start-up box that fed the pill ("Getting things ready").
+  - The add-on settings category "activity".
+  - Existing installs: `portrait.write` deletes the old pill windows.
+- **Kept (moved to `skin_textures.py`):**
+  - The ring_00–ring_20 textures (Notifications, Library status).
+  - sheet_bg and row_only/first/last.
+  - Kodi's background progress box drawn invisible (otherwise Kodi's own box would show again).
+  - The fonts p_pill and p_pill_s (Notifications).
+- **Kept (new `background_box.py`):** Elementum Burst's error lines in that box still reach Notifications, once per appearance. It looks every 2 s while nothing shows (the pill's loop looked every 0.5–1.5 s).
+- **More menu:** "Transfers" (which opened the pill's sheet) is now "Library status".
+- **Tests:**
+  - test_skin_textures (new): textures and hidden box generated, no pill anywhere, old windows deleted, Burst error reported once, service wiring.
+  - test_polling_loops (Burst watcher wake-ups), test_library_status, test_notice_log, test_speed_fixes (updated).
+- **Phone check:**
+  - No pill on any page, nothing where it used to be.
+  - Kodi's own grey progress box never appears.
+  - More › Library status opens Library status.
+  - A Burst error still shows in Notifications.
+
+## ISSUE-281 (continued) — No Umbrella stream played in build 442; Resume after a pause crashed — fixed in code
+
+- **Owner, build 442:** no Umbrella stream plays, either fresh or from Continue Watching. Log beee3eba: the source card showed for 15 s with no hand-off to Kodi.
+- **Fix 1:** the stream cache route for Kodi's own player (ISSUE-280) is off: `remote_media.KODI_PLAYBACK=False`. Kodi reads the AllDebrid link itself, as in build 430, so Umbrella's unlock no longer waits on the cache. Play on TV still uses the cache. The route can come back once it is proven on the phone.
+- **Fix 2:** the broker never closes a source that is still Kodi's playing file, paused or not, up to 30 min with no read. Before, it closed it after 120 s with no read, so Resume met a dead 127.0.0.1 address (found by the PR #30 review).
+- **Tests:** test_remote_media `test_the_route_is_off_by_default` and `test_a_paused_source_survives_while_kodi_has_it_open`. The ISSUE-280 route tests still run with the route switched on.
+
+## ISSUE-300 — A resumed Umbrella episode took 23.5 s to open (owner, build 466, log 074adcd9) — fixed in code; rig-measured
+
+- **Seen:** Continue Watching › Black Clover S2 E7: "open timing: 23.5 s via umbrella (handoff 3.2 s, open 20.2 s)". The hand-off was already quick; the 20 s was Kodi opening the MKV over one AllDebrid connection.
+- **Cause (desktop Kodi rig, a local server at 0.7 MB/s per connection with 0.4 s per request):**
+  - A plain MKV opened in 2.2 s. The same MKV with 20 MB of attached fonts, as Crunchyroll WEB releases carry, took 29 s.
+  - Kodi read it in one sequential pass from byte 0, through all the font data, over one connection.
+- **Fix:**
+  - The stream cache route is back on (`remote_media.KODI_PLAYBACK=True`). It was switched off for build 466 because of the build-442 failure, which came from the ISSUE-282 restart loop (a new cache on every restart, with Kodi pointed at an old one); that loop is fixed.
+  - The ISSUE-281 fallback was effectively always taken: it waited for the file's size, which was only known after the whole first 4 MB block (~6 s at 0.7 MB/s, more than its 5 s limit). The size now comes from the link's first answer (`Foreground.answered_size`), so the cache is used and the fallback is kept for a link that truly doesn't answer.
+- **Rig result (`for_kodi` end to end, same file and speed):** hand-off 0.5 s, then Kodi's open 7.3 s, against 29 s direct. The cache read the start with four connections at once.
+- **Tests:** test_remote_media `test_the_route_is_on_by_default` and `test_size_is_known_from_the_first_answer`; test_stream_fallback is unchanged and passes.
+- **Phone check:** the `open timing … via umbrella` line for a resume, expected about 5–8 s instead of 20 s.
+
+## ISSUE-301 — Refresh Library read every video one by one (owner, build 466, log 074adcd9: "the scan was a little slow") — resolved (owner log 181477d9, build 486)
+
+- **Confirmed (build 486, log 181477d9):** Library status › Refresh: lists refreshed from Drive in 5.3 s (20:15:31.5 tap,
+  20:15:36.9 done); only three videos were read again, each with its reason: Rick and Morty S1 E5 (repack), Iron Man
+  (never checked), Fall 2 Deadpoint (repack). The build-466 slowness was the first Refresh after the library came back.
+
+- **Seen:** 49 "preparation: compatible video kept unchanged" lines from 13:46:58 to 13:54:39, about 9.4 s per video, one at a time.
+- **Code:** plain Refresh (`request_check(inspect=True)`) already skips a video whose last check was good and whose Drive file is the same (ISSUE-247, `settled`); only Check Every Video reads them all. Nothing in these checks changed since build 442 (INSPECT_VERSION 1).
+- **Likely cause:** this was the first Refresh after the library came back from Drive, so no video had a settled check yet and all were read once. The log did not say why each video was opened.
+- **Fix:** each re-read now logs its reason: never checked, last check failed, changed on Drive, checks updated, audit, repack, blocked, kept, not ready, or Check Every Video (`prepare_downloads.reread_reason`). The next Refresh shows whether anything is read again without a reason to.
+- **Not done:** reading several videos at once. The native prober is shared with the converter (`inspection_deferred`), so it needs its own design.
+- **Test:** test_compatibility_filter `RereadReason`.
+## ISSUE-302 — Umbrella episode sat at "Opening the video · 4 of 12 MB", AllDebrid at 0.2 MB/s, no picture after 126 s (owner, build 470, log 2979ea67) — fixed in code, needs the phone
+
+- **What the log shows:** Black Clover S02E07, Wi-Fi, nothing copying (`link: wifi`, 0 copy lanes). The cache was
+  handed to Kodi (the opening card read its stats), the card said "AllDebrid is sending it slowly right now
+  (0.2 MB/s)", and `open timing: no picture after 126 s via umbrella`. The log holds no line from the stream cache
+  itself, so the link's own speed per connection is read from the card: 4 MB in about 20 s.
+- **Cause:** ISSUE-280/281 put the cache between Kodi and the AllDebrid link. A block is 4 MiB and is fetched as ONE
+  request; nothing is served until the whole block is here. Debrid links are slow per connection (ISSUE-163), so at
+  0.2 MB/s a block took 20 s. The three opening blocks (first, second, last: 12 MB) were also fetched one after
+  another, 60 s in all, and Kodi's own open waits for them (the first bytes, then the file's tail). Before the cache,
+  Kodi read the link itself with no whole-block wait; the cache made a slow link look broken.
+- **Not a regression of the source:** the link is genuinely slow (AllDebrid, cold file). This change makes the app
+  use more connections on it; it cannot make AllDebrid faster. If the same file stays at 0.2 MB/s per connection,
+  the opening takes about 12 MB / (8 connections x 0.2) = 8 s instead of 60 s.
+- **Fix (`remote_media.py`):**
+  - `Foreground._fetch` reads a block as `SPLIT` (4) ranges at once, joined in order (short last block and files that end
+    inside a block are exact). At most `PIECES` (8) requests run at once for the source.
+  - `prefetch` fetches the second and last opening blocks together, not one after another.
+- **Retest:** host tests with a link throttled per connection (test_stream_slow_link): a block takes under 0.6 x the
+  single-connection time, the three opening blocks under 0.5 x the serial time, the short last block is exact, at most
+  8 connections. Both timing tests fail with `SPLIT = 1`. **Not proven on the phone**: it needs the owner's iPhone.
+- **If it is still slow on the phone:** send the next log. The cache logs nothing about itself, so the next step is a
+  log line with the first block's time and the connection count, and a fallback to the direct link when the first
+  block has not arrived after about 15 s.
+- **Test:** test_stream_slow_link (new); test_remote_media now counts blocks, not requests.
+
+
+## ISSUE-303 — Umbrella never opens in build 473 after partial opening progress — source fix; device retest pending
+
+- **Owner:** build 473, opening card repeatedly moves between 0, 4 and 8 MB; video never opens.
+- **Evidence:** current private log SHA-256 `3ea31786284de14c35e2a9c98a9a74f22012dbd91f20b881d5aacc9ad0b5bb8c`, build `ceb06e7`: system networking, source selection, roughly 45 seconds without a player-open event. Old log SHA-256 `97c9e567dd5cb200afe227276fc7d9b71573504ed2a64539eb5f8791d816dcf8`, build 470 `1bc5d1e`: separate no-picture timeout after 126 seconds. No evidence of concurrent copy traffic in the relevant snapshots. No claim that the shorter build-473 capture contains that timeout. Private logs remain outside Git.
+- **Reproduced cause:** `answered()` accepted Content-Range size before the opening blocks were complete. The iPhone's system opener buffers a split piece before returning; one finished piece can still expose the size while the rest of that block stalls. The loopback handler needs a complete block before answering HEAD, so premature handoff strands Kodi behind an unfinished probe. Five of the original seven real-HTTP regression cases fail on unchanged build-473 source.
+- **Additional reproduced gaps:** closing the cache left active upstream readers alive; split pieces with conflicting totals could be joined; the request cap missed unsplit reads; independent timeout budgets could extend opening across later probes and redirects.
+- **Fix:** require complete validated first/second/tail blocks (deduplicated and clipped for small files) within one five-second opening budget. Otherwise drop the cache and return the original direct URL and pipe headers unchanged. Track/interrupt active reads, stop queued requests, cap every request, validate complete joined ranges and consistent file identity. Native redirect sends and renewed-link retries use the same deadline. No native rebuild or UI redesign.
+- **Diagnostics:** one safe opening line logs route, elapsed milliseconds, completed/required/pending blocks, byte/request/error counts and status, without URLs, credentials or media IDs. The supplied logs do not establish the exact mechanism behind every progress reset; this line makes the next phone report distinguish fallback from cache admission.
+- **Validation failure retained:** initial combined checks found stale fallback mocks expecting size alone, a brittle source-text assertion, and a real regression in changed-file rejection when only `blocks.sizes` knew the prior total. Restored that identity check; renewed-file regression suite passes. Updated the old readiness fixtures to assert actual completed readiness.
+- **Regression protection:** real socket stalled-body/native-buffered/next-playback/resume tests, range-integrity and resource-cleanup tests, native redirect/deadline tests; added the new suites to the IPA workflow. Final counts and artifact follow in [UMBRELLA-473-PROGRESS.md](UMBRELLA-473-PROGRESS.md).
+- **Limits:** all-probe admission can deliberately fall back on a valid slow provider. Five seconds bounds the cache attempt, not total playback time; direct Kodi/provider throughput remains independent. Host tests cannot prove a fix on the owner's iPhone. Owner authorized a testing IPA on 2026-11-14; no merge requested.
+
+## ISSUE-304 — Favourites import glued an unnumbered line onto the line before it (owner, PR #29 review, 2026-11-14) — fixed in code
+
+- **Seen:** in a numbered list, "‼️ Attack on Titan" (no number) merged into "Naruto Shippuden", giving one entry
+  "Naruto Shippuden Attack on Titan". The numbered-list reader joined every line before splitting at the numbers, so a
+  title without a number vanished into its neighbour.
+- **Owner's real list** (56 lines: numbers, ✅ ‼️ 🎥 markers, "(3)" watch counts, "(STARTED)", "//" splits, "RYANNE"
+  notes) is now the test's sample.
+- **Fix (`favourites_import._lines`):** a line without a number is its own entry. It rejoins the line before only when it
+  is plainly the tail of a wrapped title: it starts in lower case or with a bracket and the line before ends in a letter
+  or digit (no tick or marker). Whatever precedes number 1 (the list's key or legend) is still dropped. A paste with no
+  line breaks still splits at each number.
+- **Test:** test_favourites_import `OwnersList` (the real list reads one title per number; an unnumbered line is its own
+  entry, with or without markers; a wrapped tail rejoins).
+
+## ISSUE-305 — PR #29 merged into build442: Favourites list import and the anticipated-episodes bell (DEC-053)
+
+- **What:** PR #29's branch (claude/modest-hopper-8z5ar8, features coded 2026-11-14, owner-approved mockups G–J) is merged
+  into this branch. Conflicts: default.py's page list keeps both lists and drops `activity_page` (ISSUE-287);
+  check_project's mockup list, DECISIONS.md and PROGRESS.md keep both. Its decision, which used DEC-047 (taken by the show
+  page here), is DEC-053.
+- **Host tests:** test_favourites_import, test_favourites_flow, test_anticipated_bell; the full list passes.
+- **Gaps against the approved mockups (from the review), handled in the next entries:** the bell sheet (G3), the import
+  report, J3.
+
+- **ISSUE-303 delivery checkpoint:** testing IPA [475](https://github.com/onlykappa/Kodi-Ios/releases/download/build-475/Kodi-iOS-Customized-Touch-r10.ipa), source `2f447c7`, CI run 43653853433 succeeded. 125 focused host checks pass; downloaded IPA digest/ZIP/source/pins verified. Owner iPhone retest remains pending.
+
+## ISSUE-306 — Umbrella still never opens in build 475: six sources handed over in a cycle, none plays (owner, log eadd0349) — loop broken; cause on the phone still to confirm
+
+- **What the log proves (build 475, c1bb11c, Black Clover S02E07):**
+  - Every hand-off to Kodi is a `stream opening: route=cache … ready=True blocks=3/3 errors=0 status=206`, 3 to 4.4 s
+    each. The ISSUE-293/303 cache fixes work: the three opening blocks (9 to 12 MB) arrive in about 4 s.
+  - Ten of them follow one another about 5 s apart, from 15:50:26 to 15:51:08, until the owner cancels. Their byte
+    counts repeat in a cycle of six (9.2, 10.2, 11.9, 9.9, 9.8, 8.6 MB, then 9.2, 10.2, 11.9 again): Umbrella goes
+    through its six sources ("kept 6") and starts again. Each hand-off is Umbrella resolving a source; it moves on 1 to
+    2 s after it is given the cache's address.
+  - Kodi logs no error in that window (`OpenInputStream`, `CDVDInputStream…` and similar are errors and would show), so
+    Kodi was not asked to play, or did not report failing. Umbrella moves on without playing.
+  - Where the cache route was off (build 466, log 074adcd9) the same episode played, after 23.5 s. Every build with it
+    on (470, 473, 475) has not opened on the phone.
+- **What it cannot prove:** why Umbrella rejects the address. Its code is not in the repo or the IPA (it is installed
+  when the app first runs), and the log has no line from Umbrella. A host test shows the cache answers HEAD, plain GET and
+  Range requests correctly, so the address's shape is the difference we can act on:
+  - the cache's address was `http://127.0.0.1:PORT/SECRET/media/source` with `Content-Type: application/octet-stream`.
+    The Drive proxy, the loopback server Kodi really plays Drive copies from on the phone, serves `/drive/<id>/<file
+    name>` with a video type. No Kodi video path had ever played from the cache's shape on the phone.
+- **Fix (`remote_media.py`, `drive_stream.py`):**
+  - Kodi now opens `…/media/<the file's own name>.mkv` and the reply says `video/x-matroska` (`video/x-msvideo`,
+    `video/webm` for those). The AirPlay engine reads the same server and ignores the last part.
+  - The cache counts the bytes a reader really took (`served`, in the stats and in the `stream opening` log line).
+  - A hand-off made within 90 s of one whose bytes Kodi never read (`served == 0`) is played DIRECTLY, and the old
+    cache source is dropped: the cycle stops at the second source instead of going round. The log line says
+    `route=direct … served=0 reason=previous source never read by Kodi`.
+- **Phone check (this is the step that settles it):** play the same episode. In the log, after the first
+  `route=cache` line, expect either playback (and no second hand-off) or one `route=direct reason=previous source
+  never read by Kodi` line and playback from the direct link (about 20 s, as build 466). `served=N` on the later lines
+  says how much Kodi took from the cache. If it still cycles, the log now shows `served`, which says whether Kodi
+  ever connects to the cache.
+- **Test:** test_stream_loop (address and type, served count, loop goes direct, a read source and a later play are not
+  loops, the log line).
+
+## ISSUE-307 — The bell sheet as approved (G3): real switches and Done, slim pill switches (owner, 2026-11-15) — done in code; rig-checked
+
+- **Request:** PR #29's review: the bell sheet was the choice sheet with On/Off tags and Cancel, not board G3. Owner, on the
+  rig render: "the s is cut off and the switches look a little bulky, should be more pill shaped, not so fat".
+- **Fix (`choice_sheet.py`, `anticipated.py`, `anticipated_bell.py`):** rows can carry a `switch` (on/off): the chevron is
+  replaced by a 112 x 56 full pill (green on, grey off, white 46 knob). `choose(..., toggle=)` flips a switch in place:
+  the sheet stays open and saves each flip at once; the bottom button says Done. A switch row's text column is 110 units
+  narrower, so long lines wrap clear of the switch. Other sheets keep their chevron and Cancel.
+- **Retest:** desktop Kodi rig (rig_smoke_sheet.py bell): two rows, slim pills, Done, nothing cut. Not the phone.
+- **Test:** test_anticipated_bell (switch rows, properties, a switch flips in place and Done closes); test_favourites_flow.
+
+## ISSUE-308 — The import report: a full page (board I3) from Notifications or Import a List, never popped up (owner, 2026-11-15) — done in code; rig-checked
+
+- **Request:** owner: "full page … don't make it pull up when it's done, make a place for me to manually check"; then "put
+  the notice in notification center … if I tap it, it can open that page"; mockup N/R/S approved ("moneyyyy").
+- **Fix:**
+  - `favourites_import.save_report` keeps the last import (duplicates, open questions with their choices, names not found);
+    `report_properties` builds the page; group texts list whole names, then "and N more" (`listed`, measured to three lines).
+  - `favourites_report_page.py` (IOSImportReport.xml): Last import, the added card, Duplicates / Needs your answer (blue) /
+    Not found (orange), each as tall as its text, a footnote, View Favourites. Needs your answer asks one "Did you mean…"
+    per name; Not found opens the keyboard with the name to search again; answered names leave the report.
+  - After an import nothing opens: a Notifications message "Import finished · N added … · M need a look" with a star and
+    Review ›; tapping it opens the page (`favourites_import_page report`). Import a List has a third row, Last import.
+- **Retest:** desktop Kodi rig: the message with the star and Review ›, the report page; nothing cut. Not the phone.
+- **Test:** test_favourites_flow (no pop-up, the message, the saved report, the page's groups act, Last import row, "and N
+  more", the message's star/Review and its tap).
+
+## ISSUE-309 — Umbrella still took 13-28 s to open and glitched just after it started (owner, build 477, log 47ee1590) — fixed in code; needs the phone
+
+- **What the log shows (build 477, Black Clover S02E07, three plays):** ISSUE-306 worked: no more source cycling, every
+  play started. Timings: 15.9 s (cache; hand-off 7.5 s, Kodi's open 8.4 s), 28.4 s (direct: the cache had 1 of its 3
+  opening blocks after its 5 s budget; Kodi's open 20.5 s), 12.9 s (cache; 5.2 + 7.7 s).
+- **Concrete cause:** while each stream opened, the app was copying a 4K film (Iron Man 2160p) from AllDebrid to Drive
+  and preparing it for AirPlay ("AirPlay: prepare: carrying on from 6206 s, byte 4978723283") at full speed. Its Drive
+  pieces took 0.2-0.7 s before the open and 3.6-9 s during it: the phone's line was shared. The slowdown rule
+  (`slowdown.reason`) only looked at `Player.HasVideo` and `Player.Caching`, which are false while Umbrella resolves a
+  link and Kodi opens the file, so nothing slowed until the picture appeared (16:31:45.48 "Slower while a video plays",
+  9 s after the open began). Then copies were held but preparation went on at its share; the audio stalled 4 s after the
+  picture ("CVideoPlayerAudio::Process - stream stalled"): the glitch the owner saw.
+- **Fix (`slowdown.play_reason`, service.py):** the watch add-on's start mark (Home `KodiIOS.Open`, set when Stream is
+  tapped) counts as `buffering` (copies, uploads, preparation and background downloads wait) until the video has played
+  for 15 s (`SETTLE`), 120 s at most (`OPENING_LIMIT`). Then the usual 'video' rule applies. AirPlay and Kodi's own
+  buffering keep their rules. The stream cache's own reads are not slowed (its gate is the foreground one).
+- **Expected on the phone:** the cache's opening blocks within its budget every time (no `route=direct` from a busy
+  line), Kodi's open close to the rig's 7 s, no stall after the picture. Background work pauses for about 15-30 s per play.
+- **Test:** test_opening_hold.
+
+## ISSUE-310 — A movie copying (and being made ready) showed nowhere as running (owner, build 477, log 47ee1590) — fixed in code
+
+- **Seen:** Iron Man 4K was copying from AllDebrid and being made ready for AirPlay ("made ready while it copies",
+  5.1 of 6.0 GB). The library index logged it every minute ("1 working (1 copying)"), but Library status and the
+  Notifications page never showed anything running when the app opened.
+- **Cause:** every screen (Library status, Transfers/Queue, Running now, the bell) reads one model that
+  `work_state.from_index` builds from the library index (ISSUE-293); a live copy is attached to its index entry by
+  `same_copy`. That compared the copy's job id (`hash:season:episode`) with the entry's season/episode: a movie's job id
+  is `hash::` and its entry is season 0, episode 0, so no movie ever matched. Each running movie copy was demoted to a
+  quiet "queued" row (`drive_next`): not under Working now, not in Running now, no bell ring. Episodes have numbers, so
+  they matched; that is why only films disappeared.
+- **Fix:** an empty season or episode counts as 0 when matching; a positive match returns at once, anything else falls
+  through to the existing file-name and season-pack checks.
+- **Audit (owner: "ensure all screens use the library index"):** Library status, Transfers/Queue, Notifications' Running
+  now and the bell all read that one model; the remaining direct reads of the copy/preparation state only pick which
+  job a card's Cancel/Pause acts on. Library, AI Upscale (ISSUE-288), Download problems and deletes use the index.
+- **Test:** test_queue_index `test_a_movie_copy_being_made_ready_shows_as_running` (running, not queued; "Getting it
+  ready for Kodi and AirPlay"; the same in Library status, the Queue, Running now and the bell). Fails on the old code.
+
+## ISSUE-311 — Reviewer low items: orphaned pill strings, Continue Watching panel on the video controls not refreshing
+
+- **Cause:** (1) ten settings strings (#32001-#32010) of the removed activity pill were still in `strings.po`, and
+  `rig_smoke` had a pill entry (already removed). (2) The video controls' Continue Watching panel (`player_osd.py`) did not
+  end with the hubs' `&stamp=` (`portrait.CONTINUE_STAMP`), so Remove From Continue Watching did not refresh it.
+- **Fix:** the strings are deleted. The panel's path now ends with `CONTINUE_STAMP`, XML-escaped (`&amp;`) at the use site;
+  an unescaped `&` made the controls window not well-formed (found by test_customisation, two errors).
+- **Retest:** test_customisation passes again.
+- **Test:** test_review_low_items (no pill strings, the controls window parses and its panel ends with the stamp).
+
+## ISSUE-312 — J3: opening a favourite show did not mark its in-progress episode "Continue"
+
+- **Cause:** the show page is TMDb Helper's seasons/episodes list; the app's own progress (continue.json) never reached it,
+  so only Kodi-library items drew a progress bar. The page docstring claimed episodes carried Continue; nothing did.
+- **Fix:** `favourites_import_page.mark_show` (on opening an imported show) finds the show's latest unfinished episode in
+  continue.json (30 s in, under 92 %) and sets Home properties `KodiIOS.ShowContinue{Tmdb,Season,Episode,Left}` (cleared when
+  none). `portrait.episode_item` shows a blue "Continue · 11:20 left" line on the matching episode of that show only
+  (season, episode and the folder path's tmdb_id must all match).
+- **Retest:** host test only; the rig cannot list a show without TMDb (network). Needs the phone.
+- **Test:** test_favourites_flow `test_a_show_page_marks_the_episode_in_progress_continue`.
+
+## ISSUE-314 — A show added by hand with Add to Favourites did not appear once a list was imported (owner)
+
+- **Cause:** `favourites_page.read` returned `(imported + own)[:90]`. The owner's import fills the 90 cells, so Kodi's own
+  favourites (long-press > Add to favourites), which came after it, were cut off.
+- **Fix:** `favourites_rows.merged`: hand-added favourites lead, newest first (Kodi appends new ones, so its order is
+  reversed), and are never trimmed; the imported list follows, trimmed to what is left of the 90 cells. A title in both
+  shows once, as the hand-added one (same TMDb id and type, or the same name, and year when both have one). `entries`
+  now carries each favourite's `tmdb` id. TMDb Helper tv/movie favourites already count for the Shows/Movies chips (`kind_of`).
+  Rank badges (#n) stay on imported rows only.
+- **Retest:** desktop Kodi rig: a show added with Favourites.AddFavourite while 90 imported titles are seeded shows first.
+  Not the phone.
+- **Test:** test_favourites_flow `HandAdded`.
+
+## ISSUE-315 — An Umbrella episode took 41.8 s to open: two hand-offs raced; the cache route's own open took 9 s (owner, build 479, log bdbdac02) — fixed in code; needs the phone
+
+- **What the log shows (Black Clover S02E07, good network):**
+  - 18:00:04 play: 41.8 s (hand-off 17.9 s, Kodi's open 24.0 s). TWO `stream opening` lines for this one play, from two
+    threads: hand-off A began about 18:00:16.9, hand-off B about 18:00:17.6, for different links. The cache holds one
+    source, so B's `open` closed A's. A's readiness check then saw another source's stats and returned at once:
+    `route=direct wait_ms=1019 blocks=0/0`. Kodi played A's link directly (`VideoPlayer::OpenFile` 18:00:22.7, demuxer to
+    probe 26.7 → 46.4: 20 s over one AllDebrid connection). B finished at 18:00:22.98 (1 of 3 blocks), too late.
+  - 18:00:55 play: 16.6 s on the cache route (hand-off 7.3 s, of which 4.6 s fetching the 9 MB opening blocks; Kodi's
+    open 9.3 s). Kodi reads on past the three opening blocks while it opens an MKV (tracks, attached fonts), and those
+    blocks were only fetched once Kodi asked for them.
+  - The opening hold (ISSUE-309) worked: "Waiting while a video opens or buffers" at each play, "Slower while a video
+    plays" after.
+- **Fix (`remote_media.py`):**
+  - A Kodi source opened under `RACE` (20 s) ago is kept beside a new one (`Broker.previous`, one at most) instead of
+    being closed. `stats`, `drop` and `origin` take the hand-off's own id, so each hand-off checks, keeps or lets go of its
+    own source. The kept one closes when Kodi has left it alone for KODI_IDLE (or never read it), after a minute at least.
+  - Once the opening blocks are in, the next `KODI_AHEAD` (4) blocks (16 MB) are fetched at once (`prefetch(extra=)`).
+- **Unknown:** why Umbrella resolves two links for one play (its code is not in the repo). Both now finish on the cache.
+- **Test:** test_stream_race (a second hand-off keeps the first source alive and serving; each sees its own stats; one
+  previous at most; the next blocks are fetched with the opening). Fails on the old code.
+
+## ISSUE-316 — Scrolling is poor on every page but Home, Movies and TV (owner, build 442 item 9) — Kodi patch ready; needs a native build (r33) and the phone
+
+- **Measured (desktop Kodi rig, System.FPS while dragging, uncapped):** Home ~135-139; Notifications ~70-97; Library
+  status ~86; Favourites ~64-68. The page under a dialog is not the cause (Favourites opened over an almost empty window
+  was no faster).
+- **Cause (Kodi 21.3 `CGUIControlGroupList::Process`):** "we render all controls, even if they're offscreen": a group
+  list calls `DoProcess` on every child on every frame. Home, Movies and TV are a group list of rows that are *lists*,
+  which process only the items on screen; every other page is one long group list (90 favourite cells, every
+  notification row, every status row), all processed on every frame wherever the page is scrolled. The touch flick and
+  its momentum are the same for both (portrait patch, ISSUE r20); the frame rate is not.
+- **Fix (`kodi-21.3-portrait.patch`, GUIControlGroupList.cpp):** a visible child more than one screen above or two screens
+  below the visible part (and without focus) is not processed; its visibility is still updated (sizes stay right) and it
+  is processed again as it comes near.
+- **Retest (rig A/B, same session, same pages):** original Home 139 / Favourites 68 / Notifications 70; patched Home 140 /
+  Favourites 83 / Notifications 88 fps. The phone's CPU has far less headroom, so the gain there should matter more; only
+  the phone can say how it feels.
+- **Release:** needs the native executable rebuilt as `kodi-ios-portrait-r33` (source-lock `build_tag`, `patch_sha256`
+  updated; `executable_release` stays r32 until r33 is built and its digests checked), then the IPA pinned to it. Held
+  for the owner's OK; the change waits on branch claude/wip-smooth-scroll.
+- **Test:** test_smooth_pages (the patch skips far children; the lock names r33 and this patch).
+
+## ISSUE-317 — Umbrella: 12 MB loads fast, then "loading video" sits ~30 s (owner, build 482, logs d3c14036 / cf038697) — fixed in code; needs the phone
+
+- **Seen (owner):** play 1 on the cache route, all 3 opening blocks ready in 4.3 s, then Kodi's open took 31.3 s. Play 2
+  fell back to the direct link (2/3 blocks after 5.3 s) and opened in 19.6 s. The card loads 0–12 MB quickly, then sits
+  at "loading video". So the network was fine, and the time goes after the hand-off, inside Kodi's open through the cache.
+- **Rig (desktop Kodi rig, set up like the phone):** the portrait patch's 3 MB / 3 s probe limits, filecache 96 MB /
+  readfactor 1000, a null ALSA device. The test MKV's attachment data was turned into EBML Void elements, so FFmpeg
+  seeks past each font as the phone's patched FFmpeg does. A throttled server ran at 0.7 MB/s per connection with
+  0.4 s per request, and `for_kodi` was tested end to end.
+  - Kodi's open seeks across the font area (e.g. 10.8, 17.0, 20.7, 21.0 MB), then reads from the first cluster. Those
+    offsets are in blocks 2–5, outside the three opening blocks, so Kodi waits for them.
+  - 30-font MKV (about 20 MB): direct 16.9 s (15.2 s seeking); cache as in build 482 3.8 s hand-off + 4.7 s = 8.5 s;
+    24 MB before admission with a 15 s wait 7.4 s + 1.1 s = 8.5 s (only moves the wait); 16 connections instead of 8:
+    Kodi's demux wait 3.7 → 1.9 s.
+  - The rig does not reproduce a 30 s stall with a fast link.
+- **Concrete cause (owner log cf038697, play 1, 18:35):** `stream opening: route=cache wait_ms=4282 blocks=3/3 errors=0`,
+  `Creating Demuxer` 46.21, then Kodi's reads from the cache were cut three times: `CCurlFile … Transferred a partial
+  file(18)` at 51.60, 05.45 and 16.61 (with `CFileCache::Seek … failed to get remaining data` and `source read returned 0!
+  Will retry`), and `probe limits` only at 17.46: 31.3 s. The loopback server cuts a read only when the block it waits on
+  fails (`drive_stream` closes the connection), and each cut cost Kodi 5-14 s before it read again. Weak spots found in
+  the code: (1) the opening's 5 s budget (deadline + 5 s connect timeout) applied to every request of the source,
+  including the KODI_AHEAD blocks started at ~4.3 s, which got well under a second to download a 1 MB piece (the phone's
+  native opener buffers the whole piece within that timeout), and to Kodi's own reads made before the budget was cleared;
+  (2) a block that failed after its 3 tries per piece cut Kodi's read instead of being fetched again. The exact error of
+  each failed block is not in the build-482 log; the new `cache block: … error=` lines will name it.
+- **Changed (`remote_media.py`, `drive_stream.py`):**
+  - Every read Kodi makes through the cache is logged as it starts and as it ends (`Kodi iOS cache read: at= offset=
+    asked=` / `read done: sent= took= waited= waited_for=`), and every block fetch with its time or error (`Kodi iOS
+    cache block:`). This covers the first READ_LOG_FOR (90) seconds, at most 150 lines, with no URLs.
+  - Served bytes are written in 1 MiB slices, so `sent=` and `served=` count what a reader really took.
+  - Upstream requests go through `_Gate`: the same cap (PIECES), but a free place goes to a block Kodi waits on, then
+    the opening blocks, then read-ahead. The KODI_AHEAD blocks start with the opening ones once those have queued.
+  - `OPEN_BLOCKS` (default 2, as before) sets how many leading blocks must be in before Kodi is handed the cache.
+  - The opening budget applies only to the blocks that decide the route (the opening blocks and the last); the next
+    blocks, read-ahead and blocks Kodi waits on always get the normal 20 s timeout (`budgeted` in `remote`, the deadline
+    read live so a renewal still uses up the budget).
+  - A block a reader waits on is fetched again up to BLOCK_RETRIES (2) more times before the read is cut.
+- **Rig after the fix:** same file and speed, the cache route 3.8 s + 4.6-4.7 s, no block errors, 60 read lines logged.
+- **Expected on the phone:** no `Transferred a partial file` while an Umbrella stream opens; `open` a few seconds. If it is
+  still slow, the `cache read` / `cache block` lines show which read waits and why.
+- **Test:** test_stream_reads (read trace without the address, the log window, gate order, priorities, OPEN_BLOCKS, the
+  budget only for the opening blocks, a failed block fetched again; the last two fail on the build-482 code).
+  test_stream_opening_fallback now counts only the `stream opening` line, and still checks all lines for private data.
+
+## ISSUE-318 — Build Season check named sample episodes, showed empty "4K · …" placeholders and a gap (owner, build 442) — Q2 done; rig-checked
+
+- **Cause:** the check card was drawn for a fixed three-episode lookup ("Looking at episodes 1, 6 and 10"), with one
+  placeholder slot per quality, a fixed 3-row card and empty space under it. The header read "· 10 episodes" when the
+  show title was empty.
+- **Fix:** owner-approved Q2 (docs/design/build442-mockups.html), on the backend's live coverage (ISSUE-296).
+  - `season_check.chips`: the found qualities as up to three chips, green "1080p · all 21" for the whole season and
+    orange "720p · 18 of 21" for part of it. One plain intro line until something is found; "Still looking · …" or
+    "None found · …" under the bar. No sample-episode numbers.
+  - `pages.season_quality_sheet`: the card ends right under the bar and its line (one or two chip rows). While it
+    checks, the sheet's top comes down to meet Build (conditional slides; `_sheet(shift=)`), so there is no gap. A
+    sliding bar while it looks.
+  - `season.sub` drops an empty title.
+- **Rig (desktop Kodi rig, `IOSSeasonQuality.xml` with properties from the real model):** nothing found yet, two partial
+  chips, three chips (two rows), done with "None found · 4K". No gap, nothing cut off.
+- **Test:** test_build442_sheets `Q2Chips`; test_season_sheet (the 20-step bar is gone; chips and the slide are present).
+
+## ISSUE-319 — Notification detail: a fixed tall sheet with gaps, no sense of what happened when (owner, build 442) — N2 done; rig-checked
+
+- **Fix:** owner-approved N2 (docs/design/build442-mockups.html).
+  - `notifications.detail_properties` reads `notice_help.detail_model` with the profile, which loads the retained steps
+    (ISSUE-296), and publishes up to three `tl.N.time / text / tint` steps (blue copying, orange problem or retry,
+    green ready). Old notices get no invented steps.
+  - `notice_page.sheet`: what happened, the timeline, then the actions as one grouped list (`status_ui.row_back`; each
+    row's place set as `fixN.pos` / `tech.pos`): the main fix in blue, the other fixes, and Technical details as the
+    last row ("What the app logged, Share Log"). Parts that are not there close up (grouplist), and the sheet comes down
+    by their height, so it is as tall as what it says. Technical details keeps the full-height view.
+  - Also fixed: the plain view's condition was built as `!!String.IsEmpty`; it now uses `status_ui.neg`.
+- **Rig:** with a timeline and without one, plus the Technical details view. Nothing cut off.
+- **Test:** test_build442_sheets `N2Timeline`; test_notice_log (every property the sheet uses).
+
+## ISSUE-320 — A copy's details sheet: conversion steps, blank Average / Started, cut-off text (DEC-051 board B) — done; rig-checked
+
+- **Fix:** owner-approved board B (docs/design/unified-status-mockups.html).
+  - A copy's sheet keeps the conversion sheet's layout (speed card, Pause and Cancel) with its own steps: "Found on
+    AllDebrid" (or "Fetching on AllDebrid"), "Copying to Drive · N%", "Ready for Kodi and AirPlay".
+  - `library_rows.speed_card_text` fills Average, Done and Started from the lane's own samples and Drive's confirmed
+    bytes (ISSUE-294) when there is no older history record.
+  - Rig found two cut-off texts (DEC-050): the step labels ("Found on AllDeb…", "Ready for Kodi …") now wrap to a second
+    line, and the needs card's sentence ("…saved sign-in. Downloa…") wraps to three lines (`status_ui.NEEDS_H`).
+- **Rig:** the `airplay` scenario's Inception copy and the Scary Movie conversion sheet: everything fits above the
+  buttons, nothing cut off.
+- **Test:** test_build442_sheets `BoardBCopySheet`; test_build193_pages allows wrapping for exactly these two labels.
+
+## ISSUE-321 — Umbrella stream stuttered just after it started; glitchy on exit (owner, build 486, log a30fb0aa) — fixed in code; needs the phone
+
+- **Seen:** two plays of Black Clover S2 E7, both opened in 8.6-9.1 s (open 2.1-2.2 s: ISSUE-317 holds). About 1-2 s
+  after the picture, every block fetch in flight failed with `ConnectionError` (blocks 2-4 after 5.7 s, 6-9 after 2-5 s),
+  Kodi's reads waited 6.6-22.9 s (`waited_for=6,7,…`) and the audio stalled ("stream stalled"); later fetches of the
+  same blocks succeeded, block by block at 5-8 s each.
+- **Causes found in the code:**
+  - The ISSUE-309 settle hold never held: `slowdown.play_reason` read the start of the play from `KodiIOS.Open`, which the
+    open-timing line clears as soon as the picture plays, so "Slower while a video plays" came 1 s after the picture
+    instead of 15 s.
+  - The next blocks fetched after the opening (KODI_AHEAD, blocks 2-5) were the MKV's attached fonts, which this Kodi
+    skips: Kodi read 0-6.3 MB and then went straight to the first video at 22.57 MB (block 5). 12 MB of unused fetches
+    competed with the video's blocks at the moment playback began.
+  - A failed block cost Kodi a full new block fetch through the same crowded connections; the trace logged only the
+    error's type.
+- **Fix:**
+  - `play_reason` remembers the play's start until the video stops (SETTLE 15 s now holds after the picture).
+  - `remote_media.video_start` walks the MKV's top-level elements in block 0 (tracks, attachments, tags) to where the
+    first video begins; the next blocks are fetched from there.
+  - A block that fails on the way (not an answer that contradicts the file: `INTEGRITY`) is fetched once more over one
+    connection, and the request gate gives half its places for CALM_FOR (30) s.
+  - The trace names the error and its words, with addresses removed (`describe`).
+- **Rig (desktop Kodi rig, 30-font MKV, 0.7 MB/s, a 6 s window where the server drops every connection):** old and new
+  both rebuffer about 5-6 times. A total outage cannot be retried around, and the phone's failure (slow, partial) is
+  not reproduced. The new trace line will name the phone's error.
+- **Test:** test_stream_reads `Stutter`, `SettleHold`.
+
+## ISSUE-322 — Holding a favourite closed Favourites and opened Kodi's menu with "Add to favourites" (owner, build 486) — fixed in code; rig-checked
+
+- **Cause (log 181477d9):** iOS sends a long press as Back (10) and then the context menu (117); Favourites closed on the
+  Back and Kodi's own context menu opened over Home.
+- **Fix (`favourites_page.py`):** on a poster a long press opens the page's own menu (the choice sheet): Download (the
+  existing download script: a movie, or a season of a show), View Details (TMDb Helper's info window, 1190), and Remove
+  from Favourites last, in red. No "Add to favourites". The second action of the same press is ignored, as in Library
+  status (ISSUE-196).
+- **Rig:** the menu renders with all three rows and Cancel, nothing cut off. Download and View Details need the phone
+  (TMDb and Elementum are offline in the rig).
+- **Test:** test_favourites_menu `Menu`.
+
+## ISSUE-323 — A 96-name list added 58; 20 "not found" (owner, build 486, log 181477d9) — lookups retried; names logged
+
+- **Seen:** "favourites import: 96 lines, 57 added, 1 known, 21 questions, 20 not found". The 21 questions wait for a
+  pick in Import a List › Last import (several titles close to the name); the 20 are listed there as not found.
+- **Cause found:** a lookup that raised (a timeout, TMDb busy) was counted as "not found" without a second try.
+- **Fix:** each lookup is tried up to three times; one that keeps failing is marked and logged as "could not be looked
+  up". The log names the titles not found, failed and waiting for an answer, so the next import shows which it was.
+- **Test:** test_favourites_menu `Lookups`.
+
+
+## ISSUE-324 — "Seven deadly sins" asked between four obscure shows and never offered the anime (owner, build 486) — matcher fixed; poster picker mocked up
+
+- **Seen (screenshot):** Last import › Needs your answer: "Seven deadly sins" offered four "Seven Deadly Sins" (TV 2010,
+  1966, 2008, 1993), each shown only by its year; "The Seven Deadly Sins" (the 2014 anime) was not among them. Not found
+  opened the keyboard for each name in turn ("a typing page").
+- **Cause:** `favourites_match.norm` kept a leading "the", so the exact-named obscure titles scored 1.0 and the anime
+  scored lower; only titles within 0.02 of the top are offered.
+- **Fix:** a leading The / A / An is ignored when matching. The anime now scores 1.0 too and, being far more popular
+  (ISSUE-305's 3x rule), is matched without asking.
+- **Not built yet:** choosing by poster instead of by year (boards K7 and K8 in docs/design/favourites-manager-mockups.html,
+  for owner approval with K1-K6).
+- **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
+  normalises its own keys).
+
+## ISSUE-332 — Actions can no longer publish releases: r33 built but "HTTP 403: Resource not accessible by integration" (2026-11-15) — blocked on a repository setting
+
+- **Seen:** kodi-ios-portrait run 43681992197 (workflow_dispatch, r33 for ISSUE-316): the executable built; the publish job's
+  `gh release create` failed with HTTP 403, and again on a re-run of that job alone. The pull_request run before it
+  failed the same way. r32 was published by the same workflow from a workflow_dispatch run on 2026-11-13 (run 43362838057).
+- **Cause (likely):** the workflow asks for `contents: write`; a 403 from the releases API means the token was given
+  less, so a repository or organisation setting changed after 2026-11-13 (Settings › Actions › General › Workflow
+  permissions, or a ruleset on tags/releases). Not visible from this session.
+- **Fix:** owner: allow "Read and write" workflow permissions (or lift the rule), then re-run only the failed publish job
+  of run 43681992197: the built executable is kept as the run's artifact (no one-hour rebuild). The AirPlay framework
+  build (airplay-ios.yml, ISSUE-326) also publishes a release and waits for the same change.
+- **Retest:** release kodi-ios-portrait-r33 exists; then pin it (digests checked by download) and build the IPA.
+- **Update (owner, 13:30Z):** workflow permissions were already "Read and write" and there are no rules, so the setting
+  was not the cause. The publish steps (Kodi, AirPlay framework, IPA) now fall back to tagging the default branch when
+  the branch commit is refused, and kodi-ios-portrait takes `from_run` to publish an earlier run's executable without
+  building. Run 43719679425 (from_run 43681992197) published r33 on its first try, tagged on b6f75b9 (the fallback was
+  not needed): the refusals were tied to tagging 04ffff0; the exact reason is still unknown. Zip 7ebe1377…fb00 and
+  executable 091eb4a4…1435 checked after download (arm64 Mach-O) and pinned. Status: worked around.
+
+## ISSUE-331 — Next Episode lagged and asked again; it should pick the next episode by itself (owner, build 486) — fixed in code; needs phone retest
+
+- **Request:** "review the next episode button as it seemed to lag out … it should only show up for tv shows and it should
+  simply select the next episode if its downloaded through elementum then it should find and recognize that, if its
+  through umbrella it should auto select best source based off the first quality i originally picked".
+- **Cause:** the button sent TMDb Helper a link without the show's TMDb id whenever the playing item had no
+  `tvshow.tmdb` id (a search by name, slower, and it skipped the fast path that plays a downloaded copy at once), and
+  without any sign that it came from Next Episode, so the watch menu asked "How would you like to watch?" again and the
+  version page asked for a quality again. A second tap while it was starting started it twice.
+- **Fix:** `next_episode.py` takes the show's TMDb id from Continue Watching's entry for the playing episode and adds
+  `ios_next=<that episode's key>`; a second tap within 10 s is ignored and a short "S1, E3" notice shows at once; a
+  movie never gets it (the button also hides when `VideoPlayer.Content(movies)`). With the TMDb id, a downloaded copy
+  (Elementum on the phone or Drive) plays before TMDb Helper loads (fast_copy, unchanged). Otherwise the watch menu
+  (`ios_watch_dialog.following`) uses the player the previous episode used, without asking, and passes its quality and
+  size; the version page (`deck_picker.next_wanted`) takes the version closest to them (`auto_choose`, the Build Season
+  ranking) without showing, and remembers it so the episode after follows the same way. With no saved player it asks
+  as before.
+- **Not covered:** the last episode of a season does not move on to the next season's first episode.
+- **Test:** test_next_episode (FromContinueWatching), test_watch_dialog (next episode reuses the player and quality;
+  without a saved player it asks), test_deck_picker (next episode picks the closest quality without the page).
+- **Retest:** phone: Next Episode on an Umbrella episode (no menus, same quality), on a downloaded episode (plays the
+  copy), and on a movie (no button).
+
+## ISSUE-330 — Continue Watching showed every episode of a show (owner screenshot, build 486) — fixed in code
+
+- **Seen:** "Phony S1, E2" and "Phony S1, E1" as two cards. Owner: "it needs to go by per show and keep the most recent
+  episode i watched".
+- **Cause:** `ios_continue.entries` listed every started title; each episode is its own entry.
+- **Fix:** one card per show, its most recently played episode, matching the show by TMDb id or by name (Kodi's library
+  copies have no TMDb id). When an episode is finished, older unfinished episodes of that show stay off the row
+  (`show_done`); a later episode played afterwards shows again. Saved positions are untouched.
+- **Test:** test_watch_continue (test_one_card_per_show_with_the_latest_episode).
+
+## ISSUE-329 — Settings › Library: four rows the owner no longer needs (owner screenshot, 2026-11-15) — done in code; rig-checked
+
+- **Request:** "remove check drive for problems and download problems, as all problems will show elsewhere … we can also
+  remove scan iphone files with refresh library since there is a refresh in the status".
+- **Checked first:** the service already scans Kodi Downloads on the iPhone by itself; Library status and the Movies/TV
+  pages have Refresh; Download problems opens from Notifications ("Open Download problems" in its help). Check Drive for
+  problems was reachable only from Settings.
+- **Fix:** the iPhone Files section, Refresh Library, Check Drive for problems and Download problems left the page;
+  Library now holds Movies and TV Shows, and focus starts on Movies. So that Drive problems still "show elsewhere",
+  the service now posts one Notifications message ("Problems on Google Drive", tap to review the same list) when it
+  lists Drive again and finds problems it has not reported before (`library_delete.notify_drive_problems`). The
+  scripts stay (the add-on's own settings and the service use them). Lost: choosing another folder to scan from Settings.
+- **Test:** test_settings_page (rows gone, Movies first, navigation), test_settings_search, test_library_files
+  (test_drive_problem_notice: one message, not repeated, new again after a fix), test_debrid_drive.
+- **Rig:** Settings › Library rendered in the desktop Kodi rig: three groups, nothing cut off. Needs a look on the phone.
+
+## ISSUE-326 — AirPlay of a prepared movie slow to start, first try failed (owner log ebc9c063, build 486) — fixed in code; needs phone retest
+
+- **Seen:** casting a prepared (Drive copy) movie took long to start and the first try failed on the Roku; the log shows
+  `prepared.mp4 bytes=0-53040145`, "HLS over the file's 36 fragments (… longest 63.0 s …)", `seg0.vtt` answered 503 after
+  8010 ms and Apple's player stopping with -12889 "No response for media file in 6s (seg0.vtt)". The movie resumed at
+  about 40 min, yet the player first asked for subtitle segment 0.
+- **Cause:** a prepared file stores fragments of about 64 MB (6-60 s by bitrate) for efficient Kodi reads. Served as HLS
+  over those fragments, Apple's player must fetch a whole fragment (up to 63 s, 49 MB) before it can show it, and one
+  slow fragment hits its 6-s timeout. The subtitle server waited up to 8 s for a cue file, also past that timeout, and
+  answered the player's early segment-0 request (before it moved to the resume point) the same slow way.
+- **Fix (kr_remux.c):** before choosing the prepared route the fragment index is measured; when a fragment runs longer
+  than 10 s the movie goes the six-second keyframe-segment route the Roku already uses (picture and audio copied,
+  nothing converted; Roku's codec limits still apply only to Roku). Subtitle waits end after 4 s (a retryable 503 inside
+  Apple's 6 s). While resuming, a cue file behind the resume point is answered empty at once; once the player reaches
+  the resume point the ordinary path returns, so seeking back still gets real captions.
+- **Trade-off:** this deliberately breaks the old rule "an unfinished cue is never a blank 200" for cue files behind the
+  resume point only, before the player gets there.
+- **Test:** test_airplay_long_fragments (wiring) and the C host test test_long_fragments in test_remux.c (a 30-s-fragment
+  prepared movie is segmented with keyframe segments ≤ 8.1 s, picture copied; seg0.vtt after priming at 20 s is empty in
+  < 500 ms; real captions after the player reaches the resume point); subtitle wait bounds tightened to < 5.5 s; the
+  slow-cue test retries after each 503 like a player (CI run 225: its 10-s stall outlasted two 4-s waits).
+- **Retest:** phone: AirPlay a prepared movie to the Apple TV and the Roku, from the start and resumed; first try plays.
+
+## ISSUE-327 — 165 "Connection reset by peer" tracebacks filled the log (owner log ebc9c063, build 486) — fixed in code
+
+- **Seen:** 165 Python tracebacks (`socketserver … http/server.py handle_one_request … ConnectionResetError: [Errno 54]`),
+  two or three a second whenever a Drive copy played or went to AirPlay; about 40 lines each, most of the 1.1 MB log.
+- **Cause:** the Drive proxy's server (`drive_proxy.Server`, which Kodi and AirPlay read Drive copies from) had no
+  `handle_error`, so Python's default printed a full traceback each time a reader hung up (Kodi seeks, AirPlay stops a
+  range). The stream cache's server (`drive_stream._Server`) already ignores these (build 169).
+- **Fix:** the same `handle_error`: a reset, broken pipe, aborted connection or timeout from a reader is ignored; any other
+  error is still reported. Less log I/O while playing, and logs readable again.
+- **Test:** test_quiet_hangups (both servers stay quiet on hang-ups and still report other errors).
+
+## ISSUE-325 — Settings › Favourites as the Favourites manager (boards K1-K8, owner-approved) — done in code; rig-checked
+
+- **Request:** the owner-approved boards K1-K8 (docs/design/favourites-manager-mockups.html): a manager page from Settings
+  with what needs a look (Needs your answer, Not found, Duplicates), each imported list, and Import / Order / Open
+  Favourites; K7/K8 pick a title by its poster.
+- **Cause of the draft's failure (rig render):** the WIP drew every page as ONE Kodi list whose `<itemlayout>`s had
+  `condition="String.IsEqual(ListItem.Property(kind),…)"`. Kodi picks one layout for the whole list
+  (`CGUIListItemLayout::CheckCondition` evaluates with DEFAULT_CONTEXT, no item), so every row came out as the first
+  layout (grey section captions) and the cards, counts, chips and buttons never showed.
+- **Fix:** IOSFavManage.xml is a column of `SLOTS` (70) slots, filled from window properties (`r.N.kind`, `r.N.label`, …);
+  each slot holds every kind's drawing (the WIP's layouts, `to_slot` points them at the slot) and shows the one its row
+  is; a slot is tapped through its own button (`ROW_TAP` + N). The segmented control is the column's first group. A page
+  clears what the last one set (`slot_properties`). Rig fixes on the way: the stat tiles' number colour, row icons'
+  path, round count/action/chip pills, the poster row's text full-width unless a chip or action sits at its right
+  ("Best guess: The Eminence in Shadow · TV" was cut), "Most likely" sized to its text. `start=ask|missing|dups|list:<name>`
+  opens a page directly. Settings › Favourites opens it.
+- **Retest:** desktop Kodi rig: K1 landing (stats, Needs a look with counts, Your lists, Manage), K2 Needs your answer,
+  K3 Not found (segments, Search, Skip All), K4 Duplicates, K5 a list (segments, stats, ranked poster rows, Added chips),
+  K7 picker (three posters, kind · year · seasons, Most likely). Nothing cut off. Not the phone; posters need TMDb art.
+- **Test:** test_favourites_manager (no per-row list layouts; every slot has every kind and its tap; every kind the model
+  makes is drawn; slots never keep a previous page's values; Settings opens it).
+
+## ISSUE-328 — One Continue Watching entry without a show title emptied the whole row (rig) — fixed in code
+
+- **Seen:** `KeyError: 'tvshowtitle'` in `ios_continue.directory` (plugin.video.kodi.ios.watch): the whole Continue
+  Watching row failed to list because one saved episode had no show title.
+- **Fix:** a missing title or show title takes the other; an entry with neither is skipped; the row lists the rest.
+- **Test:** test_favourites_manager `ContinueRow`.

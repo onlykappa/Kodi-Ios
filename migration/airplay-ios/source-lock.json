@@ -1,15 +1,15 @@
 {
   "framework_release": {
+    "tag": "kodi-airplay-r58",
+    "asset": "KodiAirPlay.framework.zip",
+    "sha256": "1bff47f3f97cc2c7a51dbc9ffaee1dcb3335fe4fc82f475c250455f1354fc331"
+  },
+  "previous": {
     "tag": "kodi-airplay-r57",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "9a11280783684187c357844081cf08f7874a4e19ca0af0f5f309392dfe42fbda"
   },
-  "previous": {
-    "tag": "kodi-airplay-r56",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "91be96afe8a51cfde1643b79a6675f6c91ba915d9b5fc334591f583c9b9416f7"
-  },
-  "source_commit": "d020c829f023814c427351c14958e6edbfe2cf67",
-  "verified_run": 43622274914,
-  "pin_note": "r57 (ISSUE-278: a prepared file the TV takes as sound only, or that fails while the TV has the sound only, restarts once, H.264 too; an H.264 picture restarts in 6-s segments with the picture copied) published by airplay-ios run 43622274914 from d020c82; the converter host tests (airplay-remux run 43621764007, same native source) passed; release notes, asset digest and downloaded zip all give 9a112807\u202642fbda, and the binary carries the new restart notes."
+  "source_commit": "b6f75b992aaea03ff82322f9832aabf0f6cd87c1",
+  "verified_run": 43719680757,
+  "pin_note": "r58 (ISSUE-326: prepared movies with fragments over 10 s go as six-second keyframe segments; subtitle waits end in 4 s; cue files behind the resume point answer empty at once) published by airplay-ios run 43719680757 from b6f75b9; the converter host tests (airplay-remux run 43685969642, same native source) passed; release notes, asset digest and downloaded zip all give 1bff47f3\u2026fc331, and the binary carries the new segment and empty-cue log lines."
 }

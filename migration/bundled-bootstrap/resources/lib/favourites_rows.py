@@ -6,7 +6,7 @@ no call to move a favourite. Remove is Favourites.AddFavourite with the same ent
 source: xbmc/favourites/FavouritesService.cpp, AddOrRemove). Script and Android favourites are not removed from here:
 removal was only checked against window and media favourites.
 """
-MAX = 36            # poster cells on the page (12 rows of three); further favourites stay in Kodi's own window
+MAX = 90            # poster cells on the page (12 rows of three); further favourites stay in Kodi's own window
 TITLE = 'Favourites'
 EMPTY = 'No favourites yet'
 FOOT = 'Long-press a poster anywhere and choose Add to Favourites.'
@@ -58,6 +58,51 @@ def kind_of(fav):
     return ''
 
 
+POSTER_URL = 'https://image.tmdb.org/t/p/w342'
+HELPER = 'plugin://plugin.video.themoviedb.helper/'
+
+
+def imported_entry(item):
+    """A grid row for one imported title. It opens like a poster anywhere: a show's seasons page, a movie's play link (the
+    app's own "How would you like to watch" chooser, or Continue when it was started: favourites_import_page.open_item)."""
+    kind = item.get('kind')
+    if kind == 'tv':
+        action = 'ActivateWindow(Videos,%s?info=seasons&tmdb_type=tv&tmdb_id=%s,return)' % (HELPER, item.get('tmdb'))
+    else:
+        action = 'PlayMedia(%s)' % quote('%s?info=play&tmdb_type=movie&tmdb_id=%s' % (HELPER, item.get('tmdb')))
+    poster = item.get('poster') or ''
+    return {'title': str(item.get('title') or ''), 'thumb': (POSTER_URL + poster) if poster.startswith('/') else poster,
+            'action': action, 'removable': True, 'remove': None, 'kind': kind if kind in ('movie', 'tv') else '',
+            'imported': item, 'rank': int(item.get('rank') or 0), 'watched': int(item.get('watched') or 0),
+            'year': str(item.get('year') or '')}
+
+
+def tmdb_of(fav):
+    """The TMDb id in a Kodi favourite's link, or ''."""
+    import re
+    match = re.search(r'tmdb_id=(\d+)', ' '.join(str(fav.get(k) or '') for k in ('path', 'windowparameter')))
+    return match.group(1) if match else ''
+
+
+def merged(own, imported, cap=MAX):
+    """ISSUE-314: hand-added favourites (Kodi's, newest first) lead and are never cut; the imported list follows, trimmed to the
+    cap. A title in both shows once (the hand-added one): same TMDb id and type, or the same name (and year when both have one)."""
+    own = list(reversed(own))
+    ids = {(r.get('kind'), r.get('tmdb')) for r in own if r.get('tmdb')}
+    names = {(r['title'].casefold(), r.get('year', '')) for r in own}
+    titles = {r['title'].casefold() for r in own}
+    keep = []
+    for r in imported:
+        item = r.get('imported') or {}
+        key = str(item.get('tmdb') or '')
+        if key and (r.get('kind'), key) in ids:
+            continue
+        if (r['title'].casefold(), r.get('year', '')) in names or (not r.get('year') and r['title'].casefold() in titles):
+            continue
+        keep.append(r)
+    return (own + keep[:max(0, cap - len(own))])[:max(cap, len(own))]
+
+
 def shown(rows, filter_key='all'):
     """The favourites the filter shows (Movies / Shows; All shows everything)."""
     return list(rows) if filter_key == 'all' else [r for r in rows if r.get('kind') == filter_key]
@@ -72,18 +117,22 @@ def entries(favs):
         if not action:
             continue
         out.append({'title': str(fav.get('title') or ''), 'thumb': str(fav.get('thumbnail') or ''), 'action': action,
-                    'removable': fav.get('type') in REMOVABLE, 'remove': remove_args(fav), 'kind': kind_of(fav)})
+                    'removable': fav.get('type') in REMOVABLE, 'remove': remove_args(fav), 'kind': kind_of(fav),
+                    'tmdb': tmdb_of(fav)})
         if len(out) >= MAX:
             break
     return out
 
 
-def properties(rows):
-    """Window properties for IOSFavourites.xml: count, and fav.n.title / thumb / removable for cell n (1-based)."""
+def properties(rows, ranked=False):
+    """Window properties for IOSFavourites.xml: count, and fav.n.title / thumb / removable for cell n (1-based), plus the
+    imported list's rank ("#3", only while sorted by list order) and watch count ("3\u00d7") for the poster badges."""
     props = {'count': str(len(rows))}
     for n in range(1, MAX + 1):
         r = rows[n - 1] if n <= len(rows) else {}
         props['fav.%d.title' % n] = r.get('title', '')
         props['fav.%d.thumb' % n] = r.get('thumb', '')
         props['fav.%d.removable' % n] = 'true' if r.get('removable') else ''
+        props['fav.%d.rank' % n] = ('#%d' % r['rank']) if ranked and r.get('rank') else ''
+        props['fav.%d.watched' % n] = ('%d\u00d7' % r['watched']) if r.get('watched') else ''
     return props

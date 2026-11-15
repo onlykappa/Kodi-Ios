@@ -64,6 +64,7 @@ def _foot(p, text, cond='', height=160):
 
 def _card_row(p, key, tint=None, right=0, extra=''):
     """A grouped row: title and the line under it (in `tint`, or by `<key>tone`). `right` keeps room for buttons."""
+    import status_ui as u   # used by the toned sub-line (pyflakes: undefined name 'u')
     S, W, w = p.SIDE, p.WIDTH, p.WIDTH - 2 * p.SIDE
     text_w = w - 48 - right
     if tint:
@@ -79,6 +80,7 @@ def _card_row(p, key, tint=None, right=0, extra=''):
 
 def _arrow(p, id, x, glyph, key):
     """A 118-unit ▲ or ▼ button; greyed and disabled at the end of the line."""
+    import status_ui as u
     return ('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>' % (x, (ROW - HIT) // 2, HIT, HIT) +
             p.image(7, 7, 104, 104, p.MEDIA + 'close_disc.png', '2EFFFFFF', '<visible>%s</visible>' % _has(key)) +
             p.image(7, 7, 104, 104, p.MEDIA + 'close_disc.png', '24FFFFFF', '<visible>Control.HasFocus(%d)</visible>' % id) +

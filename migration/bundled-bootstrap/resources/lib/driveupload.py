@@ -3,6 +3,7 @@ Drive › Kodi Downloads › Movies / TV Shows, resuming interrupted uploads, th
 reports the same size and checksum. Uses the Google Drive add-on's sign-in, which needs the drive.file permission (the sign-in
 server deployed by .github/workflows/signin-server.yml); drive.file only reaches files this app created."""
 import contextlib,fcntl,hashlib,json,os,re,threading,time,urllib.error,urllib.parse,urllib.request
+import copy_errors
 API='https://www.googleapis.com/drive/v3/files'
 UPLOAD='https://www.googleapis.com/upload/drive/v3/files'
 FOLDER='application/vnd.google-apps.folder'
@@ -29,6 +30,12 @@ class StreamChunks:
    self.fast+=1
    if self.fast>=3:self.current=min(self.limit,self.current*2);self.fast=0
   else:self.fast=0
+
+def _measured(progress, advanced, elapsed, piece_bytes):
+ """Optional telemetry callback; existing two-argument progress callers remain compatible."""
+ callback=getattr(progress,'piece',None)
+ if callback:callback(max(0,advanced),max(.001,elapsed),piece_bytes)
+
 
 class Stop(Exception):pass
 
@@ -64,7 +71,7 @@ def checksum(path,keep_going=lambda:True,pace=0,clock=time.monotonic,sleep=time.
 def confirmed(drive,item_id,size,digest):
  if not item_id:return False
  status,_,body=drive.call('GET',API+'/'+urllib.parse.quote(str(item_id),safe='')+'?fields=id,size,md5Checksum,trashed')
- if status!=200:raise RuntimeError('Drive verification: HTTP %s'%status)
+ if status!=200:raise copy_errors.http_error('Drive verification',status,body)
  meta=json.loads(body)
  return not meta.get('trashed',False) and int(meta.get('size',-1))==size and meta.get('md5Checksum','').lower()==digest.lower()
 
@@ -155,8 +162,13 @@ class Drive(object):
  def __init__(self,token,send):
   self.token=token;self.send=send;self.folders={}
  def call(self,method,url,body=None,headers=None):
-  headers=dict(headers or {});headers['Authorization']='Bearer '+self.token()
-  return self.send(method,url,body,headers)
+  headers=dict(headers or {});access=self.token();headers['Authorization']='Bearer '+access
+  result=self.send(method,url,body,headers)
+  if result[0]==401:
+   # An expired access token can be renewed once; only a second refusal needs the owner.
+   headers['Authorization']='Bearer '+self.token(access)
+   result=self.send(method,url,body,headers)
+  return result
  def folder(self,parts):
   parent='root'
   for depth in range(len(parts)):
@@ -165,12 +177,12 @@ class Drive(object):
     name=parts[depth].replace('\\','\\\\').replace("'","\\'")
     q="name='%s' and mimeType='%s' and '%s' in parents and trashed=false"%(name,FOLDER,parent)
     status,_,body=self.call('GET',API+'?'+urllib.parse.urlencode({'q':q,'fields':'files(id)','spaces':'drive'}))
-    if status!=200:raise RuntimeError('Drive folder lookup: HTTP %s'%status)
+    if status!=200:raise copy_errors.http_error('Drive folder lookup',status,body)
     found=json.loads(body).get('files',[])
     if found:self.folders[key]=found[0]['id']
     else:
      status,_,body=self.call('POST',API+'?fields=id',json.dumps({'name':parts[depth],'mimeType':FOLDER,'parents':[parent]}).encode(),{'Content-Type':'application/json'})
-     if status not in (200,201):raise RuntimeError('Drive folder %s: HTTP %s'%(key,status))
+     if status not in (200,201):raise copy_errors.http_error('Drive folder creation',status,body)
      self.folders[key]=json.loads(body)['id']
    parent=self.folders[key]
   return parent
@@ -183,14 +195,14 @@ class Drive(object):
   if session:
    status,headers,_=self.call('PUT',session['url'],b'',{'Content-Range':'bytes */%d'%size})
    if status in (200,201):return self._done(path,sessions,save,self.call('GET',session['url'])[2])
-   if status==308:offset=_next_offset(headers)
+   if status==308:offset=_next_offset(headers,size)
    else:session=None
   if not session:
-   status,headers,_=self.call('POST',UPLOAD+'?uploadType=resumable&fields=id,size',
+   status,headers,body=self.call('POST',UPLOAD+'?uploadType=resumable&fields=id,size',
                               json.dumps({'name':name or os.path.basename(path),'parents':[parent]}).encode(),
                               {'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Length':str(size)})
    location=headers.get('Location') or headers.get('location')
-   if status!=200 or not location:raise RuntimeError('Drive upload start: HTTP %s'%status)
+   if status!=200 or not location:raise copy_errors.http_error('Drive upload start',status,body)
    session={'url':location,'size':size};sessions[path]=session;save();offset=0
   import slowdown;gate=slowdown.Gate(keep_going=keep_going)
   with open(path,'rb') as f:
@@ -199,9 +211,14 @@ class Drive(object):
     f.seek(offset);chunk=f.read(CHUNK);end=offset+len(chunk)-1
     began=time.monotonic()
     status,headers,body=self.call('PUT',session['url'],chunk,{'Content-Range':'bytes %d-%d/%d'%(offset,end,size)})
-    if status in (200,201):return self._done(path,sessions,save,body)
-    if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
-    offset=_next_offset(headers);progress(offset,size)
+    if status in (200,201):
+     _receipt(body,size)
+     _measured(progress,size-offset,time.monotonic()-began,len(chunk));progress(size,size)
+     return self._done(path,sessions,save,body)
+    if status!=308:raise copy_errors.http_error('Drive upload',status,body)
+    confirmed=_next_offset(headers,size)
+    _measured(progress,confirmed-offset,time.monotonic()-began,len(chunk))
+    offset=confirmed;progress(offset,size)
     gate.after(time.monotonic()-began,len(chunk),download=True)
   raise RuntimeError('Drive did not confirm the upload')
  def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda done,total:None,activity=lambda phase,done,total:None):
@@ -211,15 +228,15 @@ class Drive(object):
   offset=0
   if session.get('url') and session.get('size')==size:
    status,headers,body=self.call('PUT',session['url'],b'',{'Content-Range':'bytes */%d'%size})
-   if status in (200,201):return json.loads(body or b'{}')
-   if status==308:offset=_next_offset(headers)
+   if status in (200,201):return _receipt(body,size)
+   if status==308:offset=_next_offset(headers,size)
    else:session.clear()
   if not session.get('url'):
-   status,headers,_=self.call('POST',UPLOAD+'?uploadType=resumable&fields=id,size,md5Checksum',
+   status,headers,body=self.call('POST',UPLOAD+'?uploadType=resumable&fields=id,size,md5Checksum',
                               json.dumps({'name':name,'parents':[parent]}).encode(),
                               {'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Length':str(size)})
    location=headers.get('Location') or headers.get('location')
-   if status!=200 or not location:raise RuntimeError('Drive upload start: HTTP %s'%status)
+   if status!=200 or not location:raise copy_errors.http_error('Drive upload start',status,body)
    session.clear();session.update(url=location,size=size);save();offset=0
   if callable(getattr(open_at,'copy_to',None)):
    return self._native_stream(open_at.copy_to,size,session,offset,save,keep_going,progress,activity)
@@ -261,9 +278,12 @@ class Drive(object):
     chunks.observe(len(chunk),read_s,put_s)
     _note('Drive copy: %.1f MB read in %.1f s (%.2f MB/s from the source), sent in %.1f s (%.2f MB/s to Google Drive), %.1f%% done'%(
      mb,read_s,mb/max(read_s,.001),put_s,mb/max(put_s,.001),100.0*(end+1)/size))
-    if status in (200,201):progress(size,size);return json.loads(body or b'{}')
-    if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
-    confirmed=_next_offset(headers)
+    if status in (200,201):
+     receipt=_receipt(body,size)
+     _measured(progress,size-offset,max(read_s,put_s),len(chunk));progress(size,size)
+     return receipt
+    if status!=308:raise copy_errors.http_error('Drive upload',status,body)
+    confirmed=_next_offset(headers,size)
     if confirmed!=end+1:   # Drive kept less than sent: drop what was read ahead and read again from where it got to
      if coming is not None:
       try:coming.result()
@@ -272,6 +292,7 @@ class Drive(object):
      try:source[0].close()
      except Exception:pass
      source[0]=open_at(confirmed)
+    _measured(progress,confirmed-offset,max(read_s,put_s),len(chunk))
     offset=confirmed;save();progress(offset,size)
     if _slow.reason() in _slow.HOLD:activity('paused_playback',offset,size)
     gate.after(put_s,len(chunk),download=True)
@@ -312,15 +333,14 @@ class Drive(object):
     chunks.current=max(chunks.minimum,chunks.current//2)
    elapsed=time.monotonic()-started
    if status in (200,201):
-    receipt=json.loads(body or b'{}')
-    if not receipt.get('id') or int(receipt.get('size',-1))!=size:raise RuntimeError('Invalid completed upload receipt')
+    receipt=_receipt(body,size)
+    _measured(progress,size-offset,elapsed,count)
     progress(size,size);save();return receipt
-   if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
-   confirmed=_next_offset(headers)
+   if status!=308:raise copy_errors.http_error('Drive upload',status,body)
+   confirmed=_next_offset(headers,size)
    # Owner log 3b94b426 (build 319): after a timed-out piece, Drive went on to keep that piece's bytes, so the next answer
    # confirmed more than the piece just sent and the copy failed with "Invalid Drive confirmed position". Those bytes are
    # the same file at the same place: Drive's position is the truth, anywhere up to the file's size.
-   if not 0<=confirmed<=size:raise RuntimeError('Invalid Drive confirmed position')
    if confirmed>offset+count:_note('Drive copy native: Drive kept %.1f MB more from an earlier piece'%((confirmed-offset-count)/1048576))
    if confirmed<=offset:
     failures+=1
@@ -330,11 +350,13 @@ class Drive(object):
    pace.observe(max(0,confirmed-offset),elapsed)
    if confirmed>offset:LinkMemory.remember(link,chunks.current,pace.rate)
    _note('Drive copy native: %.1f MB piece in %.1f s (deadline %.0f s); confirmed %.1f%%'%(count/1048576,elapsed,deadline,100.0*confirmed/size))
+   _measured(progress,min(count,max(0,confirmed-offset)),elapsed,count)
    offset=confirmed;save();progress(offset,size);gate.after(elapsed,count,download=True)
   raise RuntimeError('Drive did not confirm the upload')
  def _done(self,path,sessions,save,body):
+  receipt=_receipt(body,int(sessions[path]['size']))
   sessions.pop(path,None);save()
-  return json.loads(body or b'{}')
+  return receipt
 
 class LinkMemory:
  """ISSUE-271 (owner logs 4e5fb2dd / 18a4f9c7: after Wi-Fi to cellular the first pieces started at 32 MB with a 20 s
@@ -395,9 +417,25 @@ def _note(message):
   import xbmc;xbmc.log('Kodi iOS '+message,xbmc.LOGINFO)
  except Exception:pass
 
-def _next_offset(headers):
+def _receipt(body,size):
+ receipt=None
+ try:
+  receipt=json.loads(body or b'{}')
+  valid=bool(receipt.get('id')) and int(receipt.get('size',-1))==size
+ except (ValueError,TypeError,AttributeError):valid=False
+ if not valid:
+  raise copy_errors.PermanentCopyError('Invalid completed upload receipt. Drive did not save the expected file; choose another source.',
+                                       invalid_drive_id=receipt.get('id') if isinstance(receipt,dict) else '')
+ return receipt
+
+def _next_offset(headers,size=None):
  value=headers.get('Range') or headers.get('range') or ''
- return int(value.rsplit('-',1)[1])+1 if '-' in value else 0
+ if not value:return 0
+ match=re.fullmatch(r'bytes=0-(\d+)',str(value).strip(),flags=re.I)
+ confirmed=int(match[1])+1 if match else -1
+ if confirmed<0 or size is not None and confirmed>size:
+  raise copy_errors.PermanentCopyError('Invalid Drive confirmed position. The saved upload does not fit this file; choose another source.')
+ return confirmed
 
 def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,on_uploaded=lambda:None,seeding=(),drop=None,
              remote=None,pace=0,notify=lambda title,text:None):
@@ -438,93 +476,125 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
  for path,parts,tid in seeding:torrent_files.setdefault(tid,set()).add(path)
  work=[(p,parts,None) for p,parts in pending(root)]+list(seeding)
  done_before=state.setdefault('verified',{})
+ import phone_failures
+ profile=phone_failures.profile_for(state_path)
+ failures=state.setdefault('failures',{})
+ for failed_path,problem in list(failures.items()):
+  retry=phone_failures.take_retry(profile,failed_path)
+  try:changed=list(fingerprint(failed_path))!=problem.get('fp')
+  except FileNotFoundError:changed=True
+  if retry or changed:
+   failures.pop(failed_path,None);sessions.pop(failed_path,None)
+   phone_failures.clear_problem(profile,failed_path);save()
  for path,parts,tid in work:
   if not keep_going():break
   before=fingerprint(path)
-  known=done_before.get(path)
-  if tid is None and known and known.get('fp')==list(before):continue  # on Drive already; phone copy kept by setting
-  if tid is not None and known and known.get('fp')==list(before):
-   # Already on Drive and verified (its torrent could not be dropped yet, or a sibling failed): never upload twice.
-   torrent_ok.setdefault(tid,set()).add(path)
-   if torrent_ok[tid]>=torrent_files.get(tid,set()) and drop:
-    try:drop(tid);log('Removed the finished torrent from the phone (Google Drive has it)')
-    except Exception as error:log('Elementum could not remove the finished torrent: %s'%type(error).__name__)
-   continue
-  digest=None;duplicate=None
-  # Another release of the same episode or movie already on Drive, at least as good (owner, build 152: two
-  # 'Lanterns' folders each held S1 E1). Checked before any upload; this copy stays where it is.
-  better=drivelibrary.better_on_drive(path,listing()) if remote is not None else None
-  noted=state.setdefault('same_media',{})
-  if better is not None and noted.get(path)==list(before):continue   # already reported; nothing to re-check
-  if remote is not None:
-   digest=checksum(path,keep_going,pace)
-   if fingerprint(path)!=before:continue  # still changing: next pass
-   duplicate=already_on_drive(before[2],digest)
-  if duplicate is None and better is not None:
-   where=better.get('folderName') or 'Kodi Downloads';title=drivelibrary.display_title(os.path.basename(path))
-   # The owner's rule: the extra copy is deleted. Only with the remove-phone-copies setting on, and only once the
-   # Drive copy is confirmed to still be there with its listed size and checksum.
-   if delete_after and better.get('md5Checksum') and confirmed(drive,better.get('id'),int(better.get('size') or 0),better['md5Checksum'].lower()):
-    if fingerprint(path)!=before:continue
-    log('%s: Google Drive already has it in “%s” (%s); removing this copy'%(os.path.basename(path),where,better.get('name','')))
-    if tid is not None:
-     # A seeding torrent's files belong to Elementum: count this file as on Drive and drop the torrent once all are.
-     done_before[path]={'fp':list(before),'id':better.get('id')};save()
-     torrent_ok.setdefault(tid,set()).add(path)
-     if torrent_ok[tid]>=torrent_files.get(tid,set()) and drop:
-      try:drop(tid);log('Removed the finished torrent from the phone (Google Drive has it)')
-      except Exception as error:log('Elementum could not remove the finished torrent: %s'%type(error).__name__)
-    else:
-     os.remove(path);folder=os.path.dirname(path)
-     while os.path.basename(folder) not in ('Movies','TV Shows') and not os.listdir(folder):os.rmdir(folder);folder=os.path.dirname(folder)
-    notify('Duplicate removed from the phone','%s is already in “%s” on Google Drive, so this copy was removed.'%(title,where))
-    continue
-   noted[path]=list(before);save()
-   log('%s: Google Drive already has it in “%s” (%s); not uploaded'%(os.path.basename(path),where,better.get('name','')))
-   notify('Already on Google Drive','%s is already in “%s”, so this copy was not uploaded. It stays on the phone.'%(title,where))
-   continue
-  if duplicate is not None:
-   meta=dict(duplicate,size=before[2])
-   log('%s is already on Google Drive (same size and checksum); not uploaded again'%os.path.basename(path))
-  else:
-   if remote is not None:parts=drivelibrary.show_folder(drive,parts)   # the show's existing folder, never a second one
-   # What is uploading now, for the notification center's Uploading card (notices.uploads).
-   def progress(done,total,name=os.path.basename(path),folder=' › '.join(['Drive']+list(parts))):
-    state['current']={'name':name,'folder':folder,'sent':done,'total':total};save()
-   try:meta=drive.upload(path,drive.folder(parts),sessions,save,keep_going,progress)
-   finally:
-    if state.pop('current',None) is not None:save()
-   if int(meta.get('size',-1))!=os.path.getsize(path):
-    log('Drive upload size differs for %s; the phone copy is kept'%os.path.basename(path));continue
-   count+=1;log('Uploaded %s to Google Drive › %s'%(os.path.basename(path),' › '.join(parts)))
-   if remote is not None and digest and confirmed(drive,meta.get('id'),before[2],digest):
-    # This copy is better than what Drive had for the same episode/movie: the old one goes to Drive's Trash.
-    gone=drivelibrary.trash_worse(drive,os.path.basename(path),os.path.basename(os.path.dirname(path)),listing(),meta.get('id'))
-    if gone:notify('Duplicate removed from Google Drive','%s: uploaded a better copy; moved the older one in %s to Drive’s Trash.'%(
-     drivelibrary.display_title(os.path.basename(path)),', '.join('“%s”'%g for g in gone)))
-   if index[0] is not None and digest:index[0].append(dict(meta,size=before[2],md5Checksum=digest))
-   on_uploaded()  # each file, even when a later transfer fails or is interrupted
-  if not delete_after:
-   if tid is None:done_before[path]={'fp':list(before),'id':meta.get('id')};save()
-   continue
-  if delete_after:
-   if digest is None or fingerprint(path)!=before:digest=checksum(path,keep_going,pace)
-   if fingerprint(path)!=before or not confirmed(drive,meta.get('id'),before[2],digest):
-    log('Drive checksum could not be verified; the phone copy is kept');continue
-   if tid is not None:
-    # A seeding torrent's files belong to Elementum: drop the whole torrent once every video of it is verified.
-    done_before[path]={'fp':list(before),'id':meta.get('id')};save()
+  if failures.get(path,{}).get('fp')==list(before):continue
+  try:
+   known=done_before.get(path)
+   if tid is None and known and known.get('fp')==list(before):continue  # on Drive already; phone copy kept by setting
+   if tid is not None and known and known.get('fp')==list(before):
+    # Already on Drive and verified (its torrent could not be dropped yet, or a sibling failed): never upload twice.
     torrent_ok.setdefault(tid,set()).add(path)
     if torrent_ok[tid]>=torrent_files.get(tid,set()) and drop:
      try:drop(tid);log('Removed the finished torrent from the phone (Google Drive has it)')
      except Exception as error:log('Elementum could not remove the finished torrent: %s'%type(error).__name__)
     continue
-   if not keep_going():raise Stop()
-   if fingerprint(path)!=before:continue
-   os.remove(path);folder=os.path.dirname(path)
-   log('Removed the phone copy of %s (Google Drive has it)'%os.path.basename(path))
-   if duplicate is not None:on_uploaded()  # the Library lists it from Drive now
-   while os.path.basename(folder) not in ('Movies','TV Shows') and not os.listdir(folder):os.rmdir(folder);folder=os.path.dirname(folder)
+   digest=None;duplicate=None
+   # Another release of the same episode or movie already on Drive, at least as good (owner, build 152: two
+   # 'Lanterns' folders each held S1 E1). Checked before any upload; this copy stays where it is.
+   better=drivelibrary.better_on_drive(path,listing()) if remote is not None else None
+   noted=state.setdefault('same_media',{})
+   if better is not None and noted.get(path)==list(before):continue   # already reported; nothing to re-check
+   if remote is not None:
+    digest=checksum(path,keep_going,pace)
+    if fingerprint(path)!=before:continue  # still changing: next pass
+    duplicate=already_on_drive(before[2],digest)
+   if duplicate is None and better is not None:
+    where=better.get('folderName') or 'Kodi Downloads';title=drivelibrary.display_title(os.path.basename(path))
+    # The owner's rule: the extra copy is deleted. Only with the remove-phone-copies setting on, and only once the
+    # Drive copy is confirmed to still be there with its listed size and checksum.
+    if delete_after and better.get('md5Checksum') and confirmed(drive,better.get('id'),int(better.get('size') or 0),better['md5Checksum'].lower()):
+     if fingerprint(path)!=before:continue
+     log('%s: Google Drive already has it in “%s” (%s); removing this copy'%(os.path.basename(path),where,better.get('name','')))
+     if tid is not None:
+      # A seeding torrent's files belong to Elementum: count this file as on Drive and drop the torrent once all are.
+      done_before[path]={'fp':list(before),'id':better.get('id')};save()
+      torrent_ok.setdefault(tid,set()).add(path)
+      if torrent_ok[tid]>=torrent_files.get(tid,set()) and drop:
+       try:drop(tid);log('Removed the finished torrent from the phone (Google Drive has it)')
+       except Exception as error:log('Elementum could not remove the finished torrent: %s'%type(error).__name__)
+     else:
+      os.remove(path);folder=os.path.dirname(path)
+      while os.path.basename(folder) not in ('Movies','TV Shows') and not os.listdir(folder):os.rmdir(folder);folder=os.path.dirname(folder)
+     notify('Duplicate removed from the phone','%s is already in “%s” on Google Drive, so this copy was removed.'%(title,where))
+     continue
+    noted[path]=list(before);save()
+    log('%s: Google Drive already has it in “%s” (%s); not uploaded'%(os.path.basename(path),where,better.get('name','')))
+    notify('Already on Google Drive','%s is already in “%s”, so this copy was not uploaded. It stays on the phone.'%(title,where))
+    continue
+   if duplicate is not None:
+    meta=dict(duplicate,size=before[2])
+    log('%s is already on Google Drive (same size and checksum); not uploaded again'%os.path.basename(path))
+   else:
+    if remote is not None:parts=drivelibrary.show_folder(drive,parts)   # the show's existing folder, never a second one
+    # What is uploading now, for the notification center's Uploading card (notices.uploads).
+    import transfer_speed
+    pieces=transfer_speed.Pieces()
+    def progress(done,total,name=os.path.basename(path),folder=' › '.join(['Drive']+list(parts))):
+     state['current']={'name':name,'folder':folder,'sent':done,'total':total,
+                       'updated':time.time(),**pieces.fields(time.time())};save()
+    progress.piece=lambda advanced,elapsed,count:pieces.observe(advanced,elapsed,time.time(),count)
+    try:meta=drive.upload(path,drive.folder(parts),sessions,save,keep_going,progress)
+    finally:
+     if state.pop('current',None) is not None:save()
+    if int(meta.get('size',-1))!=os.path.getsize(path):
+     raise copy_errors.PermanentCopyError('Google Drive has a different size for this video. The phone copy is kept; choose another source.',
+                                          invalid_drive_id=meta.get('id') or '')
+    count+=1;log('Uploaded %s to Google Drive › %s'%(os.path.basename(path),' › '.join(parts)))
+    if remote is not None and digest and confirmed(drive,meta.get('id'),before[2],digest):
+     # This copy is better than what Drive had for the same episode/movie: the old one goes to Drive's Trash.
+     gone=drivelibrary.trash_worse(drive,os.path.basename(path),os.path.basename(os.path.dirname(path)),listing(),meta.get('id'))
+     if gone:notify('Duplicate removed from Google Drive','%s: uploaded a better copy; moved the older one in %s to Drive’s Trash.'%(
+      drivelibrary.display_title(os.path.basename(path)),', '.join('“%s”'%g for g in gone)))
+    if index[0] is not None and digest:index[0].append(dict(meta,size=before[2],md5Checksum=digest))
+    on_uploaded()  # each file, even when a later transfer fails or is interrupted
+   if not delete_after:
+    if tid is None:done_before[path]={'fp':list(before),'id':meta.get('id')};save()
+    continue
+   if delete_after:
+    if digest is None or fingerprint(path)!=before:digest=checksum(path,keep_going,pace)
+    if fingerprint(path)!=before:continue
+    if not confirmed(drive,meta.get('id'),before[2],digest):
+     raise copy_errors.PermanentCopyError('Google Drive checksum does not match this video. The phone copy is kept; choose another source.',
+                                          invalid_drive_id=meta.get('id') or '')
+    if tid is not None:
+     # A seeding torrent's files belong to Elementum: drop the whole torrent once every video of it is verified.
+     done_before[path]={'fp':list(before),'id':meta.get('id')};save()
+     torrent_ok.setdefault(tid,set()).add(path)
+     if torrent_ok[tid]>=torrent_files.get(tid,set()) and drop:
+      try:drop(tid);log('Removed the finished torrent from the phone (Google Drive has it)')
+      except Exception as error:log('Elementum could not remove the finished torrent: %s'%type(error).__name__)
+     continue
+    if not keep_going():raise Stop()
+    if fingerprint(path)!=before:continue
+    os.remove(path);folder=os.path.dirname(path)
+    log('Removed the phone copy of %s (Google Drive has it)'%os.path.basename(path))
+    if duplicate is not None:on_uploaded()  # the Library lists it from Drive now
+    while os.path.basename(folder) not in ('Movies','TV Shows') and not os.listdir(folder):os.rmdir(folder);folder=os.path.dirname(folder)
+  except Exception as error:
+   # ISSUE-298: a phone file's sign-in/access refusal is still its own problem row (one file never holds the others).
+   if not (copy_errors.is_terminal(error) or copy_errors.needs_owner(error)):raise
+   import diagnostics
+   reason=diagnostics.redact(str(error),160)
+   failures[path]={'fp':list(before),'reason':reason,'time':time.time()}
+   invalid_drive_id=getattr(error,'invalid_drive_id','')
+   if invalid_drive_id:failures[path]['invalid_drive_id']=invalid_drive_id
+   phone_failures.record(profile,path,before,reason,invalid_drive_id=invalid_drive_id)
+   save()
+   log('%s: upload stopped: %s'%(os.path.basename(path),reason))
+   notify('Upload stopped', '%s: %s'%(os.path.basename(path),reason))
+
  return count
 
 # Build-184 log: a 32 MB piece hung with no progress for 120 s ("The write operation timed out") and only then was
@@ -589,10 +659,10 @@ def sender(context,timeout=STALL,log=lambda message:None,native=None):
   return status,answer_headers,answer
  return send
 
-class SignedOut(RuntimeError):
+class SignedOut(copy_errors.PermanentCopyError):
  """Google no longer accepts the saved Drive sign-in (the sign-in server's refresh answered 400/401: invalid_grant,
  e.g. a refresh token of an OAuth app in Testing status, which Google ends after 7 days). Only signing in again helps."""
-class RefreshBusy(RuntimeError):
+class RefreshBusy(copy_errors.RetryableCopyError):
  """The sign-in server could not refresh right now (429, 5xx): wait before asking again."""
 REFUSED={}          # refresh token -> when Google refused it: not sent again until the account has a new one
 HOLD={'until':0.0}  # no refresh before this time (after a 429 / 5xx)
@@ -614,7 +684,7 @@ def token_source(accounts,save_account,refresh,now=time.time):
   with TOKEN_LOCK:return access(force)
  def access(force):
   account=next(iter(accounts().values()),None)
-  if not account:raise RuntimeError('Sign in to Google Drive in Kodi first')
+  if not account:raise SignedOut('Sign in to Google Drive in Kodi first (Settings › Accounts).')
   tokens=account['access_tokens']
   rejected=force is True or (isinstance(force,str) and force==tokens.get('access_token'))
   if rejected or now()>tokens.get('date',0)+tokens.get('expires_in',0)-600:

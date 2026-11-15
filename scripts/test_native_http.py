@@ -1,6 +1,7 @@
 """ISSUE-167: Drive upload pieces go through the system's networking (KodiAirPlay kodi_http_send) when present."""
 import ctypes,sys,types,unittest,urllib.error,urllib.request
 from pathlib import Path
+from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1];LIB=ROOT/'migration/bundled-bootstrap/resources/lib'
 sys.dont_write_bytecode=True;sys.path.insert(0,str(LIB))
 import native_http,driveupload
@@ -76,6 +77,39 @@ class Native(unittest.TestCase):
    op=native_http.opener(types.SimpleNamespace(kodi_http_reads=lambda:1))
    with op(urllib.request.Request('https://source.example/file',headers={'Authorization':'Bearer test','Cookie':'test','Range':'bytes=1-1'})) as r:self.assertEqual(r.read(),b'x')
   self.assertNotIn('Authorization',seen[1][1]);self.assertNotIn('Cookie',seen[1][1]);self.assertEqual(seen[1][1]['Range'],'bytes=1-1')
+ def test_opening_deadline_is_shared_across_redirect_sends(self):
+  seen=[];answers=iter([(302,{'Location':'/next'},b''),(206,{},b'bytes')])
+  def send(method,url,body,headers,timeout):seen.append(timeout);return next(answers)
+  request=urllib.request.Request('https://source.example/file');request._kodi_open_deadline=100.0
+  with patch.object(native_http,'sender',return_value=send),patch.object(native_http.time,'monotonic',side_effect=[95.0,98.5]):
+   opener=native_http.opener(types.SimpleNamespace(kodi_http_reads=lambda:1))
+   with opener(request,20) as response:self.assertEqual(response.read(),b'bytes')
+  self.assertEqual(seen,[5.0,1.5])
+ def test_redirect_chain_stops_when_the_shared_opening_deadline_expires(self):
+  seen=[];clock=[0.0]
+  def send(method,url,body,headers,timeout):
+   seen.append(timeout);clock[0]+=2;return 302,{'Location':'/again'},b''
+  request=urllib.request.Request('https://source.example/file');request._kodi_open_deadline=5.0
+  with patch.object(native_http,'sender',return_value=send),patch.object(native_http.time,'monotonic',side_effect=lambda:clock[0]):
+   opener=native_http.opener(types.SimpleNamespace(kodi_http_reads=lambda:1))
+   with self.assertRaisesRegex(TimeoutError,'budget expired'):opener(request,20)
+  self.assertEqual(seen,[5.0,3.0,1.0])
+ def test_cancelled_opening_does_not_follow_the_next_redirect(self):
+  seen=[];cancelled=[False]
+  def send(method,url,body,headers,timeout):
+   seen.append(url);cancelled[0]=True;return 302,{'Location':'/next'},b''
+  request=urllib.request.Request('https://source.example/file');request._kodi_cancelled=lambda:cancelled[0]
+  with patch.object(native_http,'sender',return_value=send):
+   opener=native_http.opener(types.SimpleNamespace(kodi_http_reads=lambda:1))
+   with self.assertRaisesRegex(ConnectionAbortedError,'cancelled'):opener(request,5)
+  self.assertEqual(seen,['https://source.example/file'])
+ def test_ordinary_requests_keep_their_per_request_timeout_across_redirects(self):
+  seen=[];answers=iter([(302,{'Location':'/next'},b''),(206,{},b'ordinary')])
+  def send(method,url,body,headers,timeout):seen.append(timeout);return next(answers)
+  with patch.object(native_http,'sender',return_value=send),patch.object(native_http.time,'monotonic',side_effect=AssertionError('ordinary request read opening clock')):
+   opener=native_http.opener(types.SimpleNamespace(kodi_http_reads=lambda:1))
+   with opener(urllib.request.Request('https://source.example/file'),2.5) as response:self.assertEqual(response.read(),b'ordinary')
+  self.assertEqual(seen,[2.5,2.5])
  def test_headers_and_native_lengths_are_validated(self):
   send=native_http.sender(fake_lib(200))
   with self.assertRaises(ValueError):send('GET','https://media/x',None,{'Cookie':'a\rb'},1)

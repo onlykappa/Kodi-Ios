@@ -274,6 +274,8 @@ class SkinTests(unittest.TestCase):
      texts.append(value.text or '');texts.append(value.get('condition') or '')
   for text in texts:
    checked+=1
+   # ISSUE-284: the Continue Watching stamp is a Home property only a removal sets, never a tab change.
+   text=text.replace(portrait.CONTINUE_STAMP,'')
    self.assertIsNone(volatile.search(text),'volatile info in a row address: '+text)
   self.assertGreater(checked,10)
  def test_hero_compares_its_flag_with_the_current_spotlight(self):

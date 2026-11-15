@@ -19,6 +19,7 @@ on:
       - 'scripts/test_native_startup.py'
       - 'scripts/test_native_ui.py'
       - 'scripts/test_polling_loops.py'
+      - 'scripts/test_skin_textures.py'
       - 'scripts/test_search_categories.py'
       - 'scripts/test_updates_calibration.py'
       - 'scripts/test_drive_upload.py'
@@ -63,6 +64,7 @@ on:
       - 'scripts/test_native_startup.py'
       - 'scripts/test_native_ui.py'
       - 'scripts/test_polling_loops.py'
+      - 'scripts/test_skin_textures.py'
       - 'scripts/test_search_categories.py'
       - 'scripts/test_updates_calibration.py'
       - 'scripts/test_drive_upload.py'
@@ -124,6 +126,7 @@ jobs:
           python3 -B scripts/test_native_startup.py
           python3 -B scripts/test_native_ui.py
           python3 -B scripts/test_polling_loops.py
+          python3 -B scripts/test_skin_textures.py
           python3 -B scripts/test_updates_calibration.py
           python3 -B scripts/test_drive_upload.py
           python3 -B scripts/test_service_scoping.py
@@ -155,11 +158,38 @@ jobs:
           python3 -B scripts/test_upscale_cancel.py
           python3 -B scripts/test_season_quality.py
           python3 -B scripts/test_quality_choice.py
+          python3 -B scripts/test_undefined_names.py
+          python3 -B scripts/test_stream_fallback.py
+          python3 -B scripts/test_build442_logs.py
+          python3 -B scripts/test_library_remove.py
+          python3 -B scripts/test_upscale_from_index.py
+          python3 -B scripts/test_routine_notices.py
+          python3 -B scripts/test_notification_centre_c1.py
+          python3 -B scripts/test_row_title_grid.py
+          python3 -B scripts/test_slim_status.py
+          python3 -B scripts/test_stream_slow_link.py
+          python3 -B scripts/test_stream_loop.py
+          python3 -B scripts/test_opening_hold.py
+          python3 -B scripts/test_stream_race.py
+          python3 -B scripts/test_stream_reads.py
+          python3 -B scripts/test_smooth_pages.py
+          python3 -B scripts/test_quiet_hangups.py
+          python3 -B scripts/test_favourites_manager.py
+          python3 -B scripts/test_favourites_menu.py
+          python3 -B scripts/test_stream_opening_fallback.py
+          python3 -B scripts/test_stream_integrity.py
+          python3 -B scripts/test_native_http.py
           python3 -B scripts/test_pinned_addons.py
           python3 -B scripts/test_netwatch.py
           python3 -B scripts/test_copy_status.py
           python3 -B scripts/test_library_show_menu.py
           python3 -B scripts/test_library_index.py
+          python3 -B scripts/test_queue_index.py
+          python3 -B scripts/test_upload_speed.py
+          python3 -B scripts/test_subtitle_match.py
+          python3 -B scripts/test_notice_season_data.py
+          python3 -B scripts/test_build442_sheets.py
+          python3 -B scripts/test_terminal_copy_errors.py
           python3 -B scripts/test_upscale_page.py
           python3 -B scripts/test_ios_remove.py
           python3 -B scripts/test_source_match.py
@@ -170,6 +200,9 @@ jobs:
           python3 -B scripts/test_background_queue.py
           python3 -B scripts/test_compatibility_filter.py
           python3 -B scripts/test_episode_watch.py
+          python3 -B scripts/test_favourites_import.py
+          python3 -B scripts/test_anticipated_bell.py
+          python3 -B scripts/test_favourites_flow.py
           python3 -B scripts/test_season_sources.py
           python3 -B scripts/test_airplay_diagnostics.py
           python3 -B scripts/test_playback_retention.py
@@ -181,6 +214,7 @@ jobs:
           python3 -B scripts/test_notice_log.py
           python3 -B scripts/test_pages.py
           python3 -B scripts/test_airplay_remux.py
+          python3 -B scripts/test_airplay_long_fragments.py
           python3 -B scripts/test_airplay_flow.py
           python3 -B scripts/test_airplay_room.py
           python3 -B scripts/test_play_on_tv_start.py
@@ -220,6 +254,7 @@ jobs:
           python3 -B scripts/test_listing_cache.py
           python3 -B scripts/test_activation.py
           python3 -B scripts/test_ios.py
+          python3 -B scripts/test_review_low_items.py
       - name: Acquire public pinned sources and build review ZIP
         run: |
           python3 -B scripts/build_import_review.py --foundation-report reports/ios-foundation-addon-audit.json --output "$RUNNER_TEMP/kodi-import-review"
@@ -262,10 +297,13 @@ jobs:
           REPO: ${{ github.repository }}
           SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           RUN: ${{ github.run_number }}
+          DEFAULT: ${{ github.event.repository.default_branch }}
         run: |
           ipa=$(ls "$RUNNER_TEMP"/customized-ipa/*.ipa)
           name=$(basename "$ipa" .ipa)
-          gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$SHA" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update."
+          # ISSUE-332: if the tag cannot be made on this commit (HTTP 403), it is made on the default branch; the pin is the asset's sha256.
+          gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$SHA" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update." ||
+          gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$DEFAULT" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update."
           # Keep the three newest test builds by publish time (a release's createdAt is its commit date, so a
           # re-run or an older branch would lose to newer commits elsewhere).
           gh release list --repo "$REPO" --limit 100 --json tagName,publishedAt --jq '[.[] | select(.tagName | startswith("build-"))] | sort_by(.publishedAt) | reverse | .[3:] | .[].tagName' |

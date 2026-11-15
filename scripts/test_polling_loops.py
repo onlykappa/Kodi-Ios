@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'migration/bundled-bootstrap/resources/lib'))
-import activity,background,native_ui,searchbar,source_guard,transfer_history
+import background_box,background,native_ui,searchbar,source_guard,transfer_history
 
 class Clock:
  """wait(seconds) advances time and counts a wake-up; True (stop) once `limit` seconds have passed."""
@@ -17,13 +17,12 @@ class Clock:
  def time(self):return self.now
 
 class IdleWakeups(unittest.TestCase):
- def test_activity_idle_slows_and_busy_does_not(self):
-  clock=Clock()
-  activity.watch(lambda:None,lambda:[],lambda:[],lambda k,d:True,lambda:False,lambda p:None,lambda t:None,clock.wait,clock=clock.time)
-  self.assertLessEqual(clock.wakes,55)            # was 120 a minute
-  clock=Clock()
-  activity.watch(lambda:('Downloading','x',None),lambda:[],lambda:[],lambda k,d:True,lambda:False,lambda p:None,lambda t:None,clock.wait,clock=clock.time)
-  self.assertEqual(set(clock.waits),{0.5})        # a visible box keeps the half-second look
+ def test_background_box_idle_slows_and_busy_does_not(self):
+  # ISSUE-287: the activity pill's loop (55 a minute) is replaced by the Burst-error watcher.
+  clock=Clock();background_box.watch(lambda:None,lambda t:None,clock.wait)
+  self.assertLessEqual(clock.wakes,30)
+  clock=Clock();background_box.watch(lambda:('Elementum','Searching'),lambda t:None,clock.wait)
+  self.assertEqual(set(clock.waits[1:]),{1.0})    # a visible box keeps the one-second look
 
  def test_source_guard_idle_and_active(self):
   clock=Clock();source_guard.run(object(),lambda:[],lambda *a:None,lambda *a:None,clock.wait)
@@ -41,7 +40,7 @@ class IdleWakeups(unittest.TestCase):
   clock=Clock()
   with patch.object(transfer_history,'load',return_value={}),patch.object(transfer_history,'save'):
    transfer_history.watch('p',lambda:{'download':{'title':'a','rate':1,'done':1,'total':2}},clock.wait,clock=clock.time)
-  self.assertEqual(clock.wakes,30)                # a running transfer is still drawn every 2 s
+  self.assertEqual(clock.wakes,60)                # active histories sample once per second; idle still backs off
 
  def test_background_idle_and_busy(self):
   clock=Clock();background.watch(lambda v:None,lambda:'',clock.wait)
