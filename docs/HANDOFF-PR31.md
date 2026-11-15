@@ -52,3 +52,17 @@ docs/DECISIONS.md. Inspect the branch, recent commits and PR #31 before acting. 
 6. Next Episode across seasons (last episode of a season -> next season's episode 1; next_episode.py plan()).
 7. Favourites search: fixed in code (ISSUE-338); confirm on the phone.
 Also open: ISSUE-285 (waiting for an owner log after a Drive copy retry).
+
+## Progress (2026-11-15, next session)
+- Item 1 done in code: ISSUE-342 (`dub_captions.py`): a dubbed video with subtitles on and no CC/SDH/dub track gets a dub
+  caption searched with the saved SubDL/OpenSubtitles keys, timing-checked and turned on, once per video (f1a00f1).
+- Item 6 done in code: ISSUE-341 (`next_episode.py`): after a season's last aired episode, the next season's episode 1;
+  after the show's last aired episode, a notice (f1a00f1).
+- Item 4: mockup for owner approval, docs/design/play-on-tv-connecting-mockups.html (C: top banner, D: bottom pill; a
+  second tap only shows the progress, Stop stops). Not built until the owner picks one.
+- Item 3 (keyframe scan during kr_prepare): not started in code. The saved scan (kr_remux.c keyframe_cache_*) is keyed by
+  the finished file's size, video track id and an FNV-1a hash of the exact mfra bytes; kr_prepare's write_mfra has those
+  bytes and the final size, but the keyframe times must equal what kr_mp4_keyframes computes from the file (including
+  both runs of a resumed preparation). Needs the AirPlay host tests (CI, or a host FFmpeg) and a new rNN tag + the owner's
+  OK to build.
+- Item 2 (speech check): waiting for the owner's explicit yes.
