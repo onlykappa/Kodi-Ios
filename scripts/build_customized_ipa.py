@@ -3,6 +3,7 @@ import argparse,contextlib,hashlib,io,json,os,plistlib,shutil,subprocess,xml.etr
 from pathlib import Path
 from build_unsigned_ipa import build as unsigned,validate_staging
 import ios_portrait
+import provider_addons
 from import_runtime.safe_import import validate_bundle,digest
 import importlib.util
 _spec=importlib.util.spec_from_file_location('ipa_bootstrap_helpers',Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib/bootstrap.py')
@@ -720,7 +721,7 @@ def allow_local_network(app):
  info['UIBackgroundModes']=modes
  path.write_bytes(plistlib.dumps(info,fmt=plistlib.FMT_BINARY))
 
-def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
+def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None,providers=None):
  validate_staging(app,work)
  manifest,addons,config=validate_bundle(bundle,expected)
  target=work/'Kodi.app';shutil.copytree(app,target,symlinks=True)
@@ -739,6 +740,8 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  engine=add_elementum(elementum,target,addonroot) if elementum else None
  bootstrap=addonroot/BOOT;shutil.copytree(ROOT/'migration/bundled-bootstrap',bootstrap,dirs_exist_ok=True)  # the Deck page (add_deck_picker) may already be in it
  profile_addons=add_profile_addons(elementum,bootstrap) if elementum else []
+ fallback=provider_addons.install(providers,addonroot,bootstrap) if providers else None
+ if fallback:profile_addons+=fallback['profile_copies']
  # The in-app updater compares this with the build-N release tags.
  (bootstrap/'build.json').write_text(json.dumps(build_identity(),sort_keys=True)+'\n')
  seed=bootstrap/'seed';seed.mkdir();entries=[]
@@ -755,7 +758,7 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  keymap=seed/'keymaps/zz-kodi-ios-navigation.xml';keymap.parent.mkdir(parents=True,exist_ok=True);keymap.write_bytes(_nav.TOUCH.encode()+b'\n');entries.append({'path':'keymaps/zz-kodi-ios-navigation.xml','sha256':digest(keymap.read_bytes())})
  # Topological dependency order, excluding native/core providers already in the foundation.
  requires={}
- for id in manifest['addon_ids']+(engine['addons'] if engine else []):
+ for id in manifest['addon_ids']+(engine['addons'] if engine else [])+(fallback['addons'] if fallback else []):
   xml=ET.parse(addonroot/id/'addon.xml').getroot();requires[id]=[d.get('addon') for d in xml.findall('requires/import') if d.get('optional')!='true']
  order=[];visiting=set()
  def visit(id):
@@ -771,7 +774,7 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  for id in order+[BOOT]:
   assert id not in existing,'System manifest collision';ET.SubElement(root,'addon',{} if id==BOOT else {'optional':'true'}).text=id
  ET.indent(root);tree.write(system,encoding='utf-8',xml_declaration=True)
- return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'pruned_addons':pruned,'elementum':engine,'profile_addons':profile_addons,'portrait':portrait,'splash':splash}
+ return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'pruned_addons':pruned,'elementum':engine,'profile_addons':profile_addons,'provider_fallback':fallback,'portrait':portrait,'splash':splash}
 
 # Owner crash report (build 142, cpu_resource_fatal): iOS killed Kodi for CPU use, and part of it was Python compiling
 # source (builtin_compile / Py_CompileStringObject under import). The app bundle is read-only, so Python can never save
@@ -798,8 +801,8 @@ def precompile(app):
  assert after-before>sources//2,'Too few modules precompiled (%d of %d)'%(after-before,sources)
  return {'tag':PYC_TAG,'added':after-before,'sources':sources}
 
-def build(app,bundle,expected,deb,output,work,elementum=None,portrait_inputs=None):
- staged,details=prepare(app,bundle,expected,work,elementum,portrait_inputs)
+def build(app,bundle,expected,deb,output,work,elementum=None,portrait_inputs=None,providers=None):
+ staged,details=prepare(app,bundle,expected,work,elementum,portrait_inputs,providers)
  details['bytecode']=precompile(staged)
  # The shared native packer emits a diagnostic-only intermediate label; publish only the final verified customized report.
  with contextlib.redirect_stdout(io.StringIO()):report=unsigned(staged,output,deb)
@@ -820,6 +823,16 @@ def build(app,bundle,expected,deb,output,work,elementum=None,portrait_inputs=Non
   for e in details['seed_files']:assert digest(z.read(base+'/addons/'+BOOT+'/seed/'+e['path']))==e['sha256']
   assert digest(z.read(base+'/system/advancedsettings.xml'))==details['splash']['sha256'],'Splash setting missing from IPA'
   names=set(z.namelist())
+  if details.get('provider_fallback'):
+   fallback=details['provider_fallback']
+   for entry in fallback['patches']:
+    assert digest(z.read(base+'/addons/'+entry['id']+'/'+entry['path']))==entry['after_sha256'],'Fallback provider patch missing from IPA'
+   for id in fallback['profile_copies']:
+    assert base+'/addons/'+BOOT+'/payload/'+id+'/addon.xml' in names,'Fallback writable source payload missing from IPA'
+   for entry in fallback.get('data_assets',[]):
+    assert digest(z.read(base+'/addons/'+BOOT+'/'+entry['path']))==entry['sha256'],'Fallback public metadata missing from IPA'
+   for entry in fallback['providers']:
+    assert base+'/addons/'+BOOT+'/'+entry['path']+'/meta.json' in names,'Fallback scraper package missing from IPA'
   for module in ('Payload/Kodi.app/Frameworks/lib/python3.11/__pycache__/os.%s.pyc','Payload/Kodi.app/Frameworks/lib/python3.11/json/__pycache__/decoder.%s.pyc'):
    assert module%PYC_TAG in names,'Precompiled standard library missing from IPA: '+module%PYC_TAG
   if details['elementum']:
@@ -829,4 +842,4 @@ def build(app,bundle,expected,deb,output,work,elementum=None,portrait_inputs=Non
  (output/'ipa-report.json').write_text(json.dumps(report,indent=2)+'\n')
  print(json.dumps({k:v for k,v in report.items() if k not in {'native_inventory','bootstrap'}}))
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--bundle',type=Path,required=True);p.add_argument('--expected-sha256',required=True);p.add_argument('--deb',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--work',type=Path,required=True);p.add_argument('--elementum',type=Path,help='inputs from fetch_elementum_inputs.py');p.add_argument('--portrait-inputs',type=Path,help='from ios_portrait.py --fetch');a=p.parse_args();build(a.app,a.bundle,a.expected_sha256,a.deb,a.output,a.work,a.elementum if a.elementum and (a.elementum/'framework.zip').is_file() else None,a.portrait_inputs)
+ p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--bundle',type=Path,required=True);p.add_argument('--expected-sha256',required=True);p.add_argument('--deb',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--work',type=Path,required=True);p.add_argument('--elementum',type=Path,help='inputs from fetch_elementum_inputs.py');p.add_argument('--portrait-inputs',type=Path,help='from ios_portrait.py --fetch');p.add_argument('--providers',type=Path,help='verified fallback inputs from provider_addons.py');a=p.parse_args();build(a.app,a.bundle,a.expected_sha256,a.deb,a.output,a.work,a.elementum if a.elementum and (a.elementum/'framework.zip').is_file() else None,a.portrait_inputs,a.providers)

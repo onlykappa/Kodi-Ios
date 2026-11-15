@@ -5048,3 +5048,8 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   Watching row failed to list because one saved episode had no show title.
 - **Fix:** a missing title or show title takes the other; an entry with neither is skipped; the row lists the rest.
 - **Test:** test_favourites_manager `ContinueRow`.
+
+
+## Provider fallback integration failure log — PR #32
+
+Real rig testing exposed required Crew artwork imports despite a guarded main artwork helper; restored the pinned dependency. Worker RunScript UUID arguments broke Otaku numeric plugin handles and broad library paths shadowed stdlib calendar; scoped numeric plugin arguments and dependency module paths fix both. Host and rig regressions caught canceled primary searches starting backups, unusable backup quality being treated as cancellation, cached zero-seeder sources being dropped, and verified anime coordinates being rejected again by the picker. Explicit cancellation markers, reusable source-check callbacks and exact authoritative mapping retain original TMDb queue coordinates. Direct downloads validate request ownership and byte ranges and preserve headers; Stream rejects unresolved magnets instead of initiating a download. Final regression and real rig counts are recorded in reports/provider-fallback-validation.json. Live provider/account availability and phone behavior remain unverified.

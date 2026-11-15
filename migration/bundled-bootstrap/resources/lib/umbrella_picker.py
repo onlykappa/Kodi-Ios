@@ -110,6 +110,16 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
    exp=sm.enrich(exp) if exp else None
   except Exception:exp=None
  playable_items=[(n,item) for n,item in enumerate(results or []) if playable(item)]
+ verified=playable_items
+ if exp and sm is not None:
+  verified,_=sm.split(playable_items,exp,name=lambda pair:pair[1].get('name') or '')
+ if exp and not verified:
+  try:
+   import provider_fallback_hooks
+   backup_deck=deck or load()
+   handled,url=provider_fallback_hooks.umbrella_selection(meta,backup_deck,exp)
+   if handled:return ('play_EN_Seekable',url) if url else (None,'')
+  except (ImportError,RuntimeError,OSError,ValueError):pass
  if not playable_items:
   return None if verify_list(results,exp,sm,ask) else (None,'')
  deck=deck or load()
@@ -117,7 +127,9 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
  title=(meta or {}).get('tvshowtitle') or (meta or {}).get('title') or ''
  labels=[label(item) for _,item in playable_items]
  # Umbrella is live playback (owner): versions AirPlay can send as they are come first.
- choice=deck.run(title,labels,expect=exp,mode='stream') if exp else deck.run(title,labels,mode='stream')
+ # Umbrella's outer Sources hook owns empty-source fallback. Never dispatch a foreign source inside its resolver.
+ options={'fallback':False} if hasattr(deck,'_try_fallback') else {}
+ choice=deck.run(title,labels,expect=exp,mode='stream',**options) if exp else deck.run(title,labels,mode='stream',**options)
  if choice is None:
   return None if verify_list(results,exp,sm,ask) else (None,'')
  if choice<0:return (None,'')

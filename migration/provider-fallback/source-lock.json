@@ -1,0 +1,361 @@
+{
+  "schema": 1,
+  "purpose": "Headless fallback sources for the existing automatic movie/TV picker; no replacement UI, account state, repositories or native engines.",
+  "roots": [
+    "plugin.video.jacktook",
+    "plugin.video.pov",
+    "script.module.magneto",
+    "plugin.video.otaku",
+    "plugin.video.thecrew",
+    "plugin.video.prism"
+  ],
+  "core_dependencies": [
+    "xbmc.python",
+    "xbmc.addon"
+  ],
+  "policy": {
+    "reuse_existing_modules_if_minimum_dependencies_satisfied": true,
+    "disable_new_background_services": true,
+    "exclude_adult_only_crew_dependency_and_artwork": true,
+    "preserve_upstream_licences_and_headers": true,
+    "no_device_verification_claim": true
+  },
+  "packages": [
+    {
+      "id": "plugin.video.jacktook",
+      "repo": "Sam-Max/repository.jacktook",
+      "commit": "7b8a875958c42bc12831c8cc9f521e557d312a71",
+      "url": "https://raw.githubusercontent.com/Sam-Max/repository.jacktook/7b8a875958c42bc12831c8cc9f521e557d312a71/repo/zips/plugin.video.jacktook/plugin.video.jacktook-1.22.0.zip",
+      "sha256": "90218cfe4867d98cf780c7a9997c53c0062131ce5542bdfb0df2a59ad5767a20",
+      "version": "1.22.0",
+      "license": "GPL-2.0-only",
+      "install": "app",
+      "remove_services": true
+    },
+    {
+      "id": "plugin.video.pov",
+      "repo": "kodifitzwell/repo",
+      "commit": "2c8390c6e65213853a862a00044597946b946132",
+      "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/plugin.video.pov/plugin.video.pov-6.11.03.zip",
+      "sha256": "9ac93ad045910774503cbfeeb45b63bbd9b23837c9e76749885076c9b11edfba",
+      "version": "6.11.03",
+      "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+      "install": "app",
+      "remove_services": true,
+      "profile_copy": true
+    },
+    {
+      "id": "script.module.magneto",
+      "repo": "kodifitzwell/repo",
+      "commit": "2c8390c6e65213853a862a00044597946b946132",
+      "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/script.module.magneto/script.module.magneto-6.11.01.zip",
+      "sha256": "c2dabb04a1ab8eda8307f12333f747bede00e481ba7cb9ef4905d2d59ac9e418",
+      "version": "6.11.01",
+      "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "plugin.video.otaku",
+      "repo": "Goldenfreddy0703/repository.otaku",
+      "commit": "fcef5fc9673ed75e61c071b136b26663242f230d",
+      "url": "https://raw.githubusercontent.com/Goldenfreddy0703/repository.otaku/fcef5fc9673ed75e61c071b136b26663242f230d/repo/zips/plugin.video.otaku/plugin.video.otaku-5.3.4.zip",
+      "sha256": "01c780c6cc41f448322a10e1bbe4aaa9a0fc23d6ba894487d35a4724ee226287",
+      "version": "5.3.4",
+      "license": "GPL-3.0",
+      "install": "app",
+      "remove_services": true
+    },
+    {
+      "id": "context.otaku",
+      "repo": "Goldenfreddy0703/repository.otaku",
+      "commit": "fcef5fc9673ed75e61c071b136b26663242f230d",
+      "url": "https://raw.githubusercontent.com/Goldenfreddy0703/repository.otaku/fcef5fc9673ed75e61c071b136b26663242f230d/repo/zips/context.otaku/context.otaku-1.0.35.zip",
+      "sha256": "0207bff39dbbcbfe3bfad0e835d893ab525683253fa01488797ea53b4314c4c7",
+      "version": "1.0.35",
+      "license": "GPL-3.0",
+      "install": "app",
+      "remove_services": false,
+      "hide_context_menus": true
+    },
+    {
+      "id": "plugin.video.prism",
+      "repo": "Goldenfreddy0703/repository.prism",
+      "commit": "3751d9e440a24d4a13222fe84bffb779e61ec340",
+      "url": "https://raw.githubusercontent.com/Goldenfreddy0703/repository.prism/3751d9e440a24d4a13222fe84bffb779e61ec340/repo/zips/plugin.video.prism/plugin.video.prism-5.0.69.zip",
+      "sha256": "9bdcccc65576684fd498874a6e9967274d85e84473653b7069deb6ced932543b",
+      "version": "5.0.69",
+      "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+      "install": "app",
+      "remove_services": true
+    },
+    {
+      "id": "context.prism",
+      "repo": "Goldenfreddy0703/repository.prism",
+      "commit": "3751d9e440a24d4a13222fe84bffb779e61ec340",
+      "url": "https://raw.githubusercontent.com/Goldenfreddy0703/repository.prism/3751d9e440a24d4a13222fe84bffb779e61ec340/repo/zips/context.prism/context.prism-4.0.2.zip",
+      "sha256": "3fe0bded92b814a62476a96871fd5a6eaabe3a0f018206c8317dc078d1594ad4",
+      "version": "4.0.2",
+      "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+      "install": "app",
+      "remove_services": false,
+      "hide_context_menus": true
+    },
+    {
+      "id": "plugin.video.thecrew",
+      "repo": "thecrewwh/zips",
+      "commit": "68e8a45518d0ff60db0f315b87c0178edcf100d7",
+      "url": "https://raw.githubusercontent.com/thecrewwh/zips/68e8a45518d0ff60db0f315b87c0178edcf100d7/matrix/_zip/plugin.video.thecrew/plugin.video.thecrew-3.2.2.zip",
+      "sha256": "b60a2f93abf80fd528133c197bb5c7c56cf713eac4ffbf6df5d703d2a0a0f3b7",
+      "version": "3.2.2",
+      "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+      "install": "app",
+      "remove_services": true,
+      "remove_requires": [
+        "script.module.resolveurl.xxx"
+      ]
+    },
+    {
+      "id": "script.module.thecrew",
+      "repo": "thecrewwh/zips",
+      "commit": "68e8a45518d0ff60db0f315b87c0178edcf100d7",
+      "url": "https://raw.githubusercontent.com/thecrewwh/zips/68e8a45518d0ff60db0f315b87c0178edcf100d7/matrix/_zip/script.module.thecrew/script.module.thecrew-3.2.29.zip",
+      "sha256": "f04792b0b0b24d845fcd151a45e6baa77863b5601bafce1faa6e20d66f8282cd",
+      "version": "3.2.29",
+      "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+      "install": "app",
+      "remove_services": false,
+      "profile_copy": true,
+      "remove_requires": [
+        "script.module.resolveurl.xxx"
+      ],
+      "exclude_prefixes": [
+        "lib/resources/lib/adult_sites/"
+      ],
+      "exclude_files": [
+        "xml/xxx.xml"
+      ]
+    },
+    {
+      "version": "5.1.212",
+      "url": "https://raw.githubusercontent.com/Gujal00/smrzips/535d4dcc42145e2bfeaa3e0c6d5ec3d91a449c94/zips/script.module.resolveurl/script.module.resolveurl-5.1.212.zip",
+      "sha256": "28fb6b2340eccfb1337ba4421b6429aa1c8f2978834853d1229b42b2a947bc59",
+      "id": "script.module.resolveurl",
+      "repo": "Gujal00/smrzips",
+      "commit": "535d4dcc42145e2bfeaa3e0c6d5ec3d91a449c94",
+      "license": "GPL-3.0-or-later (retained source headers)",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.requests",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.requests/script.module.requests-2.31.0.zip",
+      "sha256": "a5704f0fd7afb4154e1beea9b5f05a002bcd75fa581a1e5fd15ece39bf2bd38a",
+      "version": "2.31.0",
+      "license": "Apache-2.0",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.routing",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.routing/script.module.routing-0.2.3+matrix.1.zip",
+      "sha256": "dc9110ffd2a5022feffafb22a710cd95aabe5722c52004f347d3a274f67d00f9",
+      "version": "0.2.3+matrix.1",
+      "license": "GPL-3.0",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.beautifulsoup4",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.beautifulsoup4/script.module.beautifulsoup4-4.12.2.zip",
+      "sha256": "20e7e56c9f2575bc3977b7d1c875a4a56163b789a4c088a561d988f4c64fd3cd",
+      "version": "4.12.2",
+      "license": "MIT",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.pyqrcode",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.pyqrcode/script.module.pyqrcode-1.2.1+matrix.4.zip",
+      "sha256": "3bd98699099b531ba8175a3822536927eeaac111d7cb9d12e1f0ed707b020899",
+      "version": "1.2.1+matrix.4",
+      "license": "BSD-3-Clause",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.unidecode",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.unidecode/script.module.unidecode-1.3.6.zip",
+      "sha256": "f66257736002b479f9e109259d691113412a7f2215139aa5534d795d8d6925a7",
+      "version": "1.3.6",
+      "license": "GPL-2.0-or-later",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.myconnpy",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.myconnpy/script.module.myconnpy-8.0.33.zip",
+      "sha256": "36370e904b9ed59dc96156e9d4d97e3de86b9b2d99880b3fac9f8c278aed249e",
+      "version": "8.0.33",
+      "license": "GPLv2",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.simplejson",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.simplejson/script.module.simplejson-3.19.1+matrix.1.zip",
+      "sha256": "7cf5d7000d9f07370f951a51e387b17ebcaf99d33341f376123dda1183858d19",
+      "version": "3.19.1+matrix.1",
+      "license": "MIT",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.six",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.six/script.module.six-1.16.0+matrix.1.zip",
+      "sha256": "4197f7773f75ab9f16b3c920195acbb8b8b151b4b3c8c3e14fc4876e764e3860",
+      "version": "1.16.0+matrix.1",
+      "license": "MIT",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.inputstreamhelper",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.inputstreamhelper/script.module.inputstreamhelper-0.8.6.zip",
+      "sha256": "326ff6182802c7fc3967df254823c84ba39eedacae03b1349eb4acafcb231801",
+      "version": "0.8.6",
+      "license": "MIT",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.kodi-six",
+      "version": "0.1.3.1",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.kodi-six/script.module.kodi-six-0.1.3.1.zip",
+      "sha256": "236a7a912641805e146b605c8c29ef413d748ef3f4ddf8aa8c414717d9831383",
+      "license": "GPL v.3",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.certifi",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.certifi/script.module.certifi-2023.5.7.zip",
+      "sha256": "c16d4cd2efe6e57dbb5e8d71a9beb3af213b1e3d717e8b0b24f0cbdc4c645070",
+      "version": "2023.5.7",
+      "license": "MPL-2.0",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.chardet",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.chardet/script.module.chardet-5.1.0.zip",
+      "sha256": "d5010fc55a9523d86a306ae9e6a8dea0e3248fe079b9ed37280fe86110cd766a",
+      "version": "5.1.0",
+      "license": "LGPL-2.1",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.idna",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.idna/script.module.idna-3.10.0.zip",
+      "sha256": "c4ff34dbfab2736e9214a374d331bd6f558d8b3fea8eb7902e210749509242b3",
+      "version": "3.10.0",
+      "license": "BSD-3-Clause",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.urllib3",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.urllib3/script.module.urllib3-2.2.3.zip",
+      "sha256": "740b2d63bb50eee9fb35f01c567ec8d3588c5bbd548e2b8d280932be30d82f53",
+      "version": "2.2.3",
+      "license": "MIT",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.module.soupsieve",
+      "repo": "xbmc/official-omega",
+      "url": "https://mirrors.kodi.tv/addons/omega/script.module.soupsieve/script.module.soupsieve-2.4.1.zip",
+      "sha256": "dd8c8f17c3c8e8a87b700d2c076f6771a81b08e3ba313bb5c64ddc1500788d8b",
+      "version": "2.4.1",
+      "license": "MIT",
+      "install": "app",
+      "remove_services": false
+    },
+    {
+      "id": "script.thecrew.artwork",
+      "repo": "thecrewwh/zips",
+      "commit": "68e8a45518d0ff60db0f315b87c0178edcf100d7",
+      "url": "https://raw.githubusercontent.com/thecrewwh/zips/68e8a45518d0ff60db0f315b87c0178edcf100d7/matrix/_zip/script.thecrew.artwork/script.thecrew.artwork-3.2.0.zip",
+      "sha256": "798883ced19cbaad6f030812f85cb34d2721162325cb5f20cac1d87d8878cd6b",
+      "version": "3.2.0",
+      "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+      "install": "app",
+      "remove_services": true
+    }
+  ],
+  "provider_packages": [
+    {
+      "name": "prism-a4k",
+      "repo": "Goldenfreddy0703/a4kScrapers",
+      "commit": "3ef39b8a0a185a3c9f1127a2b44f99f830299e2a",
+      "url": "https://codeload.github.com/Goldenfreddy0703/a4kScrapers/zip/3ef39b8a0a185a3c9f1127a2b44f99f830299e2a",
+      "sha256": "fa2090e56f7820e4509086cea85c43da080de43ddec99c8766fcfd0938ca6663",
+      "root": "a4kScrapers-3ef39b8a0a185a3c9f1127a2b44f99f830299e2a/",
+      "version": "2.99.130",
+      "license": "GPL-3.0",
+      "destination": "provider-fallback/prism-a4k"
+    }
+  ],
+  "license_texts": [
+    {
+      "path": "licenses/GPL-3.0.md",
+      "url": "https://www.gnu.org/licenses/gpl-3.0.txt",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "purpose": "Complete GNU GPL v3 text for upstream packages which retain GPL notices but omit a separate licence file."
+    }
+  ],
+  "data_assets": [
+    {
+      "name": "otaku-mappings",
+      "repo": "Goldenfreddy0703/Otaku-Mappings",
+      "commit": "58f5e5799c3513fc047f308ce54c9c5435befed9",
+      "url": "https://raw.githubusercontent.com/Goldenfreddy0703/Otaku-Mappings/58f5e5799c3513fc047f308ce54c9c5435befed9/anime_mappings.db",
+      "sha256": "36ba8b785385787131f2f3e8ed218ddd4ceb2f9db16a2cd973db3bede9a47162",
+      "bytes": 6021120,
+      "file": "otaku-mappings.db",
+      "destination": "provider-fallback/otaku/mappings.db",
+      "purpose": "Public anime ID mappings used by upstream Otaku service; no account or watch state.",
+      "format": "sqlite",
+      "tables": {
+        "anime": [
+          "mal_id",
+          "anilist_id",
+          "themoviedb_id",
+          "thetvdb_season",
+          "thetvdb_part"
+        ],
+        "activities": [
+          "sync_id",
+          "last_updated"
+        ]
+      },
+      "licence_note": "Upstream repository has no separate licence declaration; this is the public identifier database fetched by upstream Otaku service.py, not user profile data."
+    }
+  ]
+}

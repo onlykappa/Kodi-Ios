@@ -458,11 +458,24 @@ def quality_sheet(labels, title=u'', total=0):
             'rows': rows, 'link': labels[-1].replace(u'Show all', u'Show All').replace(u' links', u' Links')}
 
 
+def _selection_result(value):
+    """A dismissed primary picker must not be mistaken for an empty search after its HTTP route returns."""
+    if value is None or value < 0:
+        try:
+            home = _home()
+            ident = home.getProperty('KodiIOS.ProviderFallback.Request')
+            if ident:
+                home.setProperty('KodiIOS.ProviderFallback.Canceled.' + ident, 'true')
+        except Exception:
+            pass
+    return value
+
+
 def choose_quality(labels, title=u'', total=0):
     sheet = _sheet()
     if sheet is not None:
         try:
-            return sheet.choose(quality_sheet(labels, title, total), path=getattr(sheet, 'HOME', None))
+            return _selection_result(sheet.choose(quality_sheet(labels, title, total), path=getattr(sheet, 'HOME', None)))
         except Exception:
             pass
     from kodi_six import xbmcgui
@@ -470,7 +483,7 @@ def choose_quality(labels, title=u'', total=0):
     for text in labels:
         name, _, detail = text.partition(u'\x1f')
         items.append(xbmcgui.ListItem(label=name, label2=detail))
-    return xbmcgui.Dialog().select(u'Pick a quality', items)
+    return _selection_result(xbmcgui.Dialog().select(u'Pick a quality', items))
 
 
 def _poster_for(title):
@@ -610,7 +623,7 @@ def choose_source(title, rows, quality, count_text, mode=u''):
     window.doModal()
     retval = window.retval
     del window
-    return retval
+    return _selection_result(retval)
 
 
 # ---------------------------------------------------------------------------------
@@ -1085,7 +1098,22 @@ def show_all(title, items, parsed, kept, hidden, sm):
     return show_list(title, kept, hidden, sm, u'All verified links', u'%d version%s' % (len(kept), u'' if len(kept) == 1 else u's'), u'all')
 
 
-def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
+def _try_fallback(exp,title,mode,auto=None):
+    try:
+        import sys,xbmcvfs
+        lib=xbmcvfs.translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')
+        if lib not in sys.path:sys.path.append(lib)
+        import provider_fallback_hooks
+        deck=sys.modules.get(__name__)
+        if deck is None:
+            import types
+            deck=types.SimpleNamespace(**globals())
+        return provider_fallback_hooks.deck_fallback(deck,exp,title,mode,auto)
+    except (ImportError,RuntimeError,OSError,ValueError):
+        return None
+
+
+def run(title, items, top_n=TOP_N, expect=None, mode=u'download', fallback=True, source_check=None):
     MODE[0] = mode
     parsed = parse_all(items)
     if parsed is None:
@@ -1102,10 +1130,15 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
                 _auto_result(auto,{'request_id':auto['request_id'],'error':'identity_mismatch'})
                 return -1
             if exp and automatic_matches(auto,exp):
+                if fallback and not items and _try_fallback(exp,title,mode,auto):
+                    return -1
                 if auto.get('purpose') in ('scan','packs'):
                     _auto_result(auto,{'request_id':auto['request_id'],
                         'qualities':[],'packs':False,'error':'unsupported_source_list' if items else ''})
                 return -1
+        if fallback and not items and not auto:
+            sm=_matcher();exp=expect if expect is not None else identity(title,sm)
+            if exp and _try_fallback(exp,title,mode):return -1
         return None
     sm = _matcher()
     exp = expect if expect is not None else identity(title, sm)
@@ -1126,7 +1159,16 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
         _auto_result(active,{'request_id':active['request_id'],'error':'identity_unavailable'})
         return -1
     if sm is not None and exp:
-        kept, hidden = sm.split(parsed, exp, name=lambda p: p['name'], result=lambda p: None)
+        if source_check is None:
+            kept, hidden = sm.split(parsed, exp, name=lambda p: p['name'], result=lambda p: None)
+        else:
+            # Backup provenance may carry a verified anime episode mapping. Keep the original request
+            # coordinates for automatic ownership while rechecking each native candidate in the broker.
+            kept, hidden = [], []
+            for item in parsed:
+                try: valid = bool(source_check(item))
+                except Exception: valid = False
+                (kept if valid else hidden).append(item if valid else (item, u'backup identity not verified'))
         sm.report('Choose a version', exp, kept, hidden, name=lambda p: p['name'])
         # Kodi-iOS (owner, build 205: "i pressed full season" and got episode 1 alone): for a season download, full
         # seasons first and every row says which it is.
@@ -1150,6 +1192,12 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
         return -1
     if exp and exp.get('episode'):
         mark_multi(kept, exp, sm)
+    if fallback and exp:
+        usable_primary=[p for p in kept if p['seeds']>0 and not is_bad(p)]
+        want=(auto or {}).get('profile') or {}
+        if want.get('strict_quality') and want.get('quality'):
+            usable_primary=[p for p in usable_primary if p['quality']==want['quality'] and not below_quality(p,want['quality'],int(want.get('runtime') or 0))]
+        if not usable_primary and _try_fallback(exp,title,mode,auto):return -1
     if auto and exp and automatic_matches(auto, exp) and auto.get('purpose') in ('scan', 'packs', 'survey'):
         import json
         usable = [p for p in kept if p['seeds'] > 0 and not is_bad(p)] if sm is not None and exp.get('titles') else []
