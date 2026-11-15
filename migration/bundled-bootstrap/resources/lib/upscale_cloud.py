@@ -12,7 +12,8 @@ makes the oldest one due:
      '<name> [AI 4K UHD].mp4' (upscale_queue.copy_name); the original is kept (DEC-040: AirPlay of the original keeps
      working, and Off plays it);
   4. upscale-copies.json says 'ready' with the copy's Drive id; a copy at another size it replaces goes to the bin.
-A stop (Kodi closing, the owner's Pause, the phone getting hot) leaves it 'waiting'; it starts over next time. Other
+A stop (Kodi closing, the owner's Pause, the phone getting hot) leaves it 'waiting'; it carries on from the converter's
+last mark next time when Drive still holds the upload (ISSUE-242), else it starts over. Other
 errors retry with upscale_queue.failed's back-off; HDR, already-this-size and no-AI-engine are final ('blocked').
 """
 import json
@@ -39,6 +40,20 @@ def _status_text(entry, why):
     return entry
 
 
+def hold(profile, why, clock=time.time):
+    """ISSUE-265 (owner log 0b99a266, build 415: "it says after a conversion but there is no conversion"): the next copy
+    says why it is not being made when the service does not reach process_one (a video being prepared goes first).
+    Before, its line kept the page's default "Starts when nothing is converting" whatever the real reason."""
+    try:
+        data = uq.load(profile)
+        key = uq.next_job(data, clock)
+        if key and data['copies'][key].get('status') != 'running' and data['copies'][key].get('note') != why:
+            _status_text(data['copies'][key], why)
+            uq.save(profile, data)
+    except Exception:
+        pass
+
+
 def _prep_waiting(q):
     """A video waits to be prepared (it goes before an AI Upscale copy)."""
     try:
@@ -49,7 +64,27 @@ def _prep_waiting(q):
         return False
 
 
-def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_bytes=None, clock=time.time):
+def _on_screen():
+    try:
+        import app_state
+        return app_state.foreground()
+    except Exception:
+        return True
+
+
+# ISSUE-241 (owner log 1ae21097: Phony S1 E2, 1920x1080 to 4K, failed after 2 min with "video conversion: encode: Generic
+# error in an external library"): that is FFmpeg's AVERROR_EXTERNAL from Apple's hardware encoder (VideoToolbox), which
+# refuses frames once its session is gone: iOS ends encoder sessions and GPU work (the upscaler runs on the GPU) while an
+# app is in the background, and under memory pressure. A fresh session normally works, so it is not the video's fault.
+ENCODER_TROUBLE = ('Generic error in an external library', 'Insufficient Permission', 'kVTInvalidSessionErr', '-12903',
+                   '-12902', '-12905', 'GPU work from background')
+
+
+def _encoder_trouble(error):
+    return any(word in str(error) for word in ENCODER_TROUBLE)
+
+
+def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_bytes=None, clock=time.time, on_screen=_on_screen):
     """Plans and makes at most one copy. Returns True when it did work (a copy made, or a step that changed state)."""
     import drive_prepare
     import driveupload
@@ -98,6 +133,12 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
     if not key:
         return bool(added)
     entry = data['copies'][key]
+    if entry.get('needs_screen') and not on_screen():
+        # ISSUE-241: its encoder stopped while Kodi was in the background; it is made while Kodi is on screen.
+        if entry.get('note') != 'Waits for Kodi to be open':
+            _status_text(entry, 'Waits for Kodi to be open')
+            uq.save(profile, data)
+        return False
     native = q.native
     if not getattr(native, 'upscales', False):
         uq.failed(entry, 'AI Upscale is not available on this device (needs KodiAirPlay r48)', clock)
@@ -201,15 +242,40 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
                     uq.save(profile, data)
 
     staging = q.drive.folder([driveupload.TOP, '.Preparation'])
-    sink = drive_prepare.Sink(q.drive, staging, 'upscale-' + key, keep_going, on_file,
-                              hold=lambda: bool(getattr(q, 'paused', lambda: False)()))
+    # ISSUE-242 (handoff: AI Upscale copies started again from the beginning after every stop): like a preparation, the
+    # copy carries on from the converter's last mark if Drive still holds its upload (resume_store). The identity names
+    # the size asked for, so a mark from another size never carries on.
+    import resume_store
+    slot = 'upscale-' + key
+    resumes = bool(getattr(native, 'resumes', False))
+    identity = ('upscale', key, label, width, height, int(entry.get('kbps') or settings.get('downloads', {}).get('kbps') or 0))
+    checkpoint = resume_store.load(profile, slot, identity) if resumes else None
+    if checkpoint:
+        checkpoint = resume_store.fit(checkpoint, resume_store.confirmed(q.drive, checkpoint), False)
+    if not checkpoint:
+        resume_store.clear(profile, slot)
+    else:
+        q.log('upscale: %s — carrying on from %d s' % (title, resume_store.mark_seconds(checkpoint['mark'])))
+        entry['note'] = 'Carrying on where it stopped'
+    sink = drive_prepare.Sink(q.drive, staging, slot, keep_going, on_file,
+                              hold=lambda: bool(getattr(q, 'paused', lambda: False)()),
+                              spool=str(resume_store.folder(profile)) if resumes else None, checkpoint=checkpoint,
+                              keep_pieces=resumes, on_checkpoint=lambda cp: resume_store.save(profile, slot, identity, cp))
     source = q.stream.url(key)
     try:
         try:
             bw, bh = picture.box(label)
-            native.convert_to(source, sink, keep_going, progress, getattr(q, 'paused', None), None,
-                              upscale=(bw, bh, engine, int(settings.get('downloads', {}).get('kbps') or 0)))
+            try:
+                native.convert_to(source, sink, keep_going, progress, getattr(q, 'paused', None), None,
+                                  upscale=(bw, bh, engine, int(settings.get('downloads', {}).get('kbps') or 0)),
+                                  **({'resume': checkpoint['mark']} if checkpoint else {}))
+            except Exception as error:
+                if type(error).__name__ == 'ResumeFailed':   # the mark no longer fits: it starts again next pass
+                    resume_store.clear(profile, slot)
+                    raise driveupload.Stop('Starting the copy again')
+                raise
             sink.finish()
+            resume_store.clear(profile, slot)
         except Exception:
             sink.close()
             raise
@@ -237,6 +303,7 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
         move(q.drive, main['id'], parent, staging, name)
     except driveupload.Stop:
         if uq.cancelling(profile, key):
+            resume_store.clear(profile, slot)
             uq.apply_control(profile, data, clock)       # DEC-044: cancelled by the owner; not made again
             uq.save(profile, data)
             q.log('upscale: %s — cancelled' % title)
@@ -245,13 +312,53 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
         entry['progress'] = 0
         entry.pop('eta', None)
         uq.save(profile, data)
-        q.log('upscale: %s — stopped; it starts again later' % title)
+        q.log('upscale: %s — stopped; it carries on from its last mark later' % title if resumes else
+              'upscale: %s — stopped; it starts again later' % title)
         return False
     except Exception as error:
+        if _encoder_trouble(error):
+            screen = on_screen()
+            entry['encoder_tries'] = entry.get('encoder_tries', 0) + (1 if screen else 0)
+            if not screen or entry['encoder_tries'] <= 1:
+                # In the background: it waits for Kodi to be on screen (not a failure). On screen: one more try with a new
+                # encoder in 30 s; a second refusal on screen is a real failure (back-off below).
+                entry['status'] = 'waiting'
+                entry['progress'] = 0
+                entry['retry_after'] = clock() + (0 if not screen else 30)
+                entry['needs_screen'] = True
+                entry['note'] = 'Waits for Kodi to be open' if not screen else 'Starting the AI engine again'
+                entry.pop('eta', None)
+                entry.pop('error', None)
+                uq.save(profile, data)
+                q.log('upscale: %s — the video encoder stopped (%s) while Kodi was %s; %s' % (
+                    title, str(error)[:100], 'on screen' if screen else 'in the background',
+                    'trying again in 30 s with a new encoder' if screen else 'it carries on when Kodi is open'))
+                return False
+        if _network_trouble(error):
+            # ISSUE-198 / owner log (2026-11-13, "Source read: Input/output error" after 2 minutes on a Drive file streamed
+            # through the loopback proxy): the network is not the video's fault. Wait 15 s up to 5 min, then start again
+            # (it carries on from the converter's last mark when Drive still holds the upload, ISSUE-242); it never
+            # counts as a failure and never enters the long back-off.
+            import debrid_drive
+            entry['net_attempts'] = entry.get('net_attempts', 0) + 1
+            wait = debrid_drive.net_wait(entry['net_attempts'])
+            entry['status'] = 'waiting'
+            entry['progress'] = 0
+            entry['retry_after'] = clock() + wait
+            entry['note'] = 'Waiting for the network'
+            entry.pop('eta', None)
+            entry.pop('error', None)
+            uq.save(profile, data)
+            q.log('upscale: %s — network trouble (%s); trying again in %d s' % (title, str(error)[:100], wait))
+            return False
+        resume_store.clear(profile, slot)
         uq.failed(entry, error, clock)
         uq.save(profile, data)
         q.log('upscale: %s — failed: %s' % (title, str(error)[:200]))
         return True
+    entry.pop('net_attempts', None)
+    entry.pop('encoder_tries', None)
+    entry.pop('needs_screen', None)
     old = entry.get('previous_copy')
     entry.update(status='ready', copy_id=main['id'], size=int(main.get('size') or 0), progress=100,
                  finished=clock(), took=round(clock() - began))
@@ -304,6 +411,16 @@ def media_lookup(profile, parse=None):
         return {'type': kind, 'show': info.get('title') or '', 'drive_id': ids[0] or ids[1],
                 'season': info.get('season') or '', 'episode': info.get('episode') or ''}
     return media_for
+
+
+def _network_trouble(error):
+    """True for trouble that goes away by itself (a dropped read, a timeout, a 5xx), never for a final answer (HDR, wrong
+    size, no engine) or a wrong-size copy."""
+    import debrid_drive
+    text = str(error)
+    if any(word in text for word in ('HDR', 'already this size', 'not available on this device', 'needs iOS 26', 'The copy is ')):
+        return False
+    return bool(debrid_drive.network_error(error))
 
 
 def _eta(seconds):

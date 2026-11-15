@@ -1,15 +1,15 @@
 {
   "framework_release": {
-    "tag": "kodi-airplay-r53",
+    "tag": "kodi-airplay-r57",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "10df323f7667d478d2b9d007ef998bed4fdb2e0dd701019ca6b9e620e08202b8"
+    "sha256": "9a11280783684187c357844081cf08f7874a4e19ca0af0f5f309392dfe42fbda"
   },
   "previous": {
-    "tag": "kodi-airplay-r52",
+    "tag": "kodi-airplay-r56",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "084b7672700448aeff983a4cac39e2a6e0025f3930d003c21e96a63e91bf71b9"
+    "sha256": "91be96afe8a51cfde1643b79a6675f6c91ba915d9b5fc334591f583c9b9416f7"
   },
-  "source_commit": "83ebc8873cb1150a5e4f6d910dffcd60a7ababaa",
-  "verified_run": 43455191676,
-  "pin_note": "r53 (ISSUE-201: streamed AllDebrid-to-Drive pieces, kodi_http_copy_streams, pieces up to 256 MB) built by airplay-ios run 43455191676 from 83ebc88; the release asset digest and the downloaded zip both give 10df323f\u202602b8, and the binary exports kodi_http_copy_streams and kodi_http_copy_max."
+  "source_commit": "d020c829f023814c427351c14958e6edbfe2cf67",
+  "verified_run": 43622274914,
+  "pin_note": "r57 (ISSUE-278: a prepared file the TV takes as sound only, or that fails while the TV has the sound only, restarts once, H.264 too; an H.264 picture restarts in 6-s segments with the picture copied) published by airplay-ios run 43622274914 from d020c82; the converter host tests (airplay-remux run 43621764007, same native source) passed; release notes, asset digest and downloaded zip all give 9a112807\u202642fbda, and the binary carries the new restart notes."
 }

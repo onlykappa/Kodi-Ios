@@ -19,6 +19,41 @@ CHUNK = 8 * 1024 * 1024  # Drive requires multiples of 256 KiB
 # piece): the movie goes up in 32 MB pieces on its own thread, AHEAD pieces may wait their turn, and the converter
 # only waits when all of them are full.
 MAIN_CHUNK = 32 * 1024 * 1024  # producer batches / existing on-disk resume pieces, not HTTP request size
+# Owner log (2026-11-13): a 200 MB episode spent much of its upload at 1-4 MB pieces because every file started again at
+# 1 MB and grew only after three fast pieces. What one file learned is kept here for the next (per link kind; a failed or
+# timed-out piece, or a change from Wi-Fi to cellular, forgets it).
+_learned = {'size': 0, 'kind': None}
+_learned_lock = threading.Lock()
+
+
+def _link_kind():
+    try:
+        import cache_tune
+        return cache_tune.link_kind()
+    except Exception:
+        return 'other'
+
+
+def learned_piece(limit):
+    """The piece size the last file ended on, for this link, or 0: never above `limit`."""
+    kind = _link_kind()
+    with _learned_lock:
+        if _learned['kind'] != kind:
+            _learned.update(size=0, kind=kind)
+            return 0
+        return min(int(_learned['size']), limit)
+
+
+def learn_piece(size):
+    """A piece of `size` bytes went through well: start the next file here. 0 forgets (a failure or timeout)."""
+    kind = _link_kind() if size else None
+    with _learned_lock:
+        if size:
+            _learned.update(size=int(size), kind=kind)
+        else:
+            _learned.update(size=0)
+
+
 AHEAD = 4   # build 185: 4 x 32 MB may wait, so a short upload stall does not stop the converter
 # r30 (owner: "fix restarting when its closed and have it keep progress"): Drive can only carry on from what it
 # confirmed, in 256 KiB steps, and a converter can only carry on from a mark (KodiAirPlay's safe places). So pieces end
@@ -191,6 +226,10 @@ class Sink:
         # Retain the preceding anchor, including a slow first piece, so its confirmed speed is measurable.
         old=[m for m in self.marks if now-m[0]>20]
         self.marks[:] = old[-1:]+[m for m in self.marks if now-m[0]<=20]
+        hook = getattr(self, 'on_confirmed', None)   # ISSUE-232: the page's card follows the upload once the movie is made
+        if hook:
+            try:hook()
+            except Exception:pass
 
     def _uploader(self, t, track=0):
         """A track's pieces, in order, to Drive. Errors are kept and raised in the converter's thread."""
@@ -347,6 +386,9 @@ class Sink:
             # 14 MB/s); they still start at 1 MB and shrink toward ten seconds each on a slow one.
             chunks=t['chunks']=driveupload.StreamChunks(MAIN_CHUNK if t.get('track',0)==0 else None,MAIN_CHUNK if t.get('track',0)==0 else None)
             chunks.current=chunks.minimum  # first acknowledgement is quick even on an unknown slow uplink
+            if t.get('track',0)==0:
+                # ... but a line the last file already measured is not tried from 1 MB again (never below 1 MB, never above the cap).
+                chunks.current=max(chunks.minimum,min(chunks.limit,learned_piece(chunks.limit)))
         failures=0
         while failures<attempts:
             if self.closed or not self.keep_going():raise driveupload.Stop('Preparation paused')
@@ -376,7 +418,11 @@ class Sink:
             if status != 308:
                 # Lost answer or a Drive hiccup: ask how far it got, then carry on from there.
                 failures+=1
-                chunks.observe(max(1,len(body)),0,max(6,elapsed))
+                # ISSUE-240 (owner log 47e2276a: ~1.3 MB/s while Drive dropped the connection 7 times, each drop sending
+                # the pieces back to 1 MB and forgetting the line): a dropped piece halves the piece size once, and the
+                # next file starts at the halved size; three fast pieces double it again. Only repeated drops reach 1 MB.
+                chunks.current=max(chunks.minimum,(chunks.current//2)//(256*1024)*(256*1024));chunks.fast=0
+                if t.get('track',0)==0:learn_piece(chunks.current)
                 sleep(min(30, 2 ** (failures-1)))
                 try:status, headers, answer = self.drive.call('PUT', t['url'], b'', {'Content-Range':'bytes */%s' % (str(target) if final else '*')})
                 except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):continue
@@ -394,6 +440,15 @@ class Sink:
             self._confirmed(t,t.get('track',0))
             if got>start:
                 chunks.observe(got-start,0,elapsed);failures=0
+                if chunks.FAST<=elapsed<=chunks.SLOW and chunks.current<chunks.limit:
+                    # ISSUE-246 (owner log bfde8a13: three episodes made ready at once sent 4-8 MB pieces taking 4-9 s each,
+                    # ~1.3 MB/s per upload, while plain copies reached 13.6 MB/s): pieces grew only after three under 6 s,
+                    # which a shared line never gives. A steady piece now grows toward about ten seconds at the speed it
+                    # just had, so fewer Drive round trips; a slow piece (over 15 s) still shrinks it.
+                    step=256*1024
+                    steady=int((got-start)*chunks.TARGET/elapsed)//step*step
+                    chunks.current=max(chunks.current,min(chunks.limit,steady))
+                if t.get('track',0)==0:learn_piece(chunks.current if elapsed<chunks.SLOW else 0)
             else:failures+=1
             if got == target and not final:return
         raise RuntimeError('Preparation upload did not acknowledge its byte range')

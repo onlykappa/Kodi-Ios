@@ -59,9 +59,13 @@ def pass_once(profile,window,keep_going,log):
   if not elementum_engine.ensure_here():return False   # started on demand, not at launch
   ident=uuid.uuid4().hex;target={'tmdb':show['tmdb'],'season':episode['season_number'],'episode':episode['episode_number']}
   request={'request_id':ident,'target':target,'profile':show['preference'],'mode':0,'until':time.time()+600}
-  request['excluded_names']=[j['name'] for j in debrid_drive.load(profile).get('jobs',[])
-   if j.get('show_tmdb')==show['tmdb'] and str(j.get('season'))==str(target['season']) and str(j.get('episode'))==str(target['episode'])
-   and j.get('status')=='failed' and 'cancel' not in str(j.get('error','')).lower()][-20:]
+  # ISSUE-236 / ISSUE-244: failed versions are never picked again; ones found lower only when nothing else exists.
+  request['excluded_names'],request['lower_names']=debrid_drive.avoid_names(debrid_drive.load(profile),show['tmdb'],target['season'],target['episode'])
+  try:
+   import quality_choice   # DEC-049 board C
+   request['prefer_names']=[n for n in (quality_choice.preferred(profile,show['tmdb'],target['season']),) if n]
+   request['season_names']=debrid_drive.season_names(debrid_drive.load(profile),show['tmdb'],target['season'])   # ISSUE-274
+  except Exception:pass
   window.clearProperty(watch.RESULT);window.clearProperty('KodiIOS.AutoPick.Queued')
   window.setProperty(watch.AUTO,json.dumps(request))
   queued=False

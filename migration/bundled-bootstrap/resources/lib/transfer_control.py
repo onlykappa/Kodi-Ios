@@ -72,6 +72,9 @@ def reset_once(profile):
 def cancel_copy(profile,info_hash):
  path=folder(profile)/'cancel-up';path.parent.mkdir(parents=True,exist_ok=True)
  with open(path,'a',encoding='utf-8') as handle:handle.write(str(info_hash).lower()+'\n')
+ try:   # DEC-052: whatever page Stop was pressed on, every page shows "Stopping…" at once
+  import library_index;library_index.intend_for(profile,'stop',hashes=[info_hash])
+ except Exception:pass
 
 def cancelled_copies(profile):
  try:return {line.strip() for line in (folder(profile)/'cancel-up').read_text(encoding='utf-8').splitlines() if line.strip()}

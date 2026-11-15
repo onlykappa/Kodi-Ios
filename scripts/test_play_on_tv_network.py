@@ -20,6 +20,11 @@ class Window:
  def clearProperty(self,key):self.props.pop(key,None)
 
 class ConnectionTests(unittest.TestCase):
+ # These check the controller's deadlines, cancel and Roku logic with the card and the in-app TV list as they were; the
+ # owner's flow without them (ISSUE-251, ISSUE-252) is QuietPlayOnTV below.
+ def setUp(self):
+  self.flags=(controller.QUIET_PROGRESS,controller.DIRECT_AIRPLAY);controller.QUIET_PROGRESS=controller.DIRECT_AIRPLAY=False
+ def tearDown(self):controller.QUIET_PROGRESS,controller.DIRECT_AIRPLAY=self.flags
  def exercise(self,profile,received=None,cancel=None,legacy=False,failed=False,startup=0,choosing=0,raise_log=False,error_message='',roku=False,copy_api=True):
   window=Window();clock=[1000.0];paused=[False];closed=[];messages=[];logs=[];notes=[];plays=[];progress_words=[]
   def wait(seconds):clock[0]+=seconds;return False
@@ -529,7 +534,7 @@ class AnyTv(unittest.TestCase):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('int kodi_airplay_serve(const char *url, int compat, char *out, int outlen)',build)
   self.assertIn('compat == KR_COMPAT_ROKU_SAFE ? KR_COMPAT_ROKU_SAFE',build)
-  self.assertIn('_kodi_airplay_serve\\n',build);self.assertIn("== 29 ]]",build)
+  self.assertIn('_kodi_airplay_serve\\n',build);self.assertRegex(build,r"== (29|[3-9][0-9]) \]\]")   # r54 added an export (30)
 
 class RokuHandoff(unittest.TestCase):
  def setUp(self):
@@ -679,6 +684,18 @@ class RokuSegmented(unittest.TestCase):
   self.assertIn('if (external) everExternal = YES;',build)
   failed=build.index('preparedLink && everExternal')
   self.assertLess(failed,build.index('showProblem(m && *m ? @(m)',failed))   # before the problem is reported
+ def test_a_prepared_h264_file_the_tv_turns_down_restarts_in_segments(self):
+  # ISSUE-278 (owner's build-430 log 33942e4f: Naruto S1 E1, prepared avc1.640028 in 60-69 s fragments; the Roku took the
+  # sound only, Apple's player stopped "Cannot Complete Action" after 1.5 s, and no restart ran because the picture was
+  # already H.264 and external playback never came on).
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertEqual(build.count('if (preparedLink || !(codec && !strncmp(codec, "avc1", 4)))'),2)   # sound only, and failed
+  restart=build[build.index('BOOL (^restartCompat)'):build.index('return YES;',build.index('BOOL (^restartCompat)'))]
+  self.assertIn('const BOOL keepPicture = preparedLink && pictureCodec && !strncmp(pictureCodec, "avc1", 4);',restart)
+  self.assertIn('kr_remux_start_for(restartTicket,source, 1, keepPicture ? KR_COMPAT_SEGMENTED : 1, playlist, sizeof playlist)',restart)
+  self.assertLess(restart.index('const BOOL keepPicture'),restart.index('dispatch_async(remuxQueue()'))
+  failed=build.index('the player failed while the TV had the sound only')
+  self.assertLess(failed,build.index('showProblem(m && *m ? @(m)',failed))   # before the card
 
 class PhoneServedTv(unittest.TestCase):
  """Build 211 (log 1430bbc1): after Play on TV handed a Roku the phone's link, "slowdown: full speed" and the TV's
@@ -700,5 +717,36 @@ class PhoneServedTv(unittest.TestCase):
   airplay.mark_serve(w,1300);airplay.activity(['GET /prepared.mp4 206 65536 B 40 ms'],w,1380)
   self.assertTrue(airplay.playback_active(lib,w,1380+airplay.BUSY_FOR-1))
   self.assertIn('airplay.mark_serve(xbmcgui.Window(10000),time.time())',(BOOT/'cast.py').read_text())
+
+class QuietPlayOnTV(unittest.TestCase):
+ """ISSUE-251/252 (owner: no loading card, straight to Apple's AirPlay list, no Media Assistant)."""
+ def test_play_on_tv_opens_the_airplay_list_at_once_with_no_card_and_no_roku_switch(self):
+  self.assertTrue(controller.QUIET_PROGRESS);self.assertFalse(controller.DIRECT_AIRPLAY)   # owner: Media Assistant stays for now
+  src=(BOOT/'cast.py').read_text()
+  self.assertIn("if QUIET_PROGRESS and hasattr(lib,'kodi_airplay_open'):lib.kodi_airplay_open()",src)
+  self.assertLess(src.index("lib.kodi_airplay_play(source.encode('utf-8')"),src.index("lib.kodi_airplay_open()"))
+  self.assertIn("if DIRECT_AIRPLAY and extra:",src)
+  self.assertIn("if not DIRECT_AIRPLAY and hasattr(lib,'kodi_airplay_serve_copy')",src)
+  ui=controller.FlowUI.__new__(controller.FlowUI);ui.win=None;ui.box=None
+  shown=[];ui.xbmcgui=types.SimpleNamespace(DialogProgress=lambda:shown.append(1))
+  ui.show('opening');self.assertEqual(shown,[])                                   # nothing drawn
+  native=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('if (!chosen) openSheet(sheet);',native)                          # the list is not opened twice
+
+
+class StopAndSlowWarning(unittest.TestCase):
+ """ISSUE-255 (Stop while the TV starts, no card) and ISSUE-256 (ask before a version slow on AirPlay)."""
+ def test_a_ten_bit_h264_stream_asks_first(self):
+  asked=[]
+  dialog=types.SimpleNamespace(yesno=lambda *a,**k:asked.append(a) or False)
+  xbmc=types.SimpleNamespace(getInfoLabel=lambda l:'')
+  self.assertFalse(controller.slow_on_airplay_ok(xbmc,dialog,'http://x/Dragon.Ball.Super.01.1080p.10bit.mkv'));self.assertEqual(len(asked),1)
+  self.assertTrue(controller.slow_on_airplay_ok(xbmc,dialog,'http://x/Show.01.1080p.10bit.HEVC.mkv'))
+  self.assertTrue(controller.slow_on_airplay_ok(xbmc,dialog,'http://x/Show.01.1080p.x264.mkv'));self.assertEqual(len(asked),1)
+ def test_play_on_tv_again_stops_a_start(self):
+  src=(BOOT/'cast.py').read_text()
+  self.assertIn("home.setProperty(TV_STOP,'1')",src);self.assertIn("getProperty(TV_STOP)=='1'",src)
+  self.assertIn("_mark(TV_STARTING);_mark(TV_STOP)",src)
+
 
 if __name__=='__main__':unittest.main()

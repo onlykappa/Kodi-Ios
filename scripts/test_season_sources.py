@@ -30,10 +30,14 @@ class Picker(unittest.TestCase):
   with patch.object(deck,'choose_source',side_effect=AssertionError('scan opened picker')):
    self.assertEqual(deck.run('Sample Show',rows,expect=self.exp),-1)
   self.assertEqual(json.loads(self.home.getProperty(watch.RESULT))['qualities'],['1080p'])
- def test_strict_queue_never_uses_lower_quality(self):
+ def test_strict_queue_takes_lower_quality_only_when_nothing_else_exists(self):
+  # ISSUE-236 (owner: "only grab the lower quality if it's the absolute only one available"): this used to be refused.
   self.request('queue',quality='4k')
-  self.assertEqual(deck.run('Sample Show',[line('Sample.Show.S01E01.1080p.HEVC')],expect=self.exp),-1)
-  self.assertFalse(json.loads(self.home.getProperty(watch.RESULT))['found'])
+  self.assertEqual(deck.run('Sample Show',[line('Sample.Show.S01E01.1080p.HEVC')],expect=self.exp),0)
+  self.assertTrue(json.loads(self.home.getProperty(watch.RESULT))['fallback'])
+  self.request('queue',quality='4k')
+  self.assertEqual(deck.run('Sample Show',[line('Sample.Show.S01E01.1080p.HEVC'),line('Sample.Show.S01E01.2160p.HEVC','4k')],expect=self.exp),1)
+  self.assertFalse(json.loads(self.home.getProperty(watch.RESULT))['fallback'])
  def test_scan_identity_mismatch_never_falls_back_to_a_manual_picker(self):
   self.request('scan')
   wrong=dict(self.exp,tmdb='999')
@@ -217,10 +221,15 @@ class RedirectBoundary(unittest.TestCase):
   self.assertEqual(self.fixture.jobs()[0]['show_tmdb'],'123')
   self.fixture.dialog.select.assert_not_called()
   self.assertFalse(watch.active_request(self.home))
- def test_source_disappearing_in_selected_quality_has_no_queue_receipt(self):
+ def test_selected_quality_missing_queues_the_best_available_as_a_fallback(self):
+  # ISSUE-236: no 4K exists, so the 1080p is the fallback. DEC-049: the season asks the owner once first (held, not
+  # queued); after "Use the Best" the 1080p is queued once and marked as a fallback (not refused at copy).
   result=season.request(self.home,'123',1,2,'queue','4k',follow=self.follow)
-  self.assertFalse(result['queued']);self.assertFalse(self.fixture.jobs())
-  self.assertTrue(watch.canceled(self.home,{'tmdb':'123','season':1,'episode':2}))
+  self.assertFalse(result['queued']);self.assertTrue(result['held']);self.assertEqual(len(self.fixture.jobs()),0)
+  import quality_choice
+  self.assertEqual(quality_choice.answer(self.fixture.tmp.name,'123',1,'best'),[2])
+  result=season.request(self.home,'123',1,2,'queue','4k',follow=self.follow)
+  self.assertTrue(result['queued']);self.assertTrue(result['fallback']);self.assertEqual(len(self.fixture.jobs()),1)
  def test_empty_search_can_fall_back_without_an_interactive_picker(self):
   self.rows=[]
   result=season.request(self.home,'123',1,2,follow=self.follow)

@@ -74,6 +74,13 @@ python3 -B "$(dirname "$0")/make_dovi.py" "$OUT/dovi.mkv"
   -disposition:s:0 default "$OUT/h264_pgs.mkv"
 "${F[@]}" -copyts -stream_loop 3 -i "$OUT/h264_aac_srt.mkv" -i "$OUT/long.sup" \
   -map 0:v -map 0:a -map 1:s -c copy -t 65 -disposition:s:0 default "$OUT/long_pgs.mkv"
+# r54: a DVD (VobSub) subtitle (kept inside the MP4), and a second video track: smaller than the main picture (left out)
+# and larger (refused).
+"${F[@]}" -i "$OUT/h264_aac_srt.mkv" -i "$OUT/dvd.idx" -map 0:v -map 0:a -map 1:s -c copy -metadata:s:s:0 language=eng "$OUT/h264_dvdsub.mkv"
+"${F[@]}" -i "$OUT/h264_aac_srt.mkv" -f lavfi -i testsrc2=size=160x90:rate=24:duration=20 -map 0:v -map 0:a -map 1:v \
+  -c:v:0 copy -c:a copy -c:v:1 libx264 -preset ultrafast -g 48 -pix_fmt yuv420p "$OUT/h264_second_video.mkv"
+"${F[@]}" -i "$OUT/h264_aac_srt.mkv" -f lavfi -i testsrc2=size=640x360:rate=24:duration=20 -map 0:v -map 0:a -map 1:v \
+  -c:v:0 copy -c:a copy -c:v:1 libx264 -preset ultrafast -g 48 -pix_fmt yuv420p "$OUT/h264_bigger_second_video.mkv"
 ls -l "$OUT"
 # Offline HDR preparation matrix: codecs/chroma/bit depths that require HEVC Main10 output.
 for spec in 'av1_hdr10 libaom-av1 yuv420p10le smpte2084' 'av1_hlg libaom-av1 yuv420p10le arib-std-b67' 'h264_hdr10 libx264 yuv420p10le smpte2084' 'hevc_12_hdr libx265 yuv420p12le smpte2084' 'hevc_422_hdr libx265 yuv422p10le smpte2084'; do

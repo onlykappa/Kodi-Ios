@@ -14,9 +14,48 @@ Other add-ons (the watch add-on, the version picker) open it through load(); wit
 WINDOW = 'IOSChoiceSheet.xml'
 MAX_ROWS = 8
 ROW0, LINK, CANCEL, DIM = 9811, 9830, 9840, 9099
+TALL0 = 9850        # the same rows when they wrap: one id range per form (title 1-3 lines x detail 1-2 lines), 10 apart
 BACK_KEYS = (9, 10, 92, 110)
 SIDE = 32           # the sheet's distance from the screen's sides
 ROW_H = 176
+# Owner (2026-11-14): no text is cut off with "…". A row whose title or detail does not fit on one line wraps: the title on
+# up to three lines, the detail on two, the row as tall as its lines (TITLE_LINE per title line, DETAIL_LINE per detail line).
+# Characters per line (rig render 2026-11-14, Inter on the 1080-unit canvas): a title beside a tile 30, minus 5 for a chip,
+# plus 5 without a tile; a detail beside a tile 42, plus 6 without.
+FIT_TITLE, FIT_DETAIL = 30, 42
+TITLE_LINE, DETAIL_LINE = 62, 46
+
+
+def lines(text, per_line):
+    """How many lines a text wraps to at word boundaries (at least 1)."""
+    count, used = 1, 0
+    for word in str(text or '').split():
+        need = len(word) + (1 if used else 0)
+        if used and used + need > per_line:
+            count, used = count + 1, len(word)
+        else:
+            used += need
+    return count
+
+
+def shape(row):
+    """(title lines 1-3, detail lines 1-2) for a row."""
+    title_fit = FIT_TITLE - (5 if row.get('tag') else 0) + (0 if row.get('tint') else 5)
+    detail_fit = FIT_DETAIL + (0 if row.get('tint') else 6)
+    return min(3, lines(row.get('label'), title_fit)), min(2, lines(row.get('detail'), detail_fit)) if row.get('detail') else 0
+
+
+FORMS = [(t, d) for t in (1, 2, 3) for d in (1, 2)]
+
+
+def tall_height(title_lines, detail_lines=2):
+    return 28 + TITLE_LINE * title_lines + 8 + DETAIL_LINE * detail_lines + 30
+
+
+def form(row):
+    """The wrapped form's number (1-6, FORMS) for a row that does not fit on one line, else ''."""
+    t, d = shape(row)
+    return str(FORMS.index((t, max(1, d))) + 1) if (t > 1 or d > 1) else ''
 ART_H = 420
 
 
@@ -30,20 +69,37 @@ def properties(spec):
         row = rows[n - 1] if n <= len(rows) else {}
         cover = row.get('cover')
         props.update({'row.%d.label' % n: row.get('label') or '', 'row.%d.detail' % n: row.get('detail') or '',
+                      'row.%d.tall' % n: form(row) if n <= len(rows) else '',
                       'row.%d.tag' % n: row.get('tag') or '', 'row.%d.tag_kind' % n: row.get('tag_kind') or '',
-                      'row.%d.tint' % n: row.get('tint') or '', 'row.%d.glyph' % n: row.get('glyph') or '',
+                      'row.%d.tint' % n: row.get('tint') or '', 'row.%d.glyph' % n: glyph_path(row.get('glyph')),
                       # the coverage bar in tenths (0-10); '' hides it
                       'row.%d.cover' % n: '' if cover is None else str(max(0, min(10, int(round(float(cover) / 10.0)))))})
     return props
+
+
+def tall(row):
+    """True when a row's title or detail would not fit on one line (it then wraps, never "…")."""
+    title, detail = shape(row)
+    return title > 1 or detail > 1
 
 
 def result(control, rows, link):
     """The answer for a tapped control: a row index, len(rows) for the link, -1 otherwise."""
     if ROW0 <= control < ROW0 + min(rows, MAX_ROWS):
         return control - ROW0
+    for k in range(len(FORMS)):
+        if TALL0 + 10 * k <= control < TALL0 + 10 * k + min(rows, MAX_ROWS):
+            return control - TALL0 - 10 * k
     if control == LINK and link:
         return rows
     return -1
+
+
+def glyph_path(name):
+    """A row tile's glyph: an icon name ('trash.png') becomes the skin's icon path (rig render, 2026-11-14: the tiles
+    drew as bare coloured squares because the image control was given the bare name)."""
+    name = str(name or '')
+    return name if not name or '://' in name or name.startswith(('/', '$')) else 'special://skin/extras/icons/' + name
 
 
 def choose(spec, xbmcgui=None, xbmc=None, path=None):
@@ -61,7 +117,8 @@ def choose(spec, xbmcgui=None, xbmc=None, path=None):
             for key, value in props.items():
                 self.setProperty(key, value)
             try:
-                self.setFocusId(ROW0 if rows else (LINK if link else CANCEL))
+                first = TALL0 + 10 * (int(props['row.1.tall']) - 1) if props.get('row.1.tall') else ROW0   # FORMS index
+                self.setFocusId(first if rows else (LINK if link else CANCEL))
             except Exception:
                 pass
 
@@ -176,12 +233,47 @@ def window(p):
                                '<visible>%s</visible>' % is_(k + 'cover', t))
             return '<control type="group"><visible>%s</visible>%s%s%s</control>' % (visible, title, detail, bar)
 
+        def tall_text(x, visible, lines_, dlines):
+            # The title on `lines_` lines (the chip on its right), then the detail on up to two: wrapped, never "…".
+            w = text_w - (x - 48)
+            th = TITLE_LINE * lines_
+            chip = ('<control type="grouplist"><left>%d</left><top>28</top><width>%d</width><height>64</height><orientation>horizontal</orientation>'
+                    '<align>right</align><usecontrolcoords>true</usecontrolcoords>' % (x, w) + tag_button(n) + '</control>')
+            wrap = '<aligny>top</aligny><wrapmultiline>true</wrapmultiline>'
+            title = p.label(x, 28, w - 150, th, P(k + 'label'), 'p_h3', p.WHITE, 'left', wrap)
+            title_wide = p.label(x, 28, w, th, P(k + 'label'), 'p_h3', p.WHITE, 'left', wrap)
+            detail = p.label(x, 28 + th + 8, w, DETAIL_LINE * dlines, P(k + 'detail'), 'p_foot', p.GREY, 'left', wrap)
+            return ('<control type="group"><visible>%s</visible>%s<control type="group"><visible>%s</visible>%s</control>'
+                    '<control type="group"><visible>!%s</visible>%s</control>%s</control>') % (
+                visible, chip, has(k + 'tag'), title, has(k + 'tag'), title_wide, detail)
+
+        def button(h, index):
+            # Remote/keyboard only (touch taps the row): up/down to the neighbouring rows' same form.
+            base = TALL0 + 10 * index
+            up = str(base + n - 2) if n > 1 else str(base)
+            down = str(base + n) if n < MAX_ROWS else str(LINK)
+            return ('<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
+                    '<texturefocus /><texturenofocus /><onup>%s</onup><ondown>%s</ondown></control>'
+                    % (base + n - 1, W, h, up, down))
+
+        def tiles_at(h):
+            return ('<control type="image"><left>48</left><top>%d</top><width>96</width><height>96</height>'
+                    '<texture border="26" colordiffuse="%s">%stile100.png</texture><visible>%s</visible></control>'
+                    % ((h - 96) // 2, P(k + 'tint'), p.MEDIA, tile) +
+                    p.icon(72, (h - 48) // 2, 48, P(k + 'glyph'), p.WHITE, '<visible>%s</visible>' % tile))
+
+        talls = ''
+        for index, (lines_, dlines) in enumerate(FORMS):
+            h = tall_height(lines_, dlines)
+            talls += block(h, sep + button(h, index) + tiles_at(h) + tall_text(tx_tile, tile, lines_, dlines) +
+                           tall_text(tx_plain, '!' + tile, lines_, dlines) + p.icon(W - 72, (h - 34) // 2, 34, 'chevron-right.png', p.GREY),
+                           has(k + 'label') + ' + ' + is_(k + 'tall', index + 1))
         inner = (sep + '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
                  '<texturefocus /><texturenofocus /><onup>%s</onup><ondown>%s</ondown></control>'
                  % (ROW0 + n - 1, W, ROW_H, ROW0 + n - 2 if n > 1 else ROW0, ROW0 + n if n < MAX_ROWS else LINK) +
                  tiles + text(tx_tile, tile) + text(tx_plain, '!' + tile) +
                  p.icon(W - 72, (ROW_H - 34) // 2, 34, 'chevron-right.png', p.GREY))
-        return block(ROW_H, inner, has(k + 'label'))
+        return block(ROW_H, inner, has(k + 'label') + ' + ' + '!' + has(k + 'tall')) + talls
 
     link = block(132, p.image(0, 0, W, 2, p.MEDIA + 'white.png', p.SEP) +
                  '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>132</height>'

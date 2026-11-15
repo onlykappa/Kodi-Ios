@@ -115,9 +115,8 @@ def route(url,quiet=False,request_id=None):
         if not xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken'):
             raise RuntimeError('Sign in to AllDebrid in Umbrella › Accounts first.')
         # The Drive add-on owns its account registry; use the same registry as the service.
-        common = xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
-        import sys
-        if common not in sys.path:sys.path.append(common)
+        import pinned_addons
+        pinned_addons.use_clouddrive(xbmcaddon, xbmcvfs)   # ISSUE-270: the app's patched copy
         from clouddrive.common.account import AccountManager
         accounts = AccountManager(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.googledrive').getAddonInfo('profile')))
         if not accounts.get_accounts():raise RuntimeError('Sign in to Google Drive first.')
@@ -164,10 +163,24 @@ def route(url,quiet=False,request_id=None):
             s, e = choice.get('season') or tracked.get('season'), choice.get('episode') or tracked.get('episode')
             name = '%s S%02dE%02d' % (show_title, int(s), int(e)) if s and e else show_title
             info = drivelibrary.parse(name)
+        if held_for_choice(profile, auto, tracked, choice, show_title, home):
+            return True
         job = debrid_drive.queue(profile, {'id':choice['hash'], 'name':name}, kind,
                                  show_title or info.get('title') or drivelibrary.display_title(name),
                                  choice.get('season') or info.get('season') or tracked.get('season') or '',
-                                 choice.get('episode') or info.get('episode') or '', watch=mode == 1,show_tmdb=tracked.get('tmdb'))
+                                 choice.get('episode') or info.get('episode') or '', watch=mode == 1,show_tmdb=tracked.get('tmdb'),
+                                 quality=((auto or {}).get('profile') or {}).get('quality') if (auto or {}).get('profile',{}).get('strict_quality') and not (auto or {}).get('_fallback')
+                                 and not debrid_drive.fallback_known(profile, tracked.get('tmdb'), choice.get('season') or tracked.get('season'),
+                                                                     ((auto or {}).get('profile') or {}).get('quality')) else '')
+        if auto:   # ISSUE-264 / ISSUE-268: the version's list name, and the season request it belongs to
+            debrid_drive.tag(profile, job, pick_name=auto.get('_pick_name') or '', batch=auto.get('batch') or '')
+        if auto is not None and auto.get('_fallback') and (auto.get('profile') or {}).get('quality'):
+            debrid_drive.remember_fallback(profile, tracked.get('tmdb'), choice.get('season') or tracked.get('season'), auto['profile']['quality'])
+            # ISSUE-236: the owner chose a quality nothing has; the best that exists was taken, and they are told once.
+            notices.note_group('info', 'No %s version' % auto['profile']['quality'],
+                         '%s: no real %s version exists, so the best available was downloaded.' % (
+                             job['title'] + (' · S%s E%s' % (job.get('season'), job.get('episode')) if job.get('episode') else ''), auto['profile']['quality']),
+                         group=auto.get('batch') or '')
         try:
             import xbmc,diagnostics,transfer_control
             # Roadmap B.11: this runs in Elementum's interpreter; join the app's session so the line names the build.
@@ -254,6 +267,37 @@ def _short(name, size=90):
     return name if len(name) <= size else name[:size - 1] + u'\u2026'
 
 
+def held_for_choice(profile, auto, tracked, choice, show_title, home=None):
+    """DEC-049: an automatic pick that is a fallback (nothing is really the chosen quality) for a season the owner has not
+    answered is not queued. The episode is held, the season asks once (board A notice), and the search is told it was held
+    (not 'nothing found'). True when held."""
+    want = (auto or {}).get('profile') or {}
+    season = choice.get('season') or tracked.get('season')
+    episode = choice.get('episode') or tracked.get('episode')
+    if not (auto and auto.get('_fallback') and want.get('strict_quality') and want.get('quality') and tracked.get('tmdb') and season and episode):
+        return False
+    import quality_choice, notices
+    value = quality_choice.state(profile, tracked['tmdb'], season)
+    if quality_choice.lets_fallback(value):
+        return False
+    fresh = quality_choice.hold(profile, tracked['tmdb'], season, episode, want['quality'], show_title or tracked.get('title') or '',
+                                best={'name': auto.get('_pick_name'), 'quality': auto.get('_pick_quality')},
+                                versions=auto.get('_versions'), keep=value == 'looking')
+    if fresh:
+        record = quality_choice.load(profile)['seasons'].get(quality_choice.key(tracked['tmdb'], season)) or {}
+        title, text = quality_choice.notice(record, season)
+        notices.note('problem', title, text, 'RunScript(service.kodi.ios.bootstrap,quality_choice,tmdb=%s,season=%s)' % (tracked['tmdb'], season))
+    _refused('season %s waits for the owner: no real %s' % (season, want['quality']))
+    if home is not None:
+        try:
+            import json
+            home.setProperty('KodiIOS.AutoPick.Queued' + (auto.get('_lane') or ''),
+                             json.dumps({'request_id': auto.get('request_id'), 'queued': False, 'held': True}))
+        except Exception:
+            pass
+    return True
+
+
 def _refused(why):
     try:
         import xbmc
@@ -284,6 +328,10 @@ def auto_season(window, now=None, choice=None, request_id=None):
                 if why:
                     reasons.append(why)
                     continue
+                wanted['_fallback'] = bool(selected.get('fallback'))   # ISSUE-236: nothing was really the chosen quality
+                wanted['_pick_name'] = str(selected.get('name') or '')  # ISSUE-264: the version's name in the list
+                wanted['_pick_quality'] = str(selected.get('quality') or '')
+                wanted['_versions'] = selected.get('versions') or []     # DEC-049 board C
             return wanted
         except Exception:
             continue

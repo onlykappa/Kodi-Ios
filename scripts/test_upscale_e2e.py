@@ -122,6 +122,11 @@ class Season(unittest.TestCase):
                 upscale_cloud.process_one(self.q, lambda: True, picture.load(self.profile), media_for, free, clock=lambda: self.clock[0])
                 self.clock[0] += 60
 
+    def choose(self, g, label):
+        """What the show page does (upscale_settings): the show's size, and its videos asked for (ISSUE-245)."""
+        picture.save(self.profile, up.set_show(picture.load(self.profile), g, label))
+        uq.save(self.profile, uq.ask(uq.revive(uq.load(self.profile), g['videos']), g['videos'], label))
+
     def group(self):
         groups = up.library(self.q.state, media_for, uq.load(self.profile))
         return next(g for g in groups if g['title'] == SHOW), groups
@@ -135,7 +140,7 @@ class Season(unittest.TestCase):
         self.assertEqual(up.show_sizes(g), [picture.OFF, '1440p', '4K UHD'])
         self.assertNotIn('2K', picture.LABELS)                       # DEC-040
         # Settings › AI Upscale › Naruto: 4K.
-        picture.save(self.profile, up.set_show(picture.load(self.profile), g, '4K UHD'))
+        self.choose(g, '4K UHD')
         # No charger (only while charging is on by default): queued, nothing made, the card says why.
         self.step()
         c = self.copies()
@@ -214,7 +219,7 @@ class Season(unittest.TestCase):
 
     def test_a_phone_without_the_ai_engine_blocks_and_says_so(self):
         g, _ = self.group()
-        picture.save(self.profile, up.set_show(picture.load(self.profile), g, '4K UHD'))
+        self.choose(g, '4K UHD')
         self.native.state['charging'] = 1
         self.native.SUPPORT = {'os26': 0}
         self.step(n=2)
@@ -228,7 +233,7 @@ class OwnerControls(Season):
     and Cancel All, asked from the page and applied by the service; the originals are never touched."""
     def ready_to_make(self):
         g, _ = self.group()
-        picture.save(self.profile, up.set_show(picture.load(self.profile), g, '4K UHD'))
+        self.choose(g, '4K UHD')
         self.native.state['charging'] = 1
         self.native.model = 2
 
@@ -292,7 +297,7 @@ class PreparationFirst(Season):
     """Owner log 20d8a992 (build 360): AI Upscale ran for 15 min while 23 videos waited to be prepared."""
     def test_a_waiting_video_stops_the_copy_and_it_carries_on_later(self):
         g, _ = self.group()
-        picture.save(self.profile, up.set_show(picture.load(self.profile), g, '4K UHD'))
+        self.choose(g, '4K UHD')
         self.native.state['charging'] = 1
         self.native.model = 2
         waiting = {'source': {'id': 'new', 'name': 'New S01E09.mkv'}, 'status': 'waiting', 'retry_after': 0}

@@ -1,5 +1,6 @@
 """The storage-free preparation queue: Drive → RAM converter → Drive staging → original ID."""
 import json
+import time
 import shutil
 import urllib.parse
 import urllib.request
@@ -16,9 +17,64 @@ import resume_store
 REPACK_STOPS=('MP4 packet','Picture subtitle packet','Subtitle decode','Subtitle encode')
 
 
+class VerifyFailed(RuntimeError):
+    """The finished prepared file did not pass its final check. Making it again would end the same way (owner log, build
+    368: 30 failed attempts for Naruto Shippuuden, each a full read and write on Drive, then thrown away), so the video
+    stops after one failure. Network trouble is never this: it keeps its own waits."""
+
+
+def native_verify_problem(q, error):
+    """The error to raise for a failed native.verify: VerifyFailed for a real mismatch; the original error (network
+    trouble: waits and carries on) when the network or the Drive stream had a read problem."""
+    import debrid_drive
+    try:read_trouble=bool((q.stream.stats() if q.stream and hasattr(q.stream,'stats') else {}).get('read_error'))
+    except Exception:read_trouble=False
+    if debrid_drive.network_error(error) or read_trouble:return error
+    return VerifyFailed(str(error) or 'Prepared Drive file validation failed')
+
+
+def on_cellular(q, every=5.0):
+    """prepare_downloads.cellular_now, looked up at most every few seconds (the converter asks keep_going many times a
+    second). A queue with its own link() (tests) is asked every time."""
+    if getattr(q, 'link', None) is not None:return prep.cellular_now(q)
+    seen = q.__dict__.get('_cellular_seen')
+    if not seen or time.monotonic() - seen[0] >= every:
+        seen = q.__dict__['_cellular_seen'] = (time.monotonic(), prep.cellular_now(q))
+    return seen[1]
+
+
+def asked_now(job, clock):
+    """The owner pressed Start now for this video (prepare_downloads.apply_to sets priority to now + 10**9)."""
+    return float(job.get('priority', 0) or 0) > clock() + 5 * 10**8
+
+
 def known_repack(job):
     """F2: a job known to only re-package (picture copied): it may run in an extra lane beside the main one."""
     return bool(job.get('repack') or (job.get('probe') or {}).get('copy_video')) and not job.get('audit')
+
+
+def verify_problem(before, after):
+    """Why the prepared file's probe is not acceptable (which check failed), or '' when it is."""
+    if not after.get('ready'):
+        return 'The prepared file is not marked ready (its tracks or index are not what AirPlay needs); original retained'
+    was = (before.get('width'), before.get('height')); now = (after.get('width'), after.get('height'))
+    if was != now:
+        return 'The prepared picture is %sx%s, the original is %sx%s; original retained' % (now + was)
+    if before.get('hdr') != after.get('hdr'):
+        return 'HDR changed: the original is %s, the prepared video is %s; original retained' % (
+            'HDR' if before.get('hdr') else 'not HDR', 'HDR' if after.get('hdr') else 'not HDR')
+    return ''
+
+
+def copies_running(q, fresh=30):
+    """ISSUE-275: an AllDebrid copy lane reported in the last `fresh` seconds."""
+    try:
+        import debrid_drive
+        now = q.clock()
+        return any(isinstance(c, dict) and c.get('stage') == 'copying' and now - max(float(c.get('updated') or 0), float(c.get('phase_at') or 0)) < fresh
+                   for c in (debrid_drive.load(q.profile).get('lanes') or {}).values())
+    except Exception:
+        return False
 
 
 def process_one(q, keep_going, lane=None):
@@ -45,18 +101,51 @@ def process_one(q, keep_going, lane=None):
     if pending and lane is None:return False
     for j in q.state['jobs'].values():
         if j.pop('space',None):j['retry_after']=0
+    held_changed = False
     with q.lock:   # build 191: a library check may change the list beside a conversion
         candidates = [(slot,j) for slot,j in q.state['jobs'].items() if j.get('status') not in ('done','superseded')
                       and not j.get('blocked') and not j.get('kept') and j.get('retry_after',0) <= q.clock()
                       and slot not in running and (lane is None or known_repack(j))]
+        # Owner log (build 368): the phone sat on mobile data 13:31-13:40 while preparation read and wrote whole movies. On
+        # mobile data nothing new starts, unless the owner asked for that video now; the Library status says why.
+        if candidates and on_cellular(q):
+            kept = [pair for pair in candidates if asked_now(pair[1], q.clock)]
+            if lane is None:
+                if not kept and not q.state.get('wifi_hold'):
+                    q.log('preparation: waiting for Wi-Fi (on mobile data)')
+                if bool(q.state.get('wifi_hold')) != (not kept):
+                    q.state['wifi_hold'] = not kept
+                    held_changed = True
+            candidates = kept
+        elif lane is None and q.state.pop('wifi_hold', None):
+            held_changed = True
+        # ISSUE-275 (owner log 3848afa9: a preparation read Drive at 49 MB/s while three copies crawled): while AllDebrid
+        # copies run, nothing new is prepared unless it is the next to watch or the owner asked for it now; it starts as
+        # soon as the copies finish (copies made ready on their way are copies, not this).
+        if candidates and lane is None and copies_running(q):
+            first = [pair for pair in candidates if asked_now(pair[1], q.clock) or prep.watch_next(pair[1])]
+            if not first and not q.state.get('copy_hold'):
+                q.log('preparation: waits while downloads run (they go first)')
+            if bool(q.state.get('copy_hold')) != (not first):
+                q.state['copy_hold'] = not first
+                held_changed = True
+            candidates = first
+        elif lane is None and q.state.pop('copy_hold', None):
+            held_changed = True
         candidates.sort(key=lambda pair:prep.order_key(*pair))   # build 182: quick (repack only) before re-encodes
         if candidates:running.add(candidates[0][0])
+    if held_changed:q.commit()
     if not candidates:return False
     if lane is None:
         # Old builds' checkpoints are no longer used: their full-sized local media can go.
         for folder in q.work.iterdir():
             if folder.is_dir():shutil.rmtree(folder)
     slot,job = candidates[0];item = job['source'];last = [0]
+    plain_keep_going = keep_going
+    def keep_going():
+        # A job running when the phone moves to mobile data stops cleanly (Stop, like the owner's Pause) and carries on
+        # from its mark on Wi-Fi; the owner's Start now overrides.
+        return plain_keep_going() and (asked_now(job, q.clock) or not on_cellular(q))
     try:
         return _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, slot, job, item, last)
     finally:
@@ -135,6 +224,11 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
             drive_prepare.bin(q.drive,item['id'])
             return finished(prep.metadata(q.drive,job['promoted']))
         current = prep.metadata(q.drive,item['id'])
+        if prep.identity(current)!=prep.identity(item) and prep.same_content(current,item) and not job.get('cloud_output'):
+            # ISSUE-248 (owner logs 3df2f247 16:18:38, 6984524f 16:34:17: "failed … Drive source changed; preparation will
+            # rescan" seconds after a copy landed): the copier names and files a new download right after it is saved, which
+            # changes Drive's version but not the video. Same id, checksum and size: carry on with the current record.
+            job['source']=item=dict(current,folderName=item.get('folderName',''));q.commit()
         if prep.ready(current) and not job.get('repack') and not job.get('audit'):
             job['status']='done';clear_temps();q.commit();return True
         if q.skip_compatible(slot,job,current,job.get('probe')):
@@ -166,6 +260,25 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
                     if prep.streamable_video(before):job.pop('audit',None)
                     else:job['audit']=True
                     q.commit()
+                # ISSUE-231 (owner: "I selected 1080p ... 480p is ass"): an automatic pick that turns out lower than the
+                # quality chosen is not kept: its copy ends 'failed' (Download problems, and the next search leaves that
+                # version out), the file goes to Drive's Trash (30 days), and it is not prepared.
+                try:
+                    import debrid_drive
+                    _,wanted=debrid_drive.wanted_quality(debrid_drive.load(q.profile),item['id'])
+                except Exception:
+                    wanted=''
+                if wanted and prep.below_wanted(before,wanted):
+                    why='Not the quality you picked: %sx%s, you chose %s'%(before.get('width'),before.get('height'),wanted)
+                    debrid_drive.refuse_low_quality(q.profile,item['id'],why)
+                    try:drive_prepare.bin(q.drive,item['id'])
+                    except Exception as error:q.log('preparation: %s could not go to the Trash: %s'%(drivelibrary.display_title(item['name']),error))
+                    job.update(status='superseded',error=why);q.state['last_scan']=0
+                    driveupload.invalidate_library(str(prep.location(q.profile).parent))
+                    q.log('preparation: %s — %s; moved to Google Drive\'s Trash, another version will be looked for'%(drivelibrary.display_title(item['name']),why))
+                    q.notify('problem','Not the quality you picked','%s is %sx%s, not %s. It went to Google Drive\'s Trash; another version will be looked for.'%(
+                        drivelibrary.display_title(item['name']),before.get('width'),before.get('height'),wanted))
+                    drop_card();q.commit();return True
                 if q.skip_compatible(slot,job,item,before):
                     drop_card();q.commit();return True
                 q.log('preparation: %s — codec %s, %sx%s, %s-bit, HDR=%s, copy=%s, audio work=%s'%(drivelibrary.display_title(item['name']),before.get('codec'),before.get('width'),before.get('height'),before.get('bit_depth'),before.get('hdr'),before.get('copy_video'),before.get('audio_work_bytes')))
@@ -182,6 +295,18 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
                     spool=str(resume_store.folder(q.profile)) if resumes else None,checkpoint=checkpoint,
                     keep_pieces=resumes and not (job.get('probe') or {}).get('copy_video'),
                     on_checkpoint=lambda cp:resume_store.save(q.profile,slot,identity,cp))
+                # ISSUE-232 (owner log 47e2276a: "Making it start faster · 78.7%" for 6 minutes while the made movie went up
+                # at ~1.3 MB/s): once every unit is made, each confirmed piece updates the card with the upload's share.
+                ticks={'at':0.0}
+                def upload_tick():
+                    if not getattr(sink,'made_all',False) or q.clock()-ticks['at']<2:return
+                    ticks['at']=q.clock();c=card()
+                    if not c or not sink.made:return
+                    done=min(1.0,float(sink.sent)/sink.made);left=max(0,sink.made-sink.sent)/1048576.0
+                    c.update(stage='Step 3 of 3 · Uploading to Google Drive · %d%%'%int(100*done),updated=q.clock(),
+                             detail='%s left to upload'%('%.1f GB'%(left/1024) if left>=1024 else '%.0f MB'%left))
+                    q.commit()
+                sink.on_confirmed=upload_tick
                 attempt['sink']=sink
                 if runtime:
                     runtime.stats=lambda:dict(original_stats() or {},**sink.stats())
@@ -227,7 +352,7 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
             try:
                 fresh=prep.metadata(q.drive,temp_id)
                 if (fresh['md5Checksum'].lower(),int(fresh['size'])) != (main['md5Checksum'].lower(),int(main['size'])):
-                    raise RuntimeError('Prepared Drive file checksum differs; original retained')
+                    raise VerifyFailed('Prepared Drive file checksum differs; original retained')
                 # Build 188: reading a 50 GB movie's index back over a slow line can take longer than one probe's
                 # 120 s; the Drive blocks it read stay cached, so another try gets further.
                 for tries in range(3):
@@ -236,9 +361,13 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
                         if 'timed out' not in str(error) or tries==2:raise
                         q.log('preparation: checking the Drive file timed out (try %d of 3); trying again'%(tries+1))
                 before=job.get('probe') or q.native.probe(source)
-                if not after.get('ready') or (before['width'],before['height'],before['hdr']) != (after['width'],after['height'],after['hdr']):
-                    raise RuntimeError('Prepared video did not preserve resolution/HDR; original retained')
-                q.native.verify(source,target)  # duration, all tracks, middle/end index seeks over HTTP
+                reason = verify_problem(before, after)
+                if reason:raise VerifyFailed(reason)
+                try:q.native.verify(source,target)  # duration, all tracks, middle/end index seeks over HTTP
+                except RuntimeError as error:
+                    # ISSUE-238 (handoff, ISSUE-230 open item): the converter's own check failing is a bad file, and making
+                    # it again ends the same way; it stops after this one. Network trouble during the check is not.
+                    raise native_verify_problem(q,error)
             except driveupload.Stop:raise
             except Exception as error:
                 # Network interruptions can retry a valid completed object; invalid output must be regenerated.
@@ -287,9 +416,22 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
     except driveupload.Stop:
         if job.get('status')!='committing':job['status']='paused'
         job['retry_after']=0;return False
+    except prep.SourceGone as error:
+        # ISSUE-233 (owner log 1ae21097: 32 "Drive video is unavailable or incomplete" failures, retried every minute, after
+        # Naruto was deleted mid-conversion): a deleted video leaves the queue quietly.
+        job.update(status='superseded',forgotten=q.clock());job.pop('error',None)
+        clear_temps();resume_store.clear(q.profile,slot);drop_card();q.commit()
+        q.log('preparation: %s — %s; left out of the queue'%(drivelibrary.display_title(item['name']),error))
+        return True
     except Exception as error:
         import debrid_drive
-        if debrid_drive.network_error(error) and 'source changed' not in str(error).lower():
+        # ISSUE-232 (owner log 47e2276a, build 374: E10's final read-back failed while Drive dropped the connection 7 times,
+        # and read "Prepared Drive file validation failed", its 6th try): a read-back that failed while the Drive stream
+        # had a read problem is network trouble, not a bad file.
+        read_trouble=False
+        try:read_trouble='validation failed' in str(error).lower() and bool((q.stream.stats() if q.stream else {}).get('read_error'))
+        except Exception:pass
+        if not isinstance(error,VerifyFailed) and (debrid_drive.network_error(error) or read_trouble) and 'source changed' not in str(error).lower():
             # ISSUE-198 (owner log b3c5d6eb, build 350: Drive reads stopped for 5 minutes, then "Source read:
             # Input/output error"): network trouble is not the video's fault. It waits (15 s up to 5 min), carries on
             # from its last mark (resume_store) and never counts toward the long back-off.
@@ -300,6 +442,7 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
                   str(error)[:100],debrid_drive.net_wait(job['net_attempts'])))
             drop_card();q.commit()
             return False
+        verify_failed=isinstance(error,VerifyFailed)
         job['attempts']=job.get('attempts',0)+1
         job['retry_after']=q.clock()+min(3600,60*2**min(job['attempts']-1,6))
         if job.get('status')!='committing':job['status']='failed'
@@ -322,6 +465,19 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
                 q.notify('info','Kept as it is',drivelibrary.display_title(item['name'])+' still plays in Kodi as it is; '+why+
                          ', so it isn\'t made ready for AirPlay.')
                 import transfer_history;transfer_history.failed(q.profile,'conv',item['name'],'kept as it is: '+why,q.clock())
+            job['error']=text;return False
+        elif verify_failed:
+            # Build 368 log: the same final check failed 30 times for Naruto Shippuuden episodes. One failure stops the video;
+            # the original is kept. A re-package that already plays reads as Ready (repack_failed), anything else stays a
+            # preparation problem (Download problems lists it). Repair / Start now (prepare_downloads.forgive) clear it.
+            job['blocked']=True;job['verify_failed']=True;clear_temps();resume_store.clear(q.profile,slot)
+            if job.get('repack'):job['repack_failed']=True
+            if not job.get('verify_told'):
+                job['verify_told']=True
+                plain=drivelibrary.display_title(item['name'])
+                q.notify('info','Kept as it is',plain+(" still plays in Kodi and on AirPlay; it couldn't be made to start faster. " if job.get('repack') else
+                         " still plays in Kodi as it is; the prepared copy failed its final check, so it wasn't used. ")+text[:160])
+                import transfer_history;transfer_history.failed(q.profile,'conv',item['name'],'kept as it is: '+text[:160],q.clock())
             job['error']=text;return False
         elif job.get('repack') and any(word in text for word in REPACK_STOPS):
             # Build 193 (build-192 log 13:55:08: Fall 2's faster start failed at 22 % on "MP4 packet: Invalid argument" after

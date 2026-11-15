@@ -160,6 +160,51 @@ class Page(unittest.TestCase):
         self.assertIn('No downloaded shows yet', props['empty'])
 
 
+class RepairSaysWhy(unittest.TestCase):
+    def test_a_video_the_converter_cannot_keep_the_tracks_of_is_explained_not_retried(self):
+        # ISSUE-226 / P6 (owner log a1729c16): Repair must not look like it worked when it can't.
+        import tempfile
+        import prepare_downloads as prep
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap'))
+        import library_manager as lm
+        err = 'This file has tracks MP4 cannot preserve; original retained'
+        self.assertIn('DVD picture subtitles', prep.cannot_prepare(err, {}))
+        self.assertEqual(prep.cannot_prepare(err, {'dvd_subs': True}), '')          # a converter that keeps them: a retry is worth it
+        self.assertEqual(prep.cannot_prepare('Drive file check: HTTP 500', {}), '')
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(prep.capabilities(d), {})
+            prep.save_capabilities(d, dvd_subs=False)
+            self.assertEqual(prep.capabilities(d), {'dvd_subs': False})
+        one = lm.repair_words([{}], 'it has DVD picture subtitles')
+        self.assertIn('This video can\'t be made ready for AirPlay yet', one)
+        self.assertIn('still plays in Kodi', one);self.assertIn('Find Another Version', one)
+        many = lm.repair_words([{}] * 8, 'x')
+        self.assertIn('8 videos', many);self.assertIn('They still play in Kodi', many)
+        src = (Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap/library_manager.py').read_text()
+        self.assertIn('prepare_downloads.cannot_prepare(r.get(\'problem\'), caps)', src)   # Repair All: one message, the rest retried
+
+
+class RepairShowsAtOnce(unittest.TestCase):
+    def test_a_repair_tap_shows_on_the_episode_page_and_stops_an_upscale(self):
+        # ISSUE-227 (owner log 0b5ecceb: "my taps did nothing for repair, it was super slow"): the worker was making an AI
+        # Upscale copy for 2 minutes, so the Repair request waited, and the episode page ignored a pending request.
+        import tempfile
+        import prepare_downloads as prep
+        err = 'This file has tracks MP4 cannot preserve; original retained'
+        state = {'jobs': {'a': {'source': {'id': 'a', 'name': 'Naruto.S01E09.mkv'}, 'status': 'waiting', 'blocked': True, 'error': err}}}
+        item = {'id': 'a', 'name': 'Naruto.S01E09.mkv'}
+        self.assertEqual(lf.file_state(item, prep.apply_to(state, [], 1)['jobs'], {})['state'], lf.PROBLEM)
+        shown = prep.apply_to(state, [{'action': 'retry', 'id': 'a'}], 1)
+        self.assertEqual(lf.file_state(item, shown['jobs'], {})['state'], lf.CONVERTING)     # the tap shows at once
+        with tempfile.TemporaryDirectory() as d:
+            self.assertFalse(prep.wakes_work(d))
+            prep.request(d, 'up', 'a');self.assertFalse(prep.wakes_work(d))                    # moving in the queue does not stop an upscale
+            prep.request(d, 'retry', 'a');self.assertTrue(prep.wakes_work(d))
+        root = Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap'
+        self.assertIn('converting() and not prepare_downloads.wakes_work(profile)', (root / 'service.py').read_text())
+        self.assertIn('prepare_downloads.apply_to(prepare_downloads.load(profile), prepare_downloads.pending_requests(profile)', (root / 'library_manager.py').read_text())
+
+
 class WatchedFreeUp(unittest.TestCase):
     def test_model_reads_watched_and_free_up_offers_them(self):
         # ISSUE-197 (owner, build 347): Free Up Space › Watched episodes was never filled.
@@ -193,9 +238,15 @@ class ShowPage(Page):
         props, shown, seasons = self.lm.fill_show(data, show, slots=10)
         self.assertEqual(seasons, [1, 2])
         self.assertEqual((props['season.0'], props['season.1'], props['season.2'], props['season.on']), ('Season 1', 'Season 2', '', '0'))
-        self.assertEqual((props['n.episodes'], props['n.ready'], props['fanart']), ('7', '3', 'fan.jpg'))
+        # DEC-047 board B: with problems the third number says what needs the owner, in red; titles are the episode's own
+        # (TMDb, else "Episode N", never the show's name), the number goes on the still.
+        self.assertEqual((props['n.episodes'], props['n.ready'], props['n.ready.tint'], props['fanart']), ('7', '2', 'FFFF453A', 'fan.jpg'))
+        self.assertIn(props['n.ready.label'], ('not added', 'need you'))
         self.assertEqual([r['episode'] for r in shown], [1, 2, 3, 4, 5, 9])
-        self.assertEqual(props['ep.0.title'], '1 \u00b7 Naruto Shippuden')
+        self.assertEqual((props['ep.0.title'], props['ep.0.num'], props['ep.0.two']), ('Episode 1', 'E1', ''))
+        meta = {(1, 1): {'title': 'Homecoming', 'thumb': 'still1.jpg'}, (1, 2): {'title': 'The Akatsuki Makes Its Move Once More', 'thumb': 's2.jpg'}}
+        props2, _, _ = self.lm.fill_show(data, show, slots=10, meta=meta)
+        self.assertEqual((props2['ep.0.title'], props2['ep.0.thumb'], props2['ep.1.two']), ('Homecoming', 'still1.jpg', 'true'))
         self.assertEqual((props['ep.3.state'], props['ep.3.repair']), ('problem', 'true'))
         self.assertEqual((props['ep.4.state'], props['ep.4.bar']), ('copying', 'true'))   # 61 % known
         self.assertEqual(props['ep.2.bar'], '')                                          # converting, no percentage yet
@@ -361,9 +412,10 @@ class ShowBack(unittest.TestCase):
         # Build 347 log: twelve taps on IOSLibraryShow.xml control 9001, none handled (the round button has no onclick).
         root = Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap'
         manager = (root / 'library_manager.py').read_text()
-        show = manager[manager.index('class Show(xbmcgui.WindowXML):'):]
+        show = manager[manager.index('class Show(xbmcgui.WindowXMLDialog):'):]   # DEC-047 board C: a dialog
         self.assertIn('if control == show_page.BACK:\n                # Build 347', show)
-        self.assertIn('self.close()', show[show.index('if control == show_page.BACK'):][:200])
+        self.assertIn('self.finish()', show[show.index('if control == show_page.BACK'):][:200])
+        self.assertNotIn('Dialog().contextmenu', show[:show.index("if 'freeup' in sys.argv")])   # the menu is the page's own
 
 
 class DriveProblems(unittest.TestCase):

@@ -40,6 +40,20 @@ def acquire(source):
   assert match and digest(data)==match[1].lower(),'Publisher mirror digest missing/mismatched'
  return data
 
+def patch_listitem_tools(files,prefix):
+ """ISSUE-239 (owner logs 1ae21097, a1729c16: "EXCEPTION: Window id does not exist" just after a page closed, from TMDb
+ Helper's thread): its list-item monitor empties its list on the window it last saw, which was the page that just
+ closed; the exception is caught, but Kodi logs it. The window is checked first. Skipped, not failed, if it changes."""
+ tools=prefix+'resources/tmdbhelper/lib/monitor/listitemtools.py'
+ if tools not in files:return None
+ text=files[tools].decode();old='            _win = xbmcgui.Window(window_id or self.cur_window)  # Note get _win separate from _lst\n'
+ if text.count(old)!=1:return None
+ text=text.replace(old,"            if not xbmc.getCondVisibility('Window.IsVisible(%d)' % int(window_id or self.cur_window or 0)):\n"
+                   "                return  # KODI-IOS: the window has closed\n"+old)
+ if '\nimport xbmc\n' not in '\n'+text:text='import xbmc\n'+text
+ files[tools]=text.encode()
+ return 'TMDb Helper no longer touches a window that has just closed (no "Window id does not exist" in the log)'
+
 def patch_helper(files,id):
  changes=[];prefix=id+'/'
  xmlpath=prefix+'addon.xml';root=ET.fromstring(files[xmlpath]);root.set('version','6.18.1+ios.1')
@@ -99,6 +113,8 @@ def patch_helper(files,id):
    '        import threading\n        threading.Thread(target=confirm, daemon=True).start()\n        return stamp\n\n')
   files[token]=text.replace(hook,method+hook).replace(call,'winprop_traktisauth or self.ios_deferred_check()').encode()
   changes.append('Trakt token check runs in the background when a saved token is still valid (no 1.7 s wait at launch)')
+ change=patch_listitem_tools(files,prefix)
+ if change:changes.append(change)
  item=prefix+'resources/tmdbhelper/lib/items/listitem.py';text=files[item].decode();old='        return BuildURL(self.path, **self.params).url';assert text.count(old)==1
  files[item]=text.replace(old,'        from ios_watch_routes import wrap_item\n        return wrap_item(self, BuildURL(self.path, **self.params).url)').encode();changes.append('TV show routes open watch/episode options; original metadata/art/context entries remain')
  return files,changes

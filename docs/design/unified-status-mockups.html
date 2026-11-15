@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Unified status mockups</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt,
+     tokens from portrait.py / pages.py (§4.3), the style of ai-upscale-settings-mockups.html. -->
+<style>
+:root{--bg:#000;--s1:#1c1c1e;--s2:#2c2c2e;--grey:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);--sep:rgba(235,235,245,.16);
+ --blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a;--purple:#bf5af2}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro{max-width:1180px;margin:0 auto 10px}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:880px;margin-bottom:8px}
+.board{max-width:1180px;margin:30px auto 0;padding-top:16px;border-top:1px solid #26272b}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board>p{color:var(--grey);font-size:14px;line-height:1.5;max-width:880px;margin-bottom:16px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.4;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:44px 14px 16px;font-size:14px}
+.nb{color:var(--blue-text);font-size:15px;font-weight:600;margin-bottom:4px}
+.ps h3{font-size:30px;font-weight:800;margin-bottom:12px;letter-spacing:-.01em}
+.sh{color:var(--grey);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:14px 6px 6px}
+.grp{background:var(--s1);border-radius:12px;overflow:hidden}
+.pr{position:relative;display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 12px}
+.pr+.pr::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.pr .t{flex:1;min-width:0}.pr .t b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .t span{display:block;color:var(--grey);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .v{color:var(--grey);font-size:14px;white-space:nowrap}
+.go{color:var(--dim);font-size:17px;font-weight:600}
+.ico{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:15px}
+.tile{width:30px;height:44px;border-radius:5px;flex:none}
+.toggle{flex:none;width:46px;height:28px;border-radius:14px;background:#39393d;position:relative}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:#fff}
+.toggle.on{background:var(--green)}.toggle.on::after{left:20px}
+.foot{color:var(--grey);font-size:12px;margin:6px 6px 0;line-height:1.35}
+.thin{height:4px;border-radius:2px;background:rgba(235,235,245,.2);overflow:hidden;margin-top:6px}.thin i{display:block;height:100%;background:var(--blue)}
+.chip{font-size:11px;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap}
+.chip.g{background:rgba(48,209,88,.18);color:var(--green)}.chip.b{background:rgba(10,132,255,.2);color:var(--blue-text)}
+.chip.n{background:rgba(235,235,245,.12);color:var(--grey)}
+.status{background:var(--s1);border-radius:12px;padding:12px;display:flex;gap:12px;align-items:center}
+.status .t b{font-size:15px}.status .t span{color:var(--grey);font-size:12.5px;display:block;margin-top:2px}
+.seg{display:flex;background:var(--s2);border-radius:9px;padding:2px;margin:0 0 8px}
+.seg div{flex:1;text-align:center;padding:6px 0;border-radius:7px;font-size:13px;font-weight:600;color:var(--grey)}.seg div.on{background:#636366;color:#fff}
+.btn{margin-top:12px;height:46px;border-radius:23px;background:#fff;color:#000;display:grid;place-items:center;font-weight:700;font-size:15.5px}
+.red{color:var(--red);text-align:center;font-weight:600;font-size:15px;margin-top:12px}
+.hero{display:flex;gap:12px;align-items:center;margin-bottom:6px}
+.hero i{width:58px;height:84px;border-radius:7px;flex:none}
+.hero b{display:block;font-size:22px;font-weight:800}.hero span{color:var(--grey);font-size:13px}
+.slider{background:var(--s1);border-radius:12px;padding:12px}
+.slider .row{display:flex;justify-content:space-between;align-items:baseline}.slider .row b{font-size:15px}.slider .row span{color:var(--blue-text);font-weight:700}
+.track{position:relative;height:4px;background:rgba(235,235,245,.25);border-radius:2px;margin:16px 6px 8px}
+.track i{position:absolute;left:0;top:0;bottom:0;width:100%;background:var(--blue);border-radius:2px}
+.track em{position:absolute;top:-10px;right:-12px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--grey)}.ticks .on{color:#fff;font-weight:700}
+.notes{max-width:1180px;margin:30px auto 0;color:#b4b4ba;font-size:14px;line-height:1.55}.notes h3{color:#fff;font-size:16px;margin:16px 0 6px}.notes li{margin:3px 0 3px 18px}
+</style><style>
+.wk{background:var(--s1);border-radius:14px;padding:12px;display:flex;gap:12px;align-items:center}
+.wk+.wk{margin-top:8px}
+.ring{width:50px;height:50px;flex:none;position:relative}
+.ring svg{transform:rotate(-90deg)}
+.ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:12.5px;font-weight:700}
+.wk .t{flex:1;min-width:0}.wk .t b{display:block;font-size:14.5px;font-weight:700;line-height:1.25}
+.wk .t span{display:block;color:var(--grey);font-size:12px;margin-top:3px;line-height:1.3}
+.wk .t em{display:block;font-style:normal;font-size:12px;margin-top:2px;line-height:1.3}
+.spark{width:44px;height:30px;flex:none}
+.big{display:flex;gap:16px;align-items:center;margin:6px 0 10px}
+.big .ring{width:96px;height:96px}.big .ring b{font-size:20px}
+.big .t b{font-size:30px;font-weight:800}.big .t span{color:var(--grey);font-size:13px;display:block}
+.graph{background:var(--s2);border-radius:12px;padding:10px 10px 6px}
+.graph .ax{display:flex;justify-content:space-between;color:var(--grey);font-size:11px;margin-top:2px}
+.stats{display:flex;margin-top:10px}.stats div{flex:1}.stats span{color:var(--grey);font-size:11.5px;display:block}.stats b{font-size:15px}
+.steps{display:flex;gap:6px;margin:4px 0 10px}.steps div{flex:1}.steps i{display:block;height:4px;border-radius:2px;background:rgba(235,235,245,.2)}
+.steps span{display:block;color:var(--grey);font-size:11px;margin-top:4px;line-height:1.25}
+.btns{display:flex;gap:8px;margin-top:12px}.btns div{flex:1;height:44px;border-radius:22px;display:grid;place-items:center;font-weight:700;font-size:14.5px}
+.sum{background:var(--s1);border-radius:14px;padding:8px;margin-bottom:6px}
+.sum .row{display:flex;gap:6px}.sum .row div{flex:1;background:var(--s2);border-radius:10px;padding:7px 8px}
+.sum .row b{display:block;font-size:17px}.sum .row span{color:var(--grey);font-size:11px}
+.mrow{position:relative;display:flex;gap:10px;align-items:center;min-height:44px;padding:6px 10px}
+.mrow+.mrow::before{content:"";position:absolute;top:0;left:54px;right:0;height:1px;background:var(--sep)}
+.mring{width:34px;height:34px;flex:none;position:relative}.mring b{position:absolute;inset:0;display:grid;place-items:center;font-size:10.5px;font-weight:700}
+.mrow .t{flex:1;min-width:0}.mrow .t b{display:block;font-size:13.5px;font-weight:600;line-height:1.25}
+.mrow .t span{display:block;color:var(--grey);font-size:11.5px;line-height:1.3}
+.msp{width:36px;height:18px;flex:none}
+.num{width:34px;height:34px;flex:none;border-radius:50%;background:rgba(10,132,255,.18);color:#4fa8ff;display:grid;place-items:center;font-weight:700;font-size:13px}
+</style></head><body>
+<div class="intro"><span class="mk">MOCKUP · not a render of Kodi</span><h1>One look for everything that works</h1>
+<p>Owner (2026-11-14, build 424): the AllDebrid → Drive cards are "super choppy … not smooth like the conversion pages"; "have
+the AllDebrid to Drive look just like the conversion tab … a graph of speed and a circle of progression"; "it doesn't show
+anything about getting things ready; ensure all downloads and preparation and everything shows in the status, in a clean
+fashion".</p>
+<p><b>Needs a decision:</b> DEC-036 made a thin bar the progress shape everywhere. These boards bring a progress circle back for
+working cards and the detail sheet. Bars stay for the summary and the steps. Colours: blue for downloading, purple for
+getting it ready, green for AI Upscale, orange for a reason something waits (tokens §4.3). Nothing is cut off (DEC-050).</p>
+<p>Already in code without waiting for this (it changes no layout): copy cards move smoothly between reports; a copy made ready on
+its way says "Getting it ready for Kodi and AirPlay"; every copy lane has its own speed graph on the sheet; new preparations
+wait while downloads run and say "Starts when the downloads finish".</p></div>
+<div class="board"><div class="n">BOARD A · ROUND 2</div><h2>Library status: every job as one slim row</h2><p>Owner on round 1: "they are way too thick, it needs to all be thinner so more stuff can fit". Each job is now one row of a grouped list (44 pt tall, the HIG row height): a small circle with the percentage, the title with the episode first, and one line with the step, speed and time left (or why it waits, in orange), and a short speed line. Five jobs and the Up next list fit on one screen. Tapping a row opens board B.</p><div class="shots"><div class="slot"><div class="pframe"><div class="ps"><div class="nb">‹</div><h3>Library status</h3><div class="sum"><div class="row"><div><b style="color:#30d158">79</b><span>Ready</span></div><div><b style="color:#bf5af2">5</b><span>Working</span></div><div><b style="color:#0a84ff">6</b><span>Up next</span></div><div><b>2</b><span>Kept</span></div></div></div><div class="sh">Working now · 5</div><div class="grp"><div class="mrow"><div class="mring"><svg width="34" height="34" style="transform:rotate(-90deg)"><circle cx="17" cy="17" r="15.25" stroke="rgba(235,235,245,.18)" stroke-width="3.5" fill="none"/><circle cx="17" cy="17" r="15.25" stroke="#0a84ff" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-dasharray="88.153 95.8185"/></svg><b>92</b></div><div class="t"><b>S2 E48 · Naruto Shippuden</b><span style="color:var(--grey)">Downloading · 7.2 MB/s · 1 min</span></div><svg class="msp" viewBox="0 0 36 18"><path d="M0,13 L4,9 L8,10 L12,7 L16,6 L20,8 L24,4 L28,3 L32,5 L36,3" fill="none" stroke="#0a84ff" stroke-width="1.6" stroke-linejoin="round"/></svg></div><div class="mrow"><div class="mring"><svg width="34" height="34" style="transform:rotate(-90deg)"><circle cx="17" cy="17" r="15.25" stroke="rgba(235,235,245,.18)" stroke-width="3.5" fill="none"/><circle cx="17" cy="17" r="15.25" stroke="#bf5af2" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-dasharray="61.3238 95.8185"/></svg><b>64</b></div><div class="t"><b>S2 E49 · Naruto Shippuden</b><span style="color:var(--grey)">Getting ready · 3.1 MB/s · 3 min</span></div><svg class="msp" viewBox="0 0 36 18"><path d="M0,14 L4,12 L8,10 L12,12 L16,9 L20,10 L24,9 L28,10 L32,8 L36,7" fill="none" stroke="#bf5af2" stroke-width="1.6" stroke-linejoin="round"/></svg></div><div class="mrow"><div class="mring"><svg width="34" height="34" style="transform:rotate(-90deg)"><circle cx="17" cy="17" r="15.25" stroke="rgba(235,235,245,.18)" stroke-width="3.5" fill="none"/><circle cx="17" cy="17" r="15.25" stroke="#0a84ff" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-dasharray="55.5747 95.8185"/></svg><b>58</b></div><div class="t"><b>S2 E50 · Naruto Shippuden</b><span style="color:var(--grey)">Downloading · 6.4 MB/s · 2 min</span></div><svg class="msp" viewBox="0 0 36 18"><path d="M0,15 L4,13 L8,11 L12,9 L16,10 L20,8 L24,7 L28,7 L32,6 L36,6" fill="none" stroke="#0a84ff" stroke-width="1.6" stroke-linejoin="round"/></svg></div><div class="mrow"><div class="mring"><svg width="34" height="34" style="transform:rotate(-90deg)"><circle cx="17" cy="17" r="15.25" stroke="rgba(235,235,245,.18)" stroke-width="3.5" fill="none"/><circle cx="17" cy="17" r="15.25" stroke="#bf5af2" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-dasharray="36.411 95.8185"/></svg><b>38</b></div><div class="t"><b>Interstellar</b><span style="color:var(--grey)">Converting · 1.4× · 22 min</span></div><svg class="msp" viewBox="0 0 36 18"><path d="M0,12 L4,10 L8,11 L12,10 L16,10 L20,9 L24,10 L28,10 L32,9 L36,10" fill="none" stroke="#bf5af2" stroke-width="1.6" stroke-linejoin="round"/></svg></div><div class="mrow"><div class="mring"><svg width="34" height="34" style="transform:rotate(-90deg)"><circle cx="17" cy="17" r="15.25" stroke="rgba(235,235,245,.18)" stroke-width="3.5" fill="none"/><circle cx="17" cy="17" r="15.25" stroke="#30d158" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-dasharray="11.4982 95.8185"/></svg><b>12</b></div><div class="t"><b>Heat</b><span style="color:#ff9f0a">AI Upscale · needs a charger</span></div><svg class="msp" viewBox="0 0 36 18"><path d="M0,16 L4,16 L8,16 L12,16 L16,16 L20,16 L24,16 L28,16 L32,16 L36,16" fill="none" stroke="#30d158" stroke-width="1.6" stroke-linejoin="round"/></svg></div></div><div class="sh">Up next · 6</div><div class="grp"><div class="mrow"><div class="num">1</div><div class="t"><b>S2 E51 · Naruto Shippuden</b><span>Downloads next</span></div></div><div class="mrow"><div class="num">2</div><div class="t"><b>S2 E52 · Naruto Shippuden</b><span>Downloads next</span></div></div><div class="mrow"><div class="num">3</div><div class="t"><b>Dune: Part Two</b><span>After the downloads</span></div></div></div></div></div><p class="cap">Same colours: blue downloading, purple getting ready, green AI Upscale, orange why it waits. Titles are short enough for one line (episode first); a longer one wraps, never "…".</p></div></div></div><div class="board"><div class="n">BOARD B</div><h2>The copy's sheet, like the conversion sheet</h2>
+<p>Tapping a download opens the same sheet as a conversion: steps, a large circle with the speed beside it, the speed graph
+since it started (peak marked), Average / Done / Started, and Pause / Cancel.</p>
+<div class="shots"><div class="slot"><div class="pframe"><div class="ps"><div style="height:8px"></div><div class="hero"><i style="background:linear-gradient(160deg,#e8873a,#5b7fb8)"></i><div><b style="font-size:19px">Naruto Shippuden</b><span>S2 E48 · Bonds · 704×480 · HEVC</span></div></div><div class="steps"><div><i style="background:#30d158"></i><span>Found on AllDebrid</span></div><div><i style="background:#0a84ff"></i><span>Copying to Drive</span></div><div><i></i><span>Ready for Kodi and AirPlay</span></div></div><div class="big"><div class="ring" style="width:96px;height:96px"><svg width="96" height="96"><circle cx="48" cy="48" r="44" stroke="rgba(235,235,245,.18)" stroke-width="8" fill="none"/><circle cx="48" cy="48" r="44" stroke="#0a84ff" stroke-width="8" fill="none" stroke-linecap="round" stroke-dasharray="254.343 276.46"/></svg><b>92%</b></div><div class="t"><b>7.2 MB/s</b><span>about 1 min left · 0.1 of 0.1 GB</span></div></div><div class="graph"><svg viewBox="0 0 300 84" width="100%" height="84"><path d="M0,72 L15,62 L31,66 L47,56 L63,48 L78,52 L94,42 L110,36 L126,44 L142,32 L157,26 L173,30 L189,20 L205,24 L221,14 L236,18 L252,8 L268,12 L284,4 L300,6" fill="none" stroke="#0a84ff" stroke-width="2.5" stroke-linejoin="round"/></svg><div class="ax"><span>7:34 AM</span><span>peak 9.8 MB/s</span><span>now</span></div></div><div class="stats"><div><span>Average</span><b>5.6 MB/s</b></div><div><span>Done</span><b>0.1 of 0.1 GB</b></div><div><span>Started</span><b>7:34 AM</b></div></div><div class="btns"><div style="background:#fff;color:#000">Pause</div><div style="background:var(--s2)">Cancel</div></div></div></div>
+<p class="cap">The graph is drawn from the lane's own history (every lane has one now).</p></div></div></div>
+</body></html>

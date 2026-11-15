@@ -86,6 +86,62 @@ def space_reason(probe):
 WRITE=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_char_p,ctypes.POINTER(ctypes.c_ubyte),ctypes.c_int,ctypes.c_void_p)
 CALLBACK=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_double,ctypes.c_double,ctypes.c_void_p)
 
+# ISSUE-231: the smallest picture that is really each quality (width or height, so 4:3 1440x1080 and scope 1920x800 count).
+MIN_PICTURE={'720p':(1200,700),'1080p':(1700,1000),'1440p':(2300,1350),'4k':(3400,2000)}
+def below_wanted(probe,quality):
+ """Whether a probed picture is clearly lower than the quality the owner chose."""
+ need=MIN_PICTURE.get(str(quality or '').lower())
+ if not need or not isinstance(probe,dict):return False
+ try:w,h=int(probe.get('width') or 0),int(probe.get('height') or 0)
+ except (TypeError,ValueError):return False
+ return w>0 and h>0 and w<need[0] and h<need[1]
+CAPABILITIES='preparation-capabilities.json'
+def save_capabilities(profile,**flags):
+ """What the converter can do (the service knows; the Library pages run in another interpreter and read this file)."""
+ try:drivelibrary.save_json(str(location(profile).parent/CAPABILITIES),{k:bool(v) for k,v in flags.items()})
+ except OSError:pass
+def capabilities(profile):
+ data=drivelibrary.load_json(str(location(profile).parent/CAPABILITIES),{})
+ return data if isinstance(data,dict) else {}
+KEPT_TRACKS='tracks MP4 cannot preserve'
+def cannot_prepare(problem,supported=None):
+ """ISSUE-226 / P6: why a video can't be prepared, when trying again can't change it: a DVD picture subtitle or a second
+ video track an MP4 can't keep, until the converter keeps them. '' when a retry is worth it."""
+ if KEPT_TRACKS in str(problem or '') and not (supported or {}).get('dvd_subs'):
+  return "it has DVD picture subtitles or a second video track an MP4 can't keep"
+ return ''
+def preparation_problems(state):
+ """ISSUE-226 / P4: videos on Drive that could not be made ready for Kodi and AirPlay: [{'id','name','error','blocked','size'}].
+ blocked: kept as they are (a track an MP4 can't keep, HDR it can't copy); not blocked: stopped, tried again by itself. A
+ video the owner kept, one that is done, and one whose faster start failed (it plays; repack_failed) are not problems."""
+ out=[]
+ for job in ((state or {}).get('jobs') or {}).values():
+  if job.get('repack_failed') or job.get('kept') or job.get('status') in ('done','superseded'):continue
+  if not (job.get('blocked') or job.get('status')=='failed'):continue
+  source=job.get('source') or {}
+  out.append({'id':str(source.get('id') or ''),'name':str(source.get('name') or ''),'error':str(job.get('error') or ''),
+              'blocked':bool(job.get('blocked')),'size':int(source.get('size') or 0)})
+ return sorted(out,key=lambda p:line_key(p['name']))
+def problem_need(state,hidden=()):
+ """The Library status 'Needs you' entry (board E3): how many videos can't be made ready. None when there are none.
+ hidden: Drive ids the owner chose not to see again (Download problems › Don't Show Again)."""
+ n=sum(1 for p in preparation_problems(state) if p['blocked'] and str(p['id']) not in hidden)
+ if not n:return None
+ return {'key':'prep_problems','title':'%d can\'t be made ready'%n if n>1 else '1 can\'t be made ready',
+         'text':'They play in Kodi; they just aren\'t made ready for AirPlay. Review them to try again, keep them as they are or find another version.',
+         'button':'Review','action':'RunScript(service.kodi.ios.bootstrap,copy_problems,prepare)'}
+def forget(profile,item_ids=(),folder_id=''):
+ """ISSUE-233 (owner: "deleting stuff seems to bug out if it's mid conversion"): videos deleted from the Library leave the
+ preparation queue at once; a conversion of one of them stops. folder_id: every queued video in that Drive folder (a
+ show removed as a whole)."""
+ ids={str(i) for i in item_ids if i}
+ if folder_id:
+  for job in (load(profile).get('jobs') or {}).values():
+   source=job.get('source') or {}
+   if str(folder_id) in [str(x) for x in source.get('parents') or ()] or str(folder_id)==str(source.get('folderId') or ''):
+    ids.add(str(source.get('id') or ''))
+ for item_id in sorted(i for i in ids if i):request(profile,'forget',item_id)
+ return len(ids)
 def location(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap'/FILE
 def load(profile):return drivelibrary.load_json(str(location(profile)),{'jobs':{},'sessions':{},'last_scan':0})
 def save(profile,state):drivelibrary.save_json(str(location(profile)),state)
@@ -118,11 +174,15 @@ def playback_ready(profile,item):
 def repack_due(item):
  """Prepared in an older layout: plays, but Kodi opens it slowly; it is re-packed when nothing else waits."""
  return ready(item) and (item.get('appProperties') or {}).get(PROPERTY)!=PROFILE
+class SourceGone(RuntimeError):
+ """ISSUE-233: the video was deleted (Drive's Trash) or no longer exists: its preparation is dropped, not retried."""
 def metadata(drive,item_id):
  status,headers,body=drive.call('GET',driveupload.API+'/'+urllib.parse.quote(str(item_id),safe='')+'?fields=id,name,size,md5Checksum,version,mimeType,appProperties,trashed,parents')
+ if status==404:raise SourceGone('Drive video was removed')
  if status!=200:raise RuntimeError('Drive file check: HTTP %d'%status)
  item=json.loads(body)
- if item.get('trashed') or not item.get('id') or not item.get('md5Checksum') or int(item.get('size') or 0)<=0:
+ if item.get('trashed'):raise SourceGone('Drive video was moved to the Trash')
+ if not item.get('id') or not item.get('md5Checksum') or int(item.get('size') or 0)<=0:
   raise RuntimeError('Drive video is unavailable or incomplete')
  item['_etag']=headers.get('ETag') or headers.get('etag') or ''
  return item
@@ -165,6 +225,10 @@ def save_sidecars(drive,item,folder,sessions,commit,keep_going):
   if found:ids.append(found[0]['id']);continue
   ids.append(drive.upload(path,parents[0],sessions,commit,keep_going,name=name).get('id',''))
  return ids
+
+def same_content(a,b):
+ """ISSUE-248: the same video bytes (Drive id, checksum, size), whatever its name or folder (a rename changes 'version')."""
+ return identity(a)[:3]==identity(b)[:3]
 
 def identity(item):return (str(item['id']),str(item.get('md5Checksum','')).lower(),int(item.get('size') or 0),str(item.get('version') or ''))
 def key(item):return hashlib.sha256(('|'.join(map(str,identity(item)[:3]))).encode()).hexdigest()[:32]
@@ -225,6 +289,11 @@ class Native:
   if self.keeps_image_subs:
    lib.kodi_airplay_prepare_keep_image_subs.argtypes=[ctypes.c_int];lib.kodi_airplay_prepare_keep_image_subs.restype=None
    lib.kodi_airplay_prepare_keep_image_subs(1)
+  # ISSUE-226 / P2: a KodiAirPlay after r53 that keeps DVD picture subtitles in the MP4 exports this; until then it is False.
+  self.keeps_dvd_subs=hasattr(lib,'kodi_airplay_prepare_keep_dvd_subs')
+  if self.keeps_dvd_subs:
+   lib.kodi_airplay_prepare_keep_dvd_subs.argtypes=[ctypes.c_int];lib.kodi_airplay_prepare_keep_dvd_subs.restype=None
+   lib.kodi_airplay_prepare_keep_dvd_subs(1)
  def set_subtitle_languages(self,codes):
   """Keep subtitles in these language tags (and untagged ones); '' keeps every subtitle (owner, build 180)."""
   self.subtitle_languages=str(codes or '')
@@ -450,6 +519,12 @@ def pending_requests(profile):
  except (OSError,ValueError):return []
  return pending if isinstance(pending,list) else []
 
+WAKES=('retry','now','next','prepare')
+def wakes_work(profile):
+ """ISSUE-227: an owner's Repair / Try Again / Start now / Prepare next is waiting to be applied. AI Upscale copies (optional,
+ minutes long) stop for it instead of making Repair wait behind them (owner log 0b5ecceb: Repair taps applied 1-2 min late)."""
+ return any(r.get('action') in WAKES for r in pending_requests(profile))
+
 def resume_requested(profile,requests=None,state=None):
  """An explicit valid Start now resumes conversion; queued work alone never overrides the owner's Pause."""
  requests=pending_requests(profile) if requests is None else requests
@@ -460,6 +535,13 @@ def resume_requested(profile,requests=None,state=None):
  import transfer_control
  transfer_control.set_paused(profile,'conv',False)
  return True
+
+FORGIVEN=('blocked','kept_told','repack_failed','verify_failed','verify_told','image_subs_retried','dvd_subs_retried','hdr_retried')
+def forgive(job):
+ """ISSUE-226 / P1 (owner log a1729c16: Repair and Repair All did nothing for Naruto): an owner's Try Again or Start now
+ clears what kept a video out of the queue ('blocked' skips every queue filter) and the one-time tries and notices, so it
+ is tried again and says what happened. Whether the converter can do it now is the converter's answer, not a flag's."""
+ for name in FORGIVEN:job.pop(name,None)
 
 def apply_to(state,requests,now):
  """Apply owner requests to a queue state (the service for real; the page on a copy, so a tap shows at once).
@@ -472,9 +554,10 @@ def apply_to(state,requests,now):
   if action=='next':job['priority']=now
   # Owner (build 178): "start conversion now ... will override any current conversions": first in line, and
   # interrupts() stops the running one for it.
-  elif action=='now':job['priority']=now+10**9;job.update(retry_after=0);job.pop('kept',None)
-  elif action=='retry':job.update(retry_after=0,attempts=0);job.pop('error',None);job['status']='waiting'
+  elif action=='now':job['priority']=now+10**9;job.update(retry_after=0);job.pop('kept',None);forgive(job)
+  elif action=='retry':job.update(retry_after=0,attempts=0);job.pop('error',None);job['status']='waiting';forgive(job)
   elif action=='keep':job['kept']=True
+  elif action=='forget':job['status']='superseded';job['forgotten']=now;job.pop('priority',None)   # ISSUE-233: deleted
   elif action=='replace':job.update(kept=True,replacing=now)   # build 186: a version without conversion is on its way
   elif action=='prepare':job.pop('kept',None)
   elif action in MOVES:
@@ -654,11 +737,24 @@ def check_request(profile):
   try:yield marker
   finally:fcntl.flock(guard,fcntl.LOCK_UN)
 
+INSPECT_VERSION=1   # ISSUE-247: raise it when the checks change, so every video is read once more by the next Refresh
+
+def settled(job,item):
+ """ISSUE-247: this video's last check was good and still describes the same Drive file, by the current checks."""
+ return bool(job.get('probe') and not job.get('inspection_error') and job.get('probe_for')==list(identity(item))
+             and job.get('probe_version')==INSPECT_VERSION and not job.get('audit') and not job.get('repack')
+             and not job.get('blocked') and not job.get('kept'))
+
 def request_check(profile,inspect=False):
- """Ask the service to check Google Drive › Kodi Downloads now (Settings › Library › Check library for conversion)."""
+ """Ask the service to check Google Drive › Kodi Downloads now (Settings › Library › Check library for conversion).
+ inspect=True: open the videos that are new, changed or not ready (ISSUE-247); inspect='full': every video."""
  # Automatic listing requests must not downgrade a pending explicit file inspection.
  with check_request(profile) as marker:
-  if inspect:marker.write_text(json.dumps({'inspect':True,'time':time.time()}))
+  if inspect:
+   try:before=json.loads(marker.read_text()) if marker.exists() else {}
+   except (ValueError,OSError):before={}
+   full='full' if inspect=='full' or (isinstance(before,dict) and before.get('inspect')=='full') else True
+   marker.write_text(json.dumps({'inspect':full,'time':time.time()}))
   elif not marker.exists():marker.write_text(str(time.time()))
 def check_requested(profile):return (location(profile).parent/RESCAN).exists()
 
@@ -680,7 +776,7 @@ def interrupts(profile):
  if not asked:return False
  running=running_id(load(profile))
  return any((r.get('action')=='now' and str(r.get('id'))!=running) or (r.get('action') in ('keep','replace') and (not running or str(r.get('id'))==running))
-            for r in asked)
+            for r in asked) or any(r.get('action')=='forget' and str(r.get('id'))==running for r in asked)   # ISSUE-233: deleted mid-conversion
 
 def summary(state,now=time.time):
  """Plain-words status for Settings › Library › Check library for conversion."""
@@ -774,11 +870,27 @@ class Queue:
   for output in (job.pop('cloud_output',None) or {}).values():
    if not output.get('moved') and output['id'] not in pending:pending.append(output['id'])
   job.pop('cloud_replace',None)
- def scan(self,keep_going=lambda:True,force=False,beside=False):
+ def inspection_deferred(self):
+  """Owner log (build 368): Refresh in Library status inspects every video one after another and the converter waits for
+  it (17+ checks while the Naruto jobs waited). So a check that asks for inspection waits while a video is ready to be
+  prepared: the jobs go first, the inspection runs when none is waiting (the request stays). Not on mobile data (the
+  check skips inspection there by itself) and not for an owner's Start now, which interrupts anyway."""
+  try:
+   if not json.loads((location(self.profile).parent/'airplay-preparation-rescan').read_text()).get('inspect'):return False
+  except (OSError,ValueError,AttributeError):return False
+  if cellular_now(self):return False
+  with self.lock:
+   return any(job.get('status') not in ('done','superseded') and not job.get('blocked') and not job.get('kept')
+              and job.get('retry_after',0)<=self.clock() for job in self.state['jobs'].values())
+ def marker_time(self):
+  """When the pending check request was made (0 when none), to list once per request."""
+  try:return float(json.loads((location(self.profile).parent/RESCAN).read_text()).get('time') or 0)
+  except (OSError,ValueError,AttributeError,TypeError):return 0.0
+ def scan(self,keep_going=lambda:True,force=False,beside=False,listing_only=False):
   """beside: a check while a movie converts (build 191). Its progress goes to state['checking'], not the converting
   card, and the movie being converted (and its source file) is never dropped or replaced."""
   if not self.scanning.acquire(blocking=not beside):return
-  try:self._scan(keep_going,force,beside)
+  try:self._scan(keep_going,force,beside,listing_only)
   except BaseException:
    # Build 193 (build-192 log, 12:57-13:09): a check that failed (Drive sign-in refused) left "Checking downloaded videos"
    # running, so every page showed a check in progress while nothing could run.
@@ -792,15 +904,29 @@ class Queue:
    if beside:
     with self.lock:self.state.pop('checking',None)
     self.commit()
- def _scan(self,keep_going,force,beside):
+ def _scan(self,keep_going,force,beside,listing_only=False):
   requested=location(self.profile).parent/'airplay-preparation-rescan'
   if not force and not requested.exists() and self.clock()-self.state.get('last_scan',0)<300:return
   with check_request(self.profile):
    try:requested_text=requested.read_text()
    except OSError:requested_text=''
-  try:inspection=bool(json.loads(requested_text).get('inspect'))
-  except (ValueError,AttributeError):inspection=False
+  try:request=json.loads(requested_text);inspection=bool(request.get('inspect'));asked_at=float(request.get('time') or 0);full=request.get('inspect')=='full'
+  except (ValueError,AttributeError,TypeError):inspection=False;asked_at=0.0;full=False
   self.inspection_pending=False
+  if inspection and not listing_only:
+   try:
+    import debrid_ready
+    making=debrid_ready.active()
+   except Exception:making=0
+   # ISSUE-246 (owner log bfde8a13, build 384: "uploads seem sluggish" while three Rick and Morty episodes were made ready
+   # as they copied, a Refresh re-read all 55 videos, probing through the same converter, 47 of them in 4 minutes): the file
+   # inspection waits for those copies, like it waits for queued videos (ISSUE-230); the Drive listing still runs now.
+   if making:listing_only=True
+  if listing_only and inspection:
+   # ISSUE-234 (owner: "library status doesn't really refresh, it's awful"): while videos wait to be prepared, a Refresh's
+   # inspection waits for them (ISSUE-230) and nothing at all was listed, so the page sat on "Checking…". The Drive listing
+   # (new, removed and changed videos) runs at once; the inspection keeps its request and runs when the queue is idle.
+   inspection=False;self.inspection_pending=True
   status={'title':'Movies and shows','stage':'Checking downloaded videos','progress':0,'queued':0,'running':True,'updated':self.clock()}
   converting=running_id(self.state) if beside else ''
   with self.lock:self.state['checking' if beside else 'current']=status
@@ -851,13 +977,24 @@ class Queue:
       self.inspection_pending=True
       if not getattr(self,'told_cellular',False):
        self.told_cellular=True;self.log('preparation: compatibility checks wait for Wi-Fi (on mobile data)')
+     elif not full and old.get('status')=='done' and settled(old,item):
+      # ISSUE-247 (owner: "if it's already good to go then no need to re-read it; make a smarter refresh"): a video whose
+      # last check was good and whose Drive file is exactly the same (id, checksum, size, version) is not opened again.
+      # New, changed, waiting, failed and kept videos are; a full check (request_check(inspect='full')) still reads all.
+      pass
+     elif old.get('probe') and not old.get('inspection_error') and old.get('probe_for')==list(identity(item)) and asked_at and old.get('probe_at',0)>=asked_at:
+      # Owner log (build 368): a Refresh that was stopped, deferred or restarted read the same videos again, 17+ in a row,
+      # while 27 videos waited. The same Drive file (id, checksum, size, version) already inspected FOR THIS request keeps
+      # its probe. A new Refresh still re-reads every file (the owner's rule, test_compatibility_filter).
+      pass
      else:
       try:
        old['audit']=True;old.pop('probe',None)
        status.update(stage='Checking compatibility and faster opening · '+drivelibrary.display_title(item['name']),updated=self.clock());self.commit()
        if self.runtime:self.runtime.phase('Checking compatibility',False,item['name'])
        probe=self.inspect_source(item,keep_going)
-       old['probe']=probe;old.pop('inspection_error',None);self.commit()
+       old['probe']=probe;old['probe_for']=list(identity(item));old['probe_at']=time.time();old['probe_version']=INSPECT_VERSION
+       old.pop('inspection_error',None);self.commit()
        if not streamable_video(probe):
         old.pop('stream_only',None);old.pop('repack',None)
         if old.get('status')=='done':old.update(status='waiting',retry_after=0,attempts=0)
@@ -992,6 +1129,17 @@ class Queue:
     job.update(blocked=False,status='waiting',attempts=0,retry_after=0,image_subs_retried=True);job.pop('error',None);n+=1
   if n:self.commit()
   return n
+ def retry_dvd_subtitles(self):
+  """ISSUE-226 / P5: with a KodiAirPlay that keeps DVD picture subtitles inside the MP4 (r54, kodi_airplay_prepare_keep_dvd_subs),
+  videos kept as they are for tracks MP4 cannot preserve get one new try by themselves (Naruto Shippuuden S1 E9-E16), like
+  retry_image_subtitles. A second video track or a subtitle it still can't keep stops them again, once."""
+  if not getattr(self.native,'keeps_dvd_subs',False):return 0
+  n=0
+  for job in self.state['jobs'].values():
+   if job.get('blocked') and 'tracks MP4 cannot preserve' in str(job.get('error','')) and not job.get('dvd_subs_retried'):
+    job.update(blocked=False,status='waiting',attempts=0,retry_after=0,dvd_subs_retried=True,kept_told=False);job.pop('error',None);n+=1
+  if n:self.commit()
+  return n
  def read_speed(self,now):
   """(bytes read from Drive so far, bytes per second over the last ~10 s) for the job running now."""
   try:read=int((self.stream.stats() if self.stream else {}).get('read_bytes') or 0)
@@ -1008,7 +1156,7 @@ class Queue:
   import prepare_cloud
   return prepare_cloud.process_one(self,keep_going,lane)
  def process_one(self,keep_going=lambda:True):
-  self.apply_requests();self.tidy();self.retry_image_subtitles()
+  self.apply_requests();self.tidy();self.retry_image_subtitles();self.retry_dvd_subtitles()
   if getattr(self.native,'hdr',False):
    for job in self.state['jobs'].values():
     if job.get('blocked') and 'without changing HDR' in job.get('error','') and not job.get('hdr_retried'):

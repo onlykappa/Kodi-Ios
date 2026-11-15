@@ -170,6 +170,13 @@ class Explained(unittest.TestCase):
   import notice_help as nh
   blocked=nh.explain({'kind':'problem','title':"Couldn't download to Google Drive",'text':'Fall 2 Deadpoint: AllDebrid blocked the sign-in'})
   self.assertEqual((blocked['title'],blocked['warn'],blocked['fixes'][0][2]),('Fall 2 Deadpoint is waiting',True,'accounts'))
+  # ISSUE-277 (owner screenshot, build 430): news that mentions AllDebrid is not a failed copy.
+  fetching=nh.explain({'kind':'download','title':'AllDebrid is fetching it','text':'Rick and Morty · S2 E7'})
+  self.assertEqual(fetching['title'],'AllDebrid is fetching Rick and Morty · S2 E7');self.assertNotIn('stopped',fetching['happened'])
+  saved=nh.explain({'kind':'drive','title':'Saved to Google Drive','text':'Rick and Morty · S2 E1 · straight from AllDebrid, nothing kept on the phone'})
+  self.assertEqual((saved['title'],saved['good']),('Saved to Google Drive',True))
+  failed=nh.explain({'kind':'problem','title':"Couldn't download to Google Drive",'text':'Rick and Morty · S2 E7: Nobody is sharing this version'})
+  self.assertEqual((failed['title'],failed['fixes'][0][2]),("Couldn't copy Rick and Morty · S2 E7",'problems'))
   other=nh.explain({'kind':'problem','title':'Kodi iOS Something odd','text':'ValueError: bad thing; original retained'})
   self.assertEqual((other['title'],other['happened'],other['fixes'][0][2]),('Something odd','bad thing','share_log'))
   action=nh.explain({'kind':'update','title':'Build 160 is ready','text':'Tap to install','action':'RunScript(x)'})

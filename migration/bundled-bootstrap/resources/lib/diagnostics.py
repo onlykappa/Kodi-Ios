@@ -149,7 +149,11 @@ def network(folder,runtime=None,clock=time.time,link=None):
  lanes=list((debrid.get('lanes') or {}).values()) or [debrid.get('current')]
  lanes=[l for l in lanes if isinstance(l,dict) and l.get('stage')=='copying']
  out['copy_lanes']=len(lanes)
- out['copy_mb_s']=round(sum(float(l.get('rate_own') or l.get('rate') or 0) for l in lanes)/1048576.0,2)
+ # ISSUE-271 (owner log 4e5fb2dd: "copy_mb_s 1.19" for four minutes across a Wi-Fi to cellular switch): only lanes that
+ # reported in the last 90 s count; the others are listed as quiet.
+ fresh=[l for l in lanes if clock()-float(l.get('updated') or 0)<90]
+ out['copy_mb_s']=round(sum(float(l.get('rate_own') or l.get('rate') or 0) for l in fresh)/1048576.0,2)
+ if len(fresh)<len(lanes):out['quiet_lanes']=len(lanes)-len(fresh)
  jobs=[j for j in debrid.get('jobs') or [] if isinstance(j,dict)]
  out['copies_waiting_for_network']=sum(1 for j in jobs if j.get('net_tries') and j.get('status') not in ('done','failed'))
  now=clock();read=int((runtime or {}).get('read_bytes') or 0)

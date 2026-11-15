@@ -156,8 +156,12 @@ def converts_for_tv(item):
     time, so the TV stalls): Apple TV and AirPlay play 8-bit H.264 and HEVC (10-bit included) as they are, but not
     10-bit H.264 (Hi10P), which the phone converts while playing. AV1 has its own badge."""
     b = _blob(_all(item))
-    ten = any(w in b for w in (u' 10BIT ', u' 10 BIT ', u' HI10P ', u' HI10 '))
-    return ten and codec(item) == u'H.264'
+    if u' HI10P ' in b or u' HI10 ' in b:
+        return True
+    ten = any(w in b for w in (u' 10BIT ', u' 10 BIT '))
+    # ISSUE-253 (owner log a176bcec: a "10bit" Dragon Ball Super release with no codec in its name was H.264 and took 28 s to
+    # reach the TV): a 10-bit release that does not say HEVC/AV1 is treated as H.264, which the phone has to convert.
+    return ten and codec(item) in (u'H.264', u'')
 
 
 def prep_cost(item):
@@ -827,15 +831,89 @@ def seed_bucket(item):
     return 0 if seeds >= 20 else 1 if seeds >= 5 else 2
 
 
-def auto_choose(kept, want):
+# ISSUE-231 (owner, build 374: "I selected 1080p ... 480p is ass"): a pack labelled 1080p held 640x480 DVD episodes
+# ("Naruto Shippuden Episode 001 Homecoming.mkv", 262 MB) and a few uploader upscales ("..._2.25x_1920x1080_alq-10").
+# With a quality chosen (strict), a version whose own name says a lower quality, that is an upscale of a lower one, or whose
+# file is far too small for the quality, is never picked.
+SD_NAME = re.compile(r'(?i)(?<![0-9a-z])(240p|360p|480p|576p|dvd(?:rip|5|9)?|sdtv|sd)(?![0-9a-z])')
+UPSCALED_NAME = re.compile(r'(?i)(\d(?:\.\d+)?x[ _.-]+\d{3,4}x\d{3,4}|(?<![a-z])alq(?![a-z])|waifu2x|real-?esrgan|topaz|upscal|anime4k|(?<![a-z])pseudo(?![a-z]))')
+HIGH = (u'720p', u'1080p', u'1440p', u'4k')
+
+
+def below_quality(item, quality, minutes=0):
+    """Why this version is not really `quality` ('' when it may be). Only for 720p and above."""
+    if quality not in HIGH:
+        return u''
+    text = _all(item)
+    if SD_NAME.search(text):
+        return u'its name says SD'
+    if UPSCALED_NAME.search(text):
+        return u'an upscale of a lower quality'
+    size = float(item.get('size') or 0)
+    if minutes and size > 0 and not item.get('multi'):
+        low = BITRATE.get(quality, (2.5, 10.0))[0] * (1.0 if codec(item) == u'H.264' else 0.6)   # unknown codec: as lenient as HEVC
+        mbps = size * 8192.0 / (minutes * 60.0)
+        if mbps < low / 1.5:
+            return u'too small for %s (%.1f Mbit/s)' % (quality, mbps)
+    return u''
+
+
+def _pack_root(name):
+    """debrid_drive.pack_root: what every episode of a pack shares (its folders)."""
+    text = _s(name)
+    return (text.rsplit(u'/', 1)[0] if u'/' in text else text).strip().casefold()
+
+
+def release_group(name):
+    """ISSUE-274: who released a version: the leading "[Group]" tag, else the scene suffix "-Group", else its pack folder.
+    '' when none can be told."""
+    text = _s(name).strip()
+    m = re.match(r'\s*\[([^\]]+)\]', text)
+    if m:
+        return m.group(1).strip().casefold()
+    base = text.rsplit(u'/', 1)[-1]
+    base = re.sub(r'\.(mkv|mp4|avi|m4v|ts)$', u'', base, flags=re.I)
+    m = re.search(r'-([A-Za-z0-9]{2,20})$', base)
+    if m:
+        return m.group(1).casefold()
+    return _pack_root(text) if u'/' in text else u''
+
+
+def is_lower(item, lower):
+    """ISSUE-264: a version a copy found lower than chosen, by its list name or by its pack (a refusal counts for the
+    season's other episodes of the same pack)."""
+    return item['name'] in lower or (u'pack:' + _pack_root(item['name'])) in lower
+
+
+def auto_choose(kept, want, ranked=None):
     """The version closest to the first pick: its quality (else the nearest lower, then higher), its HDR kind and
     codec, never AV1 when avoidable, seeds, then the size nearest the first pick's. None when nothing has seeds."""
+    fallback = False
+    lower = set(want.get('lower_names') or ())   # versions a copy already found lower than chosen (ISSUE-236)
+    # DEC-049 board C: the version the owner chose for this season (its pack) is taken whenever it has the episode.
+    prefer = [_pack_root(n) for n in (want.get('prefer_names') or ()) if n]
+    if prefer:
+        mine = [p for p in kept if _pack_root(p['name']) in prefer and p['seeds'] > 0]
+        if mine:
+            best = max(mine, key=lambda p: p['seeds'])
+            return dict(best, fallback=True)
     if want.get('strict_quality'):
-        kept = [p for p in kept if p['quality'] == want.get('quality') and not is_bad(p)]
+        minutes_ = int(want.get('runtime') or 0)
+        real = [p for p in kept if p['quality'] == want.get('quality') and not is_bad(p)
+                and not below_quality(p, want.get('quality'), minutes_) and not is_lower(p, lower)]
+        if real:
+            kept = real
+        else:
+            # ISSUE-236 (owner: "only grab the lower quality if it's the absolute only one available"): nothing is really
+            # the chosen quality, so the best of what exists is taken, the nearest quality first, versions already found
+            # lower last, and the pick says so (the copy is then not refused, and the owner is told).
+            kept = [p for p in kept if not is_bad(p)]
+            fallback = True
     if not kept:
         return None
     order = {q: n for n, q in enumerate(QUALITY_ORDER)}
     target = order.get(want.get('quality'), 2)
+    season_groups = {g for g in (release_group(n) for n in (want.get('season_names') or ())) if g}
     size = float(want.get('size') or 0)
     minutes = int(want.get('runtime') or 0)
     if want.get('coverage') == u'' and size:
@@ -848,12 +926,22 @@ def auto_choose(kept, want):
         hdr = next((t for t in tags if t in HDR_TAGS), u'')
         # Owner log 15e6cbc4: one episode of a season build was taken from a 500-episode "Complete Series" pack (the
         # most seeds); whole-series packs come last, used only when nothing else has the episode.
-        return (is_bad(it), it['seeds'] <= 0, bool(WHOLE_SERIES.search(_s(it.get('name')))), bool(it.get('multi')), distance,
+        # ISSUE-237: in a fallback, a version that only claims the quality (an uploader's upscale, an SD name, far too
+        # small) comes after every real one: it is the lower quality, many times larger.
+        fake = fallback and bool(below_quality(it, it['quality'], minutes))
+        return (is_bad(it), it['seeds'] <= 0, is_lower(it, lower), fake, bool(WHOLE_SERIES.search(_s(it.get('name')))), bool(it.get('multi')), distance,
+                # ISSUE-274 (owner: one release per season): the group the season's other episodes came from, at equal quality.
+                bool(season_groups) and release_group(it['name']) not in season_groups,
                 hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
                 slow_to_prepare(it), converts_for_tv(it), too_heavy(it), prep_cost(it), size_fit(it, minutes), seed_bucket(it),
                 SOURCE_RANK.get(source_type(it), 3), abs(it['size'] - size) if size else -size_step(it), -it['seeds'])
-    best = min(dedupe(kept), key=score)
-    return None if best['seeds'] <= 0 else best
+    ordered = sorted(dedupe(kept), key=score)
+    if ranked is not None:   # DEC-049 board C: the versions, best first
+        ranked.extend(ordered[:8])
+    best = ordered[0]
+    if best['seeds'] <= 0:
+        return None
+    return dict(best, fallback=True) if fallback else best
 
 
 def remember(item, title, path=None, now=None):
@@ -1076,11 +1164,17 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
         return show_list(title, usable, [], sm, u'Full season packs', count_label(len(usable), len(usable)))
     if auto is not None and exp and exp.get('episode') and automatic_matches(auto,exp):
         failed=set(auto.get('excluded_names') or [])
-        best = auto_choose([p for p in kept if p['name'] not in failed], auto.get('profile') or {})
+        ranked = []
+        best = auto_choose([p for p in kept if p['name'] not in failed],
+                           dict(auto.get('profile') or {}, lower_names=auto.get('lower_names') or [],
+                                prefer_names=auto.get('prefer_names') or [], season_names=auto.get('season_names') or []), ranked)
         try:
             import json
             _auto_result(auto, {'episode': exp.get('episode'), 'found': bool(best),
                                 'quality': best['quality'] if best else u'', 'name': best['name'] if best else u'',
+                                'fallback': bool(best and best.get('fallback')),
+                                'versions': [{'name': v['name'], 'quality': v['quality'], 'seeds': v['seeds'],
+                                              'size': round(float(v.get('size') or 0), 2)} for v in ranked if v['seeds'] > 0],
                                 'request_id':auto.get('request_id')})
         except Exception:
             pass

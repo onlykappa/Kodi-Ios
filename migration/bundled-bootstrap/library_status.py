@@ -115,8 +115,12 @@ def run(args=()):
   def speed(self,s):
    import transfer_history
    history=transfer_history.load(profile)
-   j=(history.get('jobs') or {}).get(s['card']) or {}
-   points=j.get('points') or [] if j.get('title')==s['title'] else []
+   jobs=history.get('jobs') or {}
+   j=jobs.get(s['card']) or {}
+   # ISSUE-273: a copy's graph is the history lane copying this job ('up' or 'up.<slot>'), whatever its title says.
+   if s.get('live_job') and s['card']=='up':
+    j=next((v for k,v in jobs.items() if k.split('.')[0]=='up' and v.get('job')==s['live_job']),j)
+   points=j.get('points') or [] if (j.get('title')==s['title'] or (s.get('live_job') and j.get('job')==s['live_job'])) else []
    live=s.get('live') or {}
    rate=float(live.get('rate') or 0)
    moving=live.get('state') in ('running','slowed') and rate>0
@@ -196,14 +200,15 @@ def run(args=()):
     if self.checking and (state.get('library') or {}).get('checked',0)>=self.checking:self.checking=0
     if self.checking and time.time()-self.checking>300:self.checking=0
     self.view=view
-    props=library_rows.page_properties(view,bool(self.checking))
+    import library_index
+    props=library_rows.page_properties(view,bool(self.checking),library_index.load(profile))   # DEC-052: the one index's counts
     for k,v in props.items():self.setProperty(k,v)
     items=library_rows.list_items(view,self.filter)
     self.items=items
     # Build 194: one pool of rows per section (library_page.POOLS), as the approved boards draw them.
     pools=library_rows.pools(items)
     self.pools=pools
-    self.setProperty('empty','' if items or (view.get('model') or {}).get('jobs') else 'No downloaded videos here yet.')
+    self.setProperty('empty','' if items or (view.get('model') or {}).get('jobs') or view.get('total') else 'No downloaded videos here yet.')
     model=view.get('model') or {}
     self.setProperty('queue','true' if model.get('next') or model.get('drive_next') or any(j.get('kind') in ('copy','upload','down') for j in model.get('jobs',[])) else '')
     self.setProperty('queue.label','Edit order' if model.get('next') else 'View queue')
@@ -282,6 +287,14 @@ def run(args=()):
    # press closed the page behind the menu, and download rows had none. iOS delivers a long press as action 10 as
    # well as 101/117 (Notifications reads it the same way), so on a card it opens the menu and never means Back; the
    # second action of the same press, just after the menu, does nothing.
+   if (code in LONG or code==10) and self.getFocusId()==library_page.CHECK:
+    # ISSUE-247: Refresh opens only new, changed or not-ready videos; holding it offers to read every video again.
+    if time.time()-getattr(self,'menu_done',0)<1.5:return
+    self.menu_done=time.time()
+    if dialog.yesno('Check Every Video','Refresh opens only videos that are new, changed or not ready yet. Check every video '
+                    'on Google Drive again? It reads each one, which takes a while.',nolabel='Cancel',yeslabel='Check Every Video'):
+     self.checking=time.time();prepare_downloads.request_check(profile,inspect='full');self.refresh()
+    return
    if code in LONG or code==10:
     held=self.held_row(self.getFocusId())
     if held:

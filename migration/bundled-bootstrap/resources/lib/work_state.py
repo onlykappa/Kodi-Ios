@@ -124,6 +124,33 @@ def left(seconds):
     return '%d min left' % m if m < 60 else '%d h%s left' % (m // 60, ' %d min' % (m % 60) if m % 60 else '')
 
 
+def _offline():
+    try:
+        import cache_tune
+        return not cache_tune.local_address()
+    except Exception:
+        return False
+
+
+OFFLINE = [_offline]   # tests replace it
+
+
+def retry_words(job, until, now):
+    """ISSUE-254 (owner, build 398: "Waiting for the network · trying again in 5 min" while online, "it should only appear if
+    I'm fully offline"): the words say why a copy waits. The log showed the real reason: "Waiting for TMDb to say where
+    season 2 starts"."""
+    error = str(job.get('error') or '')
+    when = retry_text(until, now)
+    if job.get('net_tries'):
+        if OFFLINE[0]():
+            return 'Waiting for the network \u00b7 %s' % when
+        return "Couldn't reach AllDebrid or Google Drive \u00b7 %s" % when
+    if 'Waiting for TMDb' in error:
+        return "Waiting for TMDb's episode numbers \u00b7 %s" % when
+    reason = error.split(': ', 1)[-1].split('. ')[0].strip().rstrip('.')
+    return ('%s \u00b7 %s' % (reason[:48], when)) if reason else 'Stopped \u00b7 %s' % when
+
+
 def retry_text(until, now):
     wait = max(0, float(until or 0) - now)
     if wait < 60:
@@ -297,6 +324,9 @@ def _copies(debrid, now):
     return [(card, jobs[0])] if card else []
 
 
+MAX_GLIDE = 20   # ISSUE-273: seconds a copy card moves on by itself between two reports
+
+
 def _copy(debrid, now):
     """The AllDebrid → Drive copy, or None."""
     # Owner (build 325): the card sat at "no answer for 23 min" while other lanes copied; show the lane that moved last.
@@ -322,26 +352,37 @@ def _copy(debrid, now):
         step = '%s · %d of %d' % (STEP['copy'], int(current.get('index') or 1), count) if count > 1 else STEP['copy']
         words={'reading':'Reading download','uploading':'Uploading to Google Drive','paused_playback':'Paused for playback'}
         if phase in words:step=words[phase]+(' · %d of %d'%(int(current.get('index') or 1),count) if count>1 else '')
+        ready=current.get('mode')=='ready'
+        if ready:   # ISSUE-273 (owner: "it doesn't show anything about getting things ready"): made ready on its way to Drive
+            step='Getting it ready for Kodi and AirPlay'+(' · %d of %d'%(int(current.get('index') or 1),count) if count>1 else '')
+        # ISSUE-273 (owner: the copy cards are "super choppy … not smooth like the conversion pages"): a copy reports once a
+        # piece is confirmed (6-30 s apart). Between reports the card moves on at the measured speed, never past what the
+        # next report can confirm (a piece's worth, MAX_GLIDE s) and never to 100 %.
+        if not quiet and updated is not None and float(current.get('rate') or 0) > 0:
+            ahead=min(float(current.get('rate') or 0)*max(0.0,now-float(updated)),float(current.get('rate') or 0)*MAX_GLIDE)
+            sent=min(total*0.995,sent+ahead)
         out = {'kind': 'copy', 'title': title, 'name': current.get('name', ''), 'step': step, 'pct': int(100 * sent / total),
                'indeterminate': False, 'rate': 0.0 if quiet else float(current.get('rate') or 0),
                'eta_s': 0 if quiet else float(current.get('eta_s') or 0), 'tint': BLUE, 'sent': sent, 'total': total,
-               'hash': job.get('hash', ''), 'folder': current.get('folder', ''),'phase_detail':phase in words,'transfer_phase':phase}
+               'hash': job.get('hash', ''), 'folder': current.get('folder', ''),'phase_detail':phase in words or ready,'transfer_phase':phase,
+               'slot': current.get('slot'), 'job': current.get('job', ''), 'ready_copy': ready}
         if quiet and phase!='paused_playback':
-            out['wait'] = ('Waiting for download' if phase=='reading' else 'Waiting for Google Drive')+' · no answer for %d min' % max(1,int((now-float(updated))//60))
-        if (job.get('tries') or job.get('net_tries')) and retry > now:
-            out['wait'] = 'Waiting for the network · %s' % retry_text(retry, now)
+            out['wait'] = ('Getting it ready · waiting for Google Drive' if ready else 'Waiting for download' if phase=='reading'
+                           else 'Waiting for Google Drive')+' · no answer for %d min' % max(1,int((now-float(updated))//60))
+        if (job.get('tries') or job.get('net_tries') or job.get('tmdb_waits')) and retry > now:
+            out['wait'] = retry_words(job, retry, now)
         if (debrid or {}).get('hold') == 'wifi':
             out['wait'] = 'Waiting for Wi-Fi · copies run on Wi-Fi only (Transfer settings)'
-        out['playback_held']=phase=='paused_playback' and not ((job.get('tries') or job.get('net_tries')) and retry>now)
+        out['playback_held']=phase=='paused_playback' and not ((job.get('tries') or job.get('net_tries') or job.get('tmdb_waits')) and retry>now)
         return out
     if current.get('stage') == 'fetching':
         return {'kind': 'copy', 'title': title, 'name': current.get('name', ''), 'step': 'AllDebrid is fetching it',
                 'pct': int(current.get('sent') or 0), 'indeterminate': False, 'rate': 0.0, 'eta_s': 0, 'tint': BLUE,
                 'hash': job.get('hash', '')}
-    if (job.get('tries') or job.get('net_tries')) and retry > now:
+    if (job.get('tries') or job.get('net_tries') or job.get('tmdb_waits')) and retry > now:
         return {'kind': 'copy', 'title': title, 'name': job.get('name', ''), 'step': STEP['copy'], 'pct': 0, 'indeterminate': False,
                 'rate': 0.0, 'eta_s': 0, 'tint': BLUE, 'hash': job.get('hash', ''),
-                'wait': 'Waiting for the network · %s' % retry_text(retry, now)}
+                'wait': retry_words(job, retry, now)}
     if (debrid or {}).get('hold') == 'wifi':
         return {'kind': 'copy', 'title': title, 'name': job.get('name', ''), 'step': STEP['copy'], 'pct': 0, 'indeterminate': False,
                 'rate': 0.0, 'eta_s': 0, 'tint': BLUE, 'hash': job.get('hash', ''),
@@ -379,6 +420,10 @@ def _next(prep, running_name):
     return [{'id': str((j.get('source') or {}).get('id', '')), 'title': _title((j.get('source') or {}).get('name', '')),
              'what': next_what(j), 'size': int((j.get('source') or {}).get('size') or 0)}
             for _, j in jobs]
+
+
+WIFI_PREP_WAIT = 'Waiting for Wi-Fi · videos are prepared on Wi-Fi only'
+COPY_PREP_WAIT = 'Starts when the downloads finish'
 
 
 def build(inp, now):
@@ -441,12 +486,17 @@ def build(inp, now):
         # Paused while nothing converts: the next one waits for the owner, and says so.
         nexts[0]['paused'] = True
     moving = [j for j in jobs if j['state'] in MOVING]
+    # Owner log (build 368): preparation does not start on mobile data (prepare_cloud sets prep['wifi_hold']); say so, as
+    # the copies do ('wifi' hold), while videos wait and nothing moves.
+    wifi_wait = bool((inp.get('prep') or {}).get('wifi_hold')) and bool(nexts) and not moving
     if needs:
         mode = NEEDS
     elif moving:
         mode = SLOWED if all(j['state'] == SLOWED for j in moving) else RUNNING
     elif any(j['state'] == PAUSED for j in jobs) or (paused.get('conv') and nexts):
         mode = PAUSED
+    elif wifi_wait:
+        mode = NETWORK
     elif waits or any(j['state'] == NETWORK for j in jobs):
         mode = NETWORK
     elif nexts or any(j['state']==QUEUED for j in jobs):
@@ -454,9 +504,14 @@ def build(inp, now):
     else:
         mode = IDLE
     wait_text = ''
-    if waits:
+    if wifi_wait and not needs:
+        wait_text = WIFI_PREP_WAIT
+    elif waits:
         w = min(waits, key=lambda x: x['until'])
         wait_text = '%s · %s' % (w.get('why') or 'Waiting for the network', retry_text(w['until'], now))
+    # ISSUE-275: the next preparation waits while AllDebrid copies run (they go first); its row says so.
+    if (inp.get('prep') or {}).get('copy_hold') and nexts:
+        nexts[0]['line'] = COPY_PREP_WAIT
     lead = (moving or jobs or [None])[0]
     drive_next = _copy_next(inp.get('debrid'))
     for j in drive_next:

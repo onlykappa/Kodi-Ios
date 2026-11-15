@@ -50,7 +50,9 @@ def _copy_problem(item, video):
     text = str(item.get('text') or '')
     blocked = re.search(r'(?i)blocked|sign-?in|unauthor|401|403', text)
     busy = re.search(r'(?i)busy|503|502|timed out|network|connection', text)
-    out = {'title': ('%s is waiting' % video) if video else "Couldn't download to Google Drive",
+    # ISSUE-277: "is waiting" only when it really waits (busy or blocked); a copy that ended says it couldn't be copied.
+    out = {'title': ('%s is waiting' % video) if video and (blocked or busy) else ("Couldn't copy %s" % video) if video
+           else "Couldn't download to Google Drive",
            'line': 'AllDebrid blocked the sign-in' if blocked else 'AllDebrid was busy' if busy else 'It stopped; see why',
            'happened': ('AllDebrid blocked the sign-in from this network. Copies wait and carry on by themselves once it lets '
                         'them in.') if blocked else ('AllDebrid or the connection was busy. Copies wait and carry on by '
@@ -61,6 +63,24 @@ def _copy_problem(item, video):
     if blocked:
         out['fixes'].insert(0, ('Open Accounts', 'Check AllDebrid is signed in', 'accounts'))
     return out
+
+
+def _fetching(item, video):
+    """ISSUE-277 (owner screenshot, build 430): "AllDebrid is fetching it" is news, not a failure. It opened as "Couldn't
+    download to Google Drive · The copy to Google Drive stopped" because the copy-problem rule matched the word AllDebrid."""
+    what = str(item.get('text') or '').strip() or 'this video'
+    return {'title': 'AllDebrid is fetching %s' % what, 'line': 'The copy starts once AllDebrid has it',
+            'happened': "AllDebrid didn't have this version stored, so it is downloading it first. The copy to Google Drive "
+                        "starts by itself once it has it. If nobody shares this version, it moves to Download problems so you "
+                        "can pick another one.",
+            'safe': 'Nothing else waits for it: the next episodes copy in the meantime.',
+            'fixes': [('Open Library status', 'See what is copying and what waits', 'library_status')]}
+
+
+def _saved(item, video):
+    return {'title': str(item.get('title') or 'Saved to Google Drive'), 'line': str(item.get('text') or ''), 'good': True,
+            'happened': str(item.get('text') or ''),
+            'fixes': [('Open Library', 'See it in your Library', 'library_files')]}
 
 
 def _setup_problem(item, video):
@@ -97,13 +117,26 @@ def _upscale_ready(item, video):
             'fixes': [('Open AI Upscale', 'See what is made and what waits', 'upscale')]}
 
 
+def _quality_choice(item, video):
+    """DEC-049 board A: one notice per season when the chosen quality does not exist; Choose opens board B."""
+    return {'title': str(item.get('title') or 'Choose a version'), 'line': str(item.get('text') or ''), 'warn': True,
+            'happened': 'No version of this season is really the quality you chose, so nothing was downloaded for it yet.',
+            'safe': 'Nothing was downloaded at a lower quality without asking you.',
+            'fixes': [('Choose', 'Use the best, pick another version, or keep looking', 'notice')]}
+
+
 RULES = (
+    (r'(?i)^no real .* for season', _quality_choice),
     (r'tracks MP4 cannot preserve|MP4 can.t keep', _kept_tracks),
     (r'(?i)^kept as it is', _kept_as_is),
     (r'(?i)trakt authori[sz]ed|trakt connected', _trakt),
     (r'(?i)automatic setup|setup and repair', _setup_problem),
     (r'(?i)sign in to google drive|drive sign-?in', _drive_signin),
-    (r'(?i)couldn.t download to google drive|alldebrid', _copy_problem),
+    # ISSUE-277: matched on the notice's title. "alldebrid" anywhere also caught "AllDebrid is fetching it" and every
+    # "Saved to Google Drive · straight from AllDebrid", which opened as "Couldn't download to Google Drive".
+    (r'(?i)^alldebrid is fetching', _fetching),
+    (r'(?i)^saved to google drive', _saved),
+    (r'(?i)^couldn.t download to google drive', _copy_problem),
     (r'(?i)ai upscale ready', _upscale_ready),
     (r'(?i)video preparation paused|preparation (failed|stopped)', _prep_problem),
 )

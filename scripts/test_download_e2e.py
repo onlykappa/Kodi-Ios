@@ -396,7 +396,7 @@ class SeasonDownload(unittest.TestCase):
         debrid_drive.queue(self.profile, {'id': h, 'name': 'Show S01'}, 'season', 'Show', season='1')
         offered = []
 
-        def ready_copy(with_link, name, size, parent, going, progress, key):
+        def ready_copy(with_link, name, size, parent, going, progress, key, quality=''):
             offered.append(name)
             if 'E02' in name:
                 return None

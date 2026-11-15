@@ -152,6 +152,14 @@ jobs:
           python3 -B scripts/test_download_e2e.py
           python3 -B scripts/test_upscale_e2e.py
           python3 -B scripts/test_upscale_cloud.py
+          python3 -B scripts/test_upscale_cancel.py
+          python3 -B scripts/test_season_quality.py
+          python3 -B scripts/test_quality_choice.py
+          python3 -B scripts/test_pinned_addons.py
+          python3 -B scripts/test_netwatch.py
+          python3 -B scripts/test_copy_status.py
+          python3 -B scripts/test_library_show_menu.py
+          python3 -B scripts/test_library_index.py
           python3 -B scripts/test_upscale_page.py
           python3 -B scripts/test_ios_remove.py
           python3 -B scripts/test_source_match.py
@@ -182,6 +190,7 @@ jobs:
           python3 -B scripts/test_elementum_cloud.py
           python3 -B scripts/test_speed_fixes.py
           python3 -B scripts/test_drive_prepare.py
+          python3 -B scripts/test_image_subtitles.py
           python3 -B scripts/test_preparation_runtime.py
           python3 -B scripts/test_transfer_artwork.py
           python3 -B scripts/test_diagnostics.py

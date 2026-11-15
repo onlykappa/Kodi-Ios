@@ -181,6 +181,7 @@ class PortraitTests(unittest.TestCase):
   for c in [p for top in osd.find('controls').findall('control') for p in pinned(top)]:
    if c.find('centerleft') is not None:continue
    if c.get('type')=='image' and any(t in (c.findtext('texture') or '') for t in ('white.png','fade_')):continue   # shades over the video
+   if c.get('id')=='7100':continue   # ISSUE-279: the clear tap-to-hide area under the controls (nothing drawn or read)
    if c.findtext('right')=='0' and c.findtext('width'):
     w=int(c.findtext('width'))
     for d in c.iter('control'):

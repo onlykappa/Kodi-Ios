@@ -416,7 +416,8 @@ class NetworkTrouble(unittest.TestCase):
                  {'hash':'d'*40,'kind':'movie','status':'failed','error':'Problem: blocked'}]}
   self.assertEqual(debrid_drive.revive(state,lambda:5),[])
   titles=[p['title'] for p in debrid_drive.problems(state)]
-  self.assertEqual(titles[0],'Inception');self.assertTrue(titles[1].startswith('Heat'));self.assertEqual(titles[2],'Unnamed download')
+  # ISSUE-250: the failed Inception is not listed while another Inception is done.
+  self.assertTrue(titles[0].startswith('Heat'));self.assertEqual(titles[1],'Unnamed download');self.assertEqual(len(titles),2)
   debrid_drive.save(self.p,state)
   self.assertEqual(debrid_drive.retry_failed(self.p),2)                                   # not the finished Inception
 
@@ -453,10 +454,64 @@ class DownloadProblemsPage(unittest.TestCase):
   props,_=cp.model(found*5,'all',slots=6)
   self.assertTrue(props['more'].startswith('And '))
   spec,actions=cp.sheet(dict(found[1],why='This source has no video file',group='source'))
-  self.assertEqual(actions,['find','retry','remove']);self.assertEqual(spec['heading'],'The Lorax')
-  self.assertEqual(cp.sheet(dict(found[3],why='Cancelled',group='cancelled'))[1],['retry','remove'])
+  # Owner (2026-11-14): every problem can be hidden for good ("Don't Show Again"); Remove has its trash glyph.
+  self.assertEqual(actions,['find','retry','ignore','remove']);self.assertEqual(spec['heading'],'The Lorax')
+  self.assertEqual(cp.sheet(dict(found[3],why='Cancelled',group='cancelled'))[1],['retry','ignore','remove'])
+  self.assertEqual([r.get('glyph') for r in spec['rows'] if r.get('tint')],['eye-slash.png','trash.png'])   # no bare red square
   self.assertIn("R(9459,'Download problems','RunScript(service.kodi.ios.bootstrap,copy_problems)'",(root/'resources/lib/settings_page.py').read_text())
   self.assertIn("'copy_problems'",(root/'default.py').read_text())
+ def test_dont_show_again_hides_a_problem_until_it_fails_another_way(self):
+  # Owner (2026-11-14, screenshot of Naruto S1 E30): "clears it for good and only will show up if there is a different issue".
+  import tempfile,problem_ignore as pi
+  _,cp=self.load()
+  with tempfile.TemporaryDirectory() as profile:
+   low={'key':'k30','kind':'failed','error':'Not the quality you picked: 640x480, you chose 1080p','title':'Naruto Shippuuden · S1 E30'}
+   other={'key':'k5','kind':'failed','error':'File not available due to no peer'}
+   pi.ignore(profile,low)
+   self.assertEqual(pi.visible(profile,[low,other]),[other])
+   self.assertEqual(pi.visible(profile,[dict(low,error='Not the quality you picked: 704x480, you chose 1080p')]),[])   # numbers don't count
+   self.assertEqual(len(pi.visible(profile,[dict(low,error='File not available due to no peer')])),1)               # a different issue shows
+  # The sheet says the reason once ("Not the quality you picked. Not the quality you picked: …" before).
+  spec,_=cp.sheet(dict(low,why='Not the quality you picked',group='source'))
+  self.assertEqual(spec['sub'],'Not the quality you picked: 640x480, you chose 1080p')
+  self.assertEqual(cp.plain({'kind':'failed','error':'File not available due to no peer'}),('No one is sharing this source','source'))
+ def test_preparation_problems_are_listed_with_the_copy_problems(self):
+  # ISSUE-226 / P4 (approved board E): Naruto says problems on its show page and in Library status, so Download problems lists them.
+  import prepare_downloads as prep
+  root,cp=self.load()
+  dvd='This file has tracks MP4 cannot preserve; original retained'
+  state={'jobs':{'a':{'source':{'id':'a','name':'Naruto Shippuuden S01E09.mkv','size':300*1024**2},'status':'waiting','blocked':True,'error':dvd},
+                 'b':{'source':{'id':'b','name':'Naruto Shippuuden S01E10.mkv','size':200*1024**2},'status':'waiting','blocked':True,'error':dvd},
+                 'c':{'source':{'id':'c','name':'Fall.2.2026.mkv','size':3*1024**3},'status':'failed','error':'Drive file check: HTTP 500'},
+                 'd':{'source':{'id':'d','name':'Kept.2020.mkv'},'status':'waiting','blocked':True,'error':dvd,'kept':True},
+                 'e':{'source':{'id':'e','name':'Slow.2019.mkv'},'status':'waiting','blocked':True,'repack_failed':True,'error':'MP4 packet: x'},
+                 'f':{'source':{'id':'f','name':'Done.2018.mkv'},'status':'done'}}}
+  self.assertEqual(sorted(p['id'] for p in prep.preparation_problems(state)),['a','b','c'])   # kept, done and repack_failed are not problems
+  need=prep.problem_need(state)
+  self.assertEqual((need['title'],need['button']),("2 can't be made ready",'Review'));self.assertIn('copy_problems,prepare',need['action'])
+  self.assertIsNone(prep.problem_need({'jobs':{}}))
+  found=cp.prep_problems(state,{})
+  props,entries=cp.model(found+[{'title':'Heat','reason':'Cancelled','kind':'cancelled','job_kind':'movie','key':'h','error':'Cancelled'}],'all',now=1000,slots=12)
+  self.assertEqual((props['sum.prepare'],props['sum.cancelled']),('3','1'))
+  heads=[props['row.%d.head'%n] for n in range(12) if props['row.%d.head'%n]]
+  self.assertEqual(heads,['PREPARING FOR KODI AND AIRPLAY · 3','CANCELLED BY YOU · 1'])
+  props,entries=cp.model(found,'prepare',now=1000,slots=12)
+  self.assertEqual((props['row.1.title'],props['row.1.act'],props['row.1.why']),('Fall 2 (2026)','Retry','Stopped · it will try again'))   # line order
+  self.assertEqual((props['row.2.title'],props['row.2.sub'],props['row.2.why'],props['row.2.act'],props['row.2.whyc']),
+                   ('S1 E9 · Naruto Shippuuden','Episode · 300 MB',"DVD subtitles can't be kept",'Find','orange'))
+  self.assertEqual(props['retry.label'],'Try Again 1');self.assertIn('play in Kodi',props['foot'])
+  props,_=cp.model(cp.prep_problems(state,{'dvd_subs':True}),'prepare',now=1000)
+  self.assertEqual(props['retry.label'],'Try Again 3')                                 # a converter that keeps them: all can retry
+  spec,actions=cp.sheet(dict([f for f in found if f['id']=='a'][0],why="DVD subtitles can't be kept",group='prepare'))
+  self.assertEqual(actions,['find','retry','keep','ignore']);self.assertEqual([r['label'] for r in spec['rows']],['Find Another Version','Try Again','Keep as It Is',"Don't Show Again"])
+  self.assertIn('Nothing was lost',spec['sub']);self.assertFalse(any(r.get('tint')=='FFFF453A' for r in spec['rows']))   # board E2: nothing red
+ def test_the_page_has_four_tiles_and_five_filters(self):
+  import portrait,copy_problems_page as page
+  xml=page.page(portrait)
+  self.assertEqual(len(page.FILTERS),5);self.assertIn('id="%d"'%(page.FILTER0+4),xml);self.assertIn('Not ready',xml)
+  root,_=self.load()
+  self.assertIn("'prepare' in sys.argv[1:]",(root/'copy_problems.py').read_text())
+  self.assertIn('prepare_downloads.problem_need(prep,problem_ignore.hidden_prep_ids(profile,prep))',(root/'service.py').read_text())
  def test_retry_and_remove_one_problem_by_its_key(self):
   with tempfile.TemporaryDirectory() as p:
    state={'jobs':[{'hash':'a'*40,'title':'A','kind':'movie','status':'failed','error':'Problem: x','added':1},
@@ -775,5 +830,69 @@ class ProblemTitles(unittest.TestCase):
         self.assertEqual(debrid_drive.problem_title({'hash': h, 'title': h, 'name': h, 'kind': 'season', 'files': []}), 'Unnamed download')
         self.assertEqual(debrid_drive.problem_title({'title': 'Naruto Shippuden', 'name': h}), 'Naruto Shippuden')
 
+
+class PackNumbering(unittest.TestCase):
+    """ISSUE-262 (owner screenshot and log e56f8adf, build 406): 22 Naruto Shippuden S2 episodes failed "no video file"."""
+    PACK=[('Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio)/Season 02 (033-053)/'
+           'Naruto Shippuden Episode %03d T.mkv' % n, 300, 'l%d' % n) for n in range(33, 54)]
+    def test_tmdb_numbering_on_from_the_last_season(self):
+        got = alldebrid.pick(self.PACK, 'episode', '2', '33', offset=32)
+        self.assertEqual([f[0].rsplit('/', 1)[1] for f in got], ['Naruto Shippuden Episode 033 T.mkv'])
+        got = alldebrid.pick(self.PACK, 'episode', '2', '1', offset=32)          # numbered from 1: still episode 33
+        self.assertEqual([f[0].rsplit('/', 1)[1] for f in got], ['Naruto Shippuden Episode 033 T.mkv'])
+        got = alldebrid.pick(self.PACK, 'season', '2', episodes=['36', '41'], offset=32)
+        self.assertEqual([f[2] for f in got], ['l36', 'l41'])
+    def test_failed_later_season_episodes_go_back_once(self):
+        state = {'jobs': [{'kind': 'episode', 'season': '2', 'episode': '36', 'status': 'failed', 'magnet': '9',
+                           'error': 'Problem: This torrent has no video file.', 'files': []},
+                          {'kind': 'episode', 'season': '1', 'episode': '6', 'status': 'failed', 'error': 'Problem: This torrent has no video file.'},
+                          {'kind': 'episode', 'season': '2', 'episode': '40', 'status': 'failed', 'error': 'Problem: no one is sharing it'}]}
+        self.assertEqual(len(debrid_drive.repick_packs(state)), 1)
+        self.assertEqual((state['jobs'][0]['status'], state['jobs'][0].get('error')), ('copying', None))
+        state['jobs'][0].update(status='failed', error='Problem: This torrent has no video file.')
+        self.assertEqual(debrid_drive.repick_packs(state), [])                    # once only
+
+
+class FetchingDoesNotHoldTheLine(unittest.TestCase):
+ """ISSUE-277 (owner screenshot and log 27c3ca14, build 430): Rick and Morty S2 E7 was not stored on AllDebrid and sat at
+ "fetching 0%" first in line, so E8-E10 waited behind it, and nothing reached Download problems."""
+ class API(FakeAPI):
+  def add(self,h):self.added.append(h);return 'm'+h[0],h[0]!='7'
+  def status(self,m):return (1,0.0,'Downloading')
+ def setUp(self):
+  self.d=tempfile.TemporaryDirectory();self.p=self.d.name
+ def tearDown(self):self.d.cleanup()
+ def queue(self,*eps):
+  for n in eps:
+   debrid_drive.queue(self.p,{'id':str(n)*40,'name':'Rick.and.Morty.S02E0%d.mkv'%n},'episode','Rick and Morty',season='2',episode=str(n))
+ def test_the_next_episode_starts_while_alldebrid_fetches(self):
+  self.queue(7,8);api=self.API()
+  debrid_drive.step(self.p,api,FakeDrive())                       # E7: AllDebrid has to fetch it
+  self.assertEqual(debrid_drive.load(self.p)['jobs'][0]['status'],'fetching')
+  debrid_drive.step(self.p,api,FakeDrive())                       # E8 gets its turn at once
+  self.assertEqual(api.added,['7'*40,'8'*40])
+  self.assertEqual(debrid_drive.load(self.p)['jobs'][1]['status'],'copying')
+ def test_a_fetch_that_never_moves_ends_in_download_problems(self):
+  self.queue(7);api=self.API();clock={'t':1000.0};said=[]
+  step=lambda:debrid_drive.step(self.p,api,FakeDrive(),clock=lambda:clock['t'],notify=lambda k,t,x,g='':said.append((k,t,x)))
+  step();self.assertEqual(said[0][:2],('download','AllDebrid is fetching it'))
+  self.assertEqual(step(),debrid_drive.FETCH_POLL)                 # only E7 waits: checked again in 15 s
+  self.assertEqual(debrid_drive.problems(debrid_drive.load(self.p)),[])
+  clock['t']+=debrid_drive.FETCH_STALL+60;step()
+  job=debrid_drive.load(self.p)['jobs'][0]
+  self.assertEqual((job['status'],job['stalled']),('failed',True))
+  self.assertEqual(said[-1][:2],('problem',"Couldn't download to Google Drive"))
+  found=debrid_drive.problems(debrid_drive.load(self.p))
+  self.assertEqual([(f['title'],f['kind']) for f in found],[('Rick and Morty · S2 E7','source')])
+  self.assertIn('Nobody is sharing this version',found[0]['error'])
+ def test_progress_keeps_it_going(self):
+  self.queue(7);clock={'t':1000.0};pct={'v':0.1}
+  class Moving(self.API):
+   def status(self,m):return (1,pct['v'],'Downloading')
+  api=Moving();step=lambda:debrid_drive.step(self.p,api,FakeDrive(),clock=lambda:clock['t'])
+  step();step()
+  for n in range(4):
+   clock['t']+=debrid_drive.FETCH_STALL-60;pct['v']+=.1;step()
+  self.assertEqual(debrid_drive.load(self.p)['jobs'][0]['status'],'fetching')
 
 if __name__=='__main__':unittest.main()

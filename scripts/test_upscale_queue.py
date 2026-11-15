@@ -27,7 +27,7 @@ class Plan(unittest.TestCase):
     def test_only_shows_that_ask_and_only_sizes_above(self):
         prep = {'jobs': {'a': job('a'), 'b': job('b', name='Lanterns S01E01.mp4'), 'c': job('c', 3840, 2160),
                          'd': job('d', hdr=True), 'e': job('e', status='waiting'), 'f': job('f', 1280, 720)}}
-        data = {'copies': {}}
+        data = {'copies': {}, 'asked': {k: '4K UHD' for k in 'abcdef'}}   # the owner chose the size (ISSUE-245)
         added = uq.plan(prep, data, self.settings, self.media)
         self.assertEqual(sorted(added), ['a', 'f'])            # Lanterns is Off; 4K, HDR and unprepared never
         self.assertEqual(data['copies']['a']['label'], '4K UHD')
@@ -42,8 +42,20 @@ class Plan(unittest.TestCase):
         data = {'copies': {}}
         self.assertEqual(uq.plan({'jobs': {'b': job('b', name='Lanterns S01E01.mp4')}}, data, self.settings, self.media), [])
 
+    def test_a_later_download_gets_no_copy_unless_asked(self):
+        # ISSUE-245 (owner log 3a30b6ef): Naruto was set to 4K, a new episode arrived with Upscale new downloads off, and a
+        # 4K copy started by itself. "I want full control over it."
+        data = {'copies': {}, 'asked': {}}
+        uq.ask(data, ['a'], '4K UHD')                          # the size chosen on the show's page, for what is there
+        self.assertEqual(uq.plan({'jobs': {'a': job('a'), 'n': job('n')}}, data, self.settings, self.media), ['a'])
+        self.assertNotIn('n', data['copies'])                  # the later download: no copy
+        self.settings['downloads']['prepare'] = True           # Upscale new downloads on: every new one gets a copy
+        self.assertEqual(uq.plan({'jobs': {'n': job('n')}}, data, self.settings, self.media), ['n'])
+        uq.ask(data, ['a'], 'Off')
+        self.assertNotIn('a', data['asked'])
+
     def test_a_new_size_replaces_a_ready_copy(self):
-        data = {'copies': {'a': {'label': '1440p', 'status': 'ready', 'copy_id': 'old'}}}
+        data = {'copies': {'a': {'label': '1440p', 'status': 'ready', 'copy_id': 'old'}}, 'asked': {'a': '4K UHD'}}
         uq.plan({'jobs': {'a': job('a')}}, data, self.settings, self.media)
         self.assertEqual(data['copies']['a']['status'], 'waiting')
         self.assertEqual(data['copies']['a']['previous_copy'], 'old')
@@ -125,6 +137,7 @@ class Playback(unittest.TestCase):
         self.assertEqual(uq.choose(self.data, 'a', '4K UHD', lambda i: False), ('a', None))
         self.assertEqual(self.data['copies']['a']['status'], 'gone')
         self.assertNotIn('copy_id', self.data['copies']['a'])
+        self.data['asked'] = {'a': '4K UHD'}
         uq.plan({'jobs': {'a': job('a')}}, self.data, dict(pc.load(tempfile.mkdtemp()), default={'upscale': '4K UHD', 'saturation': 0}), lambda j: {})
         self.assertEqual(self.data['copies']['a']['status'], 'waiting')                      # made again
 

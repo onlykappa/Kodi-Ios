@@ -23,8 +23,7 @@ def run():
   return get
  def drive_accounts():
   try:
-   common=xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
-   if common not in sys.path:sys.path.append(common)
+   import pinned_addons;pinned_addons.use_clouddrive(xbmcaddon,xbmcvfs)   # ISSUE-270
    from clouddrive.common.account import AccountManager
    store=AccountManager(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.googledrive').getAddonInfo('profile')))
    return list((store.get_accounts() or {}).values())

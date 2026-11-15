@@ -69,7 +69,13 @@ def file_state(item, prep, copies, watched=()):
 def _copying_episodes(debrid_state):
     """(show title casefold, season, episode) → progress 0..100 for AllDebrid copies still running, and failed ones."""
     running, failed = {}, {}
+    # ISSUE-250: a failure is not a problem while another version of that episode is copying or done.
+    alive = {(str(j.get('title') or '').casefold(), str(j.get('season') or ''), str(j.get('episode') or ''))
+             for j in (debrid_state or {}).get('jobs', []) if j.get('status') != 'failed'}
     for job in (debrid_state or {}).get('jobs', []):
+        if job.get('status') == 'failed' and (str(job.get('title') or '').casefold(), str(job.get('season') or ''),
+                                               str(job.get('episode') or '')) in alive:
+            continue
         title = str(job.get('title') or '').casefold()
         if job.get('kind') == 'movie' or not title:
             continue
@@ -107,7 +113,7 @@ def show_rows(shows, episodes_by_show, prep_state, debrid_state=None, upscale_st
                 have.add((int(f['season']), int(f.get('episode') or 0)))
         key = str(show.get('title') or '').casefold()
         copying = [k for k in running if k[0] == key and (k[1], k[2]) not in have]
-        problems = [k for k in failed if k[0] == key and (k[1], k[2]) not in have]
+        problems = [k for k in failed if k[0] == key and (k[1], k[2]) not in have and k not in running]   # ISSUE-250: copying again is not a problem
         counts[COPYING] += len(copying)
         counts[PROBLEM] += len(problems)
         seasons |= {k[1] for k in copying + problems if k[1]}

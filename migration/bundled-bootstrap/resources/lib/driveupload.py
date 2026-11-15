@@ -293,6 +293,9 @@ class Drive(object):
   # r53 (ISSUE-201): a streamed piece holds no memory and pays its round trips once, so it starts at 32 MB.
   chunks.current=min(chunks.limit,(32 if getattr(copy_to,'streams',False) else 8)*1024*1024)
   failures=0;pace=Pace()
+  # ISSUE-271: what worked on this link last time (a fresh copy after a Wi-Fi <-> cellular switch starts there).
+  link=_current_link()
+  chunks.current,pace.rate=LinkMemory.start(link,chunks.limit,chunks.current)
   while offset<size:
    if not keep_going():raise Stop()
    count=min(size-offset,chunks.minimum if slowdown.reason() else chunks.current)
@@ -325,12 +328,45 @@ class Drive(object):
    else:failures=0
    chunks.observe(count,elapsed,0)
    pace.observe(max(0,confirmed-offset),elapsed)
+   if confirmed>offset:LinkMemory.remember(link,chunks.current,pace.rate)
    _note('Drive copy native: %.1f MB piece in %.1f s (deadline %.0f s); confirmed %.1f%%'%(count/1048576,elapsed,deadline,100.0*confirmed/size))
    offset=confirmed;save();progress(offset,size);gate.after(elapsed,count,download=True)
   raise RuntimeError('Drive did not confirm the upload')
  def _done(self,path,sessions,save,body):
   sessions.pop(path,None);save()
   return json.loads(body or b'{}')
+
+class LinkMemory:
+ """ISSUE-271 (owner logs 4e5fb2dd / 18a4f9c7: after Wi-Fi to cellular the first pieces started at 32 MB with a 20 s
+ deadline and timed out; back on Wi-Fi they grew again from the cellular size): the piece size and the confirmed speed
+ that last worked on each link ('wifi', 'cellular'). A copy starts at them; a link never seen starts small on mobile data
+ (CELLULAR_START) and at the framework's size on Wi-Fi."""
+ CELLULAR_START=4*1024*1024
+ _seen={}
+ _lock=threading.Lock()
+ @classmethod
+ def remember(cls,link,size,rate):
+  if link in ('wifi','cellular') and size>0:
+   with cls._lock:cls._seen[link]=(int(size),float(rate or 0))
+ @classmethod
+ def start(cls,link,limit,default):
+  """(piece size, speed in bytes/s or 0) to start with on this link."""
+  with cls._lock:size,rate=cls._seen.get(link,(0,0.0))
+  if size:return max(256*1024,min(limit,size)),rate
+  if link=='cellular':return min(limit,cls.CELLULAR_START),0.0
+  return default,0.0
+ @classmethod
+ def clear(cls):
+  with cls._lock:cls._seen.clear()
+
+
+def _current_link():
+ try:
+  import netwatch
+  return netwatch.link()
+ except Exception:
+  return ''
+
 
 class Pace:
  """Owner log ec3b0956 (build 325): on a slow link (~0.1 MB/s a lane) 40 % of the pieces ran into the fixed 20 s

@@ -286,6 +286,9 @@ def umbrella_ready(p):
  Umbrella's own window: textbox 2001 (its text, hidden here), Window.Property(umbrella.*), percent."""
  R=lambda k:'$INFO[Window(home).Property(IOSReady.%s)]'%k
  ready='String.IsEqual(Window(home).Property(IOSReady.Ready),true)'
+ STAGED='!String.IsEmpty(Window(home).Property(IOSReady.Line))';UNSTAGED='String.IsEmpty(Window(home).Property(IOSReady.Line))'
+ STAGED_SLIDE='[%s + String.IsEmpty(Window(home).Property(IOSReady.Fill))]'%STAGED
+ NO_SLIDE='[%s | !String.IsEmpty(Window(home).Property(IOSReady.Fill))]'%UNSTAGED
  hidden='String.IsEqual(Window.Property(umbrella.isHidden),true) | String.IsEqual(Window.Property(umbrella.icononly),true)'
  W=p.WIDTH;w=W-2*p.SIDE;M=p.MEDIA
  card_h=520;card_y=p.HEIGHT-card_h-250
@@ -327,12 +330,21 @@ def umbrella_ready(p):
   # Kodi's progress control cannot read a window property, so the bar is 20 segments shown by Umbrella's percent.
   # DEC-036 / board 10: one thin bar (11 units). It follows Umbrella's percent once a source is known, and slides
   # while Umbrella is still looking.
-  p.image(40,368,w-80,11,M+'dot.png','33FFFFFF',border=6,extra='<visible>%s</visible>'%ready)+
+  # ISSUE-280 (owner-approved board S1, stream-opening-mockups.html): once the source is known the line says the step
+  # (umbrella_ready.stage: IOSReady.Line / Right / Fill / Slow). The bar fills by a real amount (Fill) or slides while
+  # nothing is measurable; Umbrella's own percent stays the fallback for a service that sets no line.
+  p.image(40,368,w-80,11,M+'dot.png','33FFFFFF',border=6,extra='<visible>%s + %s</visible>'%(ready,NO_SLIDE))+
   ''.join(p.image(40,368,max(11,(w-80)*k//20),11,M+'dot.png',BLUE,
-                  '<visible>%s + Integer.IsGreaterOrEqual(Window.Property(percent),%d)</visible>'%(ready,k*5),border=6) for k in range(1,21))+
-  slide_bar(M,40,368,w-80,extra='<visible>!%s</visible>'%ready)+
-  p.label(40,390,w-300,60,'Getting ready to play…','p_foot','FFD1D1D6')+
-  p.label(w-260,390,220,60,'$INFO[Window.Property(percent)]%','p_foot','FFD1D1D6','right','<visible>%s</visible>'%ready)+'</control>')
+                  '<visible>%s + [[%s + Integer.IsGreaterOrEqual(Window.Property(percent),%d)] | Integer.IsGreaterOrEqual(Window(home).Property(IOSReady.Fill),%d)]</visible>'%(
+                   ready,UNSTAGED,k*5,k*5),border=6) for k in range(1,21))+
+  slide_bar(M,40,368,w-80,extra='<visible>!%s | %s</visible>'%(ready,STAGED_SLIDE))+
+  p.label(40,390,w-300,60,'Getting ready to play…','p_foot','FFD1D1D6','left','<visible>%s</visible>'%UNSTAGED)+
+  p.label(w-260,390,220,60,'$INFO[Window.Property(percent)]%','p_foot','FFD1D1D6','right','<visible>%s + %s</visible>'%(ready,UNSTAGED))+
+  '<control type="textbox"><left>40</left><top>390</top><width>%d</width><height>60</height><font>p_foot</font><textcolor>FFD1D1D6</textcolor>'
+  '<label>$INFO[Window(home).Property(IOSReady.Line)]</label><visible>%s</visible></control>'%(w-300,STAGED)+
+  p.label(w-260,390,220,60,'$INFO[Window(home).Property(IOSReady.Right)]','p_foot','FFD1D1D6','right','<visible>%s</visible>'%STAGED)+
+  '<control type="textbox"><left>40</left><top>446</top><width>%d</width><height>70</height><font>p_cap</font><textcolor>%s</textcolor>'
+  '<label>$INFO[Window(home).Property(IOSReady.Slow)]</label><visible>%s</visible></control>'%(w-80,p.GREY,STAGED)+'</control>')
  cancel=('<control type="button" id="9001"><left>%d</left><top>%d</top><width>%d</width><height>140</height><label>Cancel</label>'
          '<font>p_btn</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
          '<texturefocus border="70" colordiffuse="FFFFFFFF">%sglass_150.png</texturefocus><texturenofocus border="70" colordiffuse="FFFFFFFF">%sglass_150.png</texturenofocus>'

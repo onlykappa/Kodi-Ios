@@ -65,18 +65,68 @@ def parse(text):
   out['Text']='\n'.join(lines)
  return out
 
-def watch(visible,read_text,set_property,clear_property,wait,interval=0.25):
+# ISSUE-280 (owner-approved board S1, docs/design/stream-opening-mockups.html): the line under the card's bar says which
+# step the open is on, with real numbers only. IOSReady.Line / Right / Fill (0-100, empty: the bar slides) / Slow.
+STAGE_KEYS=('Line','Right','Fill','Slow')
+TARGET_BLOCKS=3          # remote_media asks for the first two blocks and the last one (WARM_BLOCKS + 1)
+SLOW_AFTER=10            # seconds before the slow-source note may show
+SLOW_BELOW=1.5*1024*1024 # bytes per second under which the note says so
+
+def stage(provider,elapsed,linked,cache,since_link=None):
+ """The three approved stages. provider: 'AllDebrid' (the card's name); elapsed: seconds since the source was known;
+ linked: True once the debrid link arrived; cache: remote_media stats of the source Kodi reads ({} when none);
+ since_link: seconds since the link arrived (for the speed). Returns {Line, Right, Fill, Slow}."""
+ who=provider or 'the source'
+ out={'Line':'','Right':'%d s'%max(0,int(elapsed)),'Fill':'','Slow':''}
+ if not linked:
+  out['Line']='Getting the link from %s\u2026'%who
+  return out
+ size=int((cache or {}).get('block_size') or 0)
+ if cache and cache.get('kodi') and size:
+  target=TARGET_BLOCKS*size;have=min(int(cache.get('cached_blocks') or 0)*size,target)
+  if have<target:
+   mb=1024*1024;pct=int(100*have/target)
+   out.update(Line='Opening the video \u00b7 %d of %d MB'%(have//mb,target//mb),Right='%d%%'%pct,Fill=str(pct))
+  else:
+   out['Line']='Starting the video\u2026'
+  if elapsed>=SLOW_AFTER and since_link and since_link>=2 and have:
+   speed=have/since_link
+   if speed<SLOW_BELOW:out['Slow']='%s is sending it slowly right now (%.1f MB/s).'%(who,speed/(1024*1024))
+  return out
+ out['Line']='Starting the video\u2026'
+ return out
+
+def watch(visible,read_text,set_property,clear_property,wait,interval=0.25,linked=None,cache=None,clock=None):
  """While Umbrella's window is up, keep IOSReady.* in step with its text. Callables: visible() -> bool,
  read_text() -> str (textbox 2001), set_property(key, value) / clear_property(key) on the Home window,
- wait(seconds) -> True when Kodi is exiting."""
- last=None
+ wait(seconds) -> True when Kodi is exiting. ISSUE-280: linked() -> the current debrid link record (a string that
+ changes when Umbrella unlocks a link), cache() -> remote_media stats; with them the stage line is kept too."""
+ import time
+ clock=clock or time.monotonic
+ last=None;known=None;link_at=None;start_link=None;shown={}
  while not wait(interval if last is not None else 1.0):
   if not visible():
    if last is not None:
-    for key in KEYS:clear_property(PREFIX+key)
-    last=None
+    for key in KEYS+STAGE_KEYS:clear_property(PREFIX+key)
+    last=None;known=None;link_at=None;shown={}
    continue
+  if last is None and linked:
+   try:start_link=linked()
+   except Exception:start_link=None
   text=read_text() or ''
-  if text==last:continue
-  last=text
-  for key,value in parse(text).items():set_property(PREFIX+key,value)
+  if text!=last:
+   last=text;parts=parse(text)
+   for key,value in parts.items():set_property(PREFIX+key,value)
+   if parts['Ready']=='true' and known is None:known=clock()
+  if known is None or not linked:continue
+  try:
+   now=clock()
+   if link_at is None and linked()!=start_link:link_at=now
+   stats={}
+   if link_at is not None and cache:
+    try:stats=cache() or {}
+    except Exception:stats={}
+   values=stage(parse(last)['Provider'],now-known,link_at is not None,stats,None if link_at is None else now-link_at)
+   for key,value in values.items():
+    if shown.get(key)!=value:set_property(PREFIX+key,value);shown[key]=value
+  except Exception:pass

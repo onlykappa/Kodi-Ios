@@ -82,6 +82,7 @@ h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
 .asheet .o{border-top:1px solid var(--sep);padding:13px;text-align:center;font-size:16px;color:var(--blue-text)}
 .asheet .o.d{color:var(--red)}
 .asheet .c{background:rgba(44,44,46,.98);border-radius:14px;padding:13px;text-align:center;font-size:16px;font-weight:700;color:var(--blue-text)}
+.seg2.five div{font-size:11.5px;padding:7px 0}
 .dimall{position:absolute;inset:0;background:rgba(0,0,0,.55)}
 .alert{position:absolute;left:34px;right:34px;top:260px;background:rgba(44,44,46,.98);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.7)}
 .alert .h{padding:16px 14px 12px;text-align:center}.alert .h b{display:block;font-size:16px}.alert .h span{display:block;color:var(--grey);font-size:12.5px;margin-top:4px;line-height:1.35}
@@ -153,10 +154,49 @@ h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
  </div></div><div class="cap"><b>D · Empty:</b> says what's empty and what would appear (§6).</div></div>
 </div></section>
 
+<section class="board"><div class="n">E · PREPARATION PROBLEMS (P4)</div><h2>Videos that could not be made ready for AirPlay, in the same page</h2>
+<p>Owner (build 361): Naruto "says there are problems" on its show page and in Library status, but Download problems did not list it. That page showed only AllDebrid → Drive copy problems. This adds the other kind: a video that is on Google Drive and plays in Kodi, but could not be prepared for Kodi and AirPlay. Same page, same rows, one new group and one new filter. No new colours, radii or button styles.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3 style="font-size:26px">Download problems</h3>
+  <div class="sum"><div class="row"><div><b style="color:var(--blue-text)">2</b><span>Try again</span></div><div><b style="color:var(--orange)">1</b><span>New source</span></div><div><b style="color:var(--orange)">8</b><span>Not ready</span></div><div><b>5</b><span>Cancelled</span></div></div></div>
+  <div class="seg2 five"><div>All</div><div>Retry</div><div>Source</div><div class="on">Prepare</div><div>Cancelled</div></div>
+  <div class="sh">Preparing for Kodi and AirPlay · 8</div>
+  <div class="lst">
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#7a4b1e,#25160a)"></div><div class="t"><b>Naruto Shippuuden · S1 E9</b><span>Episode · 0.3 GB</span><em style="color:var(--orange)">DVD subtitles can't be kept</em></div><div class="act">Find</div></div>
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#7a4b1e,#25160a)"></div><div class="t"><b>Naruto Shippuuden · S1 E10</b><span>Episode · 0.2 GB</span><em style="color:var(--orange)">DVD subtitles can't be kept</em></div><div class="act">Find</div></div>
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#7a4b1e,#25160a)"></div><div class="t"><b>Naruto Shippuuden · S1 E11</b><span>Episode · 0.2 GB</span><em style="color:var(--orange)">DVD subtitles can't be kept</em></div><div class="act">Find</div></div>
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#245e57,#0b1d1b)"></div><div class="t"><b>Fall 2: Deadpoint</b><span>Movie · 2026</span><em style="color:var(--orange)">Stopped at 22 %</em></div><div class="act">Retry</div></div>
+  </div>
+  <div class="foot">These are on Google Drive and play in Kodi. "Prepared" only means fast to open and ready for AirPlay.</div>
+  <div class="btn2">Try Again 1</div>
+ </div></div><div class="cap"><b>E1 · The new group:</b> the summary gets a fourth tile ("Not ready"); the filter gets "Prepare". Colours follow the page's rule: orange can still change, red needs a new source. A video that plays as it is never uses red.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3 style="font-size:26px">Download problems</h3>
+  <div class="lst"><div class="pb2"><div class="post" style="background:linear-gradient(160deg,#7a4b1e,#25160a)"></div><div class="t"><b>Naruto Shippuuden · S1 E9</b><span>Episode · 0.3 GB</span><em style="color:var(--orange)">DVD subtitles can't be kept</em></div><div class="act">Find</div></div></div>
+  <div class="dimall"></div>
+  <div class="asheet"><div class="box"><div class="hd"><b>Naruto Shippuuden · S1 E9</b><span>It has DVD picture subtitles an MP4 can't keep, so it isn't made ready for AirPlay. Nothing was lost: it is on Google Drive and still plays in Kodi.</span></div>
+   <div class="o">Find Another Version</div><div class="o">Try Again</div><div class="o">Keep as It Is</div></div>
+   <div class="c">Cancel</div></div>
+ </div></div><div class="cap"><b>E2 · A preparation row's sheet:</b> Find Another Version (the picker prefers a version that needs nothing), Try Again (puts it back in the queue; says so if it can't help yet), Keep as It Is (stops it showing). No red: nothing is deleted.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3 style="font-size:26px">Library status</h3>
+  <div class="status"><div class="t"><b>25 of 57 ready</b><span>about 31 min to go</span></div></div>
+  <div class="sh">Needs you</div>
+  <div class="grp">
+   <div class="pr"><div class="t"><b>8 can't be made ready</b><span>They play in Kodi · DVD picture subtitles</span></div><div class="v" style="color:var(--blue-text)">Review ›</div></div>
+  </div>
+  <div class="foot">Review opens Download problems on the Prepare filter.</div>
+ </div></div><div class="cap"><b>E3 · The way in:</b> the Library status count and the show page's problem count both open this page, so a number you can see always has a list behind it.</div></div>
+</div></section>
+
 <div class="notes"><h3>Notes</h3><ul>
 <li>Kodi skin XML, drawn with the existing helpers: Settings grouped rows and section headers, the Notifications segmented control, poster tiles from transfer_artwork, the white primary capsule and red text action. No new colours, radii or button styles.</li>
 <li>Groups come from debrid_drive.problems(): "Can try again" (network, AllDebrid busy), "Need a new source" (no video, blocked, dead torrent), "Cancelled". Reasons are rewritten in plain words; the raw error stays in kodi.log.</li>
 <li>Titles: the job title, else the cleaned file name, else "Unnamed download" (never a hash). Copies already finished from another source are not listed and are never retried.</li>
+<li>Board E (P4, preparation problems): the Prepare filter and group come from the preparation queue (blocked or failed jobs), the same source Library status and the show page count, so the numbers always agree.</li>
 <li>Numbers and names are examples; artwork is placeholder colour.</li>
 </ul></div>
 </body></html>

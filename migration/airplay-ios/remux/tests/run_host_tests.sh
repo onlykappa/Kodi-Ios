@@ -15,6 +15,15 @@ fi
 if [[ ! -f "$WORK/fixtures/dvd.idx" || ! -f "$WORK/fixtures/dvd.sub" ]]; then
   python3 -B "$HERE/make_pgs.py" "$WORK/fixtures/dvd.idx" --vobsub
 fi
+# r54: DVD subtitle and second-video fixtures (older fixture folders do not have them).
+if [[ ! -f "$WORK/fixtures/h264_dvdsub.mkv" || ! -f "$WORK/fixtures/h264_second_video.mkv" || ! -f "$WORK/fixtures/h264_bigger_second_video.mkv" ]]; then
+  F=(ffmpeg -nostdin -hide_banner -loglevel error -y)
+  "${F[@]}" -i "$WORK/fixtures/h264_aac_srt.mkv" -i "$WORK/fixtures/dvd.idx" -map 0:v -map 0:a -map 1:s -c copy -metadata:s:s:0 language=eng "$WORK/fixtures/h264_dvdsub.mkv"
+  "${F[@]}" -i "$WORK/fixtures/h264_aac_srt.mkv" -f lavfi -i testsrc2=size=160x90:rate=24:duration=20 -map 0:v -map 0:a -map 1:v \
+    -c:v:0 copy -c:a copy -c:v:1 libx264 -preset ultrafast -g 48 -pix_fmt yuv420p "$WORK/fixtures/h264_second_video.mkv"
+  "${F[@]}" -i "$WORK/fixtures/h264_aac_srt.mkv" -f lavfi -i testsrc2=size=640x360:rate=24:duration=20 -map 0:v -map 0:a -map 1:v \
+    -c:v:0 copy -c:a copy -c:v:1 libx264 -preset ultrafast -g 48 -pix_fmt yuv420p "$WORK/fixtures/h264_bigger_second_video.mkv"
+fi
 ASS="$(cd "${3:-$FF/../asshost}" && pwd)"
 if [[ ! -f "$WORK/fixtures/coalesced.mp4" ]]; then
   # A prepared movie's storage fragment can contain many short GOPs. Filler makes socket backpressure and

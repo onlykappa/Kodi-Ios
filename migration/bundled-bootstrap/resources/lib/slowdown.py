@@ -30,7 +30,12 @@ STRAIN_BYTES = 256 * 1024
 STRAIN_HOLD = 60
 MAX_REST = 8.0            # never rest longer than this at once (a Stop or Pause is noticed within it)
 WORDS = {'airplay': 'Slower while AirPlay plays', 'video': 'Slower while a video plays', 'buffering': 'Waiting while the video buffers'}
-SERVED = re.compile(r'^(?:GET|HEAD) /\S+ (?:bytes=\S+ )?(\d{3}) (\d+) B (\d+) ms')
+# ISSUE-261: a write the TV gave up on is logged with a minus sign ("-200 786432 B 11995 ms: Receiver write failed").
+SERVED = re.compile(r'^(?:GET|HEAD) /\S+ (?:bytes=\S+ )?(-?\d{3}) (\d+) B (\d+) ms')
+# Apple's player saying the TV went without a segment, and KodiAirPlay's own note that the TV waits for one.
+TV_STARVED = ('Media file not received', 'No response for media file', 'the TV is waiting for a video segment')
+STRAIN_WAIT = 30.0        # ISSUE-261: while the TV is short of the movie, background work waits (at most this per piece)
+STRAIN_CAP = 0.25 * 1024 * 1024   # then a background download keeps under this until the TV keeps up again
 
 _lock = threading.Lock()
 _state = {'reason': lambda: '', 'cached': '', 'at': -10.0, 'strain_until': 0.0, 'watched': False}
@@ -133,10 +138,14 @@ def note_served(lines, now=None):
     now = time.time() if now is None else now
     hit = False
     for line in lines or ():
-        m = SERVED.match(str(line))
+        line = str(line)
+        if any(word in line for word in TV_STARVED):
+            hit = True
+            continue
+        m = SERVED.match(line)
         if not m:
             continue
-        status, size, ms = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        status, size, ms = abs(int(m.group(1))), int(m.group(2)), int(m.group(3))
         if status in (200, 206) and size >= STRAIN_BYTES and ms >= STRAIN_MS:
             hit = True
     if hit:
@@ -183,8 +192,18 @@ class Gate(object):
             why = self.why()
             if why == 'buffering':
                 why = 'video'
+        # ISSUE-261 (owner log dd13eb14, build 406: an Apple TV spun on a Drive movie for 2 minutes; the phone sent it
+        # seg0 at about 1 Mbit/s while two AllDebrid copies and a preparation shared the Wi-Fi): while the TV is short of
+        # the movie every worker waits (as for Kodi's buffer), then goes on slowly until the TV keeps up again.
+        starved = why == 'airplay' and strained(self.now() if self.now else None)
+        if starved:
+            waited = 0.0
+            while waited < STRAIN_WAIT and self.keep_going() and self.why() == 'airplay' and strained(self.now() if self.now else None):
+                self.sleep(1.0)
+                waited += 1.0
+            self.rested += waited
         wait = rest_for(seconds, share(why, self.now() if self.now else None))
-        cap = CAP.get(why) if download else None
+        cap = (STRAIN_CAP if starved else CAP.get(why)) if download else None
         if cap and nbytes > 0:
             wait = max(wait, min(4 * MAX_REST, nbytes / cap - seconds))
         left = wait

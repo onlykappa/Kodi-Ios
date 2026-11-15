@@ -50,7 +50,9 @@ def list_items(view, filter_key='all'):
     """[{kind: row|folder|foot, label, label2, props}] for list 9300, in order. One layout draws them all (Kodi's
     conditional item layouts follow global conditions, not each item, so the kind is a property its parts show by)."""
     rows = view['rows']
-    keys = ('downloading','waiting','ready','kept') if filter_key == 'all' else SHOWN.get(filter_key, ())
+    # DEC-047 board A (owner, 2026-11-14: "we have a section for it elsewhere so it can be removed entirely"): ready videos
+    # are no longer listed here; Library › Movies and TV Shows list them with their quality and state.
+    keys = ('downloading','waiting','kept') if filter_key == 'all' else SHOWN.get(filter_key, ()) if filter_key != 'ready' else ()
     out = []
     headings = dict(SECTIONS, preparing='WORKING ON NOW', downloading='DOWNLOADING TO GOOGLE DRIVE', waiting='UP NEXT')
     for key in keys:
@@ -131,11 +133,18 @@ def segments(counts, width, gap):
     return out
 
 
-def page_properties(view, checking=False):
-    """Window properties for the page's top: subtitle, ring, headline and legend."""
+def page_properties(view, checking=False, index=None):
+    """Window properties for the page's top: subtitle, ring, headline and legend. index: the Library index (DEC-052):
+    "84 of 87 ready" and the Ready / Working / Kept tiles are its counts, the numbers every Library page shows."""
     rows = view['rows']
     counts = {'ready': view['ready'], 'working': len(rows['preparing'])+len(rows['downloading']),
               'next': len(rows['waiting']), 'kept': view['kept']}
+    if (index or {}).get('videos'):
+        import library_index
+        c = library_index.counts(index)
+        counts = {'ready': c['ready'], 'working': max(0, c['working'] - len(rows['waiting'])), 'next': len(rows['waiting']),
+                  'kept': c['kept']}
+        view = dict(view, ready=c['ready'], total=c['total'], pct=round(100 * c['ready'] / max(1, c['total'])))
     total = sum(counts.values())
     eta = sum(float(r.get('eta_s') or 0) for group in rows.values() for r in group)
     props = {'sub': 'Kodi Downloads on Google Drive · '+('checking now…' if checking else view['checked']),
@@ -314,7 +323,8 @@ def details(row, view):
         if live['kind']=='copy' and int((model or {}).get('copies_waiting') or 0)>1:
             actions.append(('Cancel All','cancel_all'))
         sheet.update(status=live['line'], step=live['step'], bar=str(live.get('pct') or 0), bar_tint=live['tint_now'],
-                     card='conv' if live['kind'] in ('conv','repack') else 'up' if live['kind'] in ('copy','upload') else 'down',
+                     card='conv' if live['kind'] in ('conv','repack') else ('up' if live['kind'] in ('copy','upload') else 'down'),
+                     live_job=str(live.get('job') or ''),
                      actions=actions)
     probe = row.get('probe') or {}
     picture, codec = picture_text(probe), str(probe.get('codec') or '').upper()
