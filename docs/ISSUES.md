@@ -4918,6 +4918,22 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-329 — Settings › Library: four rows the owner no longer needs (owner screenshot, 2026-11-15) — done in code; rig-checked
+
+- **Request:** "remove check drive for problems and download problems, as all problems will show elsewhere … we can also
+  remove scan iphone files with refresh library since there is a refresh in the status".
+- **Checked first:** the service already scans Kodi Downloads on the iPhone by itself; Library status and the Movies/TV
+  pages have Refresh; Download problems opens from Notifications ("Open Download problems" in its help). Check Drive for
+  problems was reachable only from Settings.
+- **Fix:** the iPhone Files section, Refresh Library, Check Drive for problems and Download problems left the page;
+  Library now holds Movies and TV Shows, and focus starts on Movies. So that Drive problems still "show elsewhere",
+  the service now posts one Notifications message ("Problems on Google Drive", tap to review the same list) when it
+  lists Drive again and finds problems it has not reported before (`library_delete.notify_drive_problems`). The
+  scripts stay (the add-on's own settings and the service use them). Lost: choosing another folder to scan from Settings.
+- **Test:** test_settings_page (rows gone, Movies first, navigation), test_settings_search, test_library_files
+  (test_drive_problem_notice: one message, not repeated, new again after a fix), test_debrid_drive.
+- **Rig:** Settings › Library rendered in the desktop Kodi rig: three groups, nothing cut off. Needs a look on the phone.
+
 ## ISSUE-326 — AirPlay of a prepared movie slow to start, first try failed (owner log ebc9c063, build 486) — fixed in code; needs phone retest
 
 - **Seen:** casting a prepared (Drive copy) movie took long to start and the first try failed on the Roku; the log shows

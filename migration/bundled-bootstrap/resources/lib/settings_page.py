@@ -59,7 +59,7 @@ def textures(p):
 # Rows: (id, label, actions joined by \x00, glyph, tint, value, badge condition)
 def R(id,text,actions,glyph='',tint=SILVER,value='',badge=''):return (id,text,actions,glyph,tint,value,badge)
 CUSTOM_PAGE='SetProperty(Settings.Page,custom,%s)\x00SetFocus(9401)\x00RunScript(service.kodi.ios.bootstrap,customise_counts)'%WINDOW
-LIBRARY_PAGE='SetProperty(Settings.Page,library,%s)\x00SetFocus(9451)'%WINDOW
+LIBRARY_PAGE='SetProperty(Settings.Page,library,%s)\x00SetFocus(9453)'%WINDOW
 LIBRARY_SCAN='RunScript(service.kodi.ios.bootstrap,library_scan)'
 LIBRARY_STATUS='RunScript(service.kodi.ios.bootstrap,library_status)'
 LIBRARY_REFRESH='RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&all=1)'
@@ -110,14 +110,11 @@ CUSTOM=[
   'TMDb Helper fills the Home rows. Sign in to Trakt from Accounts.'),
 ]
 LIBRARY=[
- ('iPhone Files',[R(9451,'Scan iPhone files',LIBRARY_SCAN,'magnifying-glass.png',BLUE)],
-  'Find movies and shows in Kodi Downloads or a folder you choose. Upload missing files to Google Drive. Remove phone copies only after their size and checksum match Drive.'),
- ('Library',[R(9452,'Refresh Library',LIBRARY_REFRESH,'arrows-rotate.png',BLUE),
-  R(9453,'Movies','RunScript(service.kodi.ios.bootstrap,library_manager,movie)','film.png',ORANGE),
-  R(9454,'TV Shows','RunScript(service.kodi.ios.bootstrap,library_manager,tv)','tv.png',PURPLE),
-  R(9458,'Check Drive for problems','RunScript(service.kodi.ios.bootstrap,library_manager,check)','magnifying-glass.png',ORANGE),
-  # ISSUE-198: copies that ended, with their reason; Retry All / Clear.
-  R(9459,'Download problems','RunScript(service.kodi.ios.bootstrap,copy_problems)','triangle-exclamation.png',RED)],
+ # ISSUE-329 (owner, 2026-11-15): Scan iPhone files, Refresh Library, Check Drive for problems and Download problems
+ # went: the service scans Kodi Downloads by itself, Library status and the Movies/TV pages have Refresh, and problems
+ # reach Notifications (Download problems from its help, Drive problems as their own message).
+ ('Library',[R(9453,'Movies','RunScript(service.kodi.ios.bootstrap,library_manager,movie)','film.png',ORANGE),
+  R(9454,'TV Shows','RunScript(service.kodi.ios.bootstrap,library_manager,tv)','tv.png',PURPLE)],
   'Includes completed downloads on this iPhone and in Google Drive.'),
  ('Kodi and AirPlay',[R(9457,'Library status',LIBRARY_STATUS,'file-waveform.png',PURPLE)],
   'Every movie and show in Google Drive › Kodi Downloads is prepared once, so seeking on Kodi and AirPlay never waits. Check now to see what is ready, waiting or paused.'),
@@ -349,9 +346,9 @@ def custom_list(p):
 
 def library_list(p):
  moves=nav([(r[0],'') for _,rows,_ in LIBRARY for r in rows]);body=''
- moves[9451]=([('',9001)],moves[9451][1])
+ moves[9453]=([('',9001)],moves[9453][1])   # ISSUE-329: Movies is the first row
  for title,rows,note in LIBRARY:
-  body+=section(p,title)+card(p,rows,moves)+footer(p,note,210 if title=='iPhone Files' else 130)+spacer(GAP-30)
+  body+=section(p,title)+card(p,rows,moves)+footer(p,note,130)+spacer(GAP-30)
  return body+spacer(160)
 
 # Settings home: the header sits lower so the back circle and title clear the status bar like Search's band
@@ -386,13 +383,13 @@ def settings_window(p,original):
        lst(9350,ON_TABS,switch_list(p,TABS_PAGE_ROWS),SETTINGS_TOP)+lst(9360,ON_INFO,switch_list(p,INFO),SETTINGS_TOP)+
        lst(9370,ON_VIEWS,switch_list(p,VIEWS),SETTINGS_TOP)+
        header(p,back,[('Settings',ON_ROOT),('Customisation',ON_CUSTOM),('Library',ON_LIBRARY)]+[(t,c) for _,c,_,_,t in SUBPAGES],SETTINGS_Y,
-              '<ondown condition="%s">9300</ondown><ondown condition="%s">9401</ondown><ondown condition="%s">9451</ondown>'%(ON_ROOT,ON_CUSTOM,ON_LIBRARY)+
+              '<ondown condition="%s">9300</ondown><ondown condition="%s">9401</ondown><ondown condition="%s">9453</ondown>'%(ON_ROOT,ON_CUSTOM,ON_LIBRARY)+
               ''.join('<ondown condition="%s">%d</ondown>'%(c,f) for _,c,f,_,_ in SUBPAGES))+'</controls>')
  extra=('<onload condition="Window.Previous(home)">ClearProperty(Settings.Page,%s)</onload>'%WINDOW+
         '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>')
  # Back from a category opened on the Customisation page: the home rows are hidden, so focus that page instead.
  extra+='<onload condition="%s">SetFocus(9401)</onload>'%ON_CUSTOM
- extra+='<onload condition="%s">SetFocus(9451)</onload>'%ON_LIBRARY
+ extra+='<onload condition="%s">SetFocus(9453)</onload>'%ON_LIBRARY
  extra+='<onload condition="%s">%s</onload>'%(ON_CUSTOM,COUNTS)
  extra+=''.join('<onload condition="%s">SetFocus(%d)</onload>'%(c,f) for _,c,f,_,_ in SUBPAGES)
  extra+='<onload condition="%s">%s</onload>'%(ON_TABS,COUNTS)   # back from a tab's rows: its count again

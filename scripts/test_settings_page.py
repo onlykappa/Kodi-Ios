@@ -89,17 +89,19 @@ class SettingsPages(unittest.TestCase):
   root=self.read('Settings.xml');button=[c for c in root.iter('control') if c.get('id')=='9001'][0]
   actions=[(o.get('condition'),o.text) for o in button.findall('onclick')]
   self.assertEqual(actions[-1][1],'Action(Back)');self.assertTrue(actions[0][1].startswith('ClearProperty(Settings.Page'))
- def test_library_page_has_scan_refresh_and_fresh_movie_tv_routes(self):
+ def test_library_page_has_movie_tv_and_status_only(self):
+  # ISSUE-329 (owner, 2026-11-15): Scan iPhone files, Refresh Library, Check Drive for problems and Download problems went.
   root=self.read('Settings.xml');settings=portrait.settings_page
-  self.assertEqual(self.clicks(root,9116),['SetProperty(Settings.Page,library,10004)','SetFocus(9451)'])
-  self.assertEqual(self.clicks(root,9451),['RunScript(service.kodi.ios.bootstrap,library_scan)'])
-  self.assertEqual(self.clicks(root,9452),['RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&all=1)'])
+  self.assertEqual(self.clicks(root,9116),['SetProperty(Settings.Page,library,10004)','SetFocus(9453)'])
   self.assertEqual(self.clicks(root,9453),['RunScript(service.kodi.ios.bootstrap,library_manager,movie)'])
   self.assertEqual(self.clicks(root,9454),['RunScript(service.kodi.ios.bootstrap,library_manager,tv)'])
+  for gone in ('9451','9452','9458','9459'):self.assertIsNone(root.find(".//control[@id='%s']"%gone),gone)
   library=root.find(".//control[@id='9320']")
   self.assertEqual(library.findtext('visible'),settings.ON_LIBRARY)
   text=' '.join(n.text or '' for n in library.iter('label'))
-  self.assertIn('size and checksum match Drive',text)
+  for gone in ('Scan iPhone files','Refresh Library','Check Drive for problems','Download problems','size and checksum match Drive'):
+   self.assertNotIn(gone,text)
+  self.assertIn('Library status',text)
   self.assertIn('folders made available to the app',text)
  def test_library_back_and_header_navigation_return_to_visible_controls(self):
   root=self.read('Settings.xml');settings=portrait.settings_page
@@ -107,11 +109,11 @@ class SettingsPages(unittest.TestCase):
   actions=[(o.get('condition'),o.text) for o in back.findall('onclick')]
   self.assertIn((settings.ON_LIBRARY,'ClearProperty(Settings.Page,10004)'),actions)
   self.assertIn((settings.ON_LIBRARY,'SetFocus(9116)'),actions)
-  self.assertIn((settings.ON_LIBRARY,'9451'),[(o.get('condition'),o.text) for o in back.findall('ondown')])
-  first=root.find(".//control[@id='9451']")
+  self.assertIn((settings.ON_LIBRARY,'9453'),[(o.get('condition'),o.text) for o in back.findall('ondown')])
+  first=root.find(".//control[@id='9453']")
   self.assertEqual(first.findtext('onup'),'9001')
-  self.assertEqual(first.findtext('ondown'),'9452')
-  self.assertIn((settings.ON_LIBRARY,'SetFocus(9451)'),[(o.get('condition'),o.text) for o in root.findall('onload')])
+  self.assertEqual(first.findtext('ondown'),'9454')
+  self.assertIn((settings.ON_LIBRARY,'SetFocus(9453)'),[(o.get('condition'),o.text) for o in root.findall('onload')])
  def test_native_addon_settings_expose_the_same_scan_and_refresh_actions(self):
   root=ET.parse(BOOT/'resources/settings.xml').getroot();library=root.find(".//category[@id='library']")
   self.assertIsNotNone(library)

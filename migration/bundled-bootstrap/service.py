@@ -589,6 +589,13 @@ def drive_uploads(monitor,home,profile):
     if not accounts.get_accounts():continue
     done=drivelibrary.refresh_stale(state_dir)
     if done:log('Library lists refreshed from Google Drive: %s'%', '.join(done))
+    if any(slot.startswith('tv:') for slot in done):   # ISSUE-329: Drive problems reach Notifications
+     try:
+      import library_delete
+      library_delete.notify_drive_problems(drivelibrary.load_json(os.path.join(state_dir,'drive-library.json'),{}),
+                                           os.path.join(state_dir,'drive-problems-seen.json'),
+                                           lambda title,text,action:notices.add(profile,'problem',title,text,action))
+     except Exception as error:diagnostics.log_exception(xbmc,'drive_problems',error)
     drive_health.update(ok=True,checked=time.time(),error='')
    except (driveupload.SignedOut,driveupload.RefreshBusy):monitor.waitForAbort(60)   # the uploads loop tells the owner
    except Exception as error:

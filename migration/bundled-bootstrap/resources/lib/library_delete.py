@@ -154,6 +154,35 @@ def items_from_rows(rows, upscale=None, title=None):
     return out
 
 
+DRIVE_CHECK = 'RunScript(service.kodi.ios.bootstrap,library_manager,check)'
+
+
+def notify_drive_problems(cache, seen_path, add):
+    """ISSUE-329 (owner, 2026-11-15: "remove check drive for problems ... as all problems will show elsewhere"): after the
+    service lists Drive again, problems not reported before become one Notifications message whose tap opens the
+    same list Settings › Library › Check Drive for problems used to open. seen_path keeps the ids already reported;
+    add(title, text, action) records the message. Returns how many are new."""
+    import json
+    found = drive_problems(cache)
+    ids = sorted(str(i['id']) for i in found)
+    try:
+        with open(seen_path, encoding='utf-8') as f:
+            seen = set(json.load(f))
+    except (OSError, ValueError):
+        seen = set()
+    new = [i for i in ids if i not in seen]
+    if new:
+        n = len(found)
+        add('Problems on Google Drive', '%d item%s to tidy: films saved as episodes, episodes saved twice or empty '
+            'download folders. Tap to review.' % (n, '' if n == 1 else 's'), DRIVE_CHECK)
+    try:
+        with open(seen_path, 'w', encoding='utf-8') as f:
+            json.dump(ids, f)
+    except OSError:
+        pass
+    return len(new)
+
+
 def drive_problems(cache):
     """'Check Drive for problems' (owner, 2026-11-13): what older builds left on Drive, from the saved Library listing
     (drive-library.json, no network), as select-list items with the reason in their grey line:

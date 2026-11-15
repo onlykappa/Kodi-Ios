@@ -458,7 +458,9 @@ class DownloadProblemsPage(unittest.TestCase):
   self.assertEqual(actions,['find','retry','ignore','remove']);self.assertEqual(spec['heading'],'The Lorax')
   self.assertEqual(cp.sheet(dict(found[3],why='Cancelled',group='cancelled'))[1],['retry','ignore','remove'])
   self.assertEqual([r.get('glyph') for r in spec['rows'] if r.get('tint')],['eye-slash.png','trash.png'])   # no bare red square
-  self.assertIn("R(9459,'Download problems','RunScript(service.kodi.ios.bootstrap,copy_problems)'",(root/'resources/lib/settings_page.py').read_text())
+  # ISSUE-329: Download problems opens from Notifications (its help's "Open Download problems"), not Settings.
+  self.assertNotIn("'Download problems'",(root/'resources/lib/settings_page.py').read_text())
+  self.assertIn("'problems': 'RunScript(service.kodi.ios.bootstrap,copy_problems)'",(root/'resources/lib/notice_help.py').read_text())
   self.assertIn("'copy_problems'",(root/'default.py').read_text())
  def test_dont_show_again_hides_a_problem_until_it_fails_another_way(self):
   # Owner (2026-11-14, screenshot of Naruto S1 E30): "clears it for good and only will show up if there is a different issue".
