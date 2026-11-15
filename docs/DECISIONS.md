@@ -472,5 +472,8 @@ which grows one approved page at a time and is what the code is built from.
   **Finished today** row. The tiles follow the Search category tiles.
 - Nothing live: Live Now goes grey and says when the next game starts; it still opens. Updating: the same shape, small lines
   say so. Can't load: plain words and one "Try again" button; details go to the log.
-- Not decided yet: the pages inside each tag (Live Now, Upcoming, Leagues, a league, a game), which add-ons feed the section,
-  and the tag order. Each page is mocked up and approved before it is coded.
+- Owner (2026-11-15): every sports add-on will feed Sports eventually (The Loop, Loop Guide, Loop TV, the Loop Sports Hub and
+  the others); the foundation (add-on access and the data behind the page) is coded by ChatGPT, not in the UI rounds. What
+  the approved screens need from it is in [sports-landing-data.md](design/sports-landing-data.md).
+- Not decided yet: the pages inside each tag (Live Now, Upcoming, Leagues, a league, a game) and the tag order (as drawn:
+  Live Now, Upcoming, Leagues). Each page is mocked up and approved before it is coded.

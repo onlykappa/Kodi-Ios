@@ -6,6 +6,8 @@ The owner approved option A (tiles) and its can't-load state after viewing the m
 Recorded as DEC-054 and in [docs/design/sports-approved-pages.html](design/sports-approved-pages.html), which gains one
 page per round (next: Live Now, Upcoming, Leagues, a league, a game). Still mockups only; no app code. PR #33 holds the
 round-1 options.
+Owner: all sports add-ons will feed Sports eventually; ChatGPT codes the foundation. What the landing page needs from it:
+[design/sports-landing-data.md](design/sports-landing-data.md).
 
 ## Sports: landing page mockups, round 1 — 2026-11-15
 
