@@ -1548,6 +1548,20 @@ static double prepared_longest;
 // index") but AirPlay said "no usable fragment index" and gave the TV the 168 MB MP4 itself, which the TV read for 12 s
 // and refused. One entry out of order rejected the whole index (preparations that resumed write it from both runs).
 // Entries are now sorted by offset and only the ones that do not run forward are dropped; the reason is logged.
+// ISSUE-337: whether the prepared file is fragmented (a moof follows its moov). A plain MP4 with its moov in front
+// plays well as it is; only a fragmented one without a usable index is read fragment by fragment by the TV.
+static int prepared_fragmented(void) {
+    int64_t at=0;
+    for(int k=0;k<6 && at+8<=S.prepared_size;k++) {
+        uint8_t h[16];if(prepared_read_all(at,h,8))return 0;
+        uint64_t size=AV_RB32(h);
+        if(size==1){if(prepared_read_all(at,h,16))return 0;size=AV_RB64(h+8);}
+        if(!memcmp(h+4,"moof",4))return 1;
+        if(!memcmp(h+4,"mdat",4) || size<8)return 0;
+        at+=(int64_t)size;
+    }
+    return 0;
+}
 static int frag_by_offset(const void *a,const void *b) {
     int64_t x=((const prep_frag *)a)->offset,y=((const prep_frag *)b)->offset;return x<y?-1:x>y;
 }
@@ -1778,7 +1792,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         if(indexed && prepared_longest>limit) {
             log_line("prepared: fragments run up to %.1f s; serving six-second segments instead",prepared_longest);
             segmented=1;
-        } else if(!indexed && S.prepared_size>0) {
+        } else if(!indexed && S.prepared_size>0 && prepared_fragmented()) {
             // ISSUE-337: without its index the TV would read the whole MP4 fragment by fragment and give up.
             log_line("prepared: no usable fragment index; serving six-second segments instead of the MP4 itself");
             segmented=1;

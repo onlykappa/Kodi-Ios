@@ -4930,8 +4930,9 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   (2) the first failure left Apple's player itself failed (AVPlayerStatusFailed), which cannot be used again, and the
   restart put the converted stream into that same player.
 - **Fix:** (1) entries are sorted by offset and only those that do not run forward are dropped; why an index is
-  unusable is logged; a prepared file without a usable index goes as six-second segments (picture copied), never as the
-  MP4 itself. (2) A restart replaces a failed player with a new one of the same settings (every watcher follows it).
+  unusable is logged; a fragmented prepared file without a usable index goes as six-second segments (picture copied),
+  never as the MP4 itself (a plain MP4 with its moov in front still plays as it is: CI run 43729474040 caught the first
+  version sending those to segments too). (2) A restart replaces a failed player with a new one of the same settings (every watcher follows it).
 - **Test:** C host test `test_prepared_index_repairs` (a copy with two index entries swapped, and one without an index:
   both served in segments covering the whole film, each logs why); test_airplay_source_stall (wiring). The player
   replacement runs only on the phone.

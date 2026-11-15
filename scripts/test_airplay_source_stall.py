@@ -36,6 +36,7 @@ class QuietConnection(unittest.TestCase):
   # ISSUE-337 (owner log d8524f8d): "no usable fragment index; Apple's player gets the MP4 itself", then -11819.
   self.assertIn('qsort(fr,(size_t)n,sizeof *fr,frag_by_offset);',REMUX)
   self.assertIn('serving six-second segments instead of the MP4 itself',REMUX)
+  self.assertIn('!indexed && S.prepared_size>0 && prepared_fragmented()',REMUX)
   self.assertNotIn('if(n && (o<=fr[n-1].offset || t<fr[n-1].time))goto end;',REMUX)
   objc=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('__block AVPlayer *player = [AVPlayer playerWithURL:address];',objc)

@@ -2204,14 +2204,15 @@ static int write_variant(const char *from,const char *to,int mode) {
     if(!b || fread(b,1,(size_t)n,f)!=(size_t)n){fclose(f);free(b);return -1;}fclose(f);
     if(n<16 || memcmp(b+n-12,"mfro",4)){free(b);return -1;}
     uint32_t mfra=AV_RB32(b+n-4);long at=n-(long)mfra;
-    if(mode==1) {   // swap the first two entries of the first tfra
+    if(mode==1) {   // the first entry of the first tfra claims a later time than the second (out of order)
         for(long k=at+8;k+8<n;) {
             uint32_t size=AV_RB32(b+k);if(size<8)break;
             if(!memcmp(b+k+4,"tfra",4)) {
                 int version=b[k+8];uint32_t lengths=AV_RB32(b+k+16),count=AV_RB32(b+k+20);
                 int entry=(version==1?16:8)+(int)(((lengths>>4)&3)+((lengths>>2)&3)+(lengths&3)+3);
                 if(count<2){free(b);return -1;}
-                uint8_t tmp[64];memcpy(tmp,b+k+24,(size_t)entry);memcpy(b+k+24,b+k+24+entry,(size_t)entry);memcpy(b+k+24+entry,tmp,(size_t)entry);
+                uint8_t *e0=b+k+24,*e1=b+k+24+entry;
+                if(version==1)AV_WB64(e0,AV_RB64(e1)+1);else AV_WB32(e0,AV_RB32(e1)+1);
                 break;
             }
             k+=size;
