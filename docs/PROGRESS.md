@@ -1,5 +1,13 @@
 # Persistent progress
 
+## Sports › Live Now: mockups, round 2 — 2026-11-15
+
+Mockups only: [docs/design/sports-live-now-mockups.html](design/sports-live-now-mockups.html) (evidence class: mockup). The page
+behind the big Live Now tile: league chips (All, NFL, NBA, UCL, NHL), and for each game its league label, the two teams, the
+score and the clock (quarter and time, period, or the minute). Three ways to list the sources: A one row per game with the
+sources on the game's own page, B the sources under each game (recommended), C one row per source like the add-on. Plus
+nothing-live and can't-load states. Waiting for the owner's pick, the order of the games and what a tap on a source does.
+
 ## Sports: landing page approved (option A) — 2026-11-15
 
 The owner approved option A (tiles) and its can't-load state after viewing the mockups on the iPhone ("these are money").
