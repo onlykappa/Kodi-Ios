@@ -15,7 +15,10 @@ import time
 
 import sports_model
 
-PLUGINS = ('plugin.video.the-loop', 'plugin.video.loopguide', 'plugin.video.looptv')
+PLUGINS = ('plugin.video.the-loop', 'plugin.video.loopguide', 'plugin.video.looptv', 'plugin.video.thecrew')
+# Where the walk starts when the add-on's front page is not sports: The Crew's sports menu ("Bluehat", owner decision 2026-11-15:
+# The Crew and The Loop are the two main sports providers).
+START = {'plugin.video.thecrew': 'plugin://plugin.video.thecrew/?action=bluehat'}
 DEPTH, NODES, SECONDS, LOG_LINES = 3, 60, 25, 120
 SAMPLES = 8                          # playable items recorded per folder (the folder's `items` says how many there are)
 EVERY = 12 * 3600                     # seconds between two discoveries
@@ -74,7 +77,7 @@ def discover(rpc, clock=time.monotonic, now=time.time):
     result = {'time': int(now()), 'plugins': {}}
     for plugin in PLUGINS:
         try:
-            result['plugins'][plugin] = {'nodes': walk(rpc, 'plugin://%s/' % plugin, clock=clock)}
+            result['plugins'][plugin] = {'nodes': walk(rpc, START.get(plugin) or 'plugin://%s/' % plugin, clock=clock)}
         except Exception as exc:   # nothing here may stop the page
             result['plugins'][plugin] = {'nodes': [], 'error': '%s: %s' % (type(exc).__name__, _short(exc, 100))}
     return result

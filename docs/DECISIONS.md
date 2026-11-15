@@ -539,3 +539,18 @@ with one page at a time."
   - **ChatGPT:** Upcoming, a game's page and Leagues, built against the contract and its sample data, following
     [design/sports-chatgpt-brief.md](design/sports-chatgpt-brief.md); one page per commit on its own branch, then a draft PR that Claude reviews and fixes.
   - Each page is checked in the desktop Kodi rig against its approved board, then on the owner's iPhone.
+
+## DEC-058: The Loop family and The Crew are the sports providers; both are bundled in the app (2026-11-15)
+
+- **Finding:** build 538's discovery log showed the Loop add-ons were not installed in the iPhone app (`Unable to find plugin`), so the
+  Sports page had no data. They had been `excluded_or_deferred` in the add-on plan.
+- **Owner decisions:** bundle The Loop family (The Loop, Loop Guide, Loop TV, with their dependencies); the main sports providers are
+  **The Crew** (it has a sports section, "Bluehat") and **The Loop**; the other backup providers (PR #32, merged) are movie/TV only and
+  appear as extra sources where they carry a game. The owner allowed fetching the Loop repository as Kodi does, because its host answers only
+  Kodi's own client.
+- **How:** pinned in `migration/provider-fallback/source-lock.json` (new `sports_roots`) and staged by `provider_addons.py` like the PR #32
+  providers: SHA-256 per package, no native code, background services removed, no account state. `script.module.pycryptodome` (native) and
+  `plugin.video.dailymotion_com` (not offered by the repository) are dropped from the Loop manifests; Loop TV streams that need AES may not play.
+  The Loop's own code is obfuscated by its author and is shipped unchanged.
+- **Not yet done:** the Loop's data is read by the discovery walk (`sports_loop.py`, now also The Crew's sports menu) from the owner's next phone log;
+  the real adapter and the phone check come after that.

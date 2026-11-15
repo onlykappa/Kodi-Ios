@@ -108,6 +108,17 @@ class Discover(unittest.TestCase):
         self.assertEqual(result['plugins'][sl.PLUGINS[0]]['nodes'][1]['label'], 'Hello')
         self.assertIn('ValueError', result['plugins'][sl.PLUGINS[1]]['nodes'][0]['error'])
 
+    def test_the_crew_walk_starts_at_its_sports_menu(self):
+        asked = []
+        class Spy(Rpc):
+            def __call__(self, method, params=None):
+                asked.append((params or {}).get('directory'))
+                return super().__call__(method, params)
+        sl.discover(Spy({}), now=lambda: 1)
+        self.assertIn('plugin://plugin.video.thecrew/?action=bluehat', asked)
+        self.assertNotIn('plugin://plugin.video.thecrew/', asked)
+        self.assertIn('plugin://plugin.video.the-loop/', asked)
+
     def test_the_log_is_short_and_says_what_is_there(self):
         tree = {'plugin://%s/' % sl.PLUGINS[0]: [folder('Live', 'plugin://x/live')] + [item('G%d' % i, 'plugin://x/%d' % i) for i in range(300)],
                 'plugin://x/live': [item('One', 'plugin://x/1')]}   # (the folder is listed; its entry says "Live")

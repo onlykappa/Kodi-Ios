@@ -1,5 +1,14 @@
 # Persistent progress
 
+## Sports: Loop family and The Crew bundled; PR #32 merged; build 538 checked — 2026-11-15
+
+Build 538 (commit 4961d11, pre-release) showed on the phone that The Loop add-ons were not installed (`Unable to find plugin`, ISSUE-350 notes the
+10-minute build limit that also hit it; now 25 minutes). PR #32 (movie/TV backup providers) was merged by the owner's instruction after review. It
+contained a syntax error in `service.py` (ISSUE-351, PR #42 fixes it, not merged). DEC-058: The Loop family and The Crew are the sports providers; the
+Loop packages are pinned in the provider source lock (fetched as Kodi, owner allowed). Host checks only. The Loop's tree could not be read in the
+desktop rig because the sandbox network does not reach its servers; `KODI_RIG_NETWORK=1 kodi_rig.py start` keeps the proxy for such checks. Phone
+results pending: next IPA build (owner's OK needed) will log The Loop's and The Crew's menus for the adapter.
+
 ## Sports: merging and The Loop discovery — 2026-11-15
 
 `sports_merge.py` combines several add-ons' answers into the contract's games (DEC-055: one game, one line per distinct stream with "Also on …",

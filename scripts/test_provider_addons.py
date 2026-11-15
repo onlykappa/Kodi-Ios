@@ -128,6 +128,36 @@ class ReviewedLock(unittest.TestCase):
   self.assertNotIn('script.thecrew.artwork',specs['plugin.video.thecrew']['remove_requires'])
   self.assertTrue(all(s.get('remove_services') for s in lock['packages'] if s['id'] in lock['roots'] and s['id'].startswith('plugin.video.')))
 
+class SportsLock(unittest.TestCase):
+ def test_loop_family_is_pinned_and_fetched_as_kodi_only_where_the_host_requires_it(self):
+  lock=json.loads(providers.LOCK.read_text());specs={s['id']:s for s in lock['packages']}
+  self.assertEqual(lock['sports_roots'],['plugin.video.the-loop','plugin.video.loopguide','plugin.video.looptv'])
+  for id in lock['sports_roots']:
+   self.assertIn(id,specs);self.assertTrue(specs[id]['remove_services']);self.assertTrue(specs[id]['profile_copy'])
+  for id in ('script.module.jetextractors','script.module.microjenscrapers','script.module.pyamf','script.module.tzlocal','script.module.dateutil'):self.assertIn(id,specs)
+  loop=[s for s in lock['packages'] if s['url'].startswith(providers.KODI_ONLY)]
+  self.assertGreaterEqual(len(loop),8)
+  seen=[]
+  class Reply:
+   def __enter__(self):return self
+   def __exit__(self,*a):return False
+   def read(self):return b'x'
+  import urllib.request
+  real=urllib.request.urlopen
+  urllib.request.urlopen=lambda request,timeout=0:seen.append(request.get_header('User-agent')) or Reply()
+  try:providers.fetch(loop[0]['url']);providers.fetch('https://mirrors.kodi.tv/x.zip')
+  finally:urllib.request.urlopen=real
+  self.assertEqual(seen[0],providers.KODI_CLIENT);self.assertEqual(seen[1],'Kodi-iOS-provider-build')
+ def test_a_failing_download_is_tried_again_and_then_reported(self):
+  import urllib.request
+  real,sleep=urllib.request.urlopen,providers.time.sleep;calls=[]
+  def fail(request,timeout=0):calls.append(1);raise OSError('network')
+  urllib.request.urlopen=fail;providers.time.sleep=lambda s:None
+  try:
+   with self.assertRaises(OSError):providers.fetch('https://mirrors.kodi.tv/x.zip')
+  finally:urllib.request.urlopen=real;providers.time.sleep=sleep
+  self.assertEqual(len(calls),4)
+
 class BuildIntegration(unittest.TestCase):
  def test_preparer_bundles_provider_and_lists_it_as_optional_in_dependency_order(self):
   from build_customized_ipa import prepare,BOOT
