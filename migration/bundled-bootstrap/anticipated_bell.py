@@ -47,7 +47,7 @@ def run():
 
     choice_sheet.choose({'heading': 'New episodes \u00b7 %s' % (title or 'this show'), 'sub': bell.label(info),
                          'rows': bell.rows(bell.switches(profile, tmdb)), 'button': 'Done',
-                         'foot': 'Alert on and downloads off: you are told, nothing is downloaded.'}, xbmcgui=xbmcgui, toggle=toggle)
+                         'foot': 'Switch on only Alert to be told without downloading anything.'}, xbmcgui=xbmcgui, toggle=toggle)
 
 
 if __name__ == '__main__':

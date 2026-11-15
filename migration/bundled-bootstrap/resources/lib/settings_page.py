@@ -814,7 +814,7 @@ def favourite_cell(p,n,x,y,cw,ch):
   '<control type="group"><animation effect="zoom" start="100" end="104" time="160" center="auto" tween="cubic" easing="out" condition="Control.HasFocus(%d)">Conditional</animation>'%(9700+n)+
   p.image(0,0,cw,ch,p.MEDIA+'white.png',p.SURFACE,'','',p.MEDIA+'poster_mask.png')+
   p.image(0,0,cw,ch,'$INFO[%s]'%flag('thumb'),p.WHITE,'','>scale',p.MEDIA+'poster_mask.png',background=True)+
-  p.label(0,ch+14,cw,cap-14,'$INFO[%s]'%flag('title'),'p_foot_b',p.WHITE,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+
+  p.label(0,ch+14,cw,cap-14,'$INFO[%s]'%flag('title'),'p_foot_b',p.WHITE,'left','<wrapmultiline>true</wrapmultiline>').replace('<aligny>center</aligny>','<aligny>top</aligny>')+   # label() writes aligny first, so an extra one never wins (ISSUE-310)
   rank_badge(p,flag('rank'),12,12,'top')+rank_badge(p,flag('watched'),12,ch-60,'bottom')+
   '<control type="group"><left>%d</left><top>14</top><visible>%s</visible>'%(cw-70,badge)+
   p.image(0,0,56,56,p.MEDIA+'avatar_s.png',RED)+p.image(2,2,52,52,p.MEDIA+'close_cross.png',p.WHITE)+'</control></control></control>')

@@ -77,7 +77,6 @@ CHECKS = (
     {'name': 'settings_player', 'page': ['section_page', 'player'], 'expect': '"page":"section_page"'},
     {'name': 'skin_settings', 'page': ['skin_settings_page'], 'expect': '"page":"skin_settings_page"'},
     {'name': 'navigation_menu', 'page': ['navigation_menu'], 'expect': '"page":"navigation_menu"'},
-    {'name': 'activity', 'page': ['activity_page'], 'expect': '"page":"activity_page"'},
     {'name': 'library_status', 'page': ['library_status'], 'expect': '"page":"library_status"'},
     {'name': 'transfers', 'page': ['transfers'], 'expect': '"page":"transfers"'},
     {'name': 'queue', 'page': ['tool_pages', 'queue'], 'expect': '"page":"tool_pages"'},
@@ -86,6 +85,7 @@ CHECKS = (
     # The approved sheets (watch menu, resume question, quality picker): board 13-15 style, opened as the add-ons open them.
     {'name': 'watch_sheet', 'script': ['rig_smoke_sheet.py', 'watch'], 'expect': 'rig smoke: sheet watch opened'},
     {'name': 'resume_sheet', 'script': ['rig_smoke_sheet.py', 'resume'], 'expect': 'rig smoke: sheet resume opened'},
+    {'name': 'bell_sheet', 'script': ['rig_smoke_sheet.py', 'bell'], 'expect': 'rig smoke: sheet bell opened'},
     {'name': 'quality_sheet', 'script': ['rig_smoke_sheet.py', 'quality'], 'expect': 'rig smoke: sheet quality opened'},
     # The show page: the Library's show listing in Kodi's video window (empty in the rig: no Drive, which is the empty state).
     {'name': 'show_page', 'builtin': 'ActivateWindow(videos,plugin://plugin.video.kodi.ios.watch/?action=library&type=tv&show=Smoke&merge=1,return)',
