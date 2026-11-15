@@ -676,8 +676,9 @@ def searching_card(p):
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
   '%s</control></controls></window>\n')%(M,(p.WIDTH-w)//2,(p.HEIGHT-height(1))//2,w,height(5),centre,body)
 
-def _sheet(p,name,comment,default,h,body):
- """A bottom sheet in the activity sheet's style (season-pack boards B and D): grabber, SURFACE, 38 pt top corners."""
+def _sheet(p,name,comment,default,h,body,shift=''):
+ """A bottom sheet in the activity sheet's style (season-pack boards B and D): grabber, SURFACE, 38 pt top corners.
+ shift: conditional slide animations for the sheet's top edge (a shorter sheet while a state needs less room)."""
  M=p.MEDIA;W=p.WIDTH
  anim=('<animation effect="slide" start="0,%d" end="0,0" time="300" tween="cubic" easing="out">WindowOpen</animation>'
        '<animation effect="slide" start="0,0" end="0,%d" time="220" tween="cubic" easing="in">WindowClose</animation>')%(h,h)
@@ -685,7 +686,8 @@ def _sheet(p,name,comment,default,h,body):
   '<control type="image"><width>%d</width><height>%d</height><texture colordiffuse="8C000000">%swhite.png</texture>'
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation></control>'
   '<control type="group"><left>0</left><top>%d</top><width>%d</width><height>%d</height>%s'%(comment,default,W,p.HEIGHT,M,p.HEIGHT-h,W,h,anim)+
-  p.image(0,0,W,h+140,M+'sheet_bg.png',p.SURFACE,border=102)+p.image((W-100)//2,22,100,14,M+'dot.png','4DFFFFFF',border=7)+
+  '<control type="group">%s'%shift+p.image(0,0,W,h+140,M+'sheet_bg.png',p.SURFACE,border=102)+
+  p.image((W-100)//2,22,100,14,M+'dot.png','4DFFFFFF',border=7)+'</control>'+
   body+'</control></controls></window>\n')
 
 def _header(p,title,sub,y=70):
@@ -738,18 +740,42 @@ def season_quality_sheet(p):
    p.image(S+w-98,y+(rh-60)//2,60,60,M+'dot.png','FF0A84FF',colour(on))+p.icon(S+w-84,y+(rh-60)//2+14,32,'check.png',p.WHITE,colour(on))+
    '<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus colordiffuse="14FFFFFF" border="32">%sround.png</texturefocus>'
    '<texturenofocus /><enable>!%s</enable><onup>%d</onup><ondown>%d</ondown></control>'%(9700+n,S,y,w,rh,M,off,up,down))
- ch=330
- check=('<control type="group"><visible>%s</visible>'%checking+p.image(S,list_y,w,ch,M+'round.png',p.SURFACE2,border=32)+
-  p.label(S+38,list_y+30,w-76,56,'[B]%s[/B]'%P('check.title'),'p_body',p.WHITE,'left','<scroll>false</scroll>')+
-  p.label(S+38,list_y+96,w-76,50,P('check.sub'),'p_foot',p.GREY,'left','<scroll>false</scroll>')+
-  p.image(S+38,list_y+176,w-76,12,M+'white.png','33EBEBF5')+
-  # Rig: a progress control does not read a window property; the bar is 20 steps, each shown from its percentage.
-  ''.join(p.image(S+38,list_y+176,(w-76)*k//20,12,M+'white.png','FF0A84FF','<visible>Integer.IsGreaterOrEqual(Window().Property(check.pct),%d)</visible>'%(k*5)) for k in range(1,21))+
-  ''.join(p.label(S+38+i*(w-76)//3,list_y+226,(w-76)//3,50,P('check.q.%d'%(i+1)),'p_foot',p.GREY,('left','center','right')[i],'<scroll>false</scroll>') for i in range(3))+
+ # Q2 (owner-approved, docs/design/build442-mockups.html; ISSUE-318): found qualities as chips (green: the whole
+ # season, orange: part), a sliding bar while it looks, one line on what is still being checked. The card fills the
+ # rows' place, so nothing is left as an empty gap; no sample-episode numbers, no "4K · …" placeholders.
+ ch=3*rh+2*gap;iw=w-76;cw=(iw-24)//2
+ chip=lambda n,x,y:('<control type="group"><visible>%s</visible>'%has('check.chip.%d.text'%n)+
+  p.image(x,y,cw,84,M+'round.png','2E30D158','<visible>%s</visible>'%has('check.chip.%d.whole'%n),border=32)+
+  p.image(x,y,cw,84,M+'round.png','2EFF9F0A','<visible>%s</visible>'%has('check.chip.%d.part'%n),border=32)+
+  p.label(x,y,cw,84,'[B]%s[/B]'%P('check.chip.%d.text'%n),'p_foot',p.GREEN,'center','<scroll>false</scroll><visible>%s</visible>'%has('check.chip.%d.whole'%n))+
+  p.label(x,y,cw,84,'[B]%s[/B]'%P('check.chip.%d.text'%n),'p_foot','FFFF9F0A','center','<scroll>false</scroll><visible>%s</visible>'%has('check.chip.%d.part'%n))+
+  '</control>')
+ cy=list_y+32
+ # No gap (Q2): the bar and the line under it follow the chips (one row, or two when a third quality is found), the
+ # card ends there, and the sheet's top comes down to meet Build (shift).
+ two=has('check.chip.3.text');tail=''
+ for bar,vis in ((cy+266,'!'+two),(cy+372,two)):
+  tail+=('<control type="group"><visible>%s</visible>'%vis+
+   slide_bar(M,S+38,bar,iw,extra='<visible>%s</visible>'%has('check.busy'))+
+   p.image(S+38,bar,iw,11,M+'dot.png','FF0A84FF','<visible>!%s</visible>'%has('check.busy'),border=6)+
+   '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>56</height><font>p_foot</font><textcolor>%s</textcolor>'
+   '<label>%s</label></control>'%(S+38,bar+34,iw,p.GREY,P('check.looking'))+'</control>')
+ card_h=(32+266+34+56+26,32+372+34+56+26)
+ drop=[btn_y-60-(list_y+c) for c in card_h]
+ shift=''.join('<animation effect="slide" start="0,0" end="0,%d" time="200" tween="cubic" easing="out" condition="%s">Conditional</animation>'
+               %(d,c) for d,c in ((drop[0],'%s + !%s'%(checking,two)),(drop[1],'%s + %s'%(checking,two))))
+ check=('<control type="group"><visible>%s</visible>'%checking+
+  p.image(S,list_y,w,card_h[0],M+'round.png',p.SURFACE2,'<visible>!%s</visible>'%two,border=32)+
+  p.image(S,list_y,w,card_h[1],M+'round.png',p.SURFACE2,'<visible>%s</visible>'%two,border=32)+
+  p.label(S+38,cy,iw,56,'[B]%s[/B]'%P('check.title'),'p_body',p.WHITE,'left','<scroll>false</scroll>')+
+  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>170</height><font>p_foot</font><textcolor>%s</textcolor>'
+  '<label>%s</label></control>'%(S+38,cy+80,iw,'FFD1D1D6',P('check.intro'))+
+  p.label(S+38,cy+80,iw,50,P('check.found'),'p_foot','FFD1D1D6','left','<scroll>false</scroll>')+
+  chip(1,S+38,cy+150)+chip(2,S+38+cw+24,cy+150)+chip(3,S+38,cy+256)+tail+
   '</control>')
  off_btn=has('button.off')
- body=(_header(p,P('season.title'),P('season.sub'))+
-  '<control type="group"><visible>!%s</visible>%s</control>'%(checking,rows)+check+
+ body=('<control type="group">%s'%shift+_header(p,P('season.title'),P('season.sub'))+
+  '<control type="group"><visible>!%s</visible>%s</control>'%(checking,rows)+check+'</control>'+
   '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>%s</label></control>'%(S+6,how_y,w-12,p.GREY,P('how'))+
   _white_button(p,9720,S,btn_y,w,P('button'),'<onup>9703</onup><ondown>9721</ondown><enable>!%s</enable>'%off_btn)+
   # Board B3·1: Build is grey until the check has answered (and when nothing was found).
@@ -757,7 +783,8 @@ def season_quality_sheet(p):
   p.label(S,btn_y,w,140,P('button'),'p_btn',p.DIM,'center')+'</control>'+
   _text_button(p,9721,S,btn_y+150,w,'Cancel','<onup>9720</onup>'))
  # has() is '!String.IsEmpty(...)': its negation is written plainly, not as '!!'.
- return _sheet(p,SEASON_QUALITY,'Build Season quality sheet (board B3)',9720,h,body.replace('!!String.IsEmpty','String.IsEmpty'))
+ return _sheet(p,SEASON_QUALITY,'Build Season quality sheet (board B3)',9720,h,body.replace('!!String.IsEmpty','String.IsEmpty'),
+               shift.replace('!!String.IsEmpty','String.IsEmpty'))
 
 def season_ready_sheet(p):
  """IOSSeasonReady.xml (season-pack board D round 2): the season, three numbers (episodes, quality, size), up to four

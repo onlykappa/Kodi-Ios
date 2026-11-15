@@ -307,7 +307,9 @@ def item_sheet(p):
         key = 'step%d.' % i
         x = S + i * (cw + 16)
         body += u.id_bar(p, STEP_BARS + i, x, top + 379, cw, 11, P(key + 'tint'), texture='pill11.png', border=5)
-        body += u.text(p, x, top + 406, cw, 43, P(key + 'label'), 'p_foot_b' if i == 2 else 'p_foot', p.WHITE if i == 2 else p.GREY)
+        # DEC-050 / board B: a step wraps to a second line instead of ending in "…" ("Ready for Kodi and AirPlay").
+        body += p.label(x, top + 400, cw, 90, P(key + 'label'), 'p_foot_b' if i == 2 else 'p_foot', p.WHITE if i == 2 else p.GREY,
+                        'left', '<wrapmultiline>true</wrapmultiline><aligny>top</aligny><scroll>false</scroll>')
     ch = 803
     card = u.card(p, S, 0, w, ch, u.SURF2) + speed_card(p, u, 'card.', S, 0, w, ch, 'card.wait')
     facts = ''
@@ -325,9 +327,9 @@ def item_sheet(p):
     column += item(129 * 4 + u.GAP, u.card(p, S, 0, w, 129 * 4, u.SURF2) + facts, u.neg(u.has('card')) + ' + ' + u.neg(u.has('fact4.label')))
     column += item(129 * 5 + u.GAP, u.card(p, S, 0, w, 129 * 5, u.SURF2) + facts, u.neg(u.has('card')) + ' + ' + u.has('fact4.label'))
     column += item(170 + u.GAP, u.paragraph(p, S, 0, w, 170, P('sentence')), u.has('sentence'))
-    column += item(290, u.needs(p, elevated=True), u.has('need.title'))
+    column += item(u.NEEDS_H, u.needs(p, elevated=True), u.has('need.title'))
     body += ('<control type="grouplist"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
-             '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>%s</control>') % (top + 492, W, H - 24 - BUTTON_H - 20 - top - 492, column)
+             '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>%s</control>') % (top + 500, W, H - 24 - BUTTON_H - 20 - top - 500, column)
     bw = (w - 27) // 2
     y = H - 24 - BUTTON_H
     body += capsule(p, 9201, S, y, bw, BUTTON_H, P('action1.label'), True, u.has('action1.label'))

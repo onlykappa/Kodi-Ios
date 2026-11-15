@@ -61,7 +61,10 @@ class XML(unittest.TestCase):
                         self.assertTrue(width=='auto' or float(width)>0,c.findtext('label'))
                         self.assertGreaterEqual(sizes[c.findtext('font')],30)
                         self.assertEqual(c.findtext('scroll'),'false',c.findtext('label'))
-                        self.assertIsNone(c.find('wrapmultiline'))
+                        # DEC-050 (ISSUE-320): the copy sheet's steps ("Ready for Kodi and AirPlay") and the needs card's
+                        # sentence wrap to more lines instead of ending in "…"; no other label wraps here.
+                        if not any(k in (c.findtext('label') or '') for k in ('Property(step', 'Property(need.text)')):
+                            self.assertIsNone(c.find('wrapmultiline'))
                 self.assertIn('9001' if name!='Movie' else '9200',ids)
 
     def test_no_two_text_runs_share_a_box(self):

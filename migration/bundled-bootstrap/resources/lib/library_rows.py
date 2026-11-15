@@ -339,6 +339,15 @@ def details(row, view):
                       'FF30D158' if state not in ('downloading','uploading') else DOWN),
                      ('Ready' if ready else SHORT_STEP.get((live or {}).get('step') or sheet['step'] or sheet['status'], (live or {}).get('step') or sheet['step'] or sheet['status']) + (' · %d%%'%float(live.get('pct') or 0) if live and not live.get('indeterminate') else ''),
                       'FF30D158' if ready else (live or {}).get('tint_now') or CONV)]
+    # DEC-051 board B (owner-approved, docs/design/unified-status-mockups.html; ISSUE-320): a copy's sheet is the
+    # conversion sheet with the copy's own three steps.
+    copying = state == 'uploading' or bool(live and live.get('kind') == 'copy')
+    if copying and not ready:
+        fetching = row.get('stage') == 'fetching' or bool(live and live.get('stage') == 'fetching')
+        pct = float((live or {}).get('pct') or row.get('pct') or 0)
+        sheet['steps'] = [('Fetching on AllDebrid' if fetching else 'Found on AllDebrid', DOWN if fetching else 'FF30D158'),
+                          ('Copying to Drive' + ('' if fetching else ' \u00b7 %d%%' % pct), 'FF3A3A3C' if fetching else DOWN),
+                          ('Ready for Kodi and AirPlay', 'FF3A3A3C')]
     sheet['live'] = live
     sheet['need'] = ((model or {}).get('needs') or [{}])[0]
     sheet['facts'] = sheet['facts'][:FACTS]
@@ -365,12 +374,18 @@ def speed_card_text(live, history_job, size=0, bar=0):
     num, unit = (th.mb(rate).split(' ', 1) + [''])[:2] if moving else ('—', '')
     import prepare_downloads
     avg = j.get('sum', 0) / max(1, j.get('n', 1)) if j.get('n') else 0
-    done = float(j.get('done') or 0)
+    # ISSUE-320: a copy lane without an old history record uses the backend's own samples (ISSUE-294) and Drive's
+    # confirmed bytes, so Average and Done are never blank while it copies.
+    points = [float(pt[1]) for pt in (live.get('speed_history') or []) if len(pt) > 1 and float(pt[1]) > 0]
+    if not avg and points:
+        avg = sum(points) / len(points)
+    done = float(j.get('done') or live.get('confirmed_bytes') or 0)
     return {'card.num': num, 'card.unit': unit,
             'card.left': prepare_downloads.eta_text(live.get('eta_s')).replace('about ', '') if moving and live.get('eta_s') else '',
             'card.avg': th.mb(avg) if avg > 0 else '—',
             'card.done': ('%.1f of %.1f GB' % (done / GB, float(size) / GB)) if size and done else '%d%%' % int(float(bar or 0)),
-            'card.started': clock12(j['start']) if j.get('start') else '—'}   # board 3's third step label
+            'card.started': clock12(j['start']) if j.get('start') else clock12(float(live['speed_history'][0][0]))
+                            if live.get('speed_history') else '—'}   # board 3's third step label
 
 
 def name_quality(name):

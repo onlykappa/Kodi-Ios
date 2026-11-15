@@ -4785,3 +4785,47 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_stream_reads (read trace without the address, the log window, gate order, priorities, OPEN_BLOCKS, the
   budget only for the opening blocks, a failed block fetched again; the last two fail on the build-482 code).
   test_stream_opening_fallback now counts only the `stream opening` line, and still checks all lines for private data.
+
+## ISSUE-318 — Build Season check named sample episodes, showed empty "4K · …" placeholders and a gap (owner, build 442) — Q2 done; rig-checked
+
+- **Cause:** the check card was drawn for a fixed three-episode lookup ("Looking at episodes 1, 6 and 10"), with one
+  placeholder slot per quality, a fixed 3-row card and empty space under it. The header read "· 10 episodes" when the
+  show title was empty.
+- **Fix:** owner-approved Q2 (docs/design/build442-mockups.html), on the backend's live coverage (ISSUE-296).
+  - `season_check.chips`: the found qualities as up to three chips, green "1080p · all 21" for the whole season and
+    orange "720p · 18 of 21" for part of it. One plain intro line until something is found; "Still looking · …" or
+    "None found · …" under the bar. No sample-episode numbers.
+  - `pages.season_quality_sheet`: the card ends right under the bar and its line (one or two chip rows). While it
+    checks, the sheet's top comes down to meet Build (conditional slides; `_sheet(shift=)`), so there is no gap. A
+    sliding bar while it looks.
+  - `season.sub` drops an empty title.
+- **Rig (desktop Kodi rig, `IOSSeasonQuality.xml` with properties from the real model):** nothing found yet, two partial
+  chips, three chips (two rows), done with "None found · 4K". No gap, nothing cut off.
+- **Test:** test_build442_sheets `Q2Chips`; test_season_sheet (the 20-step bar is gone; chips and the slide are present).
+
+## ISSUE-319 — Notification detail: a fixed tall sheet with gaps, no sense of what happened when (owner, build 442) — N2 done; rig-checked
+
+- **Fix:** owner-approved N2 (docs/design/build442-mockups.html).
+  - `notifications.detail_properties` reads `notice_help.detail_model` with the profile, which loads the retained steps
+    (ISSUE-296), and publishes up to three `tl.N.time / text / tint` steps (blue copying, orange problem or retry,
+    green ready). Old notices get no invented steps.
+  - `notice_page.sheet`: what happened, the timeline, then the actions as one grouped list (`status_ui.row_back`; each
+    row's place set as `fixN.pos` / `tech.pos`): the main fix in blue, the other fixes, and Technical details as the
+    last row ("What the app logged, Share Log"). Parts that are not there close up (grouplist), and the sheet comes down
+    by their height, so it is as tall as what it says. Technical details keeps the full-height view.
+  - Also fixed: the plain view's condition was built as `!!String.IsEmpty`; it now uses `status_ui.neg`.
+- **Rig:** with a timeline and without one, plus the Technical details view. Nothing cut off.
+- **Test:** test_build442_sheets `N2Timeline`; test_notice_log (every property the sheet uses).
+
+## ISSUE-320 — A copy's details sheet: conversion steps, blank Average / Started, cut-off text (DEC-051 board B) — done; rig-checked
+
+- **Fix:** owner-approved board B (docs/design/unified-status-mockups.html).
+  - A copy's sheet keeps the conversion sheet's layout (speed card, Pause and Cancel) with its own steps: "Found on
+    AllDebrid" (or "Fetching on AllDebrid"), "Copying to Drive · N%", "Ready for Kodi and AirPlay".
+  - `library_rows.speed_card_text` fills Average, Done and Started from the lane's own samples and Drive's confirmed
+    bytes (ISSUE-294) when there is no older history record.
+  - Rig found two cut-off texts (DEC-050): the step labels ("Found on AllDeb…", "Ready for Kodi …") now wrap to a second
+    line, and the needs card's sentence ("…saved sign-in. Downloa…") wraps to three lines (`status_ui.NEEDS_H`).
+- **Rig:** the `airplay` scenario's Inception copy and the Scary Movie conversion sheet: everything fits above the
+  buttons, nothing cut off.
+- **Test:** test_build442_sheets `BoardBCopySheet`; test_build193_pages allows wrapping for exactly these two labels.

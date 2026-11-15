@@ -128,7 +128,7 @@ def short(text):
  import re
  return re.sub(r'/(?:private/)?var/(?:mobile|containers)/\S*?/((?:[^/\s"]+/)?[^/\s"]+)(?=["\s,:)]|$)',r'…/\1',str(text))
 
-def detail_properties(item,records,now=None):
+def detail_properties(item,records,now=None,profile=None):
  """Window properties for the details sheet (portrait/IOSNoticeDetail.xml) and its log rows [(label, label2, level)]."""
  import time as _time
  glyph,tint=ICON.get(item.get('kind'),ICON['info'])
@@ -138,15 +138,27 @@ def detail_properties(item,records,now=None):
         'nolog':'' if records else NO_LOG}
  # DEC-046 (boards G/H): plain words, "nothing was lost", the fixes, Technical details' facts.
  import notice_help
- help_=notice_help.explain(item)
+ # N2 (owner-approved, docs/design/build442-mockups.html; ISSUE-319): up to three timed steps (notice_models).
+ help_=notice_help.detail_model(item,records,profile=profile)
+ tone={'blue':'FF0A84FF','orange':'FFFF9F0A','green':'FF30D158'}
+ for n in range(1,4):
+  step=help_['timeline'][n-1] if n<=len(help_['timeline']) else {}
+  props.update({'tl.%d.time'%n:str(step.get('time') or ''),'tl.%d.text'%n:str(step.get('text') or ''),
+                'tl.%d.tint'%n:tone.get(step.get('colour_kind'),'FF8E8E93') if step else ''})
  props.update(title=help_['title'],happened=help_['happened'],safe=help_['safe'],good='true' if help_['good'] else '',
               tint=('FF30D158' if help_['good'] else 'FFFF9F0A' if help_['warn'] else tint))
  if help_['good']:props['icon']='circle-check.png'
  for n in range(3):
   label,sub,action=help_['fixes'][n] if n<len(help_['fixes']) else ('','','')
   props.update({'fix%d.label'%n:label,'fix%d.action'%n:action})
-  if n:props['fix%d.sub'%n]=sub   # the white capsule (fix 0) has no second line
+  props['fix%d.sub'%n]=sub
  props['tech.available']='' if help_['good'] and not records else 'true'
+ # N2 board: the fixes and Technical details are one grouped list; each row's place gives its rounded ends.
+ props.update({'tech.label':'Technical details' if props['tech.available'] else '',
+               'tech.sub':'What the app logged, Share Log' if props['tech.available'] else ''})
+ shown=[k for k in ('fix0','fix1','fix2','tech') if props.get(k+'.label')]
+ for k in ('fix0','fix1','fix2','tech'):
+  props[k+'.pos']='' if k not in shown else 'only' if len(shown)==1 else 'first' if k==shown[0] else 'last' if k==shown[-1] else 'mid'
  for n,(label,value) in enumerate((notice_help.facts(item,[{'text':notices.plain_record(r)} for r in records])+[('','')]*5)[:5]):
   props.update({'fact%d.label'%n:label,'fact%d.value'%n:value})
  rows=[]
@@ -387,7 +399,7 @@ def run():
      # An AirPlay message opens the AirPlay check: the last Play on TV as steps, and what to try.
      import tool_windows;tool_windows.open_airplay(profile);return
     sheet=Detail(notice_page.SHEET,home,'Default','1080i')
-    sheet.setup(*detail_properties(item,records_for(profile,item,log_path)))
+    sheet.setup(*detail_properties(item,records_for(profile,item,log_path),profile=profile))
     sheet.doModal();chosen=sheet.chosen;del sheet
     self.run_fix(item,chosen)
 
