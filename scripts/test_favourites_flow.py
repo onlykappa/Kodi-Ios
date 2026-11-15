@@ -220,12 +220,61 @@ class Flow(unittest.TestCase):
         self.assertIn('info=play&tmdb_type=movie&tmdb_id=99', xbmc.executed[-1])
         self.assertEqual(len(self.sheets), 3)                          # a movie that was not started goes straight to the chooser
 
+    def test_a_show_page_marks_the_episode_in_progress_continue(self):
+        import favourites_rows as fr
+        import portrait
+        xbmc, gui, dialog = fake_modules(None)
+        store = Path(self.tmp.name) / 'continue.json'
+        store.write_text(json.dumps({'items': {
+            'episode:1:1:3': {'kind': 'episode', 'tmdb_id': '1', 'season': '1', 'episode': '3', 'position': 100, 'total': 1400, 'played': 5},
+            'episode:1:2:2': {'kind': 'episode', 'tmdb_id': '1', 'season': '2', 'episode': '2', 'position': 700, 'total': 1380, 'played': 9},
+            'episode:1:2:4': {'kind': 'episode', 'tmdb_id': '1', 'season': '2', 'episode': '4', 'position': 1370, 'total': 1380, 'played': 12},
+            'episode:7:1:1': {'kind': 'episode', 'tmdb_id': '7', 'season': '1', 'episode': '1', 'position': 600, 'total': 1200, 'played': 20}}}))
+        vfs = types.SimpleNamespace(translatePath=lambda p: str(store))
+        show = fr.imported_entry({'kind': 'tv', 'tmdb': '1', 'title': 'Naruto'})
+        self.page.open_item(xbmc, gui, vfs, show)
+        sets = [c for c in xbmc.executed if c.startswith('SetProperty(KodiIOS.ShowContinue')]
+        self.assertIn('SetProperty(KodiIOS.ShowContinueSeason,"2",home)', sets)       # the latest unfinished one, not a finished one
+        self.assertIn('SetProperty(KodiIOS.ShowContinueEpisode,"2",home)', sets)
+        self.assertIn('SetProperty(KodiIOS.ShowContinueLeft,"Continue \u00b7 11:20 left",home)', sets)
+        self.assertIn('info=seasons', xbmc.executed[-1])
+        other = fr.imported_entry({'kind': 'tv', 'tmdb': '55', 'title': 'Nothing started'})
+        xbmc.executed.clear()
+        self.page.open_item(xbmc, gui, vfs, other)
+        self.assertIn('SetProperty(KodiIOS.ShowContinueLeft,"",home)', xbmc.executed)  # cleared when none is in progress
+        self.assertIn('KodiIOS.ShowContinueLeft', portrait.episode_item(False))
+        import xml.etree.ElementTree as ET
+        ET.fromstring('<r>%s</r>' % portrait.episode_item(True))
+
     def test_a_finished_movie_is_not_offered_continue(self):
         store = Path(self.tmp.name) / 'continue.json'
         store.write_text(json.dumps({'items': {'movie:6::': {'position': 8700, 'total': 8880}}}))
         vfs = types.SimpleNamespace(translatePath=lambda p: str(store))
         self.assertIsNone(self.page.movie_progress(vfs, '6'))
         self.assertIsNone(self.page.movie_progress(types.SimpleNamespace(translatePath=lambda p: '/nope'), '6'))
+
+
+class HandAdded(unittest.TestCase):
+    """ISSUE-314: Add to Favourites on any poster shows on the page, ahead of the imported list."""
+    def test_hand_added_lead_newest_first_are_never_cut_and_duplicates_show_once(self):
+        import favourites_rows as fr
+        tv = 'plugin://plugin.video.themoviedb.helper/?info=details&tmdb_type=tv&tmdb_id=%s'
+        favs = [{'type': 'window', 'window': 'videos', 'windowparameter': tv % '5', 'title': 'Old Show'},
+                {'type': 'window', 'window': 'videos', 'windowparameter': tv % '1', 'title': 'Naruto'},
+                {'type': 'window', 'window': 'videos', 'windowparameter': tv.replace('tmdb_type=tv', 'tmdb_type=movie') % '9', 'title': 'Newest Film'}]
+        own = fr.entries(favs)
+        self.assertEqual([r['kind'] for r in own], ['tv', 'tv', 'movie'])
+        imported = [fr.imported_entry({'kind': 'tv', 'tmdb': str(n), 'title': 'T%d' % n, 'rank': n}) for n in range(1, 120)]
+        imported[0] = fr.imported_entry({'kind': 'tv', 'tmdb': '1', 'title': 'Naruto Shippuden', 'rank': 1})   # same id as a hand-added one
+        imported[1] = fr.imported_entry({'kind': 'tv', 'tmdb': '2', 'title': 'old show', 'rank': 2})            # same name, no year
+        rows = fr.merged(own, imported)
+        self.assertEqual(len(rows), fr.MAX)
+        self.assertEqual([r['title'] for r in rows[:3]], ['Newest Film', 'Naruto', 'Old Show'])
+        self.assertEqual(sum(1 for r in rows if r['title'].lower() in ('naruto', 'naruto shippuden', 'old show')), 2)
+        self.assertEqual(rows[3]['title'], 'T3')
+        self.assertTrue(all(not r.get('rank') for r in rows[:3]))                                              # #n only on imported
+        self.assertEqual([r['title'] for r in fr.shown(rows, 'movie')], ['Newest Film'])
+        self.assertEqual(len(fr.merged(fr.entries([{'type': 'media', 'path': '/%d' % n, 'title': 'm%d' % n} for n in range(90)]), imported)), 90)
 
 
 class Bell(unittest.TestCase):

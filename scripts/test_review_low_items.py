@@ -15,7 +15,10 @@ import portrait  # noqa: E402
 class LowItems(unittest.TestCase):
     def test_the_osd_panel_carries_the_continue_stamp(self):
         self.assertEqual(player_osd.CONTINUE_STAMP, portrait.CONTINUE_STAMP)
-        self.assertIn("$INFO[Skin.String(ios_osd_continue_path)]'+CONTINUE_STAMP", (BOOT / 'resources/lib/player_osd.py').read_text())
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(player_osd.window().split('\n', 2)[2])  # a bare & would not parse
+        content = [c.text for c in root.iter('content') if 'ios_osd_continue_path' in (c.text or '')][0]
+        self.assertTrue(content.endswith(portrait.CONTINUE_STAMP))
 
     def test_no_pill_strings_or_rig_checks_are_left(self):
         po = (BOOT / 'resources/language/resource.language.en_gb/strings.po').read_text()

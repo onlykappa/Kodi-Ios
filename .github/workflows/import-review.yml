@@ -246,6 +246,7 @@ jobs:
           python3 -B scripts/test_listing_cache.py
           python3 -B scripts/test_activation.py
           python3 -B scripts/test_ios.py
+          python3 -B scripts/test_review_low_items.py
       - name: Acquire public pinned sources and build review ZIP
         run: |
           python3 -B scripts/build_import_review.py --foundation-report reports/ios-foundation-addon-audit.json --output "$RUNNER_TEMP/kodi-import-review"

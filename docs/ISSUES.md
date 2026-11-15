@@ -4685,3 +4685,37 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   job a card's Cancel/Pause acts on. Library, AI Upscale (ISSUE-288), Download problems and deletes use the index.
 - **Test:** test_queue_index `test_a_movie_copy_being_made_ready_shows_as_running` (running, not queued; "Getting it
   ready for Kodi and AirPlay"; the same in Library status, the Queue, Running now and the bell). Fails on the old code.
+
+## ISSUE-311 — Reviewer low items: orphaned pill strings, Continue Watching panel on the video controls not refreshing
+
+- **Cause:** (1) ten settings strings (#32001-#32010) of the removed activity pill were still in `strings.po`, and
+  `rig_smoke` had a pill entry (already removed). (2) The video controls' Continue Watching panel (`player_osd.py`) did not
+  end with the hubs' `&stamp=` (`portrait.CONTINUE_STAMP`), so Remove From Continue Watching did not refresh it.
+- **Fix:** the strings are deleted. The panel's path now ends with `CONTINUE_STAMP`, XML-escaped (`&amp;`) at the use site;
+  an unescaped `&` made the controls window not well-formed (found by test_customisation, two errors).
+- **Retest:** test_customisation passes again.
+- **Test:** test_review_low_items (no pill strings, the controls window parses and its panel ends with the stamp).
+
+## ISSUE-312 — J3: opening a favourite show did not mark its in-progress episode "Continue"
+
+- **Cause:** the show page is TMDb Helper's seasons/episodes list; the app's own progress (continue.json) never reached it,
+  so only Kodi-library items drew a progress bar. The page docstring claimed episodes carried Continue; nothing did.
+- **Fix:** `favourites_import_page.mark_show` (on opening an imported show) finds the show's latest unfinished episode in
+  continue.json (30 s in, under 92 %) and sets Home properties `KodiIOS.ShowContinue{Tmdb,Season,Episode,Left}` (cleared when
+  none). `portrait.episode_item` shows a blue "Continue · 11:20 left" line on the matching episode of that show only
+  (season, episode and the folder path's tmdb_id must all match).
+- **Retest:** host test only; the rig cannot list a show without TMDb (network). Needs the phone.
+- **Test:** test_favourites_flow `test_a_show_page_marks_the_episode_in_progress_continue`.
+
+## ISSUE-314 — A show added by hand with Add to Favourites did not appear once a list was imported (owner)
+
+- **Cause:** `favourites_page.read` returned `(imported + own)[:90]`. The owner's import fills the 90 cells, so Kodi's own
+  favourites (long-press > Add to favourites), which came after it, were cut off.
+- **Fix:** `favourites_rows.merged`: hand-added favourites lead, newest first (Kodi appends new ones, so its order is
+  reversed), and are never trimmed; the imported list follows, trimmed to what is left of the 90 cells. A title in both
+  shows once, as the hand-added one (same TMDb id and type, or the same name, and year when both have one). `entries`
+  now carries each favourite's `tmdb` id. TMDb Helper tv/movie favourites already count for the Shows/Movies chips (`kind_of`).
+  Rank badges (#n) stay on imported rows only.
+- **Retest:** desktop Kodi rig: a show added with Favourites.AddFavourite while 90 imported titles are seeded shows first.
+  Not the phone.
+- **Test:** test_favourites_flow `HandAdded`.

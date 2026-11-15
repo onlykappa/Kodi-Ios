@@ -41,5 +41,5 @@ with `python3 -B scripts/kodi_rig.py start` and label screenshots *desktop Kodi 
 ## Not done / differs from the mockups
 - No "Name this list…" step (the list is named from the file, or "Notes list <date>"); no share-sheet import from Notes (paste or a text file).
 - The report is the choice sheet (counts + text views), not a full page; "Not found" has no search-by-hand button.
-- J3 (a show's in-progress episode marked Continue) relies on the existing show page; nothing new was drawn for it.
+- J3 (a show's in-progress episode marked Continue): ISSUE-312. Opening a favourite show reads continue.json and the episode row says "Continue · 11:20 left" (blue).
 - Up to 90 favourites show in the grid (was 36).

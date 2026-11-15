@@ -29,15 +29,15 @@ def profile_path(xbmcvfs):
 
 
 def read(xbmc, xbmcvfs=None):
-    """The imported list (in the saved sort order) first, then Kodi's own favourites; and the sort key."""
+    """Kodi's own (hand-added) favourites first, newest first, then the imported list in the saved sort order; and the sort key."""
     favourites = (rpc(xbmc, 'Favourites.GetFavourites', {'properties': fr.READ}) or {}).get('favourites') or []
     own = fr.entries(favourites)
     if xbmcvfs is None:
-        return own, 'list'
+        return own[:fr.MAX], 'list'
     data = fi.load(profile_path(xbmcvfs))
     sort = data.get('sort') if data.get('sort') in fi.SORT_KEYS else 'list'
     imported = [fr.imported_entry(i) for i in fi.ordered(data['items'], sort)]
-    return (imported + own)[:fr.MAX], sort
+    return fr.merged(own, imported), sort
 
 
 def run():

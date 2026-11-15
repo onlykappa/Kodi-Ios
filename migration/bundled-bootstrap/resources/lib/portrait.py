@@ -1032,6 +1032,9 @@ def bell_button():
   layer('bell_halo_line.png','FF000000','!'+on)+layer('bell_halo_fill.png','FF000000',on)+
   layer('bell_line.png',WHITE,'!'+on)+layer('bell_fill.png',WHITE,on)+'</control>')
 
+# ISSUE-312: opening a favourite show sets these (favourites_import_page.mark_show); the show's in-progress episode says Continue.
+SHOW_CONTINUE=('String.IsEqual(ListItem.Season,$INFO[Window(Home).Property(KodiIOS.ShowContinueSeason)]) + String.IsEqual(ListItem.Episode,$INFO[Window(Home).Property(KodiIOS.ShowContinueEpisode)]) + '
+ 'String.Contains(Container.FolderPath,tmdb_id=$INFO[Window(Home).Property(KodiIOS.ShowContinueTmdb)]) + !String.IsEmpty(Window(Home).Property(KodiIOS.ShowContinueLeft))')
 def episode_item(focused):
  thumb_w,thumb_h=400,225
  bg=surface(SIDE-18,4,WIDTH-2*SIDE+36,thumb_h+176,'round_s.png','14FFFFFF',26) if focused else ''
@@ -1041,6 +1044,7 @@ def episode_item(focused):
   episode_badges(SIDE,18,thumb_w,thumb_h)+
   textbox(SIDE+thumb_w+30,30,WIDTH-2*SIDE-thumb_w-30,116,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE)+
   label(SIDE+thumb_w+30,160,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
+  label(SIDE+thumb_w+30,206,WIDTH-2*SIDE-thumb_w-30,40,'$INFO[Window(Home).Property(KodiIOS.ShowContinueLeft)]','p_cap',ACCENT,'left','<visible>%s</visible>'%SHOW_CONTINUE)+
   textbox(SIDE,thumb_h+36,WIDTH-2*SIDE,84,'$INFO[ListItem.Plot]','p_cap',GREY)+'</control>')
 
 def video_nav(original):

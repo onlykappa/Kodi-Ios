@@ -330,6 +330,39 @@ def movie_progress(xbmcvfs, tmdb):
     return position, total
 
 
+def show_progress(xbmcvfs, tmdb):
+    """(season, episode, position, total) of the episode of this show the owner stopped part-way most recently, or None."""
+    try:
+        path = xbmcvfs.translatePath('special://profile/' + CONTINUE_FILE)
+        with open(path, encoding='utf-8') as handle:
+            items = (json.load(handle).get('items') or {}).values()
+    except (OSError, ValueError, AttributeError):
+        return None
+    best = None
+    for entry in items:
+        if entry.get('kind') != 'episode' or str(entry.get('tmdb_id')) != str(tmdb):
+            continue
+        position, total = float(entry.get('position') or 0), float(entry.get('total') or 0)
+        if position < 30 or (total and position >= FINISHED * total):
+            continue
+        if best is None or float(entry.get('played') or 0) > best[0]:
+            best = (float(entry.get('played') or 0), str(entry.get('season') or ''), str(entry.get('episode') or ''), position, total)
+    return best[1:] if best else None
+
+
+def mark_show(xbmc, xbmcvfs, tmdb):
+    """ISSUE-312: the show page marks the in-progress episode "Continue · 11:20 left" (portrait.episode_item reads these Home
+    properties; they are cleared when the show has none)."""
+    found = show_progress(xbmcvfs, tmdb)
+    values = {'Tmdb': '', 'Season': '', 'Episode': '', 'Left': ''}
+    if found:
+        season, episode, position, total = found
+        values = {'Tmdb': str(tmdb), 'Season': season, 'Episode': episode,
+                  'Left': 'Continue \u00b7 %s left' % hms(total - position) if total > position else 'Continue'}
+    for name, value in values.items():
+        xbmc.executebuiltin('SetProperty(KodiIOS.ShowContinue%s,"%s",home)' % (name, value))
+
+
 def open_item(xbmc, xbmcgui, xbmcvfs, entry):
     """Tap on an imported favourite. A show opens its page (its episodes carry Continue); a movie stopped part-way asks
     Continue Watching or Start Over; any other title goes to the app's "How would you like to watch" chooser."""
@@ -347,6 +380,8 @@ def open_item(xbmc, xbmcgui, xbmcvfs, entry):
             base = '%s?info=play&tmdb_type=movie&tmdb_id=%s' % (HELPER, item['tmdb'])
             xbmc.executebuiltin('PlayMedia(%s)' % ('"%s&%s"' % (base, CONTINUE_FLAG) if choice == 0 else '"%s"' % base))
             return
+    if item.get('kind') != 'movie':
+        mark_show(xbmc, xbmcvfs, item.get('tmdb'))
     xbmc.executebuiltin(entry['action'])
 
 

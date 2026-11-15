@@ -77,6 +77,32 @@ def imported_entry(item):
             'year': str(item.get('year') or '')}
 
 
+def tmdb_of(fav):
+    """The TMDb id in a Kodi favourite's link, or ''."""
+    import re
+    match = re.search(r'tmdb_id=(\d+)', ' '.join(str(fav.get(k) or '') for k in ('path', 'windowparameter')))
+    return match.group(1) if match else ''
+
+
+def merged(own, imported, cap=MAX):
+    """ISSUE-314: hand-added favourites (Kodi's, newest first) lead and are never cut; the imported list follows, trimmed to the
+    cap. A title in both shows once (the hand-added one): same TMDb id and type, or the same name (and year when both have one)."""
+    own = list(reversed(own))
+    ids = {(r.get('kind'), r.get('tmdb')) for r in own if r.get('tmdb')}
+    names = {(r['title'].casefold(), r.get('year', '')) for r in own}
+    titles = {r['title'].casefold() for r in own}
+    keep = []
+    for r in imported:
+        item = r.get('imported') or {}
+        key = str(item.get('tmdb') or '')
+        if key and (r.get('kind'), key) in ids:
+            continue
+        if (r['title'].casefold(), r.get('year', '')) in names or (not r.get('year') and r['title'].casefold() in titles):
+            continue
+        keep.append(r)
+    return (own + keep[:max(0, cap - len(own))])[:max(cap, len(own))]
+
+
 def shown(rows, filter_key='all'):
     """The favourites the filter shows (Movies / Shows; All shows everything)."""
     return list(rows) if filter_key == 'all' else [r for r in rows if r.get('kind') == filter_key]
@@ -91,7 +117,8 @@ def entries(favs):
         if not action:
             continue
         out.append({'title': str(fav.get('title') or ''), 'thumb': str(fav.get('thumbnail') or ''), 'action': action,
-                    'removable': fav.get('type') in REMOVABLE, 'remove': remove_args(fav), 'kind': kind_of(fav)})
+                    'removable': fav.get('type') in REMOVABLE, 'remove': remove_args(fav), 'kind': kind_of(fav),
+                    'tmdb': tmdb_of(fav)})
         if len(out) >= MAX:
             break
     return out
