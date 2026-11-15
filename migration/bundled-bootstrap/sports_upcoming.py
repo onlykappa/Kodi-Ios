@@ -159,7 +159,9 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
                     game = self.rows[n]['game'] if n < len(self.rows) else None
                 if game is not None: on_game(game,log)
             elif ident == page.LEAGUES:
-                log('sports: leagues')  # Leagues follows in its own page commit.
+                log('sports: leagues')
+                import sports_leagues
+                sports_leagues.run(provider=provider,clock=clock)
 
         def onAction(self, action):
             if action.getId() in BACK_KEYS: self.finish()

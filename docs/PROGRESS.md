@@ -1,5 +1,20 @@
 # Persistent progress
 
+## Sports › Leagues: boards 16–17 and 20 — 2026-11-15
+
+Implemented the Leagues list, scrolled view and unavailable-provider state. `order_leagues` and `league_detail`
+supply ordering and wording; live fragments are red, empty leagues say Nothing coming up, and long names wrap.
+The sample therefore places live UCL before EPL, following the contract rather than the static mockup order.
+See Leagues now opens this page with the same provider/clock. League rows log their destination and call the
+separately owned league route only when its file and route registration both exist. Boards 18–19 remain separate.
+
+Evidence: approved HTML rendered in Chromium and compared with desktop Kodi 21.3 at 603 × 1167. Checked top and
+scrolled list, complete UEFA name and an extended long-name fixture, the error layout, repeated failure and retry
+recovery and Upcoming → See Leagues → Back navigation. The final Motorsport row clears the fixed fallback tab bar. Screenshots remain outside Git. No iPhone,
+native-bar, real-provider or playback result is claimed. Reused existing fonts, badge textures and state art.
+Twelve new cases in `scripts/test_sports_leagues.py` are listed in import-review; the Upcoming state test now
+checks its live Leagues callback. All 139 listed scripts pass against the combined PR/base tree; project and UI guidance checks pass before commit.
+
 ## Sports › Upcoming: empty and error states, boards 14–15 — 2026-11-15
 
 Built the approved calendar empty state with Updated just now, No games coming up, Nothing is scheduled yet and

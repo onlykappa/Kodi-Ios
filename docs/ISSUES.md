@@ -5137,3 +5137,13 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   action positions. Retry and See Leagues show focus feedback without moving the layout.
 - **Test:** state projection checks preserve the complete message across the rendered lines; the seam, typography
   and button feedback were checked visually in Kodi, not inferred from a unit test.
+
+## ISSUE-337 — Leagues badges initially referenced unavailable resources — fixed before commit
+
+- **Seen:** implementation review caught references to a 118-unit capsule asset and bold-caption font that the
+  existing generator did not supply.
+- **Cause:** the approved 44 pt badge's display size was mistaken for an existing texture/font resource name.
+- **Fix:** scale the existing circular pill_124 texture and use the existing caption font with bold text markup.
+- **Retest:** desktop Kodi shows full league codes and badges in boards 16–17, including the scrolled sections.
+- **Test:** `scripts/test_sports_leagues.py` covers generated controls and registration; actual font/texture rendering
+  was checked in Kodi. No new asset or font variant was added.

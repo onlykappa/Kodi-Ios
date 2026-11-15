@@ -167,11 +167,14 @@ class Controller(unittest.TestCase):
             self.assertTrue(w.stop.is_set())
         self.exercise(provider,scenario)
 
-    def test_see_leagues_exposes_the_pending_route(self):
+    def test_see_leagues_opens_the_leagues_page(self):
         def scenario(w):
             until(lambda:not w.fetching)
             w.onClick(page.LEAGUES)
-        logs=self.exercise(Provider(),scenario)
+        import sports_leagues
+        with patch.object(sports_leagues,'run') as opened:
+            logs=self.exercise(Provider(),scenario)
+            opened.assert_called_once()
         self.assertIn('sports: leagues',logs)
 
 
