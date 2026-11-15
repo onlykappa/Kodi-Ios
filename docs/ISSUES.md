@@ -4995,6 +4995,8 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Retest:** the AirPlay host tests (CI `airplay-remux`); the phone check needs the next AirPlay framework (rNN) and IPA.
 - **Test:** test_remux.c (every subtitle fixture: the media-time map and the line exactly once; new fixture
   h264_aac_layers.mkv with a line on two layers); test_airplay_subtitle_sync (wiring).
+- **Follow-up (CI run 43736061457, 2 of 3461 host checks failed):** the new fixture row moved the table, so the HTTP
+  check of `h264_ac3_dts_srt.mkv` used TrueHD's expectations (`&fx[4]`); it now uses its own row (`&fx[5]`).
 
 ## ISSUE-342 — Dubbed video with no caption made from the dub: none was downloaded at playback start (owner, after ISSUE-339) — fixed in code
 

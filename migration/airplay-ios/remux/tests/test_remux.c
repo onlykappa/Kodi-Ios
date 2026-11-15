@@ -2548,7 +2548,7 @@ int main(int argc, char **argv) {
         test_range_source(argv[2]);
         test_source_transport(argv[2]);test_shared_source(argv[2]);test_metadata_init(argv[2]);
         char url[1024]; snprintf(url, sizeof url, "%s/h264_ac3_dts_srt.mkv", argv[2]);
-        test_file(url, &fx[4], work);
+        test_file(url, &fx[5], work);   // h264_ac3_dts_srt.mkv (ISSUE-343 added a row above)
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
