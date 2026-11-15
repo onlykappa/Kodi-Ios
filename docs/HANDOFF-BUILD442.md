@@ -225,3 +225,10 @@ kodi-build, ~15 s). Kodi conditions use `![…]`, never `!(…)`. Screenshots ne
   patched FFmpeg does. 30 fonts at 0.7 MB/s and 0.4 s per request: direct 16.9 s, cache 8.5 s, and 24 MB before
   admission 8.5 s (it only moves the wait).
 - Next: the owner's log from this IPA after an Umbrella play. If it is still slow, read the `cache read` lines.
+- Build 486 (746722c, the ISSUE-317 fix) is published for the owner's phone test; their kodi.log after an Umbrella
+  play is the next evidence.
+- N2 notification timeline, Q2 Build Season chips and the board B copy sheet are done (ISSUE-318, 319, 320; f7032dc),
+  checked in the rig against the mockups. The rig preview script opened each sheet with properties from the real
+  models; it is kept outside Git.
+- Still waiting on the owner: approval for the smooth-scroll native build (ISSUE-316, release r33); logs for ISSUE-301
+  and ISSUE-285; whether to add the Wi-Fi HTTPS-interception message.
