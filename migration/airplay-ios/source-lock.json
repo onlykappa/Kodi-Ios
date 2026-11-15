@@ -2,14 +2,14 @@
   "framework_release": {
     "tag": "kodi-airplay-r61",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "sha256": "16f4199931b556f67d89ffe3ec730ba5e6ed6886db7ff4602857606d6ae17617"
   },
   "previous": {
     "tag": "kodi-airplay-r60",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "883f1a4033aead604ef559d32f35ae081e74363809c65adf4e4e86b8def16f96"
   },
-  "source_commit": "b6f75b992aaea03ff82322f9832aabf0f6cd87c1",
-  "verified_run": 43719680757,
-  "pin_note": "r61 staged (ISSUE-335: a quiet Drive read is dropped after 4 s and retried on a fresh connection; helper connections read ahead of a slow sequential reader; the keyframe scan of a prepared file is saved on the phone. ISSUE-336: a TV that stays stopped after a source stall is asked to play again, then reloaded at its position. ISSUE-337: a prepared file whose index is out of order or missing is served in 6-s segments, never as the MP4 itself; a player that failed for good is replaced on a restart). r60 (previous, digest 883f1a40\u2026) was built from 035a418 before the ISSUE-337 plain-MP4 fix and r59 before ISSUE-336; neither was pinned or shipped. sha256 pinned after the host tests and the framework build. Until then verified_run stays r58's airplay-ios run 43719680757."
+  "source_commit": "2e9f832",
+  "verified_run": 43731540855,
+  "pin_note": "r61 (ISSUE-335 quiet Drive reads cut after 4 s, helper connections for slow sources, saved keyframe scan; ISSUE-336 a TV stuck after a source stall is played again then reloaded; ISSUE-337 an out-of-order or missing prepared index is repaired or served in 6-s segments, a failed player is replaced) published by airplay-ios run 43731540855 from 2e9f832; the converter host tests passed in airplay-remux run 43730358862 (9d5b77f, the same native source); release notes, asset digest and downloaded zip all give 16f41999\u202617617, and the binary carries the new segment, saved-scan, stall-recovery and player-replacement lines. r60/r59 were never pinned or shipped."
 }
