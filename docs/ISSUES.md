@@ -4918,6 +4918,17 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-350 — The IPA build was killed by its own 10-minute limit while publishing (run 43769622376, build of claude/sports-ipa) — fixed in the workflow
+
+- **Seen (2026-11-15, 22:30–22:40 UTC):** `import-review.yml` dispatched on `claude/sports-ipa` (PR #31's head plus the Sports work). Steps 1–11
+  passed, including "Build and validate full customized unsigned ARM64 IPA"; step 12 "Publish raw IPA as a prerelease download" was cancelled after
+  the job had run 10 minutes 12 seconds. No release was made.
+- **Cause:** the `review` job's `timeout-minutes: 10`. Each added test suite (the Sports work added five) and step makes the job longer; build 528 had
+  finished just inside the limit.
+- **Fix:** `timeout-minutes: 25`.
+- **Retest:** the build is dispatched again; a release `build-NNN` must appear (recorded in docs/PROGRESS.md).
+- **Test:** `scripts/test_workflow_limits.py` (the limit is at least 20 minutes, the publish step is still there).
+
 ## ISSUE-349 — Play on TV to a Roku (its own player) showed no progress while the phone made the stream ready (owner: "make airplay work seemless on any device mainly roku") — fixed in code
 
 - **Seen (review):** ISSUE-345's banner was only made on the AirPlay route (`send_airplay`). Play on TV to a Roku, a

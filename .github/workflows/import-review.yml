@@ -105,7 +105,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -152,6 +152,7 @@ jobs:
           python3 -B scripts/test_sports_live.py
           python3 -B scripts/test_sports_merge.py
           python3 -B scripts/test_sports_loop.py
+          python3 -B scripts/test_workflow_limits.py
           python3 -B scripts/test_work_state.py
           python3 -B scripts/test_repack_lanes.py
           python3 -B scripts/test_debrid_ready.py
