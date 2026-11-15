@@ -499,5 +499,6 @@ it show me different options if there are more than one it recommends". Approved
   4. The clearest picture is tagged **Best**; a second source worth recommending is tagged **Also good**; the rest carry no tag.
   5. The page shows whatever the add-ons that answered found; one slow or failing add-on never blanks it.
 - Options A (one row per game, sources on its own page) and C (one row per source) were not chosen.
+- The **nothing-live** page ("No games live right now", the next game's time, a "See Upcoming" button) was approved too (owner: "looks great").
 
 Rule detail for the foundation: [design/sports-live-data.md](design/sports-live-data.md).
