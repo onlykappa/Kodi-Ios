@@ -185,8 +185,15 @@ def run_import(xbmc, xbmcgui, profile):
         return 0
     result = match_all(xbmc, xbmcgui, parsed['entries'], key)
     added, already = fi.add(profile, result['matched'], list_name)
-    xbmc.log('Kodi iOS favourites import: %d lines, %d added, %d known, %d questions, %d not found' % (
-        parsed['lines'], len(added), len(already), len(result['questions']), len(result['missing'])), xbmc.LOGINFO)
+    failed = [m for m in result['missing'] if m.get('failed')]
+    xbmc.log('Kodi iOS favourites import: %d lines, %d added, %d known, %d questions, %d not found, %d could not be looked up' % (
+        parsed['lines'], len(added), len(already), len(result['questions']), len(result['missing']) - len(failed), len(failed)),
+        xbmc.LOGINFO)
+    # ISSUE-323: which names, so a log says whether TMDb had nothing or the lookup failed (titles only, no account data).
+    for label, rows in (('not found', [m for m in result['missing'] if not m.get('failed')]), ('lookup failed', failed),
+                        ('needs an answer', [q['entry'] for q in result['questions']])):
+        if rows:
+            xbmc.log('Kodi iOS favourites import %s: %s' % (label, '; '.join(str(r.get('title', ''))[:60] for r in rows[:40])), xbmc.LOGINFO)
     # Owner (2026-11-15): the report is not opened by itself: a short notice, and Import a List › Last import shows it.
     data = fi.save_report(profile, parsed, result, added, already, list_name)
     notify(profile, data)

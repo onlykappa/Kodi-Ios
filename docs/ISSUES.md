@@ -4513,7 +4513,11 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Tests:** test_remote_media `test_the_route_is_on_by_default` and `test_size_is_known_from_the_first_answer`; test_stream_fallback is unchanged and passes.
 - **Phone check:** the `open timing … via umbrella` line for a resume, expected about 5–8 s instead of 20 s.
 
-## ISSUE-301 — Refresh Library read every video one by one (owner, build 466, log 074adcd9: "the scan was a little slow") — logging added; cause to confirm
+## ISSUE-301 — Refresh Library read every video one by one (owner, build 466, log 074adcd9: "the scan was a little slow") — resolved (owner log 181477d9, build 486)
+
+- **Confirmed (build 486, log 181477d9):** Library status › Refresh: lists refreshed from Drive in 5.3 s (20:15:31.5 tap,
+  20:15:36.9 done); only three videos were read again, each with its reason: Rick and Morty S1 E5 (repack), Iron Man
+  (never checked), Fall 2 Deadpoint (repack). The build-466 slowness was the first Refresh after the library came back.
 
 - **Seen:** 49 "preparation: compatible video kept unchanged" lines from 13:46:58 to 13:54:39, about 9.4 s per video, one at a time.
 - **Code:** plain Refresh (`request_check(inspect=True)`) already skips a video whose last check was good and whose Drive file is the same (ISSUE-247, `settled`); only Check Every Video reads them all. Nothing in these checks changed since build 442 (INSPECT_VERSION 1).
@@ -4850,3 +4854,52 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Rig:** the `airplay` scenario's Inception copy and the Scary Movie conversion sheet: everything fits above the
   buttons, nothing cut off.
 - **Test:** test_build442_sheets `BoardBCopySheet`; test_build193_pages allows wrapping for exactly these two labels.
+
+## ISSUE-321 — Umbrella stream stuttered just after it started; glitchy on exit (owner, build 486, log a30fb0aa) — fixed in code; needs the phone
+
+- **Seen:** two plays of Black Clover S2 E7, both opened in 8.6-9.1 s (open 2.1-2.2 s: ISSUE-317 holds). About 1-2 s
+  after the picture, every block fetch in flight failed with `ConnectionError` (blocks 2-4 after 5.7 s, 6-9 after 2-5 s),
+  Kodi's reads waited 6.6-22.9 s (`waited_for=6,7,…`) and the audio stalled ("stream stalled"); later fetches of the
+  same blocks succeeded, block by block at 5-8 s each.
+- **Causes found in the code:**
+  - The ISSUE-309 settle hold never held: `slowdown.play_reason` read the start of the play from `KodiIOS.Open`, which the
+    open-timing line clears as soon as the picture plays, so "Slower while a video plays" came 1 s after the picture
+    instead of 15 s.
+  - The next blocks fetched after the opening (KODI_AHEAD, blocks 2-5) were the MKV's attached fonts, which this Kodi
+    skips: Kodi read 0-6.3 MB and then went straight to the first video at 22.57 MB (block 5). 12 MB of unused fetches
+    competed with the video's blocks at the moment playback began.
+  - A failed block cost Kodi a full new block fetch through the same crowded connections; the trace logged only the
+    error's type.
+- **Fix:**
+  - `play_reason` remembers the play's start until the video stops (SETTLE 15 s now holds after the picture).
+  - `remote_media.video_start` walks the MKV's top-level elements in block 0 (tracks, attachments, tags) to where the
+    first video begins; the next blocks are fetched from there.
+  - A block that fails on the way (not an answer that contradicts the file: `INTEGRITY`) is fetched once more over one
+    connection, and the request gate gives half its places for CALM_FOR (30) s.
+  - The trace names the error and its words, with addresses removed (`describe`).
+- **Rig (desktop Kodi rig, 30-font MKV, 0.7 MB/s, a 6 s window where the server drops every connection):** old and new
+  both rebuffer about 5-6 times. A total outage cannot be retried around, and the phone's failure (slow, partial) is
+  not reproduced. The new trace line will name the phone's error.
+- **Test:** test_stream_reads `Stutter`, `SettleHold`.
+
+## ISSUE-322 — Holding a favourite closed Favourites and opened Kodi's menu with "Add to favourites" (owner, build 486) — fixed in code; rig-checked
+
+- **Cause (log 181477d9):** iOS sends a long press as Back (10) and then the context menu (117); Favourites closed on the
+  Back and Kodi's own context menu opened over Home.
+- **Fix (`favourites_page.py`):** on a poster a long press opens the page's own menu (the choice sheet): Download (the
+  existing download script: a movie, or a season of a show), View Details (TMDb Helper's info window, 1190), and Remove
+  from Favourites last, in red. No "Add to favourites". The second action of the same press is ignored, as in Library
+  status (ISSUE-196).
+- **Rig:** the menu renders with all three rows and Cancel, nothing cut off. Download and View Details need the phone
+  (TMDb and Elementum are offline in the rig).
+- **Test:** test_favourites_menu `Menu`.
+
+## ISSUE-323 — A 96-name list added 58; 20 "not found" (owner, build 486, log 181477d9) — lookups retried; names logged
+
+- **Seen:** "favourites import: 96 lines, 57 added, 1 known, 21 questions, 20 not found". The 21 questions wait for a
+  pick in Import a List › Last import (several titles close to the name); the 20 are listed there as not found.
+- **Cause found:** a lookup that raised (a timeout, TMDb busy) was counted as "not found" without a second try.
+- **Fix:** each lookup is tried up to three times; one that keeps failing is marked and logged as "could not be looked
+  up". The log names the titles not found, failed and waiting for an answer, so the next import shows which it was.
+- **Test:** test_favourites_menu `Lookups`.
+

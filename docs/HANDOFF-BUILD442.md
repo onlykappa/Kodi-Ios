@@ -232,3 +232,6 @@ kodi-build, ~15 s). Kodi conditions use `![…]`, never `!(…)`. Screenshots ne
   models; it is kept outside Git.
 - Still waiting on the owner: approval for the smooth-scroll native build (ISSUE-316, release r33); logs for ISSUE-301
   and ISSUE-285; whether to add the Wi-Fi HTTPS-interception message.
+- Owner logs 181477d9 and a30fb0aa (build 486): Umbrella opens in 8.6-9.1 s (open 2.1 s). The stutter just after the
+  start, Favourites long press, import lookups and the settle hold are ISSUE-321 to 323. ISSUE-301 is resolved.
+  The r33 native build (smooth scrolling, ISSUE-316) was approved and is running (run 43676069805); the IPA follows it.

@@ -105,6 +105,14 @@ def resolve(name, search, year=''):
     return 'question', ranked[:MAX_CHOICES]
 
 
+LOOKUP_TRIES = 3
+
+
+def pause(seconds):
+    import time
+    time.sleep(seconds)
+
+
 def run(entries, search, progress=None, cancelled=lambda: False):
     """Resolve parse()'s entries. Returns {'matched': [...], 'questions': [...], 'missing': [...], 'duplicates': [...]}.
 
@@ -116,10 +124,18 @@ def run(entries, search, progress=None, cancelled=lambda: False):
             break
         if progress:
             progress(n, len(entries), entry['title'])
-        try:
-            status, found = resolve(entry['title'], search, entry.get('year', ''))
-        except Exception:
-            status, found = 'missing', None
+        # ISSUE-323 (owner, build 486: 96 names, 20 "not found" for titles that exist): a lookup that fails (a timeout,
+        # TMDb busy) is tried again, and one that keeps failing is kept apart from names TMDb really has nothing for.
+        status, found = 'missing', None
+        for attempt in range(LOOKUP_TRIES):
+            try:
+                status, found = resolve(entry['title'], search, entry.get('year', ''))
+                break
+            except Exception:
+                if attempt == LOOKUP_TRIES - 1:
+                    status = 'failed'
+                else:
+                    pause(0.5 * (attempt + 1))
         if status == 'match':
             key = (found['kind'], found['tmdb'])
             row = dict(found, rank=entry['rank'], watched=entry.get('watched', 0), line=entry['line'], asked=entry['title'])
@@ -130,6 +146,8 @@ def run(entries, search, progress=None, cancelled=lambda: False):
             matched.append(row)
         elif status == 'question':
             questions.append({'entry': entry, 'choices': found})
+        elif status == 'failed':
+            missing.append(dict(entry, failed=True))
         else:
             missing.append(entry)
     return {'matched': matched, 'questions': questions, 'missing': missing, 'duplicates': same}

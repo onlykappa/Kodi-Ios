@@ -151,5 +151,56 @@ class Budget(unittest.TestCase):
                 self.assertEqual(r.read(), want)
 
 
+class Stutter(unittest.TestCase):
+    """ISSUE-321 (owner log a30fb0aa, build 486): every block in flight failed with ConnectionError just after the
+    picture; Kodi's reads waited 7-23 s and the audio stalled."""
+    def test_a_transport_failure_is_tried_again_over_one_connection_and_calms_the_rate(self):
+        calls = []
+
+        def flaky(request, timeout):
+            a, b = map(int, request.get_header('Range')[6:].split('-'))
+            calls.append(b - a + 1)
+            if len(calls) <= 12:                        # every request of the split try (4 pieces x 3 attempts)
+                raise ConnectionError('System networking: The network connection was lost. https://x.example/t?k=1')
+            return opener(request, timeout)
+        logged = []
+        xbmc = types.SimpleNamespace(LOGINFO=1, log=lambda m, l=1: logged.append(m))
+        with mock.patch.dict(sys.modules, {'xbmc': xbmc}), mock.patch.object(rm.drive_stream.time, 'sleep', lambda x: None):
+            s = rm.Foreground('https://x.example/E.mkv', open_url=flaky)
+            self.addCleanup(s.close)
+            self.assertEqual(s.blocks.get('media', 0), DATA[:rm.BLOCK])
+        self.assertEqual(calls[-1], rm.BLOCK)            # the retry asked for the whole block at once
+        self.assertGreater(s.pieces.calm_until, time.monotonic())
+        failed = [l for l in logged if 'error=' in l]
+        self.assertTrue(any('network connection was lost' in l for l in failed), failed)
+        self.assertFalse(any('x.example' in l for l in logged))
+
+    def test_a_calm_gate_gives_half_the_places(self):
+        g = rm._Gate(8)
+        g.calm(5)
+        self.assertTrue(all(g.acquire(timeout=0.01) for _ in range(4)))
+        self.assertFalse(g.acquire(timeout=0.05))
+        g.calm_until = 0
+        self.assertTrue(g.acquire(timeout=0.01))
+
+    def test_an_answer_that_contradicts_the_file_is_never_retried_into_a_block(self):
+        self.assertIn('wrong byte range', rm.INTEGRITY)
+        self.assertIn('complete range', rm.INTEGRITY)
+
+
+class SettleHold(unittest.TestCase):
+    def test_the_first_seconds_of_a_video_stay_held_after_the_open_mark_is_cleared(self):
+        import json
+        import slowdown
+        slowdown._play.update(video_since=None, asked=0.0)
+        mark = json.dumps({'t': 1000.0, 'via': 'umbrella'})
+        self.assertEqual(slowdown.play_reason(False, False, False, mark, now=1005.0), 'buffering')   # opening
+        self.assertEqual(slowdown.play_reason(False, False, True, mark, now=1009.0), 'buffering')    # picture
+        self.assertEqual(slowdown.play_reason(False, False, True, '', now=1010.0), 'buffering')      # mark cleared
+        self.assertEqual(slowdown.play_reason(False, False, True, '', now=1025.0), 'video')          # 16 s played
+        self.assertEqual(slowdown.play_reason(False, False, False, '', now=1030.0), '')              # stopped
+        self.assertEqual(slowdown.play_reason(False, False, True, '', now=1031.0), 'video')          # a later video
+
+
 if __name__ == '__main__':
     unittest.main()

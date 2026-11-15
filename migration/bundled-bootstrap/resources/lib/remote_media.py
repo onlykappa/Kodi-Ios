@@ -47,6 +47,8 @@ KODI_AHEAD=4     # ISSUE-315: blocks after the opening ones fetched at once for 
 # for Kodi to open; the direct link 19.6 s): every read Kodi makes through the cache (offset, length, time, how long it
 # waited for blocks) and every block fetched, for READ_LOG_FOR seconds after the source opens (READ_LOG_MAX lines at most).
 READ_LOG_FOR=90;READ_LOG_MAX=150
+INTEGRITY=('wrong byte range','different file','complete range','without the asked byte range')
+CALM_FOR=30      # ISSUE-321: seconds of half the request places after an upstream failure
 BLOCK_RETRIES=2  # ISSUE-317: more tries for a block a reader waits on (each try is up to 3 requests per piece)
 OPEN_BLOCKS=2    # ISSUE-317: leading blocks a Kodi source must hold before Kodi is handed it (with the last block)
 LOOP_WINDOW=90   # ISSUE-306: seconds in which a second hand-off after one Kodi never read means Umbrella is cycling its sources
@@ -69,13 +71,20 @@ class _Gate:
  """ISSUE-317: at most `size` requests at once, like the semaphore it replaces, but a free place goes to the most urgent
  waiter first: 0 a block Kodi is waiting on, 1 the opening blocks, 2 read-ahead nobody has asked for yet."""
  def __init__(self,size):
-  self.free=size;self.cond=threading.Condition();self.waiting=[]
+  self.free=size;self.size=size;self.cond=threading.Condition();self.waiting=[];self.calm_until=0.0
+ def calm(self,seconds=CALM_FOR):
+  """ISSUE-321: after an upstream failure, half the places for a while (a debrid server that resets connections when
+  too many arrive at once answers fewer, steadier ones)."""
+  with self.cond:self.calm_until=time.monotonic()+seconds
+ def _room(self):
+  used=self.size-self.free
+  return used<(max(2,self.size//2) if time.monotonic()<self.calm_until else self.size)
  def acquire(self,timeout=None,priority=2,since=None):
   with self.cond:
    ticket=[priority,since or time.monotonic()];self.waiting.append(ticket)
    try:
     end=None if timeout is None else time.monotonic()+timeout
-    while self.free<=0 or min(self.waiting)!=ticket:
+    while self.free<=0 or not self._room() or min(self.waiting)!=ticket:
      left=None if end is None else end-time.monotonic()
      if left is not None and left<=0:return False
      self.cond.wait(left if left is None else min(left,.05))
@@ -214,8 +223,19 @@ class Foreground(drive_stream.DriveStream):
   began=time.monotonic()
   try:
    result=self._fetch_block(item,start,end)
+  except _SourceClosed:raise
   except Exception as error:
-   self._trace('block',start//self.block_size,began,error=type(error).__name__);raise
+   # ISSUE-321 (owner log a30fb0aa: every block in flight failed with ConnectionError just after the picture, and Kodi's
+   # reads waited 7-23 s): name the error, calm the request rate, and try the block once more over one connection.
+   self._trace('block',start//self.block_size,began,error=describe(error))
+   self.pieces.calm()
+   # Only a failed transfer is tried again; an answer that contradicts the file (a wrong range, another size, pieces
+   # that do not make one block) never becomes a block (ISSUE-303 integrity).
+   if self.cancelled.is_set() or any(w in str(error) for w in INTEGRITY):raise
+   began=time.monotonic()
+   try:result=super()._fetch(item,start,end)
+   except Exception as again:
+    self._trace('block',start//self.block_size,began,error='retry '+describe(again));raise
   self._trace('block',start//self.block_size,began,size=len(result[0]))
   return result
 
@@ -461,6 +481,11 @@ def prefetch(source,blocks=None,extra=0):
   # ISSUE-317: started with the opening ones, not after them: the request gate gives the opening blocks their places
   # first, and the rest use whatever places are left instead of waiting idle.
   first=blocks or WARM_BLOCKS
+  # ISSUE-321 (owner log a30fb0aa): this Kodi seeks past an MKV's attached fonts, so the blocks after the opening ones
+  # were font data it never read (it went from 6 MB straight to the first video at 22.6 MB), fetched just when it needed
+  # the video. The file's own layout (in block 0) says where the video starts; the next blocks are fetched from there.
+  begins=video_start(cache.data.get(('media',0),b''))
+  if begins is not None:first=max(first,begins//size)
   more=[threading.Thread(target=one,args=(i,),daemon=True) for i in range(first,first+extra) if i<last]
   for t in threads:t.start()
   # the opening blocks' requests queue first (the gate only orders waiters; a free place goes to whoever asks first)
@@ -470,6 +495,38 @@ def prefetch(source,blocks=None,extra=0):
   for t in more:t.start()
   for t in threads:t.join()
  except Exception:pass
+
+
+MKV_SEGMENT=0x18538067;MKV_CLUSTER=0x1F43B675
+
+
+def video_start(data):
+ """Where an MKV's first video data (its first Cluster) begins, from the start of the file, or None when it is not an
+ MKV or its top-level elements cannot be followed that far. The headers before the video (tracks, attached fonts, tags)
+ are walked by their sizes, so a Cluster beyond `data` is still found when the element before it begins inside it."""
+ def vint(pos,keep_marker=False):
+  if pos>=len(data):return None,0
+  first=data[pos];length=1;mask=0x80
+  while length<=8 and not first&mask:mask>>=1;length+=1
+  if length>8 or pos+length>len(data):return None,0
+  value=first if keep_marker else first&(mask-1)
+  for byte in data[pos+1:pos+length]:value=(value<<8)|byte
+  return value,length
+ try:
+  ident,n=vint(0,True)
+  if ident!=0x1A45DFA3:return None
+  size,m=vint(n);pos=n+m+size
+  ident,n=vint(pos,True)
+  if ident!=MKV_SEGMENT:return None
+  size,m=vint(pos+n);pos+=n+m
+  for _ in range(64):
+   if pos>=len(data):return pos   # the element before ended past block 0: the next one starts here (the video, or tags)
+   ident,n=vint(pos,True);size,m=vint(pos+n)
+   if ident is None or size is None:return None
+   if ident==MKV_CLUSTER:return pos
+   pos+=n+m+size
+ except Exception:return None
+ return None
 
 
 def start(monitor,window,context=None,open_url=None,playing=None):
@@ -572,6 +629,14 @@ def opening_log(route,elapsed,stats,reason=''):
    int(stats.get('http_requests') or 0),int(stats.get('http_errors') or 0),int(stats.get('last_status') or 0))
    +(' served=%d'%int(stats.get('served') or 0))+((' reason=%s'%reason) if reason else ''),xbmc.LOGINFO)
  except Exception:pass
+
+
+def describe(error):
+ """An error's type and words for the log, without any address in them (a link or a host can carry account tokens)."""
+ import re
+ text=re.sub(r'\S*://\S*','<address>',str(getattr(error,'reason',None) or error or ''))
+ code=getattr(error,'code',None)
+ return ('%s%s%s'%(type(error).__name__,' %s'%code if isinstance(code,int) else '',(': '+text[:90]) if text else '')).replace('\n',' ')
 
 
 def fingerprint(ident):

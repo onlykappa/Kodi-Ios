@@ -45,7 +45,7 @@ STRAIN_CAP = 0.25 * 1024 * 1024   # then a background download keeps under this 
 # now counts as 'buffering' (background downloads wait) until the video has played SETTLE seconds, OPENING_LIMIT at most.
 OPENING_LIMIT = 120.0
 SETTLE = 15.0
-_play = {'video_since': None}
+_play = {'video_since': None, 'asked': 0.0}
 
 
 def play_reason(airplay, caching, has_video, open_raw, now=None):
@@ -67,6 +67,15 @@ def play_reason(airplay, caching, has_video, open_raw, now=None):
         asked = float((json.loads(open_raw) or {}).get('t') or 0) if open_raw else 0.0
     except (ValueError, TypeError, AttributeError):
         asked = 0.0
+    # ISSUE-321 (owner log a30fb0aa, build 486: "Slower while a video plays" 1 s after the picture, then the stream
+    # stuttered): the open-timing line clears KodiIOS.Open as soon as the picture plays, so the SETTLE hold ended there.
+    # The play's start is remembered until the video stops.
+    if asked:
+        _play['asked'] = asked
+    elif has_video:
+        asked = _play.get('asked') or 0.0
+    else:
+        _play['asked'] = 0.0
     if asked and 0 <= now - asked < OPENING_LIMIT:
         since = _play['video_since']
         if since is None or now - since < SETTLE:

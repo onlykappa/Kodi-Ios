@@ -173,6 +173,7 @@ jobs:
           python3 -B scripts/test_stream_race.py
           python3 -B scripts/test_stream_reads.py
           python3 -B scripts/test_smooth_pages.py
+          python3 -B scripts/test_favourites_menu.py
           python3 -B scripts/test_stream_opening_fallback.py
           python3 -B scripts/test_stream_integrity.py
           python3 -B scripts/test_native_http.py
