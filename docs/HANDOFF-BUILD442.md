@@ -165,3 +165,50 @@ grouplist, use `DISPLAY=:5 xdotool mousemove X Y click 1`; Kodi conditions group
 - Never merge a PR without the owner's OK.
 - Leave model IDs out of commits and PRs.
 - Use one agent at a time: the owner asked for no parallel sub-agents, to save usage.
+
+## Handover, 2026-11-15 (end of the fourth session) — read this first
+
+**State.** `claude/build442-feedback` (PR #28) is pushed; the full import-review list passes (127 tests). Latest owner
+build: **build-482** (5f930a5). Nothing merged. Work since the third handover: ISSUE-302/306/309/315 (Umbrella opening),
+ISSUE-304/305/307/308/311/312/314 (PR #29 merged: Favourites import, bell sheet G3, import report page from
+Notifications, hand-added favourites first, J3), ISSUE-310 (a movie copy shows as running on every screen), ISSUE-316
+(smooth scrolling, on its own branch, see below).
+
+**Owner report on build-482: Umbrella still takes up to 30 s to open. No log yet for build 482: ask for it first.**
+What the earlier logs established (47ee1590 build 477, bdbdac02 build 479):
+- The `Kodi iOS open timing: N s via umbrella (handoff X s, open Y s)` line splits the time. Hand-off = tap to address
+  handed to Kodi (Umbrella resolving + AllDebrid unlock + our cache's 3 opening blocks, `stream opening: … wait_ms`).
+  Open = Kodi's demuxer open (`Creating Demuxer` → `Open - probe limits`).
+- Cache route good case: 12.9-16.6 s (hand-off 5-7 s, of which ~4 s our 9 MB opening blocks; open 7.7-9.3 s).
+  Direct route (cache not ready in 5 s, or the race of ISSUE-315): 28-42 s, Kodi's open 20-24 s over one connection.
+- Kodi's open reads far past the start of these MKVs (Crunchyroll WEB releases carry ~20 MB of attached fonts):
+  ISSUE-300 rig: plain MKV 2.2 s, with fonts 29 s direct.
+- Ideas not yet tried: admit the cache on block 0 + last instead of 3 complete blocks; raise KODI_AHEAD / start the
+  extra blocks with the opening ones; check `served=` and whether Kodi reads sequentially through attachments (if so,
+  an ffmpeg option to skip attachment reads, or a larger first range); measure Umbrella's own resolve time between
+  "playing with umbrella" and the first `stream opening` (5-12 s seen); a slow AllDebrid unlock (log bdbdac02 18:00:05
+  → 18:00:17).
+- Rig: `scripts/kodi_rig.py` + a local throttled HTTP server reproduces the open (ISSUE-300 method). Umbrella itself is
+  not in the repo or IPA (installed on first run), so test `remote_media.for_kodi` end to end, as ISSUE-300 did.
+
+**Smooth scrolling (ISSUE-316)** is on branch `claude/wip-smooth-scroll` (a2999ef): a Kodi patch change (group lists skip
+children far off screen; rig A/B Favourites 68→83 fps, Notifications 70→88, Home unchanged) and source-lock `build_tag`
+r33. It needs the native build `kodi-ios-portrait.yml` (hours, publishes r33) → check digests → set
+`executable_release` to r33 → IPA. **Ask the owner before starting it** (it publishes a release). Pushing the patch to
+the PR branch triggers that build, so merge it only once approved.
+
+**Remaining gaps after Umbrella:**
+- N2 notification detail (timeline), Q2 Build Season chips, DEC-051 board B copy sheet: approved mockups in
+  docs/design/build442-mockups.html and unified-status-mockups.html; data from PR #30 (docs/HANDOFF-BUILD442-BACKEND.md);
+  unfinished start on branch `claude/wip-n2-q2-copy-sheets`.
+- ISSUE-301 Refresh speed: needs the owner's next log (`preparation: checking <title> (<reason>)` lines).
+- ISSUE-285 copy RuntimeError: needs a log taken after a copy retries.
+- Phone checks pending: the long-press "Add to favourites" on a Home poster; the 90-item Favourites grid scrolling;
+  J3 Continue line (rig cannot list episodes offline).
+- Offered, not yet asked for: a clear message when a Wi-Fi intercepts HTTPS (log a296afa2: certificate hostname
+  mismatch for googleapis.com, Umbrella sat at "Getting the link from AllDebrid…").
+
+**Rig notes:** profile `~/.cache/kodi-rig/home/.kodi/userdata`; real taps `DISPLAY=:5 xdotool mousemove X Y click 1`;
+`System.FPS` via `kodi_rig.py rpc XBMC.GetInfoLabels '{"labels":["System.FPS"]}'` while dragging with xdotool; the rig's
+Kodi source (`~/.cache/kodi-rig/kodi-src`) currently has the ISSUE-316 change applied (rebuild: `make -j kodi` in
+kodi-build, ~15 s). Kodi conditions use `![…]`, never `!(…)`. Screenshots never go into Git.
