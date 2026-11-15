@@ -1,5 +1,15 @@
 # Persistent progress
 
+## Build 502: one IPA with everything from the build-486 feedback — 2026-11-15
+
+[Testing IPA 502](https://github.com/onlykappa/Kodi-Ios/releases/download/build-502/Kodi-iOS-Customized-Touch-r10.ipa)
+(commit e9d93ac, PR #28 unmerged; IPA sha256 6df332e1…8498). Kodi r33 (ISSUE-316 smooth long pages; executable
+091eb4a4…1435 checked at build) and AirPlay r58 (ISSUE-326; framework zip 1bff47f3…fc331, segment and empty-cue code
+present in the IPA's binary). Also: Favourites manager (ISSUE-325), Continue Watching per show (ISSUE-330), Next
+Episode (ISSUE-331), shorter Settings › Library (ISSUE-329), quiet Drive proxy hang-ups (ISSUE-327), Continue Watching
+entry fix (ISSUE-328). Publishing needed a workaround (ISSUE-332). 134 Python suites and the AirPlay host tests passed;
+the Library page was checked in the desktop Kodi rig. Phone results pending.
+
 ## Umbrella build 473 never-opening repair — 2026-11-14
 
 ISSUE-303 fix published as `2f447c7` in PR #28. [Testing IPA 475](https://github.com/onlykappa/Kodi-Ios/releases/download/build-475/Kodi-iOS-Customized-Touch-r10.ipa) is ready: 125 focused host tests plus the full Python 3.11 CI suite pass. Download digest, ZIP integrity, packaged source and framework pins verified. Cache admission requires complete opening probes within a shared five-second budget; failed probes cancel and preserve direct playback. Phone retest pending; PR remains unmerged. Full evidence: [UMBRELLA-473-PROGRESS.md](UMBRELLA-473-PROGRESS.md).
