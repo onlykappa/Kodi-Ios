@@ -990,6 +990,7 @@ def files(p,read):
       '1080i/IOSPlayOnTV.xml':play_on_tv(),
       '1080i/'+TRACK_MENU:track_menu(),   # owner-approved Subtitles / Audio menus (tracks.py)
       '1080i/IOSAirPlayFlow.xml':_airplay_flow().page(close_button_1080),   # owner-approved Play on TV boards (2026-11-08)
+      '1080i/IOSTVBanner.xml':_airplay_flow().banner_page(),   # ISSUE-345: Play on TV's progress banner (mockup C)
       p.FOLDER+'/'+BUSY:busy_dialog(p.MARKER,'p_pill'),
       p.FOLDER+'/'+SEARCHING:searching_card(p),   # boards 09 / season A, C
       p.FOLDER+'/'+SEASON_QUALITY:season_quality_sheet(p),p.FOLDER+'/'+SEASON_READY:season_ready_sheet(p),   # Build Season B, D

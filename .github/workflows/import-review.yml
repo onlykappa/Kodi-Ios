@@ -189,6 +189,7 @@ jobs:
           python3 -B scripts/test_subtitle_match.py
           python3 -B scripts/test_next_episode.py
           python3 -B scripts/test_airplay_subtitle_sync.py
+          python3 -B scripts/test_tv_banner.py
           python3 -B scripts/test_notice_season_data.py
           python3 -B scripts/test_build442_sheets.py
           python3 -B scripts/test_terminal_copy_errors.py

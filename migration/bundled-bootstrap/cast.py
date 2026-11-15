@@ -48,8 +48,8 @@ def run():
  home=xbmcgui.Window(10000)
  with cast.session_lock(xbmcvfs.translatePath('special://profile/')) as owned:
   if not owned:
-   xbmc.log('Kodi iOS Play on TV: already starting; second press ignored',xbmc.LOGINFO)
-   xbmcgui.Dialog().notification('Play on TV','Still connecting to the TV…',xbmcgui.NOTIFICATION_INFO,3000);return
+   # ISSUE-345: the banner at the top already shows the progress and its Stop; a second press only leaves it there.
+   xbmc.log('Kodi iOS Play on TV: already starting; second press ignored',xbmc.LOGINFO);return
   home.setProperty(cast.BUSY,str(time.time()))
   try:run_owned()
   finally:home.clearProperty(cast.BUSY)
@@ -73,7 +73,9 @@ def run_owned():
  home=xbmcgui.Window(10000)
  starting=home.getProperty(TV_STARTING)
  if starting and time.time()-float(starting.split('|',1)[0] or 0)<180:
-  home.setProperty(TV_STOP,'1');dialog.notification('Play on TV','Stopped',xbmcgui.NOTIFICATION_INFO,2500);return
+  # ISSUE-345 (owner log a83e06c7: 13 presses while one start was under way): a press no longer stops a start; the
+  # banner's Stop does.
+  xbmc.log('Kodi iOS Play on TV: a start is under way; the banner shows it',xbmc.LOGINFO);return
  if not player.isPlayingVideo():dialog.ok('Play on TV','Start a video first.');return
  # ISSUE-280: an Umbrella MKV that Kodi reads through the service's cache is handed on as its real link (a TV cannot
  # reach 127.0.0.1); the cache is shared, not opened again.
@@ -190,6 +192,45 @@ QUIET_PROGRESS=True   # ISSUE-251: no "Play on TV" progress card; the system Air
 DIRECT_AIRPLAY=False   # owner (2026-11-14): keep Media Assistant until AirPlay is confirmed on the Rokus
 
 
+_BANNER=[None]
+
+
+class Banner:
+ """ISSUE-345 (owner-approved mockup C): the slim banner at the top from the moment a TV is picked: the step, a thin
+ bar and Stop (which sets TV_STOP, as Play on TV tapped again used to); "Playing on your TV" for two seconds at the end."""
+ def __init__(self,xbmc,xbmcgui):
+  import airplay_flow
+  self.xbmc,self.flow,self.win=xbmc,airplay_flow,None
+  home=xbmcgui.Window(10000)
+  def stop():
+   home.setProperty(TV_STOP,'1');self.apply({'title':'Stopping…','sub':'','stop':''})
+   xbmc.log('Kodi iOS Play on TV: Stop tapped on the banner',xbmc.LOGINFO)
+  try:
+   Win=airplay_flow.make_banner(xbmc,xbmcgui,stop);here=os.path.dirname(os.path.abspath(__file__))
+   try:self.win=Win(airplay_flow.BANNER,here,'Default','1080i')
+   except RuntimeError:
+    # Written after Kodi listed the skin (build 200's "XML File for Window is missing", as for the card): re-read once.
+    import xbmcvfs
+    xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'1080i')+'/')
+    self.win=Win(airplay_flow.BANNER,here,'Default','1080i')
+   self.win.props=airplay_flow.banner_view('opening');self.win.show()
+  except Exception as error:
+   self.win=None;xbmc.log('Kodi iOS Play on TV: banner unavailable (%s)'%type(error).__name__,getattr(xbmc,'LOGWARNING',2))
+ def apply(self,props):
+  if self.win is not None:
+   try:self.win.apply(props)
+   except Exception:pass
+ def stage(self,stage,converting=False):self.apply(self.flow.banner_view(stage,converting))
+ def done(self,at=None):
+  if self.win is None:return
+  self.apply(self.flow.banner_done(at));self.xbmc.sleep(2000);self.close()
+ def close(self):
+  if self.win is not None:
+   try:self.win.finish()
+   except Exception:pass
+   self.win=None
+
+
 class FlowUI:
  """Play on TV's card over the video (owner-approved boards, airplay_flow.py); Kodi's own progress box and alerts
  only if that window cannot load."""
@@ -220,7 +261,9 @@ class FlowUI:
   # instead of the ugly loading screen"): the progress card is not shown; Apple's AirPlay list opens at once instead
   # (kodi_airplay_open, while the stream is made). Problems still show their card (ask).
   self.skipped=skipped
-  if QUIET_PROGRESS:return
+  if QUIET_PROGRESS:
+   if _BANNER[0]:_BANNER[0].stage(stage)
+   return
   if self.win is not None:
    self.win.apply(self.flow.stage_view(stage,self.title,skipped=skipped,kind=self.kind,poster=self.poster));self.win.show();self.win.apply({'bar':self.win.props.get('bar','0')})
   else:
@@ -229,7 +272,8 @@ class FlowUI:
   # Back to opening after the TV was reached: the native player restarted with the H.264 picture (r36).
   self.converting=getattr(self,'converting',False) or (stage=='opening' and getattr(self,'last','') in ('waiting_tv','connecting'))
   self.last=stage
-  if self.win is not None:self.win.apply(self.flow.stage_view(stage,self.title,skipped=self.skipped,converting=self.converting,kind=self.kind,poster=self.poster))
+  if QUIET_PROGRESS and _BANNER[0]:_BANNER[0].stage(stage,self.converting)
+  if self.win is not None and not QUIET_PROGRESS:self.win.apply(self.flow.stage_view(stage,self.title,skipped=self.skipped,converting=self.converting,kind=self.kind,poster=self.poster))
   elif self.box:self.box.update(0,cast.AIRPLAY_WORDS.get(stage,''))
  def canceled(self):
   if QUIET_PROGRESS:   # ISSUE-255: no card; Play on TV tapped again while it starts is Stop
@@ -239,6 +283,7 @@ class FlowUI:
   return bool(self.box and self.box.iscanceled())
  def ask(self,props,monitor):
   """Show a problem and wait for its button: 'retry', 'pause_retry', 'settings', 'watch' or 'cancel'."""
+  if _BANNER[0]:_BANNER[0].close();_BANNER[0]=None   # ISSUE-345: the problem card replaces the banner
   if self.win is not None:
    self.win.chosen='';self.win.apply(props)
    if not self.shown():self.win.show()
@@ -258,6 +303,9 @@ class FlowUI:
    self.box=None
 
 def send_airplay(xbmc,dialog,player,library,url,title,playing):
+ if QUIET_PROGRESS:
+  import xbmcgui as _g
+  _BANNER[0]=Banner(xbmc,_g)   # ISSUE-345: progress at once, before the source is opened
  lib=airplay.load(library);lease=None;source=None;retained=False
  import remote_media
  raw=cast.airplay_source(playing,url,airplay.converts(lib))
@@ -271,14 +319,12 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   try:_home.setProperty(key,value) if value else _home.clearProperty(key)
   except Exception:pass
  _mark(TV_STOP);_mark(TV_STARTING,'%f|%s'%(_time.time(),title or ''))
- if QUIET_PROGRESS:
-  try:dialog.notification('Play on TV','Getting it ready · tap Play on TV again to stop',_gui.NOTIFICATION_INFO,4000)
-  except Exception:pass
  try:
   retained=bool(_send_airplay(xbmc,dialog,player,library,url,title,playing,lib,source,lease))
   return retained
  finally:
   _mark(TV_STARTING);_mark(TV_STOP)
+  if _BANNER[0]:_BANNER[0].close();_BANNER[0]=None
   # Native playback outlives this interpreter after the 45-second settle check. The service owns its cache.
   if lease:
    try:diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','source_link',**lease.status())
@@ -415,7 +461,12 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
   if not xbmc.getCondVisibility('Player.Paused'):player.pause()
   if profile:
    import work_state;work_state.need('airplay_network',False,profile)
-  ui.close();notices.note('info','Playing with AirPlay',title or '')
+  ui.close()
+  if _BANNER[0]:   # ISSUE-345: "Playing on your TV" for two seconds, then the banner goes
+   try:at=float(player.getTime())
+   except Exception:at=None
+   _BANNER[0].done(at);_BANNER[0]=None
+  notices.note('info','Playing with AirPlay',title or '')
   # r38 (owner's build-201 log): the TV connected, then stopped 13 s later because the phone could not read the movie
   # from Drive fast enough, and Apple's bare "AirPlay stopped" alert said nothing useful. Kodi keeps watching for a
   # while; the native side then leaves a stop to this card.

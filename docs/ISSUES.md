@@ -4918,6 +4918,27 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-345 — Play on TV showed nothing while the stream was made ready, so it was tapped again and again (owner log a83e06c7, build 513; mockup C chosen) — fixed in code
+
+- **Seen (08:31):** after Play on TV the phone showed no progress for about 25 s while the source was inspected and
+  converted; Play on TV was tapped 13 more times ("second press ignored"). Before ISSUE-251 removed the full progress
+  card, a second tap stopped the start (ISSUE-255).
+- **Cause:** with the card gone (`QUIET_PROGRESS`), the only sign was a notification, sent late, after
+  `remote_media.acquire`, and a second tap during the start stopped it.
+- **Fix:** a slim banner at the top of the video (owner's choice, mockup C in
+  `docs/design/play-on-tv-connecting-mockups.html`): `1080i/IOSTVBanner.xml` from `airplay_flow.banner_page()`, shown
+  modeless by `cast.Banner` before anything else happens. It names the step (getting ready or converting → choose your
+  TV → waiting for the TV), a thin bar and a red Stop capsule (100 px, about 45 pt); when the TV plays it says
+  "Playing on your TV · From m:ss" for two seconds and goes. A second tap on Play on TV only logs; only Stop stops.
+  Apple's AirPlay list (`FlowUI.ask`) closes the banner. If Kodi says the window file is missing (written after it
+  listed the skin), the skin's 1080i folder is listed again and the window opened once more.
+- **Also:** `airplay_flow._capsule` takes a height; short capsules use `pill_96.png` (cutting the 128 px pill's border
+  pointed its ends).
+- **Retest:** desktop Kodi rig, landscape 1311x603: getting ready, converting, choose your TV, waiting for the TV and
+  done all fit on one line, nothing cut off. Device: needs the owner's iPhone.
+- **Test:** `scripts/test_tv_banner.py`; `scripts/test_play_on_tv_network.py` (a second tap gives no notice and does
+  not stop; the banner's Stop stops a start).
+
 ## ISSUE-344 — AirPlay of an Umbrella stream: AllDebrid refused ranged reads, the start took 25 s and then failed (owner log a83e06c7, build 513) — fixed in code
 
 - **Seen (08:31:43, a 10-bit H.264 Umbrella episode, converted for the TV):** the stream cache's blocks failed again and

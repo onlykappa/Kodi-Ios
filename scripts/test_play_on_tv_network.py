@@ -238,7 +238,8 @@ class LockTests(unittest.TestCase):
     self.assertEqual(window.getProperty(cast.BUSY),before)
    with patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':gui,'xbmcvfs':types.SimpleNamespace(translatePath=lambda p:profile)}),\
         patch.object(controller,'run_owned',side_effect=picker):controller.run()
-   self.assertEqual(entered,[True]);self.assertEqual(len(notes),1);self.assertEqual(window.getProperty(cast.BUSY),'')
+   # ISSUE-345: the second press shows nothing new (the banner already shows the start and its Stop).
+   self.assertEqual(entered,[True]);self.assertEqual(len(notes),0);self.assertEqual(window.getProperty(cast.BUSY),'')
    with cast.session_lock(profile) as owned:self.assertTrue(owned)
 
  def test_errors_release_the_guard(self):
@@ -743,7 +744,7 @@ class StopAndSlowWarning(unittest.TestCase):
   self.assertFalse(controller.slow_on_airplay_ok(xbmc,dialog,'http://x/Dragon.Ball.Super.01.1080p.10bit.mkv'));self.assertEqual(len(asked),1)
   self.assertTrue(controller.slow_on_airplay_ok(xbmc,dialog,'http://x/Show.01.1080p.10bit.HEVC.mkv'))
   self.assertTrue(controller.slow_on_airplay_ok(xbmc,dialog,'http://x/Show.01.1080p.x264.mkv'));self.assertEqual(len(asked),1)
- def test_play_on_tv_again_stops_a_start(self):
+ def test_the_banners_stop_stops_a_start(self):   # ISSUE-345: the banner's Stop, no longer a second press
   src=(BOOT/'cast.py').read_text()
   self.assertIn("home.setProperty(TV_STOP,'1')",src);self.assertIn("getProperty(TV_STOP)=='1'",src)
   self.assertIn("_mark(TV_STARTING);_mark(TV_STOP)",src)
