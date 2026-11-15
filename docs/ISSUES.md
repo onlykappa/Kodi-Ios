@@ -4918,6 +4918,25 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-344 — AirPlay of an Umbrella stream: AllDebrid refused ranged reads, the start took 25 s and then failed (owner log a83e06c7, build 513) — fixed in code
+
+- **Seen (08:31:43, a 10-bit H.264 Umbrella episode, converted for the TV):** the stream cache's blocks failed again and
+  again with `ConnectionError: Drive answered without the asked byte range` (ISSUE-321's error text) while Kodi and the
+  AirPlay converter read the same AllDebrid link; single fetches went through. The source took 24 s to inspect
+  (`indexed inspection finished after 23895 ms`), Play on TV was tapped 13 more times meanwhile ("second press
+  ignored"), the video on the phone was closed at 08:32:18, and the cast ended with `audio segment 118 … result=-5`
+  (source I/O). The same refusal is the likely cause of ISSUE-321's failures just after a stream starts.
+- **Cause:** the server answers a ranged request with the whole file (status 200) when too many connections ask at once;
+  the cache treated that like any failure (half its 8 places for 30 s) and never retried the block over one connection
+  (it was listed as an integrity error).
+- **Fix (`remote_media.py`):** that answer leaves 2 request places for 60 s (`REFUSED_PLACES`, `REFUSED_FOR`; a later
+  looser calm never loosens it), and the block is fetched again over one connection (the answer is still checked; it is
+  no longer in `INTEGRITY`).
+- **Also:** the Play on TV banner (mockup C, ISSUE-345) shows progress at once, so a slow start is not tapped again.
+- **Open:** "sometimes only audio": the 08:21 cast to the Apple TV sent the picture as HEVC 10-bit unchanged and the TV
+  fetched video segments, so the existing sound-only restart did not apply; which cast was audio-only is asked of the owner.
+- **Test:** test_stream_reads `test_a_refused_range_leaves_two_places_for_a_minute`, the INTEGRITY check.
+
 ## ISSUE-343 — AirPlay subtitles on the Apple TV doubled and badly out of sync (owner log 1f143748, build 513) — fixed in code (needs an AirPlay framework build)
 
 - **Seen:** a prepared HEVC episode cast to the Apple TV (`segmented: … 148 streaming segments`, picture copied,

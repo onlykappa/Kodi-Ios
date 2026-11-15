@@ -186,6 +186,37 @@ class Stutter(unittest.TestCase):
     def test_an_answer_that_contradicts_the_file_is_never_retried_into_a_block(self):
         self.assertIn('wrong byte range', rm.INTEGRITY)
         self.assertIn('complete range', rm.INTEGRITY)
+        self.assertNotIn('without the asked byte range', ' '.join(rm.INTEGRITY))   # ISSUE-344: a refusal is retried
+
+    def test_a_refused_range_leaves_two_places_for_a_minute(self):
+        # ISSUE-344 (owner log a83e06c7): AllDebrid answered ranged reads with the whole file while many were in flight.
+        class Whole(io.BytesIO):
+            status = 200
+            headers = {'Content-Length': str(len(DATA))}
+
+            def getcode(self):
+                return 200
+        calls = []
+
+        def refusing(request, timeout):
+            a, b = map(int, request.get_header('Range')[6:].split('-'))
+            if a > 0:
+                calls.append(a)
+                if len(calls) <= 12:          # every request of block 1's split try is answered with the whole file
+                    return Whole(b'x' * 10)
+            return opener(request, timeout)
+        with mock.patch.object(rm.drive_stream.time, 'sleep', lambda x: None):
+            s = rm.Foreground('https://x.example/E.mkv', open_url=refusing)
+            self.addCleanup(s.close)
+            s.blocks.get('media', 0)
+            got = s.blocks.get('media', 1)
+        self.assertEqual(got, DATA[rm.BLOCK:2 * rm.BLOCK])
+        self.assertEqual(s.pieces.calm_places, rm.REFUSED_PLACES)
+        self.assertGreater(s.pieces.calm_until, time.monotonic() + rm.REFUSED_FOR - 5)
+        g = rm._Gate(8)
+        g.calm(60, places=2)
+        g.calm(30)                     # a later, looser calm never loosens the tighter one
+        self.assertEqual(g.calm_places, 2)
 
 
 class SettleHold(unittest.TestCase):

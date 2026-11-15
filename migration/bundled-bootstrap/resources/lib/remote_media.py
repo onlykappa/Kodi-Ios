@@ -47,7 +47,8 @@ KODI_AHEAD=4     # ISSUE-315: blocks after the opening ones fetched at once for 
 # for Kodi to open; the direct link 19.6 s): every read Kodi makes through the cache (offset, length, time, how long it
 # waited for blocks) and every block fetched, for READ_LOG_FOR seconds after the source opens (READ_LOG_MAX lines at most).
 READ_LOG_FOR=90;READ_LOG_MAX=150
-INTEGRITY=('wrong byte range','different file','complete range','without the asked byte range')
+INTEGRITY=('wrong byte range','different file','complete range')   # ISSUE-344: a refused range (whole-file answer) is retried
+REFUSED_FOR,REFUSED_PLACES=60,2   # ISSUE-344: after a ranged request answered with the whole file
 CALM_FOR=30      # ISSUE-321: seconds of half the request places after an upstream failure
 BLOCK_RETRIES=2  # ISSUE-317: more tries for a block a reader waits on (each try is up to 3 requests per piece)
 OPEN_BLOCKS=2    # ISSUE-317: leading blocks a Kodi source must hold before Kodi is handed it (with the last block)
@@ -71,14 +72,19 @@ class _Gate:
  """ISSUE-317: at most `size` requests at once, like the semaphore it replaces, but a free place goes to the most urgent
  waiter first: 0 a block Kodi is waiting on, 1 the opening blocks, 2 read-ahead nobody has asked for yet."""
  def __init__(self,size):
-  self.free=size;self.size=size;self.cond=threading.Condition();self.waiting=[];self.calm_until=0.0
- def calm(self,seconds=CALM_FOR):
+  self.free=size;self.size=size;self.cond=threading.Condition();self.waiting=[];self.calm_until=0.0;self.calm_places=size
+ def calm(self,seconds=CALM_FOR,places=None):
   """ISSUE-321: after an upstream failure, half the places for a while (a debrid server that resets connections when
-  too many arrive at once answers fewer, steadier ones)."""
-  with self.cond:self.calm_until=time.monotonic()+seconds
+  too many arrive at once answers fewer, steadier ones). ISSUE-344: `places` sets a tighter limit (it never loosens one
+  still running)."""
+  with self.cond:
+   limit=max(1,int(places)) if places else max(2,self.size//2)
+   until=time.monotonic()+seconds
+   if time.monotonic()<self.calm_until:limit=min(limit,self.calm_places)
+   self.calm_until=max(self.calm_until,until);self.calm_places=limit
  def _room(self):
   used=self.size-self.free
-  return used<(max(2,self.size//2) if time.monotonic()<self.calm_until else self.size)
+  return used<(self.calm_places if time.monotonic()<self.calm_until else self.size)
  def acquire(self,timeout=None,priority=2,since=None):
   with self.cond:
    ticket=[priority,since or time.monotonic()];self.waiting.append(ticket)
@@ -228,7 +234,11 @@ class Foreground(drive_stream.DriveStream):
    # ISSUE-321 (owner log a30fb0aa: every block in flight failed with ConnectionError just after the picture, and Kodi's
    # reads waited 7-23 s): name the error, calm the request rate, and try the block once more over one connection.
    self._trace('block',start//self.block_size,began,error=describe(error))
-   self.pieces.calm()
+   # ISSUE-344 (owner log a83e06c7, build 513: "Drive answered without the asked byte range" again and again while Kodi
+   # and AirPlay read one AllDebrid link; most pieces in flight failed, single ones went through): the server answers
+   # a ranged request with the whole file (200) when too many connections ask at once. Two places for a minute.
+   if 'without the asked byte range' in str(error):self.pieces.calm(REFUSED_FOR,places=REFUSED_PLACES)
+   else:self.pieces.calm()
    # Only a failed transfer is tried again; an answer that contradicts the file (a wrong range, another size, pieces
    # that do not make one block) never becomes a block (ISSUE-303 integrity).
    if self.cancelled.is_set() or any(w in str(error) for w in INTEGRITY):raise
