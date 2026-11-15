@@ -1,5 +1,12 @@
 # Persistent progress
 
+## Build 513: AirPlay r61 + subtitle, Umbrella, Favourites and show-page fixes — 2026-11-15
+
+[Testing IPA 513](https://github.com/onlykappa/Kodi-Ios/releases/download/build-513/Kodi-iOS-Customized-Touch-r10.ipa)
+(commit e9634c2, PR #31 unmerged; IPA sha256 7993d7b0…5f01). AirPlay r61 (ISSUE-335, 336, 337; host tests green),
+ISSUE-333, 334, 338, 339, 340. 136 Python suites passed; season row and Favourites picker checked in the desktop
+Kodi rig. Phone results pending. Next steps and rules: [HANDOFF-PR31.md](HANDOFF-PR31.md).
+
 ## Build 502: one IPA with everything from the build-486 feedback — 2026-11-15
 
 [Testing IPA 502](https://github.com/onlykappa/Kodi-Ios/releases/download/build-502/Kodi-iOS-Customized-Touch-r10.ipa)
