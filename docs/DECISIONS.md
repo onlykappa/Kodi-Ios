@@ -477,3 +477,27 @@ which grows one approved page at a time and is what the code is built from.
   the approved screens need from it is in [sports-landing-data.md](design/sports-landing-data.md).
 - Not decided yet: the pages inside each tag (Live Now, Upcoming, Leagues, a league, a game) and the tag order (as drawn:
   Live Now, Upcoming, Leagues). Each page is mocked up and approved before it is coded.
+
+## DEC-055 — Sports › Live Now: option B, all four add-ons, duplicates merged, closest to the end first, a tap plays (2026-11-15)
+
+The owner, on the round-2 mockups (PR #35): "I like B. Yes order games from ending first at top, and yes have it open right away."
+And on the add-ons: "we will use all 4, more sources the better, and if there is a duplicate make it show the best one or have
+it show me different options if there are more than one it recommends". Approved boards are in
+`docs/design/sports-approved-pages.html`.
+
+- **Layout (option B):** one card per live game: league label, the two teams with their scores, the clock, then the game's
+  sources under it, best first, each with a play button. League chips (All, NFL, NBA, UCL, NHL) filter the list.
+- **Order:** the game **closest to its end** is first (the share of the game left, worked out per sport; a game whose end
+  cannot be told goes last).
+- **A tap on a source plays it at once** (no "How would you like to watch" sheet; Play on TV stays in the player as today).
+- **Add-ons:** The Loop, Loop Guide, Loop TV and the Loop Sports Hub all feed the page (the foundation, coded by ChatGPT, may
+  add others, DEC-054). Combining:
+  1. A game that several add-ons list is **one game**, matched by league, teams and start time.
+  2. The **same stream** (same picture size and language) from several add-ons is shown **once**, on the line of the one
+     chosen as best, with the others named under it ("Also on Loop TV").
+  3. **Different choices** (another size or language) stay as separate lines, the best one first.
+  4. The clearest picture is tagged **Best**; a second source worth recommending is tagged **Also good**; the rest carry no tag.
+  5. The page shows whatever the add-ons that answered found; one slow or failing add-on never blanks it.
+- Options A (one row per game, sources on its own page) and C (one row per source) were not chosen.
+
+Rule detail for the foundation: [design/sports-live-data.md](design/sports-live-data.md).

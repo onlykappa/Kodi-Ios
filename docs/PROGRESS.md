@@ -1,12 +1,11 @@
 # Persistent progress
 
-## Sports › Live Now: mockups, round 2 — 2026-11-15
+## Sports › Live Now: option B approved — 2026-11-15
 
-Mockups only: [docs/design/sports-live-now-mockups.html](design/sports-live-now-mockups.html) (evidence class: mockup). The page
-behind the big Live Now tile: league chips (All, NFL, NBA, UCL, NHL), and for each game its league label, the two teams, the
-score and the clock (quarter and time, period, or the minute). Three ways to list the sources: A one row per game with the
-sources on the game's own page, B the sources under each game (recommended), C one row per source like the add-on. Plus
-nothing-live and can't-load states. Waiting for the owner's pick, the order of the games and what a tap on a source does.
+The owner chose option B ("I like B"): one card per live game with its sources under it, the game closest to its end first,
+a tap on a source plays it at once; all four add-ons feed it and duplicate streams are merged (DEC-055). The approved boards are
+in [docs/design/sports-approved-pages.html](design/sports-approved-pages.html); the options are in
+[sports-live-now-mockups.html](design/sports-live-now-mockups.html). Mockups only; no app code. Next: Upcoming, then Leagues.
 
 ## Sports: landing page approved (option A) — 2026-11-15
 
