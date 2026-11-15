@@ -184,6 +184,7 @@ jobs:
           python3 -B scripts/test_provider_adapters_primary.py
           python3 -B scripts/test_provider_adapters_secondary.py
           python3 -B scripts/test_provider_fallback_hooks.py
+          python3 -B scripts/test_bundle_syntax.py
           python3 -B scripts/test_build442_logs.py
           python3 -B scripts/test_library_remove.py
           python3 -B scripts/test_upscale_from_index.py

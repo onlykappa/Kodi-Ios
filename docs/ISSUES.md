@@ -5346,3 +5346,14 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 ## Provider fallback integration failure log — PR #32
 
 Real rig testing exposed required Crew artwork imports despite a guarded main artwork helper; restored the pinned dependency. Worker RunScript UUID arguments broke Otaku numeric plugin handles and broad library paths shadowed stdlib calendar; scoped numeric plugin arguments and dependency module paths fix both. Host and rig regressions caught canceled primary searches starting backups, unusable backup quality being treated as cancellation, cached zero-seeder sources being dropped, and verified anime coordinates being rejected again by the picker. Explicit cancellation markers, reusable source-check callbacks and exact authoritative mapping retain original TMDb queue coordinates. Direct downloads validate request ownership and byte ranges and preserve headers; Stream rejects unresolved magnets instead of initiating a download. Final regression and real rig counts are recorded in reports/provider-fallback-validation.json. Live provider/account availability and phone behavior remain unverified.
+
+## ISSUE-351 — PR #32 shipped a syntax error in the startup service (found after merge)
+
+- **Seen:** after PR #32 merged, `service.py` in the app did not parse: its two provider-fallback lines sat between an
+  `if` and its `elif` (line 127). On the phone that would have stopped the setup service from starting at all. PR #32's
+  commits skipped CI (`[skip ci]`), so nothing compiled the file; six existing suites (notices, service_scoping,
+  undefined_names, pinned_addons, speed_fixes, updates_calibration) failed with `SyntaxError` as soon as they ran.
+- **Cause:** the hook install was inserted into the middle of an if/elif chain.
+- **Fix:** the install now runs after the chain (Umbrella present, whichever source window it has).
+- **Retest:** all suites in the workflow run; the six pass again.
+- **Test:** `scripts/test_bundle_syntax.py` parses every shipped Python file and pins the order.
