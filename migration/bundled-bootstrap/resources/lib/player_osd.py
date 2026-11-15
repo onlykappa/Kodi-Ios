@@ -26,6 +26,8 @@ TRACKS='RunScript(service.kodi.ios.bootstrap,tracks,%s)'
 NEXT_EPISODE='RunScript(service.kodi.ios.bootstrap,next_episode)'
 EPISODE='!String.IsEmpty(VideoPlayer.TVShowTitle) + !String.IsEmpty(VideoPlayer.Episode)'
 CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type=all'
+# ISSUE-311: the same stamp as the hubs' rows (portrait.CONTINUE_STAMP), so Remove From Continue Watching refreshes this panel too.
+CONTINUE_STAMP='&stamp=$INFO[Window(Home).Property(KodiIOS.ContinueStamp)]'
 # Board 08 (U.6): Info opens the episode card (pages.info_card) over the controls; Fuse's action closed the controls
 # and waited for TMDb Helper's details page.
 INFO='ActivateWindow(1193)'
@@ -181,7 +183,7 @@ def window():
   '<control type="list" id="7201"><left>%d</left><right>%d</right><top>590</top><height>270</height><orientation>horizontal</orientation>'%(left,left)+
   '<ondown>7131</ondown><onup>7101</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
   '<itemlayout width="420" height="270">%s</itemlayout><focusedlayout width="420" height="270">%s</focusedlayout>'
-  '<content target="videos">$INFO[Skin.String(ios_osd_continue_path)]</content></control></control>')%(card(False),card(True))
+  '<content target="videos">$INFO[Skin.String(ios_osd_continue_path)]'+CONTINUE_STAMP+'</content></control></control>')%(card(False),card(True))
  shade=('<control type="image"><left>0</left><top>0</top><right>0</right><bottom>0</bottom><texture colordiffuse="59000000">%swhite.png</texture></control>'
   '<control type="image"><left>0</left><top>0</top><right>0</right><height>360</height><texture colordiffuse="B3FFFFFF">%sfade_down.png</texture></control>'
   '<control type="image"><left>0</left><bottom>0</bottom><right>0</right><height>520</height><texture colordiffuse="E6FFFFFF">%sfade_up.png</texture></control>')%(MEDIA,MEDIA,MEDIA)
