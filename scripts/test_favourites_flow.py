@@ -189,10 +189,9 @@ class Bell(unittest.TestCase):
         info = {'season': 5, 'episode': 1, 'date': '2026-11-21'}
         state = bell.flip(tmp.name, '99', 'Show', 'alert', info)
         self.assertTrue(state['alert'])
-        self.assertEqual([r['tag'] for r in bell.rows(state)], ['On', 'Off'])
-        self.assertEqual(bell.rows(state)[0]['tag_kind'], 'best')
+        self.assertEqual([r['switch'] for r in bell.rows(state)], [True, False])      # G3: real switches, not On/Off tags
         state = bell.flip(tmp.name, '99', 'Show', 'auto', info, preference={'quality': '1080p'})
-        self.assertEqual([r['tag'] for r in bell.rows(state)], ['On', 'On'])
+        self.assertEqual([r['switch'] for r in bell.rows(state)], [True, True])
         self.assertTrue(episode_watch.option(tmp.name, '99', 'auto'))
 
     def test_the_service_sets_and_clears_the_bell_properties(self):
