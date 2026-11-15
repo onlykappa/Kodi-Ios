@@ -2194,7 +2194,9 @@ static void test_subtitle_retention(const char *base) {
     double began=mono_ms();reply first=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
     CHECK(first.status==503 && strstr(first.head,"Retry-After: 1"),"slow cue is retryable, not a blank successful caption (%d)",first.status);
     CHECK(mono_ms()-began<5500,"HTTP wait bounded independently of ongoing subtitle read, inside Apple's 6 s (ISSUE-326)");free(first.body);
-    reply ready=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
+    // ISSUE-326: the wait is 4 s now (inside Apple's 6 s); a player retries after each 503 (Retry-After: 1), as here.
+    reply ready={0};
+    for(int tries=0;tries<4;tries++){free(ready.body);ready=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);if(ready.status==200)break;usleep(1000000);}
     CHECK(ready.status==200 && ready.body && strstr(ready.body,"Hello from SRT"),"same in-flight cue eventually serves real text (%d)",ready.status);free(ready.body);
     began=mono_ms();ready=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
     CHECK(ready.status==200 && ready.body && strstr(ready.body,"Hello from SRT") && mono_ms()-began<100,"repeated cue is cached");free(ready.body);

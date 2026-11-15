@@ -4986,7 +4986,8 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   resume point only, before the player gets there.
 - **Test:** test_airplay_long_fragments (wiring) and the C host test test_long_fragments in test_remux.c (a 30-s-fragment
   prepared movie is segmented with keyframe segments ≤ 8.1 s, picture copied; seg0.vtt after priming at 20 s is empty in
-  < 500 ms; real captions after the player reaches the resume point); subtitle wait bounds tightened to < 5.5 s.
+  < 500 ms; real captions after the player reaches the resume point); subtitle wait bounds tightened to < 5.5 s; the
+  slow-cue test retries after each 503 like a player (CI run 225: its 10-s stall outlasted two 4-s waits).
 - **Retest:** phone: AirPlay a prepared movie to the Apple TV and the Roku, from the start and resumed; first try plays.
 
 ## ISSUE-327 — 165 "Connection reset by peer" tracebacks filled the log (owner log ebc9c063, build 486) — fixed in code
