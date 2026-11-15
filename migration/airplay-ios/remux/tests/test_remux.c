@@ -12,6 +12,7 @@
 #include "../src/kr_audio.h"
 #include "../src/kr_source.h"
 #include "../src/kr_mp4.h"
+#include "../src/kr_speech.h"
 #include "../src/kr_video.h"
 #include "../src/kr_color.h"
 #include "../src/kr_dovi.h"
@@ -2209,6 +2210,29 @@ static void observe_init(void *ctx,const uint8_t *data,int len) {
 // ISSUE-326 (owner's log ebc9c063): a prepared movie whose storage fragments run 30 s is served to any receiver as
 // six-second keyframe segments with the picture copied; resuming, a cue file behind the resume point is answered
 // empty at once instead of after an 8-s wait past Apple's 6-s timeout.
+// ISSUE-347: the speech subtitle check hears a stretch of the chosen sound track as 16 kHz mono (the iPhone's speech
+// recognizer gets these samples; the fixtures' sound is a 440 Hz tone, 20 s long, stereo or 5.1).
+static void test_speech_sound(const char *http_base) {
+    const char *files[]={"h264_aac_srt.mkv","hevc_ac3_ass.mkv"};
+    for(int i=0;i<2;i++) {
+        char path[1100],err[256]="";snprintf(path,sizeof path,"%s/%s",fixture_dir,files[i]);
+        int16_t *pcm=NULL;int n=0;double first=-1;
+        int r=kr_speech_pcm(path,-1,5.0,3.0,0,&pcm,&n,&first,err,sizeof err);
+        double energy=0;int crossings=0;for(int k=1;k<n;k++){energy+=(double)pcm[k]*pcm[k];crossings+=(pcm[k-1]<0)!=(pcm[k]<0);}
+        CHECK(r==0 && n==3*KR_SPEECH_RATE && fabs(first-5.0)<.1,"speech sound %s: 3 s from 5 s (%d, %d samples, first %.3f): %s",files[i],r,n,first,err);
+        CHECK(n && sqrt(energy/n)>500 && fabs(crossings/2.0/((double)n/KR_SPEECH_RATE)-440)<20,
+              "speech sound %s: the tone is heard after the downmix (rms %.0f, %.0f Hz)",files[i],n?sqrt(energy/n):0,n?crossings/2.0/((double)n/KR_SPEECH_RATE):0);
+        free(pcm);pcm=NULL;
+        r=kr_speech_pcm(path,-1,18.5,10.0,0,&pcm,&n,&first,err,sizeof err);
+        CHECK(r==0 && n>=KR_SPEECH_RATE && n<=(int)(1.6*KR_SPEECH_RATE),"speech sound %s: a stretch past the end gives what there is (%d samples)",files[i],n);free(pcm);pcm=NULL;
+        CHECK(kr_speech_pcm(path,3,0,2,0,&pcm,&n,&first,err,sizeof err)<0 && !pcm && strstr(err,"no such audio track"),"speech sound %s: a missing track is refused: %s",files[i],err);
+        CHECK(kr_speech_pcm(path,-1,0,2,4096,&pcm,&n,&first,err,sizeof err)<0 && !pcm,"speech sound %s: the byte budget stops the read: %s",files[i],err);
+    }
+    if(http_base) {
+        char url[1100],err[256]="";int16_t *pcm=NULL;int n=0;double first=-1;snprintf(url,sizeof url,"%s/h264_aac_srt.mkv",http_base);
+        CHECK(kr_speech_pcm(url,0,10.0,2.0,0,&pcm,&n,&first,err,sizeof err)==0 && n==2*KR_SPEECH_RATE,"speech sound over HTTP (%d samples): %s",n,err);free(pcm);
+    }
+}
 static void test_long_fragments(void) {
     char url[1024],list[512],log[16384];
     unsetenv("KR_PREPARED_MAX_FRAGMENT_S");kr_remux_set_prefetch(0);kr_remux_set_subtitles(0,NULL,"eng");
@@ -2433,7 +2457,7 @@ int main(int argc, char **argv) {
     if(argc>3 && !strcmp(argv[3],"--subtitles-only")) {
         test_subtitle_retention(argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
-    test_kind();test_network_evidence();
+    test_kind();test_network_evidence();test_speech_sound(argc>2?argv[2]:NULL);
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
     if(argc>3 && !strcmp(argv[3],"--recommendations-only")) {

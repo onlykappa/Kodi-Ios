@@ -4918,6 +4918,33 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-347 — Subtitles were checked by timing and names only, never against what is said (owner: "match subtitle check needs to be added") — built in code (needs an AirPlay framework build)
+
+- **Seen:** a downloaded subtitle could be for another release or for the original script of a dub, or seconds out of
+  time, and nothing could tell: `subtitle_match` only had cue times, names and languages.
+- **Fix:** the phone listens to two 45-second stretches of the playing video (about 30 % and 60 % in) and compares
+  the words with each candidate subtitle before it is turned on (Subtitles › Download and apply, and ISSUE-342's
+  dub captions):
+  - `kr_speech.c`: the chosen audio track (Kodi's audio stream number) as 16 kHz mono, at most 48 MB read per stretch;
+  - `kr_speech.m` (`kodi_speech_words`, `kodi_speech_authorize`, `kodi_speech_state`): Apple's speech recognition,
+    **on the phone only** (`requiresOnDeviceRecognition`; a language the phone cannot recognise by itself is not
+    sent anywhere and the check is skipped); words with their times;
+  - `speech_check.py`: the share of heard words found in a cue at the best shift. Almost none of plenty of words
+    (≤12 %): "Words do not match the speech", the next result is tried. A clear shift of 0.4 s or more: every cue in
+    the file is moved by it before it is turned on. Agreement: +10 to the match score. Too few words, or sound in
+    another language than the subtitles: no claim.
+  - It listens only when a download is checked (not at every playback start: another reader on a debrid link can make
+    the host refuse ranges, ISSUE-344), once per video (`KodiIOS.SpeechHeard`). The first time, iOS asks for
+    permission (`NSSpeechRecognitionUsageDescription` in the IPA's Info.plist).
+- **Not yet:** `build-airplay.sh` must compile `kr_speech.m`, link `-framework Speech` and export the three
+  `kodi_speech_*` symbols. That edit publishes an AirPlay tag, so it waits for the owner's OK with the next framework
+  build (r62). Until then `listen()` finds no `kodi_speech_words` and the check is skipped (logged).
+- **Retest:** CI host tests (`test_speech_sound`). Device: needs the framework build; the owner's iPhone log should
+  show `speech check: ok at … s: N words` and `applied … (speech fits|shift …)`.
+- **Test:** `scripts/test_speech_check.py`; `tests/test_remux.c` (`test_speech_sound`: a tone is heard after the
+  5.1 downmix, from the asked time, past the end, missing track, byte budget, over HTTP);
+  `scripts/test_customized_ipa.py` (the purpose string).
+
 ## ISSUE-346 — A prepared movie's first cast still scanned every storage fragment for keyframes (owner: "do the keyframe during prep") — fixed in code (needs an AirPlay framework build)
 
 - **Seen:** ISSUE-335 saved the keyframe scan only after a cast had made it, so each prepared movie's first cast still

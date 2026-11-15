@@ -283,6 +283,16 @@ def run(mode):
                     'season': it.get('season') if it.get('season') is not None and it['season'] >= 0 else guess.get('season'),
                     'episode': it.get('episode') if it.get('episode') is not None and it['episode'] > 0 else guess.get('episode')}
 
+        def checked_video(self):
+            """video() plus the words heard in it (ISSUE-347), for checking a download against the speech."""
+            video = self.video()
+            try:
+                import speech_check
+                video['heard'] = speech_check.for_playing(xbmc, xbmcgui, xbmcvfs, video, log)
+            except Exception as error:
+                log('speech check: skipped (%s)' % type(error).__name__)
+            return video
+
         def with_evidence(self, streams):
             return [dict(s, downloaded=s.get('index') in self.added, **self.track_evidence.get(s.get('index'), {}))
                     for s in streams]
@@ -320,7 +330,7 @@ def run(mode):
 
         def apply(self, result, got=None):
             if got is None:
-                result, name, data = sm.choose_download([result], self.fetch_result, self.video())
+                result, name, data = sm.choose_download([result], self.fetch_result, self.checked_video())
                 got = (name, data)
             name, data = got
             os.makedirs(folder, exist_ok=True)
@@ -338,7 +348,8 @@ def run(mode):
             self.added |= added
             for index in added:
                 self.track_evidence[index] = {'filename': name, 'cues': sm.cue_times(data, name), 'language': lang}
-            log('applied %s (%d bytes)' % (result['id'], len(data)))
+            log('applied %s (%d bytes, speech %s%s)' % (result['id'], len(data), result.get('match_speech') or 'not checked',
+                                                        ', shifted %+.1f s' % result['match_speech_shift'] if result.get('match_speech_shift') else ''))
 
         def download_and_apply(self, result=None):
             try:
@@ -350,7 +361,7 @@ def run(mode):
                         log('nothing found')
                         return
                 self.state('download')
-                selected, name, data = sm.choose_download(self.results if result is None else [result], self.fetch_result, self.video())
+                selected, name, data = sm.choose_download(self.results if result is None else [result], self.fetch_result, self.checked_video())
                 self.apply(selected, (name, data))
                 self.state('done')
                 self.fill()

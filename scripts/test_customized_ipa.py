@@ -59,6 +59,7 @@ class BundleTests(unittest.TestCase):
   app,_=prepare(self.app,self.bundle,self.sha,self.root/'work')
   info=plistlib.loads((app/'Info.plist').read_bytes())
   self.assertEqual(info['NSLocalNetworkUsageDescription'],'Kodi streams the video from this iPhone to your TV over Wi-Fi.')
+  self.assertIn('subtitles match',info['NSSpeechRecognitionUsageDescription'])   # ISSUE-347
   self.assertEqual(info['CFBundleIdentifier'],original['CFBundleIdentifier'])
   self.assertEqual(info['NSBonjourServices'],original['NSBonjourServices'])
   self.assertEqual(info['UIBackgroundModes'],['fetch','audio'])

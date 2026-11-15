@@ -61,6 +61,12 @@ def start(xbmc, xbmcvfs, item, video, playing, log):
 
     def fetch(result):
         return ss.fetch(net.http_get, net.http_post, keys, result, season, episode)
+    try:   # ISSUE-347: check the caption against the words spoken in the dub
+        import speech_check
+        import xbmcgui
+        video = dict(video, heard=speech_check.for_playing(xbmc, xbmcgui, xbmcvfs, video, log))
+    except Exception as error:
+        log('speech check: skipped (%s)' % type(error).__name__)
     got = best(find, fetch, video)
     if not got:
         log('dub captions: none marked CC / SDH / dub for this video')
@@ -76,6 +82,7 @@ def start(xbmc, xbmcvfs, item, video, playing, log):
     with open(path, 'wb') as f:
         f.write(data)
     xbmc.Player().setSubtitles(path)
-    log('dub captions: turned on a %s caption from %s (%d bytes, match %s)' % (lang, result.get('source'), len(data),
-                                                                           result.get('match_score')))
+    log('dub captions: turned on a %s caption from %s (%d bytes, match %s, speech %s%s)' % (
+        lang, result.get('source'), len(data), result.get('match_score'), result.get('match_speech') or 'not checked',
+        ', shifted %+.1f s' % result['match_speech_shift'] if result.get('match_speech_shift') else ''))
     return True

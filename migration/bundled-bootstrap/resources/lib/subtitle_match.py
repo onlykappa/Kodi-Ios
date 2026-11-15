@@ -288,6 +288,13 @@ def choose_download(results, fetch, video, limit=5):
             if tested['match_rejected']:
                 last_error = Mismatch(tested['match_reason'])
                 continue
+            if video.get('heard'):   # ISSUE-347: the words spoken in the video, when the phone could listen
+                import speech_check
+                data, why = speech_check.apply(original, tested, data, name, video['heard'])
+                if why:
+                    original.update(match_rejected=True, match_reason=why)
+                    last_error = Mismatch(why)
+                    continue
             if best is None or tested['match_score'] > best[0]['match_score']:
                 best = (original, name, data)
             if tested['match_score'] >= 85:

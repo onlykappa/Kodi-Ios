@@ -1,0 +1,198 @@
+"""ISSUE-347 (owner: "match subtitle check needs to be added"): subtitles are checked against the words the phone hears
+in the video (Apple's speech recognition, on the phone only). The native sound reading is covered by the C host
+tests (test_speech_sound); this covers the matching, the timing fix, the download flow and the framework calls."""
+import json
+import random
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+LIB = ROOT / 'migration/bundled-bootstrap/resources/lib'
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(LIB))
+import speech_check as sc  # noqa: E402
+import subtitle_match as sm  # noqa: E402
+
+VOCAB = ('river lantern tunnel grandfather money sunrise rope downstairs carefully matters house built never coming '
+         'quiet kitchen letter window horses winter bridge garden secret doctor village captain train morning station '
+         'music market island ocean mountain forest candle mirror stairs promise brother sister mother father').split()
+
+
+def scene(offset=0.0, seed=1, lines=40):
+    """(SRT bytes, recognizer JSON): speech `offset` seconds after its cues."""
+    rnd = random.Random(seed)
+    text = [' '.join(rnd.choice(VOCAB) for _ in range(6)) for _ in range(lines)]
+    srt, words, t = [], [], 100.0
+    for i, line in enumerate(text):
+        srt.append('%d\n%s --> %s\n<i>%s</i>\n' % (i + 1, sc._fmt_srt(t), sc._fmt_srt(t + 2.5), line))
+        words += [{'w': w.capitalize(), 't': t + .3 + .35 * k + offset, 'd': .25} for k, w in enumerate(line.split())]
+        t += 4 + rnd.random() * 3
+    return '\n'.join(srt).encode(), {'status': 'ok', 'words': words}
+
+
+class Matching(unittest.TestCase):
+    def test_words_are_normalised(self):
+        self.assertEqual(sc.words_of("<i>The River's {\\an8}COLD</i> and I"), ['rivers', 'cold'])
+
+    def test_srt_vtt_and_ass_cues(self):
+        data, _ = scene(lines=3)
+        cues = sc.cues(data, 'a.srt')
+        self.assertEqual(len(cues), 3)
+        self.assertAlmostEqual(cues[0][0], 100.0)
+        vtt = 'WEBVTT\n\n00:01:40.000 --> 00:01:42.500\nHello river\n'
+        self.assertEqual(sc.cues(vtt, 'a.vtt'), [(100.0, 102.5, {'hello', 'river'})])
+        ass = ('[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n'
+               'Dialogue: 0,0:01:40.00,0:01:42.50,Default,,0,0,0,,{\\bord4}Hello, river\\Nlantern\n')
+        self.assertEqual(sc.cues(ass, 'a.ass'), [(100.0, 102.5, {'hello', 'river', 'lantern'})])
+
+    def test_in_time_it_fits(self):
+        data, said = scene()
+        fit = sc.compare(sc.heard(said), sc.cues(data, 'a.srt'))
+        self.assertEqual(sc.verdict(fit), ('fits', 0.0))
+
+    def test_out_of_time_it_is_shifted_and_then_fits(self):
+        for offset in (3.0, -7.5, 25.0):
+            data, said = scene(offset)
+            spoken = sc.heard(said)
+            how, seconds = sc.verdict(sc.compare(spoken, sc.cues(data, 'a.srt')))
+            self.assertEqual(how, 'shift')
+            self.assertAlmostEqual(seconds, offset, delta=.25)
+            moved = sc.shift_file(data, 'a.srt', seconds)
+            self.assertEqual(sc.verdict(sc.compare(spoken, sc.cues(moved, 'a.srt')))[0], 'fits')
+
+    def test_another_films_subtitle_is_a_mismatch(self):
+        _, said = scene(seed=1)
+        other = '\n'.join('%d\n%s --> %s\nSpaceship engines failing number %d\n' % (i, sc._fmt_srt(100 + 4 * i), sc._fmt_srt(102 + 4 * i), i)
+                          for i in range(60))
+        self.assertEqual(sc.verdict(sc.compare(sc.heard(said), sc.cues(other, 'b.srt')))[0], 'mismatch')
+
+    def test_a_recognizer_that_gets_half_the_words_still_fits(self):
+        data, said = scene(4.0)
+        rnd = random.Random(7)
+        said['words'] = [dict(w, w='mumble') if rnd.random() < .5 else w for w in said['words']]
+        how, seconds = sc.verdict(sc.compare(sc.heard(said), sc.cues(data, 'a.srt')))
+        self.assertEqual(how, 'shift')
+        self.assertAlmostEqual(seconds, 4.0, delta=.25)
+
+    def test_too_few_words_make_no_claim(self):
+        data, said = scene()
+        said['words'] = said['words'][:5]
+        self.assertIsNone(sc.compare(sc.heard(said), sc.cues(data, 'a.srt')))
+        self.assertEqual(sc.verdict(None), ('unknown', 0.0))
+
+    def test_repeating_lines_do_not_give_a_timing(self):
+        line = 'river lantern tunnel grandfather money sunrise'
+        srt = '\n'.join('%d\n%s --> %s\n%s\n' % (i, sc._fmt_srt(100 + 8 * i), sc._fmt_srt(102.5 + 8 * i), line) for i in range(20))
+        said = {'words': [{'w': w, 't': 103 + 8 * i + .3 * k, 'd': .2} for i in range(20) for k, w in enumerate(line.split())]}
+        fit = sc.compare(sc.heard(said), sc.cues(srt, 'a.srt'))
+        self.assertFalse(fit['confident'])
+        self.assertNotEqual(sc.verdict(fit)[0], 'shift')
+
+
+class Shifting(unittest.TestCase):
+    def test_srt_vtt_ass(self):
+        self.assertIn(b'00:01:43,250 --> 00:01:45,750', sc.shift_file(b'1\n00:01:40,000 --> 00:01:42,500\nHi\n', 'a.srt', 3.25))
+        self.assertIn('00:01:36.000 --> 00:01:38.500', sc.shift_file('WEBVTT\n\n00:01:40.000 --> 00:01:42.500\nHi\n', 'a.vtt', -4))
+        ass = 'Dialogue: 0,0:01:40.00,0:01:42.50,Default,,0,0,0,,Hi, there, friend\n'
+        self.assertEqual(sc.shift_file(ass, 'a.ass', 1.5), 'Dialogue: 0,0:01:41.50,0:01:44.00,Default,,0,0,0,,Hi, there, friend\n')
+
+    def test_never_before_zero(self):
+        self.assertIn(b'00:00:00,000 --> 00:00:01,000', sc.shift_file(b'1\n00:00:02,000 --> 00:00:05,000\nHi\n', 'a.srt', -4))
+
+
+class Download(unittest.TestCase):
+    video = {'duration': 3000, 'language': 'en', 'season': None, 'episode': None}
+
+    def test_a_mismatch_is_skipped_and_the_next_one_is_shifted_into_time(self):
+        good, said = scene(2.0, lines=60)
+        wrong = '\n'.join('%d\n%s --> %s\nSpaceship engines failing number %d\n' % (i + 1, sc._fmt_srt(100 + 4 * i), sc._fmt_srt(102 + 4 * i), i)
+                          for i in range(400)).encode()
+        filler = b''.join(b'%d\n%s --> %s\nfiller line\n\n' % (900 + i, sc._fmt_srt(400 + 6 * i).encode(), sc._fmt_srt(402 + 6 * i).encode()) for i in range(400))
+        results = [{'source': 'subdl', 'id': 'wrong', 'filename': 'Film.2020.srt'},
+                   {'source': 'subdl', 'id': 'good', 'filename': 'Film.2020.srt'}]
+        files = {'wrong': wrong, 'good': good + b'\n' + filler}
+        video = dict(self.video, heard=sc.heard(said))
+        result, name, data = sm.choose_download(results, lambda r: ('Film.2020.srt', files[r['id']]), video)
+        self.assertEqual(result['id'], 'good')
+        self.assertEqual(result['match_speech'], 'shift')
+        self.assertAlmostEqual(result['match_speech_shift'], 2.0, delta=.25)
+        self.assertEqual(results[0]['match_speech'], 'mismatch')
+        self.assertEqual(results[0]['match_reason'], 'Words do not match the speech')
+        self.assertEqual(sc.verdict(sc.compare(video['heard'], sc.cues(data, name)))[0], 'fits')
+
+    def test_without_heard_words_nothing_changes(self):
+        good, _ = scene(lines=60)
+        filler = b''.join(b'%d\n%s --> %s\nfiller line\n\n' % (900 + i, sc._fmt_srt(400 + 6 * i).encode(), sc._fmt_srt(402 + 6 * i).encode()) for i in range(400))
+        result, _, data = sm.choose_download([{'source': 's', 'id': 1}], lambda r: ('a.srt', good + b'\n' + filler), self.video)
+        self.assertNotIn('match_speech', result)
+        self.assertEqual(data, good + b'\n' + filler)
+
+
+class FakeLib:
+    def __init__(self, answers, allowed=1):
+        self.answers, self.allowed, self.calls = list(answers), allowed, []
+        lib = self
+
+        class Fn:
+            def __init__(self, fn):
+                self.fn = fn
+
+            def __call__(self, *a):
+                return self.fn(*a)
+        self.kodi_speech_authorize = Fn(lambda seconds: lib.allowed)
+        self.kodi_speech_words = Fn(self._words)
+
+    def _words(self, url, audio, start, seconds, budget, locale, out, size):
+        self.calls.append((url, audio, start, seconds, budget, locale))
+        data = json.dumps(self.answers.pop(0)).encode()
+        out.value = data
+        return len(data)
+
+
+class Listening(unittest.TestCase):
+    def test_only_for_sound_in_the_subtitle_language(self):
+        self.assertTrue(sc.wanted({'language': 'en'}, 'eng'))
+        self.assertFalse(sc.wanted({'language': 'en'}, 'jpn'))
+        self.assertFalse(sc.wanted({'language': 'en'}, ''))
+
+    def test_two_stretches_away_from_the_ends(self):
+        self.assertEqual(sc.places(3000), [900.0, 1800.0])
+        self.assertEqual(sc.places(30), [])
+
+    def test_an_older_framework_or_no_permission_hears_nothing(self):
+        self.assertEqual(sc.listen(object(), 'u', 0, 'en', 3000), [])
+        lib = FakeLib([], allowed=0)
+        self.assertEqual(sc.listen(lib, 'u', 0, 'en', 3000), [])
+        self.assertEqual(lib.calls, [])
+
+    def test_words_from_both_stretches_on_the_on_device_recognizer(self):
+        lib = FakeLib([{'status': 'ok', 'words': [{'w': 'Lantern', 't': 900.5, 'd': .4}]},
+                       {'status': 'ok', 'words': [{'w': 'river', 't': 1801.0, 'd': .2}]}])
+        heard = sc.listen(lib, 'http://127.0.0.1:1/v.mkv|User-Agent=x', 1, 'en', 3000)
+        self.assertEqual(heard, [(900.7, 'lantern'), (1801.1, 'river')])
+        self.assertEqual(lib.calls[0][0], b'http://127.0.0.1:1/v.mkv')   # Kodi's header suffix is not part of the link
+        self.assertEqual((lib.calls[0][1], lib.calls[0][4], lib.calls[0][5]), (1, sc.BYTE_BUDGET, b'en-US'))
+
+    def test_a_language_the_phone_cannot_recognise_stops_at_once(self):
+        lib = FakeLib([{'status': 'not_on_device', 'why': 'no'}, {'status': 'ok', 'words': []}])
+        self.assertEqual(sc.listen(lib, 'u', 0, 'en', 3000), [])
+        self.assertEqual(len(lib.calls), 1)
+
+
+class Wiring(unittest.TestCase):
+    def test_native_and_callers(self):
+        native = (ROOT / 'migration/airplay-ios/remux/src/kr_speech.m').read_text()
+        self.assertIn('request.requiresOnDeviceRecognition = YES;', native)
+        self.assertIn('if (!r.supportsOnDeviceRecognition)', native)
+        self.assertIn('kodi_speech_words', native)
+        self.assertIn('int kr_speech_pcm(', (ROOT / 'migration/airplay-ios/remux/src/kr_speech.h').read_text())
+        self.assertIn('test_speech_sound(', (ROOT / 'migration/airplay-ios/remux/tests/test_remux.c').read_text())
+        tracks = (ROOT / 'migration/bundled-bootstrap/tracks.py').read_text()
+        self.assertEqual(tracks.count('self.checked_video())'), 2)
+        self.assertIn('speech_check.for_playing(', (LIB / 'dub_captions.py').read_text())
+        self.assertIn("NSSpeechRecognitionUsageDescription", (ROOT / 'scripts/build_customized_ipa.py').read_text())
+
+
+if __name__ == '__main__':
+    unittest.main()
