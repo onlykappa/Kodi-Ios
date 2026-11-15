@@ -337,6 +337,13 @@ def run():
             self.render()
 
     window = Manage(page.MANAGE, HERE, 'Default', '1080i')
+    # start=ask|missing|dups|list:<name> opens that page over the landing page (Notifications links, the rig).
+    start = dict(a.split('=', 1) for a in sys.argv[1:] if '=' in a).get('start', '')
+    window.stack = [('landing', None)]
+    if start in ('ask', 'missing', 'dups'):
+        window.stack.append((start, None))
+    elif start.startswith('list:'):
+        window.stack.append(('list', (start[5:], 'all')))
     window.doModal()
     del window
 

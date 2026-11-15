@@ -4917,3 +4917,14 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   for owner approval with K1-K6).
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
+
+## ISSUE-327 — 165 "Connection reset by peer" tracebacks filled the log (owner log ebc9c063, build 486) — fixed in code
+
+- **Seen:** 165 Python tracebacks (`socketserver … http/server.py handle_one_request … ConnectionResetError: [Errno 54]`),
+  two or three a second whenever a Drive copy played or went to AirPlay; about 40 lines each, most of the 1.1 MB log.
+- **Cause:** the Drive proxy's server (`drive_proxy.Server`, which Kodi and AirPlay read Drive copies from) had no
+  `handle_error`, so Python's default printed a full traceback each time a reader hung up (Kodi seeks, AirPlay stops a
+  range). The stream cache's server (`drive_stream._Server`) already ignores these (build 169).
+- **Fix:** the same `handle_error`: a reset, broken pipe, aborted connection or timeout from a reader is ignored; any other
+  error is still reported. Less log I/O while playing, and logs readable again.
+- **Test:** test_quiet_hangups (both servers stay quiet on hang-ups and still report other errors).
