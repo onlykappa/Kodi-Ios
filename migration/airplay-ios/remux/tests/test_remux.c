@@ -2153,6 +2153,37 @@ static void observe_init(void *ctx,const uint8_t *data,int len) {
     init_watch *watch=ctx;watch->count++;watch->frames=kr_video_frames(watch->video);watch->len=len;
     CHECK(len>16 && !memcmp(data+4,"ftyp",4) && memmem(data,(size_t)len,"moov",4),"early converted header contains real codec configuration");
 }
+// ISSUE-326 (owner's log ebc9c063): a prepared movie whose storage fragments run 30 s is served to any receiver as
+// six-second keyframe segments with the picture copied; resuming, a cue file behind the resume point is answered
+// empty at once instead of after an 8-s wait past Apple's 6-s timeout.
+static void test_long_fragments(void) {
+    char url[1024],list[512],log[16384];
+    unsetenv("KR_PREPARED_MAX_FRAGMENT_S");kr_remux_set_prefetch(0);kr_remux_set_subtitles(0,NULL,"eng");
+    {char drain[16384];while(kr_remux_log(drain,sizeof drain)>0){}}
+    snprintf(url,sizeof url,"file:%s/coalesced.mp4",fixture_dir);
+    unsigned ticket=kr_remux_begin(0);
+    int st=kr_remux_start_for(ticket,url,0,0,list,sizeof list);
+    CHECK(st==KR_READY && strstr(list,"/master.m3u8") && !strstr(list,"/prepared."),"30-s-fragment prepared movie is segmented: %s %s",list,kr_remux_message());
+    if(st!=KR_READY){setenv("KR_PREPARED_MAX_FRAGMENT_S","1e9",1);return;}
+    snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
+    char *end=strstr(prefix_path,"/master.m3u8");if(end)*end=0;
+    int port=kr_remux_port();reply pl=http_get(port,"/video/index.m3u8",NULL);
+    double total,maxd;int target;int n=pl.body?playlist_segments(pl.body,&total,&maxd,&target):0;
+    CHECK(n>=4 && maxd<=8.1 && fabs(total-32)<.2,"segments follow keyframes, not 30-s fragments (%d, max %.3f)",n,maxd);free(pl.body);
+    CHECK(!kr_remux_compat(),"the picture is copied, not converted");
+    CHECK(kr_remux_prime_for(ticket,20.0)==KR_READY,"long-fragment session primes at the resume position");
+    double at=mono_ms();reply cue=http_get(port,"/subs/2/seg0.vtt",NULL);
+    CHECK(cue.status==200 && cue.body && !strncmp(cue.body,"WEBVTT",6) && !strstr(cue.body,"-->") && mono_ms()-at<500,
+          "a cue file behind the resume position is empty at once (%d, %.0f ms)",cue.status,mono_ms()-at);free(cue.body);
+    char path[64];snprintf(path,sizeof path,"/subs/2/seg%d.vtt",n-1);
+    cue=http_get(port,path,NULL);CHECK(cue.status==200 || cue.status==503,"a cue file at the resume position takes the ordinary path (%d)",cue.status);free(cue.body);
+    cue=http_get(port,"/subs/2/seg0.vtt",NULL);
+    CHECK(cue.status==200 && cue.body && strstr(cue.body,"Hello from SRT"),"after the player reached the resume point, seeking back gets real captions: %.200s",cue.body?cue.body:"");free(cue.body);
+    kr_remux_log(log,sizeof log);
+    CHECK(strstr(log,"serving six-second segments") && strstr(log,"before the resume position; empty cue file"),"log names the route and the empty cue file");
+    kr_remux_stop();kr_remux_set_prefetch(1);kr_remux_set_subtitles(-1,NULL,NULL);setenv("KR_PREPARED_MAX_FRAGMENT_S","1e9",1);
+}
+
 static void test_subtitle_retention(const char *base) {
     char source[1024],list[512],log[8192];int origin=0;
     sscanf(base,"http://127.0.0.1:%d",&origin);kr_remux_set_prefetch(0);kr_remux_set_subtitles(-1,NULL,NULL);
@@ -2162,7 +2193,7 @@ static void test_subtitle_retention(const char *base) {
     reply armed=http_get_raw(origin,"/__cue_delay",NULL);CHECK(armed.status==200,"subtitle delay armed after opening");free(armed.body);
     double began=mono_ms();reply first=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
     CHECK(first.status==503 && strstr(first.head,"Retry-After: 1"),"slow cue is retryable, not a blank successful caption (%d)",first.status);
-    CHECK(mono_ms()-began<9000,"HTTP wait bounded independently of ongoing subtitle read");free(first.body);
+    CHECK(mono_ms()-began<5500,"HTTP wait bounded independently of ongoing subtitle read, inside Apple's 6 s (ISSUE-326)");free(first.body);
     reply ready=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
     CHECK(ready.status==200 && ready.body && strstr(ready.body,"Hello from SRT"),"same in-flight cue eventually serves real text (%d)",ready.status);free(ready.body);
     began=mono_ms();ready=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
@@ -2231,7 +2262,7 @@ static void test_startup_repairs(const char *base) {
     snprintf(url,sizeof url,"%s/stall/long_sub.mkv",base);
     CHECK(start_session(url,0,list,sizeof list)==KR_READY,"subtitle deadline movie opens: %s",kr_remux_message());
     double at=mono_ms();reply cue=http_get(kr_remux_port(),"/subs/2/seg20.vtt",NULL);
-    CHECK(cue.status==503 && strstr(cue.head,"Retry-After: 1") && mono_ms()-at<9000,
+    CHECK(cue.status==503 && strstr(cue.head,"Retry-After: 1") && mono_ms()-at<5500,
           "pending subtitle is bounded and retryable (%.0f ms, %d)",mono_ms()-at,cue.status);free(cue.body);
     at=mono_ms();kr_remux_stop();CHECK(mono_ms()-at<1500,"stopping aborts unfinished subtitle work promptly");kr_remux_set_prefetch(1);
 }
@@ -2239,6 +2270,9 @@ static void test_startup_repairs(const char *base) {
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: test_remux FIXTURE_DIR [HTTP_BASE]\n"); return 2; }
     fixture_dir = argv[1];
+    // ISSUE-326: prepared movies with long fragments go the segmented way; the byte-range checks use short fixtures
+    // whose one fragment is the whole film, so they raise the limit (test_long_fragments lowers it again).
+    setenv("KR_PREPARED_MAX_FRAGMENT_S", "1e9", 1);
     // r10: the copy/compat checks below run without burned subtitles (the files' default SRT would be picked).
     kr_remux_set_subtitles(-1, NULL, NULL);
     kr_subs_set_font_file(getenv("KR_TEST_FONT"));
@@ -2278,7 +2312,7 @@ int main(int argc, char **argv) {
         test_stream_recommendations(argv[2],work);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
     if(argc>3 && !strcmp(argv[3],"--roku214-only")) {
-        test_roku214(argv[2],work);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+        test_roku214(argv[2],work);test_long_fragments();printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
     if(argc>3 && !strcmp(argv[3],"--streaming-only")) {
         char url[1024],h264[1024];kr_video_set_encoder("mpeg4");
@@ -2389,7 +2423,7 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_stream_recommendations(argv[2],work);
+        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_stream_recommendations(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }

@@ -4918,6 +4918,28 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-326 — AirPlay of a prepared movie slow to start, first try failed (owner log ebc9c063, build 486) — fixed in code; needs phone retest
+
+- **Seen:** casting a prepared (Drive copy) movie took long to start and the first try failed on the Roku; the log shows
+  `prepared.mp4 bytes=0-53040145`, "HLS over the file's 36 fragments (… longest 63.0 s …)", `seg0.vtt` answered 503 after
+  8010 ms and Apple's player stopping with -12889 "No response for media file in 6s (seg0.vtt)". The movie resumed at
+  about 40 min, yet the player first asked for subtitle segment 0.
+- **Cause:** a prepared file stores fragments of about 64 MB (6-60 s by bitrate) for efficient Kodi reads. Served as HLS
+  over those fragments, Apple's player must fetch a whole fragment (up to 63 s, 49 MB) before it can show it, and one
+  slow fragment hits its 6-s timeout. The subtitle server waited up to 8 s for a cue file, also past that timeout, and
+  answered the player's early segment-0 request (before it moved to the resume point) the same slow way.
+- **Fix (kr_remux.c):** before choosing the prepared route the fragment index is measured; when a fragment runs longer
+  than 10 s the movie goes the six-second keyframe-segment route the Roku already uses (picture and audio copied,
+  nothing converted; Roku's codec limits still apply only to Roku). Subtitle waits end after 4 s (a retryable 503 inside
+  Apple's 6 s). While resuming, a cue file behind the resume point is answered empty at once; once the player reaches
+  the resume point the ordinary path returns, so seeking back still gets real captions.
+- **Trade-off:** this deliberately breaks the old rule "an unfinished cue is never a blank 200" for cue files behind the
+  resume point only, before the player gets there.
+- **Test:** test_airplay_long_fragments (wiring) and the C host test test_long_fragments in test_remux.c (a 30-s-fragment
+  prepared movie is segmented with keyframe segments ≤ 8.1 s, picture copied; seg0.vtt after priming at 20 s is empty in
+  < 500 ms; real captions after the player reaches the resume point); subtitle wait bounds tightened to < 5.5 s.
+- **Retest:** phone: AirPlay a prepared movie to the Apple TV and the Roku, from the start and resumed; first try plays.
+
 ## ISSUE-327 — 165 "Connection reset by peer" tracebacks filled the log (owner log ebc9c063, build 486) — fixed in code
 
 - **Seen:** 165 Python tracebacks (`socketserver … http/server.py handle_one_request … ConnectionResetError: [Errno 54]`),
