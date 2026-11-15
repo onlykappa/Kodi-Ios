@@ -41,6 +41,8 @@ _BROKER=[None]   # ISSUE-281: one cache per service run; a restarted Drive loop 
 # blocks together. At most PIECES requests run at once, so a link that limits connections is not flooded.
 SPLIT=4;PIECES=8;SPLIT_MIN=256*1024
 TYPES={'mkv':'video/x-matroska','avi':'video/x-msvideo','webm':'video/webm'}
+RACE=20          # ISSUE-315: a Kodi source replaced this soon after it was opened is kept beside the new one
+KODI_AHEAD=4     # ISSUE-315: blocks after the opening ones fetched at once for Kodi (it reads the file's start next)
 LOOP_WINDOW=90   # ISSUE-306: seconds in which a second hand-off after one Kodi never read means Umbrella is cycling its sources
 _LAST=[0.0]
 
@@ -216,6 +218,7 @@ class Broker:
  def __init__(self,context=None,source_factory=None,renew_link=None,open_url=None,playing=None):
   self.playing=playing or (lambda:'')   # ISSUE-281: the file Kodi has open ('' when none)
   self.lock=threading.Lock();self.current=None;self.ident='';self.secret=secrets.token_urlsafe(24)
+  self.previous=None   # ISSUE-315: (ident, source, link, opened) of a Kodi source a second hand-off replaced just now
   self.warm=False;self.source=''   # ISSUE-259: current is a warmed source no TV has taken yet
   self.kodi=False;self.opened=0.0  # ISSUE-280: current is what Kodi's own player reads (released when idle)
   self.factory=source_factory or (lambda source:Foreground(source,context=context,open_url=open_url))
@@ -238,7 +241,16 @@ class Broker:
        warmed=bool(broker.current and (broker.warm or broker.kodi) and broker.source==source)
        shared=warmed and broker.kodi
        if not warmed:
-        if broker.current:broker.current.close()
+        # ISSUE-315 (owner log bdbdac02: two hand-offs 0.7 s apart for one play; the second closed the first's source, so
+        # the first went direct after 1 s and Kodi opened it in 24 s): a Kodi source opened under RACE s ago stays open
+        # beside the new one (one at most), so each hand-off finishes on its own source.
+        old=broker.previous
+        if broker.current and broker.kodi and time.monotonic()-broker.opened<RACE:
+         broker.previous=(broker.ident,broker.current,broker.source,broker.opened)
+        elif broker.current:broker.current.close()
+        if old and old is not broker.previous:
+         try:old[1].close()
+         except Exception:pass
         broker.current=broker.factory(source)
        broker.ident=secrets.token_urlsafe(18);broker.warm=False;broker.source=source
        broker.current.configure_renewal(request.get('renewal'),broker.renew_link)
@@ -246,7 +258,7 @@ class Broker:
        if broker.kodi and not warmed:
         broker.current.connect_timeout=min(20,FIRST_ANSWER)
         broker.current.opening_deadline=broker.opened+FIRST_ANSWER
-        threading.Thread(target=prefetch,args=(broker.current,),daemon=True).start()
+        threading.Thread(target=prefetch,args=(broker.current,),kwargs={'extra':KODI_AHEAD},daemon=True).start()
        answer={'url':broker.current.media_url,'id':broker.ident,'warmed':warmed}
       elif action=='warm':
        source=request.get('source','')
@@ -267,8 +279,11 @@ class Broker:
       elif action=='stats':
        # ISSUE-280: the opening card also needs whose source it is and how much of it is in memory (no URL, no id).
        snapshot={}
-       if broker.current:
-        current=broker.current;snapshot=current.stats()
+       ident,current=broker.ident,broker.current
+       prev=broker.previous
+       if prev and request.get('id') and request.get('id')==prev[0]:ident,current=prev[0],prev[1]   # ISSUE-315
+       if current:
+        snapshot=current.stats()
         with current.blocks.lock:
          size=int(current.blocks.sizes.get('media') or current.answered_size or 0)
          wanted={0,1,(size-1)//current.block_size} if size else set()
@@ -276,7 +291,7 @@ class Broker:
          complete=lambda index:len(current.blocks.data.get(('media',index),b''))==min(current.block_size,size-index*current.block_size)
          ready=bool(wanted) and all(complete(index) for index in wanted)
          snapshot.update(kodi=broker.kodi,cached_blocks=len(current.blocks.data),pending_blocks=len(current.blocks.pending),
-                         block_size=current.block_size,size=size,source_id=fingerprint(broker.ident),
+                         block_size=current.block_size,size=size,source_id=fingerprint(ident),
                          first_block_ready=bool(size and complete(0)),first_block_bytes=len(current.blocks.data.get(('media',0),b'')),
                          opening_ready=ready,opening_blocks=len(wanted),opening_complete=sum(complete(i) for i in wanted),
                          served=int(getattr(current,'served',0)))   # ISSUE-306: bytes a reader (Kodi) really took
@@ -287,10 +302,13 @@ class Broker:
        if broker.current and request.get('id')==broker.ident:answer['stats']=broker.current.stats()
       elif action=='origin':
        # ISSUE-280: the real link behind the address Kodi plays (Play on TV gives TVs the real link, never 127.0.0.1).
-       answer={'source':broker.source if broker.current and request.get('url')==broker.current.media_url else ''}
+       answer={'source':broker.source if broker.current and request.get('url')==broker.current.media_url else
+               (broker.previous[2] if broker.previous and request.get('url')==broker.previous[1].media_url else '')}
       elif action=='drop':
        # ISSUE-281: Kodi was given the real link after all (the cache had no answer in time): let the source go.
-       if (request.get('id')==broker.ident or request.get('any')) and broker.kodi:
+       if broker.previous and request.get('id')==broker.previous[0]:
+        broker.previous[1].close();broker.previous=None
+       elif (request.get('id')==broker.ident or request.get('any')) and broker.kodi:
         if broker.current:broker.current.close()
         broker.current=None;broker.ident='';broker.kodi=False;broker.source=''
        answer={'closed':True}
@@ -316,6 +334,15 @@ class Broker:
   stopped, or the TV that took it over finished). Returns True when it closed one."""
   now=time.monotonic() if now is None else now
   with self.lock:
+   prev=self.previous   # ISSUE-315: the kept source goes once Kodi has left it alone (or never read it) for a minute
+   if prev and now-prev[3]>60:
+    last=float(prev[1].stats().get('last_read') or 0)
+    try:playing=prev[1].media_url in (self.playing() or '')
+    except Exception:playing=True
+    if not playing and (not last or time.time()-last>KODI_IDLE):
+     try:prev[1].close()
+     except Exception:pass
+     self.previous=None
    if not (self.current and self.kodi):return False
    last=self.current.stats().get('last_read') or 0
    idle=time.time()-last if last else now-self.opened
@@ -332,10 +359,14 @@ class Broker:
  def close(self):
   self.stopped.set();self.server.shutdown();self.server.server_close()
   with self.lock:
+   if self.previous:
+    try:self.previous[1].close()
+    except Exception:pass
+    self.previous=None
    if self.current:self.current.close();self.current=None
 
 
-def prefetch(source,blocks=None):
+def prefetch(source,blocks=None,extra=0):
  """ISSUE-259: the blocks a converter reads first, fetched once (the size comes with block 0). Failures only mean
  Play on TV reads them itself later."""
  try:
@@ -348,6 +379,9 @@ def prefetch(source,blocks=None):
   threads=[threading.Thread(target=one,args=(i,),daemon=True) for i in sorted({i for i in range(1,blocks or WARM_BLOCKS) if i<=last}|{last}-{0})]
   for t in threads:t.start()
   for t in threads:t.join()
+  # ISSUE-315: then the next blocks Kodi reads while it opens the file (an MKV's start: its tracks and attached fonts)
+  more=[threading.Thread(target=one,args=(i,),daemon=True) for i in range(2,2+extra) if i<last]
+  for t in more:t.start()
  except Exception:pass
 
 
@@ -467,7 +501,7 @@ def answered(endpoint,ident,wait=None,clock=time.monotonic,limit=None,sample=Non
   remaining=limit-(clock()-began)
   if remaining<=0:return False
   try:
-   st=_call(endpoint,{'action':'stats'},timeout=min(1,remaining)).get('stats') or {}
+   st=_call(endpoint,{'action':'stats','id':ident},timeout=min(1,remaining)).get('stats') or {}
    if sample:sample(st)
    if clock()-began>=limit:return False
    if st.get('source_id')==fingerprint(ident) and st.get('opening_ready'):return True

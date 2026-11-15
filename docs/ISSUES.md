@@ -4719,3 +4719,25 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Retest:** desktop Kodi rig: a show added with Favourites.AddFavourite while 90 imported titles are seeded shows first.
   Not the phone.
 - **Test:** test_favourites_flow `HandAdded`.
+
+## ISSUE-315 — An Umbrella episode took 41.8 s to open: two hand-offs raced; the cache route's own open took 9 s (owner, build 479, log bdbdac02) — fixed in code; needs the phone
+
+- **What the log shows (Black Clover S02E07, good network):**
+  - 18:00:04 play: 41.8 s (hand-off 17.9 s, Kodi's open 24.0 s). TWO `stream opening` lines for this one play, from two
+    threads: hand-off A began about 18:00:16.9, hand-off B about 18:00:17.6, for different links. The cache holds one
+    source, so B's `open` closed A's. A's readiness check then saw another source's stats and returned at once:
+    `route=direct wait_ms=1019 blocks=0/0`. Kodi played A's link directly (`VideoPlayer::OpenFile` 18:00:22.7, demuxer to
+    probe 26.7 → 46.4: 20 s over one AllDebrid connection). B finished at 18:00:22.98 (1 of 3 blocks), too late.
+  - 18:00:55 play: 16.6 s on the cache route (hand-off 7.3 s, of which 4.6 s fetching the 9 MB opening blocks; Kodi's
+    open 9.3 s). Kodi reads on past the three opening blocks while it opens an MKV (tracks, attached fonts), and those
+    blocks were only fetched once Kodi asked for them.
+  - The opening hold (ISSUE-309) worked: "Waiting while a video opens or buffers" at each play, "Slower while a video
+    plays" after.
+- **Fix (`remote_media.py`):**
+  - A Kodi source opened under `RACE` (20 s) ago is kept beside a new one (`Broker.previous`, one at most) instead of
+    being closed. `stats`, `drop` and `origin` take the hand-off's own id, so each hand-off checks, keeps or lets go of its
+    own source. The kept one closes when Kodi has left it alone for KODI_IDLE (or never read it), after a minute at least.
+  - Once the opening blocks are in, the next `KODI_AHEAD` (4) blocks (16 MB) are fetched at once (`prefetch(extra=)`).
+- **Unknown:** why Umbrella resolves two links for one play (its code is not in the repo). Both now finish on the cache.
+- **Test:** test_stream_race (a second hand-off keeps the first source alive and serving; each sees its own stats; one
+  previous at most; the next blocks are fetched with the opening). Fails on the old code.
