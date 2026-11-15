@@ -297,10 +297,13 @@ jobs:
           REPO: ${{ github.repository }}
           SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           RUN: ${{ github.run_number }}
+          DEFAULT: ${{ github.event.repository.default_branch }}
         run: |
           ipa=$(ls "$RUNNER_TEMP"/customized-ipa/*.ipa)
           name=$(basename "$ipa" .ipa)
-          gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$SHA" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update."
+          # ISSUE-332: if the tag cannot be made on this commit (HTTP 403), it is made on the default branch; the pin is the asset's sha256.
+          gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$SHA" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update." ||
+          gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$DEFAULT" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update."
           # Keep the three newest test builds by publish time (a release's createdAt is its commit date, so a
           # re-run or an older branch would lose to newer commits elsewhere).
           gh release list --repo "$REPO" --limit 100 --json tagName,publishedAt --jq '[.[] | select(.tagName | startswith("build-"))] | sort_by(.publishedAt) | reverse | .[3:] | .[].tagName' |
