@@ -2181,9 +2181,35 @@ static void test_long_fragments(void) {
     CHECK(cue.status==200 && cue.body && strstr(cue.body,"Hello from SRT"),"after the player reached the resume point, seeking back gets real captions: %.200s",cue.body?cue.body:"");free(cue.body);
     kr_remux_log(log,sizeof log);
     CHECK(strstr(log,"serving six-second segments") && strstr(log,"before the resume position; empty cue file"),"log names the route and the empty cue file");
+    kr_remux_stop();
+    // ISSUE-335 fix 2: the same file again uses the keyframe scan saved by the first cast.
+    {char drain[16384];while(kr_remux_log(drain,sizeof drain)>0){}}
+    ticket=kr_remux_begin(0);st=kr_remux_start_for(ticket,url,0,0,list,sizeof list);
+    kr_remux_log(log,sizeof log);
+    CHECK(st==KR_READY && strstr(log,"from this phone's saved scan"),"second cast uses the saved keyframe scan: %.300s",log);
+    if(st==KR_READY){port=kr_remux_port();snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
+        end=strstr(prefix_path,"/master.m3u8");if(end)*end=0;
+        reply again=http_get(port,"/video/index.m3u8",NULL);double t2,m2;int g2;
+        CHECK(again.body && playlist_segments(again.body,&t2,&m2,&g2)==n,"the saved scan gives the same segments");free(again.body);}
     kr_remux_stop();kr_remux_set_prefetch(1);kr_remux_set_subtitles(-1,NULL,NULL);setenv("KR_PREPARED_MAX_FRAGMENT_S","1e9",1);
 }
 
+// ISSUE-335 fix 1 (owner log 65cca4ce: one Drive read sent nothing and the TV waited 31.7 s): a connection that goes
+// quiet is dropped after a few seconds and the bytes come from a fresh one, intact.
+static void test_quiet_connection(const char *base) {
+    char url[1024],local[1024],err[256]="";
+    snprintf(url,sizeof url,"%s/quiet/coalesced.mp4",base);snprintf(local,sizeof local,"%s/coalesced.mp4",fixture_dir);
+    FILE *f=fopen(local,"rb");if(!f){CHECK(0,"fixture coalesced.mp4");return;}
+    fseek(f,0,SEEK_END);long n=ftell(f);rewind(f);uint8_t *want=malloc((size_t)n),*got=malloc((size_t)n);
+    CHECK(want && got && fread(want,1,(size_t)n,f)==(size_t)n,"read fixture");fclose(f);
+    double at=mono_ms();kr_source *s=kr_source_open(url,30,err,sizeof err);CHECK(s!=NULL,"quiet source opens: %s",err);
+    long have=0;
+    while(s && have<n){int r=kr_source_read(s,have,got+have,65536);if(r<=0)break;have+=r;}
+    double spent=mono_ms()-at;
+    CHECK(have==n && !memcmp(want,got,(size_t)n),"every byte arrives after the quiet connection (%ld of %ld)",have,n);
+    CHECK(spent<15000,"a quiet connection costs seconds, not the 30-s budget (%.0f ms)",spent);
+    kr_source_close(s);free(want);free(got);
+}
 static void test_subtitle_retention(const char *base) {
     char source[1024],list[512],log[8192];int origin=0;
     sscanf(base,"http://127.0.0.1:%d",&origin);kr_remux_set_prefetch(0);kr_remux_set_subtitles(-1,NULL,NULL);
@@ -2275,6 +2301,8 @@ int main(int argc, char **argv) {
     // ISSUE-326: prepared movies with long fragments go the segmented way; the byte-range checks use short fixtures
     // whose one fragment is the whole film, so they raise the limit (test_long_fragments lowers it again).
     setenv("KR_PREPARED_MAX_FRAGMENT_S", "1e9", 1);
+    {static char kf[1100];snprintf(kf,sizeof kf,"%s/keyframe-cache",fixture_dir);setenv("KR_KEYFRAME_CACHE",kf,1);
+     char cmd[1200];snprintf(cmd,sizeof cmd,"rm -rf '%s'",kf);if(system(cmd)){}}   // ISSUE-335: a fresh saved-scan folder
     // r10: the copy/compat checks below run without burned subtitles (the files' default SRT would be picked).
     kr_remux_set_subtitles(-1, NULL, NULL);
     kr_subs_set_font_file(getenv("KR_TEST_FONT"));
@@ -2425,7 +2453,7 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_stream_recommendations(argv[2],work);
+        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }

@@ -1,11 +1,13 @@
 """A tiny HTTP file server that answers Range requests (like Elementum's 127.0.0.1:65220 and Google Drive), for the
 remuxer host tests. Prints its port, then serves DIR until killed. usage: range_server.py DIR
 r8: paths under /slow/ serve the same files like a remote source (Drive through its loopback proxy): every request
-waits SLOW_LATENCY seconds before answering and the bytes come at SLOW_RATE bytes/s (the latency host tests)."""
+waits SLOW_LATENCY seconds before answering and the bytes come at SLOW_RATE bytes/s (the latency host tests).
+ISSUE-335: /quiet/ sends the first chunk of one ranged answer per file and then nothing for 25 s."""
 import http.server,json,os,re,sys,time,threading
 SLOW_LATENCY=0.1
 SLOW_RATE=2*1024*1024
 RECOVERED=set()
+QUIETED=set()   # ISSUE-335: /quiet/ goes silent once per file mid-body
 RECOVER_LOCK=threading.Lock()
 STATS={'requests':0,'bytes':0}
 STATS_LOCK=threading.Lock()
@@ -43,7 +45,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
   if self.path.startswith('/open-stall/'):
    self.path=self.path[len('/open-stall'):];time.sleep(8)
   self.fault=None
-  for mode in ('bounded','recover','stall'):
+  for mode in ('bounded','recover','stall','quiet'):
    if self.path.startswith('/'+mode+'/'):
     self.fault=mode;self.path=self.path[len(mode)+1:];break
   self.slow=self.path.startswith('/slow/')
@@ -67,6 +69,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
    with RECOVER_LOCK:
     if path not in RECOVERED:RECOVERED.add(path);self.drop=True
   if a>262144 and self.fault=='stall':time.sleep(2)
+  if a>262144 and self.fault=='quiet':
+   with RECOVER_LOCK:
+    if path not in QUIETED:QUIETED.add(path);self.quiet=True
   return f
  def copyfile(self,src,dst):
   if getattr(self,'drop',False):return # headers promised bytes, but this connection dies before its body
@@ -76,6 +81,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
    if not chunk:break
    try:dst.write(chunk)
    except (BrokenPipeError,ConnectionResetError):return
+   if getattr(self,'quiet',False):  # a connection that stops sending (owner log 65cca4ce: 31.7 s on one read)
+    try:dst.flush()
+    except OSError:pass
+    time.sleep(25);return
    if self.indexed:
     with STATS_LOCK:STATS['bytes']+=len(chunk)
    if self.slow:time.sleep(len(chunk)/SLOW_RATE)

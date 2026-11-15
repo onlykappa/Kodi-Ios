@@ -4918,6 +4918,27 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-335 — AirPlay froze 30 s and read Drive too slowly (owner logs 87d9a389, 65cca4ce, build 502) — fixed in code (AirPlay r59 staged); needs phone retest
+
+- **Seen:** casting a Drive copy took 10.6 s to the first picture (0.6 open, 1.2 index, **5.6 keyframe scan**, 2.8 first
+  segment), then the TV sat at 1.5 s for ~30 s: video segment 1 took **31.7 s** of source I/O while every other segment
+  took 1-3 s, and the TV logged "-12889 No response for media file in 10.416s (seg1.m4s)". The Naruto cast (06:24) read
+  6-s segments in 6.5-12.5 s (~0.5 MB/s over one connection), slower than playback, so the TV kept stalling around 45 s
+  while subtitles came and went ("subtitles delayed and not working").
+- **Cause:** a read only gave up at its whole 15-30 s budget, so one Drive connection that stopped sending held the
+  segment; each cursor read over one connection; the prepared file's keyframe timeline was rebuilt on every cast.
+- **Fix (kr_source.c, kr_remux.c):** (1) a no-progress watchdog: a read that receives nothing for 4 s is cut, its
+  connection closed, and the read retried on a fresh one (not for Elementum's local server, which waits for torrent
+  pieces); (2) the keyframe scan is saved on the phone (Library/Caches/KodiAirPlay), keyed by size, track and a hash of the
+  file's fragment index, so later casts of the file skip it; (3) when a cursor reads in order and measures slower than
+  1.5 MB/s, two helper connections fetch the 1 MiB chunks ahead of it and publish each 128 KiB block as it arrives.
+- **Host measurements (system FFmpeg, local range server, 6 MB):** quiet connection once 30 s → 4.2 s; 0.4 MB/s per
+  connection 15.3 → 8.7 s; 1 MB/s 6.3 → 4.3 s; 1 MB/s with a quiet connection 10.6 → 4.3 s; a fast high-latency source
+  unchanged (0.31 s; helpers stay off). Every byte matched in every run.
+- **Test:** C host tests `test_quiet_connection` (range_server `/quiet/`: every byte, under 15 s) and `test_long_fragments`
+  (second cast uses the saved scan, same segments); test_airplay_source_stall (wiring).
+- **Not done:** the scan is saved on the first cast, not yet while a download is prepared.
+
 ## ISSUE-334 — Tapping a season hid the season row; it came back only after Back (owner screenshot + log 88be95be, build 502) — fixed in code; rig-checked
 
 - **Seen:** on a show page (Naruto), tapping Season 2 showed its episodes under the show's header with no season row;
