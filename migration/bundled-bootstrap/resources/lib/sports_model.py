@@ -18,6 +18,7 @@ A provider has: overview(), live_games(league=None), upcoming_games(league=None)
 SportsUnavailable when no add-on answered at all (the pages then show the "can't load" state; one failing add-on never raises).
 Times are epoch seconds; the helpers below turn them into the phone's own wording, with the time-zone offset passed in so they test.
 """
+import copy
 import time
 
 SPORT_ORDER = ('Soccer', 'Basketball', 'American football', 'Hockey', 'Baseball', 'Combat sports', 'Motorsport')
@@ -215,11 +216,11 @@ class Sample:
 
     def live_games(self, league=None):
         self._check()
-        return filter_league(order_live(self.live), league)
+        return copy.deepcopy(filter_league(order_live(self.live), league))   # copies: a caller's edits never reach the provider
 
     def upcoming_games(self, league=None):
         self._check()
-        return filter_league(sorted(self.upcoming, key=lambda g: g['start']), league)
+        return copy.deepcopy(filter_league(sorted(self.upcoming, key=lambda g: g['start']), league))
 
     def leagues(self):
         self._check()
@@ -232,7 +233,7 @@ class Sample:
 
     def game(self, gid):
         self._check()
-        return next((g for g in self.live + self.upcoming if g['id'] == gid), None)
+        return copy.deepcopy(next((g for g in self.live + self.upcoming if g['id'] == gid), None))
 
     def overview(self):
         self._check()

@@ -121,6 +121,15 @@ class Provider(unittest.TestCase):
         self.assertTrue(all(g['state'] == 'live' and g['clock'] and g['away']['score'] is not None for g in provider().live_games()))
         self.assertTrue(all(g['state'] == 'upcoming' for g in provider().upcoming_games()))
 
+    def test_a_provider_hands_out_copies(self):
+        p = provider()
+        p.live_games()[0]['sources'].clear()
+        p.upcoming_games()[0]['league'] = 'XX'
+        p.game('nba-1')['away']['score'] = 0
+        self.assertEqual(len(p.live_games()[0]['sources']), 3)
+        self.assertEqual(p.upcoming_games()[0]['league'], 'EPL')
+        self.assertEqual(p.game('nba-1')['away']['score'], 88)
+
     def test_unavailable_raises_for_every_call(self):
         p = provider(fail=True)
         for call in (p.overview, p.live_games, p.upcoming_games, p.leagues, p.refresh, lambda: p.game('epl-1')):
