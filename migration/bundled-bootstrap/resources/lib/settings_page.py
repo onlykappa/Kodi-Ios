@@ -800,7 +800,7 @@ def rank_badge(p,prop,x,y,tag):
  """A small dark pill on a poster: the imported list's rank ("#3") or watch count ("3x"). Drawn only while the property is set.
  A flat translucent chip (a Kodi-drawn surface, not glass): at least 70 % black so it reads over any artwork."""
  return ('<control type="group"><left>%d</left><top>%d</top><visible>!String.IsEmpty(Window().Property(%s))</visible>'%(x,y,prop[len('Window().Property('):-1])+
-  p.surface(0,0,104,48,'pill_96.png','B3000000',24)+p.label(0,0,104,48,'$INFO[%s]'%prop,'p_foot_b',p.WHITE,'center')+'</control>')
+  p.image(0,0,104,48,p.MEDIA+'r21.png','B3000000',border=21)+p.label(0,0,104,48,'$INFO[%s]'%prop,'p_foot_b',p.WHITE,'center')+'</control>')
 
 def favourite_cell(p,n,x,y,cw,ch):
  """Poster n (shown while its title is set): the Movies grid's poster card and art, its title under it, and in Edit mode a

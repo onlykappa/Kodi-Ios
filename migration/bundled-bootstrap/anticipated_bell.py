@@ -1,4 +1,4 @@
-"""The show page's bell (mockup board G): one sheet with two switches for this show, tap a row to flip it.
+"""The show page's bell (mockup board G): one sheet with two switches for this show, tap a row's switch to flip it; Done closes.
 RunScript(service.kodi.ios.bootstrap,anticipated_bell,tmdb=...,title=...). Logic is resources/lib/anticipated.py."""
 import os
 import sys
@@ -29,14 +29,11 @@ def run():
         dialog.ok('New episodes', 'There is no upcoming episode for this show right now.')
         return
     home = xbmcgui.Window(10000)
-    while True:
+    # G3 (owner-approved): one sheet with two real switches that flip in place, and Done. Each flip is saved at once.
+
+    def toggle(index):
         state = bell.switches(profile, tmdb)
-        choice = choice_sheet.choose({'heading': 'New episodes · %s' % (title or 'this show'), 'sub': bell.label(info),
-                                      'rows': bell.rows(state),
-                                      'foot': 'Alert on and downloads off: you are told, nothing is downloaded.'}, xbmcgui=xbmcgui)
-        if choice not in (0, 1):
-            break
-        which = 'alert' if choice == 0 else 'auto'
+        which = 'alert' if index == 0 else 'auto'
         preference = None
         if which == 'auto' and not state['auto']:
             try:
@@ -46,6 +43,11 @@ def run():
         state = bell.flip(profile, tmdb, title, which, info, preference)
         if home.getProperty(bell.PROP_TMDB) == tmdb:
             home.setProperty(bell.PROP_ON, 'true' if state['on'] else '')
+        return state[which]
+
+    choice_sheet.choose({'heading': 'New episodes \u00b7 %s' % (title or 'this show'), 'sub': bell.label(info),
+                         'rows': bell.rows(bell.switches(profile, tmdb)), 'button': 'Done',
+                         'foot': 'Alert on and downloads off: you are told, nothing is downloaded.'}, xbmcgui=xbmcgui, toggle=toggle)
 
 
 if __name__ == '__main__':

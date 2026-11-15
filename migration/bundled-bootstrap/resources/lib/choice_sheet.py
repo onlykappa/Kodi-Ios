@@ -64,7 +64,7 @@ def properties(spec):
     rows = list(spec.get('rows') or [])[:MAX_ROWS]
     props = {'art': spec.get('art') or '', 'badge': spec.get('badge') or '', 'art_title': spec.get('art_title') or '',
              'heading': spec.get('heading') or '', 'sub': spec.get('sub') or '', 'link': spec.get('link') or '',
-             'foot': spec.get('foot') or '', 'rows': str(len(rows))}
+             'foot': spec.get('foot') or '', 'rows': str(len(rows)), 'button': spec.get('button') or 'Cancel'}
     for n in range(1, MAX_ROWS + 1):
         row = rows[n - 1] if n <= len(rows) else {}
         cover = row.get('cover')
@@ -72,6 +72,8 @@ def properties(spec):
                       'row.%d.tall' % n: form(row) if n <= len(rows) else '',
                       'row.%d.tag' % n: row.get('tag') or '', 'row.%d.tag_kind' % n: row.get('tag_kind') or '',
                       'row.%d.tint' % n: row.get('tint') or '', 'row.%d.glyph' % n: glyph_path(row.get('glyph')),
+                      # G3 (owner-approved bell sheet): a real switch instead of the chevron; 'on' / 'off', '' for none
+                      'row.%d.switch' % n: '' if row.get('switch') is None else ('on' if row.get('switch') else 'off'),
                       # the coverage bar in tenths (0-10); '' hides it
                       'row.%d.cover' % n: '' if cover is None else str(max(0, min(10, int(round(float(cover) / 10.0)))))})
     return props
@@ -102,7 +104,7 @@ def glyph_path(name):
     return name if not name or '://' in name or name.startswith(('/', '$')) else 'special://skin/extras/icons/' + name
 
 
-def choose(spec, xbmcgui=None, xbmc=None, path=None):
+def choose(spec, xbmcgui=None, xbmc=None, path=None, toggle=None):
     import os
     if xbmcgui is None:
         import xbmcgui
@@ -123,7 +125,18 @@ def choose(spec, xbmcgui=None, xbmc=None, path=None):
                 pass
 
         def onClick(self, control):
-            self.answer = result(control, rows, link)
+            index = result(control, rows, link)
+            if toggle is not None and 0 <= index < rows and props.get('row.%d.switch' % (index + 1)):
+                # A switch row flips in place: the sheet stays open and only the switch moves (G3).
+                try:
+                    state = toggle(index)
+                except Exception:
+                    state = None
+                if state is not None:
+                    self.setProperty('row.%d.switch' % (index + 1), 'on' if state else 'off')
+                    props['row.%d.switch' % (index + 1)] = 'on' if state else 'off'
+                return
+            self.answer = index
             self.close()
 
         def onAction(self, action):
@@ -205,6 +218,15 @@ def window(p):
                                                               has('row.%d.tag' % n), cond)
         return out
 
+    def chevron_or_switch(h, k):
+        """The row's right edge: a chevron, or (G3) a switch: a 124 x 75 track, green when on, with a white knob."""
+        on, off = is_(k + 'switch', 'on'), is_(k + 'switch', 'off')
+        x, y = W - 48 - 124, (h - 75) // 2
+        chevron = '<control type="group"><visible>!%s + !%s</visible>%s</control>' % (on, off, p.icon(W - 72, (h - 34) // 2, 34, 'chevron-right.png', p.GREY))
+        track = lambda cond, color: p.image(x, y, 124, 75, p.MEDIA + 'r27.png', color, '<visible>%s</visible>' % cond, border=27)
+        knob = lambda cond, kx: p.image(kx, y + 4, 67, 67, p.MEDIA + 'avatar_s.png', p.WHITE, '<visible>%s</visible>' % cond)
+        return chevron + track(on, p.GREEN) + track(off, 'FF39393D') + knob(on, x + 124 - 4 - 67) + knob(off, x + 4)
+
     def row(n):
         k = 'row.%d.' % n
         tile = has(k + 'tint')
@@ -266,13 +288,12 @@ def window(p):
         for index, (lines_, dlines) in enumerate(FORMS):
             h = tall_height(lines_, dlines)
             talls += block(h, sep + button(h, index) + tiles_at(h) + tall_text(tx_tile, tile, lines_, dlines) +
-                           tall_text(tx_plain, '!' + tile, lines_, dlines) + p.icon(W - 72, (h - 34) // 2, 34, 'chevron-right.png', p.GREY),
+                           tall_text(tx_plain, '!' + tile, lines_, dlines) + chevron_or_switch(h, k),
                            has(k + 'label') + ' + ' + is_(k + 'tall', index + 1))
         inner = (sep + '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
                  '<texturefocus /><texturenofocus /><onup>%s</onup><ondown>%s</ondown></control>'
                  % (ROW0 + n - 1, W, ROW_H, ROW0 + n - 2 if n > 1 else ROW0, ROW0 + n if n < MAX_ROWS else LINK) +
-                 tiles + text(tx_tile, tile) + text(tx_plain, '!' + tile) +
-                 p.icon(W - 72, (ROW_H - 34) // 2, 34, 'chevron-right.png', p.GREY))
+                 tiles + text(tx_tile, tile) + text(tx_plain, '!' + tile) + chevron_or_switch(ROW_H, k))
         return block(ROW_H, inner, has(k + 'label') + ' + ' + '!' + has(k + 'tall')) + talls
 
     link = block(132, p.image(0, 0, W, 2, p.MEDIA + 'white.png', p.SEP) +
@@ -292,11 +313,11 @@ def window(p):
              cap('cap_top.png') + top_pad + art + heading + sub + ''.join(row(n) for n in range(1, MAX_ROWS + 1)) +
              link + foot + cap('cap_bottom.png') + '</control>')
     cancel = ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
-              '<label>[B]Cancel[/B]</label><font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
+              '<label>[B]%s[/B]</label><font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
               '<align>center</align><aligny>center</aligny>'
               '<texturefocus border="64" colordiffuse="%s">%spill_128.png</texturefocus>'
               '<texturenofocus border="64" colordiffuse="%s">%spill_128.png</texturenofocus><onup>%d</onup></control>'
-              % (CANCEL, SIDE, p.HEIGHT - bottom - cancel_h, W, cancel_h, p.WHITE, p.WHITE, card, p.MEDIA, card, p.MEDIA, ROW0))
+              % (CANCEL, SIDE, p.HEIGHT - bottom - cancel_h, W, cancel_h, P('button'), p.WHITE, p.WHITE, card, p.MEDIA, card, p.MEDIA, ROW0))
     body = ('<controls><control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height>'
             '<texturefocus colordiffuse="99000000">%swhite.png</texturefocus><texturenofocus colordiffuse="99000000">%swhite.png</texturenofocus>'
             '<onclick>Close</onclick></control>' % (DIM, p.WIDTH, p.HEIGHT, p.MEDIA, p.MEDIA) + stack + cancel + '</controls>')

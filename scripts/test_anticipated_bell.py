@@ -57,7 +57,53 @@ class Switches(unittest.TestCase):
     def test_everything_starts_off_and_the_sheet_says_so(self):
         state = bell.switches(self.profile, '99')
         self.assertEqual(state, {'alert': False, 'auto': False, 'on': False})
-        self.assertEqual([r['tag'] for r in bell.rows(state)], ['Off', 'Off'])
+        self.assertEqual([r['switch'] for r in bell.rows(state)], [False, False])     # G3: real switches, no On/Off tag
+        on = bell.rows({'alert': True, 'auto': False, 'on': True})
+        self.assertEqual([r['switch'] for r in on], [True, False])
+        self.assertNotIn('tag', on[0])
+
+    def test_the_sheet_draws_switches_and_a_done_button(self):
+        """ISSUE-306: G3 as approved: the rows end in a switch (green track, white knob) and the bottom button says Done."""
+        import choice_sheet
+        sys.path.insert(0, str(ROOT / 'migration/bundled-bootstrap/resources/lib'))
+        props = choice_sheet.properties({'heading': 'New episodes', 'rows': bell.rows({'alert': True, 'auto': False, 'on': True}),
+                                         'button': 'Done'})
+        self.assertEqual((props['row.1.switch'], props['row.2.switch'], props['button']), ('on', 'off', 'Done'))
+        self.assertEqual(choice_sheet.properties({'rows': [{'label': 'x'}]})['row.1.switch'], '')      # other sheets: chevron
+        self.assertEqual(choice_sheet.properties({'rows': [{'label': 'x'}]})['button'], 'Cancel')
+        import portrait
+        xml = choice_sheet.page(portrait) if hasattr(choice_sheet, 'page') else ''
+        source = (ROOT / 'migration/bundled-bootstrap/resources/lib/choice_sheet.py').read_text()
+        self.assertIn('def chevron_or_switch', source)
+        self.assertIn("is_(k + 'switch', 'on')", source)
+        self.assertTrue(xml == '' or 'Window().Property(button)' in xml)
+
+    def test_a_switch_flips_in_place_and_done_closes(self):
+        """The sheet stays open while a switch flips (the page's script flips and saves it); only Done closes it."""
+        import choice_sheet
+        flips, closed = [], []
+
+        class Window:
+            def __init__(self, *a):
+                self.p, self.answer = {}, -1
+            def setProperty(self, k, v):
+                self.p[k] = v
+            def setFocusId(self, i):
+                pass
+            def close(self):
+                closed.append(True)
+            def doModal(self):
+                self.onInit()
+                self.onClick(choice_sheet.ROW0)             # tap Alert me
+                assert not closed and self.p['row.1.switch'] == 'on', (closed, self.p)
+                self.onClick(choice_sheet.ROW0 + 1)         # tap Add to downloads
+                assert not closed and self.p['row.2.switch'] == 'on'
+                self.onClick(choice_sheet.CANCEL)           # Done
+        xbmcgui = type('X', (), {'WindowXMLDialog': Window})
+        choice_sheet.choose({'rows': bell.rows({'alert': False, 'auto': False, 'on': False}), 'button': 'Done'},
+                            xbmcgui=xbmcgui, xbmc=object(), toggle=lambda i: flips.append(i) or True)
+        self.assertEqual(flips, [0, 1])
+        self.assertEqual(closed, [True])
 
     def test_alert_alone_follows_the_show_without_downloading(self):
         state = bell.flip(self.profile, '99', 'Show', 'alert', self.info, now=stamp('2026-11-14'))

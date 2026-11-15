@@ -65,7 +65,7 @@ def switches(profile, tmdb):
 def rows(state):
     """Rows for the choice sheet: tap a row to flip its switch."""
     def row(label_, detail, on):
-        return {'label': label_, 'detail': detail, 'tag': 'On' if on else 'Off', 'tag_kind': 'best' if on else ''}
+        return {'label': label_, 'detail': detail, 'switch': bool(on)}   # G3: a real switch, no On/Off tag
     return [row('Alert me', 'A notification when a new episode comes out', state['alert']),
             row('Add to downloads automatically', 'Searches and downloads each one when it airs', state['auto'])]
 
