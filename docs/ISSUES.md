@@ -4619,3 +4619,30 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   ever connects to the cache.
 - **Test:** test_stream_loop (address and type, served count, loop goes direct, a read source and a later play are not
   loops, the log line).
+
+## ISSUE-307 — The bell sheet as approved (G3): real switches and Done, slim pill switches (owner, 2026-11-15) — done in code; rig-checked
+
+- **Request:** PR #29's review: the bell sheet was the choice sheet with On/Off tags and Cancel, not board G3. Owner, on the
+  rig render: "the s is cut off and the switches look a little bulky, should be more pill shaped, not so fat".
+- **Fix (`choice_sheet.py`, `anticipated.py`, `anticipated_bell.py`):** rows can carry a `switch` (on/off): the chevron is
+  replaced by a 112 x 56 full pill (green on, grey off, white 46 knob). `choose(..., toggle=)` flips a switch in place:
+  the sheet stays open and saves each flip at once; the bottom button says Done. A switch row's text column is 110 units
+  narrower, so long lines wrap clear of the switch. Other sheets keep their chevron and Cancel.
+- **Retest:** desktop Kodi rig (rig_smoke_sheet.py bell): two rows, slim pills, Done, nothing cut. Not the phone.
+- **Test:** test_anticipated_bell (switch rows, properties, a switch flips in place and Done closes); test_favourites_flow.
+
+## ISSUE-308 — The import report: a full page (board I3) from Notifications or Import a List, never popped up (owner, 2026-11-15) — done in code; rig-checked
+
+- **Request:** owner: "full page … don't make it pull up when it's done, make a place for me to manually check"; then "put
+  the notice in notification center … if I tap it, it can open that page"; mockup N/R/S approved ("moneyyyy").
+- **Fix:**
+  - `favourites_import.save_report` keeps the last import (duplicates, open questions with their choices, names not found);
+    `report_properties` builds the page; group texts list whole names, then "and N more" (`listed`, measured to three lines).
+  - `favourites_report_page.py` (IOSImportReport.xml): Last import, the added card, Duplicates / Needs your answer (blue) /
+    Not found (orange), each as tall as its text, a footnote, View Favourites. Needs your answer asks one "Did you mean…"
+    per name; Not found opens the keyboard with the name to search again; answered names leave the report.
+  - After an import nothing opens: a Notifications message "Import finished · N added … · M need a look" with a star and
+    Review ›; tapping it opens the page (`favourites_import_page report`). Import a List has a third row, Last import.
+- **Retest:** desktop Kodi rig: the message with the star and Review ›, the report page; nothing cut. Not the phone.
+- **Test:** test_favourites_flow (no pop-up, the message, the saved report, the page's groups act, Last import row, "and N
+  more", the message's star/Review and its tap).

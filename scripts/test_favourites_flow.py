@@ -110,8 +110,11 @@ class Flow(unittest.TestCase):
         self.assertEqual({i['title']: i['watched'] for i in items}['Attack on Titan'], 3)
         self.assertNotIn('RYANNE', ' '.join(names))
         self.assertEqual(len(self.sheets), 1)                                          # no report sheet popped up
-        self.assertIn(('notification', 'Import finished', '%d added to Favourites \u00b7 2 to check in Last import' % added),
-                      self.dialog.shown)
+        import notices                                                                   # mockup N: a Notifications message
+        message = notices.load(self.profile)[0]
+        self.assertEqual((message['title'], message['action'], message['kind']), ('Import finished', 'import_report', 'general'))
+        self.assertEqual(message['text'], '%d added to Favourites from %s \u00b7 2 need a look' % (added, fi.load_report(self.profile)['list']))
+        self.assertFalse([x for x in self.dialog.shown if x[0] == 'notification'])     # no pop-up
         report = fi.load_report(self.profile)
         self.assertEqual([d['lines'] for d in report['duplicates']], [[5, 6]])
         self.assertEqual([q['entry']['title'] for q in report['questions']], ['one peice'])   # the show or the film: asked
@@ -274,6 +277,26 @@ class Bell(unittest.TestCase):
         with patch.object(bell.Lookup, '_fetch', broken):
             bell.bell_service(monitor, tmp.name, window, lambda k: {'Container(50).ListItem.Property(tvshow.tmdb_id)': '99', 'Container.Content': 'seasons'}.get(k, ''), lambda: 'key')
         self.assertEqual(props, {})
+
+
+
+class ImportNotice(unittest.TestCase):
+    """Mockup N (owner-approved 2026-11-15): the message shows a star and Review, and opens the report page."""
+
+    def test_the_message_has_a_star_review_and_opens_the_report(self):
+        import time
+        sys.modules.setdefault('xbmc', types.SimpleNamespace())
+        import notifications
+        item = {'id': '1', 'time': time.time(), 'kind': 'general', 'title': 'Import finished',
+                'text': '48 added to Favourites from Notes list \u00b7 5 need a look', 'action': 'import_report'}
+        props, shown = notifications.message_properties([item], 'all')
+        self.assertEqual((props['msg.1.icon'], props['msg.1.fix']), ('star.png', 'Review'))
+        quiet = dict(item, text='48 added to Favourites from Notes list')
+        props, _ = notifications.message_properties([quiet], 'all')
+        self.assertEqual(props['msg.1.fix'], '')                                     # nothing to check: no Review
+        source = (BOOT / 'notifications.py').read_text()
+        self.assertIn("RunScript(service.kodi.ios.bootstrap,favourites_import_page,report)", source)
+        self.assertIn("'report' in sys.argv[1:]", (BOOT / 'favourites_import_page.py').read_text())
 
 
 if __name__ == '__main__':

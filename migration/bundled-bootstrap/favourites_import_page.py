@@ -189,10 +189,27 @@ def run_import(xbmc, xbmcgui, profile):
         parsed['lines'], len(added), len(already), len(result['questions']), len(result['missing'])), xbmc.LOGINFO)
     # Owner (2026-11-15): the report is not opened by itself: a short notice, and Import a List › Last import shows it.
     data = fi.save_report(profile, parsed, result, added, already, list_name)
-    need = fi.need_a_look(data)
-    dialog.notification('Import finished', '%d added to Favourites%s' % (len(added), ' \u00b7 %d to check in Last import' % need if need else ''),
-                        xbmcgui.NOTIFICATION_INFO, 5000)
+    notify(profile, data)
     return len(added)
+
+
+REPORT_ACTION = 'import_report'    # a Notifications message with this action opens the report page (notifications.py)
+
+
+def notice_text(data):
+    """The Notifications line (owner-approved mockup N, 2026-11-15)."""
+    need = fi.need_a_look(data)
+    where = ' from %s' % data['list'] if data.get('list') else ''
+    return '%d added to Favourites%s%s' % (int(data.get('added') or 0), where, ' \u00b7 %d need a look' % need if need else '')
+
+
+def notify(profile, data):
+    """Owner (2026-11-15): the finished import is a message in Notifications, never a sheet; tapping it opens the report."""
+    try:
+        import notices
+        notices.add(profile, 'general', 'Import finished', notice_text(data), action=REPORT_ACTION)
+    except Exception:
+        pass
 
 
 def open_report(xbmc, xbmcgui, profile):
@@ -337,7 +354,12 @@ def run():
     import xbmc
     import xbmcgui
     import xbmcvfs
-    run_import(xbmc, xbmcgui, xbmcvfs.translatePath('special://profile/'))
+    profile = xbmcvfs.translatePath('special://profile/')
+    if 'report' in sys.argv[1:]:        # from the Notifications message (mockup N) or anywhere else
+        if open_report(xbmc, xbmcgui, profile):
+            xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,favourites_page)')
+        return
+    run_import(xbmc, xbmcgui, profile)
 
 
 if __name__ == '__main__':

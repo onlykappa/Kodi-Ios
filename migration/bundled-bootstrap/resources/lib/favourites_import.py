@@ -283,16 +283,22 @@ def need_a_look(data):
     return len((data or {}).get('questions') or []) + len((data or {}).get('missing') or [])
 
 
-def listed(names, limit=REPORT_CHARS):
-    """Names joined as one sentence that fits three lines: whole names only, then "and N more" (never a cut name)."""
-    out, used = [], 0
+def listed(names, limit=REPORT_CHARS, fits=None):
+    """Names joined as one sentence that fits three lines: whole names only, then "and N more" (never a cut name).
+    fits(text) -> True when the text fits the page's three lines (the page measures with Inter's widths)."""
+    if fits is None:
+        try:
+            import notifications_skin as ns
+            fits = lambda text: ns.lines_in(text, 35, 780, 4) <= 3
+        except Exception:
+            fits = lambda text: len(text) <= limit
+    out = []
     for n, name in enumerate(names):
-        piece = ('' if not out else ', ') + name
         rest = len(names) - n - 1
-        if out and used + len(piece) + (len(' and %d more' % rest) if rest else 0) > limit:
+        trial = ''.join(out) + ('' if not out else ', ') + name
+        if out and not fits(trial + (' and %d more' % rest if rest else '')):
             return '%s and %d more' % (''.join(out), len(names) - n)
-        out.append(piece)
-        used += len(piece)
+        out.append(('' if not out else ', ') + name)
     return ''.join(out)
 
 
@@ -301,24 +307,28 @@ def report_properties(data, now=None):
     if not data:
         return {'title': 'Last import', 'sub': '', 'added': '', 'lines': '', 'foot': '', 'empty': 'No list imported yet',
                 'dup.title': '', 'dup.text': '', 'dup.pos': '', 'ask.title': '', 'ask.text': '', 'ask.pos': '',
-                'miss.title': '', 'miss.text': '', 'miss.pos': ''}
+                'miss.title': '', 'miss.text': '', 'miss.pos': '', 'dup.lines': '', 'ask.lines': '', 'miss.lines': ''}
     when = time.strftime('%a %d %b, %H:%M', time.localtime(float(data.get('time') or 0)))
     dups = ['%s (lines %s)' % (d['title'], ' and '.join(str(x) for x in d['lines'])) for d in data.get('duplicates') or []]
     dups += ['%s (already in Favourites)' % t for t in data.get('already') or [] if t]
     asks = ['“%s”' % q['entry']['title'] for q in data.get('questions') or []]
     miss = ['Line %s “%s”' % (m['line'], m['title']) for m in data.get('missing') or []]
-    groups = [('dup', 'Duplicates', dups, 'Each was added once, at its first line.'),
+    groups = [('dup', 'Duplicates', dups, ''),
               ('ask', 'Needs your answer', asks, 'Tap to pick the right one.'),
               ('miss', 'Not found', miss, 'Tap to search for them by hand.')]
     shown = [g for g in groups if g[2]]
     props = {'title': 'Last import', 'sub': ' · '.join(x for x in (data.get('list') or '', when) if x),
              'added': '%d added to Favourites' % int(data.get('added') or 0),
              'lines': '%d lines read' % int(data.get('lines') or 0), 'empty': '',
-             'foot': 'Nothing was removed from your list.' if shown else 'Everything on your list is in Favourites.'}
+             'foot': ('Duplicates were added once, at their first line. ' if dups else '') +
+                     ('Nothing was removed from your list.' if shown else 'Everything on your list is in Favourites.')}
     for key, title, names, hint in groups:
         on = bool(names)
         n = [g[0] for g in shown].index(key) if on else -1
         props[key + '.title'] = '%s · %d' % (title, len(names)) if on else ''
-        props[key + '.text'] = (listed(names) + ('. ' + hint if key == 'dup' else '')) if on else ''
+        props[key + '.text'] = listed(names) if on else ''
+        # Lines the text takes beside the chevron (Inter p_foot in 780 units): the row is as tall as them (DEC-050).
+        import notifications_skin as ns
+        props[key + '.lines'] = str(max(1, ns.lines_in(props[key + '.text'], 35, 780, 3))) if on else ''
         props[key + '.pos'] = '' if not on else 'only' if len(shown) == 1 else 'first' if n == 0 else 'last' if n == len(shown) - 1 else 'mid'
     return props

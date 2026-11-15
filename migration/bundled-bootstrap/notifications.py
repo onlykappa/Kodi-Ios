@@ -63,6 +63,7 @@ def next_text(titles,room=60):   # Kodi cuts the line short of the link (notific
  return 'Up next: '+', then '.join(cut(t,share+spare) for t in shown)+' ·'
 
 import notifications_skin as ns
+IMPORT_REPORT='import_report'   # favourites_import_page.REPORT_ACTION
 
 def ring_texture(pct):
  """C1's progress ring: the ring_00..ring_20 texture nearest the percentage."""
@@ -81,12 +82,13 @@ def message_properties(items,filter_key,now=None):
  for n in range(1,ROWS+1):
   i=shown[n-1] if n<=len(shown) else {}
   glyph,tint=ICON.get(i.get('kind'),ICON['info']) if i else ('','')
+  if i and i.get('action')==IMPORT_REPORT:glyph,tint=('star.png','33FFD60A')   # mockup N: the Favourites star
   # Build 194 (board 5): one grouped card; the tile is the kind's colour at 18 %, its glyph the full colour.
   pos='' if not i else 'only' if len(shown)==1 else 'first' if n==1 else 'last' if n==len(shown) else 'mid'
   import notice_help
   help_=notice_help.explain(i) if i else {'title':'','line':'','fixes':[],'good':True}
   fixable=bool(i and i.get('kind')=='problem' and help_['fixes'] and help_['fixes'][0][2] not in ('share_log',))
-  props.update({'msg.%d.fix'%n:'Fix' if fixable else ''})
+  props.update({'msg.%d.fix'%n:'Fix' if fixable else 'Review' if i and i.get('action')==IMPORT_REPORT and 'need a look' in str(i.get('text') or '') else ''})
   props.update({'msg.%d.title'%n:help_['title'] if i else '','msg.%d.text'%n:(help_['line'] or i.get('text','')) if i else '','msg.%d.ago'%n:notices.ago(i['time'],now) if i else '',
                 'msg.%d.icon'%n:glyph,'msg.%d.tint'%n:('2E'+tint[2:]) if tint else '','msg.%d.glyph'%n:('FF'+tint[2:]) if tint else '',
                 'msg.%d.pos'%n:pos,'msg.%d.unread'%n:'true' if i and not i.get('was_read') else ''})
@@ -338,8 +340,15 @@ def run():
     return
    builtin=notice_help.FIX_ACTIONS.get(action)
    if builtin:self.finish();xbmc.executebuiltin(builtin)
+  def report_row(self,n):
+   """True when message n is a finished import's: its report page opens (favourites_import_page report)."""
+   if not 0<n<=len(self.shown) or self.shown[n-1].get('action')!=IMPORT_REPORT:return False
+   self.finish();xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,favourites_import_page,report)')
+   return True
   def onClick(self,control):
    if control==9001:self.finish()
+   elif (9600<control<=9600+ROWS or 9501<=control<=9500+ROWS) and self.report_row(control%100):
+    pass   # mockup N (owner, 2026-11-15): the import's message opens the report page
    elif 9600<control<=9600+ROWS:
     # DEC-046 board G3: a problem row's Fix button runs its main fix.
     n=control-9600

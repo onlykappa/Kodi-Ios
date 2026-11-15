@@ -22,14 +22,15 @@ def page(p):
     summary += u.text(p, S + 38, 30, w - 76, 62, P('added'), 'p_h3')
     summary += p.textbox(S + 38, 102, w - 76, 50, P('lines'), 'p_foot', p.GREY)
     rows = u.group(p, 190 + 30, summary, u.has('added'))
-    row_h = 38 + 58 + 6 + TEXT_LINES * 44 + 32
     for key, ident, tint in GROUPS:
         k = key + '.'
-        b = u.row_back(p, k, w, row_h) + u.tap(p, ident, S, 0, w, row_h)
-        b += u.text(p, S + 38, 38, w - 76 - 60, 58, P(k + 'title'), 'p_body', tint)
-        b += p.textbox(S + 38, 38 + 58 + 6, w - 76 - 60, TEXT_LINES * 44, P(k + 'text'), 'p_foot', p.GREY)
-        b += u.glyph(p, S + w - 66, (row_h - 34) // 2, 34, 'chevron-right.png', p.GREY)
-        rows += u.group(p, row_h, b, u.has(k + 'title'))
+        for n in range(1, TEXT_LINES + 1):      # as tall as its text: k.lines is 1-3 (favourites_import.report_properties)
+            row_h = 30 + 54 + 4 + n * 44 + 28
+            b = u.row_back(p, k, w, row_h) + u.tap(p, ident, S, 0, w, row_h)
+            b += u.text(p, S + 38, 30, w - 76 - 60, 54, P(k + 'title'), 'p_pill', tint)
+            b += p.textbox(S + 38, 30 + 54 + 4, w - 76 - 60, n * 44, P(k + 'text'), 'p_foot', p.GREY)
+            b += u.glyph(p, S + w - 66, (row_h - 34) // 2, 34, 'chevron-right.png', p.GREY)
+            rows += u.group(p, row_h, b, '%s + String.IsEqual(Window().Property(%slines),%d)' % (u.has(k + 'title'), k, n))
     rows += u.group(p, 150, p.textbox(S + 20, 26, w - 40, 100, P('foot'), 'p_cap', p.GREY), u.has('foot'))
     rows += u.group(p, 160, p.pill_button(VIEW, S, 10, w, 128, 'View Favourites', [('', 'noop')], 'primary', extra=u.NOS), u.has('added'))
     rows += u.group(p, 300, u.text(p, S, 80, w, 80, P('empty'), 'p_h3', p.GREY, 'center'), u.has('empty'))
