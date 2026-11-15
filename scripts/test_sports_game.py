@@ -170,7 +170,9 @@ class Controller(unittest.TestCase):
             self.assertFalse(window.props['error.title'])
             self.assertNotIn('test provider offline',str(window.props))
             provider.refresh=lambda:None
-            provider.game('epl-1')['sources']=[]
+            refreshed=provider.game('epl-1')
+            refreshed['sources']=[]
+            provider.game=lambda ident:refreshed if ident==refreshed['id'] else None
             window.onClick(page.REFRESH);until(lambda:not window.fetching)
             self.assertEqual(window.props['state'],'empty')
             self.assertEqual(window.props['source.0.form'],'')

@@ -5101,3 +5101,14 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Retest:** desktop Kodi 21.3 shows 12:30 PM and the day in full without touching either crest. An offline font
   check of every 12-hour clock string found a maximum width of 386 units.
 - **Test:** `scripts/test_sports_game.py` checks the later-day value and enough clock space between the crests.
+
+## ISSUE-334 — Game refresh test assumed mutable provider snapshots — fixed for the updated contract
+
+- **Seen:** GitHub's PR check failed the empty-after-refresh test although all local scripts passed.
+- **Cause:** the base branch advanced: Sample now returns independent copies. The fixture edited a returned game
+  and expected that edit to change the provider's next response, which the updated contract deliberately prevents.
+- **Fix:** have the test provider explicitly return the next empty-source snapshot. The application still reads
+  only the public provider methods and needs no change.
+- **Retest:** all 137 listed scripts, including the thirteen game-page cases, pass against the actual PR tree
+  combined with the updated base. The feature checkout's game-page tests also pass; GitHub is checked after push.
+- **Test:** `scripts/test_sports_game.py`, `test_failed_refresh_keeps_seed_and_success_can_remove_sources`.

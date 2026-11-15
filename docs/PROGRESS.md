@@ -1,5 +1,13 @@
 # Persistent progress
 
+## Sports: updated provider snapshot contract — 2026-11-15
+
+The base branch advanced after the local checks: sample data is now opt-in, and Sample hands out independent
+copies. GitHub caught one test fixture that had assumed mutable provider records (ISSUE-334). The fixture now
+supplies the next snapshot explicitly. All 137 listed scripts pass against the PR's combined tree with the
+updated base, and the feature checkout's game-page tests pass. The UI continues to use the same public provider
+door. No sample fallback is added to the application.
+
 ## Sports › A game's page: boards 12–13 implemented — 2026-11-15
 
 Upcoming rows now open `IOSSportsGame.xml` with the same game, provider and clock. The card shows the league code,
