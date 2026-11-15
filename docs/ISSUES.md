@@ -4918,6 +4918,20 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-338 — Favourites search "nearly kicks me out"; the "Most likely" badge never showed (owner log a42d17d7, build 502) — fixed in code; rig-checked
+
+- **Seen:** on the poster picker (IOSFavPick) Kodi logged "Trying to add unsupported control type 7" four times and
+  "Control 9600/9601 … asked to focus, but it can't"; tapping the search field closed the picker, opened the iPhone
+  keyboard over a blank landscape-sized screen ("Click … in (1280 x 720 layout): control 0 (not handled)"), and a tap
+  outside it cancelled; the picker was then built again.
+- **Cause:** (1) the search closed the picker for the keyboard and rebuilt it afterwards; (2) type 7 is Kodi's button:
+  list cells take no buttons (GUIListGroup), so the auto-width "Most likely" pill added in ISSUE-325 was dropped on the
+  phone (the desktop rig render had looked right).
+- **Fix:** the keyboard opens over the picker and the results refill it in place (`Pick.refresh`); the badge is a fixed
+  240-unit pill image with a centred label.
+- **Test:** test_favourites_manager `Picker` (no button/edit/toggle inside any cell; the badge label is at least the pill
+  wide; the search refreshes in place). **Rig:** K7 "one peice": "Most likely" shows in full on the first poster.
+
 ## ISSUE-337 — AirPlay of a prepared episode: the TV got the raw MP4, then "Cannot Complete Action" (owner log d8524f8d, build 502) — fixed in code (AirPlay r60 staged); needs phone retest
 
 - **Seen:** Kodi opened the prepared HEVC 10-bit episode "by its fragment index", but Play on TV logged "prepared: no
