@@ -1,5 +1,68 @@
 # Persistent progress
 
+## Sports: merging and The Loop discovery — 2026-11-15
+
+`sports_merge.py` combines several add-ons' answers into the contract's games (DEC-055: one game, one line per distinct stream with "Also on …",
+Best / Also good). `sports_loop.py` is The Loop's provider, step 1: it has no adapter yet (its code is not in this project and its listings are not
+guessed), so every page shows its can't-load state, and it lists the Loop add-ons' menu folders once every 12 hours (folders only, bounded) into
+`sports-discovery.json` and `kodi.log` for the adapter to be written from. Status and next step: [design/sports-loop-integration.md](design/sports-loop-integration.md).
+
+## Sports page 2 coded: Live Now — 2026-11-15
+
+`Library › Sports › Live Now` opens `IOSSportsLive.xml` (`sports_live_page.py`, filled by `sports_live.py`), approved boards 6-9 (option B): league chips,
+then one card per live game (closest to its end first) with the league label, the clock, both teams and scores, and the game's sources under it
+(best first, "Also on …", Best / Also good), a tap on a source plays it at once; nothing-live and can't-load pages. Checked in the **desktop Kodi rig**
+against the boards (the list, the NBA chip, a tap on a source, nothing live, can't load); not yet on the iPhone. Capacity: 12 cards and 4 sources
+a card (the rest is behind the chips and a "N more games not shown" line); chips wrap to up to three rows. `sports_provider.play` hands a real source's
+`play` path to Kodi's player; the sample provider only logs.
+
+## Sports page 1 coded: Library › Sports and the landing page — 2026-11-15
+
+`Library › Sports` (between TV Shows and Favourites) opens `IOSSports.xml` (`sports_page.py`, filled by `sports.py`): back, refresh, "Sports" with
+"Updated just now", the Live Now / Upcoming / Leagues tiles and the Finished today row, plus the updating, nothing-live and can't-load states, as
+approved board 2 of [sports-approved-pages.html](design/sports-approved-pages.html). Checked in the **desktop Kodi rig** against the board (live,
+nothing live, can't load, the Library row, a tile tap and refresh); not yet on the iPhone. The tiles open Live Now, Upcoming and Leagues only once
+those pages exist (an unknown RunScript name would run the recovery script, so the tile says it is coming). Sample data is opt-in
+(`KODI_IOS_SPORTS=sample` in the rig); with no setting the page says it can't load until The Loop's provider lands.
+
+## Sports: every page approved; the work is split (DEC-057) — 2026-11-15
+
+The owner approved Leagues option A, live-first order and the empty league page: all pages of the section are approved
+([docs/design/sports-approved-pages.html](design/sports-approved-pages.html)). Claude wrote the data contract (`sports_model.py`,
+`sports_provider.py`, `scripts/test_sports_model.py`) and codes The Loop provider, the landing, Live Now and a league's page; ChatGPT codes
+Upcoming, a game's page and Leagues from [design/sports-chatgpt-brief.md](design/sports-chatgpt-brief.md), and Claude reviews and fixes
+them. Each page is checked in the desktop Kodi rig, then on the iPhone.
+
+## Sports › Upcoming: option A approved — 2026-11-15
+
+The owner chose option A (a compact list by day, soonest first) and that a tap opens the game's page (DEC-056). The approved boards are
+in [docs/design/sports-approved-pages.html](design/sports-approved-pages.html); the options are in
+[sports-upcoming-mockups.html](design/sports-upcoming-mockups.html). Mockups only; no app code.
+
+## Sports › Live Now: option B approved — 2026-11-15
+
+The owner chose option B ("I like B"): one card per live game with its sources under it, the game closest to its end first,
+a tap on a source plays it at once; all four add-ons feed it and duplicate streams are merged (DEC-055). The approved boards are
+in [docs/design/sports-approved-pages.html](design/sports-approved-pages.html); the options are in
+[sports-live-now-mockups.html](design/sports-live-now-mockups.html). Mockups only; no app code. Next: Upcoming, then Leagues.
+
+## Sports: landing page approved (option A) — 2026-11-15
+
+The owner approved option A (tiles) and its can't-load state after viewing the mockups on the iPhone ("these are money").
+Recorded as DEC-054 and in [docs/design/sports-approved-pages.html](design/sports-approved-pages.html), which gains one
+page per round (next: Live Now, Upcoming, Leagues, a league, a game). Still mockups only; no app code. PR #33 holds the
+round-1 options.
+Owner: all sports add-ons will feed Sports eventually; ChatGPT codes the foundation. What the landing page needs from it:
+[design/sports-landing-data.md](design/sports-landing-data.md).
+
+## Sports: landing page mockups, round 1 — 2026-11-15
+
+Mockups only, nothing built: [docs/design/sports-landing-mockups.html](design/sports-landing-mockups.html) (evidence class:
+mockup). Library gets a **Sports** row between TV Shows and Favourites; it opens a landing page with three tags (Live Now,
+Upcoming, Leagues). Three options for the landing page (A tiles, B grouped rows, C previews), the states of A (nothing
+live, updating, can't load) and a map of every page the section needs. The owner's pick and four questions (finished-today
+row, which add-ons feed it, tag order) come before the tag pages are designed. Separate PR from #31.
+
 ## Build 528: AirPlay r62 + Play on TV banner, speech subtitle check, Roku banner — 2026-11-15
 
 [Testing IPA 528](https://github.com/onlykappa/Kodi-Ios/releases/download/build-528/Kodi-iOS-Customized-Touch-r10.ipa)

@@ -459,3 +459,83 @@ names in capitals are skipped, a bare "(3)" is a watch count shown as 3×, "//" 
 (TMDb Helper's API key), keeps list order as rank, and ends with a report of duplicates, questions and names not found;
 sort by list order, year, name, list or date added; a movie stopped part-way offers Continue Watching. Alerts do not depend on
 the Library automatic-download setting. No IPA, release or merge; device behaviour is pending the owner's phone.
+
+## DEC-054 — Sports: Library › Sports opens a landing page of three tiles (2026-11-15)
+
+The owner, after looking at the round-1 mockups on the iPhone (`docs/design/sports-landing-mockups.html`, PR #33): "these are
+money". Approved: **option A**, the tiles, and its can't-load state. Recorded in `docs/design/sports-approved-pages.html`,
+which grows one approved page at a time and is what the code is built from.
+
+- Library gets a **Sports** row between TV Shows and Favourites (the existing Library list, `portrait.LIBRARY`).
+- The Sports landing page has a back button, a refresh button (top right), the title, "Updated …" and three tiles: **Live
+  Now** (the big one, with the number of live games), **Upcoming** and **Leagues** (side by side), then one slim
+  **Finished today** row. The tiles follow the Search category tiles.
+- Nothing live: Live Now goes grey and says when the next game starts; it still opens. Updating: the same shape, small lines
+  say so. Can't load: plain words and one "Try again" button; details go to the log.
+- Owner (2026-11-15): every sports add-on will feed Sports eventually (The Loop, Loop Guide, Loop TV, the Loop Sports Hub and
+  the others); the foundation (add-on access and the data behind the page) is coded by ChatGPT, not in the UI rounds. What
+  the approved screens need from it is in [sports-landing-data.md](design/sports-landing-data.md).
+- Not decided yet: the pages inside each tag (Live Now, Upcoming, Leagues, a league, a game) and the tag order (as drawn:
+  Live Now, Upcoming, Leagues). Each page is mocked up and approved before it is coded.
+
+## DEC-055 — Sports › Live Now: option B, all four add-ons, duplicates merged, closest to the end first, a tap plays (2026-11-15)
+
+The owner, on the round-2 mockups (PR #35): "I like B. Yes order games from ending first at top, and yes have it open right away."
+And on the add-ons: "we will use all 4, more sources the better, and if there is a duplicate make it show the best one or have
+it show me different options if there are more than one it recommends". Approved boards are in
+`docs/design/sports-approved-pages.html`.
+
+- **Layout (option B):** one card per live game: league label, the two teams with their scores, the clock, then the game's
+  sources under it, best first, each with a play button. League chips (All, NFL, NBA, UCL, NHL) filter the list.
+- **Order:** the game **closest to its end** is first (the share of the game left, worked out per sport; a game whose end
+  cannot be told goes last).
+- **A tap on a source plays it at once** (no "How would you like to watch" sheet; Play on TV stays in the player as today).
+- **Add-ons:** The Loop, Loop Guide, Loop TV and the Loop Sports Hub all feed the page (the foundation, coded by ChatGPT, may
+  add others, DEC-054). Combining:
+  1. A game that several add-ons list is **one game**, matched by league, teams and start time.
+  2. The **same stream** (same picture size and language) from several add-ons is shown **once**, on the line of the one
+     chosen as best, with the others named under it ("Also on Loop TV").
+  3. **Different choices** (another size or language) stay as separate lines, the best one first.
+  4. The clearest picture is tagged **Best**; a second source worth recommending is tagged **Also good**; the rest carry no tag.
+  5. The page shows whatever the add-ons that answered found; one slow or failing add-on never blanks it.
+- Options A (one row per game, sources on its own page) and C (one row per source) were not chosen.
+- The **nothing-live** page ("No games live right now", the next game's time, a "See Upcoming" button) was approved too (owner: "looks great").
+
+Rule detail for the foundation: [design/sports-live-data.md](design/sports-live-data.md).
+
+## DEC-056 — Sports › Upcoming: option A, a tap opens the game's page; a league is a filter (2026-11-15)
+
+The owner, on the round-3 mockups (PR #36): "I pick A and yeah have it open its page". Approved boards are in
+`docs/design/sports-approved-pages.html`.
+
+- **Upcoming (option A):** a compact list by day (Today, Tomorrow, then the date), soonest first. Each row: the start time (and "in 45
+  min" when it is within the hour), who plays whom, the league label and how many sources are ready ("2 sources", "No sources yet").
+  The same league chips as Live Now filter it. A game that has started moves to Live Now by itself. Times are in the phone's time zone.
+- **A tap on a game opens its page:** the teams, the start time where a score would be, "Starts in 45 min", and the sources found so far,
+  best first, which play at once (the same source lines as Live Now); or "No sources yet. Check back closer to the start."
+- **Leagues (owner, same day):** "leagues is just a good way to look at only those games". A league page is the approved Live Now cards and
+  the approved Upcoming list filtered to one league; no new game layouts are drawn for it. Only the list of leagues is new (PR for round 4).
+
+Rule detail for the foundation: [design/sports-upcoming-data.md](design/sports-upcoming-data.md).
+
+## DEC-057 — Sports: every page approved; Claude codes it, The Loop first, one page at a time (2026-11-15)
+
+The owner, on the round-4 mockups (PR #37): "I like A! and yeah live first, and I approve the nothing playing screen, so that's all
+pages". And on who builds it: "ChatGPT won't be doing the foundation, it's actually super easy if we start with only The Loop; Chat is
+implementing more backup providers as we speak, and we will implement them later once this is set up with The Loop and the other
+providers that are already pre-installed and working. Would you like to start coding the pages and testing implementation? Maybe start
+with one page at a time."
+
+- **Leagues (option A):** a section per sport; each league has its label, name and how many games are live and when the next one is.
+  Sports with something live first, then the rest in a fixed order; inside a sport the leagues with something live first. A tap opens a
+  league page: the approved Live Now cards and the approved Upcoming list, filtered to that league. A league with no games says so (WNBA board).
+- **All pages are approved** and in `docs/design/sports-approved-pages.html`: Library row, Sports landing, Live Now, Upcoming, a game's
+  page, Leagues, a league page, and the nothing / can't-load states.
+- **Who builds it (supersedes the ChatGPT notes in DEC-054, DEC-055 and DEC-056):** the owner's follow-up: "give me a prompt to have ChatGPT code its
+  own set of pages, and you review and fix it once done". The foundation is The Loop first, then the other pre-installed, working providers; the
+  backup providers the owner's ChatGPT is writing come afterwards. The combining rules of DEC-055 stay, so a provider is added without changing a page.
+  - **Claude:** the data contract (`sports_model.py`, `sports_provider.py`, tested), The Loop provider, the Library › Sports row, the Sports landing,
+    Live Now, a league's page, wiring a tap on a source to playback, and the review of ChatGPT's pages.
+  - **ChatGPT:** Upcoming, a game's page and Leagues, built against the contract and its sample data, following
+    [design/sports-chatgpt-brief.md](design/sports-chatgpt-brief.md); one page per commit on its own branch, then a draft PR that Claude reviews and fixes.
+  - Each page is checked in the desktop Kodi rig against its approved board, then on the owner's iPhone.
