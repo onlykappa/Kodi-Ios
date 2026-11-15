@@ -1,9 +1,10 @@
 """The one door the Sports pages use to reach sports data (DEC-057).
 
 Pages call get() and play(); they never talk to an add-on. get() returns a provider with the methods listed in sports_model.py.
-Until the real providers (The Loop first) land, get() returns the sample provider, so every page can be built, tested and looked at
-in the desktop Kodi rig. KODI_IOS_SPORTS=sample forces the sample data once real providers exist (rig, tests); KODI_IOS_SPORTS=down
-makes every call raise SportsUnavailable (to look at the "can't load" pages).
+Real data only: with no setting, get() is the real provider. Until The Loop's provider lands that has no source, so every call raises
+SportsUnavailable and the pages say "Can't load ... right now" (the sample games must never reach a phone as if they were real).
+For building and looking at pages in the desktop Kodi rig and in tests, set KODI_IOS_SPORTS=sample (the approved boards' sample
+data), =quiet (nothing live: the grey Live Now tile) or =down (every call fails).
 """
 import os
 
@@ -16,9 +17,18 @@ def get():
     mode = os.environ.get('KODI_IOS_SPORTS', '')
     if mode == 'down':
         return sports_model.Sample(fail=True)
-    if _provider[0] is None:
-        _provider[0] = sports_model.Sample(offset=sports_model.device_offset())
-    return _provider[0]
+    if mode == 'quiet':
+        return sports_model.Sample(offset=sports_model.device_offset(), quiet=True)
+    if mode == 'sample':
+        if _provider[0] is None:
+            _provider[0] = sports_model.Sample(offset=sports_model.device_offset())
+        return _provider[0]
+    return real()
+
+
+def real():
+    """The providers of the add-ons on this phone, combined (DEC-055). The Loop's lands next; until then there is no source."""
+    return sports_model.Sample(fail=True)
 
 
 def reset():

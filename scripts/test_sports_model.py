@@ -64,7 +64,8 @@ class Ordering(unittest.TestCase):
         p = provider(offset=-5 * 3600)
         days = sm.group_by_day(p.upcoming_games(), NOW, -5 * 3600)
         self.assertEqual([d for d, _ in days][:2], ['Today', 'Tomorrow'])
-        self.assertEqual(sm.clock_text(p.game('liga-1')['start'], -5 * 3600), '8:00 PM')
+        self.assertEqual(sm.clock_text(p.game('liga-1')['start'], 0), '8:00 PM')              # 75 min after the 6:45 PM sample time
+        self.assertEqual(sm.clock_text(p.game('liga-1')['start'], -5 * 3600), '3:00 PM')     # the same moment on a phone five hours west
 
     def test_leagues_live_sports_first_then_fixed_order(self):
         order = sm.order_leagues(provider().leagues())
@@ -128,11 +129,26 @@ class Provider(unittest.TestCase):
 
 
 class Door(unittest.TestCase):
-    def test_pages_get_the_sample_provider_and_play_logs(self):
+    def test_sample_data_is_opt_in_so_invented_games_never_reach_a_phone(self):
         import os
         import sports_provider as sp
         sp.reset()
         os.environ.pop('KODI_IOS_SPORTS', None)
+        with self.assertRaises(sm.SportsUnavailable):   # no real source yet: the pages say "Can't load"
+            sp.get().overview()
+        os.environ['KODI_IOS_SPORTS'] = 'quiet'
+        try:
+            self.assertEqual(sp.get().live_games(), [])
+            self.assertTrue(sp.get().upcoming_games())
+        finally:
+            os.environ.pop('KODI_IOS_SPORTS', None)
+            sp.reset()
+
+    def test_pages_get_the_sample_provider_and_play_logs(self):
+        import os
+        import sports_provider as sp
+        sp.reset()
+        os.environ['KODI_IOS_SPORTS'] = 'sample'
         p = sp.get()
         self.assertIs(p, sp.get())
         self.assertTrue(p.live_games())

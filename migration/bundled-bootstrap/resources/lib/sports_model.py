@@ -1,7 +1,7 @@
 """Sports: the data contract and the plain rules every Sports page shares (DEC-055, DEC-056, DEC-057).
 
-Pages never talk to an add-on. They ask a *provider* (this file's `sample()` for tests and the rig; `sports_loop.py` for The Loop, later
-others) and get plain dicts back:
+Pages never talk to an add-on. They ask a *provider* (`Sample` below for tests and the rig, only when KODI_IOS_SPORTS=sample; The Loop's
+provider next, later others) through sports_provider.get() and get plain dicts back:
 
     game    {'id', 'league' (short code: 'NFL'), 'league_name', 'sport', 'state' ('live' | 'upcoming'),
              'away': team, 'home': team, 'joiner' ('vs' | 'at'), 'start' (epoch seconds),
@@ -163,12 +163,11 @@ class Sample:
     """A provider with the approved boards' sample data, times relative to `now` (default: 6:45 PM today, so the first game is in
     45 minutes). Used by the tests and the rig; `fail=True` makes every call raise SportsUnavailable."""
 
-    def __init__(self, now=None, offset=0, fail=False):
+    def __init__(self, now=None, offset=0, fail=False, quiet=False):
         self.offset = offset
         self.fail = fail
         if now is None:
-            day = (int(time.time()) + offset) // 86400 * 86400 - offset
-            now = day + 18 * 3600 + 45 * 60
+            now = int(time.time())
         self.now = now
         at = lambda days, h, m: (now + offset) // 86400 * 86400 - offset + days * 86400 + h * 3600 + m * 60
         g = lambda gid, lg, sport, state, away, home, start, joiner='vs', clock='', left=None, sources=(), lname=None: {
@@ -192,14 +191,16 @@ class Sample:
         self.upcoming = [
             g('epl-1', 'EPL', 'Soccer', 'upcoming', _team('ARS', 'Arsenal'), _team('CHE', 'Chelsea'), now + 45 * 60, lname='Premier League',
               sources=[_src('The Loop', '1080p', 'English', 'best', ['Loop TV']), _src('Loop Guide', '720p', 'English', 'good')]),
-            g('liga-1', 'LIGA', 'Soccer', 'upcoming', _team('RS', 'Real Sociedad'), _team('AC', 'Athletic Club'), at(0, 20, 0), lname='La Liga'),
-            g('nba-2', 'NBA', 'Basketball', 'upcoming', _team('LAL', 'Los Angeles Lakers'), _team('GSW', 'Golden State Warriors'), at(0, 21, 15),
+            g('liga-1', 'LIGA', 'Soccer', 'upcoming', _team('RS', 'Real Sociedad'), _team('AC', 'Athletic Club'), now + 75 * 60, lname='La Liga'),
+            g('nba-2', 'NBA', 'Basketball', 'upcoming', _team('LAL', 'Los Angeles Lakers'), _team('GSW', 'Golden State Warriors'), now + 150 * 60,
               sources=[_src('The Loop', '1080p', 'English', 'best'), _src('Loop TV', '720p', 'English', 'good'), _src('Sports Hub', '720p', 'Spanish')]),
             g('nhl-2', 'NHL', 'Hockey', 'upcoming', _team('TOR', 'Toronto Maple Leafs'), _team('MTL', 'Montréal Canadiens'), at(1, 19, 0),
               sources=[_src('The Loop', '720p', 'English', 'best')]),
             g('nfl-2', 'NFL', 'American football', 'upcoming', _team('KC', 'Kansas City Chiefs'), _team('BUF', 'Buffalo Bills'), at(1, 20, 15), joiner='at'),
             g('epl-2', 'EPL', 'Soccer', 'upcoming', _team('MCI', 'Manchester City'), _team('BHA', 'Brighton & Hove Albion'), at(6, 12, 30), lname='Premier League'),
         ]
+        if quiet:
+            self.live = []   # nothing live: the grey Live Now tile
         self._leagues = [('EPL', 'Premier League', 'Soccer'), ('LIGA', 'La Liga', 'Soccer'), ('UCL', 'UEFA Champions League', 'Soccer'),
                          ('BUN', 'Bundesliga', 'Soccer'), ('NBA', 'NBA', 'Basketball'), ('WNBA', 'WNBA', 'Basketball'),
                          ('NFL', 'NFL', 'American football'), ('NCAAF', 'College Football', 'American football'), ('NHL', 'NHL', 'Hockey'),

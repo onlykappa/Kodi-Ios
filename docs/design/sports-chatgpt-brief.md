@@ -26,7 +26,7 @@ overview) and holds the shared rules and wording. `sports_provider.py` is the on
 
 ```python
 import sports_provider, sports_model as sm
-provider = sports_provider.get()          # sample data now; The Loop later. Same methods either way.
+provider = sports_provider.get()          # real data; the same methods as the sample. Until The Loop lands it raises SportsUnavailable.
 provider.upcoming_games(league=None)      # list of games; raises sm.SportsUnavailable when no add-on answered
 provider.game('epl-1'); provider.leagues(); provider.overview(); provider.refresh()
 sports_provider.play(source, log)          # a tap on a source line plays it at once
@@ -35,7 +35,9 @@ sports_provider.play(source, log)          # a tap on a source line plays it at 
 Use the helpers instead of writing your own wording or ordering: `group_by_day`, `clock_text`, `soon_text`, `sources_text`, `count_text`,
 `versus`, `league_codes` (the chips), `order_leagues`, `league_detail`, `updated_text`, `device_offset()`. They are tested
 (`scripts/test_sports_model.py`); if you need a new rule, add it to `sports_model.py` with a test in the same style.
-`KODI_IOS_SPORTS=down` makes every call raise `SportsUnavailable`, to look at the can't-load pages.
+**Sample data is opt-in** so invented games never reach a phone: set `KODI_IOS_SPORTS=sample` for the rig and in tests (or build `sports_model.Sample(...)` directly in
+unit tests). `KODI_IOS_SPORTS=quiet` has nothing live; `=down` makes every call raise `SportsUnavailable`, to look at the can't-load pages. With no setting a page
+shows its can't-load state until The Loop's provider lands; that is correct, not a bug.
 
 ## Routes (RunScript names)
 
@@ -58,7 +60,9 @@ that page is Claude's; until it exists just log `sports: league <code>`. The Bac
 ## Behaviour (from the approved boards and decisions)
 
 - **Upcoming:** header with Back and a refresh button; large title; the subtitle `updated_text(...)` and the count; league chips from `league_codes`
-  (All selected; a chip filters); then a section per day (`group_by_day`): heading with the game count, a card of rows. A row: the start time (blue) and
+  (All selected; a chip filters). **The chips are the data, not the board's sample text** (the board draws All, NFL, NBA, EPL, NHL; the helper gives All, EPL, LIGA,
+  NBA, NFL, NHL for the sample games): use the helper's list, in its order. When they do not fit on one line they **wrap onto a second row**; never scroll them sideways
+  and never cut one off (DEC-050; Claude's Live Now page does the same); then a section per day (`group_by_day`): heading with the game count, a card of rows. A row: the start time (blue) and
   `soon_text` under it when within the hour, who plays whom (`versus`, wraps to two lines, never cut), the league label chip and `sources_text`, a
   chevron. A tap opens the game's page.
 - **A game's page:** Back, refresh; the card with the league label, "Starts in 45 min" (blue), the two crests, the start time in the middle with
