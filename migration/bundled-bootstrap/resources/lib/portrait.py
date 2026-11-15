@@ -1022,7 +1022,7 @@ def bell_button():
  service found an upcoming episode for (anticipated.bell_service sets KodiIOS.Bell.*). Off: a white outline; on: filled white.
  The 150-unit touch area is the nav buttons'."""
  prop=lambda k:'Window(Home).Property(KodiIOS.Bell.%s)'%k
- shown=('Container.Content(seasons) + !String.IsEmpty(%s) + String.IsEqual(%s,$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)])'%(prop('Tmdb'),prop('Tmdb')))
+ shown=('Container.Content(seasons) + !String.IsEmpty(%s) + String.IsEqual(%s,Container(50).ListItem.Property(tvshow.tmdb_id))'%(prop('Tmdb'),prop('Tmdb')))   # ISSUE-333
  on='!String.IsEmpty(%s)'%prop('On')
  c=54;off=c-BELL_SIZE//2
  layer=lambda name,color,vis:image(off,off,BELL_SIZE,BELL_SIZE,MEDIA+name,color,'<visible>%s</visible>'%vis,'>keep')
@@ -1035,8 +1035,10 @@ def bell_button():
   layer('bell_line.png',WHITE,'!'+on)+layer('bell_fill.png',WHITE,on)+'</control>')
 
 # ISSUE-312: opening a favourite show sets these (favourites_import_page.mark_show); the show's in-progress episode says Continue.
-SHOW_CONTINUE=('String.IsEqual(ListItem.Season,$INFO[Window(Home).Property(KodiIOS.ShowContinueSeason)]) + String.IsEqual(ListItem.Episode,$INFO[Window(Home).Property(KodiIOS.ShowContinueEpisode)]) + '
- 'String.Contains(Container.FolderPath,tmdb_id=$INFO[Window(Home).Property(KodiIOS.ShowContinueTmdb)]) + !String.IsEmpty(Window(Home).Property(KodiIOS.ShowContinueLeft))')
+# ISSUE-333 (owner log 218a6000: "Misplaced [" / "Error parsing boolean expression"): Kodi cannot parse $INFO[...] inside a
+# condition; String.IsEqual compares with another infolabel when its second argument is a bare infolabel.
+SHOW_CONTINUE=('String.IsEqual(ListItem.Season,Window(Home).Property(KodiIOS.ShowContinueSeason)) + String.IsEqual(ListItem.Episode,Window(Home).Property(KodiIOS.ShowContinueEpisode)) + '
+ 'String.IsEqual(ListItem.Property(tvshow.tmdb_id),Window(Home).Property(KodiIOS.ShowContinueTmdb)) + !String.IsEmpty(Window(Home).Property(KodiIOS.ShowContinueLeft))')
 def episode_item(focused):
  thumb_w,thumb_h=400,225
  bg=surface(SIDE-18,4,WIDTH-2*SIDE+36,thumb_h+176,'round_s.png','14FFFFFF',26) if focused else ''

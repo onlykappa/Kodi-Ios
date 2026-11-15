@@ -4918,6 +4918,19 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-333 — Show page: "Misplaced [" errors; Continue badge and bell condition never true (owner log 218a6000, build 502) — fixed in code
+
+- **Seen:** opening a TV show page logged `Misplaced [` and `Error parsing boolean expression
+  string.isequal(listitem.season,$info[window(home).property(kodiios.showcontinueseason)]) …` and the same for the bell
+  (`… string.isequal(window(home).property(kodiios.bell.tmdb),$info[container(50).listitem.…`).
+- **Cause:** Kodi does not resolve `$INFO[...]` inside a condition. Its string conditions compare against another infolabel
+  when the second argument is a bare infolabel (GUIInfoManager.cpp, string bools: TranslateSingleString of param 2).
+  So the show page's "Continue" episode mark (ISSUE-312) and the anticipated-episodes bell never showed.
+- **Fix:** both conditions use bare infolabels; the Continue mark matches the show by `ListItem.Property(tvshow.tmdb_id)`
+  instead of a `String.Contains` on the folder path with `$INFO`.
+- **Test:** test_portrait `test_no_infolabel_markup_inside_conditions`: no `$INFO[`, `$VAR[` or `$ESCINFO[` in any
+  generated `<visible>` or `condition=""`. Needs the phone: the Continue mark on a favourite show's episode, the bell.
+
 ## ISSUE-332 — Actions can no longer publish releases: r33 built but "HTTP 403: Resource not accessible by integration" (2026-11-15) — blocked on a repository setting
 
 - **Seen:** kodi-ios-portrait run 43681992197 (workflow_dispatch, r33 for ISSUE-316): the executable built; the publish job's
