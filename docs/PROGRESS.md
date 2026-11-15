@@ -1,5 +1,13 @@
 # Persistent progress
 
+## Sports: landing page mockups, round 1 — 2026-11-15
+
+Mockups only, nothing built: [docs/design/sports-landing-mockups.html](design/sports-landing-mockups.html) (evidence class:
+mockup). Library gets a **Sports** row between TV Shows and Favourites; it opens a landing page with three tags (Live Now,
+Upcoming, Leagues). Three options for the landing page (A tiles, B grouped rows, C previews), the states of A (nothing
+live, updating, can't load) and a map of every page the section needs. The owner's pick and four questions (finished-today
+row, which add-ons feed it, tag order) come before the tag pages are designed. Separate PR from #31.
+
 ## Build 502: one IPA with everything from the build-486 feedback — 2026-11-15
 
 [Testing IPA 502](https://github.com/onlykappa/Kodi-Ios/releases/download/build-502/Kodi-iOS-Customized-Touch-r10.ipa)
