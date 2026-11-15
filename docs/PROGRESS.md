@@ -1,5 +1,12 @@
 # Persistent progress
 
+## Sports: merging and The Loop discovery — 2026-11-15
+
+`sports_merge.py` combines several add-ons' answers into the contract's games (DEC-055: one game, one line per distinct stream with "Also on …",
+Best / Also good). `sports_loop.py` is The Loop's provider, step 1: it has no adapter yet (its code is not in this project and its listings are not
+guessed), so every page shows its can't-load state, and it lists the Loop add-ons' menu folders once every 12 hours (folders only, bounded) into
+`sports-discovery.json` and `kodi.log` for the adapter to be written from. Status and next step: [design/sports-loop-integration.md](design/sports-loop-integration.md).
+
 ## Sports page 2 coded: Live Now — 2026-11-15
 
 `Library › Sports › Live Now` opens `IOSSportsLive.xml` (`sports_live_page.py`, filled by `sports_live.py`), approved boards 6-9 (option B): league chips,

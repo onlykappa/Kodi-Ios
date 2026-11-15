@@ -150,6 +150,8 @@ jobs:
           python3 -B scripts/test_sports_model.py
           python3 -B scripts/test_sports_landing.py
           python3 -B scripts/test_sports_live.py
+          python3 -B scripts/test_sports_merge.py
+          python3 -B scripts/test_sports_loop.py
           python3 -B scripts/test_work_state.py
           python3 -B scripts/test_repack_lanes.py
           python3 -B scripts/test_debrid_ready.py

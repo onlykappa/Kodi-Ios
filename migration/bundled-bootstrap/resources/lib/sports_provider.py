@@ -11,6 +11,7 @@ import os
 import sports_model
 
 _provider = [None]
+_real = [None]
 
 
 def get():
@@ -27,13 +28,18 @@ def get():
 
 
 def real():
-    """The providers of the add-ons on this phone, combined (DEC-055). The Loop's lands next; until then there is no source."""
-    return sports_model.Sample(fail=True)
+    """The providers of the add-ons on this phone, combined (DEC-055). The Loop's provider has no adapter yet: it says "no source" and, once
+    a day, writes the tree of its menus for the adapter to be written from (sports_loop.py)."""
+    if _real[0] is None:
+        import sports_loop
+        _real[0] = sports_loop.LoopProvider()
+    return _real[0]
 
 
 def reset():
     """Forget the cached provider (tests)."""
     _provider[0] = None
+    _real[0] = None
 
 
 def play(source, log=lambda message: None):
