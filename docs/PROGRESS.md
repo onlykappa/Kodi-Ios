@@ -1,12 +1,12 @@
 # Persistent progress
 
-## Sports › Leagues: mockups, round 4 — 2026-11-15
+## Sports: every page approved; the work is split (DEC-057) — 2026-11-15
 
-Mockups only: [docs/design/sports-leagues-mockups.html](design/sports-leagues-mockups.html) (evidence class: mockup). The owner
-approved Upcoming option A with a tap opening the game's page (DEC-056). Leagues: a league is only a way to look at that league's games,
-so a league page is the approved Live Now cards plus the approved Upcoming list, filtered; only the list of leagues is new. Option A is
-by sport (recommended), option B tiles. Plus a league page (NBA), a league with no games and a can't-load state. Waiting for the
-owner's pick and the order of the list.
+The owner approved Leagues option A, live-first order and the empty league page: all pages of the section are approved
+([docs/design/sports-approved-pages.html](design/sports-approved-pages.html)). Claude wrote the data contract (`sports_model.py`,
+`sports_provider.py`, `scripts/test_sports_model.py`) and codes The Loop provider, the landing, Live Now and a league's page; ChatGPT codes
+Upcoming, a game's page and Leagues from [design/sports-chatgpt-brief.md](design/sports-chatgpt-brief.md), and Claude reviews and fixes
+them. Each page is checked in the desktop Kodi rig, then on the iPhone.
 
 ## Sports › Upcoming: option A approved — 2026-11-15
 

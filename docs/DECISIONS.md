@@ -518,3 +518,24 @@ The owner, on the round-3 mockups (PR #36): "I pick A and yeah have it open its 
 
 Rule detail for the foundation: [design/sports-upcoming-data.md](design/sports-upcoming-data.md).
 
+## DEC-057 — Sports: every page approved; Claude codes it, The Loop first, one page at a time (2026-11-15)
+
+The owner, on the round-4 mockups (PR #37): "I like A! and yeah live first, and I approve the nothing playing screen, so that's all
+pages". And on who builds it: "ChatGPT won't be doing the foundation, it's actually super easy if we start with only The Loop; Chat is
+implementing more backup providers as we speak, and we will implement them later once this is set up with The Loop and the other
+providers that are already pre-installed and working. Would you like to start coding the pages and testing implementation? Maybe start
+with one page at a time."
+
+- **Leagues (option A):** a section per sport; each league has its label, name and how many games are live and when the next one is.
+  Sports with something live first, then the rest in a fixed order; inside a sport the leagues with something live first. A tap opens a
+  league page: the approved Live Now cards and the approved Upcoming list, filtered to that league. A league with no games says so (WNBA board).
+- **All pages are approved** and in `docs/design/sports-approved-pages.html`: Library row, Sports landing, Live Now, Upcoming, a game's
+  page, Leagues, a league page, and the nothing / can't-load states.
+- **Who builds it (supersedes the ChatGPT notes in DEC-054, DEC-055 and DEC-056):** the owner's follow-up: "give me a prompt to have ChatGPT code its
+  own set of pages, and you review and fix it once done". The foundation is The Loop first, then the other pre-installed, working providers; the
+  backup providers the owner's ChatGPT is writing come afterwards. The combining rules of DEC-055 stay, so a provider is added without changing a page.
+  - **Claude:** the data contract (`sports_model.py`, `sports_provider.py`, tested), The Loop provider, the Library › Sports row, the Sports landing,
+    Live Now, a league's page, wiring a tap on a source to playback, and the review of ChatGPT's pages.
+  - **ChatGPT:** Upcoming, a game's page and Leagues, built against the contract and its sample data, following
+    [design/sports-chatgpt-brief.md](design/sports-chatgpt-brief.md); one page per commit on its own branch, then a draft PR that Claude reviews and fixes.
+  - Each page is checked in the desktop Kodi rig against its approved board, then on the owner's iPhone.
