@@ -1,5 +1,14 @@
 # Persistent progress
 
+## Sports page 1 coded: Library › Sports and the landing page — 2026-11-15
+
+`Library › Sports` (between TV Shows and Favourites) opens `IOSSports.xml` (`sports_page.py`, filled by `sports.py`): back, refresh, "Sports" with
+"Updated just now", the Live Now / Upcoming / Leagues tiles and the Finished today row, plus the updating, nothing-live and can't-load states, as
+approved board 2 of [sports-approved-pages.html](design/sports-approved-pages.html). Checked in the **desktop Kodi rig** against the board (live,
+nothing live, can't load, the Library row, a tile tap and refresh); not yet on the iPhone. The tiles open Live Now, Upcoming and Leagues only once
+those pages exist (an unknown RunScript name would run the recovery script, so the tile says it is coming). Sample data is opt-in
+(`KODI_IOS_SPORTS=sample` in the rig); with no setting the page says it can't load until The Loop's provider lands.
+
 ## Sports: every page approved; the work is split (DEC-057) — 2026-11-15
 
 The owner approved Leagues option A, live-first order and the empty league page: all pages of the section are approved
