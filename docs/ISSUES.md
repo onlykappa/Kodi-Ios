@@ -4585,3 +4585,37 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
   report, J3.
 
 - **ISSUE-303 delivery checkpoint:** testing IPA [475](https://github.com/onlykappa/Kodi-Ios/releases/download/build-475/Kodi-iOS-Customized-Touch-r10.ipa), source `2f447c7`, CI run 43653853433 succeeded. 125 focused host checks pass; downloaded IPA digest/ZIP/source/pins verified. Owner iPhone retest remains pending.
+
+## ISSUE-306 — Umbrella still never opens in build 475: six sources handed over in a cycle, none plays (owner, log eadd0349) — loop broken; cause on the phone still to confirm
+
+- **What the log proves (build 475, c1bb11c, Black Clover S02E07):**
+  - Every hand-off to Kodi is a `stream opening: route=cache … ready=True blocks=3/3 errors=0 status=206`, 3 to 4.4 s
+    each. The ISSUE-293/303 cache fixes work: the three opening blocks (9 to 12 MB) arrive in about 4 s.
+  - Ten of them follow one another about 5 s apart, from 15:50:26 to 15:51:08, until the owner cancels. Their byte
+    counts repeat in a cycle of six (9.2, 10.2, 11.9, 9.9, 9.8, 8.6 MB, then 9.2, 10.2, 11.9 again): Umbrella goes
+    through its six sources ("kept 6") and starts again. Each hand-off is Umbrella resolving a source; it moves on 1 to
+    2 s after it is given the cache's address.
+  - Kodi logs no error in that window (`OpenInputStream`, `CDVDInputStream…` and similar are errors and would show), so
+    Kodi was not asked to play, or did not report failing. Umbrella moves on without playing.
+  - Where the cache route was off (build 466, log 074adcd9) the same episode played, after 23.5 s. Every build with it
+    on (470, 473, 475) has not opened on the phone.
+- **What it cannot prove:** why Umbrella rejects the address. Its code is not in the repo or the IPA (it is installed
+  when the app first runs), and the log has no line from Umbrella. A host test shows the cache answers HEAD, plain GET and
+  Range requests correctly, so the address's shape is the difference we can act on:
+  - the cache's address was `http://127.0.0.1:PORT/SECRET/media/source` with `Content-Type: application/octet-stream`.
+    The Drive proxy, the loopback server Kodi really plays Drive copies from on the phone, serves `/drive/<id>/<file
+    name>` with a video type. No Kodi video path had ever played from the cache's shape on the phone.
+- **Fix (`remote_media.py`, `drive_stream.py`):**
+  - Kodi now opens `…/media/<the file's own name>.mkv` and the reply says `video/x-matroska` (`video/x-msvideo`,
+    `video/webm` for those). The AirPlay engine reads the same server and ignores the last part.
+  - The cache counts the bytes a reader really took (`served`, in the stats and in the `stream opening` log line).
+  - A hand-off made within 90 s of one whose bytes Kodi never read (`served == 0`) is played DIRECTLY, and the old
+    cache source is dropped: the cycle stops at the second source instead of going round. The log line says
+    `route=direct … served=0 reason=previous source never read by Kodi`.
+- **Phone check (this is the step that settles it):** play the same episode. In the log, after the first
+  `route=cache` line, expect either playback (and no second hand-off) or one `route=direct reason=previous source
+  never read by Kodi` line and playback from the direct link (about 20 s, as build 466). `served=N` on the later lines
+  says how much Kodi took from the cache. If it still cycles, the log now shows `served`, which says whether Kodi
+  ever connects to the cache.
+- **Test:** test_stream_loop (address and type, served count, loop goes direct, a read source and a later play are not
+  loops, the log line).

@@ -210,7 +210,7 @@ class DriveStream(object):
                     return
                 self.send_response(206 if wanted else 200)
                 self.send_header('Accept-Ranges', 'bytes')
-                self.send_header('Content-Type', 'application/octet-stream')
+                self.send_header('Content-Type', getattr(stream, 'content_type', None) or 'application/octet-stream')
                 self.send_header('Content-Length', str(end - start + 1))
                 if wanted:
                     self.send_header('Content-Range', 'bytes %d-%d/%d' % (start, end, total))
@@ -239,6 +239,7 @@ class DriveStream(object):
                             self.close_connection = True
                             return
                         self.wfile.write(piece)    # the converter closing to seek ends this read: that is fine
+                        stream.served = getattr(stream, 'served', 0) + len(piece)   # ISSUE-306: bytes a reader really took
                         position += len(piece)
                 except (BrokenPipeError, ConnectionResetError, OSError):
                     self.close_connection = True

@@ -40,6 +40,9 @@ _BROKER=[None]   # ISSUE-281: one cache per service run; a restarted Drive loop 
 # are slow per connection, not per phone (ISSUE-163): each block is now fetched as SPLIT parallel ranges, and the opening
 # blocks together. At most PIECES requests run at once, so a link that limits connections is not flooded.
 SPLIT=4;PIECES=8;SPLIT_MIN=256*1024
+TYPES={'mkv':'video/x-matroska','avi':'video/x-msvideo','webm':'video/webm'}
+LOOP_WINDOW=90   # ISSUE-306: seconds in which a second hand-off after one Kodi never read means Umbrella is cycling its sources
+_LAST=[0.0]
 
 
 def eligible(source):
@@ -124,7 +127,14 @@ class Foreground(drive_stream.DriveStream):
   super().__init__(lambda:'',context=context,open_url=remote,block_size=BLOCK,keep=KEEP,playback=True)
   self.ahead_blocks=AHEAD
   self.gate=type('ForegroundGate',(),{'after':lambda *args,**kwargs:None})()
-  self.media_url=self.url('media')
+  # ISSUE-306 (owner, build 475, log eadd0349: Umbrella handed six sources over one after another, the cache admitted each
+  # (blocks 3/3, no errors), and none played): the address Kodi opens now ends in the file's own name and the reply names
+  # its video type, as the Drive proxy's does (the one Kodi plays Drive copies from on the phone). It was ".../media/source"
+  # with application/octet-stream, an address no Kodi video path had ever played on the phone.
+  name=urllib.parse.unquote(urllib.parse.urlsplit(raw).path.rsplit('/',1)[-1]) or 'video.mkv'
+  self.content_type=TYPES.get(name.rsplit('.',1)[-1].lower(),'video/x-matroska')
+  self.served=0
+  self.media_url=self.url('media').rsplit('/',1)[0]+'/'+urllib.parse.quote(name,safe='')
 
  def _open_remote(self,request,timeout,opener):
    headers=dict(self.remote_headers);headers['Range']=request.get_header('Range')
@@ -268,7 +278,8 @@ class Broker:
          snapshot.update(kodi=broker.kodi,cached_blocks=len(current.blocks.data),pending_blocks=len(current.blocks.pending),
                          block_size=current.block_size,size=size,source_id=fingerprint(broker.ident),
                          first_block_ready=bool(size and complete(0)),first_block_bytes=len(current.blocks.data.get(('media',0),b'')),
-                         opening_ready=ready,opening_blocks=len(wanted),opening_complete=sum(complete(i) for i in wanted))
+                         opening_ready=ready,opening_blocks=len(wanted),opening_complete=sum(complete(i) for i in wanted),
+                         served=int(getattr(current,'served',0)))   # ISSUE-306: bytes a reader (Kodi) really took
         if ready:current.connect_timeout=20;current.opening_deadline=None
        answer={'stats':snapshot}
       elif action=='status':
@@ -279,7 +290,7 @@ class Broker:
        answer={'source':broker.source if broker.current and request.get('url')==broker.current.media_url else ''}
       elif action=='drop':
        # ISSUE-281: Kodi was given the real link after all (the cache had no answer in time): let the source go.
-       if request.get('id')==broker.ident and broker.kodi:
+       if (request.get('id')==broker.ident or request.get('any')) and broker.kodi:
         if broker.current:broker.current.close()
         broker.current=None;broker.ident='';broker.kodi=False;broker.source=''
        answer={'closed':True}
@@ -404,6 +415,16 @@ def for_kodi(source,home,wait=None,clock=time.monotonic):
  try:
   endpoint=_endpoint(home)
   if not endpoint:return source
+  # ISSUE-306: the source handed over last time is still here and Kodi took nothing from it, a moment ago: Umbrella went on
+  # to its next source without playing this one. Whatever stops the cache route playing, more of it will not help: this
+  # source (and the rest of the cycle) is played directly, as in the builds that played.
+  try:before=_call(endpoint,{'action':'stats'},timeout=1).get('stats') or {}
+  except Exception:before={}
+  if before.get('kodi') and not before.get('served') and _LAST[0] and 0<clock()-_LAST[0]<LOOP_WINDOW:
+   try:_call(endpoint,{'action':'drop','id':'','any':True},timeout=1)
+   except Exception:pass
+   opening_log('direct',clock()-began,before,reason='previous source never read by Kodi')
+   return source
   answer=_call(endpoint,{'action':'open','source':source,'renewal':umbrella_recovery.selected(source,home),'player':'kodi'},timeout=min(1,FIRST_ANSWER))
   target=urllib.parse.urlsplit(answer['url'])
   if target.scheme!='http' or target.hostname!='127.0.0.1':return source
@@ -415,18 +436,20 @@ def for_kodi(source,home,wait=None,clock=time.monotonic):
    opening_log('direct',clock()-began,sample)
    return source
   opening_log('cache',clock()-began,sample)
+  _LAST[0]=clock()
   return answer['url']
  except Exception:return source
 
 
-def opening_log(route,elapsed,stats):
+def opening_log(route,elapsed,stats,reason=''):
  """One useful, credential-free line per handoff, including failed/stalled probes."""
  try:
   import xbmc
   xbmc.log('Kodi iOS stream opening: route=%s wait_ms=%d ready=%s blocks=%d/%d pending=%d bytes=%d requests=%d errors=%d status=%d'%(
    route,max(0,int(elapsed*1000)),bool(stats.get('opening_ready')),int(stats.get('opening_complete') or 0),
    int(stats.get('opening_blocks') or 0),int(stats.get('pending_blocks') or 0),int(stats.get('read_bytes') or 0),
-   int(stats.get('http_requests') or 0),int(stats.get('http_errors') or 0),int(stats.get('last_status') or 0)),xbmc.LOGINFO)
+   int(stats.get('http_requests') or 0),int(stats.get('http_errors') or 0),int(stats.get('last_status') or 0))
+   +(' served=%d'%int(stats.get('served') or 0))+((' reason=%s'%reason) if reason else ''),xbmc.LOGINFO)
  except Exception:pass
 
 
