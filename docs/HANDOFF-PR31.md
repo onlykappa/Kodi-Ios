@@ -85,3 +85,7 @@ Also open: ISSUE-285 (waiting for an owner log after a Drive copy retry).
   ISSUE-343 and ISSUE-346 are native too and ride the same build.
 - Log a83e06c7, still open with the owner: which cast was audio-only (08:21 copied HEVC 10-bit to the Apple TV; an
   Apple TV that cannot show HEVC Main10 would play only the sound), and a screenshot of the "weird screen".
+- AirPlay r62 pinned (6c5a441a…e349, airplay-ios run 43744491417 from c09d2f1). IPA build 528 (from 4b98b12, sha256
+  07f2c97d…0a5b) published and checked: r62 inside (byte-identical), speech_check.py, the banner, the problem sheet,
+  the Roku banner and NSSpeechRecognitionUsageDescription inside. Sent to the owner. Waiting for phone results, a Roku
+  cast log and a log of a sound-only cast on the Apple TV 4K.

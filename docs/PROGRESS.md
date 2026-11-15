@@ -1,5 +1,13 @@
 # Persistent progress
 
+## Build 528: AirPlay r62 + Play on TV banner, speech subtitle check, Roku banner — 2026-11-15
+
+[Testing IPA 528](https://github.com/onlykappa/Kodi-Ios/releases/download/build-528/Kodi-iOS-Customized-Touch-r10.ipa)
+(commit 4b98b12, PR #31 unmerged; IPA sha256 07f2c97d…0a5b). AirPlay r62 (ISSUE-343 TV subtitles in sync and single,
+ISSUE-346 keyframe scan saved while preparing, ISSUE-347 on-device speech check; host tests green; the framework in
+the IPA is byte-identical to the pinned r62), ISSUE-341, 342, 344, 345, 348, 349. All workflow Python suites passed;
+banner, problem sheet and Roku banner checked in the desktop Kodi rig. Phone results pending.
+
 ## Build 513: AirPlay r61 + subtitle, Umbrella, Favourites and show-page fixes — 2026-11-15
 
 [Testing IPA 513](https://github.com/onlykappa/Kodi-Ios/releases/download/build-513/Kodi-iOS-Customized-Touch-r10.ipa)
