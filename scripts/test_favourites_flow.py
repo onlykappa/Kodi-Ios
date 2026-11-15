@@ -50,6 +50,9 @@ class Dialog:
     def textviewer(self, title, text):
         self.text.append((title, text))
 
+    def notification(self, title, text, *a):
+        self.shown.append(('notification', title, text))
+
     def yesno(self, *a, **k):
         return True
 
@@ -66,7 +69,7 @@ def fake_modules(sheet):
     dialog = Dialog()
     xbmc = types.SimpleNamespace(LOGINFO=1, LOGWARNING=2, log=lambda *a: None, executed=[],
                                  executebuiltin=lambda cmd: xbmc.executed.append(cmd))
-    gui = types.SimpleNamespace(Dialog=lambda: dialog, DialogProgress=Progress, INPUT_ALPHANUM=0,
+    gui = types.SimpleNamespace(Dialog=lambda: dialog, DialogProgress=Progress, INPUT_ALPHANUM=0, NOTIFICATION_INFO='info',
                                 ListItem=lambda label='', label2='': (label, label2))
     return xbmc, gui, dialog
 
@@ -94,7 +97,8 @@ class Flow(unittest.TestCase):
         return self.page.run_import(xbmc, gui, self.profile)
 
     def test_paste_match_save_and_report(self):
-        self.answers = [0, -1]                       # source: Paste a list; then close the report
+        """Owner (2026-11-15): the report never opens by itself: a notice, and the report is saved for Last import."""
+        self.answers = [0]                           # source: Paste a list
         added = self.run_import()
         items = fi.load(self.profile)['items']
         self.assertEqual(added, len(items))
@@ -105,30 +109,71 @@ class Flow(unittest.TestCase):
         self.assertEqual({i['title']: i['watched'] for i in items}['Bleach'], 2)
         self.assertEqual({i['title']: i['watched'] for i in items}['Attack on Titan'], 3)
         self.assertNotIn('RYANNE', ' '.join(names))
-        report = self.sheets[1]
-        self.assertEqual(report['heading'], 'Import finished')
-        labels = {r['label']: r for r in report['rows']}
-        self.assertEqual(labels['Duplicates']['tag'], '1')
-        self.assertEqual(labels['Needs your answer']['tag'], '1')       # "one peice": the show or the film, asked not guessed
-        self.assertEqual(labels['Not found']['tag'], '1')               # "zzzz"
-        self.assertIn('lines 5 and 6', ' '.join(self.dialog.text and [t for _, t in self.dialog.text] or ['lines 5 and 6']))
+        self.assertEqual(len(self.sheets), 1)                                          # no report sheet popped up
+        self.assertIn(('notification', 'Import finished', '%d added to Favourites \u00b7 2 to check in Last import' % added),
+                      self.dialog.shown)
+        report = fi.load_report(self.profile)
+        self.assertEqual([d['lines'] for d in report['duplicates']], [[5, 6]])
+        self.assertEqual([q['entry']['title'] for q in report['questions']], ['one peice'])   # the show or the film: asked
+        self.assertEqual([m['title'] for m in report['missing']], ['zzzz'])
+        props = fi.report_properties(report)
+        self.assertEqual((props['dup.title'], props['ask.title'], props['miss.title']),
+                         ('Duplicates \u00b7 1', 'Needs your answer \u00b7 1', 'Not found \u00b7 1'))
+        self.assertEqual((props['dup.pos'], props['ask.pos'], props['miss.pos']), ('first', 'mid', 'last'))
+        self.assertIn('darling in the franxx (lines 5 and 6)', props['dup.text'])   # the list's own spelling
 
-    def test_the_questions_and_the_lists_open_and_answers_are_added(self):
-        # source Paste; report row 1 = Duplicates, 2 = Needs your answer, 3 = Not found; pick "One Piece" (first), then close
-        self.answers = [0, 0, 1, 0, 1, -1]   # after the question is answered the report has Duplicates and Not found only
-        self.page.pick = lambda gui, spec: (self.sheets.append(spec), self.answers.pop(0) if self.answers else -1)[1]
+    def test_last_import_opens_the_report_page_and_its_groups_act(self):
+        self.answers = [0]
         self.run_import()
-        titles = [i['title'] for i in fi.load(self.profile)['items']]
-        self.assertIn('One Piece', titles)
-        self.assertEqual(titles.count('One Piece'), 1)
-        heads = [t for t, _ in self.dialog.text]
-        self.assertEqual(heads, ['Duplicates', 'Not found'])
-        text = dict(self.dialog.text)
-        self.assertIn('lines 5 and 6', text['Duplicates'])
-        self.assertIn('zzzz', text['Not found'])
-        asking = [s for s in self.sheets if s.get('heading', '').startswith('“one')]
-        self.assertEqual(len(asking), 1)
-        self.assertEqual(asking[0]['rows'][0]['label'], 'One Piece')
+        self.sheets.clear()
+        # The Import sheet now has a third row, Last import; choosing it opens the report page (a window).
+        clicks = []
+        page = self.page
+        import favourites_report_page as rp
+
+        class Window:
+            def __init__(self, *a):
+                self.props = {}
+            def setProperty(self, k, v):
+                self.props[k] = v
+            def close(self):
+                clicks.append('closed')
+            def doModal(self):
+                self.onInit()
+                for control in (rp.DUP, rp.ASK, rp.MISS, rp.DONE):
+                    self.onClick(control)
+                clicks.append(dict(self.props))
+        xbmc, gui, dialog = fake_modules(None)
+        gui.WindowXMLDialog = Window
+        self.answers = [2, 0]                       # Import sheet: Last import; the question: One Piece
+        dialog.typed = 'zzzz'                        # Not found: searched again as written, still nothing
+        page.run_import(xbmc, gui, self.profile)
+        first = self.sheets[0]
+        self.assertEqual(first['rows'][2]['label'], 'Last import')
+        self.assertEqual(first['rows'][2]['tag'], '2 to check')
+        self.assertIn('One Piece', [i['title'] for i in fi.load(self.profile)['items']])
+        self.assertEqual([t for t, _ in dialog.text], ['Duplicates'])
+        self.assertIn('Nothing was found', ' '.join(str(x) for x in dialog.shown))
+        report = fi.load_report(self.profile)
+        self.assertEqual(report['questions'], [])                                       # answered: it leaves the report
+        self.assertEqual([m['title'] for m in report['missing']], ['zzzz'])            # still there for later
+        final = [c for c in clicks if isinstance(c, dict)][-1]
+        self.assertEqual(final['ask.title'], '')
+        self.assertEqual(final['miss.pos'], 'last')
+
+    def test_no_import_yet_shows_no_last_import_row(self):
+        self.answers = [-1]
+        self.run_import()
+        self.assertEqual([r['label'] for r in self.sheets[0]['rows']], ['Paste a list', 'Choose a text file'])
+        self.assertEqual(fi.report_properties(None)['empty'], 'No list imported yet')
+
+    def test_long_groups_end_with_and_n_more_never_a_cut_name(self):
+        names = ['Title number %d' % n for n in range(40)]
+        text = fi.listed(names)
+        self.assertTrue(text.endswith(' more'))
+        self.assertLessEqual(len(text), fi.REPORT_CHARS + 12)
+        for part in text.rsplit(' and ', 1)[0].split(', '):
+            self.assertIn(part, names)
 
     def test_cancel_at_the_first_sheet_changes_nothing(self):
         self.answers = [-1]

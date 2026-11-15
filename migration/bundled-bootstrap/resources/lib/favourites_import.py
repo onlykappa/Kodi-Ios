@@ -236,3 +236,89 @@ def sort_label(sort_key):
 
 def default_list_name(now=None):
     return 'Notes list ' + time.strftime('%d %b', time.localtime(time.time() if now is None else now))
+
+
+# --- the last import's report (owner, 2026-11-15: a page to check when I want, never opened by itself) -----------------
+REPORT_FILE = 'favourites-import-report.json'
+REPORT_CHARS = 130      # what three lines of the report page's group text hold (p_foot beside a chevron), with room
+
+
+def report_path(profile):
+    return os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap', REPORT_FILE)
+
+
+def save_report(profile, parsed, result, added, already, list_name, now=None):
+    """Keep what the person may want to look at later: duplicates, open questions (with their choices) and names not found."""
+    data = {'time': time.time() if now is None else now, 'list': list_name, 'lines': parsed['lines'], 'added': len(added),
+            'duplicates': [{'title': d['title'], 'lines': list(d['lines'])} for d in list(parsed['duplicates']) + list(result['duplicates'])],
+            'already': [m.get('title') or m.get('asked', '') for m in already],
+            'questions': [{'entry': q['entry'], 'choices': q['choices']} for q in result['questions']],
+            'missing': [{'title': e['title'], 'line': e['line'], 'rank': e.get('rank'), 'watched': e.get('watched', 0)}
+                        for e in result['missing']]}
+    target = report_path(profile)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    with open(target + '.tmp', 'w', encoding='utf-8') as handle:
+        json.dump(data, handle, indent=1)
+    os.replace(target + '.tmp', target)
+    return data
+
+
+def load_report(profile):
+    try:
+        with open(report_path(profile), encoding='utf-8') as handle:
+            data = json.load(handle)
+        return data if isinstance(data, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def save_report_data(profile, data):
+    with open(report_path(profile) + '.tmp', 'w', encoding='utf-8') as handle:
+        json.dump(data, handle, indent=1)
+    os.replace(report_path(profile) + '.tmp', report_path(profile))
+
+
+def need_a_look(data):
+    """How many names still need the person: open questions and names not found."""
+    return len((data or {}).get('questions') or []) + len((data or {}).get('missing') or [])
+
+
+def listed(names, limit=REPORT_CHARS):
+    """Names joined as one sentence that fits three lines: whole names only, then "and N more" (never a cut name)."""
+    out, used = [], 0
+    for n, name in enumerate(names):
+        piece = ('' if not out else ', ') + name
+        rest = len(names) - n - 1
+        if out and used + len(piece) + (len(' and %d more' % rest) if rest else 0) > limit:
+            return '%s and %d more' % (''.join(out), len(names) - n)
+        out.append(piece)
+        used += len(piece)
+    return ''.join(out)
+
+
+def report_properties(data, now=None):
+    """Window properties for the report page (favourites_report_page)."""
+    if not data:
+        return {'title': 'Last import', 'sub': '', 'added': '', 'lines': '', 'foot': '', 'empty': 'No list imported yet',
+                'dup.title': '', 'dup.text': '', 'dup.pos': '', 'ask.title': '', 'ask.text': '', 'ask.pos': '',
+                'miss.title': '', 'miss.text': '', 'miss.pos': ''}
+    when = time.strftime('%a %d %b, %H:%M', time.localtime(float(data.get('time') or 0)))
+    dups = ['%s (lines %s)' % (d['title'], ' and '.join(str(x) for x in d['lines'])) for d in data.get('duplicates') or []]
+    dups += ['%s (already in Favourites)' % t for t in data.get('already') or [] if t]
+    asks = ['“%s”' % q['entry']['title'] for q in data.get('questions') or []]
+    miss = ['Line %s “%s”' % (m['line'], m['title']) for m in data.get('missing') or []]
+    groups = [('dup', 'Duplicates', dups, 'Each was added once, at its first line.'),
+              ('ask', 'Needs your answer', asks, 'Tap to pick the right one.'),
+              ('miss', 'Not found', miss, 'Tap to search for them by hand.')]
+    shown = [g for g in groups if g[2]]
+    props = {'title': 'Last import', 'sub': ' · '.join(x for x in (data.get('list') or '', when) if x),
+             'added': '%d added to Favourites' % int(data.get('added') or 0),
+             'lines': '%d lines read' % int(data.get('lines') or 0), 'empty': '',
+             'foot': 'Nothing was removed from your list.' if shown else 'Everything on your list is in Favourites.'}
+    for key, title, names, hint in groups:
+        on = bool(names)
+        n = [g[0] for g in shown].index(key) if on else -1
+        props[key + '.title'] = '%s · %d' % (title, len(names)) if on else ''
+        props[key + '.text'] = (listed(names) + ('. ' + hint if key == 'dup' else '')) if on else ''
+        props[key + '.pos'] = '' if not on else 'only' if len(shown) == 1 else 'first' if n == 0 else 'last' if n == len(shown) - 1 else 'mid'
+    return props

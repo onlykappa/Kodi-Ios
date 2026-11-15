@@ -46,13 +46,29 @@ def pick(xbmcgui, spec):
         return xbmcgui.Dialog().select(spec.get('heading') or TITLE, rows)
 
 
-def read_source(xbmc, xbmcgui):
-    """(text, list name) from what the person chooses, or ('', '')."""
+def last_import_row(data):
+    """The Import sheet's "Last import" row (owner, 2026-11-15: the report is a place to check, not a pop-up)."""
+    need = fi.need_a_look(data)
+    import time
+    when = time.strftime('%d %b', time.localtime(float(data.get('time') or 0)))
+    detail = '%d added \u00b7 %s' % (int(data.get('added') or 0), when)
+    return {'label': 'Last import', 'detail': detail, 'tag': '%d to check' % need if need else '',
+            'tag_kind': 'warn' if need else ''}
+
+
+def read_source(xbmc, xbmcgui, profile=None):
+    """(text, list name) from what the person chooses, or ('', ''). "Last import" opens the report page instead."""
     dialog = xbmcgui.Dialog()
-    choice = pick(xbmcgui, {'heading': TITLE, 'sub': 'Copy your list in Notes first, or pick a text file.',
-                            'rows': [{'label': 'Paste a list', 'detail': 'Paste what you copied from Notes'},
-                                     {'label': 'Choose a text file', 'detail': 'A .txt file from the Files app'}],
+    last = fi.load_report(profile) if profile else None
+    rows = [{'label': 'Paste a list', 'detail': 'Paste what you copied from Notes'},
+            {'label': 'Choose a text file', 'detail': 'A .txt file from the Files app'}]
+    if last:
+        rows.append(last_import_row(last))
+    choice = pick(xbmcgui, {'heading': TITLE, 'sub': 'Copy your list in Notes first, or pick a text file.', 'rows': rows,
                             'foot': 'Only the names are used. Numbers, ticks and side notes are skipped.'})
+    if choice == 2 and last:
+        open_report(xbmc, xbmcgui, profile)
+        return '', '' 
     if choice == 0:
         text = dialog.input('Paste your list', type=xbmcgui.INPUT_ALPHANUM) or ''
         return text, fi.default_list_name()
@@ -160,7 +176,7 @@ def run_import(xbmc, xbmcgui, profile):
     if not key:
         dialog.ok(TITLE, 'TMDb Helper is needed to look titles up, and it is not available right now.')
         return 0
-    text, list_name = read_source(xbmc, xbmcgui)
+    text, list_name = read_source(xbmc, xbmcgui, profile)
     if not text.strip():
         return 0
     parsed = fi.parse(text)
@@ -171,7 +187,107 @@ def run_import(xbmc, xbmcgui, profile):
     added, already = fi.add(profile, result['matched'], list_name)
     xbmc.log('Kodi iOS favourites import: %d lines, %d added, %d known, %d questions, %d not found' % (
         parsed['lines'], len(added), len(already), len(result['questions']), len(result['missing'])), xbmc.LOGINFO)
-    return report(xbmc, xbmcgui, profile, parsed, result, added, already, list_name)
+    # Owner (2026-11-15): the report is not opened by itself: a short notice, and Import a List › Last import shows it.
+    data = fi.save_report(profile, parsed, result, added, already, list_name)
+    need = fi.need_a_look(data)
+    dialog.notification('Import finished', '%d added to Favourites%s' % (len(added), ' \u00b7 %d to check in Last import' % need if need else ''),
+                        xbmcgui.NOTIFICATION_INFO, 5000)
+    return len(added)
+
+
+def open_report(xbmc, xbmcgui, profile):
+    """The report page (board I3). Its groups act: Duplicates lists them, Needs your answer asks, Not found searches by hand.
+    Returns True when View Favourites was tapped."""
+    import favourites_report_page as rp
+    dialog = xbmcgui.Dialog()
+
+    class Report(xbmcgui.WindowXMLDialog):
+        def onInit(self):
+            self.view = False
+            self.show()
+
+        def show(self):
+            for key, value in fi.report_properties(fi.load_report(profile)).items():
+                self.setProperty(key, value)
+
+        def onClick(self, control):
+            data = fi.load_report(profile) or {}
+            if control in (rp.BACK, rp.DONE):
+                self.close()
+            elif control == rp.VIEW:
+                self.view = True
+                self.close()
+            elif control == rp.DUP:
+                dialog.textviewer('Duplicates', full_duplicates(data))
+            elif control == rp.ASK:
+                data['added'] = int(data.get('added') or 0) + answer_saved(xbmcgui, profile, data)
+                fi.save_report_data(profile, data)
+                self.show()
+            elif control == rp.MISS:
+                data['added'] = int(data.get('added') or 0) + search_by_hand(xbmcgui, profile, data)
+                fi.save_report_data(profile, data)
+                self.show()
+
+        def onAction(self, action):
+            if action.getId() in (9, 10, 92, 110):
+                self.close()
+
+    window = Report(rp.WINDOW, HERE, 'Default', '1080i')
+    try:
+        window.doModal()
+        view = getattr(window, 'view', False)
+    finally:
+        del window
+    return view
+
+
+def full_duplicates(data):
+    lines = ['%s: lines %s' % (d['title'], ' and '.join(str(x) for x in d['lines'])) for d in data.get('duplicates') or []]
+    lines += ['%s: already in Favourites' % t for t in data.get('already') or [] if t]
+    return '\n'.join(lines) + '\n\nEach was added once, at its first place in the list.'
+
+
+def answer_saved(xbmcgui, profile, data):
+    """The report's open questions, one "did you mean" sheet each; an answered or skipped one leaves the report."""
+    questions = list(data.get('questions') or [])
+    added = answer_questions(xbmcgui, profile, questions, data.get('list') or '')
+    data['questions'] = questions
+    return added
+
+
+def search_by_hand(xbmcgui, profile, data):
+    """Not found: each name in the keyboard, as written, to search again (owner-approved board I3). A pick is added at its
+    place in the list and leaves the report; an empty search keeps the name for later."""
+    import source_match
+    dialog = xbmcgui.Dialog()
+    key = source_match.tmdb_key()
+    if not key:
+        dialog.ok(TITLE, 'TMDb Helper is needed to look titles up, and it is not available right now.')
+        return 0
+    search, added, left = tmdb_search(key), 0, []
+    for m in list(data.get('missing') or []):
+        query = dialog.input('Search for line %s' % m['line'], defaultt=m['title'], type=xbmcgui.INPUT_ALPHANUM)
+        if not query:
+            left.append(m)
+            continue
+        try:
+            found = [r for r in search(query) if r.get('media_type') in ('tv', 'movie')][:8]
+        except Exception:
+            found = []
+        choices = [c for c in (fm.candidate(r) for r in found) if c]
+        if not choices:
+            dialog.ok(TITLE, 'Nothing was found for \u201c%s\u201d.' % query)
+            left.append(m)
+            continue
+        choice = pick(xbmcgui, {'heading': '\u201c%s\u201d' % m['title'], 'sub': 'Line %s. Pick the right one.' % m['line'],
+                                'rows': [{'label': c['title'], 'detail': kind_line(c)} for c in choices], 'foot': 'Cancel keeps it for later.'})
+        if 0 <= choice < len(choices):
+            new, _ = fi.add(profile, [dict(choices[choice], rank=m.get('rank') or 0, watched=m.get('watched', 0))], data.get('list') or '')
+            added += len(new)
+        else:
+            left.append(m)
+    data['missing'] = left
+    return added
 
 
 # --- opening a favourite ---------------------------------------------------------------------------------------------
