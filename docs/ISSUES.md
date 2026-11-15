@@ -4918,6 +4918,19 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-332 — Actions can no longer publish releases: r33 built but "HTTP 403: Resource not accessible by integration" (2026-11-15) — blocked on a repository setting
+
+- **Seen:** kodi-ios-portrait run 43681992197 (workflow_dispatch, r33 for ISSUE-316): the executable built; the publish job's
+  `gh release create` failed with HTTP 403, and again on a re-run of that job alone. The pull_request run before it
+  failed the same way. r32 was published by the same workflow from a workflow_dispatch run on 2026-11-13 (run 43362838057).
+- **Cause (likely):** the workflow asks for `contents: write`; a 403 from the releases API means the token was given
+  less, so a repository or organisation setting changed after 2026-11-13 (Settings › Actions › General › Workflow
+  permissions, or a ruleset on tags/releases). Not visible from this session.
+- **Fix:** owner: allow "Read and write" workflow permissions (or lift the rule), then re-run only the failed publish job
+  of run 43681992197: the built executable is kept as the run's artifact (no one-hour rebuild). The AirPlay framework
+  build (airplay-ios.yml, ISSUE-326) also publishes a release and waits for the same change.
+- **Retest:** release kodi-ios-portrait-r33 exists; then pin it (digests checked by download) and build the IPA.
+
 ## ISSUE-331 — Next Episode lagged and asked again; it should pick the next episode by itself (owner, build 486) — fixed in code; needs phone retest
 
 - **Request:** "review the next episode button as it seemed to lag out … it should only show up for tv shows and it should
