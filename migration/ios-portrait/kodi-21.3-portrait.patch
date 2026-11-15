@@ -615,9 +615,9 @@ diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupLi
 --- a/xbmc/guilib/GUIControlGroupList.cpp
 +++ b/xbmc/guilib/GUIControlGroupList.cpp
 @@ -8,7 +8,10 @@
-
+ 
  #include "GUIControlGroupList.h"
-
+ 
 +#include <cmath>
 +
  #include "GUIAction.h"
@@ -625,7 +625,24 @@ diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupLi
  #include "GUIControlProfiler.h"
  #include "GUIFont.h" // for XBFONT_* definitions
  #include "GUIMessage.h"
-@@ -177,6 +180,11 @@
+@@ -79,7 +82,15 @@
+       CServiceBroker::GetWinSystem()->GetGfxContext().SetOrigin(m_posX, m_posY + pos - m_scroller.GetValue());
+     else
+       CServiceBroker::GetWinSystem()->GetGfxContext().SetOrigin(m_posX + pos - m_scroller.GetValue(), m_posY);
+-    control->DoProcess(currentTime, dirtyregions);
++    // Kodi-iOS: a page built as one long group list processed every child on every frame (the hubs' rows are lists, which
++    // process only what is on screen), so long pages scrolled at a fraction of the hubs' frame rate. A visible child more
++    // than a screen away from the visible part is skipped (unless it has focus); it is processed again as it comes near.
++    const float scrollPos = m_scroller.GetValue();
++    const float span = Size();
++    const bool far = control->IsVisible() && !control->HasFocus() &&
++                     (pos + Size(control) < scrollPos - span || pos > scrollPos + 2 * span);
++    if (!far)
++      control->DoProcess(currentTime, dirtyregions);
+ 
+     if (control->IsVisible())
+     {
+@@ -177,6 +188,11 @@
            continue;
          if (control->GetControl(message.GetControlId()))
          {
@@ -637,8 +654,8 @@ diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupLi
            // find out whether this is the first or last control
            if (control == GetFirstFocusableControl())
              ScrollTo(0);
-@@ -371,6 +379,9 @@
-
+@@ -371,6 +387,9 @@
+ 
  float CGUIControlGroupList::Size(const CGUIControl *control) const
  {
 +  if (IsPortraitShowPage() && control->GetControlType() == GUICONTAINER_LIST &&
@@ -646,8 +663,8 @@ diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupLi
 +    return control->GetYPosition() + std::min(control->GetHeight(), static_cast<const CGUIBaseContainer*>(control)->PortraitContentHeight());
    return (m_orientation == VERTICAL) ? control->GetYPosition() + control->GetHeight() : control->GetXPosition() + control->GetWidth();
  }
-
-@@ -404,12 +415,17 @@
+ 
+@@ -404,12 +423,17 @@
    {
      float pos = 0;
      float alignOffset = GetAlignOffset();
@@ -666,10 +683,10 @@ diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupLi
          { // we're on screen
            float offsetX = m_orientation == VERTICAL ? m_posX : m_posX + alignOffset + pos - m_scroller.GetValue();
            float offsetY = m_orientation == VERTICAL ? m_posY + alignOffset + pos - m_scroller.GetValue() : m_posY;
-@@ -543,6 +559,41 @@
+@@ -543,6 +567,41 @@
    return 0.0f;
  }
-
+ 
 +bool CGUIControlGroupList::IsPortraitShowPage() const
 +{
 +  return GetParentID() == 10025 && GetID() == 9900 && m_orientation == VERTICAL;
@@ -708,7 +725,7 @@ diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupLi
  EVENT_RESULT CGUIControlGroupList::OnMouseEvent(const CPoint& point,
                                                  const MOUSE::CMouseEvent& event)
  {
-@@ -568,8 +619,26 @@
+@@ -568,8 +627,26 @@
        offset = nextOffset;
      }
    }
@@ -735,7 +752,7 @@ diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupLi
      CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, GetID(), GetParentID());
      SendWindowMessage(msg);
      return EVENT_RESULT_HANDLED;
-@@ -582,6 +651,8 @@
+@@ -582,6 +659,8 @@
    }
    else if (event.m_id == ACTION_GESTURE_PAN)
    { // do the drag and validate our offset (corrects for end of scroll)

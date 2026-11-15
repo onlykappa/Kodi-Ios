@@ -3,7 +3,7 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "build_tag": "kodi-ios-portrait-r32",
+  "build_tag": "kodi-ios-portrait-r33",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
     "tag": "kodi-ios-portrait-r32",
@@ -20,5 +20,6 @@
   },
   "verified_run": 43362838057,
   "source_commit": "61510d7781025b4c3dc633c571ae9310dbaac0fa",
-  "patch_sha256": "9aabed41268d269c80bc5ed62e9455c4dd2d1597a4d20de8fe5bc96befb8fc93"
+  "patch_sha256": "f7c287f05e61359445a11b7035b414e015ee1d9b38b8b04a5711e431aeb91efb",
+  "build_note_r33": "r33 (owner approved the build 2026-11-15): ISSUE-316, a group list skips children more than a screen away from the visible part, so long pages scroll like the hubs. executable_release stays r32 until r33 is built and checked."
 }

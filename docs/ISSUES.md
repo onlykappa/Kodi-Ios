@@ -4742,6 +4742,27 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_stream_race (a second hand-off keeps the first source alive and serving; each sees its own stats; one
   previous at most; the next blocks are fetched with the opening). Fails on the old code.
 
+## ISSUE-316 — Scrolling is poor on every page but Home, Movies and TV (owner, build 442 item 9) — Kodi patch ready; needs a native build (r33) and the phone
+
+- **Measured (desktop Kodi rig, System.FPS while dragging, uncapped):** Home ~135-139; Notifications ~70-97; Library
+  status ~86; Favourites ~64-68. The page under a dialog is not the cause (Favourites opened over an almost empty window
+  was no faster).
+- **Cause (Kodi 21.3 `CGUIControlGroupList::Process`):** "we render all controls, even if they're offscreen": a group
+  list calls `DoProcess` on every child on every frame. Home, Movies and TV are a group list of rows that are *lists*,
+  which process only the items on screen; every other page is one long group list (90 favourite cells, every
+  notification row, every status row), all processed on every frame wherever the page is scrolled. The touch flick and
+  its momentum are the same for both (portrait patch, ISSUE r20); the frame rate is not.
+- **Fix (`kodi-21.3-portrait.patch`, GUIControlGroupList.cpp):** a visible child more than one screen above or two screens
+  below the visible part (and without focus) is not processed; its visibility is still updated (sizes stay right) and it
+  is processed again as it comes near.
+- **Retest (rig A/B, same session, same pages):** original Home 139 / Favourites 68 / Notifications 70; patched Home 140 /
+  Favourites 83 / Notifications 88 fps. The phone's CPU has far less headroom, so the gain there should matter more; only
+  the phone can say how it feels.
+- **Release:** needs the native executable rebuilt as `kodi-ios-portrait-r33` (source-lock `build_tag`, `patch_sha256`
+  updated; `executable_release` stays r32 until r33 is built and its digests checked), then the IPA pinned to it. Held
+  for the owner's OK; the change waits on branch claude/wip-smooth-scroll.
+- **Test:** test_smooth_pages (the patch skips far children; the lock names r33 and this patch).
+
 ## ISSUE-317 — Umbrella: 12 MB loads fast, then "loading video" sits ~30 s (owner, build 482, logs d3c14036 / cf038697) — fixed in code; needs the phone
 
 - **Seen (owner):** play 1 on the cache route, all 3 opening blocks ready in 4.3 s, then Kodi's open took 31.3 s. Play 2
