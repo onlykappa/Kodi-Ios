@@ -63,7 +63,7 @@ class Projection(unittest.TestCase):
             props,_,_,_=upcoming.model([],0,self.provider.now,0,state=state)
             self.assertEqual(props['state'],expected)
         props,_,_,_=upcoming.model([],0,self.provider.now,0,state='error')
-        self.assertEqual(props['empty.title'],"Can't load games right now")
+        self.assertEqual(props['empty.title'],'Can’t load games right now')
 
 
 class Structure(unittest.TestCase):

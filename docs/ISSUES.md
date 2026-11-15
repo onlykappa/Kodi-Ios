@@ -5112,3 +5112,28 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Retest:** all 137 listed scripts, including the thirteen game-page cases, pass against the actual PR tree
   combined with the updated base. The feature checkout's game-page tests also pass; GitHub is checked after push.
 - **Test:** `scripts/test_sports_game.py`, `test_failed_refresh_keeps_seed_and_success_can_remove_sources`.
+
+## ISSUE-335 — Upcoming's timer could replace a failure with loading placeholders — fixed in the desktop rig
+
+- **Seen:** a cold provider failure was drawn once, but the next normal redraw no longer knew the request failed.
+- **Cause:** `draw(error=False)` used a temporary argument rather than preserving the last fetch result. With no
+  cached data, the periodic redraw selected loading again until another request finished.
+- **Fix:** retain the failure flag across redraws; clear it only when a fetch succeeds. Keep cached games visible
+  when refresh fails, and distinguish a successful empty result from an unavailable provider.
+- **Retest:** desktop Kodi 21.3: advancing the fixture clock by 31 seconds keeps board 15 visible. Repeated failure
+  stays on the error screen; Try again with a recovered test provider restores the game list.
+- **Test:** `scripts/test_sports_upcoming_states.py` covers persistent error, retries, successful emptiness, cached
+  results, stale rows/chips and closing during a fetch.
+
+## ISSUE-336 — State icon backgrounds and error text needed renderer corrections — fixed before commit
+
+- **Seen:** the first desktop render showed a thin seam across a translucent icon circle; automatic body wrapping
+  also put Check on the wrong line and used tighter line spacing than approved board 15.
+- **Cause:** nine-slice scaling was unnecessary for a circular texture, and the generic textbox's wrap/line spacing
+  differed from the approved two-line state message.
+- **Fix:** scale the circular mask uniformly and expose the approved description lines separately, preserving the
+  complete plain-text message. Draw them at the board's 21 pt spacing and keep both primary controls' focus visible.
+- **Retest:** desktop Kodi 21.3: both icon circles are seamless; boards 14–15 match the approved copy, line breaks and
+  action positions. Retry and See Leagues show focus feedback without moving the layout.
+- **Test:** state projection checks preserve the complete message across the rendered lines; the seam, typography
+  and button feedback were checked visually in Kodi, not inferred from a unit test.

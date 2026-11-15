@@ -24,11 +24,11 @@ def model(games, updated, now, offset, league='All', state='ready'):
     shown = sm.filter_league(future, None if league == 'All' else league)
     props = {'state': state, 'subtitle': '%s coming up · %s' % (sm.count_text(len(shown), 'game'),
              sm.updated_text(updated, now, offset).lower()) if updated else 'Updating',
-             'empty.title': '', 'empty.text': ''}
+             'empty.title': '', 'empty.text': '', 'empty.text.0':'', 'empty.text.1':''}
     chipline, chipwidth = 0, 0
     for n in range(page.CHIP_LINES): props['chipline.%d' % n] = ''
     for n in range(page.CHIPS):
-        code = codes[n] if n < len(codes) and games else ''
+        code = codes[n] if n < len(codes) and future else ''
         on = code == league
         size = 2 if code == 'All' else max(2,len(code))
         width = 126+(size-2)*24
@@ -64,11 +64,14 @@ def model(games, updated, now, offset, league='All', state='ready'):
             props['row.%d.lines' % n] = '2'
             props['row.%d.pos' % n] = 'only' if n else 'first'
     elif state == 'error':
-        props.update(subtitle='Not updated', **{'empty.title': "Can't load games right now",
-                     'empty.text': "The sports add-ons didn't answer. Check the connection, then try again."})
+        props.update(subtitle='Not updated', **{'empty.title': 'Can’t load games right now',
+                     'empty.text': 'The sports add-ons didn’t answer. Check the connection, then try again.',
+                     'empty.text.0':'The sports add-ons didn’t answer.',
+                     'empty.text.1':'Check the connection, then try again.'})
     elif not rows:
-        props.update(state='empty', **{'empty.title': 'No games coming up',
-                     'empty.text': 'Check back later, or see which leagues are available.'})
+        props.update(state='empty',subtitle=sm.updated_text(updated,now,offset) if updated else 'Not updated',
+                     **{'empty.title': 'No games coming up','empty.text': 'Nothing is scheduled yet.',
+                        'empty.text.0':'Nothing is scheduled yet.'})
     return props, rows, codes, league
 
 
@@ -95,6 +98,7 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
             self.stop = threading.Event()
             self.lock = threading.Lock()
             self.fetching = False
+            self.failed = False
             self.league = 'All'
             self.data = _CACHE
             self.draw()
@@ -110,10 +114,11 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
                         last=clock()
             threading.Thread(target=tick,daemon=True).start()
 
-        def draw(self, error=False):
+        def draw(self, error=None):
+            if error is not None:self.failed=error
             games, updated = self.data if self.data is not None else ([], 0)
             props, self.rows, self.codes, self.league = model(games,updated,clock(),sm.device_offset(clock()),self.league,
-                'error' if error and not self.data else 'ready' if self.data is not None else 'loading')
+                'error' if self.failed and not self.data else 'ready' if self.data is not None else 'loading')
             for key,value in props.items():
                 self.setProperty(key,value)
 
@@ -129,7 +134,7 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
                     with self.lock:
                         if self.stop.is_set(): return
                         self.data = _CACHE = data
-                        self.draw()
+                        self.draw(error=False)
                 except Exception as error:
                     import diagnostics
                     log('sports: upcoming refresh: %s: %s' % (type(error).__name__,diagnostics.error_text(error)))

@@ -1,12 +1,35 @@
 # Persistent progress
 
+## Sports › Upcoming: empty and error states, boards 14–15 — 2026-11-15
+
+Built the approved calendar empty state with Updated just now, No games coming up, Nothing is scheduled yet and
+See Leagues; the warning state has Not updated, Can’t load games right now, the approved two-line explanation and
+Try again. Empty results hide all chips and stale rows. Errors survive timer redraws and retries; a successful
+refresh restores the list, and cached data remains visible when a refresh fails (ISSUE-335). See Leagues currently
+logs the pending route; the Leagues page and its navigation are the next separate piece of work.
+
+The 20 pt state headline uses the existing Inter Bold asset at 54 units: the adjacent existing sizes are 17 and
+22 pt. Runtime-generated outline calendar/warning masks reproduce the approved symbols; Fuse's available versions
+are filled. Body and buttons reuse the existing fonts, surfaces and primary-pill helper. No artwork is committed.
+The rig pass corrected translucent circle scaling and explicit description-line spacing (ISSUE-336).
+
+Evidence: Chromium mockups compared with desktop Kodi 21.3 at 603 × 1167. Checked both layouts; the error screen
+using the updated base's normal, unavailable provider door (no implicit sample data); a 31-second timer advance;
+repeated failed retry; successful retry with an explicitly injected test provider; empty → refresh → six games;
+Back; visible button focus; and the pending See Leagues log. Screenshots stay outside Git. The rig uses the fallback
+tab bar; iPhone, native-bar and real-provider/playback results remain unverified.
+
+Validation: thirteen cases in `scripts/test_sports_upcoming_states.py`, listed in import-review, plus the existing
+Upcoming/game suites. All 138 listed scripts pass against the current combined PR/base tree; the affected suites
+also pass after the final visual adjustments. Project and UI guidance checks pass in both checkouts.
+
 ## Sports: updated provider snapshot contract — 2026-11-15
 
 The base branch advanced after the local checks: sample data is now opt-in, and Sample hands out independent
 copies. GitHub caught one test fixture that had assumed mutable provider records (ISSUE-334). The fixture now
 supplies the next snapshot explicitly. All 137 listed scripts pass against the PR's combined tree with the
 updated base, and the feature checkout's game-page tests pass. The UI continues to use the same public provider
-door. No sample fallback is added to the application.
+door. GitHub's review check passed after the fixture correction. No sample fallback is added to the application.
 
 ## Sports › A game's page: boards 12–13 implemented — 2026-11-15
 

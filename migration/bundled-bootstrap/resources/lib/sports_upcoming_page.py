@@ -1,5 +1,6 @@
 """Upcoming, approved board 10: portrait Kodi XML using the shared page controls."""
 import status_ui as u
+import math
 
 WINDOW = 'IOSSportsUpcoming.xml'
 BACK, REFRESH, LIST, RETRY, LEAGUES = 9001, 9002, 9300, 9003, 9004
@@ -8,6 +9,41 @@ CHIP_LINES = 4
 SCROLL_CLEAR = 720  # Board 11 leaves room below the final day as the header scrolls away.
 TITLE_LINE, DETAIL_H, PAD, MIN_ROW = 57, 56, 32, 194
 FORMS = range(1, 5)
+_STATE_ART = {}
+
+
+def _line(x,y,ax,ay,bx,by):
+    dx,dy=bx-ax,by-ay
+    t=max(0,min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy)))
+    return math.hypot(x-ax-t*dx,y-ay-t*dy)<=1
+
+
+def _calendar(x,y):
+    edges=((4,6,20,6),(20,6,20,20),(20,20,4,20),(4,20,4,6),
+           (4,10,20,10),(8,3,8,7),(16,3,16,7))
+    return (any(_line(x,y,*edge) for edge in edges) or
+            math.hypot(max(8-x,0,x-10),max(14-y,0,y-16))<=1)
+
+
+def _warning(x,y):
+    return any(_line(x,y,*edge) for edge in ((12,3,2,20),(2,20,22,20),(22,20,12,3),(12,10,12,15),(12,17.5,12,18)))
+
+
+def _states(p):
+    out=''
+    for state,glyph,fill,tint,ident,title,width,detail_h in (
+        ('empty','sports_calendar.png','1FEBEBF5',p.GREY,LEAGUES,'See Leagues',445,56),
+        ('error','sports_warning.png','2EFF9F0A',u.ORANGE,RETRY,'Try again',367,112)):
+        body=p.image(459,163,161,161,p.MEDIA+'pill_170.png',fill)
+        body+=p.image(499,203,81,81,p.MEDIA+glyph,tint)
+        body+=u.text(p,p.SIDE,345,972,65,u.P('empty.title'),'p_state_title',align='center')
+        for line in range(detail_h//56):
+            body+=p.textbox(150,431+line*56,780,56,u.P('empty.text.%d'%line),'p_sub',p.GREY).replace(
+                '<autoscroll>','<align>center</align><autoscroll>')
+        body+=p.pill_button(ident,(1080-width)//2,431+detail_h+48,width,134,title,[('','noop')],'primary',
+                           extra='<animation effect="fade" start="100" end="75" time="0" condition="Control.HasFocus(%d)">Conditional</animation>' % ident)
+        out+=u.group(p,760,body,'String.IsEqual(Window().Property(state),%s)' % state)
+    return out
 
 
 def row_height(lines):
@@ -77,11 +113,7 @@ def page(p):
     header += u.text(p,p.SIDE,124,972,110,'Upcoming','p_large')
     header += u.text(p,p.SIDE,239,972,51,u.P('subtitle'),'p_sub',p.GREY)
     content = u.group(p,315,header) + _chips(p) + _rows(p)
-    content += ('<control type="group"><height>600</height><visible>%s</visible>%s%s%s</control>') % (
-        u.has('empty.title'),u.text(p,108,170,864,90,u.P('empty.title'),'p_h2',align='center'),
-        p.textbox(150,280,780,150,u.P('empty.text'),'p_sub',p.GREY),
-        p.pill_button(RETRY,270,470,540,134,'Try again',[('','noop')],'primary',extra='<visible>String.IsEqual(Window().Property(state),error)</visible>')+
-        p.pill_button(LEAGUES,270,470,540,134,'See Leagues',[('','noop')],'primary',extra='<visible>String.IsEqual(Window().Property(state),empty)</visible>'))
+    content += _states(p)
     body = p.backdrop()
     body += ('<control type="grouplist" id="%d"><top>0</top><width>1080</width><bottom>0</bottom>'
              '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
@@ -93,4 +125,8 @@ def page(p):
 
 
 def files(p):
-    return {p.FOLDER+'/'+WINDOW:page(p).encode()}
+    if not _STATE_ART:
+        _STATE_ART.update({'sports_calendar.png':p.shape(96,_calendar),'sports_warning.png':p.shape(96,_warning)})
+    files={p.FOLDER+'/'+WINDOW:page(p).encode()}
+    files.update({'extras/portrait/'+name:data for name,data in _STATE_ART.items()})
+    return files
