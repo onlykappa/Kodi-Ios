@@ -122,10 +122,10 @@ def run():
     # (Not "window": that name is the Home window, used again when setup finishes.)
     source_window=Path(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.umbrella').getAddonInfo('path')))/'resources/lib/windows/source_results.py'
     if umbrella_picker.umbrella_hook(str(source_window)):xbmc.log('Kodi iOS setup added the Deck source page to Umbrella',xbmc.LOGINFO)
-    import provider_fallback_hooks
-    provider_fallback_hooks.install(str(source_window.parent.parent/'modules/sources.py'))
     elif source_window.is_file() and umbrella_picker.HOOK_MARK not in source_window.read_text(encoding='utf-8',errors='replace'):
      xbmc.log('Kodi iOS setup: this Umbrella version has a different source window; its own list stays',xbmc.LOGWARNING)
+    import provider_fallback_hooks   # the backup providers (PR #32) hook Umbrella's sources module, whichever source window it has
+    provider_fallback_hooks.install(str(source_window.parent.parent/'modules/sources.py'))
     resolver=source_window.parents[1]/'debrid/alldebrid.py'
     if umbrella_recovery.hook(resolver):xbmc.log('Kodi iOS setup added selected-stream link recovery to Umbrella AllDebrid',xbmc.LOGINFO)
    if xbmc.getCondVisibility('System.HasAddon(plugin.video.umbrella)') and xbmc.getCondVisibility('System.HasAddon(script.module.cocoscrapers)'):

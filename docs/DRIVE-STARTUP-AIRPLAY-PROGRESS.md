@@ -56,3 +56,12 @@ median **0.4098 s**, deferred cold **0.2021 s**; warm **0.00108 / 0.00137 s**. T
 isolates removal of one optional metadata wait; it is not a device startup improvement.
 25 index tests, 25 proxy tests and 9 timing tests pass. Required project scanner passes.
 Original rig setup failed (no sudo); isolated desktop runtime setup continues.
+
+## Validation prerequisite — main startup syntax defect
+
+The AirPlay lifetime regression failed before exercising playback: main's `service.py`
+places provider-hook statements between `if` and `elif` (SyntaxError, line 127).
+PR #42 already contains the exact repair. Applied its service-only change and bundle
+syntax regression here as a separate prerequisite; did not import sports/subtitle/native
+pins or merge #42. This was present on the base and is not a new playback regression.
+The project scanner alone did not catch it, so the syntax suite also runs explicitly.
