@@ -273,23 +273,33 @@ BANNER_STEPS = {
 }
 
 
-# Owner (2026-11-16, build 544: "slow to prepare ... make a progress bar showing progress when it's preparing TV"): the bar used to
-# sit at one number per step (22 % for the whole 5-30 s of step 1), so it looked stuck. It now moves the whole time: inside each step
-# it climbs toward the next step's start with a time constant, never goes back, and the native phase (opening, inspecting, ready) lifts
-# its floor and names what is happening. These are estimates, not measured percentages (the native side reports no percentage).
-BANDS = {'opening': (6, 52, 9.0), 'waiting_tv': (52, 72, 25.0), 'connecting': (72, 96, 6.0)}   # start %, end %, seconds to cover ~63 % of the way
-PHASE_FLOOR = {'inspecting': 22, 'ready': 40}
+# Owner (2026-11-16, build 544: "slow to prepare ... make a progress bar showing progress when it's preparing TV"; build 549: "it gets to about 50% then immediately
+# plays"): the bar follows the whole wait, not each step. It climbs on one smooth curve that is tuned to how long this phone's last starts took (a repeat cast
+# is about 6 s, a first 4K cast from Drive about 25 s), is lifted to the native phase's floor when the work is ahead of the curve (reading the video, first
+# seconds ready, the TV connecting), never goes back, and stays under 97 % until the TV plays, when the banner fills it and then says "Playing on your TV".
+# These are estimates: the native side reports no percentage.
+EXPECTED = 14.0   # seconds a start is assumed to take until a real one has been measured
+PHASE_FLOOR = {'inspecting': 15, 'ready': 40, 'connecting': 70, 'playing': 90}
+GROUP_FLOOR = {'waiting_tv': 35, 'connecting': 70}
 PHASE_WORDS = {'opening': 'Opening the video', 'inspecting': 'Reading the video', 'ready': 'Getting the first seconds ready'}
 
 
-def progress_pct(group, seconds, phase='', last=0):
-    """The bar's percent: the step's band start, climbing toward its end as seconds pass, lifted to the native phase's floor, never below `last`."""
+def progress_pct(elapsed, phase='', group='', last=0, expected=EXPECTED):
+    """The bar's percent after `elapsed` seconds of the start: a smooth curve (about 80 % after `expected` seconds), lifted to the phase's floor, never below `last`, under 97."""
     import math
-    lo, hi, tau = BANDS.get(group, BANDS['opening'])
-    value = lo + (hi - lo) * (1 - math.exp(-max(0.0, float(seconds)) / tau))
-    if group == 'opening':
-        value = max(value, min(PHASE_FLOOR.get(phase, 0), hi - 4))
-    return int(round(max(value, last if last < hi else 0)))
+    expected = min(60.0, max(3.0, float(expected or EXPECTED)))
+    value = 92.0 * (1 - math.exp(-max(0.0, float(elapsed)) / (expected / 2.2)))
+    value = max(value, PHASE_FLOOR.get(phase, 0), GROUP_FLOOR.get(group, 0), last)
+    return int(round(min(97.0, value)))
+
+
+def next_expected(measured, previous=EXPECTED):
+    """What the next start is expected to take: this start's real time, blended with the one before (one odd start does not swing it)."""
+    try:
+        measured = float(measured)
+    except (TypeError, ValueError):
+        return previous
+    return round(min(60.0, max(3.0, 0.6 * measured + 0.4 * previous)), 1)
 
 
 def banner_view(stage, converting=False, tv='', phase=''):
@@ -304,7 +314,7 @@ def banner_view(stage, converting=False, tv='', phase=''):
             sub = sub.replace('Step 1 of 3', 'Step 1 of 2')
     if key in ('opening', 'converting') and phase in PHASE_WORDS:   # what the first step is doing now, in place of "usually a few seconds"
         sub = '%s · %s' % (sub.split(' · ')[0], PHASE_WORDS[phase])
-    return {'title': title, 'sub': sub, 'bar': str(BANDS.get(stage, BANDS['opening'])[0]), 'icon': 'tv.png', 'tint': '380A84FF',
+    return {'title': title, 'sub': sub, 'bar': str(progress_pct(0, '', stage if stage in GROUP_FLOOR else '')), 'icon': 'tv.png', 'tint': '380A84FF',
             'stop': 'Stop', 'done': ''}
 
 

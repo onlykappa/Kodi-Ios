@@ -207,7 +207,7 @@ class Banner:
  bar and Stop (which sets TV_STOP, as Play on TV tapped again used to); "Playing on your TV" for two seconds at the end."""
  def __init__(self,xbmc,xbmcgui,tv=''):
   import airplay_flow
-  self.xbmc,self.flow,self.win,self.tv=xbmc,airplay_flow,None,tv
+  self.xbmc,self.xbmcgui,self.flow,self.win,self.tv=xbmc,xbmcgui,airplay_flow,None,tv
   home=xbmcgui.Window(10000)
   def stop():
    home.setProperty(TV_STOP,'1');self.apply({'title':'Stopping…','sub':'','stop':''})
@@ -236,18 +236,33 @@ class Banner:
    try:self.win.apply(props)
    except Exception:pass
  def stage(self,stage,converting=False):
-  self.group,self.lastpct,self.lastphase,self.converting_now=stage,0,'',converting
-  self.apply(self.flow.banner_view(stage,converting,tv=self.tv))
+  self.group,self.converting_now=stage,converting
+  self.apply(self.flow.banner_view(stage,converting,tv=self.tv,phase=getattr(self,'lastphase','')))
  def progress(self,group,seconds,phase=''):
-  """Called twice a second while the start runs: the bar keeps moving, and the first step names what the phone is doing."""
-  pct=self.flow.progress_pct(group,seconds,phase,getattr(self,'lastpct',0))
+  """Called twice a second while the start runs: the bar follows the whole wait on one curve, and the first step names what the phone is doing."""
+  import time
+  now=time.monotonic()
+  self.t0=getattr(self,'t0',None) or now
+  window=self.xbmcgui.Window(10000) if hasattr(self,'xbmcgui') else None
+  expected=self.flow.EXPECTED
+  try:expected=float((window.getProperty('KodiIOS.TVStartSeconds') if window else '') or expected)
+  except ValueError:pass
+  pct=self.flow.progress_pct(now-self.t0,phase,group,getattr(self,'lastpct',0),expected)
   props={}
   if pct!=getattr(self,'lastpct',None):self.lastpct=pct;props['bar']=str(pct)
   if group=='opening' and phase!=getattr(self,'lastphase',''):
    self.lastphase=phase;props.update({k:v for k,v in self.flow.banner_view('opening',getattr(self,'converting_now',False),tv=self.tv,phase=phase).items() if k in ('title','sub')})
   if props:self.apply(props)
  def done(self,at=None):
+  # Remember how long this start took (it tunes the next bar), then fill the bar before the "Playing on your TV" line replaces it.
+  try:
+   import time
+   if getattr(self,'t0',None):
+    home=self.xbmcgui.Window(10000);previous=float(home.getProperty('KodiIOS.TVStartSeconds') or self.flow.EXPECTED)
+    home.setProperty('KodiIOS.TVStartSeconds',str(self.flow.next_expected(time.monotonic()-self.t0,previous)))
+  except Exception:pass
   if self.win is None:return
+  self.apply({'bar':'100'});self.xbmc.sleep(350)
   self.apply(self.flow.banner_done(at,tv=self.tv));self.xbmc.sleep(2000);self.close()
  def close(self):
   if self.win is not None:

@@ -15,35 +15,44 @@ import airplay_flow as af  # noqa: E402
 
 class Words(unittest.TestCase):
     def test_each_step_has_its_line_and_bar(self):
-        for stage, bar in (('opening', '6'), ('waiting_tv', '52'), ('connecting', '72')):   # each step starts at its band's floor; the bar then moves
+        for stage, bar in (('opening', '0'), ('waiting_tv', '35'), ('connecting', '70')):   # a step starts no lower than its floor; the bar then moves
             v = af.banner_view(stage)
             self.assertEqual((v['bar'], v['stop']), (bar, 'Stop'))
             self.assertTrue(v['sub'].startswith('Step '))
         self.assertIn('Converting', af.banner_view('opening', converting=True)['title'])
 
-    def test_the_bar_keeps_moving_inside_a_step_and_never_goes_back_or_past_its_band(self):
-        # Owner, build 544: step 1 took 5-28 s and the bar sat at one number. Now it climbs the whole time.
+    def test_the_bar_follows_the_whole_wait_on_one_curve_and_never_goes_back(self):
+        # Owner, build 549: it "gets to about 50 % then immediately plays". One curve for the whole start, tuned to the recent starts.
         last = 0
-        for t in range(0, 60):
-            pct = af.progress_pct('opening', t, '', last)
+        for t in range(0, 90):
+            pct = af.progress_pct(t, '', 'opening', last)
             self.assertGreaterEqual(pct, last)
-            self.assertLessEqual(pct, af.BANDS['opening'][1])
+            self.assertLessEqual(pct, 97)
             last = pct
-        self.assertGreater(af.progress_pct('opening', 20), af.progress_pct('opening', 5))
-        self.assertGreater(af.progress_pct('connecting', 8), af.progress_pct('connecting', 1))
-        self.assertLessEqual(af.progress_pct('connecting', 3600), 96)   # never shows complete before the TV plays
-        # a later step starts above where the earlier one ended
-        self.assertGreaterEqual(af.progress_pct('waiting_tv', 0), af.progress_pct('opening', 3600) - 1)
-        self.assertGreaterEqual(af.progress_pct('connecting', 0), af.progress_pct('waiting_tv', 3600) - 1)
+        self.assertEqual(af.progress_pct(0), 0)
+        self.assertGreater(af.progress_pct(10), af.progress_pct(3))
+        # a start expected to take 6 s is at about 80 % at 6 s; one expected to take 25 s is not
+        self.assertGreaterEqual(af.progress_pct(6, expected=6), 75)
+        self.assertLessEqual(af.progress_pct(6, expected=25), 45)
+        self.assertLessEqual(af.progress_pct(3600), 97)   # never full before the TV plays
 
     def test_the_native_phase_lifts_the_bar_and_names_what_is_happening(self):
-        self.assertGreater(af.progress_pct('opening', 1, 'inspecting'), af.progress_pct('opening', 1, 'opening'))
-        self.assertGreater(af.progress_pct('opening', 1, 'ready'), af.progress_pct('opening', 1, 'inspecting'))
+        self.assertGreaterEqual(af.progress_pct(1, 'inspecting'), 15)
+        self.assertGreaterEqual(af.progress_pct(1, 'ready'), 40)
+        self.assertGreaterEqual(af.progress_pct(1, 'connecting'), 70)
+        self.assertGreaterEqual(af.progress_pct(1, '', 'waiting_tv'), 35)
+        self.assertEqual(af.progress_pct(1, 'inspecting', last=60), 60)   # never below what was shown
         self.assertIn('Reading the video', af.banner_view('opening', phase='inspecting')['sub'])
         self.assertTrue(af.banner_view('opening', phase='inspecting')['sub'].startswith('Step 1 of 3'))
         self.assertIn('Reading the video', af.banner_view('opening', tv='Living Room Roku', phase='inspecting')['sub'])
         self.assertNotIn('usually a few seconds', af.banner_view('opening', phase='ready')['sub'])
         self.assertIn('usually a few seconds', af.banner_view('opening')['sub'])   # before any phase is known
+
+    def test_the_next_start_is_expected_to_take_about_as_long_as_this_one_did(self):
+        self.assertEqual(af.next_expected(25, 14), round(0.6 * 25 + 0.4 * 14, 1))
+        self.assertEqual(af.next_expected(0.5, 14), round(max(3.0, 0.6 * 0.5 + 0.4 * 14), 1))   # never below 3 s
+        self.assertEqual(af.next_expected(999, 14), 60.0)
+        self.assertEqual(af.next_expected('x', 14), 14)
 
     def test_the_controller_ticks_the_bar_twice_a_second_and_a_failing_tick_never_stops_the_start(self):
         import cast

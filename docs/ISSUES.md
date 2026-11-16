@@ -5550,3 +5550,14 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
   no longer splits "1 / more".
 - **Retest:** desktop Kodi rig with the live feed (Live Now with crests, scores and clocks; Upcoming; Leagues; the landing): evidence class desktop Kodi rig, not device.
 - **Test:** `test_sports_espn` (11), `test_sports_landing`.
+
+## ISSUE-361 — The Play on TV bar reached about 50 % and then the TV played (owner, build 549, with a screenshot)
+
+- **Seen:** the banner's bar (Step 1 of 3 · Opening the video) stopped near half and the TV started at once; the first version of the moving bar (ISSUE-353) was built from three bands per step, with
+  step 1 capped at 52 %, and a repeat cast now takes only about 6-11 s.
+- **Fix:** one curve for the whole start, tuned to how long this phone's last start took (`KodiIOS.TVStartSeconds`, blended 60/40 with the one before; 14 s until measured), lifted to the native phase's floor
+  (reading the video 15, first seconds ready 40, the TV connecting 70), never going back, under 97 % until the TV plays; on playing the bar fills to 100 % for a moment before "Playing on your TV".
+- **Not changed:** the native side reports no percentage, so the bar stays an estimate. The 7.5 s cold read of the first segments from Drive is not changed (owner: skip it for now).
+- **Test:** `test_tv_banner` (curve, floors, expected time).
+- **AirPlay stopping when the phone locks or another app opens (owner):** the 548 log shows a 22-minute cast with the app off the screen playing on ("stays awake for AirPlay", segments served all the way), so
+  the framework's silent-audio keep-alive works there. The case that quits is not in any log yet: after it happens, export the log at once.
