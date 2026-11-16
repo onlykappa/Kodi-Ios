@@ -223,6 +223,8 @@ jobs:
           python3 -B scripts/test_prepared_keyframes.py
           python3 -B scripts/test_speech_check.py
           python3 -B scripts/test_airplay_exports.py
+          python3 -B scripts/test_track_menu.py
+          python3 -B scripts/test_subtitle_hold.py
           python3 -B scripts/test_notice_season_data.py
           python3 -B scripts/test_build442_sheets.py
           python3 -B scripts/test_terminal_copy_errors.py

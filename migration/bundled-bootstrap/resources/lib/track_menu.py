@@ -53,7 +53,8 @@ def subtitle_rows(streams, current, enabled, video=None):
         if not tag and s.get('downloaded'):
             tag = 'NEW'
         row = {'label': language_name(s.get('language'), s.get('name')), 'tag': tag,
-               'on': bool(enabled and current is not None and s.get('index') == current), 'index': s.get('index')}
+               'on': bool(enabled and current is not None and s.get('index') == current), 'index': s.get('index'),
+               'language': s.get('language') or '', 'removable': bool(s.get('removable'))}
         row.update({k: v for k, v in s.items() if k.startswith('match_')})
         row.setdefault('match_reason', 'Timing not checked')
         out.append(row)
@@ -248,13 +249,29 @@ def speed_rows(current):
     return [{'label': 'Normal' if s == 1.0 else '%g×' % s, 'tag': '', 'on': s == near, 'index': s} for s in SPEEDS]   # board 02
 
 
-def more_rows(found, always, keys_tag=''):
-    """Subtitles › More as rows (roadmap B.6): Choose another, Add from a file, Use for all videos. The way back is
-    the header's blue link (board 02), not a row."""
-    return [{'label': 'Choose another', 'tag': ('%d FOUND' % found) if found else '', 'on': False, 'index': 'choose'},
-            {'label': 'Add from a file', 'tag': '', 'on': False, 'index': 'file'},
-            {'label': 'Use for all videos', 'tag': 'ON' if always else 'OFF', 'on': bool(always), 'index': 'always'},
-            {'label': 'Subtitle keys', 'tag': keys_tag, 'on': False, 'index': 'keys'}]
+def more_rows(found, always, keys_tag='', current='', removable=False):
+    """Subtitles › More as rows (roadmap B.6): Find another, Add from a file, Remove (only for a subtitle that was
+    downloaded or added from a file), Use for all videos, Subtitle keys. The way back is the header's blue link (board 02).
+    `current` is the language shown now ('English'), so the first row reads "Find another English"."""
+    rows = [{'label': ('Find another %s' % current) if current else 'Choose another', 'tag': ('%d FOUND' % found) if found else '', 'on': False, 'index': 'choose'},
+            {'label': 'Add from a file', 'tag': '', 'on': False, 'index': 'file'}]
+    if removable and current:
+        rows.append({'label': 'Remove %s from this video' % current, 'tag': '', 'on': False, 'index': 'remove', 'danger': True})
+    return rows + [{'label': 'Use for all videos', 'tag': 'ON' if always else 'OFF', 'on': bool(always), 'index': 'always'},
+                   {'label': 'Subtitle keys', 'tag': keys_tag, 'on': False, 'index': 'keys'}]
+
+
+def hold_options(row):
+    """What holding a subtitle row offers: ('Find another English', 'Remove from this video' or ''). Off has no menu (None).
+    A track that is part of the video file cannot be removed, so it only offers Find another."""
+    if row.get('index') is None:
+        return None
+    return ('Find another %s' % row['label'], 'Remove from this video' if row.get('removable') else '')
+
+
+def sure_text(row):
+    """The question that comes before a removal: (title, text)."""
+    return ('Remove this subtitle?', '%s will be removed from this video. You can download it again any time.' % row['label'])
 
 
 KEY_ROWS = (('subdl', 'SubDL key'), ('opensubtitles', 'OpenSubtitles key'), ('opensubtitles_user', 'OpenSubtitles username'),
@@ -304,11 +321,30 @@ def file_rows(paths):
             for n, p in enumerate(paths)]
 
 
+_CODEC = ('x264', 'x265', 'h264', 'h265', 'hevc', 'avc', 'xvid', 'aac', 'ac3', 'dts', 'ddp5', 'dd5', 'mkv', 'mp4', 'srt')
+
+
+def release_label(name, limit=34):
+    """A release name as words that fit two lines of the row (DEC-050: no text is cut off): dots and underscores become spaces,
+    the codec and release-group tail is dropped, then whole words from the end until it is at most `limit` letters."""
+    text = str(name or '').strip()
+    if ' ' not in text:
+        text = text.replace('.', ' ').replace('_', ' ')
+    words = []
+    for word in text.split():
+        if word.lower().strip('-') in _CODEC or '-' in word.strip('-') and word.lower().split('-')[0] in _CODEC:
+            break
+        words.append(word)
+    while len(' '.join(words)) > limit and len(words) > 1:
+        words.pop()
+    return ' '.join(words) or text[:limit]
+
+
 def result_rows(results):
     """Found subtitles as rows (the way back is the header's link); index is the result's position."""
     rows = []
     for n, r in enumerate(results):
-        row = {'label': r['releases'][0] if r['releases'] else 'Subtitle %s' % r['id'],
+        row = {'label': release_label(r['releases'][0]) if r['releases'] else 'Subtitle %s' % r['id'],
                'tag': 'SDH' if r['impaired'] else '', 'on': False, 'index': n}
         row.update({k: v for k, v in r.items() if k.startswith('match_')})
         row.setdefault('match_reason', 'Timing not checked')
