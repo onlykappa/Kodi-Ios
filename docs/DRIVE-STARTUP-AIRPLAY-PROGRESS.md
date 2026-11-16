@@ -1,6 +1,6 @@
 # Downloaded Drive startup and AirPlay investigation — 2026-11-16
 
-Status: investigating, source fixes only. Branch: `fix/drive-startup-airplay-evidence`,
+Status: source fixes pushed in [draft PR #44](https://github.com/onlykappa/Kodi-Ios/pull/44); device validation pending. Branch: `fix/drive-startup-airplay-evidence`,
 base main `222cd50`. One agent. No IPA, native release, publication or merge authorized.
 
 ## Scope and evidence rules
@@ -20,7 +20,7 @@ Host fixtures and desktop Kodi are never iPhone/TV proof; comparable measured ti
 
 ## Validation and remaining checks
 
-Pending: baseline measurements, focused regressions, available real Kodi rig tests, native tests,
+Initial checklist (results and deferrals recorded below): baseline measurements, focused regressions, available real Kodi rig tests, native tests,
 `python3 -B scripts/check_project.py`, source review and draft PR. Device first-picture and actual
 receiver playback/recovery checks require device evidence and remain explicitly unverified.
 
@@ -158,3 +158,12 @@ On the actual iPhone/TV, after a separately approved build:
    Try Again and Keep Watching Here, background/foreground and repeated-session recovery.
 5. Long playback/end-of-file and seeking after changing captions. Retain private device logs
    and media outside Git. Capture video/stopwatch for scanout timing not observable in old logs.
+
+## Publication checkpoint
+
+Draft [PR #44](https://github.com/onlykappa/Kodi-Ios/pull/44), targeting unchanged main
+`222cd50`. Source commits: `cfcc4bd` (Drive startup), `a41511d` (PR #42 prerequisite),
+`9f93167` (AirPlay conversion and validation). Source pushed with `[skip ci]`; no build
+workflow dispatched. Required project check passes before each commit. Dedicated progress,
+ROADMAP, PROGRESS, ISSUES and the structured test receipt are committed. Device, 21.3 rig
+and native Apple-platform gaps above remain explicit; no publication/merge approval requested.
