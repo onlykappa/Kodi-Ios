@@ -29,6 +29,25 @@ class Repair(unittest.TestCase):
   link=NS(address='https://fixture.invalid/page',links=False,direct=False,resolveurl=False)
   final=NS(address='https://fixture.invalid/video.m3u8',direct=True)
   self.assertIs(sj.expand(NS(),NS(get_link=lambda l:final),link),final)
+ def test_second_interpreter_scan_joins_the_process_lock(self):
+  import fcntl,tempfile
+  with tempfile.TemporaryDirectory() as folder:
+   home=Home()
+   with open(Path(folder)/'sports-jet-scan.lock','a') as guard:
+    fcntl.flock(guard,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    with patch.dict(sys.modules,{'xbmcgui':NS(),'xbmcvfs':NS(translatePath=lambda p:folder)}),patch.object(sj,'JetProvider') as factory:
+     sj.run_script([],home)
+     factory.assert_not_called()
+ def test_failed_collection_releases_lock_and_running_marker(self):
+  import fcntl,tempfile,contextlib
+  with tempfile.TemporaryDirectory() as folder:
+   home=Home();home.setProperty(sj.RUN,'1000')
+   with patch.dict(sys.modules,{'xbmcgui':NS(),'xbmcvfs':NS(translatePath=lambda p:folder)}),patch.object(sj,'named_addon',side_effect=contextlib.nullcontext),patch.object(sj,'JetProvider') as factory:
+    factory.return_value._start.side_effect=RuntimeError('fixture collection failure')
+    with self.assertRaisesRegex(RuntimeError,'fixture collection failure'):sj.run_script([],home)
+   self.assertFalse(home.getProperty(sj.RUN))
+   with open(Path(folder)/'sports-jet-scan.lock','a') as guard:
+    fcntl.flock(guard,fcntl.LOCK_EX|fcntl.LOCK_NB)
  def test_live_page_does_not_play_handled_boolean(self):
   # Execute the actual onClick method with only its native dependencies substituted.
   tree=ast.parse((ROOT/'migration/bundled-bootstrap/sports_live.py').read_text());node=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='onClick')
