@@ -513,6 +513,52 @@ def start(token, connect=None, port=0, hold=None, state_dir=None, log=lambda tex
     return server, server.server_address[1]
 
 
+def healthy(port, timeout=1.5):
+    """True when the proxy answers on its port (any HTTP answer counts; an unknown path gets a 404)."""
+    import http.client
+    try:
+        connection = http.client.HTTPConnection('127.0.0.1', int(port), timeout=timeout)
+        try:
+            connection.request('GET', '/ping')
+            connection.getresponse().read()
+            return True
+        finally:
+            connection.close()
+    except (OSError, http.client.HTTPException, ValueError):
+        return False
+
+
+def supervise(make, wait, publish, log, interval=4, probe=None):
+    """Keep the proxy alive. Owner log 46025e07 (build 545): after the app sat in the background, iOS closed its listening
+    sockets ("Accept of new connection failed: 9") and every Library play of a Drive copy failed with "Could not connect to
+    server" (port 62654) until the app was restarted. make(port) -> (server, port) starts one (port 0: any); wait(seconds) is
+    the monitor's waitForAbort (True when Kodi is closing); publish(port or None) tells the rest of the app where it is.
+    A proxy that stops answering is stopped and started again, on the same port when it can be."""
+    probe = probe or healthy
+    port = 0
+    while True:
+        try:
+            server, port = make(port)
+        except OSError:
+            server, port = make(0)
+        publish(port)
+        log('Kodi iOS Drive proxy: streaming Drive copies on port %d' % port)
+        stopped = False
+        while not wait(interval):
+            if not probe(port):
+                stopped = True
+                break
+        publish(None)
+        try:
+            server.shutdown()
+            server.server_close()
+        except Exception:
+            pass
+        if not stopped:
+            return
+        log('Kodi iOS Drive proxy: stopped answering (iOS closes sockets in the background); starting it again')
+
+
 def ask_warm(port, file_id, name='', timeout=0.6):
     """Called from the Library page when a title's page opens: the proxy reads its start and index now (roadmap 1A.4).
     True when the proxy accepted."""

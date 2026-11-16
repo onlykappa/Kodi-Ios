@@ -232,12 +232,13 @@ def run():
    try:
     drive,_=drivelibrary.client()
     if drive:
-     server,port=drive_proxy.start(drive.token,hold=lambda:airplay.starting(home_window),   # roadmap 1G.3
-                                   state_dir=profile/'addon_data/service.kodi.ios.bootstrap',log=lambda text:xbmc.log(text,xbmc.LOGINFO))   # 1A.3
-     home_window.setProperty(drive_proxy.PROPERTY,str(port))
-     xbmc.log('Kodi iOS Drive proxy: streaming Drive copies on port %d'%port,xbmc.LOGINFO)
-     monitor.waitForAbort()
-     home_window.clearProperty(drive_proxy.PROPERTY);server.shutdown();return
+     def publish(port):
+      if port:home_window.setProperty(drive_proxy.PROPERTY,str(port))
+      else:home_window.clearProperty(drive_proxy.PROPERTY)
+     drive_proxy.supervise(lambda port:drive_proxy.start(drive.token,port=port,hold=lambda:airplay.starting(home_window),   # roadmap 1G.3
+                                   state_dir=profile/'addon_data/service.kodi.ios.bootstrap',log=lambda text:xbmc.log(text,xbmc.LOGINFO)),   # 1A.3
+                           monitor.waitForAbort,publish,lambda text:xbmc.log(text,xbmc.LOGINFO))
+     return
    except Exception as error:xbmc.log('Kodi iOS Drive proxy: not started (%s)'%type(error).__name__,xbmc.LOGWARNING)
    if monitor.waitForAbort(60):return
  threading.Thread(target=drive_proxy_loop,daemon=True).start()

@@ -5490,3 +5490,15 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
 - **Not changed:** the 7-9 s the first picture and sound segments take to arrive from Drive (cold connections; the source reader already adds helper
   connections on a slow link). The next log will show the scan time and, with it, what remains.
 - **Test:** the converter host tests (airplay-remux) cover the scan; a phone log gives the time.
+
+## ISSUE-355 — Drive copies would not play after the app had been in the background ("Umbrella streams not working", owner log 46025e07, build 545)
+
+- **Seen:** Phony S01E04 (an Umbrella show kept as a Drive copy) failed to open with `CCurlFile::Open - http://127.0.0.1:62654/drive/... Could not connect to
+  server(7)`, over and over. Before it, `JSONRPC Server: Accept of new connection failed: 9` and Elementum's `jsonrpc service stopped ([Errno 9] Bad file
+  descriptor), starting it again` (it restarts itself).
+- **Cause:** iOS closed the app's listening sockets while it sat suspended (about 25 minutes). The Drive proxy (`drive_proxy`, the loopback server every
+  Library play of a Drive copy goes through) was started once and never checked, so it stayed dead until the app was quit and opened again.
+- **Fix:** `drive_proxy.supervise` asks the proxy for a page every 4 seconds; one that does not answer is stopped and started again (on the same port when it
+  can be, else another; the Home window property follows), and the log says so.
+- **Retest:** host tests; on the phone: leave the app in the background for half an hour, then play a Library episode.
+- **Test:** `test_drive_proxy_alive` (health probe on a real server, restart on the same port, fallback port, clean stop when Kodi closes).
