@@ -19,6 +19,9 @@ PLUGINS = ('plugin.video.the-loop', 'plugin.video.loopguide', 'plugin.video.loop
 # Owner log f8d75848 (build 548): walking The Crew's sports menu ended the app (it started again 4 s later), and because the walk never finished it was
 # tried again 45 s after every start. The Crew is not walked until a cause is known (CAREFUL: add it back to PLUGINS only with the guard below).
 HELD_BACK = ('plugin.video.thecrew',)
+# Owner log c22859a4 (build 548): The Loop's walk blocked for 1352 s (22 minutes) and then failed, Loop TV's own server answers 404, Loop Guide lists five buttons and no
+# games, and The Crew ended the app. None gives data, and a walk can raise dialogs over the owner's screen, so no walk runs until a source is chosen (DEC-058).
+WALK = False
 # Where the walk starts when the add-on's front page is not sports: The Crew's sports menu ("Bluehat", owner decision 2026-11-15:
 # The Crew and The Loop are the two main sports providers).
 START = {'plugin.video.thecrew': 'plugin://plugin.video.thecrew/?action=bluehat'}
@@ -200,6 +203,8 @@ def wait_for(path, read=None, build=''):
 
 def discover_once(xbmc, xbmcvfs, log, now=time.time):
     """Run a discovery unless one ran lately; write the tree and log it. Blocks for up to about 75 seconds: call it on its own thread."""
+    if not WALK:
+        return None
     folder = xbmcvfs.translatePath(FOLDER)
     path = os.path.join(folder, OUT)
     if not due(path, now(), wait=wait_for(path, build=build_id())):

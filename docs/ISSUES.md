@@ -5525,3 +5525,12 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
   walked again for that build; the service walks only when the Sports page asks, not at every start.
 - **Test:** `test_sports_loop` (held-back Crew, the guard, ask-only walk).
 - **Still open:** the sports data itself. None of the three Loop add-ons gives games on this phone (The Loop errors, Loop TV's server is gone, Loop Guide has only buttons).
+
+## ISSUE-358 — No sports walk until a source is chosen: The Loop blocked for 22 minutes, and none of the add-ons gives games (owner log c22859a4, build 548)
+
+- **Seen:** (build 548, 18:56-19:19) Library shows and AirPlay worked: the Drive proxy served the episode, AirPlay r63 started in 11.5 s, and the saved keyframe scan was
+  used ("148 keyframes from this phone's saved scan ... 1 ms"). The sports walk: The Loop took 1352.8 s (22 minutes) to fail with `Invalid params`, Loop TV 1.7 s (its server
+  answers 404), Loop Guide listed five buttons; then The Crew's walk began and the log stops.
+- **Cause:** The Loop's plugin waits (probably on a dialog nobody sees); a walk can also raise dialogs over the screen. None of the add-ons returned games.
+- **Fix (build 550):** `sports_loop.WALK = False`: the service never walks and never calls an add-on until the sports source is chosen. The Sports pages say "Can't load" as before.
+- **Test:** `test_sports_loop` (`test_no_walk_runs_while_the_sources_are_not_chosen`).

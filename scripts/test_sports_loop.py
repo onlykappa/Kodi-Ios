@@ -162,6 +162,14 @@ class Discover(unittest.TestCase):
         self.assertEqual(walks, [])             # not asked: no walk
         self.assertIn('ASK', dir(sl))
 
+    def test_no_walk_runs_while_the_sources_are_not_chosen(self):
+        self.assertFalse(sl.WALK)
+        called = []
+        xbmc = types.SimpleNamespace(executeJSONRPC=lambda text: called.append(text) or '{}')
+        vfs = types.SimpleNamespace(translatePath=lambda path: '/nonexistent/')
+        self.assertIsNone(sl.discover_once(xbmc, vfs, lambda text: None))
+        self.assertEqual(called, [])   # not one call to an add-on
+
     def test_the_crew_is_held_back_until_its_crash_is_understood(self):
         asked = []
 
@@ -208,6 +216,7 @@ class Discover(unittest.TestCase):
 
 
 class Once(unittest.TestCase):
+    @patch.object(sl, 'WALK', True)
     def test_it_runs_once_a_day_and_writes_the_tree_and_the_log(self):
         with tempfile.TemporaryDirectory() as tmp:
             xbmc = types.SimpleNamespace(executeJSONRPC=lambda body: json.dumps({'result': {'files': [item('Hi', 'plugin://x/1')]}}))
