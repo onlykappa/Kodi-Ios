@@ -65,7 +65,7 @@ def run(game, provider=None, clock=time.time):
     log = lambda text:xbmc.log(text,xbmc.LOGINFO)
     game_id = game['id']
 
-    class Game(xbmcgui.WindowXML):
+    class Game(xbmcgui.WindowXMLDialog):
         def onInit(self):
             if hasattr(self,'stop'):
                 return

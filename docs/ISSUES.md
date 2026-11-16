@@ -5581,3 +5581,20 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
   (ISSUE-357) still protects every add-on this discovery walks, including The Loop, in case anything regresses.
 - **Test:** `test_sports_loop` (`ensure_installed`: installs once, retries bounded, no-op without the repository bundled, never raises),
   `test_provider_addons` (`SportsLock`: only the pointer add-on is bundled, not the Loop files themselves).
+
+
+## ISSUE-362 — Sports "See upcoming", Upcoming and Leagues did nothing (owner log 6f2ebc1a, 2026-11-16)
+
+- **Seen:** Live Now opened ("no games are live"), but "See upcoming", the Upcoming tile and Leagues did not open; kodi.log: "Activate of window ... refused because there are active modal dialogs".
+- **Cause:** the Sports landing and Live pages are `WindowXMLDialog` (modal); Upcoming, Leagues and Game were full `WindowXML` windows, which Kodi will not open over a modal dialog.
+- **Fix:** those three pages are `WindowXMLDialog` too (they stack). Verified in the desktop Kodi rig, before and after.
+- **Test:** `test_sports_dialogs` (every Sports page class derives from `WindowXMLDialog`).
+
+## ISSUE-363 — Sports had no real games or streams: ESPN gave games but no streams, The Loop had no adapter (owner, 2026-11-16)
+
+- **Seen:** every game said "No sources yet"; the owner wants The Loop family's own source add-on (JetExtractors) as the source of games and streams, not ESPN.
+- **Fix:** `sports_jet.py` asks the JetExtractors scrapers (through the add-on's own `get_extractors()`; nothing is worked around), turns each JetItem into merge records, merges them, and plays a source through
+  JetProxy (`plugin://plugin.video.jetproxy/play/...?h=`) or Kodi's player. A page waits 18 s, then shows what has answered; slow scrapers finish in the background. ESPN stays in the app (`KODI_IOS_SPORTS=espn`).
+- **Unknown until a phone log exists:** JetExtractors may refuse a caller that is not The Loop. The first build logs why (`Kodi iOS Sports: jet: ...`: scraper counts, names, a few titles; never a stream address). If it refuses, the
+  fix is on The Loop's side (a prompt for the owner's agent), not a workaround here.
+- **Test:** `test_sports_jet` (titles, leagues, state, records, merge of two scrapers, failing and slow scrapers, nothing-answers, JetProxy path).

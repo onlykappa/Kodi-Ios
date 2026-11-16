@@ -28,11 +28,15 @@ def get():
 
 
 def real():
-    """The provider the phone uses: ESPN's public scoreboard feed for the games, scores and times (DEC-059). Streams under a game come from add-ons
-    when an add-on can supply them (none can yet: the Loop family gives no games on the phone), so every game says "No sources yet"."""
+    """The provider the phone uses: JetExtractors' scrapers for the games and their streams (DEC-061). ESPN's feed (sports_espn.py, DEC-059/060) stays
+    in the app and is used with KODI_IOS_SPORTS=espn."""
     if _real[0] is None:
-        import sports_espn
-        _real[0] = sports_espn.EspnProvider()
+        if os.environ.get('KODI_IOS_SPORTS', '') == 'espn':
+            import sports_espn
+            _real[0] = sports_espn.EspnProvider()
+        else:
+            import sports_jet
+            _real[0] = sports_jet.JetProvider()
     return _real[0]
 
 
@@ -46,4 +50,7 @@ def play(source, log=lambda message: None):
     """Play a source at once (what a tap on a source line does). The sample provider only logs; the real one hands source['play'] to
     Kodi's player."""
     log('sports: play %s from %s (%s, %s)' % (source.get('id'), source.get('addon'), source.get('quality'), source.get('language')))
+    if os.environ.get('KODI_IOS_SPORTS', '') in ('', 'jet') and str(source.get('play') or '').startswith('{'):
+        import sports_jet
+        return sports_jet.play(source, log)
     return source.get('play')

@@ -574,3 +574,9 @@ with one page at a time."
   answers HTTP 400), gzip, merged by event id; one league failing never fails the rest. Live games show score, clock and how much is left; upcoming games the start time.
 - **Not official:** the feed is the one ESPN's own site uses; it has no key and no promise. If it changes, the pages say "Can't load" and the log says why (`Kodi iOS Sports: no league answered (...)`).
 - **Streams:** every game says "No sources yet" until an add-on can supply a stream for it (the merge rules of DEC-055 stay). The Crew and The Loop are not called (`sports_loop.WALK = False`).
+
+
+## DEC-061: Sports games and streams come from JetExtractors; ESPN stays dormant (2026-11-16)
+
+The owner chose The Loop family's source add-on over ESPN. `sports_jet.py` is the provider; JetExtractors is called only through its own public classes and `get_extractors()`, so any check it makes on callers is
+respected, not bypassed. Supersedes DEC-060 for the phone; ESPN is kept behind `KODI_IOS_SPORTS=espn`.

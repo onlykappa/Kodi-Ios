@@ -86,7 +86,7 @@ class Controller(unittest.TestCase):
         xbmc=types.SimpleNamespace(LOGINFO=1,log=lambda message,*_:logs.append(message),
             Monitor=lambda:types.SimpleNamespace(abortRequested=lambda:True))
         vfs=types.SimpleNamespace(translatePath=lambda s:s,listdir=lambda s:None)
-        with patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':types.SimpleNamespace(WindowXML=Window),'xbmcvfs':vfs}),\
+        with patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':types.SimpleNamespace(WindowXMLDialog=Window),'xbmcvfs':vfs}),\
              patch.object(upcoming,'_CACHE',cache),patch.object(upcoming.sports_provider,'get',return_value=provider) as get:
             upcoming.run(clock=lambda:NOW)
             get.assert_called_once_with()

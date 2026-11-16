@@ -278,12 +278,12 @@ class Provider(unittest.TestCase):
         self.assertEqual(started, [1])
 
     def test_pages_get_it_when_nothing_is_forced(self):
-        import sports_espn
+        import sports_jet
         os.environ.pop('KODI_IOS_SPORTS', None)
         sp.reset()
         try:
-            self.assertIsInstance(sp.get(), sports_espn.EspnProvider)   # DEC-059: the real provider is the public feed
-            with patch.object(sports_espn, 'fetch_json', side_effect=OSError('offline')):   # no network in the tests
+            self.assertIsInstance(sp.get(), sports_jet.JetProvider)   # DEC-061: the real provider is JetExtractors
+            with patch.object(sports_jet, 'import_jet', return_value=(None, 'not installed')):   # no add-on in the tests
                 with self.assertRaises(sm.SportsUnavailable):
                     sp.get().overview()
         finally:

@@ -136,7 +136,7 @@ class Controller(unittest.TestCase):
         xbmc=types.SimpleNamespace(LOGINFO=1,log=lambda *a:None,
             Monitor=lambda:types.SimpleNamespace(abortRequested=lambda:True))
         vfs=types.SimpleNamespace(translatePath=lambda x:x,listdir=lambda x:None)
-        with patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':types.SimpleNamespace(WindowXML=Window),'xbmcvfs':vfs}),\
+        with patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':types.SimpleNamespace(WindowXMLDialog=Window),'xbmcvfs':vfs}),\
              patch.object(game_page.sports_provider,'play',side_effect=play) as played:
             game_page.run(seed,provider=provider,clock=lambda:NOW)
         self.assertFalse(writes_after_close)

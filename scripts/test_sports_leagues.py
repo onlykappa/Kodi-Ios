@@ -114,7 +114,7 @@ class Controller(unittest.TestCase):
                     if not self.closed:self.onClick(page.BACK)
         xbmc=types.SimpleNamespace(log=lambda text,*args:logs.append(text),LOGINFO=1,executebuiltin=lambda text:logs.append('run '+text),
             Monitor=lambda:types.SimpleNamespace(abortRequested=lambda:True))
-        gui=types.SimpleNamespace(WindowXML=Window)
+        gui=types.SimpleNamespace(WindowXMLDialog=Window)
         vfs=types.SimpleNamespace(translatePath=lambda path:path,listdir=lambda path:None)
         with patch.dict(sys.modules,xbmc=xbmc,xbmcgui=gui,xbmcvfs=vfs),patch.object(leagues,'_CACHE',None),patch.object(leagues.sports_provider,'get',return_value=provider) as get:
             leagues.run(clock=lambda:NOW,seed=seed)

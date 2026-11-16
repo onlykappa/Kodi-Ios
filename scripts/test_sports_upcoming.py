@@ -117,7 +117,7 @@ class Controller(unittest.TestCase):
                 self.onClick(page.BACK)
         xbmc=types.SimpleNamespace(log=lambda *a:None,LOGINFO=1,
             Monitor=lambda:types.SimpleNamespace(abortRequested=lambda:True))
-        gui=types.SimpleNamespace(WindowXML=Window)
+        gui=types.SimpleNamespace(WindowXMLDialog=Window)
         vfs=types.SimpleNamespace(translatePath=lambda x:x,listdir=lambda x:None)
         with patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':gui,'xbmcvfs':vfs}),patch.object(upcoming,'_CACHE',None):
             upcoming.run(provider=provider,clock=lambda:provider.now,on_game=lambda game,log:selected.append(game['id']))

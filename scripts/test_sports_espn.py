@@ -170,11 +170,17 @@ class Provider(unittest.TestCase):
         self.assertEqual(props['g.1.clock'], 'Q4 · 1:00')
         self.assertEqual(slots, {})   # no sources yet: nothing to play
 
-    def test_the_real_provider_is_this_one(self):
+    def test_espn_is_the_provider_only_when_asked_for(self):   # DEC-061: the phone uses JetExtractors; KODI_IOS_SPORTS=espn keeps this feed
+        import os
         import sports_provider
-        sports_provider.reset()
-        self.assertIsInstance(sports_provider.get(), se.EspnProvider)
-        sports_provider.reset()
+        old = os.environ.get('KODI_IOS_SPORTS')
+        try:
+            os.environ['KODI_IOS_SPORTS'] = 'espn'
+            sports_provider.reset()
+            self.assertIsInstance(sports_provider.get(), se.EspnProvider)
+        finally:
+            os.environ.pop('KODI_IOS_SPORTS', None) if old is None else os.environ.__setitem__('KODI_IOS_SPORTS', old)
+            sports_provider.reset()
 
 
 if __name__ == '__main__':

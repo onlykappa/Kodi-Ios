@@ -1,0 +1,399 @@
+"""Sports games and streams from JetExtractors (DEC-061; the owner chose The Loop family's source add-on over ESPN on 2026-11-16).
+
+script.module.jetextractors holds ~45 scrapers; each one's get_items() lists games (JetItem: title "Team A vs Team B", start time, league, status) with
+streams (JetLink). This module asks them all at once, turns every JetItem into merge *records* (sports_merge.py), merges them into the games of the
+contract in sports_model.py, and plays a chosen stream through JetProxy (plugin.video.jetproxy) or Kodi's own player. The add-ons' code is used as
+shipped; nothing in them is read, copied or changed here, only their public classes (JetExtractor, JetItem, JetLink) are called.
+
+Slow scrapers never hold the page: a load waits LOAD_SECONDS for the add-on answers, shows what has come in, and the rest finish in the background.
+Nothing here logs a stream address or a header (logs are shared); only counts, add-on names and a few game titles.
+"""
+import base64
+import json
+import re
+import sys
+import threading
+import time
+from urllib.parse import quote, unquote
+
+import sports_merge
+import sports_model as sm
+
+TTL = 120               # seconds a finished answer is reused
+LOAD_SECONDS = 18       # how long a page waits for the scrapers before showing what it has
+EXTRACTOR_SECONDS = 40  # a scraper still running after this is left behind
+LIVE_FOR = 4 * 3600     # a game with a start time is live from its start for this long
+SOON_BEFORE = 600       # a game that should have started minutes ago still lists as upcoming/live
+HORIZON = 8 * 86400
+MODULE_ID = 'script.module.jetextractors'
+JETPROXY = 'plugin://plugin.video.jetproxy/play/'
+
+# Scrapers of replays, full-match videos, IPTV lists and plain hosts: they give no games.
+SKIP = {'basketballreplays', 'fullfightreplays', 'fullraces', 'fullreplays', 'nflvideo', 'nhlvideo', 'rugbyvideo', 'soccerfullmatch', 'sportsvideo',
+        'topravideo', 'watchprowrestling', 'homeiptv', 'myiptv', 'telegram_xtream', 'tvgarden', 'uktvnow', 'cloudstream', 'streamtape', 'tinyurl',
+        'template', 'ondemand', 'voodc', 'sofascore', 'embedhd_api', 'backdoor', 'backdoor2', 'xyz_mappings'}
+
+# (words in the add-on's league text, code, name, sport, joiner). First match wins; checked in order.
+LEAGUES = (
+    ('premier league', 'EPL', 'Premier League', 'Soccer', 'vs'), ('champions league', 'UCL', 'UEFA Champions League', 'Soccer', 'vs'),
+    ('la liga', 'LIGA', 'La Liga', 'Soccer', 'vs'), ('bundesliga', 'BUN', 'Bundesliga', 'Soccer', 'vs'), ('serie a', 'SERA', 'Serie A', 'Soccer', 'vs'),
+    ('ligue 1', 'LIG1', 'Ligue 1', 'Soccer', 'vs'), ('mls', 'MLS', 'MLS', 'Soccer', 'vs'),
+    ('ncaaf', 'NCAAF', 'College Football', 'American football', 'at'), ('college football', 'NCAAF', 'College Football', 'American football', 'at'),
+    ('nfl', 'NFL', 'NFL', 'American football', 'at'), ('american football', 'NFL', 'NFL', 'American football', 'at'),
+    ('ncaab', 'NCAAB', 'College Basketball', 'Basketball', 'at'), ('college basketball', 'NCAAB', 'College Basketball', 'Basketball', 'at'),
+    ('wnba', 'WNBA', 'WNBA', 'Basketball', 'at'), ('nba', 'NBA', 'NBA', 'Basketball', 'at'), ('basketball', 'NBA', 'Basketball', 'Basketball', 'at'),
+    ('nhl', 'NHL', 'NHL', 'Hockey', 'at'), ('hockey', 'NHL', 'Hockey', 'Hockey', 'at'),
+    ('mlb', 'MLB', 'MLB', 'Baseball', 'at'), ('baseball', 'MLB', 'Baseball', 'Baseball', 'at'),
+    ('ufc', 'UFC', 'UFC', 'Combat sports', 'vs'), ('mma', 'MMA', 'MMA', 'Combat sports', 'vs'), ('boxing', 'BOX', 'Boxing', 'Combat sports', 'vs'),
+    ('wwe', 'WWE', 'WWE', 'Combat sports', 'vs'),
+    ('formula', 'F1', 'Formula 1', 'Motorsport', 'vs'), ('f1', 'F1', 'Formula 1', 'Motorsport', 'vs'), ('motogp', 'MGP', 'MotoGP', 'Motorsport', 'vs'),
+    ('nascar', 'NASC', 'NASCAR', 'Motorsport', 'vs'),
+    ('soccer', 'SOC', 'Soccer', 'Soccer', 'vs'), ('football', 'SOC', 'Soccer', 'Soccer', 'vs'),
+)
+_SPLIT = re.compile(r'\s+(?:vs\.?|v|@|at|-|–|—)\s+', re.I)
+
+
+def league_of(text, title=''):
+    """(code, name, sport, joiner) for an add-on's league text; the title is looked at when the league says nothing known."""
+    low = ' %s ' % re.sub(r'[^a-z0-9 ]+', ' ', str(text or '').lower())
+    for word, code, name, sport, joiner in LEAGUES:
+        if ' %s ' % word in low:
+            return code, name, sport, joiner
+    text = str(text or '').strip()
+    if text and text.lower() != 'unknown':
+        code = re.sub(r'[^A-Z0-9]', '', text.upper())[:5] or 'OTH'
+        return code, text[:28], 'Other', 'vs'
+    return 'OTH', 'Other', 'Other', 'vs'
+
+
+def teams(title):
+    """(away, home, joiner-word) from 'A vs B', 'A @ B', 'A at B'; None when the title is a single name (an event, a channel)."""
+    parts = _SPLIT.split(re.sub(r'\s+', ' ', str(title or '')).strip(), maxsplit=1)
+    if len(parts) != 2 or not parts[0].strip() or not parts[1].strip():
+        return None
+    match = _SPLIT.search(str(title))
+    word = (match.group(0).strip().lower() if match else 'vs').rstrip('.')
+    return parts[0].strip(' -:'), parts[1].strip(' -:'), 'at' if word in ('@', 'at') else 'vs'
+
+
+def code_of(name):
+    words = [w for w in re.findall(r'[A-Za-z0-9]+', str(name or '')) if w.lower() not in sports_merge.NOISE]
+    return (''.join(words[0][:4]) if len(words) == 1 else ''.join(w[0] for w in words[:4]) or '???').upper()[:4]
+
+
+def quality_of(name):
+    text = str(name or '').lower()
+    m = re.search(r'(2160|1440|1080|720|576|480|360)\s*p?', text)
+    if m:
+        return m.group(1) + 'p'
+    if '4k' in text:
+        return '2160p'
+    return '1080p' if re.search(r'\bfhd\b', text) else ('720p' if re.search(r'\bhd\b', text) else '')
+
+
+def language_of(name):
+    text = str(name or '').lower()
+    for word, label in (('english', 'English'), ('spanish', 'Spanish'), ('french', 'French'), ('german', 'German'), ('portuguese', 'Portuguese'),
+                        ('italian', 'Italian'), ('arabic', 'Arabic'), ('russian', 'Russian')):
+        if word in text:
+            return label
+    return 'English' if re.search(r'\b(en|eng)\b', text) else ''
+
+
+def epoch_of(value):
+    try:
+        return int(value.timestamp())
+    except (AttributeError, OverflowError, OSError, ValueError):
+        return None
+
+
+def state_of(item, start, now):
+    """'live', 'upcoming' or None (finished, or nothing to tell) for one JetItem."""
+    status = str(getattr(item, 'status', '') or '').lower()
+    if any(w in status for w in ('ended', 'final', 'finished', 'replay', 'full time')):
+        return None
+    if 'live' in status:
+        return 'live'
+    if start is None:
+        return None
+    if start > now + HORIZON:
+        return None
+    if start > now + SOON_BEFORE:
+        return 'upcoming'
+    return 'live' if now - start <= LIVE_FOR else None
+
+
+def descriptor(extractor, link):
+    """The opaque play value of one stream: which scraper, and the JetLink as the add-on's own to_dict() wrote it."""
+    return json.dumps({'e': extractor, 'l': link.to_dict()}, separators=(',', ':'))
+
+
+def records(item, extractor, now):
+    """The merge records of one JetItem (one per stream); [] for what is not a game of two sides or has no stream."""
+    pair = teams(getattr(item, 'title', ''))
+    links = [l for l in (getattr(item, 'links', None) or []) if getattr(l, 'address', None)]
+    start = epoch_of(getattr(item, 'starttime', None))
+    state = state_of(item, start, now)
+    if not pair or not links or state is None:
+        return []
+    away, home, word = pair
+    code, name, sport, joiner = league_of(getattr(item, 'league', None), item.title)
+    if word == 'at':
+        joiner = 'at'
+    out = []
+    for link in links:
+        label = '%s %s' % (getattr(link, 'name', '') or '', getattr(link, 'address', '') if not getattr(link, 'links', False) else '')
+        out.append({'addon': extractor, 'league': code, 'league_name': name, 'sport': sport, 'state': state, 'start': start if start is not None else now,
+                    'away': {'code': code_of(away), 'name': away, 'score': 0 if state == 'live' else None},
+                    'home': {'code': code_of(home), 'name': home, 'score': 0 if state == 'live' else None},
+                    'joiner': joiner, 'clock': '', 'left': None, 'quality': quality_of(label), 'language': language_of(label),
+                    'play': descriptor(extractor, link)})
+    return out
+
+
+def log(text):
+    try:
+        import xbmc
+        xbmc.log('Kodi iOS Sports: ' + text, xbmc.LOGINFO)
+    except ImportError:
+        pass
+
+
+def import_jet():
+    """The jetextractors package, found through its add-on's folder; (module, None) or (None, reason)."""
+    try:
+        import jetextractors.extractor as module
+        return module, None
+    except Exception:
+        pass
+    try:
+        import xbmcaddon
+        lib = xbmcaddon.Addon(MODULE_ID).getAddonInfo('path').rstrip('/') + '/lib'
+        if lib not in sys.path:
+            sys.path.insert(0, lib)
+        import jetextractors.extractor as module
+        return module, None
+    except Exception as error:
+        return None, '%s: %s' % (type(error).__name__, str(error)[:80])
+
+
+def load_extractors(module):
+    """(extractor objects that list games, 'configured'). Only the add-on's own get_extractors() is used: it applies the add-on's settings and
+    domains and its own checks on who may ask. When it refuses, nothing is worked around; the reason is logged and the pages say "Can't load"."""
+    found = list(module.get_extractors())
+    out = []
+    for ext in found:
+        short = type(ext).__module__.rsplit('.', 1)[-1]
+        if short in SKIP or getattr(ext, 'resolve_only', False) or getattr(ext, 'disabled', False):
+            continue
+        if type(ext).get_items is module.JetExtractor.get_items:   # no games of its own
+            continue
+        out.append(ext)
+    return out, 'configured'
+
+
+class JetProvider:
+    """The contract's provider over JetExtractors. `loader()` -> (extractors, how) and `clock` are injectable (tests)."""
+
+    def __init__(self, loader=None, clock=time.time, wait=LOAD_SECONDS):
+        self.loader, self.clock, self.wait = loader, clock, wait
+        self.lock = threading.Lock()
+        self.records = {}     # extractor name -> [records]
+        self.stats = {}       # extractor name -> 'n items' | error text
+        self.at = 0
+        self.running = None   # (thread list, done event)
+        self.reason = ''
+
+    # -- loading
+    def _extractors(self):
+        if self.loader:
+            return self.loader()
+        module, reason = import_jet()
+        if module is None:
+            self.reason = 'JetExtractors is not installed (%s)' % reason
+            return [], 'missing'
+        try:
+            return load_extractors(module)
+        except Exception as error:
+            self.reason = 'JetExtractors refused or failed (%s: %s)' % (type(error).__name__, str(error)[:90])
+            return [], 'refused'
+
+    def _start(self):
+        extractors, how = self._extractors()
+        done = threading.Event()
+        pending = [len(extractors)]
+        started = self.clock()
+        if not extractors:
+            log('jet: no scrapers (%s)' % (self.reason or how))
+            done.set()
+            self.running = done
+            return done
+        log('jet: %d scrapers (%s)' % (len(extractors), how))
+
+        def work(ext):
+            name = getattr(ext, 'name', None) or type(ext).__name__
+            try:
+                items = ext.get_items() or []
+                found = []
+                for item in items:
+                    try:
+                        found += records(item, name, int(self.clock()))
+                    except Exception:
+                        continue
+                text = '%d games, %d streams' % (len({(r['away']['name'], r['home']['name']) for r in found}), len(found))
+                with self.lock:
+                    self.records[name] = found
+                    self.stats[name] = text
+                if found:
+                    log('jet: %s %s, e.g. %s' % (name, text, '; '.join(sorted({sm.versus(r) for r in found})[:2])))
+            except Exception as error:
+                with self.lock:
+                    self.stats[name] = '%s: %s' % (type(error).__name__, str(error)[:60])
+                    self.records.setdefault(name, [])
+                log('jet: %s failed (%s: %s)' % (name, type(error).__name__, str(error)[:60]))
+            finally:
+                with self.lock:
+                    pending[0] -= 1
+                    if pending[0] <= 0:
+                        done.set()
+                        log('jet: all scrapers answered after %ds (%d with games)' % (self.clock() - started, sum(1 for v in self.records.values() if v)))
+
+        gate = threading.Semaphore(8)
+
+        def guarded(ext):
+            with gate:
+                work(ext)
+        for ext in extractors:
+            threading.Thread(target=guarded, args=(ext,), daemon=True).start()
+        self.running = done
+        return done
+
+    def _load(self, force=False):
+        with self.lock:
+            fresh = self.at and self.clock() - self.at < TTL
+            busy = self.running is not None and not self.running.is_set()
+        if force or not (fresh or busy):
+            with self.lock:
+                self.records, self.stats, self.reason = ({}, {}, '') if not busy else (self.records, self.stats, self.reason)
+            done = self._start()
+            self.at = self.clock()
+        else:
+            done = self.running
+        if done is not None and not (fresh and not busy):
+            done.wait(self.wait)
+        with self.lock:
+            every = [r for rs in self.records.values() for r in rs]
+            stats = dict(self.stats)
+        if not every:
+            if self.running is not None and not self.running.is_set():
+                raise sm.SportsUnavailable('the scrapers are still loading')
+            raise sm.SportsUnavailable(self.reason or 'no scraper listed a game (%s)' % ', '.join('%s: %s' % kv for kv in sorted(stats.items())[:4]))
+        return self._games(every)
+
+    def _games(self, every):
+        now = int(self.clock())
+        order = sorted({r['addon'] for r in every})
+        games = sports_merge.merge(every, order)
+        live = [g for g in games if g['state'] == 'live']
+        upcoming = [g for g in games if g['state'] == 'upcoming' and g['start'] >= now - SOON_BEFORE]
+        leagues = {}
+        for g in live + upcoming:
+            lg = leagues.setdefault(g['league'], {'code': g['league'], 'name': g['league_name'], 'sport': g['sport'], 'live': 0, 'next': None})
+            if g['state'] == 'live':
+                lg['live'] += 1
+            elif lg['next'] is None or g['start'] < lg['next']:
+                lg['next'] = g['start']
+        return {'at': self.at, 'live': live, 'upcoming': upcoming, 'leagues': sorted(leagues.values(), key=lambda l: l['name'])}
+
+    # -- the contract
+    def refresh(self):
+        self._load(force=True)
+
+    def live_games(self, league=None):
+        return sm.filter_league(sm.order_live(self._load()['live']), league)
+
+    def upcoming_games(self, league=None):
+        return sm.filter_league(sorted(self._load()['upcoming'], key=lambda g: g['start']), league)
+
+    def leagues(self):
+        return list(self._load()['leagues'])
+
+    def game(self, gid):
+        data = self._load()
+        return next((g for g in data['live'] + data['upcoming'] if g['id'] == gid), None)
+
+    def overview(self):
+        data = self._load()
+        now = int(self.clock())
+        offset = sm.device_offset(now)
+        coming = [g['start'] for g in data['upcoming'] if g['start'] >= now]
+        today = [s for s in coming if sm.day_label(s, now, offset) == 'Today']
+        return {'updated': data['at'] or now, 'live': len(data['live']), 'live_sports': sorted({g['sport'] for g in data['live']}),
+                'next': min(coming) if coming else None, 'more_today': max(0, len(today) - 1), 'leagues': len(data['leagues']), 'finished_today': 0}
+
+
+# -- playing ----------------------------------------------------------------------------------------------------------
+def proxy_path(address, headers):
+    """plugin://plugin.video.jetproxy/play/<address>?h=<base64 headers>, the route JetProxy's main.py serves."""
+    path = JETPROXY + quote(address, safe=':/')   # a '?' or '&' inside the address must not end the path
+    if headers:
+        path += '?h=' + quote(base64.urlsafe_b64encode(json.dumps(headers, separators=(',', ':')).encode()).decode(), safe='=')
+    return path
+
+
+def expand(module, extractor, link, depth=0):
+    """The first playable JetLink behind a link: links flagged `links` are opened through their scraper's get_links(), others through get_link()."""
+    if depth > 4:
+        return None
+    if getattr(link, 'links', False):
+        for sub in extractor.get_links(link) or []:
+            sub.extractor = sub.extractor or link.extractor
+            owner = extractor
+            if getattr(sub, 'extractor', None) and sub.extractor != getattr(extractor, 'name', None):
+                owner = module.get_extractor(sub.extractor) or extractor
+            found = expand(module, owner, sub, depth + 1)
+            if found is not None:
+                return found
+        return None
+    if getattr(link, 'direct', False) or getattr(link, 'resolveurl', False):
+        return link
+    try:
+        resolved = extractor.get_link(link)
+    except Exception:
+        resolved = None
+    return resolved if resolved is not None and getattr(resolved, 'address', None) else link
+
+
+def play(source, logger=log):
+    """Start a source (what a tap on a line does). Raises when nothing can be played so the page says so."""
+    import xbmc
+    import xbmcgui
+    module, reason = import_jet()
+    if module is None:
+        raise RuntimeError('JetExtractors missing: %s' % reason)
+    value = json.loads(source['play'])
+    from jetextractors.models import JetLink
+    link = JetLink.from_dict(value['l'])
+    extractor = module.get_extractor(value['e'])
+    if extractor is None:
+        raise RuntimeError('scraper %s not found' % value['e'])
+    final = expand(module, extractor, link)
+    if final is None or not final.address:
+        raise RuntimeError('no playable stream behind this source')
+    address = unquote(final.address) if final.unquote and re.search(r'%3[Aa]%2[Ff]', final.address) else final.address
+    if getattr(final, 'resolveurl', False):
+        import resolveurl
+        address = resolveurl.resolve(address) or ''
+        if not address:
+            raise RuntimeError('ResolveURL could not open this stream')
+    headers = dict(final.headers or {})
+    logger('sports: playing %s via %s' % (value['e'], 'JetProxy' if (final.jetproxy or headers) else 'Kodi'))
+    if final.jetproxy or (headers and '.m3u8' in address):
+        path = proxy_path(address, headers)
+        xbmc.Player().play(path)
+        return True
+    item = xbmcgui.ListItem(path=final.xbmc_format() if hasattr(final, 'xbmc_format') else address)
+    if getattr(final, 'inputstream', None) is not None:
+        final.inputstream.set_properties(item)
+    xbmc.Player().play(item.getPath(), item)
+    return True

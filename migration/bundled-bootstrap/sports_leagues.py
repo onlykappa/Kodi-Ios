@@ -78,7 +78,7 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
     on_league = on_league or open_league
     log = lambda text:xbmc.log(text,xbmc.LOGINFO)
 
-    class Leagues(xbmcgui.WindowXML):
+    class Leagues(xbmcgui.WindowXMLDialog):
         def onInit(self):
             if hasattr(self,'stop'):return  # A child page returning keeps the list's focus and its one timer.
             self.stop = threading.Event()

@@ -91,7 +91,7 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
     on_game = on_game or (lambda game,log:open_game(game,log,provider,clock))
     log = lambda text: xbmc.log(text, xbmc.LOGINFO)
 
-    class Upcoming(xbmcgui.WindowXML):
+    class Upcoming(xbmcgui.WindowXMLDialog):
         def onInit(self):
             if hasattr(self,'stop'):
                 return  # Kodi re-enters this window after the game's page closes.
