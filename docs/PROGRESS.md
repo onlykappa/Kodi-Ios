@@ -216,6 +216,20 @@ hold menu 9601/9602, removal question 9611/9612); `tracks.py` runs Find another 
 rows and wording. Tests: `test_subtitle_hold.py` (15, real controller on a fake Kodi), `test_track_menu.py`. Rendered in the desktop Kodi rig at 2340x1080
 (tracks, hold, remove question, More, results): evidence class desktop Kodi rig, not device. The rig has no player, so the flows were not run against real
 playback. Release names in results are shortened to fit two lines (DEC-050).
+## Drive startup and audio-only AirPlay — source fixes, device retest pending (2026-11-16)
+
+Build 554/r64 identified from the supplied log; latest published IPA at inspection was 557.
+Completed Drive playback queued its first decoded picture 4.168 s after Play; the old 3.2-s
+log measured streams ready. Removed optional index cache admission from the player response.
+AirPlay delivered audio, but no completed converted video; long storage windows also drove
+conversion, and unrelated copied-read I/O produced the Drive diagnosis. Converted picture/audio
+now share a separate six-second grid, preserving copied video and selected captions.
+265 Python tests, 375 native host checks, new native sparse-window regression and desktop
+Kodi 21.2 fixture flows pass; iPhone/TV and Kodi 21.3 portrait acceptance remain pending.
+Native pins unchanged; no IPA/release/merge. See [progress](DRIVE-STARTUP-AIRPLAY-PROGRESS.md)
+and `reports/drive-startup-airplay-validation.json`. PR #42's startup syntax prerequisite is
+included separately; unrelated sports/subtitle branches remain untouched.
+
 
 ## PR #32 — movie/TV fallback providers — ready for draft review
 

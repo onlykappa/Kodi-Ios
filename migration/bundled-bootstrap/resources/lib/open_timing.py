@@ -1,15 +1,10 @@
-"""Roadmap 1C.1: one log line per video open, tap to playing picture, with where the time went.
+"""Tap to streams-ready timing, not first-picture evidence.
 
-The watch add-on marks the start (Home property KodiIOS.Open = {"t": time, "via": route}) and, on the Library route,
-stamps when it handed Kodi the address (KodiIOS.OpenResolved). The service polls every 0.2 s while a mark is set and
-notes when Kodi first has the item (Player.HasMedia: OpenFile began) and when its streams are ready (Player.HasVideo:
-stream open, index read and probe done). One line when the picture plays:
-
-  Kodi iOS open timing: 5.8 s via library (resolve 0.3 s, handoff 0.4 s, open 4.2 s, picture 0.9 s)
-
-resolve = mark to the address handed to Kodi, handoff = until Kodi starts opening it, open = Kodi opening the stream
-(the Drive proxy / network read, MP4 index, probe), picture = until a frame plays. Stages that could not be seen are
-left out and their time joins the next one. Resolution is the 0.2 s poll. Only polls while a mark is set."""
+Player.HasVideo/Playing become true before a decoded picture reaches the renderer.
+The native renderer marker in kodi.log supplies the later presentation boundary;
+never treat a zero final stage here as instant picture presentation.
+Resolution is the service's 0.2 s poll. Only polls while a mark is set.
+"""
 import json
 import time
 
@@ -43,7 +38,7 @@ def breakdown(start, stamps, end):
     points = [(label, stamps[key]) for key, label in NAMES if stamps.get(key) is not None and start <= stamps[key] <= end]
     points.sort(key=lambda item: item[1])
     parts, last = [], start
-    for label, at in points + [('picture', end)]:
+    for label, at in points + [('ready', end)]:
         parts.append('%s %.1f s' % (label, max(0.0, at - last)))
         last = max(last, at)
     return ', '.join(parts) if len(parts) > 1 else ''
@@ -89,7 +84,7 @@ def check(home, playing, log, now=None, probe=None):
     stamps = _note(home, probe, started, now)
     if playing():
         stages = breakdown(started, stamps, now)
-        log('Kodi iOS open timing: %.1f s via %s%s' % (took, m.get('via') or '?', ' (%s)' % stages if stages else ''))
+        log('Kodi iOS open timing: %.1f s via %s%s' % (took, m.get('via') or '?', ' (%s)' % stages if stages else '') + ' [streams ready; first picture not measured]')
         RECENT.append((took, m.get('via') or '?', stages))
         del RECENT[:-20]
         _finish(home, started)

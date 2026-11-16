@@ -254,7 +254,7 @@ class PerReceiver(unittest.TestCase):
   for needle in ('int kr_remux_third_party_receiver(const char *ua);','int kr_remux_compat_clients(void);',
                  'int kr_remux_served_external(int video);','int kr_remux_prefetched(void);'):
    self.assertIn(needle,header)
-  for needle in ('mfi_airplay_device','kr_hls_master_selected(S.gm,S.base,1,"cvideo",S.burn_index)','prefetch_after(rend','cache_take(',
+  for needle in ('mfi_airplay_device','kr_hls_master_paths(rend_plan(R_VCOMPAT),S.base,1,"cvideo",S.burn_index,0,S.cplan?"caudio":"audio")','prefetch_after(rend','cache_take(',
                  'audio_demuxer()','kr_video_cancel(S.video)','prefetch_stop();'):
    self.assertIn(needle,code)
   tests=(src.parent/'tests/test_remux.c').read_text()
@@ -351,7 +351,7 @@ class R10BurnedSubtitles(unittest.TestCase):
   remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
   for needle in ('subs_demuxer()','sgm_lock','strip_subtitles(S.master_compat)','PF_DEPTH_AUDIO 6','kr_video_path(v)'):
    self.assertIn(needle,remux)
-  subs=remux[remux.index('/subs/%d/seg%d.vtt'):remux.index('sscanf(path, "/audio/%d/", &idx) == 1) {')]
+  subs=remux[remux.index('/subs/%d/seg%d.vtt'):remux.index('} else if (sscanf(path, "/audio/%d/", &idx) == 1 || sscanf(path,"/caudio/%d/",&idx)==1) {')]
   self.assertNotIn('agm_lock',subs);self.assertNotIn('gm_lock)',subs.replace('sgm_lock)',''))
  def test_framework_r10(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()

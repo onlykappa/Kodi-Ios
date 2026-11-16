@@ -1,0 +1,241 @@
+{
+  "schema": 1,
+  "date_utc": "2026-11-16",
+  "base_main": "222cd50dd03b82779e7fe412fc564b44ee3be4ed",
+  "installed_build": {
+    "number": 554,
+    "commit": "7645171149b62e05b4c110045f7eac30cb4effa6",
+    "airplay": "r64",
+    "portrait": "r33",
+    "glassbar": "r6"
+  },
+  "python": {
+    "suites": [
+      {
+        "suite": "test_play_on_tv_network",
+        "tests": 76,
+        "passed": true
+      },
+      {
+        "suite": "test_airplay_remux",
+        "tests": 33,
+        "passed": true
+      },
+      {
+        "suite": "test_airplay_flow",
+        "tests": 10,
+        "passed": true
+      },
+      {
+        "suite": "test_airplay_room",
+        "tests": 3,
+        "passed": true
+      },
+      {
+        "suite": "test_airplay_long_fragments",
+        "tests": 4,
+        "passed": true
+      },
+      {
+        "suite": "test_cast_ready",
+        "tests": 3,
+        "passed": true
+      },
+      {
+        "suite": "test_playback_retention",
+        "tests": 17,
+        "passed": true
+      },
+      {
+        "suite": "test_open_timing",
+        "tests": 9,
+        "passed": true
+      },
+      {
+        "suite": "test_perf_summary",
+        "tests": 9,
+        "passed": true
+      },
+      {
+        "suite": "test_continue_downloads",
+        "tests": 20,
+        "passed": true
+      },
+      {
+        "suite": "test_drive_library",
+        "tests": 23,
+        "passed": true
+      },
+      {
+        "suite": "test_drive_proxy",
+        "tests": 25,
+        "passed": true
+      },
+      {
+        "suite": "test_drive_index",
+        "tests": 25,
+        "passed": true
+      },
+      {
+        "suite": "test_bundle_syntax",
+        "tests": 2,
+        "passed": true
+      },
+      {
+        "suite": "test_native_startup",
+        "tests": 3,
+        "passed": true
+      },
+      {
+        "suite": "test_airplay_exports",
+        "tests": 3,
+        "passed": true
+      }
+    ],
+    "tests": 265
+  },
+  "native": {
+    "platform": "Linux host; pinned patched FFmpeg 8.1.1; host MPEG-4 substitutes for VideoToolbox",
+    "groups": {
+      "source": 39,
+      "startup": 23,
+      "seek": 12,
+      "subtitles": 8,
+      "streaming": 141,
+      "recommendations": 41,
+      "roku214": 111
+    },
+    "checks": 375,
+    "sparse_compat": {
+      "audio_segments": 6,
+      "burned_caption_frames_observed": true,
+      "converted_frames": 768,
+      "converted_max_s": 6.0,
+      "converted_segments": 6,
+      "copy_max_s": 32.02303,
+      "copy_packet_digest_equal": true,
+      "sequence_elapsed_s": 1.598
+    },
+    "baseline_sparse_compat": "Fails: converted_max_s 32.02303; fixed 6.0; this compares media window length, not device startup latency",
+    "foundation_transport_skipped": 5,
+    "final_source_transport_retest": {
+      "checks": 39,
+      "failures": 0,
+      "scope": "Final shared library, including shared-wait diagnostics"
+    }
+  },
+  "proxy_index_benchmark": {
+    "fixture": "195-byte synthetic file; 200 ms per metadata response; identical index range; five fresh proxies per mode",
+    "runs": [
+      {
+        "background": false,
+        "cold_s": [
+          0.41117941499999233,
+          0.40308032499996216,
+          0.412801246000015,
+          0.4023137879999581,
+          0.409763871999985
+        ],
+        "cold_median_s": 0.409763871999985,
+        "warm_s": [
+          0.0010797219999858498,
+          0.0009691559999964738,
+          0.0013910200000282202,
+          0.0008129609999514287,
+          0.001272522000022036
+        ],
+        "warm_median_s": 0.0010797219999858498
+      },
+      {
+        "background": true,
+        "cold_s": [
+          0.20196902000003547,
+          0.2021221400000286,
+          0.20268011000001707,
+          0.20203469699998777,
+          0.20433457600000793
+        ],
+        "cold_median_s": 0.2021221400000286,
+        "warm_s": [
+          0.00136653300000944,
+          0.0021768109999698027,
+          0.0016705599999795595,
+          0.0010356469999805995,
+          0.001341996000007839
+        ],
+        "warm_median_s": 0.00136653300000944
+      }
+    ]
+  },
+  "desktop_rig": {
+    "version": "21.2 Debian",
+    "skin": "Estuary",
+    "display": "Xvfb",
+    "scope": "Production Drive proxy over synthetic upstream; JSON-RPC player path, not app lookup/OAuth or requested Kodi 21.3 portrait rig",
+    "results": {
+      "evidence": "desktop Kodi, production proxy with Drive-interface fixture",
+      "scenarios": [
+        {
+          "scenario": "cold",
+          "timeline_advanced": true,
+          "observed_position": 0.306,
+          "elapsed_to_timeline_s": 1.28
+        },
+        {
+          "scenario": "warm",
+          "timeline_advanced": true,
+          "observed_position": 0.303,
+          "elapsed_to_timeline_s": 1.217
+        },
+        {
+          "scenario": "resume",
+          "timeline_advanced": true,
+          "observed_position": 18.492,
+          "elapsed_to_timeline_s": 1.685
+        },
+        {
+          "scenario": "slow",
+          "timeline_advanced": true,
+          "observed_position": 0.389,
+          "elapsed_to_timeline_s": 4.551
+        },
+        {
+          "scenario": "failed",
+          "timeline_advanced": false,
+          "observed_position": 0,
+          "elapsed_to_timeline_s": 11.206
+        },
+        {
+          "scenario": "recovered",
+          "timeline_advanced": true,
+          "observed_position": 0.303,
+          "elapsed_to_timeline_s": 1.032
+        },
+        {
+          "scenario": "after-cancel",
+          "timeline_advanced": true,
+          "observed_position": 0.3,
+          "elapsed_to_timeline_s": 1.481
+        }
+      ],
+      "upstream_requests": 85
+    },
+    "first_picture_timings_measured": false,
+    "screenshots_inspected": [
+      "resume synthetic picture at 18s"
+    ]
+  },
+  "limitations": [
+    "No iPhone/TV retest or comparable device before/after timings",
+    "No Apple SDK, VideoToolbox or Foundation execution on Linux",
+    "Original metadata-scan failure cause cannot be reconstructed from log alone; source fallback/conversion window bug reproduced independently",
+    "Zero cursor I/O excludes shared-cache waits; new source metric separates them",
+    "Native pins unchanged; changed native source requires future approved integration/build/pin",
+    "Desktop setup no sudo; Debian Kodi 21.2 used instead of compiling portrait 21.3"
+  ],
+  "source_sha256": {
+    "migration/airplay-ios/remux/src/kr_remux.c": "9dce45a02256f56bae95563015a789c8d29c4b73d6b74dc6a0d068bba51ef5b5",
+    "migration/airplay-ios/remux/src/kr_source.c": "26af69929804c91f01c15f0620b21db9a849a22157b11f66211faa35a373ad36",
+    "migration/bundled-bootstrap/resources/lib/drive_index.py": "f5db7ad470c001a5166afdbd9dd46362f7b9b0d7815df69978cd2d1f7b8a4358"
+  }
+}

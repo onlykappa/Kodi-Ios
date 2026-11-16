@@ -61,6 +61,7 @@ jobs:
             "$FF/lib/libavformat.a" "$FF/lib/libavcodec.a" "$FF/lib/libdav1d.a" "$FF/lib/libswscale.a" "$FF/lib/libswresample.a" "$FF/lib/libavutil.a" \
             -lass -lx265 -lz -lm -lpthread -lstdc++ -ldl -o "$RUNNER_TEMP/libkodiairplay.so"
           python3 -B "$R/tests/e2e_conversion.py" "$RUNNER_TEMP/libkodiairplay.so" "$RUNNER_TEMP/remux-tests/fixtures"
+          python3 -B "$R/tests/sparse_compat.py" "$RUNNER_TEMP/libkodiairplay.so" "$RUNNER_TEMP/remux-tests/fixtures" "$RUNNER_TEMP/remux-tests/sparse-compat"
           # r48: upscaled copies (Lanczos engine here; the AI engine is the iPhone's): size, HEVC, every track kept,
           # HDR / same size refused, the setting used once, cancel mid-copy.
           python3 -B "$R/tests/upscale_host.py" "$RUNNER_TEMP/libkodiairplay.so" "$RUNNER_TEMP/remux-tests/upscale"

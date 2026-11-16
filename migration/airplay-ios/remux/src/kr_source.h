@@ -18,6 +18,8 @@ int64_t kr_source_size(kr_source *s);
 // Reads up to n bytes at offset: bytes read, 0 at the end, negative on error.
 int kr_source_read(kr_source *s, int64_t offset, uint8_t *buf, int n);
 // Cumulative seek/read time, including reconnect attempts; no URLs or byte contents.
+// Waiting on another cursor filling a shared block is distinct from this cursor's own I/O.
+double kr_source_wait_ms(const kr_source *s);
 double kr_source_io_ms(const kr_source *s);
 // Interrupts waits (stop pressed): reads return errors from now on.
 void kr_source_abort(kr_source *s);

@@ -1,6 +1,12 @@
 # Kodi-iOS master roadmap
 
 Current repair: sports playback/import/refresh fixes host-validated; PR #44 merged with owner approval. Combined native candidate and testing IPA pending. See [sports progress](docs/SPORTS-PLAYBACK-PROGRESS.md).
+Maintenance checkpoint (2026-11-16): downloaded Drive startup and audio-only AirPlay source
+repairs ready for draft review. 265 Python tests, 375 native host checks, independent sparse
+conversion regression and desktop Kodi 21.2 proxy flows pass. Native pins unchanged; actual
+iPhone/TV, 21.3 portrait rig and future approved native integration remain pending. See
+[progress](docs/DRIVE-STARTUP-AIRPLAY-PROGRESS.md). No IPA, release, publication or merge.
+
 
 Maintenance checkpoint: PR #32 source-provider fallback is ready for draft review; host and desktop Kodi fixture validation recorded in reports/provider-fallback-validation.json. No IPA or merge.
 

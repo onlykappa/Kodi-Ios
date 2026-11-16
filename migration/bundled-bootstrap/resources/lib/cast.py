@@ -223,12 +223,16 @@ def player_problem(lines):
  return ''
 
 SLOW_MS=5000
-SLOW_PATTERNS=(r'source I/O (\d+) ms',)
+SLOW_PATTERNS=(r'source I/O (\d+) ms',r'shared wait (\d+) ms')
 
 def slow_source(lines):
  """Only measured upstream read time is source evidence. Lane waits, client disconnects, canceled requests
  and socket response times cannot distinguish Drive from preparation or receiver/network delays."""
+ converted=any('/cvideo/' in str(line) or 'compat: segment ' in str(line) for line in lines or ())
  for line in lines or ():
+  # Copied video read-ahead is a different lane from a receiver's converted picture.
+  # Its I/O cannot diagnose why conversion failed (build 554: converted I/O 0 ms).
+  if converted and 'compat: segment ' not in line:continue
   if 'session stopped' in line or 'cancelled' in line or 'canceled' in line:continue
   for pattern in SLOW_PATTERNS:
    m=re.search(pattern,line)

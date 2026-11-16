@@ -40,6 +40,7 @@ extern bool gm_codec_is_avf_compatible(enum AVCodecID id);
 #define GM_MAX_OUT 16
 
 struct gm_stream {
+    int timeline_only;  // borrows immutable stream metadata; owns no demuxer/byte source
     gm_source src;
     int64_t   src_pos;
     AVFormatContext *in;
@@ -813,7 +814,7 @@ int gm_stream_init_segment(gm_stream *s, gm_buf *out, char *err, int errlen) {
 }
 
 int gm_stream_make_unit(gm_stream *s, int i, gm_buf *out, int *moov_end, char *err, int errlen) {
-    if (!s || !out || !moov_end || i < 0 || i >= s->n_seg) {
+    if (!s || s->timeline_only || !out || !moov_end || i < 0 || i >= s->n_seg) {
         set_err(err, errlen, "bad segment index", 0);
         return -1;
     }
@@ -1102,6 +1103,7 @@ int gm_stream_subtitle_segment(gm_stream *s, int src, int i, gm_buf *out, char *
 }
 
 void gm_stream_close(gm_stream *s) {
+    if(s && s->timeline_only){free(s);return;}
     if (!s) return;
     if (s->in) avformat_close_input(&s->in);
     if (s->in_avio) { av_free(s->in_avio->buffer); avio_context_free(&s->in_avio); }
@@ -1170,6 +1172,16 @@ int gm_stream_uniform_plan(gm_stream *s) {
     return 0;
 }
 
+// A separate immutable timeline for the receiver's re-encoded picture and its audio.
+// The original stream must outlive this view. No source reads or decoder ownership.
+gm_stream *gm_stream_uniform_timeline(const gm_stream *src) {
+    if(!src)return NULL;
+    gm_stream *view=malloc(sizeof *view);if(!view)return NULL;
+    *view=*src;view->timeline_only=1;view->src=(gm_source){0};view->in_avio=NULL;
+    if(gm_stream_uniform_plan(view)){free(view);return NULL;}
+    return view;
+}
+
 int gm_stream_track_init(gm_stream *s,int src,gm_buf *out,char *err,int errlen) {
     if(!s || !out || src<0 || src>=(int)s->in->nb_streams)return -1;
     AVCodecParameters *p=s->in->streams[src]->codecpar;
@@ -1203,7 +1215,7 @@ void gm_stream_last_timings(const gm_stream *s,double *seek_ms,double *scan_ms,l
 }
 
 int gm_stream_track_unit(gm_stream *s, int src, int i, gm_buf *out, int *moov_end, char *err, int errlen) {
-    if (!s || !out || !moov_end || i < 0 || i >= s->n_seg || src < 0 || src >= (int)s->in->nb_streams) {
+    if (!s || s->timeline_only || !out || !moov_end || i < 0 || i >= s->n_seg || src < 0 || src >= (int)s->in->nb_streams) {
         set_err(err, errlen, "bad segment index", 0); return -1;
     }
     enum AVMediaType type = s->in->streams[src]->codecpar->codec_type;
