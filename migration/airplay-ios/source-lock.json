@@ -2,13 +2,14 @@
   "framework_release": {
     "tag": "kodi-airplay-r63",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "sha256": "92e520a01d1b247f02b767042bab6325f8bbb22de9e9cc99e30b591cb344b6fb"
   },
   "previous": {
     "tag": "kodi-airplay-r62",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "6c5a441acd7268176bf65012fad5e28574dea99e1080e13cda7bd5d9e158e349"
   },
-  "source_commit": "staged",
-  "pin_note": "r63 staged (ISSUE-354: the keyframe scan of a prepared movie reads each storage fragment's index in one request and uses eight connections instead of four, so a first cast of a 4K movie from Drive should scan in about a third of the time). Digest and verified run are pinned after the build."
+  "source_commit": "acc49e2",
+  "pin_note": "r63 (ISSUE-354: the keyframe scan of a prepared movie reads each storage fragment's index in one request and uses eight connections instead of four) published by airplay-ios run 43785899309 from acc49e2; the converter host tests passed in airplay-remux run 43784300852; release notes and the downloaded zip both give 92e520a0\u2026b6fb. Phone timing pending.",
+  "verified_run": 43784300852
 }
