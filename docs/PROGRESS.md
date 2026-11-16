@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Sports playback and opening rig follow-up — 2026-11-16
+
+Build 563: an incomplete source scan repeatedly delayed Leagues/Upcoming; an already available snapshot is now reused and identical merges cached briefly. The playback adapter tries remaining nested candidates and the scraper’s own resolver after resolution failure, and hands Kodi the resolved address, including resolver and extractor headers. All 14 sports suites (189 tests) pass. Desktop Kodi 21.3 displayed both pages with a 300-game synthetic partial snapshot and played a local video after a mocked first resolver failed; four provider calls took 0.281 s versus 0.939 s for four uncached merges. This is synthetic rig evidence; real providers and iPhone behavior need testing. Details and retained failures: [sports progress](SPORTS-PLAYBACK-PROGRESS.md) and [validation](../reports/sports-563-rig-validation.json).
+
 ## Build 561 published and verified — 2026-11-16
 
 PR #44 merged as 9b276e7. Testing [build 561](https://github.com/onlykappa/Kodi-Ios/releases/tag/build-561), source a16a3ef, includes the sports playback/resolver/refresh repairs and the merged Drive/AirPlay fixes in newly compiled **AirPlay r65**. PR #43 remains open for testing. Final import CI run 43913240719 passed all tests, bundle apply/restore smoke checks and IPA validation. Downloaded the 588,860,520-byte IPA: release SHA **d60999a057fbb21ca6397fda1b2bf17aca3daa9945c282fe99eb0be928a815cb**, full ZIP CRC, eight exact repaired source files, exact r65 binary and exact unsigned r33 executable all pass. Glass bar r6 preserved.

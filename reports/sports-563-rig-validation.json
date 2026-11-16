@@ -1,0 +1,98 @@
+{
+  "date_utc": "2026-11-16",
+  "phone_log_build": 563,
+  "source_parent": "20faab1",
+  "sports_jet_source_sha256": "313fd47e6da5b81188964295a458dcca9f709de38f65e6242a532d49eca7f350",
+  "sports_suites": [
+    {
+      "suite": "scripts/test_sports_dialogs.py",
+      "tests": 2,
+      "passed": true
+    },
+    {
+      "suite": "scripts/test_sports_espn.py",
+      "tests": 11,
+      "passed": true
+    },
+    {
+      "suite": "scripts/test_sports_game.py",
+      "tests": 14,
+      "passed": true
+    },
+    {
+      "suite": "scripts/test_sports_jet.py",
+      "tests": 22,
+      "passed": true
+    },
+    {
+      "suite": "scripts/test_sports_landing.py",
+      "tests": 16,
+      "passed": true
+    },
+    {
+      "suite": "scripts/test_sports_league.py",
+      "tests": 6,
+      "passed": true
+    },
+    {
+      "suite": "scripts/test_sports_leagues.py",
+      "tests": 12,
+      "passed": true
+    },
+    {
+      "suite": "scripts/test_sports_live.py",
+      "tests": 18,
+      "passed": true
+    },
+    {
+      "suite": "scripts/test_sports_loop.py",
+      "tests": 24,
+      "passed": true
+    },
+    {
+      "suite": "scripts/test_sports_merge.py",
+      "tests": 15,
+      "passed": true
+    },
+    {
+      "suite": "scripts/test_sports_model.py",
+      "tests": 18,
+      "passed": true
+    },
+    {
+      "suite": "scripts/test_sports_playback_repair.py",
+      "tests": 11,
+      "passed": true
+    },
+    {
+      "suite": "scripts/test_sports_upcoming.py",
+      "tests": 7,
+      "passed": true
+    },
+    {
+      "suite": "scripts/test_sports_upcoming_states.py",
+      "tests": 13,
+      "passed": true
+    }
+  ],
+  "total_tests": 189,
+  "rig": {
+    "environment": "desktop Kodi 21.3",
+    "fixture": "300 synthetic games, partial snapshot; local synthetic video; mocked resolver",
+    "four_provider_calls_s": 0.2811,
+    "four_uncached_merges_s": 0.9388,
+    "merges": 1,
+    "leagues_visible": true,
+    "upcoming_visible": true,
+    "nested_resolver_attempts": 2,
+    "nested_fallback_video_played": true,
+    "scraper_resolver_fallback_video_played": true,
+    "live_provider_tested": false,
+    "phone_tested": false
+  },
+  "limitations": [
+    "The ready-snapshot benchmark is not a cold network startup or phone measurement.",
+    "Unreachable and unsupported third-party hosts may still fail.",
+    "A player handoff does not guarantee asynchronous remote playback."
+  ]
+}

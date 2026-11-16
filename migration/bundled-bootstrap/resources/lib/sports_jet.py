@@ -9,12 +9,13 @@ Slow scrapers never hold the page: a load waits LOAD_SECONDS for the add-on answ
 Nothing here logs a stream address or a header (logs are shared); only counts, add-on names and a few game titles.
 """
 import base64
+import copy
 import json
 import re
 import sys
 import threading
 import time
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit
 
 import sports_merge
 import sports_model as sm
@@ -237,6 +238,7 @@ class JetProvider:
         self.at = 0
         self.running = None   # (thread list, done event)
         self.reason = ''
+        self._remote_cache = None  # snapshot bytes and recent merged result
 
     # -- loading
     def _extractors(self):
@@ -329,9 +331,15 @@ class JetProvider:
             raise sm.SportsUnavailable('not running inside Kodi')
         now = self.clock()
 
+        raw_seen = ''
         def read():
+            nonlocal raw_seen
             try:
-                return json.loads(home.getProperty(DATA) or 'null')
+                raw = home.getProperty(DATA) or ''
+                decoded = json.loads(raw or 'null')
+                if decoded is not None:
+                    raw_seen = raw
+                return decoded
             except ValueError:
                 return None
         data = read()
@@ -357,7 +365,15 @@ class JetProvider:
                 raise sm.SportsUnavailable(data.get('reason') or 'no scraper listed a game')
             raise sm.SportsUnavailable('the scrapers are still loading')
         self.at = data.get('at', 0)
-        return self._games(data['records'])
+        now_mono = time.monotonic()
+        with self.lock:
+            cached = self._remote_cache
+        if raw_seen and cached and cached[0] == raw_seen and now_mono - cached[1] < 2:
+            return copy.deepcopy(cached[2])
+        result = self._games(data['records'])
+        with self.lock:
+            self._remote_cache = (raw_seen, time.monotonic(), result)
+        return copy.deepcopy(result)
 
     def _load(self, force=False):
         if self.remote:
@@ -471,7 +487,7 @@ def run_script(args, window=None):
             with named_addon():
                 play(source)
         except Exception as error:
-            log('jet: play failed (%s: %s)' % (type(error).__name__, str(error)[:90]))
+            log('jet: play failed (%s)' % type(error).__name__)
             try:
                 xbmcgui.Dialog().notification('Sports', "Can't play this source right now. Try another source.", xbmcgui.NOTIFICATION_WARNING, 4000)
             except Exception:
@@ -520,31 +536,46 @@ def proxy_path(address, headers):
     return path
 
 
-def expand(module, extractor, link, depth=0):
-    """The first playable JetLink behind a link: links flagged `links` are opened through their scraper's get_links(), others through get_link()."""
+def candidates(module, extractor, link, depth=0):
+    """Yield each candidate; a failed nested stream must not hide its siblings."""
     if depth > 4:
-        return None
+        return
     if getattr(link, 'links', False):
-        for sub in extractor.get_links(link) or []:
-            sub.extractor = sub.extractor or link.extractor
-            owner = extractor
-            if getattr(sub, 'extractor', None) and sub.extractor != getattr(extractor, 'name', None):
-                owner = module.get_extractor(sub.extractor) or extractor
-            found = expand(module, owner, sub, depth + 1)
-            if found is not None:
-                return found
-        return None
-    if getattr(link, 'direct', False) or getattr(link, 'resolveurl', False):
-        return link
+        try:
+            children = extractor.get_links(link) or []
+        except Exception:
+            return
+        for sub in children:
+            try:
+                sub.extractor = sub.extractor or link.extractor
+                owner = extractor
+                if getattr(sub, 'extractor', None) and sub.extractor != getattr(extractor, 'name', None):
+                    owner = module.get_extractor(sub.extractor) or extractor
+                yield from candidates(module, owner, sub, depth + 1)
+            except Exception:
+                continue
+        return
+    if getattr(link, 'direct', False):
+        yield link
+        return
+    if getattr(link, 'resolveurl', False):
+        # Some scrapers (including LiveFeeds) also implement their own resolver.
+        # Only ask it if the caller advances after ResolveURL fails.
+        yield link
     try:
         resolved = extractor.get_link(link)
     except Exception:
-        resolved = None
+        return
     if resolved is None or not getattr(resolved, 'address', None):
-        return None
-    if getattr(resolved, 'address', None) == getattr(link, 'address', None) and not getattr(resolved, 'direct', False) and not getattr(resolved, 'resolveurl', False):
-        return None
-    return resolved
+        return
+    if getattr(resolved, 'address', None) == getattr(link, 'address', None) and not getattr(resolved, 'direct', False):
+        return
+    yield resolved
+
+
+def expand(module, extractor, link, depth=0):
+    """Return the first candidate for callers that only need to inspect a link."""
+    return next(candidates(module, extractor, link, depth), None)
 
 
 TRIES = 5   # the source's own add-on and up to four others that list the same stream
@@ -559,7 +590,7 @@ def play(source, logger=log):
             return play_one(value, logger)
         except Exception as error:
             last = error
-            logger('jet: a source failed (%s: %s); %s' % (type(error).__name__, str(error)[:70], 'trying the next' if value != values[-1] else 'no more'))
+            logger('jet: a source failed (%s); %s' % (type(error).__name__, 'trying the next' if value != values[-1] else 'no more'))
     raise last or RuntimeError('this source has nothing to play')
 
 
@@ -585,26 +616,36 @@ def play_one(play_value, logger=log):
     extractor = module.get_extractor(value['e'])
     if extractor is None:
         raise RuntimeError('scraper %s not found' % value['e'])
-    final = expand(module, extractor, link)
-    if final is None or not final.address:
-        raise RuntimeError('no playable stream behind this source')
-    address = unquote(final.address) if final.unquote and re.search(r'%3[Aa]%2[Ff]', final.address) else final.address
-    if getattr(final, 'resolveurl', False):
-        import resolveurl
-        host = resolver_host(address)
-        logger('jet: ResolveURL trying host %s' % host)
-        address = resolveurl.resolve(address) or ''
-        if not address:
-            logger('jet: ResolveURL could not resolve host %s' % host)
-            raise RuntimeError('ResolveURL could not open this stream')
-    headers = dict(final.headers or {})
-    logger('sports: playing %s via %s' % (value['e'], 'JetProxy' if (final.jetproxy or headers) else 'Kodi'))
-    if final.jetproxy or (headers and '.m3u8' in address):
-        path = proxy_path(address, headers)
-        xbmc.Player().play(path)
-        return True
-    item = xbmcgui.ListItem(path=final.xbmc_format() if hasattr(final, 'xbmc_format') else address)
-    if getattr(final, 'inputstream', None) is not None:
-        final.inputstream.set_properties(item)
-    xbmc.Player().play(item.getPath(), item)
-    return True
+    last = None
+    for final in candidates(module, extractor, link):
+        try:
+            address = unquote(final.address) if final.unquote and re.search(r'%3[Aa]%2[Ff]', final.address) else final.address
+            if getattr(final, 'resolveurl', False):
+                import resolveurl
+                host = resolver_host(address)
+                logger('jet: ResolveURL trying host %s' % host)
+                address = resolveurl.resolve(address) or ''
+                if not address:
+                    logger('jet: ResolveURL could not resolve host %s' % host)
+                    raise RuntimeError('ResolveURL could not open this stream')
+            address, sep, encoded_headers = address.partition('|')
+            headers = dict(parse_qsl(encoded_headers, keep_blank_values=True)) if sep else {}
+            headers.update(final.headers or {})
+            use_proxy = bool(final.jetproxy or (headers and '.m3u8' in address.lower()))
+            logger('sports: playing %s via %s' % (value['e'], 'JetProxy' if use_proxy else 'Kodi'))
+            if use_proxy:
+                xbmc.Player().play(proxy_path(address, headers))
+                return True
+            playable = copy.copy(final)
+            playable.address = address  # ResolveURL may have replaced the original embed URL.
+            playable.headers = headers or None
+            path = playable.xbmc_format() if hasattr(playable, 'xbmc_format') else address + ('|' + urlencode(headers) if headers else '')
+            item = xbmcgui.ListItem(path=path)
+            if getattr(final, 'inputstream', None) is not None:
+                final.inputstream.set_properties(item)
+            xbmc.Player().play(item.getPath(), item)
+            return True
+        except Exception as error:
+            last = error
+            logger('jet: stream candidate failed (%s); trying next' % type(error).__name__)
+    raise last or RuntimeError('no playable stream behind this source')

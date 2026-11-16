@@ -194,6 +194,24 @@ class Remote(unittest.TestCase):
             self.assertGreater(page.overview()['updated'], 0)
             sleep.assert_not_called()
 
+    def test_remote_snapshot_reuses_merge_and_invalidates_when_records_change(self):
+        from unittest.mock import patch
+        win = Window()
+        a = Ext('A', [item('Arsenal vs Chelsea', NOW + 7200, 'Premier League')])
+        runner = sj.JetProvider(loader=lambda: ([a], 'test'), clock=lambda: NOW,
+                                publish=lambda d: win.setProperty(sj.DATA, json.dumps(d)))
+        runner._start().wait(3)
+        page = sj.JetProvider(remote=True, window=win, clock=lambda: NOW, wait=1, launch=lambda *a: None)
+        with patch.object(page, '_games', wraps=page._games) as merge:
+            games = page.upcoming_games(); games[0]['away']['name'] = 'changed by caller'
+            self.assertNotEqual(page.upcoming_games()[0]['away']['name'], 'changed by caller')
+            page.overview(); page.leagues()
+            self.assertEqual(merge.call_count, 1)
+            data = json.loads(win.getProperty(sj.DATA)); data['at'] += 1
+            win.setProperty(sj.DATA, json.dumps(data))
+            page.upcoming_games()
+            self.assertEqual(merge.call_count, 2)
+
     def test_page_starts_the_script_once_and_reports_loading(self):
         win, launched = Window(), []
         page = sj.JetProvider(remote=True, window=win, clock=lambda: NOW, wait=0.1, launch=lambda *a: launched.append(a))

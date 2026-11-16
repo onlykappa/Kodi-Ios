@@ -51,6 +51,78 @@ class Repair(unittest.TestCase):
    self.assertFalse(home.getProperty(sj.RUN))
    with open(Path(folder)/'sports-jet-scan.lock','a') as guard:
     fcntl.flock(guard,fcntl.LOCK_EX|fcntl.LOCK_NB)
+ def test_fallback_log_does_not_include_exception_urls(self):
+  logs=[]
+  with patch.object(sj,'play_one',side_effect=RuntimeError('https://secret.invalid/path?token=private')):
+   with self.assertRaises(RuntimeError):sj.play({'play':'fixture'},logger=logs.append)
+  self.assertTrue(logs)
+  self.assertNotIn('secret.invalid',' '.join(logs))
+  self.assertNotIn('token=private',' '.join(logs))
+ def test_nested_streams_retry_and_play_the_resolved_address(self):
+  import json
+  class Link:
+   def __init__(self,address,links=False,resolveurl=False):
+    self.address=address;self.links=links;self.resolveurl=resolveurl;self.direct=False
+    self.extractor='fixture';self.unquote=True;self.jetproxy=False;self.headers={'Referer':'https://fixture.invalid/'};self.inputstream=None
+   @staticmethod
+   def from_dict(value):return Link(value['address'],links=True)
+   def xbmc_format(self):
+    from urllib.parse import urlencode
+    return self.address+'|'+urlencode(self.headers)
+  nested=[Link('https://bad.invalid/embed',resolveurl=True),Link('https://good.invalid/embed',resolveurl=True)]
+  fallback_calls=[]
+  def no_fallback(link):fallback_calls.append(link.address);return None
+  extractor=NS(name='fixture',get_links=lambda link:nested,get_link=no_fallback)
+  module=NS(get_extractor=lambda name:extractor)
+  seen=[];logs=[]
+  class ListItem:
+   def __init__(self,path):self.path=path
+   def getPath(self):return self.path
+  xbmc=NS(Player=lambda:NS(play=lambda path,item=None:seen.append(path)))
+  resolver=NS(resolve=lambda address: '' if 'bad.invalid' in address else 'https://cdn.invalid/stream.mp4|User-Agent=Fixture')
+  with patch.object(sj,'import_jet',return_value=(module,None)),patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':NS(ListItem=ListItem),'jetextractors.models':NS(JetLink=Link),'resolveurl':resolver}):
+   self.assertTrue(sj.play_one(json.dumps({'e':'fixture','l':{'address':'https://fixture.invalid/list'}}),logs.append))
+  from urllib.parse import parse_qs
+  self.assertEqual(len(seen),1)
+  path,headers=seen[0].split('|',1)
+  self.assertEqual(path,'https://cdn.invalid/stream.mp4')
+  self.assertEqual(parse_qs(headers),{'User-Agent':['Fixture'],'Referer':['https://fixture.invalid/']})
+  self.assertEqual(fallback_calls,['https://bad.invalid/embed'])
+  self.assertTrue(any('bad.invalid' in line for line in logs))
+  self.assertFalse(any('/embed' in line for line in logs))
+  # HLS goes through JetProxy; resolver and extractor headers must both survive.
+  import base64
+  from urllib.parse import urlsplit
+  seen.clear();fallback_calls.clear();resolver.resolve=lambda address:'https://cdn.invalid/live.m3u8|User-Agent=Fixture'
+  with patch.object(sj,'import_jet',return_value=(module,None)),patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':NS(ListItem=ListItem),'jetextractors.models':NS(JetLink=Link),'resolveurl':resolver}):
+   self.assertTrue(sj.play_one(json.dumps({'e':'fixture','l':{'address':'https://fixture.invalid/list'}}),logs.append))
+  self.assertTrue(seen[0].startswith('plugin://plugin.video.jetproxy/play/https://cdn.invalid/live.m3u8?'))
+  self.assertEqual(fallback_calls,[])
+  encoded=parse_qs(urlsplit(seen[0]).query)['h'][0]
+  self.assertEqual(json.loads(base64.urlsafe_b64decode(encoded)),{'User-Agent':'Fixture','Referer':'https://fixture.invalid/'})
+ def test_scraper_resolver_is_used_when_resolveurl_fails(self):
+  import json
+  class Link:
+   def __init__(self,address,resolveurl=False,direct=False):
+    self.address=address;self.resolveurl=resolveurl;self.direct=direct;self.links=False
+    self.unquote=True;self.jetproxy=False;self.headers={};self.inputstream=None
+   @staticmethod
+   def from_dict(value):return Link(value['address'],resolveurl=True)
+   def xbmc_format(self):return self.address
+  fallback_calls=[]
+  def own_resolver(link):
+   fallback_calls.append(link.address);return Link('https://cdn.invalid/live.mp4')
+  extractor=NS(get_link=own_resolver)
+  module=NS(get_extractor=lambda name:extractor)
+  paths=[]
+  class ListItem:
+   def __init__(self,path):self.path=path
+   def getPath(self):return self.path
+  xbmc=NS(Player=lambda:NS(play=lambda path,item=None:paths.append(path)))
+  with patch.object(sj,'import_jet',return_value=(module,None)),patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':NS(ListItem=ListItem),'jetextractors.models':NS(JetLink=Link),'resolveurl':NS(resolve=lambda address:'')}):
+   self.assertTrue(sj.play_one(json.dumps({'e':'LiveFeeds','l':{'address':'https://embed.invalid/watch'}}),lambda text:None))
+  self.assertEqual(paths,['https://cdn.invalid/live.mp4'])
+  self.assertEqual(fallback_calls,['https://embed.invalid/watch'])
  def test_live_page_does_not_play_handled_boolean(self):
   # Execute the actual onClick method with only its native dependencies substituted.
   tree=ast.parse((ROOT/'migration/bundled-bootstrap/sports_live.py').read_text());node=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='onClick')
