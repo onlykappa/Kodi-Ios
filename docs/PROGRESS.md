@@ -1,5 +1,13 @@
 # Persistent progress
 
+## Build 561 published and verified — 2026-11-16
+
+PR #44 merged as 9b276e7. Testing [build 561](https://github.com/onlykappa/Kodi-Ios/releases/tag/build-561), source a16a3ef, includes the sports playback/resolver/refresh repairs and the merged Drive/AirPlay fixes in newly compiled **AirPlay r65**. PR #43 remains open for testing. Final import CI run 43913240719 passed all tests, bundle apply/restore smoke checks and IPA validation. Downloaded the 588,860,520-byte IPA: release SHA **d60999a057fbb21ca6397fda1b2bf17aca3daa9945c282fe99eb0be928a815cb**, full ZIP CRC, eight exact repaired source files, exact r65 binary and exact unsigned r33 executable all pass. Glass bar r6 preserved.
+
+The raw r33 executable has an embedded signature; the first private verifier incorrectly compared the unsigned IPA against that signed digest. After verifying the original pinned r33 archive/binary and applying the existing packer's unsign operation, the packaged executable matches byte for byte (one signature command removed). This was a verifier assumption, not an app change. No extra IPA was built. Optional first-frame renderer logging from #44 remains deferred with the r33 executable; the functional Drive and AirPlay fixes ship. Phone acceptance remains pending: Sports play/scroll, completed Drive movie/show cold and warm opens, AirPlay picture/audio/captions and forward/back seek.
+
+Evidence: [sports validation](../reports/sports-playback-validation.json). Native compile 43911296606 / host evidence 43907784636; immutable r65 publisher 43912960249. Local/CI validation includes 170 Python suites (2,483 tests with targeted final retests), five real Foundation tests, native conversion/seek/cancel/caption checks, six matching converted A/V segments, 768 frames and exact copied picture packets. Desktop portrait scrolling/live-provider behavior was not established; no phone performance or universal provider availability claim.
+
 ## Sports playback repair and combined build — 2026-11-16
 
 Owner build 557 log confirms an asynchronous Jet play request returned True and Live Now passed it to Player.play; ResolveURL was installed but absent from the script import path; failed extractor resolution could pass a webpage to Kodi. Load ResolveURL's declared dependency graph, accept only actual playback strings at the page boundary, and reject unresolved links. Forced refresh now joins an active collection, with a process-wide file lock preventing simultaneous interpreter scans. Keep existing results during refresh and avoid rewriting unchanged page properties. Provider outages in the log remain upstream failures; these changes cannot guarantee their availability or phone frame rate.

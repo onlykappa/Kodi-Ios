@@ -898,7 +898,48 @@
     "conversion_markers_present": true,
     "publisher_run": 43912960249,
     "candidate_run": 43911296606,
-    "device_result": "pending"
+    "device_result": "pending",
+    "macho_platform": "iPhoneOS (2)"
   },
-  "ipa": "pending authorized manual build"
+  "ipa": {
+    "build": 561,
+    "commit": "a16a3efef1b12262e0382fcc2ec9865f289dc687",
+    "workflow_run": 43913240719,
+    "release_url": "https://github.com/onlykappa/Kodi-Ios/releases/tag/build-561",
+    "download_url": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-561/Kodi-iOS-Customized-Touch-r10.ipa",
+    "ipa_sha256": "d60999a057fbb21ca6397fda1b2bf17aca3daa9945c282fe99eb0be928a815cb",
+    "archive_bytes": 588860520,
+    "zip_crc_passed": true,
+    "frameworks": {
+      "airplay": {
+        "sha256": "05ef394f931b321dda54e0c8378e6420c912d4cf525602bb70529d8c864acf7a",
+        "tag": "kodi-airplay-r65"
+      },
+      "glassbar": {
+        "sha256": "ecc883d2fe159e9aa08653a3130efe4003c3d40c4882222494dbb82f960bf16e",
+        "tag": "kodi-glassbar-r6"
+      },
+      "ios-portrait": {
+        "sha256": "091eb4a4ef75ad1475f5aa0d5d014f5eddb0ff3eb398e6d23b5a5e64a4671435",
+        "tag": "kodi-ios-portrait-r33"
+      }
+    },
+    "airplay_binary_sha256": "7b2f4692aa8fc56a711156180d69908fc911461f5af23ae89ad6f3971888053c",
+    "portrait_binary_sha256": "fa717e3222ca004eb15d076d122e637bca1e807cdfba2bcd8f038d8e4099de75",
+    "portrait_source_sha256": "091eb4a4ef75ad1475f5aa0d5d014f5eddb0ff3eb398e6d23b5a5e64a4671435",
+    "portrait_signature_commands_removed": 1,
+    "portrait_exact_unsigned_match": true,
+    "packaged_source_verified": [
+      "sports_live.py",
+      "sports_game.py",
+      "sports_upcoming.py",
+      "resources/lib/sports_jet.py",
+      "resources/lib/drive_index.py",
+      "resources/lib/drive_proxy.py",
+      "resources/lib/cast.py",
+      "resources/lib/open_timing.py"
+    ],
+    "phone_verified": false,
+    "status": "published and downloaded; artifact verification passed; phone testing pending"
+  }
 }

@@ -1,6 +1,6 @@
 # Kodi-iOS master roadmap
 
-Current repair: sports playback/import/refresh fixes host-validated; PR #44 merged with owner approval. AirPlay r65 candidate passed and its published binary is verified; combined testing IPA pending. See [sports progress](docs/SPORTS-PLAYBACK-PROGRESS.md).
+Current repair: sports playback/import/refresh fixes host-validated; PR #44 merged with owner approval. AirPlay r65 and combined testing IPA build 561 are published and artifact-verified; phone acceptance pending. See [sports progress](docs/SPORTS-PLAYBACK-PROGRESS.md).
 Maintenance checkpoint (2026-11-16): downloaded Drive startup and audio-only AirPlay source
 repairs ready for draft review. 265 Python tests, 375 native host checks, independent sparse
 conversion regression and desktop Kodi 21.2 proxy flows pass. Native pins unchanged; actual
