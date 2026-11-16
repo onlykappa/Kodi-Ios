@@ -65,3 +65,96 @@ PR #42 already contains the exact repair. Applied its service-only change and bu
 syntax regression here as a separate prerequisite; did not import sports/subtitle/native
 pins or merge #42. This was present on the base and is not a new playback regression.
 The project scanner alone did not catch it, so the syntax suite also runs explicitly.
+
+## Checkpoint 3 — AirPlay findings and source repair
+
+The receiver connected. It fetched its master, converted-video init and audio segment
+(3,186,501 bytes, 200); `tv_media=1`, `tv_video=0`. The phone had earlier received an
+8,525,981-byte copied-video segment; that is **not TV video delivery**. The TV retried
+`cvideo/seg0` four times; all ended 500 / zero bytes after the player failed at
+07:48:03.024. Its reported position stayed 3.555 s while rate=1 and external=1.
+The owner's heard audio is consistent with these records. AVPlayer failed after 32.5 s;
+this was not the controller's 105-s startup limit and not a false no-connection case.
+No completed TV video payload or displayed receiver picture is established by the log.
+
+Native inspection selected segmented playback because storage fragments reach 70.3 s,
+then sample inspection failed and replaced the timeline with only 99 storage boundaries.
+Those boundaries were also used by H.264 conversion, which needlessly had to encode a
+large storage window before returning its first video unit. Its segment 0 was canceled
+after 20,678 ms with cursor I/O 0 ms. A different copied-video read-ahead took 23,395 ms,
+including 11,174 ms cursor I/O; the controller used that unrelated evidence to blame Drive.
+
+**Important measurement limit:** 0 ms cursor I/O does not exclude waiting on another
+cursor filling the shared cache. The old log lacks that counter and frame progress, so
+it cannot divide all 20.7 s into encoder work versus shared-read waits, or explain why
+the metadata scan failed. No common Drive bottleneck is established. The reproduced
+source defect is the unbounded converted media window and the cross-lane diagnosis.
+
+Repair: when copied windows exceed 10 s, conversion gets an immutable six-second timeline.
+Its audio uses that same grid, separate `/caudio/` URLs and cache keys; the locked audio
+reader adopts the appropriate grid per request. Copy clients retain their complete
+original keyframe plan and compressed picture. Selected captions continue burning into
+the converted picture; copy captions stay unchanged. Seeking, cache/prefetch bounds,
+cancellation and cleanup choose the correct rendition timeline. No timeout increase,
+codec/bitrate/resolution change or new visible wording. The existing failure/retry card
+remains available; slow-Drive diagnosis now requires the failing conversion lane's read
+measurements. Native logs distinguish this cursor's I/O from shared-cache wait time.
+
+Before/fixed host reproduction (same 32-s long-GOP fixture and FFmpeg): old source exposes
+one 32.023-s converted segment, regression fails; fixed exposes six segments, maximum 6 s,
+matching audio, all 768 decoded frames, continuous packet timestamps after the initial
+edit-list anchor, start/end A/V difference <80 ms, and actual burned-caption frames.
+Copy packet digest remains exact. Out-of-order seek, restoration of copy-audio grid,
+active read-ahead cancellation and next-session recovery pass. This compares media windows,
+**not device startup time**. Test uses the host MPEG-4 encoder in place of VideoToolbox.
+
+## Checkpoint 4 — validation and retained failures
+
+- 16 Python suites / 265 tests pass (includes state-machine audio-only/video-delivered,
+  failure, cancellation, recovery, native exports and compiled C++ startup snippets).
+- Seven real native host groups: 375 checks, zero failures: source 39, startup 23, seek 12,
+  subtitles 8, streaming 141, recommendations 41, long-fragment/Roku 111. The final shared
+  library additionally passes `sparse_compat.py`; source transport retest against the final shared library passes 39/39 after added counters.
+- Five actual Foundation transport tests **skip on Linux**. No Objective-C/VideoToolbox/iOS
+  binary validation or receiver/device acceptance is inferred.
+- Real desktop Kodi **21.2 Debian / Estuary / Xvfb** runs production proxy code against
+  synthetic Drive-interface bytes. `scripts/rig_drive_startup.py` passes cold, warm,
+  18-s resume, slow headers, failed requests, recovery, canceled open and next-open recovery.
+  Saved screenshots inspected: real synthetic picture, resume frame at 18 s. These use
+  JSON-RPC Player.Open, not the app's full watch/skin/library-lookup path. Timeline advance
+  plus a later screenshot is not a precise first-picture measurement. No desktop before/after
+  improvement asserted. Requested 21.3 portrait rig remains unrun (standard setup lacks sudo).
+- Initial desktop fixture invocation incorrectly passed an unsupported JSON-RPC option;
+  fixed the harness to check errors and removed it. Null ALSA sink configured for headless
+  playback. These setup failures were not app regressions.
+- Existing native string-wiring tests needed updates for the new audio paths; then passed.
+- A stricter packet-continuity test initially rejected the first packet's existing edit-list
+  anchor / missing reported duration. It now checks every later pair and all segment boundaries;
+  A/V start/end bounds and 768-frame coverage remain asserted. No playback-code workaround.
+- Renderer diagnostic patch applies to upstream 21.3 RenderManager sources; full Kodi engine
+  compilation is not performed. Pins unchanged. Project scanner and diff whitespace check pass.
+- Evidence receipt: `reports/drive-startup-airplay-validation.json`. Reproduce isolated cache
+  timings with `python3 -B scripts/bench_drive_index_admission.py`; native regression is wired
+  into the existing host CI job, without dispatching a build in this session.
+
+## Remaining device checks / release boundary
+
+Source work ready for draft review; no device fix claimed. Native source changes need a
+future **explicitly approved** framework/engine build, verification and pin update before
+an IPA could contain them. Main's r58 pin intentionally stays unchanged. The installed r64
+branch has other later subtitle/cache work; that work was inspected and not overwritten or
+pulled into this main-based repair. Integrate/verify against the chosen future native source
+before packaging. No IPA, native release, publication or merge is authorized here.
+
+On the actual iPhone/TV, after a separately approved build:
+1. Same completed movie and TV episode, cold and warm, Play tap → visible first picture;
+   correlate renderer marker, auth/header metrics, metadata/index and shared-cache waits.
+2. Resume and restart on phone and TV; seek forward/back, captions on/off/text/bitmap,
+   audio choices and A/V synchronization, original resolution/quality on capable receivers.
+3. First AirPlay attempt on the reported MFi receiver and an Apple receiver: confirm actual
+   picture (not audio/rate/route alone), first video payload, short converted windows, time
+   advancing, no premature error; repeat resumed handoff.
+4. Slow reads, token rejection, failed ranges, Wi-Fi change, cancel while opening/converting,
+   Try Again and Keep Watching Here, background/foreground and repeated-session recovery.
+5. Long playback/end-of-file and seeking after changing captions. Retain private device logs
+   and media outside Git. Capture video/stopwatch for scanout timing not observable in old logs.

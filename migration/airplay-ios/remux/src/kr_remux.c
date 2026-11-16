@@ -44,7 +44,7 @@
 #define SEG_SECONDS 6.0
 #define MAX_TRACKS 64
 // r8: renditions (cache keys and production lanes): the copied video, the converted video, audio by source index.
-enum { R_VCOPY = 0, R_VCOMPAT = 1, R_AUDIO = 2, NREND = R_AUDIO + MAX_TRACKS };
+enum { R_VCOPY = 0, R_VCOMPAT = 1, R_AUDIO = 2, R_CAUDIO = R_AUDIO + MAX_TRACKS, NREND = R_CAUDIO + MAX_TRACKS };
 #define PF_DEPTH_VIDEO 3  // r11: video segments made ahead after one is served
 #define PF_DEPTH_AUDIO 6  // r11: audio is cheap (a copy or one AAC encode): kept well ahead so it never waits
 #define PF_DEPTH(rend) ((rend) >= R_AUDIO ? PF_DEPTH_AUDIO : PF_DEPTH_VIDEO)
@@ -71,6 +71,7 @@ static struct {
     char url[4096];
     kr_source *src;
     gm_stream *gm;
+    gm_stream *cplan;  // six-second converted timeline; copy timeline remains keyframe safe
     bridge bridges[MAX_TRACKS];
     int nbridges;
     int listen_fd, port;
@@ -393,6 +394,11 @@ static bridge *find_bridge(int index) {
     return NULL;
 }
 
+static gm_stream *rend_plan(int rend) {
+    return S.cplan && (rend==R_VCOMPAT || rend>=R_CAUDIO)?S.cplan:S.gm;
+}
+static int rendition_track(int rend) { return (rend-R_AUDIO)%MAX_TRACKS; }
+
 static int track_route(int index) { return index >= 0 && index < MAX_TRACKS ? S.routes[index] : KR_AUDIO_NONE; }
 
 // r8: the connections and the converter that teardown aborts are published under src_lock (a leaf lock), so a stop
@@ -533,7 +539,7 @@ static void strip_subtitles(char *m) {
 static pthread_mutex_t *lane(int rend) {
     if (rend == R_VCOPY) return &S.gm_lock;
     if (rend == R_VCOMPAT) return &S.vlock;
-    int idx = rend - R_AUDIO, route = track_route(idx);
+    int idx = rendition_track(rend), route = track_route(idx);
     if (route == KR_AUDIO_COPY) return &S.agm_lock;
     if (route == KR_AUDIO_AAC) { bridge *b = find_bridge(idx); return b ? &b->lock : NULL; }
     return NULL;
@@ -566,11 +572,11 @@ static int produce_unit(int rend, int seg,int ahead, gm_buf *out, char *err, int
         return result;
     }
     if (rend == R_VCOMPAT) {
-        double io0 = kr_source_io_ms(S.vsrc), t0 = now_ms();
+        double io0 = kr_source_io_ms(S.vsrc), wait0=kr_source_wait_ms(S.vsrc), t0 = now_ms();
         kr_video *v = session_video(err, errlen);
         if (!v) return -1;
         atomic_store(&vc_seg, seg);
-        r = kr_video_unit(v, S.gm, seg, out, err, errlen);
+        r = kr_video_unit(v, rend_plan(rend), seg, out, err, errlen);
         if(seg==0 && r<0 && r!=KR_VIDEO_CANCELLED && !atomic_load(&S.stopping) && strstr(err,"no video in this segment")) {
             // A canceled initial unit may leave no cached beginning, and some demuxers (FLV) cannot rewind
             // from a later segment to zero. Reopen once and use its buffered initial packets instead.
@@ -579,7 +585,7 @@ static int produce_unit(int rend, int seg,int ahead, gm_buf *out, char *err, int
             pthread_mutex_unlock(&src_lock);kr_video_close(v);kr_source_close(old);
             log_line("seek: reopen decoder for the beginning after an empty rewind");
             v=session_video(err,errlen);io0=0;
-            r=v?kr_video_unit(v,S.gm,seg,out,err,errlen):-1;
+            r=v?kr_video_unit(v,rend_plan(rend),seg,out,err,errlen):-1;
         }
         atomic_store(&vc_seg, -1);
         if(r==KR_VIDEO_CANCELLED) {
@@ -597,15 +603,15 @@ static int produce_unit(int rend, int seg,int ahead, gm_buf *out, char *err, int
         if (r == 0) {  // r11: the conversion path and speed per segment (realtime = SEG_SECONDS per segment)
             double ms = now_ms() - t0, pct = ms / (SEG_SECONDS * 10.0);
             if (atomic_fetch_add(&S.vlogged, 1) < 3 || pct > 70)
-                log_line("compat: segment %d converted in %.0f ms (%.0f%% of realtime) via %s, source I/O %.0f ms, %d subtitle events, %ld frames drawn, subtitle preroll through %.3f s", seg,
-                         ms, pct, kr_video_path(v), kr_source_io_ms(S.vsrc) - io0, kr_video_burn_events(v), kr_video_burn_drawn(v),kr_video_subtitle_scan_end(v));
+                log_line("compat: segment %d converted in %.0f ms (%.0f%% of realtime) via %s, source I/O %.0f ms, shared wait %.0f ms, %d subtitle events, %ld frames drawn, subtitle preroll through %.3f s", seg,
+                         ms, pct, kr_video_path(v), kr_source_io_ms(S.vsrc) - io0, kr_source_wait_ms(S.vsrc)-wait0, kr_video_burn_events(v), kr_video_burn_drawn(v),kr_video_subtitle_scan_end(v));
         } else if (r != KR_VIDEO_CANCELLED) {
-            log_line("compat: segment %d %s after %.0f ms, source I/O %.0f ms", seg,
-                     atomic_load(&S.stopping) ? "stopped" : "failed", now_ms() - t0, kr_source_io_ms(S.vsrc) - io0);
+            log_line("compat: segment %d %s after %.0f ms, source I/O %.0f ms, shared wait %.0f ms", seg,
+                     atomic_load(&S.stopping) ? "stopped" : "failed", now_ms() - t0, kr_source_io_ms(S.vsrc) - io0, kr_source_wait_ms(S.vsrc)-wait0);
         }
         return r;
     }
-    int idx = rend - R_AUDIO, route = track_route(idx);
+    int idx = rendition_track(rend), route = track_route(idx);
     if (route == KR_AUDIO_COPY) {
         double began=now_ms();
         if(!S.agm)log_line("audio: opening independent reader for stream=%d segment=%d",idx,seg);
@@ -613,12 +619,14 @@ static int produce_unit(int rend, int seg,int ahead, gm_buf *out, char *err, int
         log_line("audio: copy stream=%d segment=%d reader_open_ms=%.0f independent=%d",idx,seg,now_ms()-began,g!=NULL);
         kr_source *source=g?S.asrc:S.src;double io=kr_source_io_ms(source),read=now_ms();
         if (g) {
+            gm_stream_adopt_plan(g,rend_plan(rend));
             r=gm_stream_track_unit(g,idx,seg,out,&split,err,errlen);
             double seek_ms=0,scan_ms=0;long packets=0;gm_stream_last_timings(g,&seek_ms,&scan_ms,&packets);
             log_line("audio: copy segment=%d read_ms=%.0f seek_ms=%.0f scan_ms=%.0f source_io_ms=%.0f packets=%ld result=%d",seg,
                      now_ms()-read,seek_ms,scan_ms,kr_source_io_ms(source)-io,packets,r);
             return r;
         }
+        if(rend>=R_CAUDIO){snprintf(err,(size_t)errlen,"independent converted audio reader unavailable");return -1;}
         pthread_mutex_lock(&S.gm_lock);  // lock order: agm_lock, then gm_lock (never the other way)
         r = gm_stream_track_unit(S.gm, idx, seg, out, &split, err, errlen);
         pthread_mutex_unlock(&S.gm_lock);
@@ -627,7 +635,7 @@ static int produce_unit(int rend, int seg,int ahead, gm_buf *out, char *err, int
     if (route == KR_AUDIO_AAC) {
         bridge *b = find_bridge(idx);
         kr_audio *a = b ? bridge_audio(b, err, errlen) : NULL;
-        return a ? kr_audio_unit(a, S.gm, seg, out, err, errlen) : -1;
+        return a ? kr_audio_unit(a, rend_plan(rend), seg, out, err, errlen) : -1;
     }
     snprintf(err, (size_t)errlen, "no such track");
     return -1;
@@ -906,7 +914,7 @@ static int near(int rend, int seg, int at) { return seg >= at && seg <= at + PF_
 
 // Queues (rend, seg) unless it is cached, queued or being made (P.lock held).
 static void push_locked(int rend, int seg) {
-    if (seg < 0 || !S.gm || seg >= gm_stream_segment_count(S.gm) || cache_has(rend, seg)) return;
+    if (seg < 0 || !S.gm || seg >= gm_stream_segment_count(rend_plan(rend)) || cache_has(rend, seg)) return;
     for (int i = 0; i < P.n; i++) if (P.q[i].rend == rend && P.q[i].seg == seg) return;
     for (int w = 0; w < PF_WORKERS; w++) if (P.busy_rend[w] == rend && P.busy_seg[w] == seg) return;
     if (P.n == PF_QUEUE) { memmove(P.q, P.q + 1, sizeof P.q[0] * (PF_QUEUE - 1)); P.n--; }  // the oldest goes
@@ -947,11 +955,11 @@ static void prefetch_after(int rend, int seg) {
     pthread_mutex_lock(&P.lock);
     if (P.started && atomic_load(&pf_on)) {
         int depth=0;double covered=0;
-        double duration=S.gm?gm_stream_segment_duration(S.gm,seg):SEG_SECONDS;
+        double duration=S.gm?gm_stream_segment_duration(rend_plan(rend),seg):SEG_SECONDS;
         double cost=atomic_load(&part_cost_ms[rend])/1000.0;
         double horizon=rend>=R_AUDIO?12:(duration>0 && cost/duration>.7?18:12);
-        while(depth<PF_DEPTH(rend) && covered<horizon){depth++;covered+=S.gm?gm_stream_segment_duration(S.gm,seg+depth):SEG_SECONDS;if(covered<=0)break;}
-        if(S.gm && gm_stream_segment_duration(S.gm,seg)>SEG_SECONDS*2)depth=1;
+        while(depth<PF_DEPTH(rend) && covered<horizon){depth++;covered+=S.gm?gm_stream_segment_duration(rend_plan(rend),seg+depth):SEG_SECONDS;if(covered<=0)break;}
+        if(S.gm && gm_stream_segment_duration(rend_plan(rend),seg)>SEG_SECONDS*2)depth=1;
         for (int k = 1; k <= depth; k++) push_locked(rend, seg + k);
         pthread_cond_broadcast(&P.cond);
     }
@@ -1026,7 +1034,7 @@ static void prefetch_stop(void) {
 // A media segment (seg >= 0) or init (seg -1) for a request: the cache, else made now (waiting for the lane: a
 // background job making the same segment finishes first and the request takes its result).
 static int get_part(int rend, int seg, gm_buf *out, char *err, int errlen) {
-    if (seg < -1 || seg >= gm_stream_segment_count(S.gm)) { snprintf(err, (size_t)errlen, "bad segment index"); return -1; }
+    if (seg < -1 || seg >= gm_stream_segment_count(rend_plan(rend))) { snprintf(err, (size_t)errlen, "bad segment index"); return -1; }
     if(seg>=0)prefetch_focus(rend,seg);
     if (cache_take(rend, seg, out)) return 0;
     pthread_mutex_t *l = lane(rend);
@@ -1175,6 +1183,8 @@ static void serve(int fd, const char *method, const char *path, const char *rang
     // r8: the converted picture for a third-party receiver while others get the copy (same grid: the same plan).
     int third = S.compat_ok && kr_remux_third_party_receiver(agent);
     int cvideo = !strncmp(path, "/cvideo/", 8);
+    int caudio = !strncmp(path,"/caudio/",8);
+    if(caudio && !S.cplan){fail(fd,404,"Not Found");return;}
     if (cvideo && !S.compat && !S.compat_ok) { fail(fd, 404, "Not Found"); return; }
     if (!strcmp(path, "/master.m3u8")) {
         const char *m = third ? S.master_compat : S.master_copy;
@@ -1188,11 +1198,11 @@ static void serve(int fd, const char *method, const char *path, const char *rang
         if (third || S.compat) prefetch_push(R_VCOMPAT, 0);
     } else if (!strcmp(path, "/video/index.m3u8") || !strcmp(path, "/cvideo/index.m3u8")) {
         char prefix[96]; snprintf(prefix, sizeof prefix, "%s/%s", S.base, cvideo ? "cvideo" : "video");
-        text = kr_hls_media(S.gm, prefix, "m4s", 1);  // the plan only (fixed after open): no lock
-    } else if (ends_with(path, "/index.m3u8") && (sscanf(path, "/audio/%d/", &idx) == 1 || sscanf(path, "/subs/%d/", &idx) == 1)) {
+        text = kr_hls_media(cvideo?rend_plan(R_VCOMPAT):S.gm, prefix, "m4s", 1);  // the plan only (fixed after open): no lock
+    } else if (ends_with(path, "/index.m3u8") && (sscanf(path, "/audio/%d/", &idx) == 1 || sscanf(path,"/caudio/%d/",&idx)==1 || sscanf(path, "/subs/%d/", &idx) == 1)) {
         int subs = path[1] == 's';
-        char prefix[96]; snprintf(prefix, sizeof prefix, "%s/%s/%d", S.base, subs ? "subs" : "audio", idx);
-        text = kr_hls_media(S.gm, prefix, subs ? "vtt" : "m4s", !subs);
+        char prefix[96]; snprintf(prefix, sizeof prefix, "%s/%s/%d", S.base, subs ? "subs" : caudio ? "caudio" : "audio", idx);
+        text = kr_hls_media(caudio?S.cplan:S.gm, prefix, subs ? "vtt" : "m4s", !subs);
     }
     if (text) { respond(fd, head, NULL, m3u8, (uint8_t *)text, strlen(text)); free(text); return; }
 
@@ -1215,16 +1225,16 @@ static void serve(int fd, const char *method, const char *path, const char *rang
         static const char retry[]="HTTP/1.1 503 Service Unavailable\r\nRetry-After: 1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
         t_status=503;snprintf(t_err,sizeof t_err,"Subtitle worker pending or retrying");
         send_all(fd,retry,sizeof retry-1);return;
-    } else if (sscanf(path, "/audio/%d/", &idx) == 1) {
+    } else if (sscanf(path, "/audio/%d/", &idx) == 1 || sscanf(path,"/caudio/%d/",&idx)==1) {
         int init = strstr(path, "/init.mp4") != NULL;
-        if (!init && sscanf(path, "/audio/%*d/seg%d.m4s", &seg) != 1) { fail(fd, 404, "Not Found"); return; }
+        if (!init && sscanf(path, caudio?"/caudio/%*d/seg%d.m4s":"/audio/%*d/seg%d.m4s", &seg) != 1) { fail(fd, 404, "Not Found"); return; }
         if (!track_route(idx)) { fail(fd, 404, "Not Found"); return; }
-        rend = R_AUDIO + idx;
+        rend = (caudio?R_CAUDIO:R_AUDIO) + idx;
         r = get_part(rend, init ? -1 : seg, &buf, err, sizeof err);
     } else { fail(fd, 404, "Not Found"); return; }
 
     if (r == 0) {
-        respond_body(fd,head,range,"video/mp4",buf.data,(size_t)buf.len,seg>=0,path[1]!='a',agent);
+        respond_body(fd,head,range,"video/mp4",buf.data,(size_t)buf.len,seg>=0,vpart!=NULL,agent);
         if (rend >= 0 && !head) prefetch_after(rend, seg < 0 ? 0 : seg);
     }
     else {
@@ -1334,7 +1344,7 @@ static void *connection(void *arg) {
         const char *part=ok?path+1+tl:"";
         int media=strstr(part,".m4s")!=NULL || (!strcmp(part,"/prepared.mp4") && t_bytes>65536);
         if(tv && !strcmp(method,"GET") && media && t_status>0 && t_bytes>0) {
-            media_sent(strncmp(part,"/audio/",7)!=0);
+            media_sent(strncmp(part,"/audio/",7)!=0 && strncmp(part,"/caudio/",8)!=0);
         }
         // "GET /video/seg3.m4s 200 1834567 B 412 ms"
         log_line("%s %s%s%s %d %zu B %.0f ms%s%s", method, ok ? path + 1 + tl : "(no token)", *range ? " " : "", range,
@@ -1430,6 +1440,7 @@ static void teardown_locked(void) {
     S.sgm_failed = 0;
     pthread_mutex_unlock(&S.sgm_lock);
     pthread_mutex_lock(&S.gm_lock);
+    gm_stream_close(S.cplan);S.cplan=NULL;
     if (S.gm) { gm_stream_close(S.gm); S.gm = NULL; }
     kr_source *source=S.src;publish_source(&S.src,NULL);kr_source_close(source);
     pthread_mutex_unlock(&S.gm_lock);
@@ -1840,10 +1851,26 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         set_message("AirPlay: could not start the local streaming server."); goto done;
     }
     if (out && outlen > 0) snprintf(out, (size_t)outlen, "%s/master.m3u8", S.base);
+    // Re-encoding creates its own IDR frames. Sparse storage/GOP boundaries must
+    // never make it encode 30-70 seconds before delivering the first picture.
+    // Audio has distinct URLs/cache keys on exactly this grid; copied clients keep
+    // their original keyframe boundaries, packets, resolution and track choices.
+    if(S.compat_ok) {
+        double longest=0;
+        for(int i=0;i<gm_stream_segment_count(S.gm);i++) {
+            double d=gm_stream_segment_duration(S.gm,i);if(d>longest)longest=d;
+        }
+        if(longest>10) {
+            S.cplan=gm_stream_uniform_timeline(S.gm);
+            if(!S.cplan){set_message("AirPlay: cannot allocate converted timeline.");goto done;}
+            log_line("compat: copy windows up to %.1f s; converted video/audio use %d six-second windows",longest,gm_stream_segment_count(S.cplan));
+        }
+    }
     // r8: the playlists are fixed for the session: made once here, served without touching the demuxer.
     S.master_copy = kr_hls_master_receiver(S.gm,S.base,S.compat,"video",S.burn_index,S.roku_safe);
-    if (S.compat_ok) S.master_compat = kr_hls_master_selected(S.gm,S.base,1,"cvideo",S.burn_index);
+    if (S.compat_ok) S.master_compat = kr_hls_master_paths(rend_plan(R_VCOMPAT),S.base,1,"cvideo",S.burn_index,0,S.cplan?"caudio":"audio");
     if (!S.master_copy || (S.compat_ok && !S.master_compat)) { set_message("AirPlay: out of memory."); goto done; }
+    if(S.cplan)strip_subtitles(S.master_compat);  // selected captions burn into the converted picture
     if (S.burn_index >= 0 || S.burn_file[0]) {  // r11: burned in: no WebVTT rendition for the converted picture
         strip_subtitles(S.master_compat);
         if (S.compat) strip_subtitles(S.master_copy);

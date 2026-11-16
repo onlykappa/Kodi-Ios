@@ -120,6 +120,9 @@ char *kr_hls_master_selected(gm_stream *s,const char *base,int compat,const char
     return kr_hls_master_receiver(s,base,compat,video_dir,subtitle,0);
 }
 char *kr_hls_master_receiver(gm_stream *s,const char *base,int compat,const char *video_dir,int subtitle,int stereo) {
+    return kr_hls_master_paths(s,base,compat,video_dir,subtitle,stereo,"audio");
+}
+char *kr_hls_master_paths(gm_stream *s,const char *base,int compat,const char *video_dir,int subtitle,int stereo,const char *audio_dir) {
     sb b = {0};
     sb_add(&b, "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n");
     int n = gm_stream_track_count(s), sel = gm_stream_selected_audio(s), nau = 0, nsub = 0, deflt = -1;
@@ -142,7 +145,7 @@ char *kr_hls_master_receiver(gm_stream *s,const char *base,int compat,const char
         sb_add(&b, "#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud\",NAME=\"%s\"", name);
         if (*kr_language(t.language)) sb_add(&b, ",LANGUAGE=\"%s\"", kr_language(t.language));
         // CHANNELS left out on purpose (GMPlayer: container counts can disagree with the stream; AVPlayer rejects).
-        sb_add(&b, ",DEFAULT=%s,AUTOSELECT=YES,URI=\"%s/audio/%d/index.m3u8\"\n", t.src_index == deflt ? "YES" : "NO", base, t.src_index);
+        sb_add(&b, ",DEFAULT=%s,AUTOSELECT=YES,URI=\"%s/%s/%d/index.m3u8\"\n", t.src_index == deflt ? "YES" : "NO", base, audio_dir, t.src_index);
     }
     for (int i = 0; i < n && nsub < 64; i++) {
         if (gm_stream_track_info(s, i, &t) != 0 || t.kind != GM_TRACK_SUBTITLE || !t.is_text_sub) continue;

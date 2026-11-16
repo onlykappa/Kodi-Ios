@@ -30,4 +30,5 @@ char *kr_hls_media(gm_stream *s, const char *prefix, const char *seg_ext, int wi
 void kr_hls_set_start(double seconds);
 // "avc1.640028" / "hvc1.2.4.L150.90" for the selected video (from the stream's profile and level).
 void kr_hls_video_codec(gm_stream *s, char *out, int len);
+char *kr_hls_master_paths(gm_stream *s,const char *base,int compat,const char *video_dir,int subtitle,int stereo,const char *audio_dir);
 #endif

@@ -5064,3 +5064,25 @@ checks before reuse. Added blocked-validation/changed-identity/bounded-admission
 25 index + 25 proxy + 9 timing tests and check_project pass. Five-run loopback medians with
 200 ms metadata: cold 0.4098 → 0.2021 s, warm 0.00108 / 0.00137 s. This is a fixture,
 not iPhone evidence. Full findings and device gaps: DRIVE-STARTUP-AIRPLAY-PROGRESS.md.
+
+## AirPlay audio without completed TV video — source fix (2026-11-16, build 554)
+
+Receiver fetched audio and converted init, retried converted segment 0, and received zero video
+bytes before AVPlayer failure at 32.5 s. Phone-only copied video must not count as TV picture.
+After MP4 sample-scan failure, the storage-index plan (up to 70.3 s) also drove conversion,
+making a first converted segment much too long. The failure card blamed Drive using I/O from
+a different copied-video read-ahead; zero converted-cursor I/O does not rule out shared-cache
+waits. Exact scan-failure cause and encoder-versus-shared-wait split remain unproven.
+
+Fix: separate six-second converted timeline plus matching audio routes/cache keys; preserve
+copy keyframe windows, packet quality and selected subtitles. Diagnose converted failures
+only with that lane's measurements; add shared-cache wait metric. Same host fixture fails on
+old source (32-s conversion window) and passes fixed (6-s windows, all 768 frames, A/V bounds,
+caption drawing, exact copied packet digest, seek/cancel/recovery). 375 related native checks
+and 265 Python tests pass. Device success remains pending; no native pin/release/IPA change.
+
+Retained validation failures: main service SyntaxError required PR #42's existing prerequisite;
+native string-wiring assertions needed audio-route updates; initial continuity assertion
+misinterpreted the first packet edit-list anchor (all later pairs and boundaries now checked);
+standard rig setup lacks sudo; first desktop harness used an unsupported JSON-RPC option.
+Detailed evidence/remaining checks: DRIVE-STARTUP-AIRPLAY-PROGRESS.md.
