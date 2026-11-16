@@ -429,6 +429,35 @@ def _launch(route, *args):
     xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,%s)' % ','.join((route,) + args))
 
 
+OWN_ID = 'service.kodi.ios.bootstrap'
+
+
+class named_addon:
+    """While active, a no-id call to the add-on constructor in the Kodi add-on module names this add-on instead of raising (scripts run through default.py's
+    runpy, where Kodi cannot tell which add-on is meant: ISSUE-365; the same as the Library status failure of build 159). JetExtractors asks for "the current add-on" this way
+    and is otherwise not touched; this only says who we are. Restored on exit."""
+
+    def __init__(self, module=None, own=OWN_ID):
+        self.module, self.own, self.original = module, own, None
+
+    def __enter__(self):
+        if self.module is None:
+            import xbmcaddon
+            self.module = xbmcaddon
+        self.original = self.module.Addon
+        original, own = self.original, self.own
+
+        def Addon(*args, **kwargs):
+            if not args and not kwargs.get('id'):
+                return original(own)
+            return original(*args, **kwargs)
+        self.module.Addon = Addon
+        return self
+
+    def __exit__(self, *exc):
+        self.module.Addon = self.original
+
+
 def run_script(args, window=None):
     """The main thread of `sports_jet_run`: collect games (no args) or play the source in PLAY ('play'). JetExtractors needs a normal script thread."""
     import xbmcgui
@@ -437,7 +466,8 @@ def run_script(args, window=None):
         try:
             source = json.loads(home.getProperty(PLAY) or '{}')
             home.clearProperty(PLAY)
-            play(source)
+            with named_addon():
+                play(source)
         except Exception as error:
             log('jet: play failed (%s: %s)' % (type(error).__name__, str(error)[:90]))
             try:
@@ -446,8 +476,9 @@ def run_script(args, window=None):
                 pass
         return
     provider = JetProvider(publish=lambda data: home.setProperty(DATA, json.dumps(data, separators=(',', ':'))))
-    done = provider._start()
-    done.wait(EXTRACTOR_SECONDS)
+    with named_addon():
+        done = provider._start()
+        done.wait(EXTRACTOR_SECONDS)
     provider._publish(True)   # also when no scraper could start: the page then gets `reason`
     home.clearProperty(RUN)
 

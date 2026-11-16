@@ -5608,11 +5608,12 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
 - **Fix:** `sports_jet.add_module_paths` adds the module folder of JetExtractors and of every add-on it requires, recursively, from their addon.xml files; a missing one is skipped.
 - **Test:** `test_sports_jet.ModulePaths`.
 
-## ISSUE-365 — Sports: JetExtractors refused with "No valid addon id could be obtained" (owner build 554 log a01ae2c6)
+## ISSUE-365 — Sports: JetExtractors failed with "No valid addon id could be obtained" (owner build 554 log a01ae2c6)
 
 - **Seen:** with the modules importable (ISSUE-364) every page still said "Can't load sports right now"; log: `jet: no scrapers (JetExtractors refused or failed (RuntimeError: No valid addon id could be obtained...))`.
-- **Cause:** JetExtractors calls `xbmcaddon.Addon()` with no id; Kodi allows that only on the main thread of a script it started, not on a page's worker thread (JetExtractors' own tools.py warns of this).
-- **Fix:** a short-lived script `sports_jet_run` (main thread) calls `get_extractors()` and runs the scrapers, publishing the records to a Home window property after each scraper; the page only starts the script and reads the property
-  (partial answers after 6 s, the rest as they come, 2 min reuse). Playing a source also goes through the script (`sports_jet_run play`). Nothing in JetExtractors is bypassed: if it still refuses on a normal script thread, the
-  next step is a prompt for The Loop's side, with the exact error.
-- **Test:** `test_sports_jet.Remote` (script publishes, page reads, script started once, reason shown when Jet cannot start, tap leaves the source and starts the play script).
+- **Cause:** JetExtractors asks Kodi for "the current add-on" with a bare `xbmcaddon.Addon()`. Our scripts run through `default.py`'s `runpy`, where Kodi cannot tell which add-on that is (the same cause as the Library status failure in the build 159 log, test_library_status.EveryScriptNamesItsAddon),
+  so it raises. (A first guess, that only a page's worker thread was the problem, was wrong; a separate script alone does not fix it.)
+- **Fix:** Jet's work runs in its own script `sports_jet_run` (a page's thread is not used, and the page only reads the answer from a Home window property: partial answers after 6 s, the rest as they come, 2 min reuse; playing
+  a source goes the same way), and while that script runs `sports_jet.named_addon` makes a bare `Addon()` mean this add-on (`service.kodi.ios.bootstrap`). JetExtractors is not changed and its own checks stay; this only says who we are.
+  If it still refuses, the next step is a prompt for The Loop's side with the exact error.
+- **Test:** `test_sports_jet.Remote` and `NamedAddon`.

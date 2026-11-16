@@ -190,7 +190,7 @@ class Remote(unittest.TestCase):
     def test_script_says_why_when_jet_cannot_start(self):
         win = Window()
         from unittest.mock import patch
-        with patch.object(sj, 'import_jet', return_value=(None, 'No module named x')), patch.dict(sys.modules, {'xbmcgui': NS(Window=lambda i: win)}):
+        with patch.object(sj, 'import_jet', return_value=(None, 'No module named x')), patch.dict(sys.modules, {'xbmcgui': NS(Window=lambda i: win), 'xbmcaddon': NS(Addon=lambda *a, **k: None)}):
             sj.run_script([], window=win)
         data = json.loads(win.getProperty(sj.DATA))
         self.assertTrue(data['done'])
@@ -206,6 +206,23 @@ class Remote(unittest.TestCase):
                         launch=lambda *a: launched.append(a))
         self.assertEqual(json.loads(win.getProperty(sj.PLAY))['play'], '{"e":"A"}')
         self.assertEqual(launched, [('sports_jet_run', 'play')])
+
+
+class NamedAddon(unittest.TestCase):
+    def test_bare_addon_names_us_while_active_and_is_restored(self):   # ISSUE-365
+        class Strict:
+            def __init__(self, id=None):
+                if not id:
+                    raise RuntimeError('No valid addon id could be obtained')
+                self.id = id
+        module = NS(Addon=Strict)
+        with self.assertRaises(RuntimeError):
+            module.Addon()
+        with sj.named_addon(module):
+            self.assertEqual(module.Addon().id, 'service.kodi.ios.bootstrap')
+            self.assertEqual(module.Addon('script.module.x').id, 'script.module.x')
+            self.assertEqual(module.Addon(id='y').id, 'y')
+        self.assertIs(module.Addon, Strict)
 
 
 if __name__ == '__main__':
