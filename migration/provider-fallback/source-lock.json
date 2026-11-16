@@ -309,157 +309,12 @@
       "remove_services": true
     },
     {
-      "id": "plugin.video.the-loop",
-      "repo": "loopaddon.uk/zips19",
-      "url": "https://loopaddon.uk/zips19/plugin.video.the-loop/plugin.video.the-loop-8.4.zip",
-      "sha256": "01288f0b06358797eeaffa843324e90872cbab83819abc49dcc248979bde5bb1",
-      "version": "8.4",
-      "license": "GPL-2.0-or-later",
-      "install": "app",
-      "remove_services": true,
-      "profile_copy": true,
-      "remove_requires": [
-        "plugin.video.dailymotion_com"
-      ]
-    },
-    {
-      "id": "plugin.video.loopguide",
-      "repo": "loopaddon.uk/zips19",
-      "url": "https://loopaddon.uk/zips19/plugin.video.loopguide/plugin.video.loopguide-3.8.4.zip",
-      "sha256": "626d5936cc9e6a21c79867d44a1b9d681d96fafa358cf5f22a3250627229ba12",
-      "version": "3.8.4",
+      "id": "repository.loop",
+      "repo": "loopaddon.uk/theloop",
+      "url": "https://loopaddon.uk/theloop/repository.loop-3.0.4.zip",
+      "sha256": "9d0addce2bf96831b3d77b85c38f6efda40eddc648b1277b89bf3bdbf20d0431",
+      "version": "3.0.4",
       "license": "see package",
-      "install": "app",
-      "remove_services": true,
-      "profile_copy": true
-    },
-    {
-      "id": "plugin.video.looptv",
-      "repo": "loopaddon.uk/zips19",
-      "url": "https://loopaddon.uk/zips19/plugin.video.looptv/plugin.video.looptv-26+matrix.2.zip",
-      "sha256": "d7a00cd9c16d36595ec69887146c1ce33eba3f814da57339d2d1167ea67b1fee",
-      "version": "26+matrix.2",
-      "license": "see package",
-      "install": "app",
-      "remove_services": true,
-      "profile_copy": true,
-      "remove_requires": [
-        "script.module.pycryptodome"
-      ]
-    },
-    {
-      "id": "script.module.jetextractors",
-      "repo": "loopaddon.uk/zips19",
-      "url": "https://loopaddon.uk/zips19/script.module.jetextractors/script.module.jetextractors-3.3.33.zip",
-      "sha256": "eb1c75164a2f4522ffe0030a1c048456a7eac8b06dc64cc9767364934c725ef5",
-      "version": "3.3.33",
-      "license": "see package",
-      "install": "app",
-      "remove_services": false,
-      "remove_requires": [
-        "script.module.pycryptodome"
-      ]
-    },
-    {
-      "id": "script.module.microjenscrapers",
-      "repo": "loopaddon.uk/zips19",
-      "url": "https://loopaddon.uk/zips19/script.module.microjenscrapers/script.module.microjenscrapers-1.2c.zip",
-      "sha256": "d8e7cdd78f54c339a304426d3f4bcf0650cf17c654e553b8a380a97e60ac5772",
-      "version": "1.2c",
-      "license": "see package",
-      "install": "app",
-      "remove_services": false
-    },
-    {
-      "id": "script.module.pyjsparser",
-      "repo": "loopaddon.uk/zips19",
-      "url": "https://loopaddon.uk/zips19/script.module.pyjsparser/script.module.pyjsparser-3.0.0.zip",
-      "sha256": "3d1643e63938a90527f6addf0f465914fbcc711d7dddaccffc10cf9c9efe7989",
-      "version": "3.0.0",
-      "license": "see package",
-      "install": "app",
-      "remove_services": false
-    },
-    {
-      "id": "script.module.go",
-      "repo": "loopaddon.uk/zips19",
-      "url": "https://loopaddon.uk/zips19/script.module.go/script.module.go-1.0.5.zip",
-      "sha256": "9a4ce96e52d3c8d5b5f66b78344910687f38062d342200d2266f2bc3caa2b513",
-      "version": "1.0.5",
-      "license": "see package",
-      "install": "app",
-      "remove_services": false
-    },
-    {
-      "id": "script.module.pytz",
-      "repo": "loopaddon.uk/zips19",
-      "url": "https://loopaddon.uk/zips19/script.module.pytz/script.module.pytz-2023.3.0+matrix.1.zip",
-      "sha256": "ac770594355682d2b9c7c9d5a9ad468e14f7fd08ba05ea6ecfaea5333495babe",
-      "version": "2023.3.0+matrix.1",
-      "license": "MIT",
-      "install": "app",
-      "remove_services": false
-    },
-    {
-      "id": "script.module.tzlocal",
-      "repo": "xbmc/official-omega",
-      "url": "https://mirrors.kodi.tv/addons/omega/script.module.tzlocal/script.module.tzlocal-5.0.1.zip",
-      "sha256": "8e1e660ba10b629bff21cb125ede8deb2b604442e67741d37f3a6f306a49a668",
-      "version": "5.0.1",
-      "license": "MIT",
-      "install": "app",
-      "remove_services": false,
-      "remove_requires": [
-        "script.module.backports.zoneinfo"
-      ]
-    },
-    {
-      "id": "script.module.tzdata",
-      "repo": "xbmc/official-omega",
-      "url": "https://mirrors.kodi.tv/addons/omega/script.module.tzdata/script.module.tzdata-2023.3.0+matrix.1.zip",
-      "sha256": "d7e744b11598a1403768debafbfcfc4ad6248f9027573517a42fd810f19ecd13",
-      "version": "2023.3.0+matrix.1",
-      "license": "Apache-2.0",
-      "install": "app",
-      "remove_services": false
-    },
-    {
-      "id": "script.module.pyamf",
-      "repo": "xbmc/official-omega",
-      "url": "https://mirrors.kodi.tv/addons/omega/script.module.pyamf/script.module.pyamf-0.8.10+matrix.4.zip",
-      "sha256": "1eb3a6d50d0c7e2a81432c304d9e105343a66e13aaca5bacadd7b9b7e41a3b94",
-      "version": "0.8.10+matrix.4",
-      "license": "MIT",
-      "install": "app",
-      "remove_services": false
-    },
-    {
-      "id": "script.module.defusedxml",
-      "repo": "xbmc/official-omega",
-      "url": "https://mirrors.kodi.tv/addons/omega/script.module.defusedxml/script.module.defusedxml-0.6.0+matrix.1.zip",
-      "sha256": "11ca2fcf2791d5192ee7e529e3015952c12b5527637c0501da8f4ad63de522cc",
-      "version": "0.6.0+matrix.1",
-      "license": "PSF-2.0",
-      "install": "app",
-      "remove_services": false
-    },
-    {
-      "id": "script.module.dateutil",
-      "repo": "xbmc/official-omega",
-      "url": "https://mirrors.kodi.tv/addons/omega/script.module.dateutil/script.module.dateutil-2.8.2.zip",
-      "sha256": "4f264a82986bcdd6880a73a894b263a7750e3e4f2b27a0f511bf82347ac5b2db",
-      "version": "2.8.2",
-      "license": "Apache-2.0/BSD-3-Clause",
-      "install": "app",
-      "remove_services": false
-    },
-    {
-      "id": "script.module.future",
-      "repo": "xbmc/official-omega",
-      "url": "https://mirrors.kodi.tv/addons/omega/script.module.future/script.module.future-1.0.0+matrix.1.zip",
-      "sha256": "609ed33eec1ecef8b301e81909f6a089ce8ec017c9c08b711ca6603185fbc81f",
-      "version": "1.0.0+matrix.1",
-      "license": "MIT",
       "install": "app",
       "remove_services": false
     }
@@ -514,8 +369,6 @@
     }
   ],
   "sports_roots": [
-    "plugin.video.the-loop",
-    "plugin.video.loopguide",
-    "plugin.video.looptv"
+    "repository.loop"
   ]
 }

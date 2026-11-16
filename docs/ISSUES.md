@@ -5561,3 +5561,23 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
 - **Test:** `test_tv_banner` (curve, floors, expected time).
 - **AirPlay stopping when the phone locks or another app opens (owner):** the 548 log shows a 22-minute cast with the app off the screen playing on ("stays awake for AirPlay", segments served all the way), so
   the framework's silent-audio keep-alive works there. The case that quits is not in any log yet: after it happens, export the log at once.
+
+## ISSUE-357 follow-up — The Loop failed because it was unzipped in place, not installed (owner Steam Deck files + rig, 2026-11-16)
+
+- **Correction:** an earlier message claimed the desktop rig had reproduced the exact "unofficial repository" popup from the owner's phone.
+  That rig test used a hand-copied file drop outside any Kodi install process, which is not how the real IPA ships add-ons, so it did not
+  actually confirm the phone's cause. The Loop/JetExtractors files from the owner's Steam Deck matched our bundled copies byte for byte,
+  ruling out a bad package.
+- **Real cause:** the build unzipped The Loop's files straight into the add-ons folder. Kodi then has no record of where the add-on came
+  from (no repository origin), and The Loop's own code treats that as untrusted and fails ("Invalid params" in the owner's log).
+- **Fix:** only a small pointer add-on, `repository.loop` (The Loop's real repository, pinned with a checksum), is bundled now. The app's
+  background service calls Kodi's own `Addons.InstallAddon` once (no confirm box; it is the JSON-RPC method, not the `InstallAddon()`
+  builtin) to fetch `plugin.video.the-loop` properly, which brings LoopTV, Loop Guide and JetExtractors with it as declared dependencies —
+  proven in the desktop Kodi rig: the live-installed Loop listed real sport links ("Todays Football", "Todays Rugby", schedules) with no
+  popup and no crash, where the old unzip-in-place method failed. The discovery walk (`sports_loop.WALK`) is on again.
+- **JetExtractors' own protection is untouched.** It still refuses a caller it does not recognize; this fix never calls it directly — The
+  Loop calls it the way it is designed to, because The Loop is now a real, properly-installed add-on.
+- **The Crew stays held back** (`HELD_BACK`): its own walk ended the app earlier and the cause is still unknown. The per-add-on guard
+  (ISSUE-357) still protects every add-on this discovery walks, including The Loop, in case anything regresses.
+- **Test:** `test_sports_loop` (`ensure_installed`: installs once, retries bounded, no-op without the repository bundled, never raises),
+  `test_provider_addons` (`SportsLock`: only the pointer add-on is bundled, not the Loop files themselves).

@@ -19,9 +19,14 @@ PLUGINS = ('plugin.video.the-loop', 'plugin.video.loopguide', 'plugin.video.loop
 # Owner log f8d75848 (build 548): walking The Crew's sports menu ended the app (it started again 4 s later), and because the walk never finished it was
 # tried again 45 s after every start. The Crew is not walked until a cause is known (CAREFUL: add it back to PLUGINS only with the guard below).
 HELD_BACK = ('plugin.video.thecrew',)
-# Owner log c22859a4 (build 548): The Loop's walk blocked for 1352 s (22 minutes) and then failed, Loop TV's own server answers 404, Loop Guide lists five buttons and no
-# games, and The Crew ended the app. None gives data, and a walk can raise dialogs over the owner's screen, so no walk runs until a source is chosen (DEC-058).
-WALK = False
+# Owner log c22859a4 (build 548): The Loop failed ("Invalid params") when its files were unzipped straight into the add-ons folder — not a
+# real Kodi install, so it had no repository origin. Installed the proper way (repository.loop, Addons.InstallAddon: see `ensure_installed`
+# below), The Loop's own menu lists real sport links in the desktop rig (owner approved fetching as Kodi, 2026-11-16). The Crew still ended
+# the app on its own walk and stays held back until that is understood (ISSUE-357); its guard (below) still protects every add-on walked here.
+WALK = True
+REPO = 'repository.loop'
+INSTALLED = ('plugin.video.the-loop',)   # if this is in, Kodi fetched LoopTV/LoopGuide/JetExtractors as its declared dependencies too
+INSTALL_TRIES = 3
 # Where the walk starts when the add-on's front page is not sports: The Crew's sports menu ("Bluehat", owner decision 2026-11-15:
 # The Crew and The Loop are the two main sports providers).
 START = {'plugin.video.thecrew': 'plugin://plugin.video.thecrew/?action=bluehat'}
@@ -112,6 +117,29 @@ def discover(rpc, clock=time.monotonic, now=time.time, progress=None, build='', 
             except Exception:
                 pass
     return result
+
+
+def ensure_installed(xbmc, log):
+    """Ask Kodi's own installer for The Loop from its real repository (never unzip files in place: that has no origin and The Loop
+    refuses to run, ISSUE-357 follow-up). Installs once; the dependency graph (LoopTV, Loop Guide, JetExtractors) comes with it.
+    Silent: Addons.InstallAddon over JSON-RPC, not the InstallAddon() builtin (which can show a confirm box for an unresolved id)."""
+    try:
+        if not xbmc.getCondVisibility('System.HasAddon(%s)' % REPO):
+            log('install: no %s bundled; nothing to ask Kodi for' % REPO)
+            return False
+        if all(xbmc.getCondVisibility('System.HasAddon(%s)' % id) for id in INSTALLED):
+            return True
+        for attempt in range(INSTALL_TRIES):
+            answer = json.loads(xbmc.executeJSONRPC(json.dumps(
+                {'jsonrpc': '2.0', 'id': 1, 'method': 'Addons.InstallAddon', 'params': {'addonid': 'plugin.video.the-loop'}})))
+            if not answer.get('error') and all(xbmc.getCondVisibility('System.HasAddon(%s)' % id) for id in INSTALLED):
+                log('install: The Loop installed from %s (attempt %d)' % (REPO, attempt + 1))
+                return True
+            log('install: attempt %d did not finish (%s)' % (attempt + 1, answer.get('error') or 'not yet installed'))
+        return False
+    except Exception as exc:
+        log('install: skipped (%s)' % type(exc).__name__)
+        return False
 
 
 class Guard:
@@ -213,6 +241,7 @@ def discover_once(xbmc, xbmcvfs, log, now=time.time):
         for line in log_lines(part):
             log('discovery: ' + line)
     log('discovery: started')
+    ensure_installed(xbmc, log)
     guard = Guard(os.path.join(folder, GUARD), build_id())
     result = discover(kodi_rpc(xbmc), now=now, progress=each, build=build_id(), note=lambda line: log('discovery: ' + line), guard=guard)
     os.makedirs(folder, exist_ok=True)

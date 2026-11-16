@@ -162,13 +162,37 @@ class Discover(unittest.TestCase):
         self.assertEqual(walks, [])             # not asked: no walk
         self.assertIn('ASK', dir(sl))
 
-    def test_no_walk_runs_while_the_sources_are_not_chosen(self):
-        self.assertFalse(sl.WALK)
-        called = []
-        xbmc = types.SimpleNamespace(executeJSONRPC=lambda text: called.append(text) or '{}')
-        vfs = types.SimpleNamespace(translatePath=lambda path: '/nonexistent/')
-        self.assertIsNone(sl.discover_once(xbmc, vfs, lambda text: None))
-        self.assertEqual(called, [])   # not one call to an add-on
+    def test_the_walk_runs_now_that_the_loop_installs_properly(self):
+        self.assertTrue(sl.WALK)
+
+    def test_ensure_installed_asks_kodi_for_the_real_thing_not_a_bare_unzip(self):
+        # ISSUE-357 follow-up: unzipping The Loop's files gave it no repository origin and it failed ("Invalid params").
+        # Installed through Kodi's own installer, pointed at its real repository, it works (desktop rig, 2026-11-16).
+        has = {sl.REPO: True, 'plugin.video.the-loop': False}
+        calls = []
+
+        def rpc(text):
+            calls.append(json.loads(text))
+            has['plugin.video.the-loop'] = True   # Kodi's installer also pulls in LoopTV, Loop Guide, JetExtractors
+            return '{}'
+        xbmc = types.SimpleNamespace(getCondVisibility=lambda cond: has[cond.split('(')[1][:-1]], executeJSONRPC=rpc)
+        self.assertTrue(sl.ensure_installed(xbmc, lambda text: None))
+        self.assertEqual(calls[0]['method'], 'Addons.InstallAddon')
+        self.assertEqual(calls[0]['params']['addonid'], 'plugin.video.the-loop')
+        # already installed: asks nothing again
+        calls.clear()
+        self.assertTrue(sl.ensure_installed(xbmc, lambda text: None))
+        self.assertEqual(calls, [])
+
+    def test_ensure_installed_does_nothing_without_the_repository_bundled(self):
+        xbmc = types.SimpleNamespace(getCondVisibility=lambda cond: False, executeJSONRPC=lambda text: (_ for _ in ()).throw(AssertionError('should not ask')))
+        self.assertFalse(sl.ensure_installed(xbmc, lambda text: None))
+
+    def test_a_failed_install_is_tried_a_bounded_number_of_times_and_never_raises(self):
+        has = {sl.REPO: True, 'plugin.video.the-loop': False}
+        xbmc = types.SimpleNamespace(getCondVisibility=lambda cond: has[cond.split('(')[1][:-1]],
+                                     executeJSONRPC=lambda text: json.dumps({'error': {'message': 'offline'}}))
+        self.assertFalse(sl.ensure_installed(xbmc, lambda text: None))
 
     def test_the_crew_is_held_back_until_its_crash_is_understood(self):
         asked = []
