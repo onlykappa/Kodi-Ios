@@ -5502,3 +5502,15 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
   can be, else another; the Home window property follows), and the log says so.
 - **Retest:** host tests; on the phone: leave the app in the background for half an hour, then play a Library episode.
 - **Test:** `test_drive_proxy_alive` (health probe on a real server, restart on the same port, fallback port, clean stop when Kodi closes).
+
+## ISSUE-356 — Sports discovery never finished: its walk ran on a thread of the page's own script (owner logs 3633b638, 70f32729, builds 544-545)
+
+- **Seen:** with The Loop family and The Crew installed, three logs had no "Kodi iOS Sports discovery" line at all, even after the per-build fix.
+- **Cause:** the walk (a minute or more: every folder is a call to an add-on that goes to the internet) ran on a daemon thread of the Sports
+  page's RunScript process. Kodi ends that process when the page closes, so the walk died before it logged or saved anything.
+- **Fix:** the page only sets `KodiIOS.SportsDiscover`; the service (alive as long as the app) walks 45 s after start and whenever asked
+  (`sports_loop.serve`), and logs "started", "walking <add-on>" and one line per folder with its time as each answers, so a log exported at
+  any moment shows how far it got.
+- **Also (ISSUE-355 follow-up):** a Library play checks the Drive proxy first; a dead one is restarted at once and its new port read, else
+  the Drive add-on's stream plays the copy (`drive_proxy.live_port`, `supervise(nudge=...)`).
+- **Test:** `test_sports_loop` (per-folder log, the page's ask, the service loop), `test_drive_proxy_alive`.

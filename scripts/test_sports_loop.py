@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import types
+from unittest.mock import patch
 import unittest
 from pathlib import Path
 
@@ -131,6 +132,35 @@ class Discover(unittest.TestCase):
         result = sl.discover(Rpc(tree), progress=lambda plugin, part: seen.append((plugin, sorted(part['plugins']))), build='abc')
         self.assertEqual([p for p, _ in seen], list(sl.PLUGINS))
         self.assertEqual(result['build'], 'abc')
+
+    def test_each_folder_is_logged_as_it_answers_with_its_time(self):
+        lines = []
+        tree = {'plugin://x/': [folder('Live', 'plugin://x/live'), item('Hello', 'plugin://x/1')], 'plugin://x/live': [item('G1', 'plugin://x/2')]}
+        sl.walk(Rpc(tree), 'plugin://x/', note=lines.append)
+        self.assertEqual(len(lines), 2)
+        self.assertIn('2 items in', lines[0])
+        self.assertTrue(lines[1].startswith('  Live 1 items in'))
+
+    def test_the_page_only_asks_and_the_service_walks(self):
+        props = {}
+        window = types.SimpleNamespace(setProperty=lambda k, v: props.__setitem__(k, v), getProperty=lambda k: props.get(k, ''),
+                                       clearProperty=lambda k: props.pop(k, None))
+        gui = types.SimpleNamespace(Window=lambda ident: window)
+        with patch.dict(sys.modules, xbmcgui=gui):
+            sl.LoopProvider()._start()
+        self.assertEqual(props, {sl.ASK: '1'})
+        # the service: waits first, walks once, then again only when asked
+        walks, waits = [], iter([False, False, False, True])   # first_delay, then after the first walk, then after the second, then Kodi closes
+        with patch.object(sl, 'discover_once', lambda *a: walks.append(1)):
+            sl.serve(None, None, gui, lambda seconds: next(waits), lambda text: None, first_delay=1, every=1)
+        self.assertEqual(walks, [1])   # asked once at the start; ASK was cleared and not set again
+        props[sl.ASK] = '1'
+        walks.clear()
+        waits = iter([False, False, False, True])
+        with patch.object(sl, 'discover_once', lambda *a: (walks.append(1), None)[1]):
+            sl.serve(None, None, gui, lambda seconds: next(waits), lambda text: None, first_delay=1, every=1)
+        self.assertEqual(walks, [1])
+        self.assertIn('ASK', dir(sl))
 
     def test_the_crew_walk_starts_at_its_sports_menu(self):
         asked = []

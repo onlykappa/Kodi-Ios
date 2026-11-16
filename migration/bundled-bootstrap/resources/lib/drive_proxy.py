@@ -528,12 +528,16 @@ def healthy(port, timeout=1.5):
         return False
 
 
-def supervise(make, wait, publish, log, interval=4, probe=None):
+DEAD = 'KodiIOS.DriveProxyDead'   # Home window property: a play that found the proxy dead puts its port here; the service restarts it at once
+
+
+def supervise(make, wait, publish, log, interval=4, probe=None, nudge=None):
     """Keep the proxy alive. Owner log 46025e07 (build 545): after the app sat in the background, iOS closed its listening
     sockets ("Accept of new connection failed: 9") and every Library play of a Drive copy failed with "Could not connect to
     server" (port 62654) until the app was restarted. make(port) -> (server, port) starts one (port 0: any); wait(seconds) is
-    the monitor's waitForAbort (True when Kodi is closing); publish(port or None) tells the rest of the app where it is.
-    A proxy that stops answering is stopped and started again, on the same port when it can be."""
+    the monitor's waitForAbort (True when Kodi is closing); publish(port or None) tells the rest of the app where it is;
+    nudge(port) is True when a play has just found it dead. A proxy that stops answering (probed every `interval` seconds, or
+    at once when nudged) is stopped and started again, on the same port when it can be."""
     probe = probe or healthy
     port = 0
     while True:
@@ -543,11 +547,15 @@ def supervise(make, wait, publish, log, interval=4, probe=None):
             server, port = make(0)
         publish(port)
         log('Kodi iOS Drive proxy: streaming Drive copies on port %d' % port)
-        stopped = False
-        while not wait(interval):
-            if not probe(port):
-                stopped = True
-                break
+        stopped, elapsed = False, 0
+        while not wait(1):
+            elapsed += 1
+            asked = bool(nudge and nudge(port))
+            if asked or elapsed >= interval:
+                elapsed = 0
+                if asked or not probe(port):
+                    stopped = True
+                    break
         publish(None)
         try:
             server.shutdown()
@@ -557,6 +565,27 @@ def supervise(make, wait, publish, log, interval=4, probe=None):
         if not stopped:
             return
         log('Kodi iOS Drive proxy: stopped answering (iOS closes sockets in the background); starting it again')
+
+
+def live_port(read, ask_restart, sleep, tries=16, probe=None):
+    """The proxy's port for a play, checked: the published port when it answers; otherwise the restart is asked for and the
+    port is read again for up to tries/2 seconds. None when it never answers (the caller then uses the Drive add-on's stream)."""
+    probe = probe or healthy
+    port = read()
+    if not str(port).isdigit():
+        return None
+    asked = False
+    for _ in range(tries):
+        if probe(int(port), 0.5):
+            return int(port)
+        if not asked:
+            asked = True
+            ask_restart(port)
+        sleep(0.5)
+        port = read()
+        if not str(port).isdigit():
+            continue
+    return None
 
 
 def ask_warm(port, file_id, name='', timeout=0.6):

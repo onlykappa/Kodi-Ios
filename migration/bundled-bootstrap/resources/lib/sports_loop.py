@@ -42,7 +42,7 @@ def kodi_rpc(xbmc):
     return call
 
 
-def walk(rpc, root, clock=time.monotonic, depth=DEPTH, nodes=NODES, seconds=SECONDS):
+def walk(rpc, root, clock=time.monotonic, depth=DEPTH, nodes=NODES, seconds=SECONDS, note=None):
     """The menu tree of one add-on as a flat list of {'depth','path','label','folder','plot','items'}; folders are listed and
     descended (breadth first), playable items are only recorded. Stops at `nodes` entries or `seconds`. Raises nothing for a
     folder that fails: the failure is recorded on it."""
@@ -50,12 +50,18 @@ def walk(rpc, root, clock=time.monotonic, depth=DEPTH, nodes=NODES, seconds=SECO
     out, queue = [], [(root, 0, '')]
     while queue and len(out) < nodes and clock() < deadline:
         path, level, label = queue.pop(0)
+        began = clock()
         try:
             listing = rpc('Files.GetDirectory', {'directory': path, 'media': 'files', 'properties': PROPERTIES,
                                                 'limits': {'start': 0, 'end': nodes}}).get('files') or []
             error = ''
         except Exception as exc:
             listing, error = [], '%s: %s' % (type(exc).__name__, _short(exc, 100))
+        if note:   # one line per folder as it answers: a log exported while the walk runs, or after it was cut short, still shows how far it got
+            try:
+                note('%s%s %d items in %.1f s%s' % ('  ' * level, _short(label or path, 60), len(listing), clock() - began, ' | ' + error if error else ''))
+            except Exception:
+                pass
         entry = {'depth': level, 'path': _short(path), 'label': _short(label, 80), 'folder': True, 'items': len(listing), 'plot': '', 'error': error}
         out.append(entry)
         shown = 0
@@ -72,13 +78,16 @@ def walk(rpc, root, clock=time.monotonic, depth=DEPTH, nodes=NODES, seconds=SECO
     return out
 
 
-def discover(rpc, clock=time.monotonic, now=time.time, progress=None, build=''):
+def discover(rpc, clock=time.monotonic, now=time.time, progress=None, build='', note=None):
     """{'time', 'build', 'plugins': {id: {'nodes': [...]}}} for the Loop add-ons that answer; an add-on that is missing says so.
     progress(result) is called after each add-on, so an early log export already shows the ones that finished."""
     result = {'time': int(now()), 'build': build, 'plugins': {}}
     for plugin in PLUGINS:
+        if note:
+            note('walking %s' % plugin)
         try:
-            result['plugins'][plugin] = {'nodes': walk(rpc, START.get(plugin) or 'plugin://%s/' % plugin, clock=clock)}
+            result['plugins'][plugin] = {'nodes': walk(rpc, START.get(plugin) or 'plugin://%s/' % plugin, clock=clock,
+                                                       note=(lambda line, plugin=plugin: note('%s %s' % (plugin.split('.')[-1], line))) if note else None)}
         except Exception as exc:   # nothing here may stop the page
             result['plugins'][plugin] = {'nodes': [], 'error': '%s: %s' % (type(exc).__name__, _short(exc, 100))}
         if progress:
@@ -109,6 +118,7 @@ def log_lines(result):
     return lines[:LOG_LINES]
 
 
+ASK = 'KodiIOS.SportsDiscover'   # Home window property: the Sports page sets it; the service runs the walk
 RETRY = 10 * 60   # an earlier discovery that listed no add-on at all (they were not installed yet) is tried again after this
 
 
@@ -124,7 +134,11 @@ def wait_for(path, read=None, build=''):
     """EVERY when the last discovery listed at least one add-on, else RETRY: build 544's first run found the add-ons missing (build 538
     had saved an empty answer) and so skipped the walk for twelve hours, which hid the Loop add-ons that had since been installed."""
     try:
-        data = read(path) if read else json.load(open(path, encoding='utf-8'))
+        if read:
+            data = read(path)
+        else:
+            with open(path, encoding='utf-8') as f:
+                data = json.load(f)
         if build and data.get('build') != build:
             return 0   # a different build than the one that made the answer: look again once (the add-ons or the walk may have changed)
         return EVERY if any(d.get('nodes') for d in (data.get('plugins') or {}).values()) else RETRY
@@ -141,7 +155,8 @@ def discover_once(xbmc, xbmcvfs, log, now=time.time):
     def each(plugin, part):   # logged as each add-on finishes: a log exported early still has the first ones
         for line in log_lines(part):
             log('discovery: ' + line)
-    result = discover(kodi_rpc(xbmc), now=now, progress=each, build=build_id())
+    log('discovery: started')
+    result = discover(kodi_rpc(xbmc), now=now, progress=each, build=build_id(), note=lambda line: log('discovery: ' + line))
     os.makedirs(folder, exist_ok=True)
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=1)
@@ -157,18 +172,16 @@ class LoopProvider:
         self.starter = starter or self._start
 
     def _start(self):
+        """Ask the service to run the discovery. Owner log 70f32729: it used to run on a thread of the page's own script, which Kodi ends
+        when the page closes, so a walk that takes a minute or more never finished (nothing was logged). The service lives as long as the app."""
         try:
-            import xbmc
-            import xbmcvfs
+            import xbmcgui
         except ImportError:   # not inside Kodi (tests, tools): nothing to list
             return
-
-        def work():
-            try:
-                discover_once(xbmc, xbmcvfs, lambda message: xbmc.log('Kodi iOS Sports ' + message, xbmc.LOGINFO))
-            except Exception as exc:   # discovery is a helper: it must never break a page
-                xbmc.log('Kodi iOS Sports discovery: skipped (%s)' % type(exc).__name__, xbmc.LOGWARNING)
-        threading.Thread(target=work, daemon=True).start()
+        try:
+            xbmcgui.Window(10000).setProperty(ASK, '1')
+        except Exception:
+            pass
 
     def _none(self):
         if not self.started:
@@ -193,3 +206,22 @@ class LoopProvider:
 
     def game(self, gid):
         self._none()
+
+
+def serve(xbmc, xbmcvfs, xbmcgui, wait, log, first_delay=45, every=5):
+    """The service's loop: a walk first_delay seconds after startup (the Loop add-ons need the app up), then whenever the Sports page asks. discover_once itself
+    skips a walk that is not due (twelve hours after a good one, ten minutes after an empty one, and again for each new build)."""
+    window = xbmcgui.Window(10000)
+    if wait(first_delay):
+        return
+    asked = True
+    while True:
+        if asked:
+            window.clearProperty(ASK)
+            try:
+                discover_once(xbmc, xbmcvfs, log)
+            except Exception as exc:   # a walk must never stop the service
+                log('discovery: skipped (%s)' % type(exc).__name__)
+        if wait(every):
+            return
+        asked = window.getProperty(ASK) == '1'
