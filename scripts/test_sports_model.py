@@ -143,8 +143,12 @@ class Door(unittest.TestCase):
         import sports_provider as sp
         sp.reset()
         os.environ.pop('KODI_IOS_SPORTS', None)
-        with self.assertRaises(sm.SportsUnavailable):   # no real source yet: the pages say "Can't load"
-            sp.get().overview()
+        import sports_espn
+        from unittest.mock import patch
+        with patch.object(sports_espn, 'fetch_json', side_effect=OSError('offline')):   # the real provider with no answer: the pages say "Can't load"
+            with self.assertRaises(sm.SportsUnavailable):
+                sp.get().overview()
+        sp.reset()
         os.environ['KODI_IOS_SPORTS'] = 'quiet'
         try:
             self.assertEqual(sp.get().live_games(), [])

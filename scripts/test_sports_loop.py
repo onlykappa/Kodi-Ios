@@ -254,13 +254,14 @@ class Provider(unittest.TestCase):
         self.assertEqual(started, [1])
 
     def test_pages_get_it_when_nothing_is_forced(self):
+        import sports_espn
         os.environ.pop('KODI_IOS_SPORTS', None)
         sp.reset()
         try:
-            import sports_espn
-        self.assertIsInstance(sp.get(), sports_espn.EspnProvider)   # DEC-059: the real provider is the public feed
-            with self.assertRaises(sm.SportsUnavailable):   # outside Kodi the discovery does not start (no xbmc to ask)
-                sp.get().overview()
+            self.assertIsInstance(sp.get(), sports_espn.EspnProvider)   # DEC-059: the real provider is the public feed
+            with patch.object(sports_espn, 'fetch_json', side_effect=OSError('offline')):   # no network in the tests
+                with self.assertRaises(sm.SportsUnavailable):
+                    sp.get().overview()
         finally:
             sp.reset()
 

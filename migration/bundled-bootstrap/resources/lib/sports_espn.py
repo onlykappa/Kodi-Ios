@@ -168,7 +168,7 @@ class EspnProvider:
     """The contract's provider over the ESPN feed. `fetch(url)` is injectable (tests)."""
 
     def __init__(self, fetch=None, clock=time.time):
-        self.fetch, self.clock = fetch or fetch_json, clock
+        self.fetch, self.clock = fetch, clock   # None: fetch_json, looked up at each call
         self.lock = threading.Lock()
         self.snapshot = None   # {'at', 'live', 'upcoming', 'leagues', 'finished'}
 
@@ -195,7 +195,7 @@ class EspnProvider:
                     merged, seen, first_error = {'events': []}, set(), None
                     for n, url in enumerate(urls):
                         try:
-                            part = self.fetch(url)
+                            part = (self.fetch or fetch_json)(url)
                         except Exception as error:   # a later day failing keeps what the first answer gave
                             if n == 0:
                                 raise

@@ -10,5 +10,6 @@
     "sha256": "92e520a01d1b247f02b767042bab6325f8bbb22de9e9cc99e30b591cb344b6fb"
   },
   "source_commit": "staged",
-  "pin_note": "r64 staged (ISSUE-359: a subtitle cue ends where the next cue starts, so a new line replaces the old one on the TV instead of stacking above it). Digest and verified run are pinned after the build."
+  "pin_note": "r64 staged (ISSUE-359: a subtitle cue ends where the next cue starts, so a new line replaces the old one on the TV instead of stacking above it). verified_run 43784300852 is r63's host-test run until r64's is pinned; digest and the new verified run are pinned after the build.",
+  "verified_run": 43784300852
 }
