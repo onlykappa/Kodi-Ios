@@ -459,3 +459,13 @@ names in capitals are skipped, a bare "(3)" is a watch count shown as 3×, "//" 
 (TMDb Helper's API key), keeps list order as rank, and ends with a report of duplicates, questions and names not found;
 sort by list order, year, name, list or date added; a movie stopped part-way offers Continue Watching. Alerts do not depend on
 the Library automatic-download setting. No IPA, release or merge; device behaviour is pending the owner's phone.
+
+## DEC-059: Subtitles menu is a full-height right drawer; hold a track to find another or remove it (2026-11-16)
+
+- **Owner:** liked option C of `docs/design/subtitles-menu-mockups.html`, then asked for: "if I hold down a subtitle like English or Spanish I can
+  remove/delete it or find new ones if the one found is bad". Mockup: `docs/design/subtitles-manage-mockups.html` (owner: "BEAUTIFUL").
+- **Design:** the drawer shows Download and apply, "On this video" with up to five tracks (the list scrolls), and one row "Timing and more" (Timing,
+  Find another, Add from a file, Remove, Use for all videos, keys). Holding a track opens Find another <language> and, for a subtitle this menu downloaded or
+  added from a file, Remove from this video (asks first). A track inside the video file cannot be removed. The same actions are on the More page.
+- **Remove** hides the track in the menu, turns it off if it was on, and deletes the file the menu downloaded; the player keeps its own copy of the track
+  list until the video ends. Audio and Playback speed keep their dropdown.

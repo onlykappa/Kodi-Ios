@@ -1,5 +1,13 @@
 # Persistent progress
 
+## Subtitles drawer + hold menu coded, not pushed — 2026-11-16
+
+Branch `claude/subtitles-drawer` (local only, owner asked not to push yet). `pages.track_menu` draws the subtitles drawer (own list 9312, Timing 9405/9406,
+hold menu 9601/9602, removal question 9611/9612); `tracks.py` runs Find another (searches the held track's language) and Remove; `track_menu.py` has the
+rows and wording. Tests: `test_subtitle_hold.py` (15, real controller on a fake Kodi), `test_track_menu.py`. Rendered in the desktop Kodi rig at 2340x1080
+(tracks, hold, remove question, More, results): evidence class desktop Kodi rig, not device. The rig has no player, so the flows were not run against real
+playback. Release names in results are shortened to fit two lines (DEC-050).
+
 ## PR #32 — movie/TV fallback providers — ready for draft review
 
 Existing provider stays first; Jacktook, POV/Magneto, mapped Otaku, The Crew and Prism supply backups through the existing picker. 431 Python3.11 tests and17/17 realKodi desktop fixture scenarios pass. See [implementation](PROVIDER-FALLBACK.md), [progress](PROVIDER-FALLBACK-PROGRESS.md) and reports/provider-fallback-validation.json. Live accounts/iPhone/AirPlay remain unverified; noIPA or merge.

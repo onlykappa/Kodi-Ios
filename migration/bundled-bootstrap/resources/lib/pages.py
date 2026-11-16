@@ -438,6 +438,9 @@ def play_on_tv():
 
 TRACK_MENU='IOSTrackMenu.xml'
 TRACK_ROWS=3   # rows shown before the list scrolls
+# Subtitles is a full-height drawer (owner, 2026-11-16, option C): up to five rows, its own list and controls.
+SUBS_LIST=9312;SUBS_ROWS=5;T_MINUS_S=9405;T_PLUS_S=9406
+HOLD_FIND=9601;HOLD_REMOVE=9602;HOLD_SCRIM=9690;SURE_SCRIM=9691;SURE_CANCEL=9611;SURE_REMOVE=9612
 # Board 02: Playback speed shows every speed Kodi plays (0.8x-1.5x) in its own list, so none scrolls away.
 SPEED_LIST=9311;SPEED_ROWS=6
 def track_menu():
@@ -471,12 +474,14 @@ def track_menu():
   return (disc(x,minus,'minus')+lab(x+106,y,150,row,P(value),'font_main','FFFFFFFF','center')+disc(x+256,plus,'plus'))
  def card(y,rows,body):
   return img(pad,y,w-2*pad,rows*row,MEDIA+'round_s.png','47000000',border='26')+body
+ WRAP='<wrapmultiline>true</wrapmultiline>'   # a long release name takes a second line, it is never cut off (DEC-050)
  item=lambda focused:(
   (img(0,0,w-2*pad,row,MEDIA+'round_s.png','1AFFFFFF',border='26') if focused else '')+
   img(100,row-2,w-2*pad-100,2,MEDIA+'white.png','1FEBEBF5','<visible>!String.IsEmpty(ListItem.Property(sep))</visible>')+
   img(28,(row-52)//2,52,52,ICONS+'check.png','FF4FA8FF','<visible>!String.IsEmpty(ListItem.Property(on))</visible>')+
-  lab(100,0,w-2*pad-330,row,'$INFO[ListItem.Label]','font_main_bold','FFFFFFFF','left','<visible>!String.IsEmpty(ListItem.Property(on))</visible>')+
-  lab(100,0,w-2*pad-330,row,'$INFO[ListItem.Label]','font_main','FFFFFFFF','left','<visible>String.IsEmpty(ListItem.Property(on))</visible>')+
+  lab(100,0,w-2*pad-330,row,'$INFO[ListItem.Label]','font_main_bold','FFFFFFFF','left','<visible>!String.IsEmpty(ListItem.Property(on))</visible>'+WRAP)+
+  lab(100,0,w-2*pad-330,row,'$INFO[ListItem.Label]','font_main','FFFFFFFF','left','<visible>String.IsEmpty(ListItem.Property(on)) + String.IsEmpty(ListItem.Property(danger))</visible>'+WRAP)+
+  lab(100,0,w-2*pad-330,row,'$INFO[ListItem.Label]','font_main','FFFF453A','left','<visible>!String.IsEmpty(ListItem.Property(danger))</visible>'+WRAP)+
   lab(w-2*pad-226,0,200,row,'$INFO[ListItem.Property(tag)]','font_mini','99EBEBF5','right','<visible>String.IsEmpty(ListItem.Property(new))</visible>')+
   lab(w-2*pad-226,0,200,row,'$INFO[ListItem.Property(tag)]','font_mini','FF30D158','right','<visible>!String.IsEmpty(ListItem.Property(new))</visible>'))
  def tracks(y,up,down,id=9310,rows=TRACK_ROWS,cond=''):
@@ -499,7 +504,7 @@ def track_menu():
   lab(cpad+40,y_cta,w-2*cpad-40,cta_h,P('cta'),'font_main_bold','FFFFFFFF','center','<visible>%s</visible>'%isp('cta_state','busy'))+
   lab(cpad,y_cta,w-2*cpad,cta_h,P('cta'),'font_main_bold','FF30D158','center','<visible>%s</visible>'%isp('cta_state','done'))+
   '<control type="button" id="9510"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus /><texturenofocus />'
-  '<onup>9500</onup><ondown>9310</ondown></control>'%(cpad,y_cta,w-2*cpad,cta_h)+
+  '<onup>9500</onup><ondown>%d</ondown></control>'%(cpad,y_cta,w-2*cpad,cta_h,SUBS_LIST)+
   lab(pad,y_hint,w-2*pad,42,P('hint'),'font_mini','99EBEBF5','center')+
   '</control>')
  # Shared by both modes, drawn once (one set of ids): the tracks and Timing. Audio has no Download and apply, so
@@ -507,29 +512,78 @@ def track_menu():
  lift=y_list-head;h_audio=y_time-lift+2*row+pad
  audio=('<control type="group"><left>0</left><top>0</top><width>%d</width>'%w+
   '<animation effect="slide" start="0,0" end="0,-%d" time="0" condition="!%s | %s">Conditional</animation>'%(lift,subs,sub)+
-  tracks(y_list,9510,9401,cond='!'+speed)+tracks(y_list,9500,9500,SPEED_LIST,SPEED_ROWS,speed)+
+  tracks(y_list,9510,9401,cond='!%s + !%s'%(speed,subs))+tracks(y_list,9500,9500,SPEED_LIST,SPEED_ROWS,speed)+
   '<control type="group"><left>0</left><top>0</top><width>%d</width>'%w+
   ''.join('<animation effect="slide" start="0,0" end="0,-%d" time="0" condition="String.IsEqual(Window().Property(rows),%d)">Conditional</animation>'%((TRACK_ROWS-k)*row,k) for k in range(1,TRACK_ROWS))+
-  '<control type="group"><visible>!%s + !%s</visible>'%(speed,sub)+
+  '<control type="group"><visible>!%s + !%s + !%s</visible>'%(speed,sub,subs)+
   img(pad,y_time,w-2*pad,2*row,MEDIA+'round_s.png','47000000','','26')+
   lab(pad+36,y_time,300,row,'Timing','font_main')+stepper(w-pad-372,y_time,9401,9402,'timing','<onup>9310</onup><ondown>9501</ondown>')+
-  '<control type="group"><visible>%s</visible>'%subs+
-  img(pad+36,y_time+row-1,w-2*pad-36,2,MEDIA+'white.png','1FEBEBF5')+
-  img(pad,y_time+row,w-2*pad,row,MEDIA+'round_s.png','1AFFFFFF','<visible>Control.HasFocus(9501)</visible>','26')+
-  lab(pad+36,y_time+row,300,row,'More','font_main')+
-  img(w-pad-70,y_time+row+(row-56)//2,40,56,ICONS+'chevron-right.png','80EBEBF5')+
-  '<control type="button" id="9501"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus /><texturenofocus />'
-  '<onup>9401</onup></control>'%(pad,y_time+row,w-2*pad,row)+
-  '</control>'+
   '<control type="group"><visible>!%s</visible>'%subs+
   img(pad+36,y_time+row-1,w-2*pad-36,2,MEDIA+'white.png','1FEBEBF5')+
   lab(pad+36,y_time+row,300,row,'Volume boost','font_main')+stepper(w-pad-372,y_time+row,9403,9404,'boost','<onup>9401</onup>')+
   '</control></control></control></control>')
  h_speed=y_list-lift+list_h+pad
  back=''.join(img(0,0,w,hh-(TRACK_ROWS-k)*row,MEDIA+'round_s.png','F52C2C2E','<visible>%s + String.IsEqual(Window().Property(rows),%d)</visible>'%(cond,k),'26')
-              for cond,hh in (('%s + !%s'%(subs,sub),h_subs),('!%s + !%s'%(subs,speed),h_audio),('%s + %s'%(subs,sub),h_speed)) for k in range(1,TRACK_ROWS+1))
+              for cond,hh in (('!%s + !%s'%(subs,speed),h_audio),) for k in range(1,TRACK_ROWS+1))
+ back+=img(0,0,w+200,1100,MEDIA+'round_s.png','F52C2C2E','<visible>%s</visible>'%subs,'26')   # one tall drawer; its right end is off the screen
  back+=''.join(img(0,0,w,h_speed+(k-TRACK_ROWS)*row,MEDIA+'round_s.png','F52C2C2E','<visible>%s + String.IsEqual(Window().Property(rows),%d)</visible>'%(speed,k),'26')
                for k in range(1,SPEED_ROWS+1))
+
+ # --- Subtitles drawer (owner, 2026-11-16, mockup option C + hold menu, docs/design/subtitles-manage-mockups.html) ---
+ # Full height at the right edge. Tracks page: header, Download and apply, its hint, "On this video" and up to five
+ # tracks, then one row "Timing and more" pinned at the foot. A sub-page (More, Find another, Add from a file, keys)
+ # has the blue back link and its rows; More also carries Timing. Holding a track opens Find another / Remove.
+ y_lab=y_hint+42;y_ls=y_lab+44;y_more=y_ls+SUBS_ROWS*row+16;lift_s=y_ls-(head+12);y_tm=head+12+SUBS_ROWS*row+20
+ def subs_cards(rows):
+  return ''.join(img(pad,y_ls,w-2*pad,k*row,MEDIA+'round_s.png','47000000','<visible>String.IsEqual(Window().Property(rows),%d)</visible>'%k,'26') for k in range(1,rows+1))
+ subs_list=('<control type="group"><left>0</left><top>0</top><width>%d</width>'%w+
+  '<animation effect="slide" start="0,0" end="0,-%d" time="0" condition="%s">Conditional</animation>'%(lift_s,sub)+
+  subs_cards(SUBS_ROWS)+
+  '<control type="list" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
+  '<onup>9510</onup><ondown>9501</ondown><scrolltime>200</scrolltime>'%(SUBS_LIST,pad,y_ls,w-2*pad,SUBS_ROWS*row)+
+  '<itemlayout height="%d" width="%d">%s</itemlayout><focusedlayout height="%d" width="%d">%s</focusedlayout></control></control>'%(row,w-2*pad,item(False),row,w-2*pad,item(True)))
+ subs_more=('<control type="group"><visible>!%s</visible>'%sub+
+  img(pad,y_more,w-2*pad,row,MEDIA+'round_s.png','47000000','','26')+
+  img(pad,y_more,w-2*pad,row,MEDIA+'round_s.png','1AFFFFFF','<visible>Control.HasFocus(9501)</visible>','26')+
+  lab(pad+36,y_more,w-2*pad-150,row,'Timing and more','font_main')+
+  img(w-pad-70,y_more+(row-56)//2,40,56,ICONS+'chevron-right.png','80EBEBF5')+
+  '<control type="button" id="9501"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus /><texturenofocus />'
+  '<onup>%d</onup></control></control>'%(pad,y_more,w-2*pad,row,SUBS_LIST))
+ subs_timing=('<control type="group"><visible>String.IsEqual(Window().Property(page),more)</visible>'+
+  img(pad,y_tm,w-2*pad,row,MEDIA+'round_s.png','47000000','','26')+
+  lab(pad+36,y_tm,300,row,'Timing','font_main')+stepper(w-pad-372,y_tm,T_MINUS_S,T_PLUS_S,'timing','<onup>%d</onup>'%SUBS_LIST)+'</control>')
+ # The hold menu sits left of the drawer, level with the held row (ctx.row 0-4); a scrim over the drawer ends it with one tap.
+ hold_w=640;hold_x=-(hold_w+24)
+ hold_item=lambda y,id,prop,color:(
+  img(hold_x,y,hold_w,row,MEDIA+'round_s.png','1AFFFFFF','<visible>Control.HasFocus(%d)</visible>'%id,'26')+
+  lab(hold_x+40,y,hold_w-80,row,P(prop),'font_main',color)+
+  '<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus /><texturenofocus /></control>'%(id,hold_x,y,hold_w,row))
+ hold=('<control type="group"><visible>String.IsEqual(Window().Property(ctx),1)</visible>'
+  '<control type="button" id="%d"><left>-3000</left><top>-300</top><width>6000</width><height>1700</height><texturefocus /><texturenofocus /></control>'%HOLD_SCRIM+
+  '<control type="group"><left>0</left><top>0</top><width>%d</width>'%w+
+  ''.join('<animation effect="slide" start="0,0" end="0,%d" time="0" condition="String.IsEqual(Window().Property(ctx.row),%d)">Conditional</animation>'%(k*row,k) for k in range(1,SUBS_ROWS))+
+  img(hold_x,y_ls,hold_w,row,MEDIA+'round_s.png','F23A3A3C','<visible>String.IsEmpty(Window().Property(ctx.remove))</visible>','26')+
+  img(hold_x,y_ls,hold_w,2*row,MEDIA+'round_s.png','F23A3A3C','<visible>!String.IsEmpty(Window().Property(ctx.remove))</visible>','26')+
+  hold_item(y_ls,HOLD_FIND,'ctx.find','FFFFFFFF')+
+  '<control type="group"><visible>!String.IsEmpty(Window().Property(ctx.remove))</visible>'+
+  img(hold_x+30,y_ls+row-1,hold_w-30,2,MEDIA+'white.png','33EBEBF5')+hold_item(y_ls+row,HOLD_REMOVE,'ctx.remove','FFFF453A')+'</control></control></control>')
+ subs_ui='<control type="group"><visible>%s</visible>'%subs+lab(pad+8,y_lab,w-2*pad,44,'On this video','font_mini','99EBEBF5','left','<visible>!%s</visible>'%sub)+subs_list+subs_more+subs_timing+hold+'</control>'
+ # "Remove this subtitle?": centred over everything, with a scrim that swallows taps (Cancel is the only way back).
+ sure_w=840;sure_h=430
+ sure=('<control type="group"><visible>%s + String.IsEqual(Window().Property(ctx),sure)</visible>'%subs+
+  '<control type="button" id="%d"><left>0</left><top>0</top><width>100%%</width><height>100%%</height><texturefocus /><texturenofocus /></control>'%SURE_SCRIM+
+  '<control type="image"><left>0</left><top>0</top><width>100%</width><height>100%</height><texture colordiffuse="99000000">'+MEDIA+'white.png</texture></control>'
+  '<control type="group"><centerleft>50%</centerleft><centertop>50%</centertop><width>'+str(sure_w)+'</width><height>'+str(sure_h)+'</height>'+
+  img(0,0,sure_w,sure_h,MEDIA+'alert.png','FFFFFFFF','','40')+
+  lab(40,36,sure_w-80,70,P('sure.title'),'font_head_bold','FFFFFFFF','center')+
+  '<control type="label"><left>60</left><top>110</top><width>%d</width><height>130</height><font>font_main</font><textcolor>99EBEBF5</textcolor><align>center</align><aligny>top</aligny>'
+  '<wrapmultiline>true</wrapmultiline><scroll>false</scroll><label>%s</label></control>'%(sure_w-120,P('sure.text'))+
+  img(0,sure_h-124,sure_w,2,MEDIA+'white.png','33EBEBF5')+img(sure_w//2,sure_h-124,2,124,MEDIA+'white.png','33EBEBF5')+
+  '<control type="button" id="%d"><left>0</left><top>%d</top><width>%d</width><height>124</height><label>Cancel</label><font>font_main</font><textcolor>FF4FA8FF</textcolor><focusedcolor>FF4FA8FF</focusedcolor>'
+  '<align>center</align><aligny>center</aligny><texturefocus colordiffuse="1AFFFFFF">%swhite.png</texturefocus><texturenofocus /><onright>%d</onright></control>'%(SURE_CANCEL,sure_h-124,sure_w//2,MEDIA,SURE_REMOVE)+
+  '<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>124</height><label>Remove</label><font>font_main_bold</font><textcolor>FFFF453A</textcolor><focusedcolor>FFFF453A</focusedcolor>'
+  '<align>center</align><aligny>center</aligny><texturefocus colordiffuse="1AFFFFFF">%swhite.png</texturefocus><texturenofocus /><onleft>%d</onleft></control>'%(SURE_REMOVE,sure_w//2,sure_h-124,sure_w//2,MEDIA,SURE_CANCEL)+
+  '</control></control>')
  more=''   # More is a row under Timing (mockup board 1)
  inner=('<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation><animation effect="fade" start="100" end="0" time="120">WindowClose</animation>'
   '<animation effect="slide" start="0,-24" end="0,0" time="220" tween="cubic" easing="out">WindowOpen</animation>'+
@@ -537,14 +591,15 @@ def track_menu():
   # The sub-page's back link (9502): blue, where the title was; tracks.py goes one page up.
   '<control type="button" id="9502"><left>12</left><top>0</top><width>%d</width><height>%d</height><label>$INFO[Window().Property(back)]</label>'
   '<font>font_head_bold</font><textcolor>FF4FA8FF</textcolor><focusedcolor>FF64D2FF</focusedcolor><textoffsetx>24</textoffsetx><align>left</align><aligny>center</aligny>'
-  '<texturefocus /><texturenofocus /><onright>9500</onright><ondown>9310</ondown><visible>%s</visible></control>'%(w-170,head,sub)+more+(img(w-97,16,75,75,MEDIA+'close_disc.png','2EFFFFFF')+img(w-97,16,75,75,MEDIA+'close_disc.png','24FFFFFF','<visible>Control.HasFocus(9500)</visible>')+img(w-74,39,29,29,MEDIA+'close_cross.png','B3EBEBF5')+'<control type="button" id="9500"><left>%d</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><ondown>9510</ondown></control>'%(w-118))+cta+audio)
+  '<texturefocus /><texturenofocus /><onright>9500</onright><ondown>9310</ondown><visible>%s</visible></control>'%(w-170,head,sub)+more+subs_ui+(img(w-97,16,75,75,MEDIA+'close_disc.png','2EFFFFFF')+img(w-97,16,75,75,MEDIA+'close_disc.png','24FFFFFF','<visible>Control.HasFocus(9500)</visible>')+img(w-74,39,29,29,MEDIA+'close_cross.png','B3EBEBF5')+'<control type="button" id="9500"><left>%d</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><ondown>9510</ondown></control>'%(w-118))+cta+audio)
  body=('<control type="button" id="9099"><left>0</left><top>0</top><width>100%</width><height>100%</height><texturefocus /><texturenofocus />'
   '<onclick>Close</onclick><onfocus>SetFocus(9310)</onfocus></control>'
   # Under the button that opened it: CC (subtitles), 140 in from the right (SAFE); Audio slides 190 left, under the
   # waveform. One copy of the controls (two copies would share their ids).
   '<control type="group"><right>140</right><top>172</top><width>'+str(w)+'</width>'
+  '<animation effect="slide" start="0,0" end="40,-172" time="0" condition="'+subs+'">Conditional</animation>'   # the drawer: full height, 100 in from the right edge
   '<animation effect="slide" start="0,0" end="-190,0" time="0" condition="!'+subs+'">Conditional</animation>'
-  '<animation effect="slide" start="0,0" end="-180,0" time="0" condition="'+speed+'">Conditional</animation>'+inner+'</control>')
+  '<animation effect="slide" start="0,0" end="-180,0" time="0" condition="'+speed+'">Conditional</animation>'+inner+'</control>'+sure)
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: track menu r1 (navigation.patch_skin leaves this marker alone) -->\n'
          '<window type="dialog"><defaultcontrol always="true">9500</defaultcontrol><controls>%s</controls></window>\n')%body
 
