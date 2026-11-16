@@ -32,6 +32,11 @@ class Parse(unittest.TestCase):
         entry = next(e for e in se.LEAGUES if e[0] == code)
         return se.parse(entry[0], entry[1], entry[2], entry[4], entry[5], body(*events), NOW)
 
+    def test_missing_live_score_is_unknown(self):
+        live, _, _ = self.go('NBA', [event('1', '2025-11-16T17:00Z', 'in', team('IND', 'Indiana Pacers', '', False), team('PHI', 'Philadelphia 76ers', ''), period=1, clock='9:00')])
+        self.assertIsNone(live[0]['away']['score'])
+        self.assertIsNone(live[0]['home']['score'])
+
     def test_a_live_nba_game_has_score_clock_and_what_is_left(self):
         live, up, done = self.go('NBA', [event('1', '2025-11-16T17:00Z', 'in', team('IND', 'Indiana Pacers', '88', False), team('PHI', 'Philadelphia 76ers', '91'),
                                                 period=3, clock='8:41', kind='STATUS_IN_PROGRESS')])

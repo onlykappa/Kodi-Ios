@@ -123,6 +123,38 @@ class Repair(unittest.TestCase):
    self.assertTrue(sj.play_one(json.dumps({'e':'LiveFeeds','l':{'address':'https://embed.invalid/watch'}}),lambda text:None))
   self.assertEqual(paths,['https://cdn.invalid/live.mp4'])
   self.assertEqual(fallback_calls,['https://embed.invalid/watch'])
+ def test_existing_loopback_proxy_is_played_directly_with_inputstream(self):
+  import json
+  calls=[];applied=[]
+  class Link:
+   address='http://127.0.0.1:48123/token/video.m3u8';unquote=True;links=False;direct=True;resolveurl=False;jetproxy=False;headers={'Referer':'https://fixture.invalid/'}
+   inputstream=NS(set_properties=lambda item:applied.append(item))
+   @staticmethod
+   def from_dict(value):return Link()
+   def xbmc_format(self):return self.address+'|Referer=fixture'
+  class ListItem:
+   def __init__(self,path):self.path=path
+   def getPath(self):return self.path
+  xbmc=NS(Player=lambda:NS(play=lambda path,item=None:calls.append(path)))
+  module=NS(get_extractor=lambda name:NS())
+  with patch.object(sj,'import_jet',return_value=(module,None)),patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':NS(ListItem=ListItem),'jetextractors.models':NS(JetLink=Link)}):
+   self.assertTrue(sj.play_one(json.dumps({'e':'fixture','l':{'address':'fixture'}}),lambda text:None))
+  self.assertEqual(calls,['http://127.0.0.1:48123/token/video.m3u8|Referer=fixture'])
+  self.assertEqual(len(applied),1)
+  self.assertEqual(sj._play_session.proxy_url,'http://127.0.0.1:48123/token/video.m3u8')
+ def test_local_proxy_lifetime_waits_for_start_and_stop(self):
+  address='http://127.0.0.1:48123/video.m3u8';states=iter([False,True,True,False]);waits=[]
+  player=NS(isPlaying=lambda:next(states),getPlayingFile=lambda:address+'|Referer=fixture')
+  monitor=NS(abortRequested=lambda:False,waitForAbort=lambda seconds:(waits.append(seconds) or False))
+  sj.hold_local_proxy(NS(Player=lambda:player,Monitor=lambda:monitor),address)
+  self.assertEqual(len(waits),3)
+ def test_proxy_waits_through_previous_video_and_exits_when_replaced(self):
+  address='http://127.0.0.1:48123/video.m3u8'
+  current=iter(['https://old.invalid/a',address,'https://new.invalid/b']);waits=[]
+  player=NS(isPlaying=lambda:True,getPlayingFile=lambda:next(current))
+  monitor=NS(abortRequested=lambda:False,waitForAbort=lambda seconds:(waits.append(seconds) or False))
+  sj.hold_local_proxy(NS(Player=lambda:player,Monitor=lambda:monitor),address)
+  self.assertEqual(len(waits),2)
  def test_live_page_does_not_play_handled_boolean(self):
   # Execute the actual onClick method with only its native dependencies substituted.
   tree=ast.parse((ROOT/'migration/bundled-bootstrap/sports_live.py').read_text());node=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='onClick')

@@ -177,8 +177,16 @@ def run(args=()):
         def loop(self):
             import page_wait
             monitor = xbmc.Monitor()
-            while not page_wait.idle(self.stop, monitor, EVERY):   # wakes when the page closes, not after the full wait
-                self.fetch(False, quiet=True)
+            last, revision = time.monotonic(), 0
+            while not page_wait.idle(self.stop, monitor, 1):
+                provider = sports_provider.get()
+                current = getattr(provider, 'score_revision', lambda: 0)()
+                if current and current != revision:
+                    revision = current
+                    self.fetch(False, quiet=True)
+                if time.monotonic() - last >= EVERY:
+                    last = time.monotonic()
+                    self.fetch(False, quiet=True)
 
         def show(self, props):
             for key, value in props.items():

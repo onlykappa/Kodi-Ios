@@ -168,6 +168,7 @@ jobs:
           python3 -B scripts/test_sports_game.py
           python3 -B scripts/test_sports_league.py
           python3 -B scripts/test_sports_espn.py
+          python3 -B scripts/test_sports_scores.py
           python3 -B scripts/test_sports_jet.py
           python3 -B scripts/test_sports_playback_repair.py
           python3 -B scripts/test_sports_dialogs.py

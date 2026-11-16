@@ -137,7 +137,7 @@ def parse(code, name, sport, joiner, cfg, body, now):
                     try:
                         out['score'] = int(float(c.get('score')))
                     except (TypeError, ValueError):
-                        out['score'] = 0
+                        out['score'] = None
                 return out
             game = {'id': 'espn:%s:%s' % (code, event.get('id')), 'league': code, 'league_name': name, 'sport': sport,
                     'state': 'live' if state == 'in' else 'upcoming', 'away': team(teams['away']), 'home': team(teams['home']),

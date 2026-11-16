@@ -31,6 +31,7 @@ MODULE_ID = 'script.module.jetextractors'
 JETPROXY = 'plugin://plugin.video.jetproxy/play/'
 RUN = 'KodiIOS.SportsJetRun'      # Home window: when the collecting script started (epoch seconds)
 DATA = 'KodiIOS.SportsJetData'    # Home window: JSON {at, done, records, reason} the script keeps up to date
+_play_session = threading.local()  # each Kodi script owns its local scraper proxy
 PLAY = 'KodiIOS.SportsJetPlay'    # Home window: JSON of the source a page asked to play
 
 # Scrapers of replays, full-match videos, IPTV lists and plain hosts: they give no games.
@@ -149,8 +150,8 @@ def records(item, extractor, now):
     for link in links:
         label = '%s %s' % (getattr(link, 'name', '') or '', getattr(link, 'address', '') if not getattr(link, 'links', False) else '')
         out.append({'addon': extractor, 'league': code, 'league_name': name, 'sport': sport, 'state': state, 'start': start if start is not None else now,
-                    'away': {'code': code_of(away), 'name': away, 'score': 0 if state == 'live' else None},
-                    'home': {'code': code_of(home), 'name': home, 'score': 0 if state == 'live' else None},
+                    'away': {'code': code_of(away), 'name': away, 'score': None},
+                    'home': {'code': code_of(home), 'name': home, 'score': None},
                     'joiner': joiner, 'clock': '', 'left': None, 'quality': quality_of(label), 'language': language_of(label),
                     'play': descriptor(extractor, link)})
     return out
@@ -228,7 +229,7 @@ def load_extractors(module):
 class JetProvider:
     """The contract's provider over JetExtractors. `loader()` -> (extractors, how) and `clock` are injectable (tests)."""
 
-    def __init__(self, loader=None, clock=time.time, wait=LOAD_SECONDS, remote=False, publish=None, window=None, launch=None):
+    def __init__(self, loader=None, clock=time.time, wait=LOAD_SECONDS, remote=False, publish=None, window=None, launch=None, score_loader=None):
         self.loader, self.clock, self.wait = loader, clock, wait
         self.remote, self.publish, self.launch = remote, publish, launch   # remote: a page asks the script (run_script) and reads its answer
         self.window = window
@@ -239,6 +240,10 @@ class JetProvider:
         self.running = None   # (thread list, done event)
         self.reason = ''
         self._remote_cache = None  # snapshot bytes and recent merged result
+        self.score_loader, self._scores = score_loader, []
+        self._score_started = self._score_at = 0
+        self._score_busy = False
+        self._score_requested = set()
 
     # -- loading
     def _extractors(self):
@@ -369,11 +374,11 @@ class JetProvider:
         with self.lock:
             cached = self._remote_cache
         if raw_seen and cached and cached[0] == raw_seen and now_mono - cached[1] < 2:
-            return copy.deepcopy(cached[2])
+            return self._with_scores(copy.deepcopy(cached[2]))
         result = self._games(data['records'])
         with self.lock:
             self._remote_cache = (raw_seen, time.monotonic(), result)
-        return copy.deepcopy(result)
+        return self._with_scores(copy.deepcopy(result))
 
     def _load(self, force=False):
         if self.remote:
@@ -398,6 +403,53 @@ class JetProvider:
                 raise sm.SportsUnavailable('the scrapers are still loading')
             raise sm.SportsUnavailable(self.reason or 'no scraper listed a game (%s)' % ', '.join('%s: %s' % kv for kv in sorted(stats.items())[:4]))
         return self._games(every)
+
+    def score_revision(self):
+        with self.lock:
+            return self._score_at
+
+    def _with_scores(self, data):
+        """Enrich only unambiguously matched live games; never hold up playback/list loading."""
+        if not self.score_loader or not data['live']:
+            return data
+        now = time.monotonic()
+        codes = sorted({g['league'] for g in data['live'] if g.get('league')})
+        with self.lock:
+            start = not self._score_busy and (not self._score_started or now - self._score_started >= 45 or not set(codes).issubset(self._score_requested))
+            if start:
+                self._score_busy = True
+                self._score_started = now
+                self._score_requested = set(codes)
+            scores = list(self._scores) if self._score_at and now - self._score_at < 90 else []
+        if start:
+            def fetch():
+                try:
+                    values = self.score_loader(codes)
+                    with self.lock:
+                        self._scores, self._score_at = list(values or []), time.monotonic()
+                except Exception as error:
+                    log('scores: lookup failed (%s)' % type(error).__name__)
+                finally:
+                    with self.lock:
+                        self._score_busy = False
+            threading.Thread(target=fetch, daemon=True).start()
+        for game in data['live']:
+            matches = []
+            for score in scores:
+                if score.get('state') != 'live':
+                    continue
+                if sports_merge.same_game(game, score):
+                    matches.append((score, False))
+                else:
+                    swapped = dict(score, away=score['home'], home=score['away'])
+                    if sports_merge.same_game(game, swapped):
+                        matches.append((score, True))
+            if len(matches) == 1:
+                score, reverse = matches[0]
+                for side, other in (('away', 'home'), ('home', 'away')):
+                    game[side]['score'] = score[other if reverse else side].get('score')
+                game['clock'], game['left'] = score.get('clock') or '', score.get('left')
+        return data
 
     def _games(self, every):
         now = int(self.clock())
@@ -485,7 +537,11 @@ def run_script(args, window=None):
             source = json.loads(home.getProperty(PLAY + key) or '{}')
             home.clearProperty(PLAY + key)
             with named_addon():
+                _play_session.proxy_url = None
                 play(source)
+                if getattr(_play_session, 'proxy_url', None):
+                    import xbmc
+                    hold_local_proxy(xbmc, _play_session.proxy_url)
         except Exception as error:
             log('jet: play failed (%s)' % type(error).__name__)
             try:
@@ -603,6 +659,35 @@ def resolver_host(address):
         return 'unknown'
 
 
+def is_loopback(address):
+    try:
+        return (urlsplit(address).hostname or '').lower() in ('127.0.0.1', 'localhost', '::1')
+    except ValueError:
+        return False
+
+
+def hold_local_proxy(xbmc, address, startup_seconds=20):
+    """The scraper's local HTTP server lives on this script's daemon thread."""
+    player, monitor = xbmc.Player(), xbmc.Monitor()
+    deadline, started = time.monotonic() + startup_seconds, False
+    while not monitor.abortRequested():
+        if player.isPlaying():
+            try:
+                current = player.getPlayingFile().split('|', 1)[0]
+            except Exception:
+                current = ''
+            if current == address:
+                started = True
+            elif current and started:
+                return
+        elif started:
+            return
+        if not started and time.monotonic() >= deadline:
+            return
+        if monitor.waitForAbort(0.5):
+            return
+
+
 def play_one(play_value, logger=log):
     """One add-on's stream of a game. Raises when it cannot be opened."""
     import xbmc
@@ -631,7 +716,8 @@ def play_one(play_value, logger=log):
             address, sep, encoded_headers = address.partition('|')
             headers = dict(parse_qsl(encoded_headers, keep_blank_values=True)) if sep else {}
             headers.update(final.headers or {})
-            use_proxy = bool(final.jetproxy or (headers and '.m3u8' in address.lower()))
+            local_proxy = is_loopback(address)
+            use_proxy = bool(final.jetproxy or (not local_proxy and headers and '.m3u8' in address.lower()))
             logger('sports: playing %s via %s' % (value['e'], 'JetProxy' if use_proxy else 'Kodi'))
             if use_proxy:
                 xbmc.Player().play(proxy_path(address, headers))
@@ -644,6 +730,8 @@ def play_one(play_value, logger=log):
             if getattr(final, 'inputstream', None) is not None:
                 final.inputstream.set_properties(item)
             xbmc.Player().play(item.getPath(), item)
+            if local_proxy:
+                _play_session.proxy_url = address
             return True
         except Exception as error:
             last = error

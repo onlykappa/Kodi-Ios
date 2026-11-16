@@ -68,6 +68,11 @@ class Parsing(unittest.TestCase):
         self.assertIsNone(sj.state_of(mk(status='Ended (Nov 1)'), NOW - 100, NOW))
         self.assertIsNone(sj.state_of(mk(), None, NOW))
 
+    def test_live_unknown_scores_are_not_fabricated(self):
+        rec = sj.records(item('Arsenal vs Chelsea', NOW - 60, 'Premier League', status='LIVE'), 'fixture', NOW)[0]
+        self.assertIsNone(rec['away']['score'])
+        self.assertIsNone(rec['home']['score'])
+
     def test_records_one_per_stream_and_descriptor_roundtrip(self):
         it = item('Arsenal vs Chelsea', NOW + 7200, 'Premier League', links=[Link('https://a/1', 'HD'), Link('https://a/2', 'Stream 2', links=True)])
         recs = sj.records(it, 'Streamed', NOW)

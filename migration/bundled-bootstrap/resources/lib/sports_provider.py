@@ -36,7 +36,8 @@ def real():
             _real[0] = sports_espn.EspnProvider()
         else:
             import sports_jet
-            _real[0] = sports_jet.JetProvider(remote=True)   # a page's thread cannot call JetExtractors: its script does (ISSUE-365)
+            import sports_scores
+            _real[0] = sports_jet.JetProvider(remote=True, score_loader=sports_scores.fetch_live)   # a page's thread cannot call JetExtractors: its script does (ISSUE-365)
     return _real[0]
 
 
