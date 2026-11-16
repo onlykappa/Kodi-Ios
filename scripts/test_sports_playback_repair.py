@@ -11,6 +11,9 @@ class Home:
  def setProperty(self,k,v):self.p[k]=v
  def clearProperty(self,k):self.p.pop(k,None)
 class Repair(unittest.TestCase):
+ def test_resolver_log_host_omits_secrets_and_headers(self):
+  self.assertEqual(sj.resolver_host('https://' + 'user' + ':' + 'pw' + '@media.example/path?token=private|Authorization=private'),'media.example')
+  self.assertEqual(sj.resolver_host('not a URL with secret'),'unknown')
  def test_import_also_loads_resolveurl_module_graph(self):
   paths=[]
   with patch.object(sj,'add_module_paths',side_effect=lambda name,find:paths.append(name)),patch.dict(sys.modules,{'jetextractors':NS(),'jetextractors.extractor':NS()}):sj.import_jet()

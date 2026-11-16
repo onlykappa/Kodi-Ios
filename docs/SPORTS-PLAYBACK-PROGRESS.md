@@ -1,5 +1,13 @@
 # Sports playback repair
 
+## Build 563 follow-up: leagues, upcoming and source resolution — 2026-11-16
+
+Owner log confirms build 563. Leagues opened for 11.9 s and Upcoming for 14.3 s while a 36-s scan ran; many DNS retries hit unavailable scraper hosts. Each page performs three provider calls, and each incomplete snapshot previously waited another six seconds. A fresh scan still gathers its first batch for up to six seconds, but existing partial or previous records now return immediately while the scan continues. A regression covers refresh, games and overview sharing an incomplete snapshot without sleeping. Showing a partial batch can omit late scrapers; phone timing and completeness need testing.
+
+LiveFeeds failed in ResolveURL; ReedStreams could not resolve taifood-blog.asia or strmfree.st. The phone log does not identify the LiveFeeds hostname. Added hostname-only ResolveURL attempt/failure diagnostics (no path, userinfo, query, or headers) and a privacy regression; this diagnostic is not a playback fix. Other DNS failures are observed but not proof of permanent domain expiration. The owner-patched JetExtractors config preserves the original live fetch and all config fields apart from the existing whitelist removal. Live endpoint returned 403 error 1010 from this environment; phone fetch status remains unknown. No speculative domain entries added.
+
+Validation: 21 Jet, 12 Leagues, 7 Upcoming and 8 playback-repair tests; project check and whitespace check. The first privacy test used a dummy credential-shaped URL and triggered the project scanner; constructing that synthetic input in pieces preserves the redaction test and the scanner now passes. Initial regression failed because starting a fresh scan discarded the in-memory snapshot; preserve that snapshot and retest. No IPA requested or produced for this follow-up. Device behavior and working stream resolution remain unverified.
+
 ## Build 561 published and verified — 2026-11-16
 
 PR #44 merged as 9b276e7. Testing [build 561](https://github.com/onlykappa/Kodi-Ios/releases/tag/build-561), source a16a3ef, includes the sports playback/resolver/refresh repairs and the merged Drive/AirPlay fixes in newly compiled **AirPlay r65**. PR #43 remains open for testing. Final import CI run 43913240719 passed all tests, bundle apply/restore smoke checks and IPA validation. Downloaded the 588,860,520-byte IPA: release SHA **d60999a057fbb21ca6397fda1b2bf17aca3daa9945c282fe99eb0be928a815cb**, full ZIP CRC, eight exact repaired source files, exact r65 binary and exact unsigned r33 executable all pass. Glass bar r6 preserved.

@@ -178,6 +178,22 @@ class Remote(unittest.TestCase):
         self.assertEqual(len(page.upcoming_games()), 1)
         self.assertEqual(launched, [])   # fresh data: the script is not started again
 
+    def test_incomplete_snapshot_is_returned_without_waiting_for_other_scrapers(self):
+        win = Window()
+        a = Ext('A', [item('Arsenal vs Chelsea', NOW + 7200, 'Premier League')])
+        runner = sj.JetProvider(loader=lambda: ([a], 'test'), clock=lambda: NOW,
+                                publish=lambda d: win.setProperty(sj.DATA, json.dumps(d)))
+        runner._start().wait(3)
+        snapshot = json.loads(win.getProperty(sj.DATA)); snapshot['done'] = False
+        win.setProperty(sj.DATA, json.dumps(snapshot))
+        page = sj.JetProvider(remote=True, window=win, clock=lambda: NOW, wait=2, launch=lambda *a: None)
+        from unittest.mock import patch
+        with patch.object(sj.time, 'sleep') as sleep:
+            page.refresh()
+            self.assertEqual(len(page.upcoming_games()), 1)
+            self.assertGreater(page.overview()['updated'], 0)
+            sleep.assert_not_called()
+
     def test_page_starts_the_script_once_and_reports_loading(self):
         win, launched = Window(), []
         page = sj.JetProvider(remote=True, window=win, clock=lambda: NOW, wait=0.1, launch=lambda *a: launched.append(a))

@@ -14,13 +14,13 @@ import re
 import sys
 import threading
 import time
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlsplit
 
 import sports_merge
 import sports_model as sm
 
 TTL = 120               # seconds a finished answer is reused
-SHOW_AFTER = 6          # seconds after which a page shows partial answers instead of waiting for every scraper
+SHOW_AFTER = 6          # allow an initial scan to collect a useful first batch
 LOAD_SECONDS = 18       # how long a page waits for the scrapers before showing what it has
 EXTRACTOR_SECONDS = 40  # a scraper still running after this is left behind
 LIVE_FOR = 4 * 3600     # a game with a start time is live from its start for this long
@@ -343,11 +343,12 @@ class JetProvider:
             if now - started > EXTRACTOR_SECONDS + 10:   # nothing running (or a stuck one): start it
                 home.setProperty(RUN, str(now))
                 (self.launch or _launch)('sports_jet_run')
-                data = None
+                # Keep the existing snapshot visible while the replacement scan runs.
+        had_records = bool(data and data.get('records'))
         began = time.monotonic()   # real time: the injected clock is only for the data's own timestamps
         while time.monotonic() - began < self.wait:
             data = read() or data
-            if data and (data.get('done') or (data.get('records') and time.monotonic() - began >= SHOW_AFTER)):
+            if data and (data.get('done') or (data.get('records') and (had_records or time.monotonic() - began >= SHOW_AFTER))):
                 break
             time.sleep(0.4)
         data = read() or data
@@ -562,6 +563,15 @@ def play(source, logger=log):
     raise last or RuntimeError('this source has nothing to play')
 
 
+def resolver_host(address):
+    """Only the hostname is logged; never the path, user info, query or headers."""
+    try:
+        host = urlsplit(str(address).split('|', 1)[0]).hostname or ''
+        return host if re.fullmatch(r'[a-zA-Z0-9.-]{1,253}', host) else 'unknown'
+    except ValueError:
+        return 'unknown'
+
+
 def play_one(play_value, logger=log):
     """One add-on's stream of a game. Raises when it cannot be opened."""
     import xbmc
@@ -581,8 +591,11 @@ def play_one(play_value, logger=log):
     address = unquote(final.address) if final.unquote and re.search(r'%3[Aa]%2[Ff]', final.address) else final.address
     if getattr(final, 'resolveurl', False):
         import resolveurl
+        host = resolver_host(address)
+        logger('jet: ResolveURL trying host %s' % host)
         address = resolveurl.resolve(address) or ''
         if not address:
+            logger('jet: ResolveURL could not resolve host %s' % host)
             raise RuntimeError('ResolveURL could not open this stream')
     headers = dict(final.headers or {})
     logger('sports: playing %s via %s' % (value['e'], 'JetProxy' if (final.jetproxy or headers) else 'Kodi'))
