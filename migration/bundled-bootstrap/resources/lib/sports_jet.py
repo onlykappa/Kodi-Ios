@@ -20,6 +20,7 @@ import sports_merge
 import sports_model as sm
 
 TTL = 120               # seconds a finished answer is reused
+SHOW_AFTER = 6          # seconds after which a page shows partial answers instead of waiting for every scraper
 LOAD_SECONDS = 18       # how long a page waits for the scrapers before showing what it has
 EXTRACTOR_SECONDS = 40  # a scraper still running after this is left behind
 LIVE_FOR = 4 * 3600     # a game with a start time is live from its start for this long
@@ -27,6 +28,9 @@ SOON_BEFORE = 600       # a game that should have started minutes ago still list
 HORIZON = 8 * 86400
 MODULE_ID = 'script.module.jetextractors'
 JETPROXY = 'plugin://plugin.video.jetproxy/play/'
+RUN = 'KodiIOS.SportsJetRun'      # Home window: when the collecting script started (epoch seconds)
+DATA = 'KodiIOS.SportsJetData'    # Home window: JSON {at, done, records, reason} the script keeps up to date
+PLAY = 'KodiIOS.SportsJetPlay'    # Home window: JSON of the source a page asked to play
 
 # Scrapers of replays, full-match videos, IPTV lists and plain hosts: they give no games.
 SKIP = {'basketballreplays', 'fullfightreplays', 'fullraces', 'fullreplays', 'nflvideo', 'nhlvideo', 'rugbyvideo', 'soccerfullmatch', 'sportsvideo',
@@ -222,8 +226,10 @@ def load_extractors(module):
 class JetProvider:
     """The contract's provider over JetExtractors. `loader()` -> (extractors, how) and `clock` are injectable (tests)."""
 
-    def __init__(self, loader=None, clock=time.time, wait=LOAD_SECONDS):
+    def __init__(self, loader=None, clock=time.time, wait=LOAD_SECONDS, remote=False, publish=None, window=None, launch=None):
         self.loader, self.clock, self.wait = loader, clock, wait
+        self.remote, self.publish, self.launch = remote, publish, launch   # remote: a page asks the script (run_script) and reads its answer
+        self.window = window
         self.lock = threading.Lock()
         self.records = {}     # extractor name -> [records]
         self.stats = {}       # extractor name -> 'n items' | error text
@@ -281,6 +287,8 @@ class JetProvider:
             finally:
                 with self.lock:
                     pending[0] -= 1
+                self._publish(pending[0] <= 0)
+                with self.lock:
                     if pending[0] <= 0:
                         done.set()
                         log('jet: all scrapers answered after %ds (%d with games)' % (self.clock() - started, sum(1 for v in self.records.values() if v)))
@@ -295,7 +303,64 @@ class JetProvider:
         self.running = done
         return done
 
+    def _publish(self, done):
+        """Hand what has come in so far to whoever asked (the script's Home window property); never raises."""
+        if not self.publish:
+            return
+        try:
+            with self.lock:
+                every = [r for rs in self.records.values() for r in rs]
+            self.publish({'at': int(self.clock()), 'done': bool(done), 'records': every, 'reason': self.reason})
+        except Exception as error:
+            log('jet: publish failed (%s)' % type(error).__name__)
+
+    def _home(self):
+        if self.window is None:
+            import xbmcgui
+            self.window = xbmcgui.Window(10000)
+        return self.window
+
+    def _remote_load(self, force):
+        """A page's load: read the script's answer; start the script when there is none fresh and none running. Waits `wait` seconds for partial or full data."""
+        try:
+            home = self._home()
+        except ImportError:   # not inside Kodi (tests, tools): nothing to ask
+            raise sm.SportsUnavailable('not running inside Kodi')
+        now = self.clock()
+
+        def read():
+            try:
+                return json.loads(home.getProperty(DATA) or 'null')
+            except ValueError:
+                return None
+        data = read()
+        if force or not data or now - data.get('at', 0) >= TTL:
+            try:
+                started = float(home.getProperty(RUN) or 0)
+            except ValueError:
+                started = 0
+            if force or now - started > EXTRACTOR_SECONDS + 10:   # nothing running (or a stuck one): start it
+                home.setProperty(RUN, str(now))
+                home.clearProperty(DATA)
+                (self.launch or _launch)('sports_jet_run')
+                data = None
+        began = time.monotonic()   # real time: the injected clock is only for the data's own timestamps
+        while time.monotonic() - began < self.wait:
+            data = read() or data
+            if data and (data.get('done') or (data.get('records') and time.monotonic() - began >= SHOW_AFTER)):
+                break
+            time.sleep(0.4)
+        data = read() or data
+        if not data or not data.get('records'):
+            if data and data.get('done'):
+                raise sm.SportsUnavailable(data.get('reason') or 'no scraper listed a game')
+            raise sm.SportsUnavailable('the scrapers are still loading')
+        self.at = data.get('at', 0)
+        return self._games(data['records'])
+
     def _load(self, force=False):
+        if self.remote:
+            return self._remote_load(force)
         with self.lock:
             fresh = self.at and self.clock() - self.at < TTL
             busy = self.running is not None and not self.running.is_set()
@@ -357,6 +422,46 @@ class JetProvider:
         today = [s for s in coming if sm.day_label(s, now, offset) == 'Today']
         return {'updated': data['at'] or now, 'live': len(data['live']), 'live_sports': sorted({g['sport'] for g in data['live']}),
                 'next': min(coming) if coming else None, 'more_today': max(0, len(today) - 1), 'leagues': len(data['leagues']), 'finished_today': 0}
+
+
+def _launch(route, *args):
+    import xbmc
+    xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,%s)' % ','.join((route,) + args))
+
+
+def run_script(args, window=None):
+    """The main thread of `sports_jet_run`: collect games (no args) or play the source in PLAY ('play'). JetExtractors needs a normal script thread."""
+    import xbmcgui
+    home = window or xbmcgui.Window(10000)
+    if args[:1] == ['play']:
+        try:
+            source = json.loads(home.getProperty(PLAY) or '{}')
+            home.clearProperty(PLAY)
+            play(source)
+        except Exception as error:
+            log('jet: play failed (%s: %s)' % (type(error).__name__, str(error)[:90]))
+            try:
+                xbmcgui.Dialog().notification('Sports', "Can't play this source right now. Try another source.", xbmcgui.NOTIFICATION_WARNING, 4000)
+            except Exception:
+                pass
+        return
+    provider = JetProvider(publish=lambda data: home.setProperty(DATA, json.dumps(data, separators=(',', ':'))))
+    done = provider._start()
+    done.wait(EXTRACTOR_SECONDS)
+    provider._publish(True)   # also when no scraper could start: the page then gets `reason`
+    home.clearProperty(RUN)
+
+
+def play_request(source, logger=log, window=None, launch=None):
+    """What a tap on a source does: leave the source for the script and start it (the page's thread cannot call JetExtractors)."""
+    if window is None:
+        import xbmcgui
+        window = xbmcgui.Window(10000)
+    home = window
+    home.setProperty(PLAY, json.dumps({'play': source.get('play'), 'id': source.get('id')}, separators=(',', ':')))
+    logger('sports: play %s from %s (%s, %s)' % (source.get('id'), source.get('addon'), source.get('quality'), source.get('language')))
+    (launch or _launch)('sports_jet_run', 'play')
+    return True
 
 
 # -- playing ----------------------------------------------------------------------------------------------------------

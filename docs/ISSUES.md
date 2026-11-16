@@ -5607,3 +5607,12 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
   JetExtractors was never asked anything, so this says nothing yet about whether it accepts our caller.
 - **Fix:** `sports_jet.add_module_paths` adds the module folder of JetExtractors and of every add-on it requires, recursively, from their addon.xml files; a missing one is skipped.
 - **Test:** `test_sports_jet.ModulePaths`.
+
+## ISSUE-365 — Sports: JetExtractors refused with "No valid addon id could be obtained" (owner build 554 log a01ae2c6)
+
+- **Seen:** with the modules importable (ISSUE-364) every page still said "Can't load sports right now"; log: `jet: no scrapers (JetExtractors refused or failed (RuntimeError: No valid addon id could be obtained...))`.
+- **Cause:** JetExtractors calls `xbmcaddon.Addon()` with no id; Kodi allows that only on the main thread of a script it started, not on a page's worker thread (JetExtractors' own tools.py warns of this).
+- **Fix:** a short-lived script `sports_jet_run` (main thread) calls `get_extractors()` and runs the scrapers, publishing the records to a Home window property after each scraper; the page only starts the script and reads the property
+  (partial answers after 6 s, the rest as they come, 2 min reuse). Playing a source also goes through the script (`sports_jet_run play`). Nothing in JetExtractors is bypassed: if it still refuses on a normal script thread, the
+  next step is a prompt for The Loop's side, with the exact error.
+- **Test:** `test_sports_jet.Remote` (script publishes, page reads, script started once, reason shown when Jet cannot start, tap leaves the source and starts the play script).

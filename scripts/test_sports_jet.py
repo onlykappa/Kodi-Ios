@@ -145,5 +145,68 @@ class ModulePaths(unittest.TestCase):
                 sys.path[:] = before
 
 
+
+class Window:
+    def __init__(self):
+        self.p = {}
+
+    def getProperty(self, k):
+        return self.p.get(k, '')
+
+    def setProperty(self, k, v):
+        self.p[k] = v
+
+    def clearProperty(self, k):
+        self.p.pop(k, None)
+
+
+class Remote(unittest.TestCase):
+    """ISSUE-365: JetExtractors runs in a script's main thread; a page only asks and reads."""
+
+    def test_script_publishes_after_each_scraper_and_page_reads_it(self):
+        win = Window()
+        a = Ext('A', [item('Arsenal vs Chelsea', NOW + 7200, 'Premier League')])
+        runner = sj.JetProvider(loader=lambda: ([a], 'test'), clock=lambda: NOW,
+                                publish=lambda d: win.setProperty(sj.DATA, json.dumps(d)))
+        runner._start().wait(3)
+        time.sleep(0.2)
+        data = json.loads(win.getProperty(sj.DATA))
+        self.assertTrue(data['done'])
+        self.assertEqual(len(data['records']), 1)
+        launched = []
+        page = sj.JetProvider(remote=True, window=win, clock=lambda: NOW, wait=1, launch=lambda *a: launched.append(a))
+        self.assertEqual(len(page.upcoming_games()), 1)
+        self.assertEqual(launched, [])   # fresh data: the script is not started again
+
+    def test_page_starts_the_script_once_and_reports_loading(self):
+        win, launched = Window(), []
+        page = sj.JetProvider(remote=True, window=win, clock=lambda: NOW, wait=0.1, launch=lambda *a: launched.append(a))
+        with self.assertRaises(sm.SportsUnavailable):
+            page.live_games()
+        with self.assertRaises(sm.SportsUnavailable):
+            page.live_games()
+        self.assertEqual(launched, [('sports_jet_run',)])   # the second page load finds it running
+
+    def test_script_says_why_when_jet_cannot_start(self):
+        win = Window()
+        from unittest.mock import patch
+        with patch.object(sj, 'import_jet', return_value=(None, 'No module named x')), patch.dict(sys.modules, {'xbmcgui': NS(Window=lambda i: win)}):
+            sj.run_script([], window=win)
+        data = json.loads(win.getProperty(sj.DATA))
+        self.assertTrue(data['done'])
+        self.assertIn('not installed', data['reason'])
+        page = sj.JetProvider(remote=True, window=win, clock=lambda: data['at'], wait=0.1, launch=lambda *a: None)
+        with self.assertRaises(sm.SportsUnavailable) as ctx:
+            page.live_games()
+        self.assertIn('not installed', str(ctx.exception))
+
+    def test_a_tap_leaves_the_source_and_starts_the_play_script(self):
+        win, launched = Window(), []
+        sj.play_request({'id': 's1', 'addon': 'A', 'quality': '720p', 'language': 'English', 'play': '{"e":"A"}'}, window=win,
+                        launch=lambda *a: launched.append(a))
+        self.assertEqual(json.loads(win.getProperty(sj.PLAY))['play'], '{"e":"A"}')
+        self.assertEqual(launched, [('sports_jet_run', 'play')])
+
+
 if __name__ == '__main__':
     unittest.main()

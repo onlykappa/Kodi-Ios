@@ -36,7 +36,7 @@ def real():
             _real[0] = sports_espn.EspnProvider()
         else:
             import sports_jet
-            _real[0] = sports_jet.JetProvider()
+            _real[0] = sports_jet.JetProvider(remote=True)   # a page's thread cannot call JetExtractors: its script does (ISSUE-365)
     return _real[0]
 
 
@@ -52,5 +52,5 @@ def play(source, log=lambda message: None):
     log('sports: play %s from %s (%s, %s)' % (source.get('id'), source.get('addon'), source.get('quality'), source.get('language')))
     if os.environ.get('KODI_IOS_SPORTS', '') in ('', 'jet') and str(source.get('play') or '').startswith('{'):
         import sports_jet
-        return sports_jet.play(source, log)
+        return sports_jet.play_request(source, log)
     return source.get('play')
