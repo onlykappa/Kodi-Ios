@@ -149,29 +149,47 @@ class Discover(unittest.TestCase):
         with patch.dict(sys.modules, xbmcgui=gui):
             sl.LoopProvider()._start()
         self.assertEqual(props, {sl.ASK: '1'})
-        # the service: waits first, walks once, then again only when asked
-        walks, waits = [], iter([False, False, False, True])   # first_delay, then after the first walk, then after the second, then Kodi closes
+        # the service: nothing at startup; a walk only when the page has asked
+        walks, waits = [], iter([False, False, False, True])
         with patch.object(sl, 'discover_once', lambda *a: walks.append(1)):
             sl.serve(None, None, gui, lambda seconds: next(waits), lambda text: None, first_delay=1, every=1)
-        self.assertEqual(walks, [1])   # asked once at the start; ASK was cleared and not set again
-        props[sl.ASK] = '1'
+        self.assertEqual(walks, [1])            # the property was set above by the page
+        props.clear()
         walks.clear()
         waits = iter([False, False, False, True])
-        with patch.object(sl, 'discover_once', lambda *a: (walks.append(1), None)[1]):
+        with patch.object(sl, 'discover_once', lambda *a: walks.append(1)):
             sl.serve(None, None, gui, lambda seconds: next(waits), lambda text: None, first_delay=1, every=1)
-        self.assertEqual(walks, [1])
+        self.assertEqual(walks, [])             # not asked: no walk
         self.assertIn('ASK', dir(sl))
 
-    def test_the_crew_walk_starts_at_its_sports_menu(self):
+    def test_the_crew_is_held_back_until_its_crash_is_understood(self):
         asked = []
+
         class Spy(Rpc):
             def __call__(self, method, params=None):
                 asked.append((params or {}).get('directory'))
                 return super().__call__(method, params)
         sl.discover(Spy({}), now=lambda: 1)
-        self.assertIn('plugin://plugin.video.thecrew/?action=bluehat', asked)
-        self.assertNotIn('plugin://plugin.video.thecrew/', asked)
-        self.assertIn('plugin://plugin.video.the-loop/', asked)
+        self.assertNotIn('plugin.video.thecrew', ' '.join(a or '' for a in asked))
+        self.assertIn('plugin.video.thecrew', sl.HELD_BACK)
+        self.assertEqual(sl.START['plugin.video.thecrew'], 'plugin://plugin.video.thecrew/?action=bluehat')   # kept for when it is added back
+
+    def test_an_add_on_that_ended_the_app_is_not_walked_again(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, 'g.json')
+            first = sl.Guard(path, 'b1')
+            first.begin('plugin.video.looptv')            # the app ends here: no end()
+            second = sl.Guard(path, 'b1')                  # the next start
+            self.assertTrue(second.skip('plugin.video.looptv'))
+            self.assertFalse(second.skip('plugin.video.the-loop'))
+            walked = []
+            tree = {'plugin://%s/' % sl.PLUGINS[0]: [item('Hello', 'plugin://x/1')]}
+            result = sl.discover(Rpc(tree), guard=second, note=walked.append)
+            self.assertIn('skipped', result['plugins']['plugin.video.looptv']['error'])
+            self.assertTrue(any('skipping plugin.video.looptv' in w for w in walked))
+            self.assertFalse(sl.Guard(path, 'b1').skip('plugin.video.the-loop'))   # finished walks leave no marker
+            self.assertTrue(sl.Guard(path, 'b1').skip('plugin.video.looptv'))     # the crashed one stays skipped
+            self.assertFalse(sl.Guard(path, 'b2').skip('plugin.video.looptv'))    # a new build tries again
 
     def test_the_log_is_short_and_says_what_is_there(self):
         tree = {'plugin://%s/' % sl.PLUGINS[0]: [folder('Live', 'plugin://x/live')] + [item('G%d' % i, 'plugin://x/%d' % i) for i in range(300)],

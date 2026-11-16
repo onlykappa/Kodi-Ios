@@ -5514,3 +5514,14 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
 - **Also (ISSUE-355 follow-up):** a Library play checks the Drive proxy first; a dead one is restarted at once and its new port read, else
   the Drive add-on's stream plays the copy (`drive_proxy.live_port`, `supervise(nudge=...)`).
 - **Test:** `test_sports_loop` (per-folder log, the page's ask, the service loop), `test_drive_proxy_alive`.
+
+## ISSUE-357 — Walking The Crew's menu ended the app, and the walk came back 45 s after every start (owner log f8d75848, build 548)
+
+- **Seen:** the discovery walk ran in the service as designed (ISSUE-356) and showed what the add-ons do: The Loop failed (`Invalid params`, after a
+  confirm box), Loop TV's own server answered 404 when it registered, Loop Guide listed five buttons (Open EPG, Open Sports Guide, Refresh Guide, Settings, Exit).
+  Then, four seconds after "walking plugin.video.thecrew", Kodi started again from the top: the app ended during The Crew's menu.
+- **Cause:** not known (no crash report). Because the walk never finished, no result was saved and it was due again 45 s after each start: a repeating crash.
+- **Fix (build 549):** The Crew is not walked (`HELD_BACK`); each add-on's walk is wrapped in a marker file (`Guard`), and an add-on whose walk ended the app is never
+  walked again for that build; the service walks only when the Sports page asks, not at every start.
+- **Test:** `test_sports_loop` (held-back Crew, the guard, ask-only walk).
+- **Still open:** the sports data itself. None of the three Loop add-ons gives games on this phone (The Loop errors, Loop TV's server is gone, Loop Guide has only buttons).

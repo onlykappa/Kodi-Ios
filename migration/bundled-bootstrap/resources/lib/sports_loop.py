@@ -15,7 +15,10 @@ import time
 
 import sports_model
 
-PLUGINS = ('plugin.video.the-loop', 'plugin.video.loopguide', 'plugin.video.looptv', 'plugin.video.thecrew')
+PLUGINS = ('plugin.video.the-loop', 'plugin.video.loopguide', 'plugin.video.looptv')
+# Owner log f8d75848 (build 548): walking The Crew's sports menu ended the app (it started again 4 s later), and because the walk never finished it was
+# tried again 45 s after every start. The Crew is not walked until a cause is known (CAREFUL: add it back to PLUGINS only with the guard below).
+HELD_BACK = ('plugin.video.thecrew',)
 # Where the walk starts when the add-on's front page is not sports: The Crew's sports menu ("Bluehat", owner decision 2026-11-15:
 # The Crew and The Loop are the two main sports providers).
 START = {'plugin.video.thecrew': 'plugin://plugin.video.thecrew/?action=bluehat'}
@@ -24,6 +27,7 @@ SAMPLES = 8                          # playable items recorded per folder (the f
 EVERY = 12 * 3600                     # seconds between two discoveries
 FOLDER = 'special://profile/addon_data/service.kodi.ios.bootstrap/'
 OUT = 'sports-discovery.json'
+GUARD = 'sports-discovery-guard.json'
 PROPERTIES = ['title', 'plot', 'thumbnail', 'file', 'genre', 'runtime']
 
 
@@ -78,24 +82,72 @@ def walk(rpc, root, clock=time.monotonic, depth=DEPTH, nodes=NODES, seconds=SECO
     return out
 
 
-def discover(rpc, clock=time.monotonic, now=time.time, progress=None, build='', note=None):
+def discover(rpc, clock=time.monotonic, now=time.time, progress=None, build='', note=None, guard=None):
     """{'time', 'build', 'plugins': {id: {'nodes': [...]}}} for the Loop add-ons that answer; an add-on that is missing says so.
     progress(result) is called after each add-on, so an early log export already shows the ones that finished."""
     result = {'time': int(now()), 'build': build, 'plugins': {}}
     for plugin in PLUGINS:
+        if guard and guard.skip(plugin):
+            result['plugins'][plugin] = {'nodes': [], 'error': 'skipped: it ended the app on an earlier walk'}
+            if note:
+                note('skipping %s: it ended the app on an earlier walk' % plugin)
+            continue
         if note:
             note('walking %s' % plugin)
+        if guard:
+            guard.begin(plugin)
         try:
             result['plugins'][plugin] = {'nodes': walk(rpc, START.get(plugin) or 'plugin://%s/' % plugin, clock=clock,
                                                        note=(lambda line, plugin=plugin: note('%s %s' % (plugin.split('.')[-1], line))) if note else None)}
         except Exception as exc:   # nothing here may stop the page
             result['plugins'][plugin] = {'nodes': [], 'error': '%s: %s' % (type(exc).__name__, _short(exc, 100))}
+        if guard:
+            guard.end(plugin)
         if progress:
             try:
                 progress(plugin, {'plugins': {plugin: result['plugins'][plugin]}})
             except Exception:
                 pass
     return result
+
+
+class Guard:
+    """A marker file around each add-on's walk. If the app ends during a walk the marker stays; the next walk finds it, never walks that add-on
+    again for this build and says so, so a crash cannot repeat on every start."""
+
+    def __init__(self, path, build=''):
+        self.path, self.build = path, build
+        self.state = {}
+        try:
+            with open(path, encoding='utf-8') as f:
+                data = json.load(f)
+            if data.get('build') == build:
+                self.state = {k: v for k, v in (data.get('plugins') or {}).items() if v in ('running', 'crashed')}
+        except (OSError, ValueError, AttributeError):
+            pass
+        for plugin, status in list(self.state.items()):
+            if status == 'running':
+                self.state[plugin] = 'crashed'
+        self._save()
+
+    def skip(self, plugin):
+        return self.state.get(plugin) == 'crashed'
+
+    def begin(self, plugin):
+        self.state[plugin] = 'running'
+        self._save()
+
+    def end(self, plugin):
+        self.state.pop(plugin, None)
+        self._save()
+
+    def _save(self):
+        try:
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            with open(self.path, 'w', encoding='utf-8') as f:
+                json.dump({'build': self.build, 'plugins': self.state}, f)
+        except OSError:
+            pass
 
 
 def build_id(here=os.path.dirname(os.path.abspath(__file__))):
@@ -156,7 +208,8 @@ def discover_once(xbmc, xbmcvfs, log, now=time.time):
         for line in log_lines(part):
             log('discovery: ' + line)
     log('discovery: started')
-    result = discover(kodi_rpc(xbmc), now=now, progress=each, build=build_id(), note=lambda line: log('discovery: ' + line))
+    guard = Guard(os.path.join(folder, GUARD), build_id())
+    result = discover(kodi_rpc(xbmc), now=now, progress=each, build=build_id(), note=lambda line: log('discovery: ' + line), guard=guard)
     os.makedirs(folder, exist_ok=True)
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=1)
@@ -214,7 +267,7 @@ def serve(xbmc, xbmcvfs, xbmcgui, wait, log, first_delay=45, every=5):
     window = xbmcgui.Window(10000)
     if wait(first_delay):
         return
-    asked = True
+    asked = window.getProperty(ASK) == '1'   # only when the Sports page asked (a walk at every start ended the app in build 548)
     while True:
         if asked:
             window.clearProperty(ASK)
