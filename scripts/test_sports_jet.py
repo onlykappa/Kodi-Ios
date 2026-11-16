@@ -190,7 +190,7 @@ class Remote(unittest.TestCase):
     def test_script_says_why_when_jet_cannot_start(self):
         win = Window()
         from unittest.mock import patch
-        with patch.object(sj, 'import_jet', return_value=(None, 'No module named x')), patch.dict(sys.modules, {'xbmcgui': NS(Window=lambda i: win), 'xbmcaddon': NS(Addon=lambda *a, **k: None)}):
+        with patch.object(sj, 'import_jet', return_value=(None, 'No module named x')), patch.dict(sys.modules, {'xbmcgui': NS(Window=lambda i: win), 'xbmcaddon': NS(Addon=lambda *a, **k: None), 'xbmcvfs': NS(translatePath=lambda p: __import__('tempfile').gettempdir()+'/kodi-sports-host-test')}):
             sj.run_script([], window=win)
         data = json.loads(win.getProperty(sj.DATA))
         self.assertTrue(data['done'])

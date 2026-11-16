@@ -120,7 +120,8 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
             props, self.rows, self.codes, self.league = model(games,updated,clock(),sm.device_offset(clock()),self.league,
                 'error' if self.failed and not self.data else 'ready' if self.data is not None else 'loading')
             for key,value in props.items():
-                self.setProperty(key,value)
+                if getattr(self,'_shown',{}).get(key)!=value:self.setProperty(key,value)
+            self._shown = props.copy()
 
         def refresh(self):
             with self.lock:

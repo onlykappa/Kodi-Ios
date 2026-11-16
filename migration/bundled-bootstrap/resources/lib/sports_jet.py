@@ -202,6 +202,7 @@ def import_jet(find=_folder):
     """The jetextractors package, found through its add-on's folder; (module, None) or (None, reason)."""
     try:
         add_module_paths(MODULE_ID, find)
+        add_module_paths("script.module.resolveurl", find)
         import jetextractors.extractor as module
         return module, None
     except Exception as error:
@@ -339,9 +340,8 @@ class JetProvider:
                 started = float(home.getProperty(RUN) or 0)
             except ValueError:
                 started = 0
-            if force or now - started > EXTRACTOR_SECONDS + 10:   # nothing running (or a stuck one): start it
+            if now - started > EXTRACTOR_SECONDS + 10:   # nothing running (or a stuck one): start it
                 home.setProperty(RUN, str(now))
-                home.clearProperty(DATA)
                 (self.launch or _launch)('sports_jet_run')
                 data = None
         began = time.monotonic()   # real time: the injected clock is only for the data's own timestamps
@@ -475,12 +475,25 @@ def run_script(args, window=None):
             except Exception:
                 pass
         return
-    provider = JetProvider(publish=lambda data: home.setProperty(DATA, json.dumps(data, separators=(',', ':'))))
-    with named_addon():
-        done = provider._start()
-        done.wait(EXTRACTOR_SECONDS)
-    provider._publish(True)   # also when no scraper could start: the page then gets `reason`
-    home.clearProperty(RUN)
+    import fcntl, os, xbmcvfs
+    folder = xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap')
+    os.makedirs(folder, exist_ok=True)
+    guard = open(os.path.join(folder, 'sports-jet-scan.lock'), 'a')
+    try:
+        fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        guard.close()
+        log('jet: collection already running; reused')
+        return
+    try:
+        provider = JetProvider(publish=lambda data: home.setProperty(DATA, json.dumps(data, separators=(',', ':'))))
+        with named_addon():
+            done = provider._start()
+            done.wait(EXTRACTOR_SECONDS)
+        provider._publish(True)   # also when no scraper could start: the page then gets `reason`
+    finally:
+        home.clearProperty(RUN)
+        guard.close()
 
 
 def play_request(source, logger=log, window=None, launch=None):
@@ -524,7 +537,11 @@ def expand(module, extractor, link, depth=0):
         resolved = extractor.get_link(link)
     except Exception:
         resolved = None
-    return resolved if resolved is not None and getattr(resolved, 'address', None) else link
+    if resolved is None or not getattr(resolved, 'address', None):
+        return None
+    if getattr(resolved, 'address', None) == getattr(link, 'address', None) and not getattr(resolved, 'direct', False) and not getattr(resolved, 'resolveurl', False):
+        return None
+    return resolved
 
 
 def play(source, logger=log):

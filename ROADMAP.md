@@ -1,5 +1,7 @@
 # Kodi-iOS master roadmap
 
+Current repair: sports playback/import/refresh fixes host-validated; PR #44 merged with owner approval. Combined native candidate and testing IPA pending. See [sports progress](docs/SPORTS-PLAYBACK-PROGRESS.md).
+
 Maintenance checkpoint: PR #32 source-provider fallback is ready for draft review; host and desktop Kodi fixture validation recorded in reports/provider-fallback-validation.json. No IPA or merge.
 
 Current maintenance checkpoint (2026-11-14): ISSUE-303 repairs build-473 Umbrella cache admission and cancellation; testing IPA approved, phone result pending. See [progress](docs/UMBRELLA-473-PROGRESS.md). Historical phase counts below are unchanged.
