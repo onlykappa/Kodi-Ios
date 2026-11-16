@@ -222,4 +222,15 @@ class Controller(unittest.TestCase):
         self.assertEqual(played.call_count,2)
 
 
+    def test_refresh_clears_a_previous_play_failure(self):
+        def scenario(window):
+            until(lambda:not window.fetching)
+            window.onClick(page.SOURCE+int(window.props['source.0.form']))
+            self.assertTrue(window.props['play.error'])
+            window.refresh()
+            until(lambda:not window.fetching)
+            self.assertEqual(window.props['play.error'],'')
+        self.exercise(sm.Sample(now=NOW),scenario,play=[RuntimeError('fixture play failure')])
+
+
 if __name__=='__main__':unittest.main()
