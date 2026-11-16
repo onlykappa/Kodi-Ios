@@ -750,4 +750,19 @@ class StopAndSlowWarning(unittest.TestCase):
   self.assertIn("_mark(TV_STARTING);_mark(TV_STOP)",src)
 
 
+class ConvertedFailureEvidence(unittest.TestCase):
+ def test_slow_copy_prefetch_does_not_blame_drive_for_converted_failure(self):
+  lines=['request: GET /cvideo/seg0.m4s',
+         'copy: video segment 1 in 23395 ms, source I/O 11174 ms, result 0',
+         'compat: segment 0 stopped after 20678 ms, source I/O 0 ms']
+  self.assertFalse(cast.slow_source(lines))
+ def test_measured_converted_source_delay_still_reports_drive(self):
+  self.assertTrue(cast.slow_source(['GET /cvideo/seg0.m4s',
+   'compat: segment 0 failed after 21000 ms, source I/O 17000 ms']))
+ def test_shared_reader_wait_is_reported_separately_from_cursor_io(self):
+  self.assertTrue(cast.slow_source(['compat: segment 0 failed after 21000 ms, source I/O 0 ms, shared wait 17000 ms']))
+ def test_missing_converted_io_does_not_infer_source_blame(self):
+  self.assertFalse(cast.slow_source(['GET /cvideo/seg0.m4s 500 0 B 20000 ms: session stopped',
+   'copy: video segment 1 in 23395 ms, source I/O 11174 ms, result 0']))
+
 if __name__=='__main__':unittest.main()

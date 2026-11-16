@@ -182,7 +182,8 @@ def run(args=()):
 
         def show(self, props):
             for key, value in props.items():
-                self.setProperty(key, value)
+                if self.getProperty(key) != value:
+                    self.setProperty(key, value)
 
         def fetch(self, refresh, quiet=False):
             def work():
@@ -222,7 +223,7 @@ def run(args=()):
                         self.fetch(False, quiet=True)
                 elif target and target[0] == 'source' and (target[1], target[2]) in self.slots:
                     path = sports_provider.play(self.slots[(target[1], target[2])], log)
-                    if path and path is not True and not str(path).startswith('sample://'):   # True: the Jet script already started it (ISSUE-366)
+                    if isinstance(path, str) and path and not path.startswith('sample://'):
                         xbmc.Player().play(path)
 
         def finish(self):

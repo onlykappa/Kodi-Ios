@@ -88,7 +88,10 @@ def run(game, provider=None, clock=time.time):
 
         def draw(self,error=False):
             props,self.sources = model(self.data,clock(),sm.device_offset(clock()),'error' if error else 'ready')
-            for key,value in props.items():self.setProperty(key,value)
+            for key,value in props.items():
+                # The tap handler also writes play.error; a refresh must still clear it.
+                if key=='play.error' or getattr(self,'_shown',{}).get(key)!=value:self.setProperty(key,value)
+            self._shown = props.copy()
 
         def refresh(self):
             with self.lock:

@@ -190,7 +190,7 @@ class Remote(unittest.TestCase):
     def test_script_says_why_when_jet_cannot_start(self):
         win = Window()
         from unittest.mock import patch
-        with patch.object(sj, 'import_jet', return_value=(None, 'No module named x')), patch.dict(sys.modules, {'xbmcgui': NS(Window=lambda i: win), 'xbmcaddon': NS(Addon=lambda *a, **k: None)}):
+        with patch.object(sj, 'import_jet', return_value=(None, 'No module named x')), patch.dict(sys.modules, {'xbmcgui': NS(Window=lambda i: win), 'xbmcaddon': NS(Addon=lambda *a, **k: None), 'xbmcvfs': NS(translatePath=lambda p: __import__('tempfile').gettempdir()+'/kodi-sports-host-test')}):
             sj.run_script([], window=win)
         data = json.loads(win.getProperty(sj.DATA))
         self.assertTrue(data['done'])
@@ -228,7 +228,7 @@ class NamedAddon(unittest.TestCase):
 class LivePageDoesNotPlayTrue(unittest.TestCase):
     def test_live_page_skips_playing_when_the_script_already_started_it(self):   # ISSUE-366
         text = (ROOT / 'migration/bundled-bootstrap/sports_live.py').read_text()
-        self.assertIn("path is not True", text)
+        self.assertIn("isinstance(path, str)", text)
 
 
 if __name__ == '__main__':

@@ -204,6 +204,9 @@ int gm_stream_plan_keyframes(gm_stream *s, const double *times, int count);
 /// cut the same grid. Returns 0, or -1 when the two do not have the same streams.
 int gm_stream_adopt_plan(gm_stream *dst, const gm_stream *src);
 
+// Plan/metadata view only; no media reads. Close before src.
+gm_stream *gm_stream_uniform_timeline(const gm_stream *src);
+
 #ifdef __cplusplus
 }
 #endif

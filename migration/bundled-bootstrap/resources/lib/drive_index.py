@@ -55,9 +55,10 @@ def valid(data,size):
  return found and at==end
 
 class Cache:
- def __init__(self,state_dir,log=lambda text:None,clock=time.monotonic):
+ def __init__(self,state_dir,log=lambda text:None,clock=time.monotonic,background=False):
   self.path=Path(state_dir)/FILE;self.log=log;self.clock=clock;self.lock=threading.RLock()
   self.entries={};self.opened={};self.failed={};self.used=0
+  self.background=background;self.admitting=set();self.admission_slots=threading.BoundedSemaphore(2)
   try:
    with self.path.open('rb') as file:raw=file.read(MAX_JSON+1)
    if len(raw)<=MAX_JSON:
@@ -138,10 +139,32 @@ class Cache:
    if 40<=length<=min(MAX_INDEX,len(data)) and length<meta['size']:
     index=data[-length:]
     if valid(index,meta['size']):
-     fresh=identity(upstream.metadata(file_id),file_id)
-     with self.lock:
-      current=self.opened.get(file_id)
-      if fresh and ident and current and fresh[0]==ident[0]==current['key']:
-       self.used+=1;self.entries[file_id]={'key':fresh[0],'metadata':fresh[1],'data':index,'used':self.used};self._save()
-       self.log('Kodi iOS Drive index: cached validated fragment index (%d bytes)'%length)
+     self._admit(file_id,upstream,ident,index)
   return start,end,meta['size'],data
+
+ def _admit(self,file_id,upstream,ident,index):
+  # The bytes already read belong to the player's current response. A second metadata
+  # round trip and disk write are needed only before future cache reuse, not before
+  # returning those bytes. Bound optional work; duplicates simply stream normally.
+  if not ident:return
+  def validate():
+   try:
+    fresh=identity(upstream.metadata(file_id),file_id)
+    with self.lock:
+     current=self.opened.get(file_id)
+     if fresh and current and fresh[0]==ident[0]==current['key']:
+      self.used+=1;self.entries[file_id]={'key':fresh[0],'metadata':fresh[1],'data':index,'used':self.used};self._save()
+      self.log('Kodi iOS Drive index: cached validated fragment index (%d bytes)'%len(index))
+   except Exception:pass  # optional cache admission cannot interrupt a movie
+   finally:
+    if self.background:
+     with self.lock:self.admitting.discard(file_id)
+     self.admission_slots.release()
+  if not self.background:validate();return
+  with self.lock:
+   if file_id in self.admitting or not self.admission_slots.acquire(blocking=False):return
+   self.admitting.add(file_id)
+  try:threading.Thread(target=validate,daemon=True).start()
+  except RuntimeError:
+   with self.lock:self.admitting.discard(file_id)
+   self.admission_slots.release()

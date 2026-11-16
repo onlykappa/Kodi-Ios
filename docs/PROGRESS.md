@@ -1,5 +1,19 @@
 # Persistent progress
 
+## Build 561 published and verified — 2026-11-16
+
+PR #44 merged as 9b276e7. Testing [build 561](https://github.com/onlykappa/Kodi-Ios/releases/tag/build-561), source a16a3ef, includes the sports playback/resolver/refresh repairs and the merged Drive/AirPlay fixes in newly compiled **AirPlay r65**. PR #43 remains open for testing. Final import CI run 43913240719 passed all tests, bundle apply/restore smoke checks and IPA validation. Downloaded the 588,860,520-byte IPA: release SHA **d60999a057fbb21ca6397fda1b2bf17aca3daa9945c282fe99eb0be928a815cb**, full ZIP CRC, eight exact repaired source files, exact r65 binary and exact unsigned r33 executable all pass. Glass bar r6 preserved.
+
+The raw r33 executable has an embedded signature; the first private verifier incorrectly compared the unsigned IPA against that signed digest. After verifying the original pinned r33 archive/binary and applying the existing packer's unsign operation, the packaged executable matches byte for byte (one signature command removed). This was a verifier assumption, not an app change. No extra IPA was built. Optional first-frame renderer logging from #44 remains deferred with the r33 executable; the functional Drive and AirPlay fixes ship. Phone acceptance remains pending: Sports play/scroll, completed Drive movie/show cold and warm opens, AirPlay picture/audio/captions and forward/back seek.
+
+Evidence: [sports validation](../reports/sports-playback-validation.json). Native compile 43911296606 / host evidence 43907784636; immutable r65 publisher 43912960249. Local/CI validation includes 170 Python suites (2,483 tests with targeted final retests), five real Foundation tests, native conversion/seek/cancel/caption checks, six matching converted A/V segments, 768 frames and exact copied picture packets. Desktop portrait scrolling/live-provider behavior was not established; no phone performance or universal provider availability claim.
+
+## Sports playback repair and combined build — 2026-11-16
+
+Owner build 557 log confirms an asynchronous Jet play request returned True and Live Now passed it to Player.play; ResolveURL was installed but absent from the script import path; failed extractor resolution could pass a webpage to Kodi. Load ResolveURL's declared dependency graph, accept only actual playback strings at the page boundary, and reject unresolved links. Forced refresh now joins an active collection, with a process-wide file lock preventing simultaneous interpreter scans. Keep existing results during refresh and avoid rewriting unchanged page properties. Provider outages in the log remain upstream failures; these changes cannot guarantee their availability or phone frame rate.
+
+All 14 sports suites pass (179 tests). Seven focused regression cases cover dependency loading, the asynchronous acknowledgement, refresh joining and failed/successful link resolution. Existing mock window failures exposed the need to cache previous properties within each page; corrected and all suites rerun. Owner also approved review/merge of PR #44 and one combined testing IPA. PR #44 merged as 9b276e7 after its 265 Python tests and project check passed. Next: integrate newer sports/subtitle source with main, run native candidate CI, verify/pin its framework, then package and verify the IPA. Actual iPhone playback/scrolling/AirPlay checks remain pending.
+
 ## Build 544 log (owner, 2026-11-16): sports discovery skipped, AirPlay slow starts, banner bar — 2026-11-16
 
 Sports showed "Can't load" as expected (no adapter yet) and the discovery walk did not run: build 538's empty result blocked it for 12 hours (ISSUE-352, fixed:
@@ -210,6 +224,20 @@ hold menu 9601/9602, removal question 9611/9612); `tracks.py` runs Find another 
 rows and wording. Tests: `test_subtitle_hold.py` (15, real controller on a fake Kodi), `test_track_menu.py`. Rendered in the desktop Kodi rig at 2340x1080
 (tracks, hold, remove question, More, results): evidence class desktop Kodi rig, not device. The rig has no player, so the flows were not run against real
 playback. Release names in results are shortened to fit two lines (DEC-050).
+## Drive startup and audio-only AirPlay — source fixes, device retest pending (2026-11-16)
+
+Build 554/r64 identified from the supplied log; latest published IPA at inspection was 557.
+Completed Drive playback queued its first decoded picture 4.168 s after Play; the old 3.2-s
+log measured streams ready. Removed optional index cache admission from the player response.
+AirPlay delivered audio, but no completed converted video; long storage windows also drove
+conversion, and unrelated copied-read I/O produced the Drive diagnosis. Converted picture/audio
+now share a separate six-second grid, preserving copied video and selected captions.
+265 Python tests, 375 native host checks, new native sparse-window regression and desktop
+Kodi 21.2 fixture flows pass; iPhone/TV and Kodi 21.3 portrait acceptance remain pending.
+Native pins unchanged; no IPA/release/merge. See [progress](DRIVE-STARTUP-AIRPLAY-PROGRESS.md)
+and `reports/drive-startup-airplay-validation.json`. PR #42's startup syntax prerequisite is
+included separately; unrelated sports/subtitle branches remain untouched.
+
 
 ## PR #32 — movie/TV fallback providers — ready for draft review
 
@@ -909,3 +937,19 @@ PR #21 merged (build-314: Kodi r31, AirPlay r50). The owner approved the Library
 buttons) and asked for the work to be planned before coding: ROADMAP.md "Mockup roadmap" (L1-L8 Library, V1-V3
 Picture menu, Saturation, AI Upscale show page). No code yet; the owner says when to start. Owner logs from
 build-314 (Build Season, copy speed, AI Upscale tiles) are awaited.
+
+## Integration checkpoint — 2026-11-16
+
+Combined source 38dad1e is pushed on PR #43. Native candidate run 43907784636 tests and builds that source, including r64 subtitle changes and PR #44's separate six-second converted timeline. No IPA has been built yet. The ordinary import CI caught a portrait patch digest mismatch: PR #44 adds an optional first-frame logging marker, but the approved r33 executable was built without that marker. The testing branch now retains the exact r33 patch and pin together; the marker remains in main for a future Kodi executable build. This does not remove the Drive admission or native AirPlay playback fixes; first-picture timing remains explicitly unmeasured. test_smooth_pages passes after restoring that consistency.
+
+Native candidate pending; after it passes, verify the archive, publish/pin r65, run the full IPA workflow once. A redundant old-tag AirPlay build was canceled; the candidate build remains running. New playback regressions are now added to import CI. Desktop Kodi 21.3 rig initially crashed while starting many third-party Python services; services were isolated in the private rig, not in shipped code. Rig playback/scroll validation remains in progress and is not a phone result.
+
+Follow-up evidence: combined-source loopback index benchmark cold median 0.4022 → 0.2019 s, warm 0.00110 → 0.00110 s (five trials, synthetic 200-ms metadata; not device measurements). Sports regressions include actual process-lock contention and release after collection failure. The Loop installer exits when its installed dependencies are present; this change does not reinstall JetExtractors or overwrite the owner's whitelist patch. Desktop rig startup recovered after isolating private third-party services, but a skin reload closed the sports window and subsequent skeleton/first-run dialogs prevented a useful scrolling measurement. No desktop frame-rate or live-provider playback claim. Full import-suite rerun continues; stale local provider fixtures were replaced with the current lock's verified archives.
+
+Full local import/packaging validation: 170 suites, 2482 tests run; every suite passes. Native host job 133441177291 in candidate run 43907784636 passes. Apple framework compilation remains queued. Evidence: reports/sports-playback-validation.json.
+
+Native infrastructure failure retained: candidate run 43907784636 passed host tests but GitHub canceled its unassigned macos-15 ARM64 compile after 15 minutes: "The job was not acquired by Runner of type hosted even after multiple attempts"; annotations report ARM64 capacity constraints. Retry compilation on the documented macos-15-intel image (Xcode 26 available). A manual reuse_host_run option verifies the earlier host job succeeded and the entire migration/airplay-ios Git tree is identical before allowing the compile; default PR runs still execute the full host suite. This reuses evidence, not an older binary.
+
+Native compile checkpoint: candidate **43911296606** succeeds on Intel, including five real Foundation transport fault tests. Xcode 26.3 / iPhoneOS SDK 26.2 produced r65 archive SHA **05ef394f931b321dda54e0c8378e6420c912d4cf525602bb70529d8c864acf7a**, read from its successful compiler log. The workspace cannot download the Actions artifact's Azure URL (Forbidden); the existing verified-candidate publisher will validate SHA/ZIP/exports inside GitHub before immutable publication. Local public-release download and binary/CRC inspection are required before the IPA workflow. r65 pin prepared; publication and IPA pending.
+
+Ready-to-package checkpoint: **AirPlay r65 published** by verified-candidate run **43912960249**. The public 4,083,768-byte ZIP was downloaded locally: SHA **05ef394f…acf7a**, ZIP CRC, thin arm64 Mach-O, required exported API and six-second converted-timeline/shared-wait markers pass. Binary SHA **7b2f4692aa8fc56a711156180d69908fc911461f5af23ae89ad6f3971888053c** retained for IPA comparison. Owner-approved manual import-review/IPA build is next, with r33 Kodi and r6 bar pins preserved. PR #44 is merged; PR #43 remains open. Actual phone playback/scrolling/AirPlay results pending.

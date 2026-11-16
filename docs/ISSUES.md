@@ -5624,3 +5624,52 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
 - **Found so far:** the Live page handed whatever `sports_provider.play` returned to `xbmc.Player().play`; the Jet route returns `True` after starting the play script, so Live would try to play "True". Fixed (skips `True`).
 - **Still to check on the phone:** the Game page route (`sports_jet_run play`) and what `expand()`/JetProxy do with a real stream. Needs the kodi.log from just after a tap (look for `jet: play failed` or `sports: playing`).
 - **Test:** `test_sports_jet.LivePageDoesNotPlayTrue`.
+
+## Sports build 557: source tap fails and collection work repeats — 2026-11-16
+
+Owner build 557 log confirms an asynchronous Jet play request returned True and Live Now passed it to Player.play; ResolveURL was installed but absent from the script import path; failed extractor resolution could pass a webpage to Kodi. Load ResolveURL's declared dependency graph, accept only actual playback strings at the page boundary, and reject unresolved links. Forced refresh now joins an active collection, with a process-wide file lock preventing simultaneous interpreter scans. Keep existing results during refresh and avoid rewriting unchanged page properties. Provider outages in the log remain upstream failures; these changes cannot guarantee their availability or phone frame rate.
+
+All 14 sports suites pass (179 tests). Seven focused regression cases cover dependency loading, the asynchronous acknowledgement, refresh joining and failed/successful link resolution. Existing mock window failures exposed the need to cache previous properties within each page; corrected and all suites rerun. Owner also approved review/merge of PR #44 and one combined testing IPA. PR #44 merged as 9b276e7 after its 265 Python tests and project check passed. Next: integrate newer sports/subtitle source with main, run native candidate CI, verify/pin its framework, then package and verify the IPA. Actual iPhone playback/scrolling/AirPlay checks remain pending.
+
+## Drive startup follow-up — optional index admission blocks playback (2026-11-16)
+
+Build 554's first decoded picture was queued 4.168 s after Play, while the streams-ready
+poll logged 3.2 s. First display scanout was not measured. Index capture synchronously
+revalidated Drive metadata and persisted the optional cache before returning player bytes.
+The proxy now performs that admission in bounded background work, preserving live identity
+checks before reuse. Added blocked-validation/changed-identity/bounded-admission regressions;
+25 index + 25 proxy + 9 timing tests and check_project pass. Five-run loopback medians with
+200 ms metadata: cold 0.4098 → 0.2021 s, warm 0.00108 / 0.00137 s. This is a fixture,
+not iPhone evidence. Full findings and device gaps: DRIVE-STARTUP-AIRPLAY-PROGRESS.md.
+
+## AirPlay audio without completed TV video — source fix (2026-11-16, build 554)
+
+Receiver fetched audio and converted init, retried converted segment 0, and received zero video
+bytes before AVPlayer failure at 32.5 s. Phone-only copied video must not count as TV picture.
+After MP4 sample-scan failure, the storage-index plan (up to 70.3 s) also drove conversion,
+making a first converted segment much too long. The failure card blamed Drive using I/O from
+a different copied-video read-ahead; zero converted-cursor I/O does not rule out shared-cache
+waits. Exact scan-failure cause and encoder-versus-shared-wait split remain unproven.
+
+Fix: separate six-second converted timeline plus matching audio routes/cache keys; preserve
+copy keyframe windows, packet quality and selected subtitles. Diagnose converted failures
+only with that lane's measurements; add shared-cache wait metric. Same host fixture fails on
+old source (32-s conversion window) and passes fixed (6-s windows, all 768 frames, A/V bounds,
+caption drawing, exact copied packet digest, seek/cancel/recovery). 375 related native checks
+and 265 Python tests pass. Device success remains pending; no native pin/release/IPA change.
+
+Retained validation failures: main service SyntaxError required PR #42's existing prerequisite;
+native string-wiring assertions needed audio-route updates; initial continuity assertion
+misinterpreted the first packet edit-list anchor (all later pairs and boundaries now checked);
+standard rig setup lacks sudo; first desktop harness used an unsupported JSON-RPC option.
+Detailed evidence/remaining checks: DRIVE-STARTUP-AIRPLAY-PROGRESS.md.
+
+## Combined build integration: portrait source digest mismatch — 2026-11-16
+
+ 38dad1e is pushed on PR #43. Native candidate run 43907784636 tests and builds that source, including r64 subtitle changes and PR #44's separate six-second converted timeline. No IPA has been built yet. The ordinary import CI caught a portrait patch digest mismatch: PR #44 adds an optional first-frame logging marker, but the approved r33 executable was built without that marker. The testing branch now retains the exact r33 patch and pin together; the marker remains in main for a future Kodi executable build. This does not remove the Drive admission or native AirPlay playback fixes; first-picture timing remains explicitly unmeasured. test_smooth_pages passes after restoring that consistency.
+
+Native infrastructure failure retained: candidate run 43907784636 passed host tests but GitHub canceled its unassigned macos-15 ARM64 compile after 15 minutes: "The job was not acquired by Runner of type hosted even after multiple attempts"; annotations report ARM64 capacity constraints. Retry compilation on the documented macos-15-intel image (Xcode 26 available). A manual reuse_host_run option verifies the earlier host job succeeded and the entire migration/airplay-ios Git tree is identical before allowing the compile; default PR runs still execute the full host suite. This reuses evidence, not an older binary.
+
+## Build 561 artifact validation: signed versus unsigned r33 comparison — 2026-11-16
+
+The private verification helper initially compared the unsigned packaged executable to the signed r33 pin. It now verifies the pinned original archive/binary and compares the exact result of the existing unsign function. One signature command removed; all other bytes match. Release SHA, ZIP CRC, repaired source and exact r65 framework checks pass. Build 561 published; device acceptance remains pending. No app change or extra IPA was needed.
