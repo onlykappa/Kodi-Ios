@@ -15,7 +15,7 @@ class OpenTiming(unittest.TestCase):
         ot.mark(home,'library',now=100.0)
         self.assertFalse(ot.check(home,lambda:False,lines.append,now=101.0))
         self.assertTrue(ot.check(home,lambda:True,lines.append,now=105.8))
-        self.assertEqual(lines,['Kodi iOS open timing: 5.8 s via library'])
+        self.assertEqual(lines,['Kodi iOS open timing: 5.8 s via library [streams ready; first picture not measured]'])
         self.assertFalse(ot.check(home,lambda:True,lines.append,now=106.0))
     def test_a_stale_mark_is_dropped(self):
         home,lines=Home(),[]
@@ -39,23 +39,23 @@ class Stages(unittest.TestCase):
         return lines
     def test_one_line_names_where_the_time_went(self):
         lines=self.run_open({100:(False,False),100.8:(True,False),104.6:(True,True)},105.6,resolved=100.4)
-        self.assertEqual(lines,['Kodi iOS open timing: 5.6 s via library (resolve 0.4 s, handoff 0.4 s, open 3.8 s, picture 1.0 s)'])
+        self.assertEqual(lines,['Kodi iOS open timing: 5.6 s via library (resolve 0.4 s, handoff 0.4 s, open 3.8 s, ready 1.0 s) [streams ready; first picture not measured]'])
     def test_stages_that_were_not_seen_are_left_out(self):
         lines=self.run_open({100:(False,False),103.0:(True,True)},104.0)     # no resolve stamp; media and video seen together
-        self.assertEqual(lines,['Kodi iOS open timing: 4.0 s via library (handoff 3.0 s, open 0.0 s, picture 1.0 s)'])
+        self.assertEqual(lines,['Kodi iOS open timing: 4.0 s via library (handoff 3.0 s, open 0.0 s, ready 1.0 s) [streams ready; first picture not measured]'])
         lines=self.run_open({100:(False,False)},101.0)                       # nothing seen: only the total
-        self.assertEqual(lines,['Kodi iOS open timing: 1.0 s via library'])
+        self.assertEqual(lines,['Kodi iOS open timing: 1.0 s via library [streams ready; first picture not measured]'])
     def test_an_earlier_video_still_playing_is_not_counted_as_this_open(self):
         # media/video are already true when the mark is set (the old video): never seen off, so no stage from them
         lines=self.run_open({100:(True,True)},102.0)
-        self.assertEqual(lines,['Kodi iOS open timing: 2.0 s via library'])
+        self.assertEqual(lines,['Kodi iOS open timing: 2.0 s via library [streams ready; first picture not measured]'])
     def test_a_resolved_stamp_from_an_older_open_is_ignored(self):
         home,lines=Home(),[]
         ot.stamp_resolved(home,now=50.0);ot.mark(home,'library',now=100.0)
         self.assertEqual(home.getProperty(ot.RESOLVED),'')     # mark() clears it
         home[ot.RESOLVED]='50.0'                               # a plugin that set it earlier and stale
         ot.check(home,lambda:True,lines.append,now=102.0,probe=lambda:{})
-        self.assertEqual(lines,['Kodi iOS open timing: 2.0 s via library'])
+        self.assertEqual(lines,['Kodi iOS open timing: 2.0 s via library [streams ready; first picture not measured]'])
     def test_a_give_up_line_says_which_stages_were_reached(self):
         home,lines=Home(),[]
         ot.mark(home,'library',now=0.0)

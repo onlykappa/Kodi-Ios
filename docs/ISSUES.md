@@ -5053,3 +5053,14 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 ## Provider fallback integration failure log — PR #32
 
 Real rig testing exposed required Crew artwork imports despite a guarded main artwork helper; restored the pinned dependency. Worker RunScript UUID arguments broke Otaku numeric plugin handles and broad library paths shadowed stdlib calendar; scoped numeric plugin arguments and dependency module paths fix both. Host and rig regressions caught canceled primary searches starting backups, unusable backup quality being treated as cancellation, cached zero-seeder sources being dropped, and verified anime coordinates being rejected again by the picker. Explicit cancellation markers, reusable source-check callbacks and exact authoritative mapping retain original TMDb queue coordinates. Direct downloads validate request ownership and byte ranges and preserve headers; Stream rejects unresolved magnets instead of initiating a download. Final regression and real rig counts are recorded in reports/provider-fallback-validation.json. Live provider/account availability and phone behavior remain unverified.
+
+## Drive startup follow-up — optional index admission blocks playback (2026-11-16)
+
+Build 554's first decoded picture was queued 4.168 s after Play, while the streams-ready
+poll logged 3.2 s. First display scanout was not measured. Index capture synchronously
+revalidated Drive metadata and persisted the optional cache before returning player bytes.
+The proxy now performs that admission in bounded background work, preserving live identity
+checks before reuse. Added blocked-validation/changed-identity/bounded-admission regressions;
+25 index + 25 proxy + 9 timing tests and check_project pass. Five-run loopback medians with
+200 ms metadata: cold 0.4098 → 0.2021 s, warm 0.00108 / 0.00137 s. This is a fixture,
+not iPhone evidence. Full findings and device gaps: DRIVE-STARTUP-AIRPLAY-PROGRESS.md.

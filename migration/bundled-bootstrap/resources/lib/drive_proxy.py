@@ -148,7 +148,8 @@ class Stats(object):
 class Upstream(object):
     """One kept-alive HTTPS connection per thread to Drive; token(force) gives a bearer token (force: a fresh one)."""
 
-    def __init__(self, token, connect=None, spare=False):
+    def __init__(self, token, connect=None, spare=False, log=lambda text: None):
+        self.log = log
         self.token = token
         self.connect = connect or (lambda: http.client.HTTPSConnection(HOST, timeout=TIMEOUT))
         self.local = threading.local()
@@ -219,7 +220,7 @@ class Upstream(object):
         """Fresh small Drive identity, on a separate bounded connection so a live movie read is untouched."""
         def connect():
             conn=self.connect();conn.timeout=3;return conn
-        channel=Upstream(self.token,connect)
+        channel=Upstream(self.token,connect,log=self.log)
         response=None
         try:
             path='/drive/v3/files/%s?fields=id,size,md5Checksum,version,modifiedTime,mimeType&supportsAllDrives=true'%urllib.parse.quote(file_id,safe='')
@@ -239,7 +240,9 @@ class Upstream(object):
         """The open upstream response for file_id (status 200/206/...), retrying once on a stale connection or 401."""
         force = False
         for attempt in range(attempts):
+            began = time.monotonic()
             access = self.token(force)
+            authenticated = time.monotonic()
             headers = {'Authorization': 'Bearer ' + access}
             if rng:
                 headers['Range'] = rng
@@ -255,6 +258,9 @@ class Upstream(object):
                 resp.read()
                 force = access
                 continue
+            self.log('Kodi iOS Drive read: kind=%s status=%d attempt=%d auth_ms=%.0f headers_ms=%.0f' %
+                     ('range' if rng else 'metadata', resp.status, attempt + 1,
+                      (authenticated - began) * 1000, (time.monotonic() - authenticated) * 1000))
             return resp
         return resp
 
@@ -502,8 +508,8 @@ def start(token, connect=None, port=0, hold=None, state_dir=None, log=lambda tex
     indices = None
     if state_dir is not None:
         import drive_index
-        indices = drive_index.Cache(state_dir, log)
-    handler = type('DriveProxyHandler', (Handler,), {'upstream': Upstream(token, connect, spare=connect is None), 'sizes': {},
+        indices = drive_index.Cache(state_dir, log, background=True)
+    handler = type('DriveProxyHandler', (Handler,), {'upstream': Upstream(token, connect, spare=connect is None, log=log), 'sizes': {},
                                                      'warm': Warm(), 'stats': stats, 'hold': staticmethod(hold) if hold else None,
                                                      'indices': indices})
     server = Server(('127.0.0.1', port), handler)
