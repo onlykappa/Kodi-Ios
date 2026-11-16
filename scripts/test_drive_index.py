@@ -261,6 +261,76 @@ class CacheTests(unittest.TestCase):
             thread.join(2)
 
 
+class BackgroundAdmission(unittest.TestCase):
+    read = CacheTests.read
+    prime = CacheTests.prime
+    def setUp(self):
+        CacheTests.setUp(self)
+        self.cache.background = True
+
+    # Only run the production-mode checks below; synchronous contract checks stay above.
+    def test_response_does_not_wait_for_optional_validation(self):
+        entered, release, done = threading.Event(), threading.Event(), threading.Event()
+        original = self.drive.metadata
+        def delayed(file_id):
+            entered.set()
+            release.wait(2)
+            return original(file_id)
+        self.drive.metadata = delayed
+        result = []
+        def request():
+            result.append(self.prime())
+            done.set()
+        worker = threading.Thread(target=request, daemon=True)
+        worker.start()
+        try:
+            self.assertTrue(entered.wait(1))
+            self.assertTrue(done.wait(.5), 'player bytes waited on optional metadata')
+            self.assertEqual(result[0][3], self.drive.index)
+            self.assertEqual(self.cache.entries, {})  # never reuse unvalidated bytes
+            self.drive.data, self.drive.index = movie(1)
+        finally:
+            release.set(); worker.join(2)
+            self.wait_admission()
+        self.assertEqual(self.cache.entries, {})  # changed identity rejected after response
+
+    def wait_admission(self):
+        import time
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            with self.cache.lock:
+                if not self.cache.admitting:return
+            time.sleep(.005)
+        self.fail('admission worker did not finish')
+
+    def test_background_success_persists_only_index_then_reopens(self):
+        self.prime(); self.wait_admission()
+        cache = di.Cache(self.directory.name)
+        meta = cache.begin('synthetic-file', self.drive, head=True)
+        calls = len(self.drive.calls)
+        self.assertEqual(self.read('bytes=-16', cache, meta)[3], self.drive.index[-16:])
+        self.assertEqual(len(self.drive.calls), calls)
+
+    def test_background_admission_is_bounded_and_deduplicated(self):
+        entered, release = threading.Event(), threading.Event()
+        original = self.drive.metadata
+        def delayed(file_id):
+            entered.set(); release.wait(2)
+            return original(file_id)
+        self.drive.metadata = delayed
+        try:
+            for _ in range(8):self.prime()
+            self.assertTrue(entered.wait(1))
+            self.assertEqual(len(self.cache.admitting), 1)
+            # Saturated optional work is skipped, leaving foreground reads available.
+            self.assertTrue(self.cache.admission_slots.acquire(blocking=False))
+            self.assertFalse(self.cache.admission_slots.acquire(blocking=False))
+            self.cache.admission_slots.release()
+        finally:
+            release.set(); self.wait_admission()
+
+
+
 class HTTPTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()

@@ -39,9 +39,11 @@ struct kr_source {
     int (*extra_interrupt)(void *);
     void *interrupt_context;
     source_cache *cache;
+    atomic_llong cache_wait_ns;
 };
 
 static int64_t io_clock(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (int64_t)t.tv_sec * 1000000000 + t.tv_nsec; }
+double kr_source_wait_ms(const kr_source *s) { return s ? atomic_load(&s->cache_wait_ns) / 1e6 : 0; }
 double kr_source_io_ms(const kr_source *s) { return s ? atomic_load(&s->io_ns) / 1e6 : 0; }
 
 static int interrupted(void *opaque) {
@@ -184,7 +186,10 @@ static int cached_read_one(kr_source *s,int64_t offset,uint8_t *buf,int n) {
         if(slot<0 || c->blocks[slot].loading) {
             struct timespec t;clock_gettime(CLOCK_REALTIME,&t);t.tv_nsec+=50000000;
             if(t.tv_nsec>=1000000000){t.tv_sec++;t.tv_nsec-=1000000000;}
-            pthread_cond_timedwait(&c->changed,&c->lock,&t);pthread_mutex_unlock(&c->lock);continue;
+            int64_t waiting=io_clock();
+            pthread_cond_timedwait(&c->changed,&c->lock,&t);
+            atomic_fetch_add(&s->cache_wait_ns,io_clock()-waiting);
+            pthread_mutex_unlock(&c->lock);continue;
         }
         source_block *b=&c->blocks[slot];
         if(!b->data){b->data=malloc(SOURCE_BLOCK);if(!b->data){pthread_mutex_unlock(&c->lock);break;}}

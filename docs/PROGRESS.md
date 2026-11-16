@@ -1,5 +1,20 @@
 # Persistent progress
 
+## Drive startup and audio-only AirPlay — source fixes, device retest pending (2026-11-16)
+
+Build 554/r64 identified from the supplied log; latest published IPA at inspection was 557.
+Completed Drive playback queued its first decoded picture 4.168 s after Play; the old 3.2-s
+log measured streams ready. Removed optional index cache admission from the player response.
+AirPlay delivered audio, but no completed converted video; long storage windows also drove
+conversion, and unrelated copied-read I/O produced the Drive diagnosis. Converted picture/audio
+now share a separate six-second grid, preserving copied video and selected captions.
+265 Python tests, 375 native host checks, new native sparse-window regression and desktop
+Kodi 21.2 fixture flows pass; iPhone/TV and Kodi 21.3 portrait acceptance remain pending.
+Native pins unchanged; no IPA/release/merge. See [progress](DRIVE-STARTUP-AIRPLAY-PROGRESS.md)
+and `reports/drive-startup-airplay-validation.json`. PR #42's startup syntax prerequisite is
+included separately; unrelated sports/subtitle branches remain untouched.
+
+
 ## PR #32 — movie/TV fallback providers — ready for draft review
 
 Existing provider stays first; Jacktook, POV/Magneto, mapped Otaku, The Crew and Prism supply backups through the existing picker. 431 Python3.11 tests and17/17 realKodi desktop fixture scenarios pass. See [implementation](PROVIDER-FALLBACK.md), [progress](PROVIDER-FALLBACK-PROGRESS.md) and reports/provider-fallback-validation.json. Live accounts/iPhone/AirPlay remain unverified; noIPA or merge.
