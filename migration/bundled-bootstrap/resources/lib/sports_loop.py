@@ -95,19 +95,32 @@ def log_lines(result):
     return lines[:LOG_LINES]
 
 
-def due(path, now, exists=os.path.exists, mtime=os.path.getmtime):
-    """True when no discovery has been written in the last EVERY seconds."""
+RETRY = 10 * 60   # an earlier discovery that listed no add-on at all (they were not installed yet) is tried again after this
+
+
+def due(path, now, exists=os.path.exists, mtime=os.path.getmtime, wait=EVERY):
+    """True when no discovery has been written in the last `wait` seconds."""
     try:
-        return not exists(path) or now - mtime(path) >= EVERY
+        return not exists(path) or now - mtime(path) >= wait
     except OSError:
         return True
+
+
+def wait_for(path, read=None):
+    """EVERY when the last discovery listed at least one add-on, else RETRY: build 544's first run found the add-ons missing (build 538
+    had saved an empty answer) and so skipped the walk for twelve hours, which hid the Loop add-ons that had since been installed."""
+    try:
+        data = read(path) if read else json.load(open(path, encoding='utf-8'))
+        return EVERY if any(d.get('nodes') for d in (data.get('plugins') or {}).values()) else RETRY
+    except (OSError, ValueError, AttributeError):
+        return RETRY
 
 
 def discover_once(xbmc, xbmcvfs, log, now=time.time):
     """Run a discovery unless one ran lately; write the tree and log it. Blocks for up to about 75 seconds: call it on its own thread."""
     folder = xbmcvfs.translatePath(FOLDER)
     path = os.path.join(folder, OUT)
-    if not due(path, now()):
+    if not due(path, now(), wait=wait_for(path)):
         return None
     result = discover(kodi_rpc(xbmc), now=now)
     os.makedirs(folder, exist_ok=True)

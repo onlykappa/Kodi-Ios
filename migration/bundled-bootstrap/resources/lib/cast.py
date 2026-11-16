@@ -301,7 +301,7 @@ def receiver_outcome(network,wait,timeout=60):
   elapsed+=0.5
  return 'failed'
 
-def airplay_outcome(state,wait,timeout=25,network=None,stage=None,startup_limit=AIRPLAY_STARTUP):
+def airplay_outcome(state,wait,timeout=25,network=None,stage=None,startup_limit=AIRPLAY_STARTUP,tick=None):
  """Separate file opening, the owner's TV choice and the actual connection. Each phase has its own bound.
  A TV cannot fetch an unopened file: only a started connection may return 'unreachable'."""
  waited=0.0;phase_begun={};shown=None;had_phase=False
@@ -342,6 +342,9 @@ def airplay_outcome(state,wait,timeout=25,network=None,stage=None,startup_limit=
   if group!=shown:
    shown=group
    if stage:stage(group,AIRPLAY_WORDS[group])
+  if tick:
+   try:tick(group,waited-entered,phase)   # the banner's moving bar; a display problem never stops the start
+   except Exception:pass
   if wait(0.5):return 'aborted'
   waited+=0.5
 

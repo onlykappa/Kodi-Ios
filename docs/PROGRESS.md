@@ -1,5 +1,13 @@
 # Persistent progress
 
+## Build 544 log (owner, 2026-11-16): sports discovery skipped, AirPlay slow starts, banner bar — 2026-11-16
+
+Sports showed "Can't load" as expected (no adapter yet) and the discovery walk did not run: build 538's empty result blocked it for 12 hours (ISSUE-352, fixed:
+retry after 10 minutes). AirPlay played everything. Starts took 5.5 s (Naruto, on the phone), 10.5 s (Phony 1080p), 25.5 s and 28.5 s (4K HEVC from Drive):
+the cost is the keyframe scan of a prepared file with no saved scan (12-14 s, saved after the first cast) plus cold Drive reads of the first segments (7-9 s).
+The banner's bar now moves the whole time (ISSUE-353). Not done: scanning the existing prepared library in the background (needs a native AirPlay change
+and a new framework tag) and faster first-segment reads from Drive (native). Phone results pending.
+
 ## Sports: ChatGPT's Upcoming, game page and Leagues merged with the stack; league page added — 2026-11-16
 
 Branch `claude/sports-full` = the sports stack + The Loop/Crew bundling (DEC-058) + ChatGPT's pages (`codex/sports-upcoming-leagues`). Conflicts were only

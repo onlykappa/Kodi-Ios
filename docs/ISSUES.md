@@ -5456,3 +5456,25 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
 - **Retest:** desktop Kodi shows full league codes and badges in boards 16–17, including the scrolled sections.
 - **Test:** `scripts/test_sports_leagues.py` covers generated controls and registration; actual font/texture rendering
   was checked in Kodi. No new asset or font variant was added.
+
+## ISSUE-352 — Sports discovery was skipped for twelve hours after an earlier empty run (owner log 0d2dbf1a, build 544)
+
+- **Seen:** build 544 opened Sports but logged nothing from the discovery walk, although The Loop family and The Crew were installed.
+- **Cause:** build 538's walk (the add-ons were not installed then) had saved an empty answer, and the walk is only repeated every 12 hours.
+- **Fix:** an earlier answer that listed no add-on at all is retried after ten minutes (`sports_loop.wait_for`).
+- **Retest:** host tests only; the phone needs the next build.
+- **Test:** `test_sports_loop` (`test_an_empty_earlier_discovery_is_retried_soon_but_a_good_one_keeps_for_twelve_hours`).
+
+## ISSUE-353 — The Play on TV banner's bar sat at one number for the whole first step (owner, build 544: "show progress when it's preparing TV")
+
+- **Seen:** casting a 4K movie took 25-28 s to start and the banner's bar stayed at 22 % throughout; short starts (5-10 s) looked the same.
+- **Cause:** one fixed percent per step (`BAR_PCT`), and "usually a few seconds" as the only words.
+- **Fix:** the bar climbs the whole time inside each step toward the next step's start (estimates: the native side reports no
+  percentage), is lifted by the native phase (opening, inspecting, ready), never goes back, and stops short of full until the TV plays.
+  The first step's line names the phase ("Reading the video", "Getting the first seconds ready"). `cast.airplay_outcome` calls a
+  `tick` twice a second; a failing tick never stops the start.
+- **What the log showed about the slow starts (not changed here):** 4K 10-bit HEVC casts took 25-28 s: the keyframe scan of a prepared file
+  that has no saved scan (12-14 s, `segmented: ... (metadata 13926 ms)`) plus the first picture and sound segments read cold from Drive (7-9 s).
+  A phone-local show (Naruto) took 5.5 s; a 1080p Umbrella show 10.5 s. Quality is not the cause; file size and where it is read from are.
+  The scan is saved after the first cast of each movie, so a second cast of the same movie skips it.
+- **Test:** `test_tv_banner` (bar bands, phase floor and words, the controller tick).

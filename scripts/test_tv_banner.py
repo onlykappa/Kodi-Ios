@@ -15,11 +15,58 @@ import airplay_flow as af  # noqa: E402
 
 class Words(unittest.TestCase):
     def test_each_step_has_its_line_and_bar(self):
-        for stage, bar in (('opening', '22'), ('waiting_tv', '48'), ('connecting', '74')):
+        for stage, bar in (('opening', '6'), ('waiting_tv', '52'), ('connecting', '72')):   # each step starts at its band's floor; the bar then moves
             v = af.banner_view(stage)
             self.assertEqual((v['bar'], v['stop']), (bar, 'Stop'))
             self.assertTrue(v['sub'].startswith('Step '))
         self.assertIn('Converting', af.banner_view('opening', converting=True)['title'])
+
+    def test_the_bar_keeps_moving_inside_a_step_and_never_goes_back_or_past_its_band(self):
+        # Owner, build 544: step 1 took 5-28 s and the bar sat at one number. Now it climbs the whole time.
+        last = 0
+        for t in range(0, 60):
+            pct = af.progress_pct('opening', t, '', last)
+            self.assertGreaterEqual(pct, last)
+            self.assertLessEqual(pct, af.BANDS['opening'][1])
+            last = pct
+        self.assertGreater(af.progress_pct('opening', 20), af.progress_pct('opening', 5))
+        self.assertGreater(af.progress_pct('connecting', 8), af.progress_pct('connecting', 1))
+        self.assertLessEqual(af.progress_pct('connecting', 3600), 96)   # never shows complete before the TV plays
+        # a later step starts above where the earlier one ended
+        self.assertGreaterEqual(af.progress_pct('waiting_tv', 0), af.progress_pct('opening', 3600) - 1)
+        self.assertGreaterEqual(af.progress_pct('connecting', 0), af.progress_pct('waiting_tv', 3600) - 1)
+
+    def test_the_native_phase_lifts_the_bar_and_names_what_is_happening(self):
+        self.assertGreater(af.progress_pct('opening', 1, 'inspecting'), af.progress_pct('opening', 1, 'opening'))
+        self.assertGreater(af.progress_pct('opening', 1, 'ready'), af.progress_pct('opening', 1, 'inspecting'))
+        self.assertIn('Reading the video', af.banner_view('opening', phase='inspecting')['sub'])
+        self.assertTrue(af.banner_view('opening', phase='inspecting')['sub'].startswith('Step 1 of 3'))
+        self.assertIn('Reading the video', af.banner_view('opening', tv='Living Room Roku', phase='inspecting')['sub'])
+        self.assertNotIn('usually a few seconds', af.banner_view('opening', phase='ready')['sub'])
+        self.assertIn('usually a few seconds', af.banner_view('opening')['sub'])   # before any phase is known
+
+    def test_the_controller_ticks_the_bar_twice_a_second_and_a_failing_tick_never_stops_the_start(self):
+        import cast
+        seen = []
+        phases = iter(['opening', 'inspecting', 'inspecting', 'ready', 'connecting'])
+        waits = []
+
+        def network():
+            return {'phase': next(phases, 'connecting'), 'expected': True, 'start_age_s': 1, 'connect_age_s': 0}
+
+        def wait(seconds):
+            waits.append(seconds)
+            return len(waits) >= 5   # the user stops after five polls
+
+        def tick(group, seconds, phase):
+            seen.append((group, round(seconds, 1), phase))
+            if len(seen) == 2:
+                raise RuntimeError('display problem')
+        outcome = cast.airplay_outcome(lambda: 0, wait, network=network, stage=lambda *a: None, tick=tick)
+        self.assertEqual(outcome, 'aborted')
+        self.assertEqual(waits, [0.5] * 5)
+        self.assertEqual([t[2] for t in seen], ['opening', 'inspecting', 'inspecting', 'ready', 'connecting'])
+        self.assertEqual(seen[0][0], 'opening')
 
     def test_done_says_where_the_tv_starts_and_has_no_stop(self):
         d = af.banner_done(1623.8)

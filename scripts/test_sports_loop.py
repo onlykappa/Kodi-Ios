@@ -108,6 +108,17 @@ class Discover(unittest.TestCase):
         self.assertEqual(result['plugins'][sl.PLUGINS[0]]['nodes'][1]['label'], 'Hello')
         self.assertIn('ValueError', result['plugins'][sl.PLUGINS[1]]['nodes'][0]['error'])
 
+    def test_an_empty_earlier_discovery_is_retried_soon_but_a_good_one_keeps_for_twelve_hours(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, 'd.json')
+            self.assertEqual(sl.wait_for(path), sl.RETRY)   # none yet
+            json.dump({'plugins': {'a': {'nodes': []}, 'b': {'nodes': [], 'error': 'ValueError'}}}, open(path, 'w'))
+            self.assertEqual(sl.wait_for(path), sl.RETRY)   # every add-on was missing (build 538)
+            json.dump({'plugins': {'a': {'nodes': []}, 'b': {'nodes': [{'label': 'Live'}]}}}, open(path, 'w'))
+            self.assertEqual(sl.wait_for(path), sl.EVERY)
+            self.assertFalse(sl.due(path, os.path.getmtime(path) + 60, wait=sl.RETRY))
+            self.assertTrue(sl.due(path, os.path.getmtime(path) + sl.RETRY + 1, wait=sl.RETRY))
+
     def test_the_crew_walk_starts_at_its_sports_menu(self):
         asked = []
         class Spy(Rpc):

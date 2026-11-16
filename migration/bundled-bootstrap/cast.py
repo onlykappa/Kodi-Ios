@@ -235,7 +235,17 @@ class Banner:
   if self.win is not None:
    try:self.win.apply(props)
    except Exception:pass
- def stage(self,stage,converting=False):self.apply(self.flow.banner_view(stage,converting,tv=self.tv))
+ def stage(self,stage,converting=False):
+  self.group,self.lastpct,self.lastphase,self.converting_now=stage,0,'',converting
+  self.apply(self.flow.banner_view(stage,converting,tv=self.tv))
+ def progress(self,group,seconds,phase=''):
+  """Called twice a second while the start runs: the bar keeps moving, and the first step names what the phone is doing."""
+  pct=self.flow.progress_pct(group,seconds,phase,getattr(self,'lastpct',0))
+  props={}
+  if pct!=getattr(self,'lastpct',None):self.lastpct=pct;props['bar']=str(pct)
+  if group=='opening' and phase!=getattr(self,'lastphase',''):
+   self.lastphase=phase;props.update({k:v for k,v in self.flow.banner_view('opening',getattr(self,'converting_now',False),tv=self.tv,phase=phase).items() if k in ('title','sub')})
+  if props:self.apply(props)
  def done(self,at=None):
   if self.win is None:return
   self.apply(self.flow.banner_done(at,tv=self.tv));self.xbmc.sleep(2000);self.close()
@@ -455,7 +465,9 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
   # ISSUE-251: Apple's AirPlay list at once, while the stream is made (the TV starts when it is ready). The framework
   # opens the list again when the stream is ready only if no AirPlay device was chosen.
   if QUIET_PROGRESS and hasattr(lib,'kodi_airplay_open'):lib.kodi_airplay_open()
-  outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25,network=network,stage=stage,startup_limit=budget)
+  def tick(group,seconds,phase):
+   if QUIET_PROGRESS and _BANNER[0]:_BANNER[0].progress(group,seconds,phase)
+  outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25,network=network,stage=stage,startup_limit=budget,tick=tick)
   why=airplay.message(lib)
   net=network()
   if profile and outcome=='failed':
