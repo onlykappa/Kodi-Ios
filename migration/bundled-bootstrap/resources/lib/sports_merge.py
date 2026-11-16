@@ -18,6 +18,7 @@ import re
 import unicodedata
 
 QUALITY_RANK = {'2160p': 4, '4k': 4, '1440p': 3, '1080p': 3, '720p': 2, '576p': 1, '480p': 1, '360p': 0, '240p': 0}
+ALTS = 6
 GOOD_FROM = 2          # a second source is recommended from 720p up
 SAME_GAME_WITHIN = 45 * 60
 NOISE = {'fc', 'cf', 'afc', 'sc', 'ac', 'the', 'club', 'de', 'of'}
@@ -87,8 +88,14 @@ def _sources(records, addon_order, language):
         for m in members[1:]:
             if m.get('addon') != first.get('addon') and m.get('addon') not in also:
                 also.append(m.get('addon'))
+        # The same stream from other add-ons is also a way to play it when the first add-on's stream cannot be opened (build 557: one add-on's server failed
+        # for every game while nine others list the same matches): `alts` are their play values, other add-ons first, at most ALTS.
+        alts = []
+        for m in sorted(members[1:], key=lambda r: r.get('addon') == first.get('addon')):
+            if m.get('play') and m.get('play') != first.get('play') and m.get('play') not in alts:
+                alts.append(m.get('play'))
         out.append({'id': source_id(first), 'addon': first.get('addon'), 'quality': first.get('quality') or '', 'language': first.get('language') or '',
-                    'tag': '', 'also': also, 'play': first.get('play') or ''})
+                    'tag': '', 'also': also, 'play': first.get('play') or '', 'alts': alts[:ALTS]})
     want = (language or '').lower()
     out.sort(key=lambda s: (-quality_rank(s['quality']), 0 if (not want or s['language'].lower() in ('', want)) else 1,
                             _rank(addon_order, s['addon']), s['language']))

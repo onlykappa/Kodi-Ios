@@ -204,8 +204,9 @@ class Remote(unittest.TestCase):
         win, launched = Window(), []
         sj.play_request({'id': 's1', 'addon': 'A', 'quality': '720p', 'language': 'English', 'play': '{"e":"A"}'}, window=win,
                         launch=lambda *a: launched.append(a))
-        self.assertEqual(json.loads(win.getProperty(sj.PLAY))['play'], '{"e":"A"}')
-        self.assertEqual(launched, [('sports_jet_run', 'play')])
+        self.assertEqual(launched[0][:2], ('sports_jet_run', 'play'))
+        key = launched[0][2]
+        self.assertEqual(json.loads(win.getProperty(sj.PLAY + key))['play'], '{"e":"A"}')
 
 
 class NamedAddon(unittest.TestCase):
@@ -229,6 +230,43 @@ class LivePageDoesNotPlayTrue(unittest.TestCase):
     def test_live_page_skips_playing_when_the_script_already_started_it(self):   # ISSUE-366
         text = (ROOT / 'migration/bundled-bootstrap/sports_live.py').read_text()
         self.assertIn("isinstance(path, str)", text)
+
+
+class Fallback(unittest.TestCase):
+    """Build 557 log: Embedsport2's server failed for every game while other add-ons list the same match; quick taps raced on one property."""
+
+    def test_merge_keeps_the_other_addons_streams_as_alternatives(self):
+        a = Ext('Embedsport2', [item('Arsenal vs Chelsea', NOW + 7200, 'Premier League', links=[Link('https://a/1')])])
+        b = Ext('ReedStreams', [item('Arsenal vs Chelsea', NOW + 7200, 'Premier League', links=[Link('https://b/1')])])
+        src = provider(a, b).upcoming_games()[0]['sources']
+        self.assertEqual(len(src), 1)
+        self.assertEqual(src[0]['addon'], 'Embedsport2')
+        self.assertEqual([json.loads(v)['e'] for v in src[0]['alts']], ['ReedStreams'])
+
+    def test_play_tries_the_next_add_when_the_first_cannot_open(self):
+        tried = []
+        original = sj.play_one
+        def fake(value, logger=None):
+            tried.append(json.loads(value)['e'])
+            if json.loads(value)['e'] != 'Reed':
+                raise RuntimeError('no playable stream behind this source')
+            return True
+        sj.play_one = fake
+        try:
+            self.assertTrue(sj.play({'play': '{"e":"Embed"}', 'alts': ['{"e":"Bad"}', '{"e":"Reed"}']}, logger=lambda t: None))
+            self.assertEqual(tried, ['Embed', 'Bad', 'Reed'])
+            with self.assertRaises(RuntimeError):
+                sj.play({'play': '{"e":"Embed"}', 'alts': []}, logger=lambda t: None)
+        finally:
+            sj.play_one = original
+
+    def test_two_quick_taps_do_not_share_a_property(self):
+        win, launched = Window(), []
+        for n in (1, 2):
+            sj.play_request({'id': 's%d' % n, 'play': '{"e":"A%d"}' % n}, window=win, launch=lambda *a: launched.append(a))
+            time.sleep(0.005)
+        self.assertNotEqual(launched[0][2], launched[1][2])
+        self.assertEqual(json.loads(win.getProperty(sj.PLAY + launched[0][2]))['id'], 's1')
 
 
 if __name__ == '__main__':

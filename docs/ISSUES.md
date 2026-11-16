@@ -5673,3 +5673,8 @@ Native infrastructure failure retained: candidate run 43907784636 passed host te
 ## Build 561 artifact validation: signed versus unsigned r33 comparison — 2026-11-16
 
 The private verification helper initially compared the unsigned packaged executable to the signed r33 pin. It now verifies the pinned original archive/binary and compares the exact result of the existing unsign function. One signature command removed; all other bytes match. Release SHA, ZIP CRC, repaired source and exact r65 framework checks pass. Build 561 published; device acceptance remains pending. No app change or extra IPA was needed.
+
+- **Update (owner log b7b8ef70, build 557):** games load (9 scrapers: LiveFeeds 229 games, Embedsport2 160, ...). Every tap chose Embedsport2, whose own stream request to its helper host failed on the phone (`[SSL] unknown error`),
+  while other scrapers list the same matches; and quick taps raced on one Home window property (`KeyError: 'play'`, 3 times).
+  **Fix:** a game's source now carries the other add-ons' play values as `alts`; `play` tries the source's own add-on and then up to four others until one opens (one log line per failure, no addresses); each tap uses its own
+  property. **Not fixed (not ours):** Embedsport2's helper server failing on iOS. **Test:** `test_sports_jet.Fallback`, `test_sports_merge` (unchanged and still passing).

@@ -463,9 +463,10 @@ def run_script(args, window=None):
     import xbmcgui
     home = window or xbmcgui.Window(10000)
     if args[:1] == ['play']:
+        key = args[1] if len(args) > 1 else ''
         try:
-            source = json.loads(home.getProperty(PLAY) or '{}')
-            home.clearProperty(PLAY)
+            source = json.loads(home.getProperty(PLAY + key) or '{}')
+            home.clearProperty(PLAY + key)
             with named_addon():
                 play(source)
         except Exception as error:
@@ -502,9 +503,10 @@ def play_request(source, logger=log, window=None, launch=None):
         import xbmcgui
         window = xbmcgui.Window(10000)
     home = window
-    home.setProperty(PLAY, json.dumps({'play': source.get('play'), 'id': source.get('id')}, separators=(',', ':')))
+    key = str(int(time.time() * 1000))   # one property per tap: quick taps must not read or clear each other's (build 557: KeyError 'play')
+    home.setProperty(PLAY + key, json.dumps({'play': source.get('play'), 'alts': source.get('alts') or [], 'id': source.get('id')}, separators=(',', ':')))
     logger('sports: play %s from %s (%s, %s)' % (source.get('id'), source.get('addon'), source.get('quality'), source.get('language')))
-    (launch or _launch)('sports_jet_run', 'play')
+    (launch or _launch)('sports_jet_run', 'play', key)
     return True
 
 
@@ -544,14 +546,30 @@ def expand(module, extractor, link, depth=0):
     return resolved
 
 
+TRIES = 5   # the source's own add-on and up to four others that list the same stream
+
+
 def play(source, logger=log):
-    """Start a source (what a tap on a line does). Raises when nothing can be played so the page says so."""
+    """Start a source (what a tap on a line does): its own add-on first, then the others that list the same stream, until one opens. Raises when none can."""
+    values = [v for v in [source.get('play')] + list(source.get('alts') or []) if v][:TRIES]
+    last = None
+    for value in values:
+        try:
+            return play_one(value, logger)
+        except Exception as error:
+            last = error
+            logger('jet: a source failed (%s: %s); %s' % (type(error).__name__, str(error)[:70], 'trying the next' if value != values[-1] else 'no more'))
+    raise last or RuntimeError('this source has nothing to play')
+
+
+def play_one(play_value, logger=log):
+    """One add-on's stream of a game. Raises when it cannot be opened."""
     import xbmc
     import xbmcgui
     module, reason = import_jet()
     if module is None:
         raise RuntimeError('JetExtractors missing: %s' % reason)
-    value = json.loads(source['play'])
+    value = json.loads(play_value)
     from jetextractors.models import JetLink
     link = JetLink.from_dict(value['l'])
     extractor = module.get_extractor(value['e'])
