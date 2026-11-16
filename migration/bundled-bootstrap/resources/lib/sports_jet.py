@@ -249,20 +249,30 @@ class JetProvider:
     def _extractors(self):
         if self.loader:
             return self.loader()
+        import sports_independent
+        independent = [sports_independent.StreamsCenter()]
         module, reason = import_jet()
         if module is None:
             self.reason = 'JetExtractors is not installed (%s)' % reason
-            return [], 'missing'
+            return independent, 'independent'
         try:
-            return load_extractors(module)
+            extractors, how = load_extractors(module)
+            return extractors + independent, how + '+independent'
         except Exception as error:
             self.reason = 'JetExtractors refused or failed (%s: %s)' % (type(error).__name__, str(error)[:90])
-            return [], 'refused'
+            log('jet: unavailable (%s); trying independent sources' % type(error).__name__)
+            return independent, 'independent'
 
     def _start(self):
-        extractors, how = self._extractors()
+        if self.loader:
+            extractors, how = self._extractors()
+            discover_jet = False
+        else:
+            import sports_independent
+            extractors, how = [sports_independent.StreamsCenter()], 'independent'
+            discover_jet = True
         done = threading.Event()
-        pending = [len(extractors)]
+        pending = [len(extractors) + int(discover_jet)]
         started = self.clock()
         if not extractors:
             log('jet: no scrapers (%s)' % (self.reason or how))
@@ -308,6 +318,29 @@ class JetProvider:
                 work(ext)
         for ext in extractors:
             threading.Thread(target=guarded, args=(ext,), daemon=True).start()
+        if discover_jet:
+            def discover():
+                try:
+                    module, reason = import_jet()
+                    if module is None:
+                        self.reason = 'JetExtractors is not installed (%s)' % reason
+                        return
+                    others, _ = load_extractors(module)
+                    with self.lock:
+                        pending[0] += len(others)
+                    for ext in others:
+                        threading.Thread(target=guarded, args=(ext,), daemon=True).start()
+                except Exception as error:
+                    self.reason = 'JetExtractors refused or failed (%s: %s)' % (type(error).__name__, str(error)[:90])
+                    log('jet: unavailable (%s); independent sources remain available' % type(error).__name__)
+                finally:
+                    with self.lock:
+                        pending[0] -= 1
+                        finished = pending[0] <= 0
+                    self._publish(finished)
+                    if finished:
+                        done.set()
+            threading.Thread(target=discover, daemon=True).start()
         self.running = done
         return done
 
@@ -692,10 +725,16 @@ def play_one(play_value, logger=log):
     """One add-on's stream of a game. Raises when it cannot be opened."""
     import xbmc
     import xbmcgui
+    value = json.loads(play_value)
+    import sports_independent
+    if value.get('e') == sports_independent.NAME:
+        address, headers = sports_independent.resolve(value['l']['address'])
+        logger('sports: playing independent source via JetProxy')
+        xbmc.Player().play(proxy_path(address, headers))
+        return True
     module, reason = import_jet()
     if module is None:
         raise RuntimeError('JetExtractors missing: %s' % reason)
-    value = json.loads(play_value)
     from jetextractors.models import JetLink
     link = JetLink.from_dict(value['l'])
     extractor = module.get_extractor(value['e'])
