@@ -72,15 +72,29 @@ def walk(rpc, root, clock=time.monotonic, depth=DEPTH, nodes=NODES, seconds=SECO
     return out
 
 
-def discover(rpc, clock=time.monotonic, now=time.time):
-    """{'time', 'plugins': {id: {'nodes': [...]}}} for the Loop add-ons that answer; an add-on that is missing says so."""
-    result = {'time': int(now()), 'plugins': {}}
+def discover(rpc, clock=time.monotonic, now=time.time, progress=None, build=''):
+    """{'time', 'build', 'plugins': {id: {'nodes': [...]}}} for the Loop add-ons that answer; an add-on that is missing says so.
+    progress(result) is called after each add-on, so an early log export already shows the ones that finished."""
+    result = {'time': int(now()), 'build': build, 'plugins': {}}
     for plugin in PLUGINS:
         try:
             result['plugins'][plugin] = {'nodes': walk(rpc, START.get(plugin) or 'plugin://%s/' % plugin, clock=clock)}
         except Exception as exc:   # nothing here may stop the page
             result['plugins'][plugin] = {'nodes': [], 'error': '%s: %s' % (type(exc).__name__, _short(exc, 100))}
+        if progress:
+            try:
+                progress(plugin, {'plugins': {plugin: result['plugins'][plugin]}})
+            except Exception:
+                pass
     return result
+
+
+def build_id(here=os.path.dirname(os.path.abspath(__file__))):
+    """The installed build's commit (bootstrap/build.json), or '' when unknown."""
+    try:
+        return str(json.load(open(os.path.join(here, '..', '..', 'build.json'), encoding='utf-8')).get('commit') or '')
+    except (OSError, ValueError, AttributeError):
+        return ''
 
 
 def log_lines(result):
@@ -106,11 +120,13 @@ def due(path, now, exists=os.path.exists, mtime=os.path.getmtime, wait=EVERY):
         return True
 
 
-def wait_for(path, read=None):
+def wait_for(path, read=None, build=''):
     """EVERY when the last discovery listed at least one add-on, else RETRY: build 544's first run found the add-ons missing (build 538
     had saved an empty answer) and so skipped the walk for twelve hours, which hid the Loop add-ons that had since been installed."""
     try:
         data = read(path) if read else json.load(open(path, encoding='utf-8'))
+        if build and data.get('build') != build:
+            return 0   # a different build than the one that made the answer: look again once (the add-ons or the walk may have changed)
         return EVERY if any(d.get('nodes') for d in (data.get('plugins') or {}).values()) else RETRY
     except (OSError, ValueError, AttributeError):
         return RETRY
@@ -120,14 +136,15 @@ def discover_once(xbmc, xbmcvfs, log, now=time.time):
     """Run a discovery unless one ran lately; write the tree and log it. Blocks for up to about 75 seconds: call it on its own thread."""
     folder = xbmcvfs.translatePath(FOLDER)
     path = os.path.join(folder, OUT)
-    if not due(path, now(), wait=wait_for(path)):
+    if not due(path, now(), wait=wait_for(path, build=build_id())):
         return None
-    result = discover(kodi_rpc(xbmc), now=now)
+    def each(plugin, part):   # logged as each add-on finishes: a log exported early still has the first ones
+        for line in log_lines(part):
+            log('discovery: ' + line)
+    result = discover(kodi_rpc(xbmc), now=now, progress=each, build=build_id())
     os.makedirs(folder, exist_ok=True)
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=1)
-    for line in log_lines(result):
-        log('discovery: ' + line)
     log('discovery: written to %s (%d add-ons listed)' % (OUT, sum(1 for d in result['plugins'].values() if d['nodes'])))
     return result
 

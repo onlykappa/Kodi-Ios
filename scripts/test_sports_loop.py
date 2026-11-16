@@ -119,6 +119,19 @@ class Discover(unittest.TestCase):
             self.assertFalse(sl.due(path, os.path.getmtime(path) + 60, wait=sl.RETRY))
             self.assertTrue(sl.due(path, os.path.getmtime(path) + sl.RETRY + 1, wait=sl.RETRY))
 
+    def test_a_new_build_looks_again_and_each_add_on_is_logged_as_it_finishes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, 'd.json')
+            json.dump({'build': 'aaa', 'plugins': {'b': {'nodes': [{'label': 'Live'}]}}}, open(path, 'w'))
+            self.assertEqual(sl.wait_for(path, build='aaa'), sl.EVERY)
+            self.assertEqual(sl.wait_for(path, build='bbb'), 0)
+            self.assertTrue(sl.due(path, os.path.getmtime(path) + 1, wait=0))
+        seen = []
+        tree = {'plugin://%s/' % sl.PLUGINS[0]: [item('Hello', 'plugin://x/1')]}
+        result = sl.discover(Rpc(tree), progress=lambda plugin, part: seen.append((plugin, sorted(part['plugins']))), build='abc')
+        self.assertEqual([p for p, _ in seen], list(sl.PLUGINS))
+        self.assertEqual(result['build'], 'abc')
+
     def test_the_crew_walk_starts_at_its_sports_menu(self):
         asked = []
         class Spy(Rpc):
