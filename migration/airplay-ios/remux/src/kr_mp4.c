@@ -88,11 +88,22 @@ int kr_mp4_moof_keys(const uint8_t *p,uint32_t len,int track,kr_mp4_keys *out) {
     }
     return 0;
 }
+// Owner log 0d2dbf1a (build 544): the scan of a 4K movie from Drive took 12-14 s (109 storage fragments, four connections, two round trips
+// each: the 8-byte box header, then the moof). One read of FIRST_READ bytes now holds the whole moof in nearly every case (a 70-second
+// fragment's index is about 30 KB), and the scan uses SCAN_THREADS connections: about four times fewer waits.
+#define FIRST_READ 40960
+#define SCAN_THREADS 8
 static int inspect(kr_source *source,const kr_mp4_fragment *fr,int track,kr_mp4_keys *out) {
-    uint8_t h[8];if(read_all(source,fr->offset,h,8) || memcmp(h+4,"moof",4))return -1;
-    uint32_t len=AV_RB32(h);if(len<8 || len>HEADER_LIMIT)return -1;
-    uint8_t *p=malloc(len);if(!p)return -1;int result=-1;
-    if(!read_all(source,fr->offset,p,(int)len))result=kr_mp4_moof_keys(p,len,track,out);
+    uint8_t *p=malloc(FIRST_READ);if(!p)return -1;
+    int got=kr_source_read(source,fr->offset,p,FIRST_READ),result=-1;
+    if(got>=8 && !memcmp(p+4,"moof",4)) {
+        uint32_t len=AV_RB32(p);
+        if(len>=8 && len<=HEADER_LIMIT) {
+            if(len>(uint32_t)FIRST_READ){uint8_t *q=realloc(p,len);if(!q){free(p);return -1;}p=q;}
+            // A short first read (the source's own boundary) or a larger moof: read the rest.
+            if(got>=(int)len || !read_all(source,fr->offset+got,p+got,(int)len-got))result=kr_mp4_moof_keys(p,len,track,out);
+        }
+    }
     free(p);return result;
 }
 static void *worker(void *opaque) {
@@ -114,7 +125,7 @@ int kr_mp4_keyframe_ticks(kr_source *source,const kr_mp4_fragment *fragments,int
     memset(out,0,sizeof *out);
     kr_mp4_keys *result=calloc((size_t)count,sizeof *result);if(!result)return -1;
     scan s={.source=source,.fragments=fragments,.result=result,.count=count,.track=track,.interrupt=interrupt,.context=context};
-    pthread_t th[3];int n=0;for(int i=0;i<3 && i<count-1;i++)if(!pthread_create(th+n,NULL,worker,&s))n++;
+    pthread_t th[SCAN_THREADS-1];int n=0;for(int i=0;i<SCAN_THREADS-1 && i<count-1;i++)if(!pthread_create(th+n,NULL,worker,&s))n++;
     worker(&s);for(int i=0;i<n;i++)pthread_join(th[i],NULL);
     int ok=-1;
     // The first fragment must hold a keyframe; its first sample anchors the stream-wide presentation offset.

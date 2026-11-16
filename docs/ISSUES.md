@@ -5478,3 +5478,15 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
   A phone-local show (Naruto) took 5.5 s; a 1080p Umbrella show 10.5 s. Quality is not the cause; file size and where it is read from are.
   The scan is saved after the first cast of each movie, so a second cast of the same movie skips it.
 - **Test:** `test_tv_banner` (bar bands, phase floor and words, the controller tick).
+
+## ISSUE-354 — The first cast of a 4K movie from Drive spent 12-14 s scanning for keyframes (owner log 0d2dbf1a, build 544)
+
+- **Seen:** `segmented: 1697 keyframes inside 109 storage fragments give 772 streaming segments (metadata 13926 ms)` on a first cast; 12.4 s on a second
+  4K movie; 4 s on 1080p. The scan is saved afterwards (ISSUE-335/346), so later casts skip it, but every library title pays once.
+- **Cause:** the scan read each fragment's index with two requests (the 8-byte box header, then the moof) on four connections: about 0.5 s per
+  fragment per connection against Drive.
+- **Fix (r63, `kr_mp4.c`):** one request of 40 KB per fragment (a fragment's index is about 30 KB; a larger one reads the rest) and eight
+  connections. Same parser, same saved result, so the segments are unchanged. Expected: roughly a quarter of the time (about 3-4 s for the 4K movie); to be measured on the phone.
+- **Not changed:** the 7-9 s the first picture and sound segments take to arrive from Drive (cold connections; the source reader already adds helper
+  connections on a slow link). The next log will show the scan time and, with it, what remains.
+- **Test:** the converter host tests (airplay-remux) cover the scan; a phone log gives the time.
