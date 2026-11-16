@@ -5617,3 +5617,10 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
   a source goes the same way), and while that script runs `sports_jet.named_addon` makes a bare `Addon()` mean this add-on (`service.kodi.ios.bootstrap`). JetExtractors is not changed and its own checks stay; this only says who we are.
   If it still refuses, the next step is a prompt for The Loop's side with the exact error.
 - **Test:** `test_sports_jet.Remote` and `NamedAddon`.
+
+## ISSUE-366 — Sports: tapping a stream did nothing (owner, after JetExtractors accepted the add-on)
+
+- **Seen:** games list from JetExtractors (owner's config.py change on their side), but no stream opens.
+- **Found so far:** the Live page handed whatever `sports_provider.play` returned to `xbmc.Player().play`; the Jet route returns `True` after starting the play script, so Live would try to play "True". Fixed (skips `True`).
+- **Still to check on the phone:** the Game page route (`sports_jet_run play`) and what `expand()`/JetProxy do with a real stream. Needs the kodi.log from just after a tap (look for `jet: play failed` or `sports: playing`).
+- **Test:** `test_sports_jet.LivePageDoesNotPlayTrue`.

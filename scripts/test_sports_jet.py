@@ -225,5 +225,11 @@ class NamedAddon(unittest.TestCase):
         self.assertIs(module.Addon, Strict)
 
 
+class LivePageDoesNotPlayTrue(unittest.TestCase):
+    def test_live_page_skips_playing_when_the_script_already_started_it(self):   # ISSUE-366
+        text = (ROOT / 'migration/bundled-bootstrap/sports_live.py').read_text()
+        self.assertIn("path is not True", text)
+
+
 if __name__ == '__main__':
     unittest.main()

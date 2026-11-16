@@ -222,7 +222,7 @@ def run(args=()):
                         self.fetch(False, quiet=True)
                 elif target and target[0] == 'source' and (target[1], target[2]) in self.slots:
                     path = sports_provider.play(self.slots[(target[1], target[2])], log)
-                    if path and not str(path).startswith('sample://'):
+                    if path and path is not True and not str(path).startswith('sample://'):   # True: the Jet script already started it (ISSUE-366)
                         xbmc.Player().play(path)
 
         def finish(self):
