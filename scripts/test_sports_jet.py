@@ -121,5 +121,29 @@ class Playing(unittest.TestCase):
         self.assertEqual(sports_provider.play({'id': 's', 'play': 'sample-play'}), 'sample-play')
 
 
+class ModulePaths(unittest.TestCase):
+    def test_required_modules_are_put_on_the_path(self):   # owner log 916e0a6a: "No module named 'requests'"
+        import tempfile
+        import os
+        with tempfile.TemporaryDirectory() as tmp:
+            def make(id, needs, lib='lib'):
+                d = os.path.join(tmp, id)
+                os.makedirs(os.path.join(d, lib))
+                imports = ''.join('<import addon="%s"/>' % n for n in needs)
+                open(os.path.join(d, 'addon.xml'), 'w').write('<addon id="%s"><requires><import addon="xbmc.python"/>%s</requires>'
+                                                                '<extension point="xbmc.python.module" library="%s"/></addon>' % (id, imports, lib))
+            make('script.module.jetextractors', ['script.module.requests', 'script.module.gone'])
+            make('script.module.requests', ['script.module.urllib3'])
+            make('script.module.urllib3', [], 'lib')
+            before = list(sys.path)
+            try:
+                seen = sj.add_module_paths('script.module.jetextractors', lambda i: os.path.join(tmp, i) if os.path.isdir(os.path.join(tmp, i)) else None)
+                for id in ('script.module.jetextractors', 'script.module.requests', 'script.module.urllib3'):
+                    self.assertIn(os.path.join(tmp, id, 'lib'), sys.path)
+                self.assertIn('script.module.gone', seen)   # a missing module is skipped, not fatal
+            finally:
+                sys.path[:] = before
+
+
 if __name__ == '__main__':
     unittest.main()

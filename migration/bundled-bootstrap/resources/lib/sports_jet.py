@@ -159,18 +159,45 @@ def log(text):
         pass
 
 
-def import_jet():
-    """The jetextractors package, found through its add-on's folder; (module, None) or (None, reason)."""
+def add_module_paths(addon_id, find, seen=None):
+    """Put an add-on's python module folder, and those of the modules it requires, on sys.path. Kodi only does this for the add-on that is running; this
+    script is not JetExtractors, so without it `import requests` fails (owner log 916e0a6a). `find(id)` -> the add-on's folder or None."""
+    import os
+    import xml.etree.ElementTree as ET
+    seen = set() if seen is None else seen
+    if addon_id in seen or addon_id.startswith('xbmc.'):
+        return seen
+    seen.add(addon_id)
+    folder = find(addon_id)
+    if not folder:
+        return seen
     try:
-        import jetextractors.extractor as module
-        return module, None
+        root = ET.parse(os.path.join(folder, 'addon.xml')).getroot()
     except Exception:
-        pass
+        return seen
+    for ext in root.iter('extension'):
+        if ext.get('point') == 'xbmc.python.module' and ext.get('library'):
+            path = os.path.join(folder, ext.get('library'))
+            if path not in sys.path:
+                sys.path.insert(0, path)
+    for need in root.iter('import'):
+        if need.get('addon'):
+            add_module_paths(need.get('addon'), find, seen)
+    return seen
+
+
+def _folder(addon_id):
     try:
         import xbmcaddon
-        lib = xbmcaddon.Addon(MODULE_ID).getAddonInfo('path').rstrip('/') + '/lib'
-        if lib not in sys.path:
-            sys.path.insert(0, lib)
+        return xbmcaddon.Addon(addon_id).getAddonInfo('path').rstrip('/')
+    except Exception:
+        return None
+
+
+def import_jet(find=_folder):
+    """The jetextractors package, found through its add-on's folder; (module, None) or (None, reason)."""
+    try:
+        add_module_paths(MODULE_ID, find)
         import jetextractors.extractor as module
         return module, None
     except Exception as error:

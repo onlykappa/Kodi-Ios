@@ -5598,3 +5598,12 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
 - **Unknown until a phone log exists:** JetExtractors may refuse a caller that is not The Loop. The first build logs why (`Kodi iOS Sports: jet: ...`: scraper counts, names, a few titles; never a stream address). If it refuses, the
   fix is on The Loop's side (a prompt for the owner's agent), not a workaround here.
 - **Test:** `test_sports_jet` (titles, leagues, state, records, merge of two scrapers, failing and slow scrapers, nothing-answers, JetProxy path).
+
+## ISSUE-364 — Sports said "The sports add-ons didn't answer": our script could not import `requests` (owner build 552 log 916e0a6a)
+
+- **Seen:** every Sports page showed "Can't load sports right now"; the log said `jet: no scrapers (JetExtractors is not installed (ModuleNotFoundError: No module named 'requests'))` although
+  JetExtractors 3.3.33 and requests 2.31.0 were both installed.
+- **Cause:** Kodi puts a module add-on on the python path only for an add-on that declares it. The Sports script is not JetExtractors, so JetExtractors' own imports (requests, bs4, dateutil...) failed.
+  JetExtractors was never asked anything, so this says nothing yet about whether it accepts our caller.
+- **Fix:** `sports_jet.add_module_paths` adds the module folder of JetExtractors and of every add-on it requires, recursively, from their addon.xml files; a missing one is skipped.
+- **Test:** `test_sports_jet.ModulePaths`.
