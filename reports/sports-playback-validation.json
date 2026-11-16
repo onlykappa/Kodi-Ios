@@ -889,7 +889,16 @@
     "foundation_tests_passed": 5,
     "xcode": "26.3",
     "iphone_sdk": "26.2",
-    "publication": "pending verified-candidate publisher",
-    "local_archive_inspection": "pending public release; Actions artifact Azure URL denied in this environment"
-  }
+    "publication": "published and downloaded",
+    "local_archive_inspection": "SHA, ZIP CRC, thin arm64 Mach-O and required exports/new conversion markers passed",
+    "archive_bytes": 4083768,
+    "binary_sha256": "7b2f4692aa8fc56a711156180d69908fc911461f5af23ae89ad6f3971888053c",
+    "zip_crc_passed": true,
+    "architecture": "arm64 Mach-O",
+    "conversion_markers_present": true,
+    "publisher_run": 43912960249,
+    "candidate_run": 43911296606,
+    "device_result": "pending"
+  },
+  "ipa": "pending authorized manual build"
 }
