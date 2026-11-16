@@ -39,7 +39,7 @@ class Wording(unittest.TestCase):
         self.assertEqual(ctl.sports_line([]), '')
         self.assertEqual(ctl.sports_line(['Hockey']), 'Hockey')
         self.assertEqual(ctl.sports_line(['Hockey', 'Soccer']), 'Soccer and Hockey')
-        self.assertEqual(ctl.sports_line(['Hockey', 'American football', 'Basketball', 'Soccer']), 'Soccer, Basketball and 2 more')
+        self.assertEqual(ctl.sports_line(['Hockey', 'American football', 'Basketball', 'Soccer']), 'Soccer, Basketball\nand 2 more')
 
     def test_lines_wrap_at_spaces_and_never_exceed_two(self):
         self.assertEqual(sp.split_lines('Nothing live right now. Next game starts at 7:30 PM.', sp.FIT_BIG),
@@ -54,7 +54,7 @@ class Properties(unittest.TestCase):
     def test_the_approved_board(self):
         props = ctl.props_for(overview(), NOW, 0)
         self.assertEqual((props['state'], props['sub']), ('ok', 'Updated just now'))
-        self.assertEqual((props['live.mode'], props['live.badge'], props['live.d1'], props['live.lines']), ('live', '4 live', 'Soccer, Basketball and 2 more', '1'))
+        self.assertEqual((props['live.mode'], props['live.badge'], props['live.d1'], props['live.lines']), ('live', '4 live', 'Soccer, Basketball', '2'))   # the break after the sports keeps "and 2 more" whole
         self.assertEqual((props['up.d1'], props['up.d2'], props['up.lines']), ('Next at 7:30 PM', '2 more today', '2'))
         self.assertEqual((props['lg.d1'], props['lg.lines']), ('12 leagues', '1'))
         self.assertEqual(props['fin'], '6 replays')

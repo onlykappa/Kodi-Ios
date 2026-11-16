@@ -29,7 +29,7 @@ def sports_line(names):
         return names[0] if names else ''
     if len(names) == 2:
         return '%s and %s' % tuple(names)
-    return '%s, %s and %d more' % (names[0], names[1], len(names) - 2)
+    return '%s, %s\nand %d more' % (names[0], names[1], len(names) - 2)   # explicit break: "1 / more" must not be split
 
 
 def _lines(props, key, text, limit):

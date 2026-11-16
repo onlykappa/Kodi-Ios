@@ -257,7 +257,8 @@ class Provider(unittest.TestCase):
         os.environ.pop('KODI_IOS_SPORTS', None)
         sp.reset()
         try:
-            self.assertIsInstance(sp.get(), sl.LoopProvider)
+            import sports_espn
+        self.assertIsInstance(sp.get(), sports_espn.EspnProvider)   # DEC-059: the real provider is the public feed
             with self.assertRaises(sm.SportsUnavailable):   # outside Kodi the discovery does not start (no xbmc to ask)
                 sp.get().overview()
         finally:

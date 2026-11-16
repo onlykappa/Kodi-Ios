@@ -564,3 +564,13 @@ with one page at a time."
   added from a file, Remove from this video (asks first). A track inside the video file cannot be removed. The same actions are on the More page.
 - **Remove** hides the track in the menu, turns it off if it was on, and deletes the file the menu downloaded; the player keeps its own copy of the track
   list until the video ends. Audio and Playback speed keep their dropdown.
+
+## DEC-060: Sports games come from ESPN's public scoreboard feed; add-ons are only for streams (2026-11-16)
+
+- **Why:** the discovery logs (builds 544-548) showed that none of the Loop add-ons gives games on the phone: The Loop fails or blocks for 22 minutes, Loop TV's server answers 404,
+  Loop Guide lists five buttons, and walking The Crew ended the app. The owner agreed to the recommended route: "make sports work".
+- **What:** `sports_espn.EspnProvider` (sports_provider's real provider) reads `site.api.espn.com/apis/site/v2/sports/<sport>/<league>/scoreboard` for 14 leagues (NFL, college
+  football, NBA, WNBA, college basketball, NHL, MLB, Premier League, La Liga, Bundesliga, Serie A, Ligue 1, Champions League, MLS): the plain scoreboard and tomorrow's date (a date range
+  answers HTTP 400), gzip, merged by event id; one league failing never fails the rest. Live games show score, clock and how much is left; upcoming games the start time.
+- **Not official:** the feed is the one ESPN's own site uses; it has no key and no promise. If it changes, the pages say "Can't load" and the log says why (`Kodi iOS Sports: no league answered (...)`).
+- **Streams:** every game says "No sources yet" until an add-on can supply a stream for it (the merge rules of DEC-055 stay). The Crew and The Loop are not called (`sports_loop.WALK = False`).

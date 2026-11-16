@@ -44,6 +44,8 @@ def textures(p):
 
 def split_lines(text, limit):
     """The text as at most two lines of up to `limit` characters, broken at spaces (the page cannot measure text, so it wraps it)."""
+    if '\n' in str(text or ''):   # a break the caller chose
+        return [line.strip() for line in str(text).split('\n')][:2]
     words, lines = str(text or '').split(), []
     for word in words:
         if lines and len(lines[-1]) + 1 + len(word) <= limit:

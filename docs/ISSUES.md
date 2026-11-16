@@ -5534,3 +5534,19 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
 - **Cause:** The Loop's plugin waits (probably on a dialog nobody sees); a walk can also raise dialogs over the screen. None of the add-ons returned games.
 - **Fix (build 550):** `sports_loop.WALK = False`: the service never walks and never calls an add-on until the sports source is chosen. The Sports pages say "Can't load" as before.
 - **Test:** `test_sports_loop` (`test_no_walk_runs_while_the_sources_are_not_chosen`).
+
+## ISSUE-359 — Subtitle lines stacked on the TV instead of replacing the old one (owner photo, build 549)
+
+- **Seen:** four caption lines at once on the TV ("[group] Hi, Sharla!", "I'm back doing PI work", "[Sharla]", "Yeah, it's been a stressful time."); the old line did not leave when the new one came.
+- **Cause:** each WebVTT cue stayed up until its own end time (a 5 s fallback when a sample has no duration, or a file whose end times overrun), past the start of the next cue. The TV shows
+  overlapping cues stacked.
+- **Fix (r64, `gm_stream.c`):** each cue now ends where the next one starts (the next cue of the segment, or the first cue after the segment, which is read but not used); cues that begin
+  together stay together. Segment by segment the same rule gives the same result.
+- **Retest:** the converter host tests (airplay-remux) must still pass; on the TV a new caption replaces the old.
+
+## ISSUE-360 — Sports had no data source (DEC-060)
+
+- **Fix:** ESPN's public scoreboard feed (see DEC-060). First run: `HTTP 400` because the feed rejects a date range; fixed by asking for the plain scoreboard and tomorrow's date; the "Live Now" tile
+  no longer splits "1 / more".
+- **Retest:** desktop Kodi rig with the live feed (Live Now with crests, scores and clocks; Upcoming; Leagues; the landing): evidence class desktop Kodi rig, not device.
+- **Test:** `test_sports_espn` (11), `test_sports_landing`.

@@ -1,7 +1,7 @@
 """The one door the Sports pages use to reach sports data (DEC-057).
 
 Pages call get() and play(); they never talk to an add-on. get() returns a provider with the methods listed in sports_model.py.
-Real data only: with no setting, get() is the real provider. Until The Loop's provider lands that has no source, so every call raises
+Real data only: with no setting, get() is the real provider (ESPN's public scoreboard feed, sports_espn.py); when nothing answers, every call raises
 SportsUnavailable and the pages say "Can't load ... right now" (the sample games must never reach a phone as if they were real).
 For building and looking at pages in the desktop Kodi rig and in tests, set KODI_IOS_SPORTS=sample (the approved boards' sample
 data), =quiet (nothing live: the grey Live Now tile) or =down (every call fails).
@@ -28,11 +28,11 @@ def get():
 
 
 def real():
-    """The providers of the add-ons on this phone, combined (DEC-055). The Loop's provider has no adapter yet: it says "no source" and, once
-    a day, writes the tree of its menus for the adapter to be written from (sports_loop.py)."""
+    """The provider the phone uses: ESPN's public scoreboard feed for the games, scores and times (DEC-059). Streams under a game come from add-ons
+    when an add-on can supply them (none can yet: the Loop family gives no games on the phone), so every game says "No sources yet"."""
     if _real[0] is None:
-        import sports_loop
-        _real[0] = sports_loop.LoopProvider()
+        import sports_espn
+        _real[0] = sports_espn.EspnProvider()
     return _real[0]
 
 
