@@ -306,7 +306,7 @@ class Dubbed(unittest.TestCase):
         self.assertIn("'dubbed': dubbed(props.get('audiostreams'), props.get('currentaudiostream'), preference),",
                       (BOOT / 'resources/lib/subtitle_match.py').read_text())
         tracks = (BOOT / 'tracks.py').read_text()
-        self.assertIn("dubbed = sm.dubbed(a.get('audiostreams'), a.get('currentaudiostream'), lang)", tracks)
+        self.assertIn("dubbed = sm.dubbed(a.get('audiostreams'), a.get('currentaudiostream'), self.lang)", tracks)
         self.assertIn("dubbed=video.get('dubbed')", tracks)
 
 
