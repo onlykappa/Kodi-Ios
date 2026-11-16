@@ -5357,3 +5357,102 @@ Real rig testing exposed required Crew artwork imports despite a guarded main ar
 - **Fix:** the install now runs after the chain (Umbrella present, whichever source window it has).
 - **Retest:** all suites in the workflow run; the six pass again.
 - **Test:** `scripts/test_bundle_syntax.py` parses every shipped Python file and pins the order.
+
+## ISSUE-329 — Upcoming timer could delay closing the page — fixed before first commit
+
+- **Seen:** the host `test_speed_fixes.py` regression check rejected the new Upcoming timer's use of
+  `Monitor.waitForAbort(1)` while a separate stop event controlled the page lifetime.
+- **Cause:** Kodi waits for a script's background threads at exit; that sleep would ignore Back until its timeout.
+- **Fix:** use the existing `page_wait.idle` helper, which wakes when the page closes or Kodi exits.
+- **Retest:** the page controller tests and the stop-aware-loop regression checks pass. The desktop rendering was
+  checked before this wait-only correction; it is not iPhone evidence.
+- **Test:** `scripts/test_speed_fixes.py` (`PageLoops`) and `scripts/test_sports_upcoming.py` (controller lifecycle).
+
+## ISSUE-330 — Upcoming could not reach the approved scrolled position — fixed in the desktop rig
+
+- **Seen:** board 11 needs the later days higher in the viewport than the original list's scroll range allowed.
+- **Cause:** its 260-unit trailing clearance allowed only about 208 pt of scrolling with the sample's wrapped
+  league chips; the approved board scrolls 330 pt before allowing for the extra chip row.
+- **Fix:** reserve 720 units after the final day, so the header can scroll away and the later games can occupy
+  the approved positions without the tab bar covering their text.
+- **Retest:** desktop Kodi 21.3: wheel scrolling and Last Page show Tomorrow and Sat, Nov 21 with complete titles,
+  times, counts and source details above the fallback tab bar. Device gestures remain unverified.
+- **Test:** `scripts/test_sports_upcoming.py` checks the shared six-game, three-day projection and generated XML;
+  the actual scroll range was checked visually in the desktop rig.
+
+## ISSUE-331 — Returning from a game reset the Upcoming filter — fixed in the desktop rig
+
+- **Seen:** choosing NBA, opening its game, then pressing Back restored All rather than the chosen league.
+- **Cause:** Kodi calls the parent window's `onInit` again when the child closes; it reset the filter and created
+  another timer. The unconditional default focus also discarded the row's navigation position.
+- **Fix:** initialize each Sports window once and let Kodi restore its existing focus on return.
+- **Retest:** desktop Kodi 21.3: NBA → game → Back preserves the NBA chip, one-game count and selected row. The
+  controller regression simulates the repeated `onInit` and checks the existing filter and stop event survive.
+- **Test:** `scripts/test_sports_upcoming.py` and `scripts/test_sports_game.py` cover re-entry without new workers.
+
+## ISSUE-332 — A long source description lost its final line — fixed in the desktop rig
+
+- **Seen:** the long-source fixture ended after “Loop Guide, Sports”, clipping “Hub” in the Also on line.
+- **Cause:** the estimate allowed too many characters per line beside the Also good badge. The language and
+  alternative-provider text needed six actual Kodi lines, while the model reserved five.
+- **Fix:** use more conservative wrapping estimates for each badge width, grow the row to fit and provide forms
+  for up to nine detail lines. The source title and details remain complete.
+- **Retest:** desktop Kodi 21.3: International Sports Network, French Canadian commentary and all three alternative
+  provider names now fit, including the final Hub line. Standard board 12's row sizes remain the same.
+- **Test:** `scripts/test_sports_game.py` keeps the exact long fixture and checks its required line allocation.
+
+## ISSUE-333 — Two-digit start hours were shortened in the game card — fixed in the desktop rig
+
+- **Seen:** opening the later Manchester City game drew “12:30 …” instead of its complete start time.
+- **Cause:** the central clock's 360-unit label was narrower than the existing headline font's 12:30 PM text.
+- **Fix:** widen the centered label to 430 units, within the gap between the crest/code columns. Keep the same font
+  and center point, so board 12's 7:30 PM appearance is unchanged.
+- **Retest:** desktop Kodi 21.3 shows 12:30 PM and the day in full without touching either crest. An offline font
+  check of every 12-hour clock string found a maximum width of 386 units.
+- **Test:** `scripts/test_sports_game.py` checks the later-day value and enough clock space between the crests.
+
+## ISSUE-334 — Game refresh test assumed mutable provider snapshots — fixed for the updated contract
+
+- **Seen:** GitHub's PR check failed the empty-after-refresh test although all local scripts passed.
+- **Cause:** the base branch advanced: Sample now returns independent copies. The fixture edited a returned game
+  and expected that edit to change the provider's next response, which the updated contract deliberately prevents.
+- **Fix:** have the test provider explicitly return the next empty-source snapshot. The application still reads
+  only the public provider methods and needs no change.
+- **Retest:** all 137 listed scripts, including the thirteen game-page cases, pass against the actual PR tree
+  combined with the updated base. The feature checkout's game-page tests also pass; GitHub is checked after push.
+- **Test:** `scripts/test_sports_game.py`, `test_failed_refresh_keeps_seed_and_success_can_remove_sources`.
+
+## ISSUE-335 — Upcoming's timer could replace a failure with loading placeholders — fixed in the desktop rig
+
+- **Seen:** a cold provider failure was drawn once, but the next normal redraw no longer knew the request failed.
+- **Cause:** `draw(error=False)` used a temporary argument rather than preserving the last fetch result. With no
+  cached data, the periodic redraw selected loading again until another request finished.
+- **Fix:** retain the failure flag across redraws; clear it only when a fetch succeeds. Keep cached games visible
+  when refresh fails, and distinguish a successful empty result from an unavailable provider.
+- **Retest:** desktop Kodi 21.3: advancing the fixture clock by 31 seconds keeps board 15 visible. Repeated failure
+  stays on the error screen; Try again with a recovered test provider restores the game list.
+- **Test:** `scripts/test_sports_upcoming_states.py` covers persistent error, retries, successful emptiness, cached
+  results, stale rows/chips and closing during a fetch.
+
+## ISSUE-336 — State icon backgrounds and error text needed renderer corrections — fixed before commit
+
+- **Seen:** the first desktop render showed a thin seam across a translucent icon circle; automatic body wrapping
+  also put Check on the wrong line and used tighter line spacing than approved board 15.
+- **Cause:** nine-slice scaling was unnecessary for a circular texture, and the generic textbox's wrap/line spacing
+  differed from the approved two-line state message.
+- **Fix:** scale the circular mask uniformly and expose the approved description lines separately, preserving the
+  complete plain-text message. Draw them at the board's 21 pt spacing and keep both primary controls' focus visible.
+- **Retest:** desktop Kodi 21.3: both icon circles are seamless; boards 14–15 match the approved copy, line breaks and
+  action positions. Retry and See Leagues show focus feedback without moving the layout.
+- **Test:** state projection checks preserve the complete message across the rendered lines; the seam, typography
+  and button feedback were checked visually in Kodi, not inferred from a unit test.
+
+## ISSUE-337 — Leagues badges initially referenced unavailable resources — fixed before commit
+
+- **Seen:** implementation review caught references to a 118-unit capsule asset and bold-caption font that the
+  existing generator did not supply.
+- **Cause:** the approved 44 pt badge's display size was mistaken for an existing texture/font resource name.
+- **Fix:** scale the existing circular pill_124 texture and use the existing caption font with bold text markup.
+- **Retest:** desktop Kodi shows full league codes and badges in boards 16–17, including the scrolled sections.
+- **Test:** `scripts/test_sports_leagues.py` covers generated controls and registration; actual font/texture rendering
+  was checked in Kodi. No new asset or font variant was added.

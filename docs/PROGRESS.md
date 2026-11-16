@@ -1,5 +1,12 @@
 # Persistent progress
 
+## Sports: ChatGPT's Upcoming, game page and Leagues merged with the stack; league page added — 2026-11-16
+
+Branch `claude/sports-full` = the sports stack + The Loop/Crew bundling (DEC-058) + ChatGPT's pages (`codex/sports-upcoming-leagues`). Conflicts were only
+list unions (PAGES, portrait loads/files, workflow, docs). Review: the pages follow the contract and the sample provider; all sports suites pass;
+Upcoming and Leagues were rendered in the desktop Kodi rig (sample data) and match boards 10 and 16. A league's page (`sports_league.py`) opens Live Now
+on the league's chip when it has a live game, else Upcoming on it (both pages already filter). Phone results pending.
+
 ## Sports: Loop family and The Crew bundled; PR #32 merged; build 538 checked — 2026-11-15
 
 Build 538 (commit 4961d11, pre-release) showed on the phone that The Loop add-ons were not installed (`Unable to find plugin`, ISSUE-350 notes the
@@ -33,6 +40,107 @@ approved board 2 of [sports-approved-pages.html](design/sports-approved-pages.ht
 nothing live, can't load, the Library row, a tile tap and refresh); not yet on the iPhone. The tiles open Live Now, Upcoming and Leagues only once
 those pages exist (an unknown RunScript name would run the recovery script, so the tile says it is coming). Sample data is opt-in
 (`KODI_IOS_SPORTS=sample` in the rig); with no setting the page says it can't load until The Loop's provider lands.
+
+## Sports › Leagues: boards 16–17 and 20 — 2026-11-15
+
+Implemented the Leagues list, scrolled view and unavailable-provider state. `order_leagues` and `league_detail`
+supply ordering and wording; live fragments are red, empty leagues say Nothing coming up, and long names wrap.
+The sample therefore places live UCL before EPL, following the contract rather than the static mockup order.
+See Leagues now opens this page with the same provider/clock. League rows log their destination and call the
+separately owned league route only when its file and route registration both exist. Boards 18–19 remain separate.
+
+Evidence: approved HTML rendered in Chromium and compared with desktop Kodi 21.3 at 603 × 1167. Checked top and
+scrolled list, complete UEFA name and an extended long-name fixture, the error layout, repeated failure and retry
+recovery and Upcoming → See Leagues → Back navigation. The final Motorsport row clears the fixed fallback tab bar. Screenshots remain outside Git. No iPhone,
+native-bar, real-provider or playback result is claimed. Reused existing fonts, badge textures and state art.
+Twelve new cases in `scripts/test_sports_leagues.py` are listed in import-review; the Upcoming state test now
+checks its live Leagues callback. All 139 listed scripts pass against the combined PR/base tree; project and UI guidance checks pass before commit.
+
+## Sports › Upcoming: empty and error states, boards 14–15 — 2026-11-15
+
+Built the approved calendar empty state with Updated just now, No games coming up, Nothing is scheduled yet and
+See Leagues; the warning state has Not updated, Can’t load games right now, the approved two-line explanation and
+Try again. Empty results hide all chips and stale rows. Errors survive timer redraws and retries; a successful
+refresh restores the list, and cached data remains visible when a refresh fails (ISSUE-335). See Leagues currently
+logs the pending route; the Leagues page and its navigation are the next separate piece of work.
+
+The 20 pt state headline uses the existing Inter Bold asset at 54 units: the adjacent existing sizes are 17 and
+22 pt. Runtime-generated outline calendar/warning masks reproduce the approved symbols; Fuse's available versions
+are filled. Body and buttons reuse the existing fonts, surfaces and primary-pill helper. No artwork is committed.
+The rig pass corrected translucent circle scaling and explicit description-line spacing (ISSUE-336).
+
+Evidence: Chromium mockups compared with desktop Kodi 21.3 at 603 × 1167. Checked both layouts; the error screen
+using the updated base's normal, unavailable provider door (no implicit sample data); a 31-second timer advance;
+repeated failed retry; successful retry with an explicitly injected test provider; empty → refresh → six games;
+Back; visible button focus; and the pending See Leagues log. Screenshots stay outside Git. The rig uses the fallback
+tab bar; iPhone, native-bar and real-provider/playback results remain unverified.
+
+Validation: thirteen cases in `scripts/test_sports_upcoming_states.py`, listed in import-review, plus the existing
+Upcoming/game suites. All 138 listed scripts pass against the current combined PR/base tree; the affected suites
+also pass after the final visual adjustments. Project and UI guidance checks pass in both checkouts.
+
+## Sports: updated provider snapshot contract — 2026-11-15
+
+The base branch advanced after the local checks: sample data is now opt-in, and Sample hands out independent
+copies. GitHub caught one test fixture that had assumed mutable provider records (ISSUE-334). The fixture now
+supplies the next snapshot explicitly. All 137 listed scripts pass against the PR's combined tree with the
+updated base, and the feature checkout's game-page tests pass. The UI continues to use the same public provider
+door. GitHub's review check passed after the fixture correction. No sample fallback is added to the application.
+
+## Sports › A game's page: boards 12–13 implemented — 2026-11-15
+
+Upcoming rows now open `IOSSportsGame.xml` with the same game, provider and clock. The card shows the league code,
+start status, time/day and both teams. Crests use the provider's runtime image, with code-in-circle fallbacks for
+the sample's empty crests. Sources are ranked Best, Also good, then the remaining provider order; tapping any part
+of a source row calls `sports_provider.play` with the original source and opaque play value. Board 13 keeps the
+same card and shows the approved no-sources message. Fetching and refresh run behind the cached card; errors go
+to the log with plain recovery wording on screen when no game is available. Back keeps the Upcoming league filter
+and focus (ISSUE-331); long source descriptions grow their rows (ISSUE-332), and two-digit start hours fit in full
+between the crests (ISSUE-333).
+
+Evidence: compared the approved HTML in Chromium with both actual windows in desktop Kodi 21.3 at 603 × 1167,
+using sample data and a fixed sample clock. Checked board 12, board 13, refresh, both sample source taps through
+the play door, Upcoming → NBA game → Back, and long team/source wrapping. Borussia Mönchengladbach, Brighton &
+Hove Albion, Golden State Warriors and the long source fixture display completely. The game's board uses UCL,
+not the full league name; UEFA Champions League belongs to the later Leagues page. No new artwork is committed.
+The rig isolates Sports windows from background add-on services and uses the Kodi fallback tab bar. Screenshots
+remain outside Git; this is not iPhone, native-bar, live-provider, real-crest or actual-stream playback evidence.
+The sample play door only logs, as specified in the brief. Boards 14–15 and the Leagues pages remain pending.
+
+Validation: thirteen new cases in `scripts/test_sports_game.py` (listed in import-review), two new shared-rule cases
+in `test_sports_model.py`, and a returning-window check in `test_sports_upcoming.py`. All 137 listed scripts and the
+project/UI guidance checks pass before commit. The preceding board-11 commit also passed all 136 scripts then listed.
+
+## Sports › Upcoming: board 11 scrolled view — 2026-11-15
+
+Verified the remaining day groups in desktop Kodi 21.3 against approved board 11. The list now leaves enough room
+below the final day to reach the board's scrolled position (ISSUE-330). Tomorrow's two games and the last day's
+Manchester City / Brighton & Hove Albion row remain complete and clear of the fixed fallback tab bar. The header
+and the owner's six wrapped league chips scroll with the list. Checked wheel scrolling and the list's Last Page
+action using the same fixed sample clock as board 10. Screenshots remain outside Git; iPhone scrolling is pending.
+The shared Upcoming fixture and XML checks in `test_sports_upcoming.py` still cover all six games and three days.
+The game's page follows in its own commit.
+
+## Sports › Upcoming: board 10 implemented — 2026-11-15
+
+`RunScript(service.kodi.ios.bootstrap,sports_upcoming)` opens the Upcoming list with the shared Sports provider and
+model helpers: day groups, start times, countdowns, sources, league filters and background refresh. The owner's
+clarification keeps `league_codes` order (All, EPL, LIGA, NBA, NFL, NHL for the sample), wrapping onto a second row.
+Rows grow for long team names. Game taps currently log the stable game ID; the game's page is the next separate
+commit after the owner's board-10 review. See Leagues is also a temporary logged action until that page is built.
+
+Evidence: compared the approved HTML in Chromium with the actual window in a desktop Kodi 21.3 rig at 603 × 1167,
+using the provider's sample data and a fixed sample clock. Checked the six wrapped chips, NBA filtering, refresh,
+game-row tap logging, Back, and full wrapping of Borussia Mönchengladbach, Brighton & Hove Albion and Golden State
+Warriors. Upcoming displays the contract's short league code (UCL), rather than the full UEFA Champions League
+name. The header, cards, spacing and text follow board 10; the extra chip row is the owner's approved difference.
+Screenshots remain outside Git. The rig uses Kodi's fallback tab bar and has no iPhone safe-area/status-bar proof.
+No iPhone result is claimed. Board 11's scrolled view and boards 14–15's empty/error layouts remain for review;
+their initial state projections are covered by tests, not a visual approval. No real sports add-on was called.
+
+Validation: `scripts/test_sports_upcoming.py` covers seven projection, XML and asynchronous-controller cases and is
+listed in import-review. Project and UI guidance checks pass; all 136 listed scripts pass after correcting the
+stop-aware timer regression recorded in ISSUE-329 and rerunning its affected checks.
 
 ## Sports: every page approved; the work is split (DEC-057) — 2026-11-15
 

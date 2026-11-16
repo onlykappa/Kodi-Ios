@@ -4,6 +4,12 @@ Maintenance checkpoint: PR #32 source-provider fallback is ready for draft revie
 
 Current maintenance checkpoint (2026-11-14): ISSUE-303 repairs build-473 Umbrella cache admission and cancellation; testing IPA approved, phone result pending. See [progress](docs/UMBRELLA-473-PROGRESS.md). Historical phase counts below are unchanged.
 
+Sports checkpoint (2026-11-15): Upcoming boards 10–11, the game's page (12–13), and Upcoming's empty/error states
+(14–15) are implemented on `codex/sports-upcoming-leagues` and checked in the desktop Kodi rig. iPhone evidence and
+real-provider/playback wiring remain pending. See [progress](docs/PROGRESS.md). Next: owner review;
+See Leagues opens the implemented Leagues list (boards 16–17 and 20), also checked in desktop Kodi. Individual
+league pages (18–19) remain separately owned; their routes are logged until installed and registered.
+
 Status: BLOCKED. Current phase: Phase 4 — diagnostic launch owner-confirmed; fully bundled IPA approved; Touch-r1 startup failure recorded; Touch-r2 device evidence pending. Phase 3 approved; Phase 5 unauthorized.
 Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
 

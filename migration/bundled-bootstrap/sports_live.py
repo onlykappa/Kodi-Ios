@@ -169,7 +169,7 @@ def run(args=()):
             import live_window
             self.guard = live_window.Guard(self)
             self.stop = threading.Event()
-            self.chosen, self.codes, self.slots, self.busy = 'All', [], {}, threading.Lock()
+            self.chosen, self.codes, self.slots, self.busy = (args[0] if args else 'All'), [], {}, threading.Lock()   # a league page starts on its chip
             self.setProperty('sub', 'Updating')
             self.fetch(False)
             threading.Thread(target=self.loop, daemon=True).start()
