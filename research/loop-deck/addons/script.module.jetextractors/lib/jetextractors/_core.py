@@ -1,0 +1,199 @@
+import re
+import base64
+import json
+import requests
+import xbmc
+from urllib.parse import urlparse, urlencode, parse_qs, unquote
+from typing import Optional, List, Any
+from .tools import debug_log
+
+try:
+    from .models import JetLink
+except ImportError:
+    JetLink = None
+
+try:
+    from .http_client import JetHttpClient
+except ImportError:
+    JetHttpClient = None
+
+_a1 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome"
+_a2 = "/131.0.0.0 Safari/537.36"
+_BROWSER_UA = _a1 + _a2
+_KODI_UA = "Kodi/21.0 (Windows NT 10.0.19045.0; Win64; x64) App_Bitness/64 Version/21.0 (180.0)-000000"
+
+def _x9(k: str) -> str:
+    _r = []
+    for i, c in enumerate(k):
+        _r.append(chr(ord(c) ^ (i % 7 + 1)))
+    return "".join(_r)
+
+def _m3(s: str) -> str:
+    _t = []
+    for i in range(len(s)):
+        _c = ord(s[i])
+        if _c >= 65 and _c <= 90:
+            _t.append(chr(((_c - 65 + 13) % 26) + 65))
+        elif _c >= 97 and _c <= 122:
+            _t.append(chr(((_c - 97 + 13) % 26) + 97))
+        else:
+            _t.append(s[i])
+    return "".join(_t)
+
+def get_headers(referer: str = None, origin: str = None) -> dict:
+    h = {
+        "User-Agent": _BROWSER_UA,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+    }
+    if referer:
+        h["Referer"] = referer
+    if origin:
+        h["Origin"] = origin
+    return h
+
+def get_session(referer: str = None, origin: str = None, **kwargs) -> requests.Session:
+    if JetHttpClient is not None:
+        domain = "default"
+        headers = {}
+        if referer:
+            headers["Referer"] = referer
+            domain = urlparse(referer).netloc or domain
+        if origin:
+            headers["Origin"] = origin
+        for key, value in kwargs.items():
+            headers[key] = value
+        ref_val = headers.get("Referer") or headers.get("Origin")
+        if ref_val:
+            domain = urlparse(ref_val).netloc or domain
+        return JetHttpClient.get_session(domain, headers if headers else None)
+    s = requests.Session()
+    s.headers.update(get_headers(referer, origin))
+    s.headers.update(kwargs)
+    return s
+
+def decode_stream(encoded: str) -> str:
+    try:
+        _d1 = base64.b64decode(encoded)
+        _d2 = base64.b64decode(_d1)
+        return _d2.decode("utf-8")
+    except Exception:
+        pass
+    try:
+        return base64.b64decode(encoded).decode("utf-8")
+    except Exception:
+        return encoded
+
+def find_m3u8(html: str, base_url: str = "") -> Optional[str]:
+    _pats = [
+        r'(?:source|src|file)\s*[:=]\s*["\']([^"\']+\.m3u8[^"\']*)["\']',
+        r'(?:https?:)?//[^\s"\'<>]+\.m3u8[^\s"\'<>]*',
+        r'["\']([^"\']*\.m3u8[^"\']*)["\']',
+    ]
+    for p in _pats:
+        _m = re.findall(p, html, re.IGNORECASE)
+        if _m:
+            u = _m[0]
+            if u.startswith("//"):
+                u = "https:" + u
+            elif not u.startswith("http") and base_url:
+                _bp = urlparse(base_url)
+                u = f"{_bp.scheme}://{_bp.netloc}{u}"
+            return u
+    return None
+
+def find_iframes(html: str, base_url: str = "") -> List[str]:
+    _iframes = re.findall(r'<iframe[^>]+src=["\']([^"\']+)["\']', html, re.IGNORECASE)
+    _results = []
+    for u in _iframes:
+        if u.startswith("//"):
+            u = "https:" + u
+        elif not u.startswith("http") and base_url:
+            _bp = urlparse(base_url)
+            if u.startswith("/"):
+                u = f"{_bp.scheme}://{_bp.netloc}{u}"
+            else:
+                u = f"{_bp.scheme}://{_bp.netloc}/{'/'.join(_bp.path.split('/')[:-1])}/{u}"
+        _results.append(u)
+    return _results
+
+def make_link(url: str, referer: str = None, origin: str = None) -> "JetLink":
+    h = {}
+    if referer:
+        h["Referer"] = referer
+    if origin:
+        h["Origin"] = origin
+    h["User-Agent"] = _BROWSER_UA
+    if JetLink is not None:
+        return JetLink(url, headers=h)
+    return url
+
+def unpack_js(html: str) -> Optional[str]:
+    import jsunpack
+    _m = re.findall(r"(eval\(function\(p,a,c,k,e,d\).+?{}\)\))", html)
+    if _m:
+        try:
+            return jsunpack.unpack(_m[0])
+        except Exception:
+            pass
+    return None
+
+def char_array_decode(data: str) -> str:
+    try:
+        return "".join(chr(int(x)) for x in data.split(","))
+    except Exception:
+        return data
+
+def fetch_page(url: str, referer: str = None, session: requests.Session = None, user_agent: str = None) -> str:
+    try:
+        if JetHttpClient is not None:
+            headers = {}
+            if referer:
+                headers["Referer"] = referer
+            if user_agent:
+                headers["User-Agent"] = user_agent
+            return JetHttpClient.fetch_text(url, headers=headers if headers else None)
+        _h = get_headers(referer)
+        if user_agent:
+            _h["User-Agent"] = user_agent
+        if session:
+            r = session.get(url, headers=_h, timeout=10)
+        else:
+            r = requests.get(url, headers=_h, timeout=10)
+        r.raise_for_status()
+        return r.text
+    except requests.exceptions.RequestException as e:
+        detail = str(e)
+        if len(detail) > 200:
+            detail = detail[:200] + "..."
+        debug_log(f"[fetch_page] Failed to fetch {url[:200]}: {detail}", xbmc.LOGWARNING)
+        return ""
+    except Exception as e:
+        detail = str(e)
+        if len(detail) > 200:
+            detail = detail[:200] + "..."
+        debug_log(f"[fetch_page] Unexpected error fetching {url[:200]}: {detail}", xbmc.LOGERROR)
+        return ""
+
+def fetch_json(url: str, referer: str = None, session: requests.Session = None, user_agent: str = None) -> Optional[Any]:
+    try:
+        data = fetch_page(url, referer=referer, session=session, user_agent=user_agent)
+        if not data:
+            return None
+        return json.loads(data)
+    except json.JSONDecodeError as e:
+        debug_log(f"[fetch_json] Failed to parse JSON from {url}: {e}", xbmc.LOGWARNING)
+        return None
+    except Exception as e:
+        debug_log(f"[fetch_json] Unexpected error for {url}: {e}", xbmc.LOGERROR)
+        return None
+
+def _v_check():
+    import xbmcaddon as _xa
+    _ma = _xa.Addon("script.module.jetextractors")
+    _v = _ma.getAddonInfo("version")
+    _t = tuple(int(x) for x in _v.split("."))
+    return _t
