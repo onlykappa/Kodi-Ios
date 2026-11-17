@@ -5804,3 +5804,18 @@ Public reference investigation: a plaintext Kodi extractor describes a source-is
 - **Cause:** unknown; native Loop initialization/GUI calls, observer callbacks and overlapping listing are candidates, not diagnoses.
 - **Fix:** unresolved. Async payload now preserves the queue and UUID ownership; old requests cannot clear a replacement queue.
 - **Test:** test_sports_loop_router covers payload roundtrip and cancellation/replacement; controlled Kodi fixture proves native skip/AV cleanup, not Loop success. Real provider opening remains blocked. No IPA or completion claim.
+
+
+## Direct Loop playback missed the shared proxy repair
+
+- **Seen:** owner requested a phone test by opening The Loop directly, outside our Sports pages.
+- **Cause:** hash-guarded proxy preparation only ran from our playback handoff, so direct addon playback could still import the original proxy files.
+- **Fix:** startup worker prepares the same two recognized readable proxy modules after a short abort-aware delay, without listing menus or touching authorization/configuration. Legacy menu discovery is disabled because the on-demand native catalog supersedes it. Native dispatch/collection no longer enters the bootstrap bare-Addon replacement context.
+- **Test:** test_sports_loop_routes covers startup preparation, shutdown and secret-safe failure; test_sports_loop covers disabled default/explicit diagnostic mode; test_sports_loop_router covers native context and staged handoff. Phone direct-addon playback remains to be tested.
+
+## Resolved media HTTP errors did not advance the native source queue
+
+- **Seen:** a plugin can resolve successfully, then its media HTTP request fails; native resolver skipping alone did not advance that case.
+- **Cause:** this real Kodi build delivered Started/Stopped before AV startup without the expected Error callback.
+- **Fix candidate:** pre-AV media failure advances an explicit candidate cursor, reconstructs a cleared playlist when necessary, and preserves current request ownership across independent alternatives. Stale requests are discarded. Playback dispatch is staged until the Sports modal stack closes.
+- **Test:** controlled actual HTTP 404 -> fixture video succeeded and advanced 1 -> 2 -> 3 seconds with no remaining queue; test_sports_loop_router/test_sports_game cover failure, ownership and deferred dispatch. Actual Loop/card dialog wait remains unresolved; debugger captured the provider waiting in Dialog.select/CGUIDialog.Open, not an established network wait. No universal source or iPhone success claim.

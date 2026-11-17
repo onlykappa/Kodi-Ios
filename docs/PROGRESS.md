@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Owner-authorized native Loop test IPA — 2026-11-17
+
+Preparing one new test build from claude/sports-jet so the owner can open The Loop directly and export a phone log. Startup applies the same recognized-source proxy repair without opening menus; legacy discovery is off and normal Sports catalog remains on demand. Controlled HTTP-error fallback is verified; actual automatic-picker dialog waiting remains unresolved. No merge. Build source and release will be recorded after checks.
+
 ## Sports automatic routing candidate — 2026-11-17
 
 Play best available, native failure skipping, AV-start cleanup, request ownership and playlist timer default are implemented. All 178 workflow commands passed plus final affected retests. Controlled native routing skipped a failed route and played video; actual seven-source Loop queue from a game card currently stalls. This is an unresolved candidate, not a live-provider/device fix. Continuing diagnosis; no IPA. [Current checkpoint](SPORTS-HANDOFF.md).

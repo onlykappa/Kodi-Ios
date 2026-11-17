@@ -140,7 +140,8 @@ class Controller(unittest.TestCase):
                 finally:
                     if not self.closed:self.onClick(page.BACK)
         xbmc=types.SimpleNamespace(LOGINFO=1,log=lambda *a:None,
-            Monitor=lambda:types.SimpleNamespace(abortRequested=lambda:True))
+            Monitor=lambda:types.SimpleNamespace(abortRequested=lambda:True),
+            executebuiltin=lambda text:None,sleep=lambda ms:None)
         vfs=types.SimpleNamespace(translatePath=lambda x:x,listdir=lambda x:None)
         with patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':types.SimpleNamespace(WindowXMLDialog=Window),'xbmcvfs':vfs}),\
              patch.object(game_page.sports_provider,'play',side_effect=play) as played:
@@ -186,6 +187,22 @@ class Controller(unittest.TestCase):
         _,played=self.exercise(provider,scenario)
         self.assertEqual(played.call_count,1)
         self.assertTrue(played.call_args.args[0]['alts'])
+
+    def test_native_handoff_closes_modal_before_dispatch(self):
+        import sports_jet
+        provider=sm.Sample(now=NOW);launched=threading.Event()
+        def play(source,log,launch=None):launch('sports_jet_run','play','fixture-key')
+        def scenario(w):
+            until(lambda:not w.fetching)
+            def dispatch(*args):
+                self.assertTrue(w.closed)
+                self.assertTrue(w.stop.is_set())
+                self.assertEqual(args,('sports_jet_run','play','fixture-key'))
+                launched.set()
+            with patch.object(sports_jet,'_launch',side_effect=dispatch):
+                w.onClick(page.AUTO)
+                self.assertTrue(launched.wait(1))
+        self.exercise(provider,scenario,play)
 
     def test_failed_refresh_keeps_seed_and_success_can_remove_sources(self):
         provider=sm.Sample(now=NOW)

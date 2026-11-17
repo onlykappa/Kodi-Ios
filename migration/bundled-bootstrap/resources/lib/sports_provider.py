@@ -47,11 +47,11 @@ def reset():
     _real[0] = None
 
 
-def play(source, log=lambda message: None):
+def play(source, log=lambda message: None, launch=None):
     """Play a source at once (what a tap on a source line does). The sample provider only logs; the real one hands source['play'] to
     Kodi's player."""
     log('sports: play %s from %s (%s, %s)' % (source.get('id'), source.get('addon'), source.get('quality'), source.get('language')))
     if os.environ.get('KODI_IOS_SPORTS', '') in ('', 'jet') and str(source.get('play') or '').startswith('{'):
         import sports_jet
-        return sports_jet.play_request(source, log)
+        return sports_jet.play_request(source, log, launch=launch) if launch is not None else sports_jet.play_request(source, log)
     return source.get('play')

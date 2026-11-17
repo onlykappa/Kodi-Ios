@@ -590,10 +590,21 @@ def run_script(args, window=None):
     home = window or xbmcgui.Window(10000)
     if args[:1] == ['play']:
         key = args[1] if len(args) > 1 else ''
+        source = {}
         try:
             source = json.loads(home.getProperty(PLAY + key) or '{}')
             home.clearProperty(PLAY + key)
-            with named_addon():
+            import sports_loop_router
+            if source.get('native_owner') and home.getProperty(sports_loop_router.OWNER) != source['native_owner']:
+                return
+            import contextlib, sports_loop_routes
+            try:
+                native = bool(source.get('native_queue')) or json.loads(source.get('play') or '{}').get('e') == sports_loop_routes.NAME
+            except (ValueError, TypeError):
+                native = False
+            # Native Loop owns its plugin interpreter and identity. Only direct
+            # Jet imports need the bootstrap's bare-Addon context.
+            with (contextlib.nullcontext() if native else named_addon()):
                 _play_session.proxy_url = None
                 play(source)
                 if getattr(_play_session, 'proxy_url', None):
@@ -605,6 +616,10 @@ def run_script(args, window=None):
                 xbmcgui.Dialog().notification('Sports', "Can't play this source right now. Try another source.", xbmcgui.NOTIFICATION_WARNING, 4000)
             except Exception:
                 pass
+        finally:
+            import sports_loop_router
+            if source.get('native_owner') and home.getProperty(sports_loop_router.OWNER) == source['native_owner']:
+                home.clearProperty(sports_loop_router.OWNER)
         return
     import fcntl, os, xbmcvfs
     folder = xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap')
@@ -618,7 +633,8 @@ def run_script(args, window=None):
         return
     try:
         provider = JetProvider(window=home, publish=lambda data: home.setProperty(DATA, json.dumps(data, separators=(',', ':'))))
-        with named_addon():
+        import contextlib
+        with (contextlib.nullcontext() if _folder('plugin.video.the-loop') else named_addon()):
             done = provider._start()
             try:
                 import xbmc
@@ -726,16 +742,20 @@ def play(source, logger=log):
     if source.get('native_queue'):
         import sports_loop_router
         try:
-            return sports_loop_router.play(source['native_queue'], logger, owner=source.get('native_owner'))
+            return sports_loop_router.play(source['native_queue'], logger, owner=source.get('native_owner'), keep_owner_on_failure=bool(source.get('alts')))
         except InterruptedError:
             return False  # user stop/shutdown must not start a different provider
         except Exception as error:
-            logger('jet: a source failed (native queue, %s)' % type(error).__name__)
+            logger('jet: native queue ended (%s)' % type(error).__name__)
             values = [v for v in source.get('alts', []) if v][:TRIES]
             if not values:
                 raise RuntimeError('no sports source opened') from None
     last = None
     for value in values:
+        if source.get('native_owner'):
+            import xbmcgui, sports_loop_router
+            if xbmcgui.Window(10000).getProperty(sports_loop_router.OWNER) != source['native_owner']:
+                return False
         try:
             return play_one(value, logger)
         except Exception as error:

@@ -141,7 +141,8 @@ class Discover(unittest.TestCase):
         self.assertIn('2 items in', lines[0])
         self.assertTrue(lines[1].startswith('  Live 1 items in'))
 
-    def test_the_page_only_asks_and_the_service_walks(self):
+    @patch.object(sl, 'WALK', True)
+    def test_the_explicit_legacy_diagnostic_only_runs_when_asked(self):
         props = {}
         window = types.SimpleNamespace(setProperty=lambda k, v: props.__setitem__(k, v), getProperty=lambda k: props.get(k, ''),
                                        clearProperty=lambda k: props.pop(k, None))
@@ -162,8 +163,9 @@ class Discover(unittest.TestCase):
         self.assertEqual(walks, [])             # not asked: no walk
         self.assertIn('ASK', dir(sl))
 
-    def test_the_walk_runs_now_that_the_loop_installs_properly(self):
-        self.assertTrue(sl.WALK)
+    def test_legacy_walk_is_replaced_by_the_on_demand_catalog(self):
+        self.assertFalse(sl.WALK)
+        sl.serve(None,None,None,lambda seconds: self.fail('disabled walker waited'),lambda message:None)
 
     def test_ensure_installed_asks_kodi_for_the_real_thing_not_a_bare_unzip(self):
         # ISSUE-357 follow-up: unzipping The Loop's files gave it no repository origin and it failed ("Invalid params").

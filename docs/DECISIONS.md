@@ -585,3 +585,8 @@ respected, not bypassed. Supersedes DEC-060 for the phone; ESPN is kept behind `
 ### DEC-061 implementation follow-up — normal Loop routes (2026-11-17)
 
 Following the owner's request to use the working Deck path across providers, the app reads The Loop's normal Kodi plugin listings and plays their exact plugin routes. Loop runs as its own add-on; bootstrap does not import protected JetExtractors on this path, impersonate another caller, or alter authorization. Public schedule data validates unique paired-team matches and current live/upcoming state; it supplies no stream. This currently limits matched coverage to the supported 14 schedule leagues; unmatched/ambiguous events and standalone channels are omitted, rather than guessed live. Independent source fallback remains separate. Unknown-quality native routes stay separate choices because their asynchronous failure cannot safely be treated as synchronous success/fallback.
+
+
+### Owner-authorized direct-addon diagnostic IPA — 2026-11-17
+
+Owner: “send me a ipa with the fresh stuff and any fixes uve done and ill open the loop as a addon without the ui then send log.” This authorizes one fresh test IPA/prerelease from claude/sports-jet, with the current fixes and startup preparation of the recognized shared proxy files. It does not authorize merging PR #43. Keep authorization checks and configuration intact; do not claim the unresolved automatic-picker dialog issue is fixed. Legacy discovery is disabled in favor of on-demand catalog loading.

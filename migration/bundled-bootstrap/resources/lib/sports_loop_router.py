@@ -32,7 +32,7 @@ def automatic_source(sources):
     return result
 
 
-def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=None):
+def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=None, keep_owner_on_failure=False):
     if backend is None:
         import xbmc as backend
     choices, seen = [], set()
@@ -47,9 +47,19 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
 
     class Observer(backend.Player):
         ready = False
+        started = False
         stopped = False
+        failed = False
+        def onPlayBackStarted(self):
+            self.started = True
+            self.stopped = self.failed = False
         def onAVStarted(self): self.ready = True
-        def onPlayBackStopped(self): self.stopped = True
+        def onPlayBackStopped(self):
+            self.stopped = True
+            logger('sports: native Stop event (%s)' % ('current media' if self.started else 'before current media'))
+        def onPlayBackError(self):
+            self.failed = True
+            logger('sports: native media opening error')
 
     import xbmcgui
     try:
@@ -63,6 +73,9 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
         home.setProperty(OWNER, owner)
     def owns_queue():
         return home is None or home.getProperty(OWNER) == owner
+    # Drain the previous attempt's Stop before registering this observer.
+    backend.Player().stop()
+    backend.sleep(100)
     playlist = backend.PlayList(backend.PLAYLIST_VIDEO)
     playlist.clear()
     for address, name in choices:
@@ -73,6 +86,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
     monitor = backend.Monitor()
     logger('sports: opening native Loop queue (%d choices)' % len(choices))
     began, previous, failed_through = clock(), clock(), -1
+    current_index = 0
     try:
         player.play(playlist)
         while not monitor.abortRequested():
@@ -84,7 +98,30 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             if backend.getCondVisibility('Window.IsActive(selectdialog)'):
                 began += now - previous
             previous = now
+            if not player.ready and now - began >= timeout:
+                raise RuntimeError('native sports opening timed out')
             position = playlist.getposition()
+            if (player.failed or (player.stopped and player.started)) and not player.ready:
+                current = max(current_index, 0, position)
+                for n in range(failed_through + 1, current + 1):
+                    logger('jet: a source failed (native media open failed, choice %d)' % (n + 1))
+                    failed_through = n
+                # Only a recorded VideoPlayer error closes its own media-error
+                # dialog; authorization/refusal dialogs do not trigger this hook.
+                backend.executebuiltin('Dialog.Close(okdialog)')
+                backend.sleep(100)
+                if current + 1 >= len(choices):
+                    raise RuntimeError('native queue exhausted')
+                player.failed = player.stopped = player.started = False
+                current_index = current + 1
+                if playlist.size() != len(choices):
+                    playlist.clear()
+                    for address, name in choices:
+                        item = xbmcgui.ListItem(label=name)
+                        item.setProperty('IsPlayable','true')
+                        playlist.add(address,item)
+                player.play(playlist, startpos=current_index)
+                continue
             if position < 0 and not player.isPlayingVideo():
                 if backend.getCondVisibility('Window.IsActive(okdialog)'):
                     raise RuntimeError('no native source opened')
@@ -98,8 +135,6 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             if player.ready and player.isPlayingVideo():
                 logger('sports: playing (native Loop queue)')
                 return True
-            if player.stopped:
-                raise InterruptedError('sports playback stopped')
             if now - began >= timeout:
                 raise RuntimeError('native sports opening timed out')
         raise InterruptedError('Kodi shutting down')
@@ -108,4 +143,4 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
         if owns_queue():
             playlist.clear()
             if not player.ready: player.stop()
-            if home is not None: home.clearProperty(OWNER)
+            if home is not None and (player.ready or not keep_owner_on_failure): home.clearProperty(OWNER)

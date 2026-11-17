@@ -69,3 +69,9 @@ Native discovery is now 37 game-oriented folders with two concurrent plugin star
 Current blocker: seven-choice automatic queue from the real Memphis/Cleveland game logs opening and stalls in the first Loop route. Last private rig PID60618; main and router thread observed in futex waits. Need capture Python/native stack or compare a fresh isolated Loop queue versus overlap/custom modal context. Do not decode authorization code or spoof caller identity. The normal native Loop path remains the authorized direction.
 
 All 178 workflow commands passed for this batch; final affected suites rerun after payload/ownership edits. No IPA built. Reports sports-native-router-rig.json (controlled), sports-native-cards-rig.json (projection/UI dispatch), sports-host-availability.json (ordinary homepage/DNS checks) distinguish their limits.
+
+## Current owner request: direct-addon phone test build
+
+A new IPA is now explicitly authorized (2026-11-17), without merging. Include pending media-open fallback, deferred modal handoff and request-ownership fixes; startup prepares the shared recognized proxy repair so opening The Loop directly gets it too. No authorization/config/cache reset. Legacy menu walking defaults off; real catalog stays on demand. Controlled HTTP-404-to-video evidence is reports/sports-native-router-http-rig.json. Native real queue still has a selector opening wait: debugger captured Dialog.select waiting for CGUIDialog.Open and a parent playPlaylist message; do not turn this into a proven HTTP diagnosis.
+
+Owner should launch the actual The Loop addon, choose a known live game (FawaNews is the previously verified path), let it attempt playback, and export kodi.log. Startup marker: Kodi iOS Sports: jet: shared proxy ready for native addon playback. Loop/JetExtractors/VideoPlayer/inputstream lines supply direct-addon evidence; Sports playing lines apply only if the app's own queue was used.

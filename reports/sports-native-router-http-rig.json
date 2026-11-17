@@ -1,0 +1,20 @@
+{
+  "result": true,
+  "logs": [
+    "sports: opening native Loop queue (2 choices)",
+    "sports: native Stop event (current media)",
+    "jet: a source failed (native media open failed, choice 1)",
+    "sports: playing (native Loop queue)"
+  ],
+  "video_seconds": [
+    1.0,
+    2.0,
+    3.0
+  ],
+  "remaining_playlist": 0,
+  "provider_playback_proven": false,
+  "test_finished_at": 1794899883.2282777,
+  "evidence_class": "desktop Kodi rig",
+  "test": "controlled plugin resolving to HTTP 404 then another plugin resolving to local video",
+  "phone_verified": false
+}

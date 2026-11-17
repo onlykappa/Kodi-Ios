@@ -245,7 +245,8 @@ def run():
  threading.Thread(target=drive_proxy_loop,daemon=True).start()
  # Sports discovery (DEC-058): the walk of the Loop add-ons' and The Crew's menus lives here, not on the Sports page's own script (ISSUE-356).
  def sports_discovery_loop():
-  import sports_loop
+  import sports_loop, sports_loop_routes
+  sports_loop_routes.warmup_proxy(monitor.waitForAbort,lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO))
   sports_loop.serve(xbmc,xbmcvfs,xbmcgui,monitor.waitForAbort,lambda text:xbmc.log('Kodi iOS Sports '+text,xbmc.LOGINFO))
  threading.Thread(target=sports_discovery_loop,daemon=True).start()
  # Roadmap 1C.1: "open timing" log line per video (tap to picture).

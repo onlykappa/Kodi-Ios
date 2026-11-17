@@ -23,7 +23,7 @@ HELD_BACK = ('plugin.video.thecrew',)
 # real Kodi install, so it had no repository origin. Installed the proper way (repository.loop, Addons.InstallAddon: see `ensure_installed`
 # below), The Loop's own menu lists real sport links in the desktop rig (owner approved fetching as Kodi, 2026-11-16). The Crew still ended
 # the app on its own walk and stays held back until that is understood (ISSUE-357); its guard (below) still protects every add-on walked here.
-WALK = True
+WALK = False  # superseded by on-demand native route catalog; retain helpers for explicit diagnostics
 REPO = 'repository.loop'
 INSTALLED = ('plugin.video.the-loop',)   # if this is in, Kodi fetched LoopTV/LoopGuide/JetExtractors as its declared dependencies too
 INSTALL_TRIES = 3
@@ -298,6 +298,8 @@ class LoopProvider:
 def serve(xbmc, xbmcvfs, xbmcgui, wait, log, first_delay=45, every=5):
     """The service's loop: a walk first_delay seconds after startup (the Loop add-ons need the app up), then whenever the Sports page asks. discover_once itself
     skips a walk that is not due (twelve hours after a good one, ten minutes after an empty one, and again for each new build)."""
+    if not WALK:
+        return
     window = xbmcgui.Window(10000)
     if wait(first_delay):
         return

@@ -112,3 +112,17 @@ def discover(read=listing, schedule=None):
     return [LoopSource(entry.get('label',''), entry['file'], schedule, read) for entry in sorted(entries[:64], key=lambda entry:source_rank(entry.get('label','')))
             if entry.get('filetype')=='directory' and valid_route(entry.get('file','')) and
             not any(word in label(entry.get('label')).lower().replace(' ', '') for word in SKIP_LABELS)]
+
+
+def warmup_proxy(wait, log, delay=3):
+    """Prepare the shared repair for direct addon playback, without opening menus."""
+    if wait(delay):
+        return False
+    try:
+        ready = prepare_proxy()
+        log('jet: shared proxy ready for native addon playback' if ready else
+            'jet: shared proxy not prepared (addon absent or source revision unrecognized)')
+        return ready
+    except Exception as error:
+        log('jet: shared proxy preparation failed (%s)' % type(error).__name__)
+        return False

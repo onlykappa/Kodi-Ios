@@ -46,6 +46,20 @@ class Tests(unittest.TestCase):
   with patch.object(sj,'_folder',side_effect=lambda name:'/fixture/loop' if name==lr.ADDON else None),patch.object(lr,'discover',return_value=sources),patch.object(sports_fawa.FawaNews,'get_items',return_value=[]):
    provider=sj.JetProvider();self.assertTrue(provider._start().wait(2))
   self.assertEqual(state['peak'],2)
+ def test_startup_prepares_proxy_without_listing_menus(self):
+  logs=[]
+  with patch.object(lr,'prepare_proxy',return_value=True) as prepare,patch.object(lr,'listing',side_effect=AssertionError('startup opened menu')):
+   self.assertTrue(lr.warmup_proxy(lambda seconds:False,logs.append))
+  prepare.assert_called_once_with();self.assertIn('shared proxy ready',logs[0])
+ def test_startup_shutdown_does_not_patch_files(self):
+  with patch.object(lr,'prepare_proxy') as prepare:
+   self.assertFalse(lr.warmup_proxy(lambda seconds:True,lambda line:None))
+  prepare.assert_not_called()
+ def test_startup_failure_is_quiet_and_does_not_log_urls(self):
+  logs=[]
+  with patch.object(lr,'prepare_proxy',side_effect=OSError('https://private.invalid/?token=fixture')):
+   self.assertFalse(lr.warmup_proxy(lambda seconds:False,logs.append))
+  self.assertIn('OSError',logs[0]);self.assertNotIn('private.invalid',' '.join(logs))
  def test_reject_other_addon_or_network_url(self):
   for value in ['https://example.invalid','plugin://other.addon/play','plugin://user:pass@plugin.video.the-loop/play']:
    self.assertFalse(lr.valid_route(value))

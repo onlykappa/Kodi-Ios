@@ -129,10 +129,27 @@ def run(game, provider=None, clock=time.time):
 
         def start_play(self,source):
             self.setProperty('play.error','')
-            try:sports_provider.play(source,log)
+            pending=[]
+            try:sports_provider.play(source,log,launch=lambda *args:pending.append(args))
             except Exception as error:
                 log('sports: play: %s: %s' % (type(error).__name__,diagnostics.error_text(error)))
                 self.setProperty('play.error',"Can't play this source right now. Try another source.")
+                return
+            if pending:
+                # Native Loop may open its own selector. Dismiss the Sports modal
+                # stack before dispatch, instead of opening over this callback.
+                self.finish()
+                xbmc.executebuiltin('Dialog.Close(all,true)')
+                def handoff():
+                    xbmc.sleep(250)
+                    import sports_jet
+                    try:
+                        for args in pending:sports_jet._launch(*args)
+                    except Exception as error:
+                        log('sports: player handoff failed (%s)' % type(error).__name__)
+                        try:xbmcgui.Dialog().notification('Sports',"Can't open the player right now. Try again.",xbmcgui.NOTIFICATION_WARNING,4000)
+                        except Exception:pass
+                threading.Thread(target=handoff,daemon=True).start()
 
         def onAction(self,action):
             if action.getId() in BACK_KEYS:self.finish()

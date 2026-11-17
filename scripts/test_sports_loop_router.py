@@ -33,6 +33,30 @@ class Tests(unittest.TestCase):
   payload=json.loads(props[sports_jet.PLAY+keys[-1]])
   self.assertEqual(payload['native_queue'],selected['native_queue'])
   self.assertEqual(payload['native_owner'],props[router.OWNER])
+ def test_provider_can_stage_request_without_launching_over_a_modal(self):
+  import sports_provider,sports_jet
+  props={};pending=[]
+  home=NS(setProperty=lambda k,v:props.__setitem__(k,v),getProperty=lambda k:props.get(k,''))
+  selected=router.automatic_source([source(path='first'),source(path='second')])
+  with patch.dict('os.environ',{'KODI_IOS_SPORTS':'jet'}),patch.dict(sys.modules,{'xbmcgui':NS(Window=lambda ident:home)}),patch.object(sports_jet,'_launch',side_effect=AssertionError('premature native launch')):
+   self.assertTrue(sports_provider.play(selected,lambda line:None,launch=lambda *args:pending.append(args)))
+  self.assertEqual(pending[0][:2],('sports_jet_run','play'))
+  self.assertEqual(json.loads(props[sports_jet.PLAY+pending[0][-1]])['native_queue'],selected['native_queue'])
+ def test_native_script_does_not_replace_the_addon_constructor(self):
+  import sports_jet
+  props={};home=NS(getProperty=lambda k:props.get(k,''),clearProperty=lambda k:props.pop(k,None))
+  selected=router.automatic_source([source()]);props[sports_jet.PLAY+'fixture']=json.dumps(selected)
+  with patch.dict(sys.modules,{'xbmcgui':NS()}),patch.object(sports_jet,'named_addon',side_effect=AssertionError('native context patched')),patch.object(sports_jet,'play',return_value=True) as played:
+   sports_jet.run_script(['play','fixture'],home)
+   played.assert_called_once()
+ def test_stale_script_cannot_start_after_a_new_request(self):
+  import sports_jet
+  props={router.OWNER:'new',sports_jet.PLAY+'old':json.dumps({'native_owner':'old','play':source()['play']})}
+  home=NS(getProperty=lambda k:props.get(k,''),clearProperty=lambda k:props.pop(k,None))
+  with patch.dict(sys.modules,{'xbmcgui':NS()}),patch.object(sports_jet,'play',side_effect=AssertionError('stale request played')) as played:
+   sports_jet.run_script(['play','old'],home)
+   played.assert_not_called()
+  self.assertEqual(props[router.OWNER],'new')
  def test_native_queue_failure_tries_independent_alternative(self):
   import sports_jet
   selected=router.automatic_source([source(),{'addon':'Independent','play':'independent-value'}])
@@ -44,22 +68,27 @@ class Tests(unittest.TestCase):
   selected=router.automatic_source([source(),{'addon':'Independent','play':'independent-value'}])
   with patch.object(router,'play',side_effect=InterruptedError()),patch.object(sports_jet,'play_one') as played:
    self.assertFalse(sports_jet.play(selected,lambda s:None));played.assert_not_called()
- def exercise(self,ready=False,stopped=False,select=False,all_failed=False,replaced=False):
+ def exercise(self,ready=False,stopped=False,select=False,all_failed=False,replaced=False,http_error=False):
   state={'now':0,'entries':[],'clears':0,'stops':0};logs=[];props={}
   class Player:
-   def play(self,playlist):state['player']=self
-   def isPlayingVideo(self):return ready
-   def stop(self):state['stops']+=1
+   def play(self,playlist,**kwargs):state['player']=self;state['advanced']=kwargs.get('startpos',0)>0
+   def isPlayingVideo(self):return ready or (http_error and state.get('advanced',False))
+   def stop(self):
+    if type(self) is Player:state['prior_stops']=state.get('prior_stops',0)+1
+    else:state['stops']+=1
   class Playlist:
    def clear(self):state['clears']+=1;state['entries']=[]
    def add(self,address,item):state['entries'].append(address)
-   def getposition(self):return -1 if all_failed else 1 if ready else 0
+   def getposition(self):return -1 if all_failed else 1 if ready or (http_error and state.get('advanced',False)) else 0
+   def size(self):return len(state['entries'])
   def sleep(ms):
    state['now']+=ms/1000
-   if ready:state['player'].onAVStarted()
-   if stopped:state['player'].onPlayBackStopped()
+   if 'player' not in state:return
+   if ready or (http_error and state.get('advanced',False)):state['player'].onAVStarted()
+   if http_error and not state.get('advanced',False):state['player'].onPlayBackError()
+   if stopped:state['player'].onPlayBackStarted();state['player'].onPlayBackStopped()
    if replaced:props[router.OWNER]='new-request'
-  backend=NS(Player=Player,PlayList=lambda _:Playlist(),PLAYLIST_VIDEO=1,sleep=sleep,
+  backend=NS(Player=Player,PlayList=lambda _:Playlist(),PLAYLIST_VIDEO=1,sleep=sleep,executebuiltin=lambda value:state.__setitem__("error_dialog_closed",value),
     Monitor=lambda:NS(abortRequested=lambda:state['now']>2 if select else False),getCondVisibility=lambda cond:(select if "selectdialog" in cond else all_failed))
   home=NS(setProperty=lambda k,v:props.__setitem__(k,v),getProperty=lambda k:props.get(k,''),clearProperty=lambda k:props.pop(k,None))
   gui=NS(ListItem=lambda **kw:NS(setProperty=lambda *a:None),Window=lambda ident:home)
@@ -74,6 +103,11 @@ class Tests(unittest.TestCase):
   self.assertTrue(result);self.assertEqual(state['stops'],0)
   self.assertIn('sports: playing (native Loop queue)',logs)
   self.assertEqual(sum('a source failed' in line for line in logs),1)
+ def test_media_http_error_after_resolution_advances_to_the_next_choice(self):
+  result,state,logs=self.exercise(http_error=True)
+  self.assertTrue(result)
+  self.assertTrue(state['advanced']);self.assertEqual(state['error_dialog_closed'],'Dialog.Close(okdialog)')
+  self.assertEqual(sum('media open failed' in line for line in logs),1)
  def test_timeout_cancels_queue(self):
   result,state,_=self.exercise()
   self.assertIsInstance(result,RuntimeError);self.assertEqual(state['stops'],1)
@@ -84,9 +118,9 @@ class Tests(unittest.TestCase):
  def test_new_request_does_not_clear_or_stop_the_new_player(self):
   result,state,_=self.exercise(replaced=True)
   self.assertIsInstance(result,InterruptedError);self.assertEqual(state['stops'],0)
- def test_user_stop_is_cancellation(self):
+ def test_stop_before_av_is_an_open_failure_not_proof_of_user_cancel(self):
   result,_,_=self.exercise(stopped=True)
-  self.assertIsInstance(result,InterruptedError)
+  self.assertIsInstance(result,RuntimeError)
  def test_nested_source_selection_does_not_consume_server_timeout(self):
   result,state,_=self.exercise(select=True)
   self.assertIsInstance(result,InterruptedError);self.assertGreater(state['now'],.6)
