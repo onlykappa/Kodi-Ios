@@ -41,7 +41,9 @@ class PublicRedirect(HTTPRedirectHandler):
 def fetch(url, referer=BASE + '/', timeout=6):
     if not public_url(url):
         raise ValueError('invalid source address')
-    request = Request(url, headers={'User-Agent': UA, 'Referer': referer})
+    ref = urlsplit(referer)
+    origin = ref.scheme + '://' + ref.netloc if ref.scheme in ('http', 'https') and ref.netloc else BASE
+    request = Request(url, headers={'User-Agent': UA, 'Referer': referer, 'Origin': origin})
     with build_opener(PublicRedirect()).open(request, timeout=timeout) as response:
         final = response.geturl()
         if not public_url(final):
@@ -106,7 +108,9 @@ def resolve(address, get=fetch):
             for _ in range(6):
                 final, body = get(url, referer)
                 if body.lstrip().startswith('#EXTM3U'):
-                    return final, {'User-Agent': UA, 'Referer': referer}
+                    ref = urlsplit(referer)
+                    origin = ref.scheme + '://' + ref.netloc if ref.scheme in ('http', 'https') and ref.netloc else BASE
+                    return final, {'User-Agent': UA, 'Referer': referer, 'Origin': origin}
                 iframe = re.search(r'<iframe\b[^>]*\bsrc\s*=\s*["\']([^"\']+)', body, re.I)
                 candidates = re.findall(r'https?://[^\s"\'<>\\]+\.m3u8(?:\?[^\s"\'<>\\]*)?', body, re.I)
                 if iframe:

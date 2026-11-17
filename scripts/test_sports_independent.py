@@ -23,7 +23,7 @@ class Independent(unittest.TestCase):
    if url.endswith('/b'):return url,'<script>"https://video.invalid/live.m3u8"</script>'
    return url,'#EXTM3U\n#EXT-X-VERSION:3\n'
   address,headers=si.resolve(si.BASE+'/watch/test',get)
-  self.assertEqual(address,'https://video.invalid/live.m3u8');self.assertEqual(headers['Referer'],'https://embed.invalid/b')
+  self.assertEqual(address,'https://video.invalid/live.m3u8');self.assertEqual(headers['Referer'],'https://embed.invalid/b');self.assertEqual(headers['Origin'],'https://embed.invalid')
   with self.assertRaises(RuntimeError):si.resolve(si.BASE+'/watch/test',lambda *a:(a[0],'<html>not a video</html>'))
  def test_rejects_local_and_bad_game_urls(self):
   for address in ['http://127.0.0.1/x','http://localhost/x','http://[::1]/x','file:///x']:
