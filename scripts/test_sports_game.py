@@ -152,8 +152,10 @@ class Controller(unittest.TestCase):
     def test_seed_opens_immediately_and_whole_source_row_uses_play_door(self):
         provider=sm.Sample(now=NOW)
         entered,release=threading.Event(),threading.Event()
-        def refresh():entered.set();release.wait(2)
-        provider.refresh=refresh
+        get_game=provider.game
+        def held(ident):entered.set();release.wait(2);return get_game(ident)
+        provider.game=held
+        provider.refresh=lambda:self.fail('opening a game forced a scan')
         def scenario(window):
             self.assertEqual(window.props['away.name'],'Arsenal')
             self.assertTrue(entered.wait(1))
@@ -206,15 +208,16 @@ class Controller(unittest.TestCase):
 
     def test_failed_refresh_keeps_seed_and_success_can_remove_sources(self):
         provider=sm.Sample(now=NOW)
-        def fail():raise sm.SportsUnavailable('test provider offline')
-        provider.refresh=fail
+        get_game=provider.game
+        def fail(ident):raise sm.SportsUnavailable('test provider offline')
+        provider.game=fail
         def scenario(window):
             until(lambda:not window.fetching)
             self.assertEqual(window.props['sources.count'],'2')
             self.assertFalse(window.props['error.title'])
             self.assertNotIn('test provider offline',str(window.props))
             provider.refresh=lambda:None
-            refreshed=provider.game('epl-1')
+            refreshed=get_game('epl-1')
             refreshed['sources']=[]
             provider.game=lambda ident:refreshed if ident==refreshed['id'] else None
             window.onClick(page.REFRESH);until(lambda:not window.fetching)
@@ -225,8 +228,9 @@ class Controller(unittest.TestCase):
     def test_close_during_fetch_prevents_late_window_writes(self):
         provider=sm.Sample(now=NOW)
         entered,release=threading.Event(),threading.Event()
-        def refresh():entered.set();release.wait(2)
-        provider.refresh=refresh
+        get_game=provider.game
+        def held(ident):entered.set();release.wait(2);return get_game(ident)
+        provider.game=held
         def scenario(window):
             self.assertTrue(entered.wait(1))
             window.onClick(page.BACK)
@@ -248,7 +252,7 @@ class Controller(unittest.TestCase):
             stop=window.stop
             window.onInit()
             self.assertIs(window.stop,stop)
-            self.assertEqual(calls,['refresh'])
+            self.assertEqual(calls,[])
             self.assertEqual(window.props['away.name'],'Arsenal')
         self.exercise(provider,scenario)
 

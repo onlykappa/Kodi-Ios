@@ -22,6 +22,25 @@ class Tests(unittest.TestCase):
   entries=[entry('NBA','?action=nba'),entry('Replay','?action=sreplays'),entry('Movies','?action=movies'),entry('Live sites','?action=fullsites'),entry('NBA duplicate','?action=nba')]
   found=crew.discover(lambda route:entries,schedule=[GAME])
   self.assertEqual([x.name for x in found],['Crew NBA','Crew Live sites'])
+ def test_upcoming_only_does_not_open_crew(self):
+  upcoming=dict(GAME,state='upcoming')
+  self.assertEqual(crew.discover(lambda route:self.fail('Crew should not be scanned'),schedule=[upcoming]),[])
+  self.assertEqual(crew.discover(lambda route:self.fail('Crew should not be scanned'),schedule=[]),[])
+ def test_discovery_uses_only_live_leagues_and_live_games(self):
+  nba=dict(GAME,league='NBA',state='live')
+  later=dict(GAME,league='NHL',league_name='NHL',state='upcoming')
+  entries=[entry('NBA','?action=nba'),entry('NHL','?action=nhl'),entry('Live sites','?action=fullsites')]
+  found=crew.discover(lambda route:entries,schedule=[nba,later])
+  self.assertEqual([x.name for x in found],['Crew NBA','Crew Live sites'])
+  self.assertTrue(all(x.games==[nba] for x in found))
+ def test_cached_upcoming_rechecks_espn_when_stale(self):
+  scheduled=dict(GAME,id='fixture',league='NBA',sport='Basketball',state='upcoming',start=2000,sources=[])
+  data=json.dumps({'at':1000,'done':True,'records':[],'schedule':[scheduled]})
+  launched=[];properties={jet.DATA:data}
+  home=NS(getProperty=lambda key:properties.get(key,''),setProperty=lambda key,value:properties.__setitem__(key,value))
+  provider=jet.JetProvider(remote=True,clock=lambda:1046,window=home,wait=.01,launch=lambda *args:launched.append(args))
+  self.assertEqual(len(provider.upcoming_games()),1)
+  self.assertEqual(launched,[('sports_jet_run',)])
  def test_nested_game_keeps_exact_route_and_never_uses_unmatched_channels(self):
   routes={ROOT+'league':[entry('Alpha vs Beta','game'),entry('Sports TV','channel',False)],ROOT+'game':[entry('Source 1','?action=play&url=fixture%2Fexact',False)]}
   ext=crew.CrewSource('NBA',ROOT+'league',[GAME],lambda route:routes[route])

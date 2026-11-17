@@ -1,15 +1,17 @@
-# Current checkpoint: Crew + American ESPN schedule (2026-11-17)
+# Current Sports handoff — ESPN schedule and live-only Crew discovery (2026-11-17)
 
-Latest owner scope supersedes the Loop focus below: ESPN supplies U.S. games/status/scores; Crew supplies uniquely matched native sources. Defaults NFL/NBA/WNBA/MLB/NHL/NCAAF/NCAAB/MLS. Filters, Formula 1 and boxing later. Real provider and collection script pass crew_only=True; no Loop/direct Jet/independent discovery on this path. New files sports_crew_routes.py and sports_native_routes.py; existing shared sports_jet.py retains its historical name. Tests: test_sports_crew_routes.py registered in import-review.
+The owner wants ESPN to supply both live and upcoming games; Crew is the source provider only for ESPN-live events. The current implementation and ongoing draft are PR #43, branch `claude/sports-jet`. The owner reports Crew working on the phone, but the supplied build 568 log shows menu navigation, not a video start; live game-to-source playback, cancellation, smoothness and this follow-up still need iPhone evidence.
 
-179 workflow commands and 23 affected Sports suites passed; Crew suite now 23 cases. Reports sports-crew-validation.json distinguishes controlled playback from real sources. Rig: 75 U.S. upcoming games, none live, no real matched source verified. Controlled Upcoming→game→Crew source→Crew native sports player→VideoPlayer passed with owned local media, speed1/time advances. Preserve full Crew route including content=addons; initial private fixture omitted that and ran movie scraping instead. No new IPA/merge.
+Sports checks ESPN on first use or when its 45-second cached snapshot expires. The existing pages reuse fresh snapshots on entry; explicit refresh still forces a check. Crew is not opened when ESPN has no live games. When games are live, only their leagues and the shared live-sites menu are searched; Crew exposes nested menus, so this is targeted traversal, not a direct lookup API. Upcoming ESPN games remain in the catalog with no source scan until marked live. An existing scan is allowed to finish; an ESPN state change during a long scan may not be reflected until it completes and a later refresh runs.
 
-Host blocker: broad serial/parallel scans SIGSEGV in Kodi CPythonInvoker::onExecutionDone / libpython3.14 PyThreadState_Swap; phone Python3.11 relevance unknown. Final UI playback tested with unrelated rig background addons disabled/minimal Home, Crew sources untouched. Prior profile DB/Home backups are private in /workspace/scratch/crew-minimal-rig. Private fixture files and raw listings stay out of Git/build. Do not claim live broadcast acceptance. Next: verify scheduled Crew event matching during an actual live U.S. game and use owner's phone log for device proof; investigate host Python3.14 cleanup independently. No protected-code decoding or auth bypass.
+The owner's build 568 log showed three complete scans of 150, 146 and 177 seconds with zero matched sources, followed by another scan; it also recorded ignored taps during modal closing animations. These changes reduce unnecessary discovery but do not prove the cause of all lag. A real ESPN check in this environment returned 75 upcoming games, no live games, and the live-only discovery made no Crew calls. All 23 Sports test suites and the required project check passed. No IPA, merge or real-live acceptance is implied.
+
+The earlier local JetExtractors work diverged from PR #43; do not push it over the Crew branch. Old Loop and provider investigations below are historical evidence, not the current routing plan. Preserve secrets and raw logs outside Git.
 
 ---
 Historical Loop checkpoints (retained):
 
-# Sports handoff — current checkpoint
+# Historical Loop handoff
 
 Implementation PR: https://github.com/onlykappa/Kodi-Ios/pull/43 (draft).
 Branch: `claude/sports-jet`. Last pushed catalog checkpoint: `8bea6f6`; use git log for the latest router candidate.

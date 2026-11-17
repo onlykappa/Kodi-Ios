@@ -89,10 +89,11 @@ class Controller(unittest.TestCase):
     def test_opens_before_fetch_completes_filters_and_logs_game_tap(self):
         provider=sm.Sample(now=1794768300)
         entered,release=threading.Event(),threading.Event()
-        original=provider.refresh
-        def refresh():
+        original=provider.upcoming_games
+        def get_games():
             entered.set();release.wait(2);return original()
-        provider.refresh=refresh
+        provider.upcoming_games=get_games
+        provider.refresh=lambda: self.fail('opening Upcoming forced a scan')
         selected=[];opened=[]
         class Window:
             def __init__(self,*args):self.props={}

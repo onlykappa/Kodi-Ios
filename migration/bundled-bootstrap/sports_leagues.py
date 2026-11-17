@@ -87,7 +87,7 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
             self.failed = False
             self.data = seed if seed is not None else _CACHE
             self.draw()
-            self.refresh()
+            self.refresh(reload=False)
             def tick():
                 monitor=xbmc.Monitor()
                 last=clock()
@@ -106,14 +106,14 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
                                    'error' if self.failed and self.data is None else 'ready' if self.data is not None else 'loading')
             for key,value in props.items():self.setProperty(key,value)
 
-        def refresh(self):
+        def refresh(self, reload=True):
             with self.lock:
                 if self.fetching:return
                 self.fetching=True
             def fetch():
                 global _CACHE
                 try:
-                    provider.refresh()
+                    if reload:provider.refresh()
                     data=(provider.leagues(),provider.overview()['updated'])
                     with self.lock:
                         if self.stop.is_set():return

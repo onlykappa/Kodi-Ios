@@ -21,7 +21,7 @@ from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit
 import sports_merge
 import sports_model as sm
 
-TTL = 120               # seconds a finished answer is reused
+TTL = 45                # recheck ESPN while avoiding a scan for each page tap
 SHOW_AFTER = 6          # allow an initial scan to collect a useful first batch
 LOAD_SECONDS = 18       # how long a page waits for the scrapers before showing what it has
 EXTRACTOR_SECONDS = 40  # heartbeat grace period; page waits are bounded separately

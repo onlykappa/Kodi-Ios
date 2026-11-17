@@ -1,5 +1,10 @@
 # Persistent progress
 
+## Sports: ESPN live-first Crew discovery — 2026-11-17
+
+Owner requests ESPN for live and upcoming games, with Crew scanned only when ESPN marks games live. Crew discovery now skips entirely with no live games and limits league traversal to live games; normal page entry reuses fresh results, with explicit refresh retained and a 45-second cache. A real ESPN check returned 75 upcoming, zero live and zero Crew calls. The owner reports Crew works; build 568 logs show repeated scans and menu taps, not video playback. Existing stop-before-AV ambiguity, actual live matching, iPhone smoothness and long-scan schedule staleness remain open. No IPA built.
+
+
 ## Crew provider + American ESPN schedule — 2026-11-17 (candidate validated; phone acceptance pending)
 
 Owner chooses The Crew instead of The Loop. ESPN controls event ids, teams, live/upcoming status, scores and clock; Crew supplies uniquely matched native playback routes. Defaults: NFL/NBA/WNBA/MLB/NHL/NCAAF/NCAAB/MLS, including Canadian teams within those leagues. Filters, Formula 1 and boxing are deferred. Broad Crew category browsing was prototyped and removed after clarification; existing Live/Upcoming/Leagues/game pages remain the interface.

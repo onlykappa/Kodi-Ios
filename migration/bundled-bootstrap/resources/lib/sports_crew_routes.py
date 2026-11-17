@@ -138,11 +138,16 @@ class CrewSource:
 
 
 def discover(read=listing, schedule=None):
-    entries = read('plugin://' + ADDON + '/?action=bluehat')
     if schedule is None:
         schedule = globals()['schedule']()
+    # ESPN is authoritative for live status. Keep upcoming games in the
+    # schedule, but do not walk Crew menus for events that have not started.
+    live = [game for game in schedule if game.get('state') == 'live']
+    if not live:
+        return []
+    entries = read('plugin://' + ADDON + '/?action=bluehat')
     sources, seen = [], set()
-    league_codes = {game.get('league') or game.get('league_name') for game in schedule}
+    league_codes = {game.get('league') or game.get('league_name') for game in live}
     league_actions = {'nfl':'NFL', 'nba':'NBA', 'nhl':'NHL', 'mlb':'MLB', 'ncaa':'NCAAF', 'ncaab':'NCAAB', 'fifa':'MLS'}
     for entry in entries[:64]:
         route = entry.get('file', '')
@@ -153,10 +158,8 @@ def discover(read=listing, schedule=None):
         action = parse_qs(urlsplit(route).query).get('action', [''])[0]
         if action != 'fullsites' and league_actions.get(action) not in league_codes:
             continue
-        if not schedule:
-            continue
         seen.add(route)
-        games = schedule if action == 'fullsites' else [game for game in schedule if (game.get('league') or game.get('league_name')) == league_actions[action]]
+        games = live if action == 'fullsites' else [game for game in live if (game.get('league') or game.get('league_name')) == league_actions[action]]
         sources.append(CrewSource(entry.get('label') or 'Sports', route, games, read))
     return sorted(sources, key=lambda source: parse_qs(urlsplit(source.route).query).get('action') == ['fullsites'])
 

@@ -35,7 +35,9 @@ class Provider:
     def refresh(self):
         self.calls+=1
         if self.fail:raise sm.SportsUnavailable('private-test-error')
-    def leagues(self):return copy.deepcopy(self.snapshot)
+    def leagues(self):
+        if self.fail:raise sm.SportsUnavailable('private-test-error')
+        return copy.deepcopy(self.snapshot)
     def overview(self):return {'updated':NOW}
 
 
@@ -124,9 +126,9 @@ class Controller(unittest.TestCase):
 
     def test_opens_before_fetch_completes_and_reentry_keeps_focus_state(self):
         provider=Provider();entered=threading.Event();release=threading.Event()
-        refresh=provider.refresh
-        def held():entered.set();release.wait(2);refresh()
-        provider.refresh=held
+        get_leagues=provider.leagues
+        def held():entered.set();release.wait(2);return get_leagues()
+        provider.leagues=held
         def scenario(w):
             self.assertTrue(entered.wait(1));self.assertEqual(w.props['state'],'loading')
             release.set();until(lambda:not w.fetching)
@@ -135,7 +137,7 @@ class Controller(unittest.TestCase):
             w.onInit()
             self.assertIs(w.stop,stop);self.assertIs(w.data,data)
         self.exercise(provider,scenario)
-        self.assertEqual(provider.calls,1)
+        self.assertEqual(provider.calls,0)
 
     def test_error_survives_timer_redraw_and_failed_retry_then_recovers(self):
         provider=Provider(fail=True)
@@ -151,7 +153,7 @@ class Controller(unittest.TestCase):
             self.assertEqual(w.props['subtitle'],'12 leagues · updated just now')
             self.assertFalse(w.props['error.title'])
         self.exercise(provider,scenario)
-        self.assertEqual(provider.calls,3)
+        self.assertEqual(provider.calls,2)
 
     def test_cached_data_stays_visible_when_refresh_fails(self):
         seed=(Provider().snapshot,NOW)
@@ -163,8 +165,9 @@ class Controller(unittest.TestCase):
 
     def test_closing_during_fetch_never_writes_to_closed_window(self):
         provider=Provider();entered=threading.Event();release=threading.Event()
-        def held():entered.set();release.wait(2)
-        provider.refresh=held
+        get_leagues=provider.leagues
+        def held():entered.set();release.wait(2);return get_leagues()
+        provider.leagues=held
         def scenario(w):
             self.assertTrue(entered.wait(1))
             w.onClick(page.BACK);release.set();until(lambda:not w.fetching)

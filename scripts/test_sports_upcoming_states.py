@@ -29,7 +29,9 @@ class Provider:
     def refresh(self):
         self.calls+=1
         if self.fail:raise sm.SportsUnavailable('raw-fixture-details')
-    def upcoming_games(self):return list(self.games)
+    def upcoming_games(self):
+        if self.fail:raise sm.SportsUnavailable('raw-fixture-details')
+        return list(self.games)
     def overview(self):return {'updated':NOW}
 
 
@@ -113,7 +115,7 @@ class Controller(unittest.TestCase):
             self.assertEqual(w.props['empty.title'],'')
             self.assertFalse(w.failed)
         self.exercise(provider,scenario)
-        self.assertEqual(provider.calls,2)
+        self.assertEqual(provider.calls,1)
 
     def test_timer_poll_recovers_after_slow_first_scan(self):
         provider=Provider(fail=True)
@@ -124,7 +126,7 @@ class Controller(unittest.TestCase):
             w.poll();until(lambda:not w.fetching)
             self.assertEqual(w.props['state'],'ready')
             self.assertEqual(w.props['row.0.title'],'Arsenal vs Chelsea')
-            w.poll();self.assertEqual(provider.calls,2)
+            w.poll();self.assertEqual(provider.calls,1)
         self.exercise(provider,scenario)
 
     def test_timer_picks_up_new_partial_results_without_forcing_a_scan(self):
@@ -134,7 +136,7 @@ class Controller(unittest.TestCase):
             provider.games=sm.Sample(now=NOW).upcoming_games()
             w.poll();until(lambda:not w.fetching)
             self.assertEqual(w.props['state'],'ready')
-            self.assertEqual(provider.calls,1)
+            self.assertEqual(provider.calls,0)
         self.exercise(provider,scenario)
 
     def test_timer_poll_does_not_retry_closed_page(self):
@@ -142,7 +144,7 @@ class Controller(unittest.TestCase):
         def scenario(w):
             until(lambda:not w.fetching)
             w.onClick(page.BACK);w.poll()
-            self.assertEqual(provider.calls,1)
+            self.assertEqual(provider.calls,0)
         self.exercise(provider,scenario)
 
     def test_retry_can_finish_successfully_with_no_games(self):
@@ -164,7 +166,7 @@ class Controller(unittest.TestCase):
             self.assertEqual(w.props['state'],'error')
             w.draw();self.assertEqual(w.props['state'],'error')
         self.exercise(provider,scenario)
-        self.assertEqual(provider.calls,2)
+        self.assertEqual(provider.calls,1)
 
     def test_empty_refresh_can_reveal_new_games(self):
         provider=Provider()
@@ -189,8 +191,9 @@ class Controller(unittest.TestCase):
 
     def test_close_during_retry_does_not_write_to_the_closed_window(self):
         provider=Provider();entered=threading.Event();release=threading.Event()
-        def refresh():entered.set();release.wait(2)
-        provider.refresh=refresh
+        games=provider.upcoming_games
+        def held():entered.set();release.wait(2);return games()
+        provider.upcoming_games=held
         def scenario(w):
             self.assertTrue(entered.wait(1));self.assertEqual(w.props['state'],'loading')
             w.onClick(page.BACK);release.set();until(lambda:not w.fetching)

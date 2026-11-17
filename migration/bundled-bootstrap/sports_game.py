@@ -74,7 +74,7 @@ def run(game, provider=None, clock=time.time):
             self.fetching = False
             self.data = game
             self.draw()
-            self.refresh()
+            self.refresh(reload=False)
             def tick():
                 monitor=xbmc.Monitor()
                 last=clock()

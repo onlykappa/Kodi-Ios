@@ -102,7 +102,7 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
             self.league = args[0] if args else 'All'   # a league page starts on its chip (an unknown code shows All)
             self.data = _CACHE
             self.draw()
-            self.refresh()
+            self.refresh(reload=False)
             def tick():
                 monitor=xbmc.Monitor()
                 last=clock()

@@ -1,5 +1,8 @@
 # Kodi-iOS master roadmap
 
+Current Sports follow-up (2026-11-17): ESPN supplies live and upcoming games; Crew discovery is limited to ESPN-live games and their leagues, with fresh snapshot reuse. Owner reports Crew works, but the latest phone logs show menu navigation and repeated scans, not live video; iPhone acceptance and stop-during-opening behavior remain pending. See docs/SPORTS-HANDOFF.md. No IPA/merge.
+
+
 Current Sports candidate (2026-11-17): ESPN American schedule + Crew native sources, existing UI. Controlled card-to-Crew-player rig test passes; real live broadcast matching/phone acceptance and host Python3.14 cleanup failure remain pending. See docs/SPORTS-HANDOFF.md and reports/sports-crew-validation.json. No new IPA/merge.
 
 Sports follow-up (2026-11-16): build 563 stream-candidate handoff and repeated snapshot merging repaired in the sports draft; 189 sports tests and synthetic desktop Kodi rig pass. Live-provider and phone acceptance pending; see [progress](docs/SPORTS-PLAYBACK-PROGRESS.md).
