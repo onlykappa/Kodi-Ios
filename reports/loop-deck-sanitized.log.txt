@@ -1,0 +1,19 @@
+# Sanitized excerpts from Kodi log, 2026-11-16
+# URLs, paths, identifiers, headers and session values removed; source line numbers preserved.
+3026 19:19:01.148 [Jetextractors] Showing link dialog with 1 options
+3027 19:19:01.148 [Jetextractors] link_dialog returned idx=0
+3028 19:19:01.149 [Jetextractors] play_video resolved jet_link: address=<redacted; host www.fawanews.sc>, inputstream=None, headers=None
+3031 19:19:01.150 [Jetextractors] find_extractor result: FawaNews
+3127 19:19:07.703 [Jetextractors] Showing nested link dialog with 2 options
+3188 19:19:09.497 [Jetextractors] nested link_dialog returned idx=0
+3198 19:19:09.890 [Jetextractors] Playing inputstream item via Player.play
+3200 19:19:09.908 VideoPlayer::OpenFile: <redacted; host 127.0.0.1>
+3203 19:19:09.920 inputstream.ffmpegdirect.is_realtime_stream = true
+3204 19:19:09.920 inputstream.ffmpegdirect.manifest_type = hls
+3205 19:19:09.920 inputstream.ffmpegdirect: Stream mimetype: application/x-mpegURL
+3206 19:19:09.924 inputstream.ffmpegdirect: OpenWithFFmpeg - IO handled by FFmpeg's AVFormat
+3220 19:19:10.886 inputstream.ffmpegdirect: Input #0, hls, from <redacted; host 127.0.0.1>
+3225 19:19:10.886 inputstream.ffmpegdirect: Stream #0:0: Video: h264, 720x400, 50 fps
+3228 19:19:10.886 inputstream.ffmpegdirect: Stream #0:1: Audio: aac, 44100 Hz, mono
+3231 19:19:10.886 Creating Demuxer
+3235 19:19:10.887 Creating video thread
