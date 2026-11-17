@@ -101,7 +101,7 @@ class Tests(unittest.TestCase):
  def test_native_success_clears_future_sources_without_stopping_video(self):
   result,state,logs=self.exercise(ready=True)
   self.assertTrue(result);self.assertEqual(state['stops'],0)
-  self.assertIn('sports: playing (native Loop queue)',logs)
+  self.assertIn('sports: playing (native addon queue)',logs)
   self.assertEqual(sum('a source failed' in line for line in logs),1)
  def test_media_http_error_after_resolution_advances_to_the_next_choice(self):
   result,state,logs=self.exercise(http_error=True)

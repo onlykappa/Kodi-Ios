@@ -590,3 +590,10 @@ Following the owner's request to use the working Deck path across providers, the
 ### Owner-authorized direct-addon diagnostic IPA — 2026-11-17
 
 Owner: “send me a ipa with the fresh stuff and any fixes uve done and ill open the loop as a addon without the ui then send log.” This authorizes one fresh test IPA/prerelease from claude/sports-jet, with the current fixes and startup preparation of the recognized shared proxy files. It does not authorize merging PR #43. Keep authorization checks and configuration intact; do not claim the unresolved automatic-picker dialog issue is fixed. Legacy discovery is disabled in favor of on-demand catalog loading.
+
+
+## DEC-062: American ESPN schedule with The Crew playback (2026-11-17)
+
+Owner reports The Crew works on the phone and explicitly replaces Loop as the Sports source provider; Loop is deferred. ESPN is the catalog authority, rather than constructing the event list from scraper answers. Default scope is NFL, NBA, WNBA, MLB, NHL, college football, men's college basketball and MLS, including Canadian teams in those leagues. Future filter customization, Formula 1 and boxing are deferred by the owner. No overseas leagues, unscheduled channels or ambiguous team guesses enter the default catalog.
+
+Retain ESPN event ids, start times, state, scores and clock even when a source is missing. Add only uniquely matched Crew native routes, preserving their entire query and Crew's own resolver/player/inputstream handling. Do not import protected JetExtractors, impersonate callers or alter authorization. Existing Loop/independent modules remain for compatibility but the real Sports collector is Crew-only. No new IPA, release or merge is authorized by this integration/testing request.

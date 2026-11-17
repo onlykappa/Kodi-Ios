@@ -1,4 +1,5 @@
-"""Sports games and streams from JetExtractors (DEC-061; the owner chose The Loop family's source add-on over ESPN on 2026-11-16).
+"""Shared Sports collection/playback: ESPN schedules + native Crew routes by default (DEC-062).
+Legacy Jet/Loop adapters remain available for explicit compatibility tests.
 
 script.module.jetextractors holds ~45 scrapers; each one's get_items() lists games (JetItem: title "Team A vs Team B", start time, league, status) with
 streams (JetLink). This module asks them all at once, turns every JetItem into merge *records* (sports_merge.py), merges them into the games of the
@@ -131,9 +132,8 @@ def state_of(item, start, now):
 
 def descriptor(extractor, link):
     """The opaque play value of one stream: which scraper, and the JetLink as the add-on's own to_dict() wrote it."""
-    import sports_loop_routes
-    if sports_loop_routes.valid_route(getattr(link, 'address', '')):
-        extractor = sports_loop_routes.NAME
+    import sports_native_routes
+    extractor = sports_native_routes.route_kind(getattr(link, 'address', '')) or extractor
     return json.dumps({'e': extractor, 'l': link.to_dict()}, separators=(',', ':'))
 
 
@@ -157,7 +157,7 @@ def records(item, extractor, now):
                     'away': {'code': code_of(away), 'name': away, 'score': None},
                     'home': {'code': code_of(home), 'name': home, 'score': None},
                     'joiner': joiner, 'clock': '', 'left': None, 'quality': quality_of(label), 'language': language_of(label),
-                    'play': descriptor(extractor, link), 'separate_source': str(address).startswith('plugin://plugin.video.the-loop/')})
+                    'play': descriptor(extractor, link), 'separate_source': str(address).startswith(('plugin://plugin.video.the-loop/', 'plugin://plugin.video.thecrew/'))})
     return out
 
 
@@ -231,14 +231,16 @@ def load_extractors(module):
 
 
 class JetProvider:
-    """The contract's provider over JetExtractors. `loader()` -> (extractors, how) and `clock` are injectable (tests)."""
+    """The shared contract provider; real pages select Crew-only collection. `loader()` -> (extractors, how) and `clock` are injectable (tests)."""
 
-    def __init__(self, loader=None, clock=time.time, wait=LOAD_SECONDS, remote=False, publish=None, window=None, launch=None, score_loader=None):
+    def __init__(self, loader=None, clock=time.time, wait=LOAD_SECONDS, remote=False, publish=None, window=None, launch=None, score_loader=None, crew_only=False):
         self.loader, self.clock, self.wait = loader, clock, wait
+        self.crew_only = crew_only
         self.remote, self.publish, self.launch = remote, publish, launch   # remote: a page asks the script (run_script) and reads its answer
         self.window = window
         self.lock = threading.Lock()
         self.records = {}     # extractor name -> [records]
+        self.schedule = None  # ESPN is authoritative when Crew discovery is active
         self.stats = {}       # extractor name -> 'n items' | error text
         self.at = 0
         self.running = None   # (thread list, done event)
@@ -274,13 +276,13 @@ class JetProvider:
         else:
             import sports_independent
             import sports_fawa
-            extractors = [sports_fawa.FawaNews()] if _folder('plugin.video.the-loop') else [sports_independent.StreamsCenter(), sports_fawa.FawaNews()]
-            how = 'Loop routes' if _folder('plugin.video.the-loop') else 'independent'
+            extractors = [] if (self.crew_only or _folder('plugin.video.thecrew')) else ([sports_fawa.FawaNews()] if _folder('plugin.video.the-loop') else [sports_independent.StreamsCenter(), sports_fawa.FawaNews()])
+            how = 'Crew routes' if (self.crew_only or _folder('plugin.video.thecrew')) else ('Loop routes' if _folder('plugin.video.the-loop') else 'independent')
             discover_jet = True
         done = threading.Event()
         pending = [len(extractors) + int(discover_jet)]
         started = self.clock()
-        if not extractors:
+        if not extractors and not discover_jet:
             log('jet: no scrapers (%s)' % (self.reason or how))
             done.set()
             self.running = done
@@ -317,7 +319,7 @@ class JetProvider:
                         done.set()
                         log('jet: all scrapers answered after %ds (%d with games)' % (self.clock() - started, sum(1 for v in self.records.values() if v)))
 
-        gate = threading.Semaphore(2 if how == 'Loop routes' else 8)
+        gate = threading.Semaphore(1 if how == 'Crew routes' else 2 if how == 'Loop routes' else 8)
 
         def guarded(ext):
             with gate:
@@ -328,7 +330,23 @@ class JetProvider:
             def discover():
                 try:
                     home = None
-                    if _folder('plugin.video.the-loop'):
+                    if _folder('plugin.video.thecrew'):
+                        import sports_crew_routes
+                        schedule = sports_crew_routes.schedule()
+                        with self.lock:
+                            self.schedule = schedule
+                        self._publish(False)
+                        others = sports_crew_routes.discover(schedule=schedule)
+                        log('jet: %d Crew source routes discovered' % len(others))
+                    elif self.crew_only:
+                        import sports_crew_routes
+                        with self.lock:
+                            self.schedule = sports_crew_routes.schedule()
+                        self.reason = 'The Crew is not installed; schedule is available without sources'
+                        log('jet: Crew unavailable; ESPN schedule only')
+                        self._publish(False)
+                        return
+                    elif _folder('plugin.video.the-loop'):
                         import sports_loop_routes
                         others = sports_loop_routes.discover()
                         log('jet: %d Loop source routes discovered' % len(others))
@@ -350,12 +368,17 @@ class JetProvider:
                     for ext in others:
                         threading.Thread(target=guarded, args=(ext,), daemon=True).start()
                 except Exception as error:
-                    self.reason = 'JetExtractors refused or failed (%s)' % type(error).__name__
-                    import sports_pause
-                    if sports_pause.is_refusal(error):
-                        sports_pause.Pause(window=home).pause()
-                        log('jet: paused (access refused)')
-                    log('jet: unavailable (%s); independent sources remain available' % type(error).__name__)
+                    if how == 'Crew routes':
+                        self.reason = 'Crew discovery unavailable (%s)' % type(error).__name__
+                        log('jet: Crew discovery failed (%s); %s' % (type(error).__name__,
+                            'ESPN schedule retained' if self.schedule is not None else 'schedule unavailable'))
+                    else:
+                        self.reason = 'JetExtractors refused or failed (%s)' % type(error).__name__
+                        import sports_pause
+                        if sports_pause.is_refusal(error):
+                            sports_pause.Pause(window=home).pause()
+                            log('jet: paused (access refused)')
+                        log('jet: unavailable (%s); independent sources remain available' % type(error).__name__)
                 finally:
                     with self.lock:
                         pending[0] -= 1
@@ -374,7 +397,8 @@ class JetProvider:
         try:
             with self.lock:
                 every = [r for rs in self.records.values() for r in rs]
-            self.publish({'at': int(self.clock()), 'done': bool(done), 'records': every, 'reason': self.reason})
+                schedule = copy.deepcopy(self.schedule)
+            self.publish({'at': int(self.clock()), 'done': bool(done), 'records': every, 'schedule': schedule, 'reason': self.reason})
         except Exception as error:
             log('jet: publish failed (%s)' % type(error).__name__)
 
@@ -417,11 +441,11 @@ class JetProvider:
         began = time.monotonic()   # real time: the injected clock is only for the data's own timestamps
         while time.monotonic() - began < self.wait:
             data = read() or data
-            if data and (data.get('done') or (data.get('records') and (had_records or time.monotonic() - began >= SHOW_AFTER))):
+            if data and (data.get('done') or ((data.get('schedule') is not None or data.get('records')) and (data.get('schedule') is not None or had_records or time.monotonic() - began >= SHOW_AFTER))):
                 break
             time.sleep(0.4)
         data = read() or data
-        if not data or not data.get('records'):
+        if not data or (data.get('schedule') is None and not data.get('records')):
             if data and data.get('done'):
                 raise sm.SportsUnavailable(data.get('reason') or 'no scraper listed a game')
             raise sm.SportsUnavailable('the scrapers are still loading')
@@ -431,7 +455,7 @@ class JetProvider:
             cached = self._remote_cache
         if raw_seen and cached and cached[0] == raw_seen and now_mono - cached[1] < 2:
             return self._with_scores(copy.deepcopy(cached[2]))
-        result = self._games(data['records'])
+        result = self._games(data.get('records') or [], data.get('schedule'))
         with self.lock:
             self._remote_cache = (raw_seen, time.monotonic(), result)
         return self._with_scores(copy.deepcopy(result))
@@ -454,7 +478,7 @@ class JetProvider:
         with self.lock:
             every = [r for rs in self.records.values() for r in rs]
             stats = dict(self.stats)
-        if not every:
+        if not every and self.schedule is None:
             if self.running is not None and not self.running.is_set():
                 raise sm.SportsUnavailable('the scrapers are still loading')
             raise sm.SportsUnavailable(self.reason or 'no scraper listed a game (%s)' % ', '.join('%s: %s' % kv for kv in sorted(stats.items())[:4]))
@@ -507,11 +531,19 @@ class JetProvider:
                 game['clock'], game['left'] = score.get('clock') or '', score.get('left')
         return data
 
-    def _games(self, every):
+    def _games(self, every, schedule=None):
         now = int(self.clock())
-        import sports_loop_routes
-        order = sorted({r['addon'] for r in every}, key=lambda name: (not name.startswith('Loop '), sports_loop_routes.source_rank(name) if name.startswith('Loop ') else 0, name))
+        import sports_native_routes
+        order = sorted({r['addon'] for r in every}, key=lambda name: (sports_native_routes.source_rank(name), name))
         games = sports_merge.merge(every, order)
+        schedule = self.schedule if schedule is None else schedule
+        if schedule is not None:
+            # Keep ESPN ids, scores, clock and status. Only sources come from Crew.
+            candidates = games
+            games = copy.deepcopy(schedule)
+            for game in games:
+                matches = [candidate for candidate in candidates if sports_merge.same_game(game, candidate)]
+                game['sources'] = matches[0]['sources'] if len(matches) == 1 else []
         live = [g for g in games if g['state'] == 'live']
         upcoming = [g for g in games if g['state'] == 'upcoming' and g['start'] >= now - SOON_BEFORE]
         leagues = {}
@@ -597,9 +629,9 @@ def run_script(args, window=None):
             import sports_loop_router
             if source.get('native_owner') and home.getProperty(sports_loop_router.OWNER) != source['native_owner']:
                 return
-            import contextlib, sports_loop_routes
+            import contextlib, sports_native_routes
             try:
-                native = bool(source.get('native_queue')) or json.loads(source.get('play') or '{}').get('e') == sports_loop_routes.NAME
+                native = bool(source.get('native_queue')) or json.loads(source.get('play') or '{}').get('e') in ('TheCrewRoute', 'TheLoopRoute')
             except (ValueError, TypeError):
                 native = False
             # Native Loop owns its plugin interpreter and identity. Only direct
@@ -632,9 +664,9 @@ def run_script(args, window=None):
         log('jet: collection already running; reused')
         return
     try:
-        provider = JetProvider(window=home, publish=lambda data: home.setProperty(DATA, json.dumps(data, separators=(',', ':'))))
+        provider = JetProvider(window=home, crew_only=True, publish=lambda data: home.setProperty(DATA, json.dumps(data, separators=(',', ':'))))
         import contextlib
-        with (contextlib.nullcontext() if _folder('plugin.video.the-loop') else named_addon()):
+        with (contextlib.nullcontext() if (_folder('plugin.video.thecrew') or _folder('plugin.video.the-loop')) else named_addon()):
             done = provider._start()
             try:
                 import xbmc
@@ -819,12 +851,13 @@ def play_one(play_value, logger=log):
     import sports_independent
     import sports_fawa
     import sports_loop_routes
-    if value.get('e') == sports_loop_routes.NAME:
+    import sports_native_routes
+    if value.get('e') in ('TheCrewRoute', 'TheLoopRoute'):
         route = value['l']['address']
-        if not sports_loop_routes.valid_route(route):
-            raise ValueError('invalid Loop playback route')
-        sports_loop_routes.prepare_proxy()
-        logger('sports: playing via The Loop')
+        if sports_native_routes.route_kind(route) != value['e']:
+            raise ValueError('invalid native playback route')
+        sports_native_routes.prepare_proxy([route])
+        logger('sports: opening via %s' % ('The Crew' if value['e'] == 'TheCrewRoute' else 'The Loop'))
         xbmc.Player().play(route)
         return True
     if value.get('e') == sports_fawa.NAME:

@@ -1,5 +1,15 @@
 # Persistent progress
 
+## Crew provider + American ESPN schedule — 2026-11-17 (candidate validated; phone acceptance pending)
+
+Owner chooses The Crew instead of The Loop. ESPN controls event ids, teams, live/upcoming status, scores and clock; Crew supplies uniquely matched native playback routes. Defaults: NFL/NBA/WNBA/MLB/NHL/NCAAF/NCAAB/MLS, including Canadian teams within those leagues. Filters, Formula 1 and boxing are deferred. Broad Crew category browsing was prototyped and removed after clarification; existing Live/Upcoming/Leagues/game pages remain the interface.
+
+Candidate implemented: selected schedule publishes before source scanning, source-free games remain visible, exact Crew routes/query parameters survive serialization, independent native choices remain distinct, Crew-only real provider never discovers Loop/direct Jet/independent sources. Discovery is serial, bounded and yields to requested/active playback. An active listing has a bounded wait before playback. ESPN aliases are used only for unique paired-team matches; wrong league/date and ambiguous matches are rejected.
+
+Validation: 179 workflow commands passed, then all 23 affected Sports suites reran successfully; latest Crew regression suite has 23 passing cases. check_project passes. Desktop rig loaded 75 U.S. games (none live) in 1.25s. Controlled Upcoming card → game → Crew source → actual Crew sports player → Kodi VideoPlayer passed, speed 1 and time 0 → 0.602 → 1.604s. Uses an owned local video, not a broadcast. Real source matching/availability during a live U.S. event and iPhone acceptance remain unproven. No new IPA or merge.
+
+Failure retained: broad scans exit this desktop Kodi in Python 3.14 interpreter cleanup (GDB: PyThreadState_Swap / CPythonInvoker::onExecutionDone); reducing concurrency did not establish a fix. Phone uses Python 3.11, so applicability is unknown. Final UI check isolated unrelated rig background addons/Home; Crew sources were unchanged. Initial private fixture omitted content=addons and selected movie scraping; corrected fixture passed. Evidence: reports/sports-crew-validation.json; ISSUE-367; DEC-062.
+
 ## Owner-authorized native Loop test IPA — 2026-11-17
 
 Preparing one new test build from claude/sports-jet so the owner can open The Loop directly and export a phone log. Startup applies the same recognized-source proxy repair without opening menus; legacy discovery is off and normal Sports catalog remains on demand. Controlled HTTP-error fallback is verified; actual automatic-picker dialog waiting remains unresolved. No merge. Build source and release will be recorded after checks.

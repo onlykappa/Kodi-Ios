@@ -1,3 +1,7 @@
+## Crew + American ESPN checkpoint — 2026-11-17
+
+Current scope is DEC-062 / ISSUE-367: ESPN U.S. event catalog, Crew native sources, existing Sports pages. Filters/motorsport/boxing later. Implementation and controlled real-Kodi UI playback are verified; real live-source matching/broadcast and phone acceptance are pending. Full evidence/retained host Python3.14 cleanup failures: reports/sports-crew-validation.json and docs/SPORTS-HANDOFF.md. No new IPA or merge.
+
 # Sports playback repair
 
 ## Sports playback and opening follow-up — 2026-11-16

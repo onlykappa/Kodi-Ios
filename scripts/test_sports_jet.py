@@ -226,18 +226,17 @@ class Remote(unittest.TestCase):
             page.live_games()
         self.assertEqual(launched, [('sports_jet_run',)])   # the second page load finds it running
 
-    def test_script_says_why_when_jet_cannot_start(self):
+    def test_script_keeps_schedule_available_when_crew_is_missing(self):
         win = Window()
         from unittest.mock import patch
-        with patch('sports_independent.StreamsCenter.get_items', return_value=[]), patch.object(sj, 'import_jet', return_value=(None, 'No module named x')), patch.dict(sys.modules, {'xbmcgui': NS(Window=lambda i: win), 'xbmcaddon': NS(Addon=lambda *a, **k: None), 'xbmcvfs': NS(translatePath=lambda p: __import__('tempfile').gettempdir()+'/kodi-sports-host-test')}):
+        with patch('sports_crew_routes.schedule', return_value=[]), patch('sports_independent.StreamsCenter.get_items', side_effect=AssertionError('independent called')), patch.object(sj, 'import_jet', side_effect=AssertionError('Jet called')), patch.dict(sys.modules, {'xbmcgui': NS(Window=lambda i: win), 'xbmcaddon': NS(Addon=lambda *a, **k: None), 'xbmcvfs': NS(translatePath=lambda p: __import__('tempfile').gettempdir()+'/kodi-sports-host-test')}):
             sj.run_script([], window=win)
         data = json.loads(win.getProperty(sj.DATA))
         self.assertTrue(data['done'])
         self.assertIn('not installed', data['reason'])
         page = sj.JetProvider(remote=True, window=win, clock=lambda: data['at'], wait=0.1, launch=lambda *a: None)
-        with self.assertRaises(sm.SportsUnavailable) as ctx:
-            page.live_games()
-        self.assertIn('not installed', str(ctx.exception))
+        self.assertEqual(data['schedule'], [])
+        self.assertEqual(page.live_games(), [])
 
     def test_a_tap_leaves_the_source_and_starts_the_play_script(self):
         win, launched = Window(), []

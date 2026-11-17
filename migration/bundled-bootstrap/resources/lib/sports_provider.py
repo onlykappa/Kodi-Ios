@@ -28,7 +28,7 @@ def get():
 
 
 def real():
-    """The provider the phone uses: JetExtractors' scrapers for the games and their streams (DEC-061). ESPN's feed (sports_espn.py, DEC-059/060) stays
+    """The phone uses Crew's native menus when installed, through the shared collector. ESPN's schedule feed stays
     in the app and is used with KODI_IOS_SPORTS=espn."""
     if _real[0] is None:
         if os.environ.get('KODI_IOS_SPORTS', '') == 'espn':
@@ -37,7 +37,7 @@ def real():
         else:
             import sports_jet
             import sports_scores
-            _real[0] = sports_jet.JetProvider(remote=True, score_loader=sports_scores.fetch_live)   # a page's thread cannot call JetExtractors: its script does (ISSUE-365)
+            _real[0] = sports_jet.JetProvider(remote=True, crew_only=True, score_loader=sports_scores.fetch_live)   # a page's thread cannot call JetExtractors: its script does (ISSUE-365)
     return _real[0]
 
 

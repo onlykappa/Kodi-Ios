@@ -1,0 +1,61 @@
+{
+  "evidence_class": "desktop Kodi rig and host tests",
+  "date": "2026-11-17",
+  "defaults": [
+    "NFL",
+    "NBA",
+    "WNBA",
+    "MLB",
+    "NHL",
+    "NCAAF",
+    "NCAAB",
+    "MLS"
+  ],
+  "schedule_source": "ESPN; authoritative event ids, teams, status, scores, clock",
+  "stream_source": "The Crew normal native Kodi routes; full query preserved",
+  "workflow_commands": 179,
+  "workflow_failures": 0,
+  "affected_sports_suites": 23,
+  "affected_sports_suite_failures": 0,
+  "crew_regression_cases": 23,
+  "crew_regression_cases_passed": true,
+  "real_catalog": {
+    "categories": 17,
+    "nba_listing_seconds": 1.0,
+    "formula_one_listing_seconds": 0.94,
+    "american_schedule_games": 75,
+    "live_games": 0,
+    "initial_schedule_seconds": 1.25,
+    "real_matched_broadcast_sources": 0
+  },
+  "controlled_ui": {
+    "passed": true,
+    "steps": [
+      "Upcoming game card",
+      "Game page",
+      "Crew controlled source",
+      "Crew native sports player (content=addons)",
+      "Kodi VideoPlayer"
+    ],
+    "media": "owned local test video, not a game broadcast",
+    "speeds": [
+      1,
+      1,
+      1
+    ],
+    "time_seconds": [
+      0.0,
+      0.602,
+      1.604
+    ]
+  },
+  "retained_failures": [
+    "Parallel and serial broad scans exited the host Kodi process. GDB captured SIGSEGV in PyThreadState_Swap / CPythonInvoker::onExecutionDone, using libpython3.14. Phone uses Python 3.11; relevance to phone not established.",
+    "Initial fixture omitted content=addons and incorrectly selected Crew movie scraping. Corrected private fixture passed; production adapter retains complete upstream routes.",
+    "Broad category-to-Leagues prototype rendered and navigated but was removed when owner chose ESPN American games only."
+  ],
+  "rig_isolation": "Final UI playback check disabled unrelated background addons and used a minimal Home in private rig only. Crew addon sources unchanged.",
+  "phone_live_broadcast_via_new_ui_verified": false,
+  "ipa_built": false,
+  "merge_performed": false
+}

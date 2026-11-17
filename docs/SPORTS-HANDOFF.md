@@ -1,3 +1,14 @@
+# Current checkpoint: Crew + American ESPN schedule (2026-11-17)
+
+Latest owner scope supersedes the Loop focus below: ESPN supplies U.S. games/status/scores; Crew supplies uniquely matched native sources. Defaults NFL/NBA/WNBA/MLB/NHL/NCAAF/NCAAB/MLS. Filters, Formula 1 and boxing later. Real provider and collection script pass crew_only=True; no Loop/direct Jet/independent discovery on this path. New files sports_crew_routes.py and sports_native_routes.py; existing shared sports_jet.py retains its historical name. Tests: test_sports_crew_routes.py registered in import-review.
+
+179 workflow commands and 23 affected Sports suites passed; Crew suite now 23 cases. Reports sports-crew-validation.json distinguishes controlled playback from real sources. Rig: 75 U.S. upcoming games, none live, no real matched source verified. Controlled Upcoming→game→Crew source→Crew native sports player→VideoPlayer passed with owned local media, speed1/time advances. Preserve full Crew route including content=addons; initial private fixture omitted that and ran movie scraping instead. No new IPA/merge.
+
+Host blocker: broad serial/parallel scans SIGSEGV in Kodi CPythonInvoker::onExecutionDone / libpython3.14 PyThreadState_Swap; phone Python3.11 relevance unknown. Final UI playback tested with unrelated rig background addons disabled/minimal Home, Crew sources untouched. Prior profile DB/Home backups are private in /workspace/scratch/crew-minimal-rig. Private fixture files and raw listings stay out of Git/build. Do not claim live broadcast acceptance. Next: verify scheduled Crew event matching during an actual live U.S. game and use owner's phone log for device proof; investigate host Python3.14 cleanup independently. No protected-code decoding or auth bypass.
+
+---
+Historical Loop checkpoints (retained):
+
 # Sports handoff — current checkpoint
 
 Implementation PR: https://github.com/onlykappa/Kodi-Ios/pull/43 (draft).

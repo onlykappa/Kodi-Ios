@@ -2,7 +2,7 @@
 import json
 import time
 import uuid
-import sports_loop_routes as routes
+import sports_native_routes as routes
 import sports_merge
 
 MAX_CHOICES = 32
@@ -13,13 +13,13 @@ def native_route(source):
     try:
         value = json.loads(source.get('play') or '')
         address = value['l']['address']
-        return address if value.get('e') == routes.NAME and routes.valid_route(address) else None
+        return address if value.get('e') == routes.route_kind(address) and value.get('e') in ('TheCrewRoute', 'TheLoopRoute') else None
     except (ValueError, KeyError, TypeError):
         return None
 
 
 def automatic_source(sources):
-    ordered = sorted(sources, key=lambda s: (-sports_merge.quality_rank(s.get('quality')), routes.source_rank(s.get('addon', ''))))
+    ordered = sorted(sources, key=lambda s: (not s.get('addon', '').startswith('Crew '), -sports_merge.quality_rank(s.get('quality')), routes.source_rank(s.get('addon', ''))))
     if not ordered:
         raise ValueError('no sports sources')
     native = [s for s in ordered if native_route(s)]
@@ -42,8 +42,8 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             seen.add(address)
             choices.append((address, source.get('addon') or 'Sports'))
     if not choices:
-        raise ValueError('no native Loop routes')
-    routes.prepare_proxy()
+        raise ValueError('no native addon routes')
+    routes.prepare_proxy([address for address, _ in choices])
 
     class Observer(backend.Player):
         ready = False
@@ -84,7 +84,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
         playlist.add(address, item)
     player = Observer()
     monitor = backend.Monitor()
-    logger('sports: opening native Loop queue (%d choices)' % len(choices))
+    logger('sports: opening native addon queue (%d choices)' % len(choices))
     began, previous, failed_through = clock(), clock(), -1
     current_index = 0
     try:
@@ -133,7 +133,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                 logger('jet: a source failed (native open failed, choice %d)' % (n + 1))
                 failed_through = n
             if player.ready and player.isPlayingVideo():
-                logger('sports: playing (native Loop queue)')
+                logger('sports: playing (native addon queue)')
                 return True
             if now - began >= timeout:
                 raise RuntimeError('native sports opening timed out')

@@ -1,5 +1,7 @@
 # Kodi-iOS master roadmap
 
+Current Sports candidate (2026-11-17): ESPN American schedule + Crew native sources, existing UI. Controlled card-to-Crew-player rig test passes; real live broadcast matching/phone acceptance and host Python3.14 cleanup failure remain pending. See docs/SPORTS-HANDOFF.md and reports/sports-crew-validation.json. No new IPA/merge.
+
 Sports follow-up (2026-11-16): build 563 stream-candidate handoff and repeated snapshot merging repaired in the sports draft; 189 sports tests and synthetic desktop Kodi rig pass. Live-provider and phone acceptance pending; see [progress](docs/SPORTS-PLAYBACK-PROGRESS.md).
 
 Current repair: sports playback/import/refresh fixes host-validated; PR #44 merged with owner approval. AirPlay r65 and combined testing IPA build 561 are published and artifact-verified; phone acceptance pending. See [sports progress](docs/SPORTS-PLAYBACK-PROGRESS.md).

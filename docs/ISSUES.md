@@ -5819,3 +5819,21 @@ Public reference investigation: a plaintext Kodi extractor describes a source-is
 - **Cause:** this real Kodi build delivered Started/Stopped before AV startup without the expected Error callback.
 - **Fix candidate:** pre-AV media failure advances an explicit candidate cursor, reconstructs a cleared playlist when necessary, and preserves current request ownership across independent alternatives. Stale requests are discarded. Playback dispatch is staged until the Sports modal stack closes.
 - **Test:** controlled actual HTTP 404 -> fixture video succeeded and advanced 1 -> 2 -> 3 seconds with no remaining queue; test_sports_loop_router/test_sports_game cover failure, ownership and deferred dispatch. Actual Loop/card dialog wait remains unresolved; debugger captured the provider waiting in Dialog.select/CGUIDialog.Open, not an established network wait. No universal source or iPhone success claim.
+
+
+## ISSUE-367 — Sports needs ESPN games with Crew playback (2026-11-17)
+
+Seen: owner phone report confirms Crew plays; build 567 log opens live HLS with inputstream.adaptive, H.264/AAC decoding and fullscreen about 2.2s after OpenFile. The log does not independently attribute the opener; Loop's analytics observer runs globally. Loop still refuses its recorded repository origin. Owner chooses Crew and American ESPN leagues only, filters/motorsport/boxing later.
+
+Cause: existing catalog discovers Loop routes and creates games only when a source lists a matching pair. It has no Crew adapter, and source absence prevents scheduled games appearing. Native unknown-quality Crew routes would also collapse behind one source.
+
+Fix candidate: read Crew's normal plugin directories, retain exact native playback routes, publish authoritative selected ESPN schedule before source discovery, overlay uniquely matching sources while retaining ESPN ids/scores/status, and keep native choices distinct. Crew-only playback does not initialize Loop/JetExtractors. Reuse existing Live/Upcoming/Leagues/game UI; no category/filter redesign.
+
+Test: new test_sports_crew_routes.py (registered in import-review) covers matching, dates/league separation, native identity/route validation, Crew priority, no Loop calls, source-free/empty schedule snapshots and American league selection. Full workflow suite and serial rig retest pending. Parallel rig source scan exited the process after the first 75-game schedule published; source matching and live playback are not yet proven. Do not mark device integration fixed from listing success.
+
+
+ISSUE-367 validation follow-up: 179 import-review commands passed; all 23 affected Sports suites reran with no failures and the final Crew regression suite has 23 passing cases. check_project passes. Selected ESPN schedule published 75 upcoming games in 1.25s (zero live). Exact routes include Crew's content=addons selector; stripping it would incorrectly select movie scraping (observed in an initially incorrect private fixture, corrected before accepting the result). Actual Upcoming → game card → Crew source → native Crew sports player → VideoPlayer played owned fixture media at speed 1, time 0 → 0.602 → 1.604s. No real broadcast/source match was verified in that schedule; phone acceptance is pending.
+
+Discovery/playback resource handling: serial bounded Crew traversal skips search/replay/account menus and yields to new play ownership or active video; a per-listing Home marker clears in finally and playback waits up to 10s for the outstanding listing. Tests cover preemption, marker cleanup, wait, complete query retention, aliases/ambiguity/date/league, missing Crew and failed source discovery retaining the ESPN schedule. Crew-only real pages and collector do not call Loop, direct Jet or the independent adapters.
+
+Failure retained: both broad parallel and serial native scans exited the desktop rig; GDB captured SIGSEGV in Python 3.14 PyThreadState_Swap called from CPythonInvoker::onExecutionDone. Another startup stopped in PyEval_RestoreThread. No OOM was recorded. This is a host-runtime failure, not proof of equivalent failure or success on the iPhone's Python 3.11. Final controlled UI check used private background-addon isolation/minimal Home, with Crew files unchanged. No production Python/Kodi binary patch, authorisation change, IPA or merge. See reports/sports-crew-validation.json.

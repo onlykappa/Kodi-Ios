@@ -132,7 +132,8 @@ def parse(code, name, sport, joiner, cfg, body, now):
             def team(c):
                 t = c.get('team') or {}
                 out = {'code': (t.get('abbreviation') or t.get('shortDisplayName') or '???')[:4].upper(),
-                       'name': t.get('displayName') or t.get('name') or 'Team', 'score': None, 'crest': t.get('logo') or ''}
+                       'name': t.get('displayName') or t.get('name') or 'Team', 'score': None, 'crest': t.get('logo') or '',
+                       'aliases': list(dict.fromkeys(value for key in ('displayName', 'shortDisplayName', 'name', 'abbreviation') if (value := t.get(key))))}
                 if state == 'in':
                     try:
                         out['score'] = int(float(c.get('score')))
@@ -167,8 +168,9 @@ def fetch_json(url, timeout=TIMEOUT):
 class EspnProvider:
     """The contract's provider over the ESPN feed. `fetch(url)` is injectable (tests)."""
 
-    def __init__(self, fetch=None, clock=time.time):
+    def __init__(self, fetch=None, clock=time.time, leagues=None):
         self.fetch, self.clock = fetch, clock   # None: fetch_json, looked up at each call
+        self.league_defs = tuple(entry for entry in LEAGUES if leagues is None or entry[0] in leagues)
         self.lock = threading.Lock()
         self.snapshot = None   # {'at', 'live', 'upcoming', 'leagues', 'finished'}
 
@@ -187,7 +189,7 @@ class EspnProvider:
             if not force and self.snapshot and now - self.snapshot['at'] < TTL:
                 return self.snapshot
             days = [_date(now + d * 86400) for d in EXTRA_DAYS]
-            jobs = [(entry, [BASE % entry[3]] + ['%s?dates=%s' % (BASE % entry[3], day) for day in days]) for entry in LEAGUES]
+            jobs = [(entry, [BASE % entry[3]] + ['%s?dates=%s' % (BASE % entry[3], day) for day in days]) for entry in self.league_defs]
 
             def one(job):
                 entry, urls = job
