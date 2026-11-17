@@ -1,0 +1,2055 @@
+import re
+import selectors
+import socket
+import sys
+import threading
+import time
+import uuid
+import os
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse, urljoin, parse_qs, quote, unquote
+
+import requests
+import xbmc
+from ..tools import debug_log
+from .tls_adapter import _ProxyTLSAdapter
+from .segment_processor import (
+    PNG_SIG, WEBP_SIG, WEBP_LABEL,
+    _strip_png, _strip_webp, _decompress,
+    _rewrite_png_to_ts, _rewrite_png_to_image, _rewrite_ts_to_png,
+)
+from .manifest_rewriter import _is_variant_playlist, _resolve_variant_to_media
+from .prefetch_cache import (
+    _seg_cache_get, _seg_cache_put,
+    _seg_inflight_register, _seg_inflight_done, _seg_inflight_peek,
+    _prefetch_segment,
+)
+
+# Set a short GIL switch interval at module load so ALL threads (handler,
+# watchdog, prefetch) get scheduled frequently even when segment stripping
+# holds the GIL. Without this, Kodi's CCurlFile::Stat handler threads starve
+# for 20s+ after player close because WebP decompression holds the GIL.
+try:
+    sys.setswitchinterval(0.001)
+except Exception:
+    pass
+
+_PLAYER_STOP_FLAG = None
+
+
+def _get_player_stop_flag_path():
+    global _PLAYER_STOP_FLAG
+    if _PLAYER_STOP_FLAG is None:
+        try:
+            from xbmcvfs import translatePath
+            profile = translatePath("special://masterprofile/")
+            _PLAYER_STOP_FLAG = os.path.join(profile, "jetextractors_player_stopped.flag")
+        except Exception:
+            _PLAYER_STOP_FLAG = os.path.join(os.path.expanduser("~"), ".jetextractors_player_stopped.flag")
+    return _PLAYER_STOP_FLAG
+
+
+def _player_stop_flag_exists():
+    try:
+        return os.path.exists(_get_player_stop_flag_path())
+    except Exception:
+        return False
+
+
+def _clear_player_stop_flag():
+    try:
+        os.remove(_get_player_stop_flag_path())
+    except Exception:
+        pass
+
+
+def _write_player_stop_flag():
+    """Write the player-stop flag file.
+
+    Previously this flag was READ in two places (handler fast-fail and the
+    prefetch loop) but nothing ever wrote it, so the fast-fail path was dead
+    code. The watchdog now writes it the moment playback stops, which lets
+    every handler/prefetch thread (including in other interpreters) fail
+    instantly without calling any xbmc API from those threads.
+    """
+    try:
+        with open(_get_player_stop_flag_path(), "w") as f:
+            f.write(str(time.time()))
+    except Exception:
+        pass
+
+
+# How long the listen socket stays open after abort() so in-flight Kodi
+# CCurlFile::Stat probes get an instant 503 response. Closing the listener
+# immediately (the old behaviour) black-holed connections that landed in the
+# accept backlog: the kernel completed the handshake but nobody accepted, so
+# Kodi's curl hung on its 20s timeout — the "20-second stall on player
+# exit". 30s > Kodi's 20s curl timeout, so even the last probe gets a
+# definitive answer.
+_DRAIN_SECS = 30.0
+
+
+def _dm_trace(stage, url=None, status=None):
+    """Always-visible diagnostics; never log cookies or signed query values."""
+    try:
+        label = ''
+        if url:
+            parsed = urlparse(url)
+            label = ' host={} path={}'.format(parsed.hostname or '', parsed.path[:140])
+        xbmc.log('[DailymotionProxy] {}{}{}'.format(
+            stage, label, ' status={}'.format(status) if status is not None else ''),
+            xbmc.LOGINFO if status is None or status in (200, 206) else xbmc.LOGWARNING)
+    except Exception:
+        pass
+
+
+def _rewrite_dm_hls_uri(line, playlist_url, proxy_port, proxy_name, token):
+    """Proxy HLS URI attributes (audio, subtitles, keys, init segments)."""
+    def replace_uri(match):
+        quote_char, value = match.group(1), match.group(2)
+        absolute = urljoin(playlist_url, value)
+        if urlparse(absolute).scheme not in ('https', 'http'):
+            return match.group(0)
+        encoded = quote(_rewrite_png_to_image(absolute), safe='')
+        proxied = 'http://127.0.0.1:{}/{}/seg/{}/{}'.format(
+            proxy_port, proxy_name, token, encoded)
+        return 'URI={}{}{}'.format(quote_char, proxied, quote_char)
+    return re.sub(r'URI=(["\'])([^"\']*)\1', replace_uri, line)
+
+
+def _hashable_options(options: dict):
+    return frozenset((k, v) for k, v in (options or {}).items())
+
+
+def _refresh_result(result):
+    """Normalise a refresh_callback return value.
+
+    Callbacks should return {"url": ..., "headers": ...} but a bare URL
+    string is also accepted so a legacy callback still refreshes instead of
+    raising (the exception used to be swallowed, silently killing every
+    token refresh).
+    """
+    if not result:
+        return None, None
+    if isinstance(result, dict):
+        return result.get("url"), result.get("headers")
+    if isinstance(result, str):
+        return result, None
+    return None, None
+
+
+class StreamProxy:
+    """Local HTTP proxy that rewrites HLS manifests and proxies segments.
+
+    Options (all optional, defaults shown):
+        manifest_png_to_ts (False): Rewrite .png segment refs to .ts in the
+            manifest served to Kodi.
+        fetch_png_segments (False): When fetching upstream segments, rewrite
+            .ts back to .png (use with strip_png for TikTok-style wrappers).
+        proxy_absolute_urls (True): Rewrite absolute segment/playlist URLs so
+            they also flow through the proxy. Set False to leave absolute URLs
+            untouched (matches the original RoxieStreams behaviour).
+        strip_png (False): Strip PNG wrappers from segment payloads.
+        user_agent (None): If set, override the User-Agent header for all
+            upstream requests (manifest and segment fetches). Useful for
+            CDNs that filter by UA (e.g. Samsung TV UA for strmd.st).
+        cache_manifest (True): Cache the rewritten manifest for manifest_ttl
+            seconds to avoid hammering the upstream playlist.
+        manifest_ttl (2.0): Manifest cache lifetime.
+        add_icy_metadata (True): Add Icy-MetaData header to upstream requests.
+        request_timeout ((5, 30)): requests timeout tuple.
+        max_manifest_size (262144): Maximum bytes to read for a manifest.
+        max_segment_size (33554432): Maximum bytes to buffer when stripping PNG.
+        chunk_size (65536): Chunk size for streaming/buffering.
+        prefetch_segments (False): Background-prefetch upcoming segments into
+            a small per-token cache.
+        prefetch_depth (1): How many segments ahead to prefetch when
+            prefetch_segments is on. Raise above 1 for large, expensive-to-
+            unwrap segments (e.g. WebP/PNG-wrapped MPEG-TS) to give the
+            decoder read-ahead. Cache is capped at 4 entries.
+        refresh_callback: Callable returning {"url", "headers"} (or a bare URL
+            string) used to re-resolve a dead short-lived token. Invoked on
+            upstream 401/403/404 for both manifests and segments.
+    """
+
+    def __init__(self, name: str, default_headers: dict, options: dict = None):
+        self.name = name
+        self.default_headers = dict(default_headers) if default_headers else {}
+        opts = dict(options) if options else {}
+
+        self.manifest_png_to_ts = opts.get("manifest_png_to_ts", False)
+        self.fetch_png_segments = opts.get("fetch_png_segments", False)
+        self.proxy_absolute_urls = opts.get("proxy_absolute_urls", True)
+        self.strip_png = opts.get("strip_png", False)
+        self.cache_manifest = opts.get("cache_manifest", True)
+        self.manifest_ttl = opts.get("manifest_ttl", 2.0)
+        self.keep_alive = opts.get("keep_alive", True)
+        self.add_icy_metadata = opts.get("add_icy_metadata", True)
+        self.browser_tls = opts.get("browser_tls", False)
+        self.request_timeout = opts.get("request_timeout", (3, 8))
+        self.max_manifest_size = opts.get("max_manifest_size", 256 * 1024)
+        self.max_segment_size = opts.get("max_segment_size", 32 * 1024 * 1024)
+        self.chunk_size = opts.get("chunk_size", 64 * 1024)
+        self.upstream_user_agent = opts.get("user_agent", None)
+        # upstream_keep_alive (False): when True, do not force Connection: close
+        # on upstream manifest/segment requests, so the per-token requests
+        # session pool reuses TCP+TLS connections to the CDN (saves a
+        # handshake on every segment).
+        self.upstream_keep_alive = opts.get("upstream_keep_alive", False)
+        # use_urllib (False): when True, use Python's urllib.request for
+        # upstream HTTPS requests instead of requests/urllib3. This produces
+        # a different TLS fingerprint that some CDNs (e.g. cdndirector.dailymotion.com)
+        # don't block. Needed when `browser_tls` doesn't bypass CDN fingerprinting.
+        self.use_urllib = opts.get("use_urllib", False)
+        # prefetch_segments (False): when True, background-prefetch the next
+        # manifest segment on each segment request, serving it from a small
+        # in-memory cache. Counters the depth-1 serialized segment pipeline of
+        # FFmpeg's native HLS client (see ISSUE_BUFFERING.md).
+        self.prefetch_segments = opts.get("prefetch_segments", False)
+        # prefetch_depth (1): how many segments ahead of the current one to
+        # background-prefetch. Depth >1 needs decoder read-ahead on large,
+        # expensive-to-unwrap segments (WebP/PNG-wrapped MPEG-TS). The segment
+        # cache is capped at 4 entries, so depth up to ~3 stays bounded.
+        self.prefetch_depth = max(1, int(opts.get("prefetch_depth", 1) or 1))
+        # segment_strip_origin (False): When True, strip Origin and Referer
+        # headers from segment requests when the target domain differs from
+        # the manifest domain. Useful for CDNs that block cross-origin requests.
+        self.segment_strip_origin = opts.get("segment_strip_origin", False)
+
+        self._server = None
+        self._thread = None
+        self._port = None
+        self._lock = threading.Lock()
+        self._upstream = {}
+        self._abort = threading.Event()
+        self._last_activity = time.time()
+        self._created_at = time.time()
+        self._watchdog_thread = None
+        self._client_sockets = set()
+        self._client_sockets_lock = threading.Lock()
+        # Universal player-stop state. _player_stopped_ts is set the moment a
+        # stop is detected (watchdog poll / Monitor notification / abort());
+        # handlers use it to fail fast without any xbmc API call.
+        self._player_stopped_ts = 0.0
+        self._last_media_ts = 0.0
+        self._last_playing = False
+        self._drain_timer = None
+        self._accept_count = 0
+        self._last_idle_kill_ts = 0.0
+
+    def _kill_client_sockets(self):
+        """Force-close every tracked client connection at the OS level so
+        FFmpeg gets an immediate TCP reset instead of blocking on its
+        internal ~20s timeout after player close."""
+        with self._client_sockets_lock:
+            sockets = list(self._client_sockets)
+            self._client_sockets.clear()
+        for s in sockets:
+            try:
+                s.shutdown(socket.SHUT_RDWR)
+            except Exception:
+                pass
+            try:
+                s.close()
+            except Exception:
+                pass
+
+    def _handle_player_stopped(self, reason="detected"):
+        """Universal player-stop handler: kill in-flight connections NOW, but
+        deliberately keep the listen socket open (drain window) so any probe
+        Kodi fires during close (CCurlFile::Stat) gets an instant 503 instead
+        of a black-holed backlog connection. Pure Python/OS — safe from any
+        thread."""
+        now = time.time()
+        if self._player_stopped_ts and (now - self._player_stopped_ts) < 2:
+            return
+        # Ignore spurious stop detections during the startup window (player
+        # may not have begun playing yet when the watchdog first polls).
+        # Only ignore if playback was never observed at all: if the watchdog
+        # saw isPlaying()==True (_last_playing) or media flowed, this is a
+        # real stop and must proceed even within 5s of creation.
+        if (self._created_at and (now - self._created_at) < 5.0
+                and not self._last_media_ts and not self._last_playing):
+            return
+        self._player_stopped_ts = now
+        _write_player_stop_flag()
+        self._kill_client_sockets()
+        debug_log(
+            f"[{self.name}] Player stopped ({reason}) — connections killed, "
+            f"listener draining for {_DRAIN_SECS:.0f}s (fail-fast)",
+            xbmc.LOGINFO,
+        )
+
+    def _media_idle(self) -> bool:
+        """True when no media bytes have flowed recently and we are past the
+        startup window. Used to pick short upstream timeouts so a
+        post-playback request can never hang a handler for 20s+."""
+        now = time.time()
+        if self._created_at and (now - self._created_at) < 5.0:
+            return False
+        if not self._last_media_ts:
+            return True
+        return (now - self._last_media_ts) > 3.0
+
+    def _note_media(self):
+        """Mark that media bytes just flowed to a client."""
+        now = time.time()
+        self._last_media_ts = now
+        self._last_activity = now
+
+    def _ensure_server(self) -> int:
+        with self._lock:
+            if self._server is not None:
+                # Server reused (possibly during a drain window after a prior
+                # stop). Make sure the watchdog is running: an external
+                # abort() breaks its loop, and revive alone can miss a
+                # watchdog that was mid-exit (alive at check time, dead a
+                # microsecond later). Belt-and-braces for both paths.
+                if self._watchdog_thread is None or not self._watchdog_thread.is_alive():
+                    t = threading.Thread(target=self._watchdog, name=f"{self.name}Watchdog")
+                    t.daemon = True
+                    t.start()
+                    self._watchdog_thread = t
+                return self._port
+            self._abort.clear()
+            _clear_player_stop_flag()
+
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+            sock.close()
+
+            proxy = self
+
+            class _Handler(BaseHTTPRequestHandler):
+                # HTTP/1.1 enables keep-alive by default. FFmpeg keeps the manifest
+                # connection open and re-fetches periodically. When Kodi kills the
+                # player it closes the socket → readline() returns empty → handler
+                # exits → FFmpeg gets immediate connection reset (<100ms cleanup).
+                protocol_version = "HTTP/1.1"
+
+                def log_message(self, format, *args):
+                    pass
+
+                def _fail(self, code: int, body: bytes) -> None:
+                    try:
+                        self.send_response(code)
+                        self.send_header("Content-Type", "text/plain")
+                        self.send_header("Content-Length", str(len(body)))
+                        self.send_header("Connection", "close")
+                        self.end_headers()
+                        self.wfile.write(body)
+                    except Exception as e:
+                        debug_log(f"[{proxy.name}] proxy _fail write error: {e}", xbmc.LOGDEBUG)
+
+                def do_GET(self):
+                    try:
+                        self._handle(head_only=False)
+                    except Exception as e:
+                        debug_log(f"[{proxy.name}] do_GET exception: {type(e).__name__}: {e}", xbmc.LOGWARNING)
+                        try:
+                            self._fail(500, b"Internal proxy error")
+                        except Exception:
+                            pass
+
+                def do_HEAD(self):
+                    try:
+                        self._handle(head_only=True)
+                    except Exception as e:
+                        debug_log(f"[{proxy.name}] do_HEAD exception: {type(e).__name__}: {e}", xbmc.LOGWARNING)
+                        try:
+                            self._fail(500, b"Internal proxy error")
+                        except Exception:
+                            pass
+
+                def _handle(self, head_only: bool):
+                    # Track this client socket so shutdown() can force-close it
+                    # immediately instead of letting FFmpeg block ~20s on its
+                    # internal TCP timeout after player close.
+                    with proxy._client_sockets_lock:
+                        proxy._client_sockets.add(self.connection)
+                    try:
+                        proxy._last_activity = time.time()
+                        # Universal fail-fast after player stop. Pure
+                        # state/OS checks only — never call xbmc APIs here
+                        # (they block while Kodi's main thread is busy with
+                        # player-close cleanup). Covers:
+                        #   * abort()/shutdown() from any consumer addon
+                        #   * watchdog-detected isPlaying() False transition
+                        #   * the stop-flag file (written by the watchdog)
+                        if proxy._abort.is_set() or proxy._player_stopped_ts or _player_stop_flag_exists():
+                            self._fail(503, b"Player stopped")
+                            return
+                        raw_path = self.path.split("?")[0].lstrip("/")
+                        prefix = f"{proxy.name}/"
+                        seg_prefix = f"{proxy.name}/seg/"
+
+                        debug_log(f"[{proxy.name}] _handle {'HEAD' if head_only else 'GET'} path={self.path[:120]}", xbmc.LOGDEBUG)
+
+                        if raw_path.startswith(seg_prefix):
+                            # Nested HLS playlists are /seg/.../*.m3u8, not top-level manifests.
+                            try:
+                                self.connection.settimeout(60)
+                            except Exception:
+                                pass
+                            self._serve_segment(head_only=head_only)
+                        elif raw_path.startswith(prefix) and (raw_path.endswith(".m3u8") or raw_path.endswith(".mpd")):
+                            # When keep_alive=False (e.g. inputstream.adaptive),
+                            # close connections immediately so the handler thread
+                            # exits fast. This prevents Kodi's CCurlFile::Stat
+                            # from timing out on the proxy URL after player close.
+                            # When keep_alive=True (inputstream.ffmpegdirect),
+                            # keep connections open for FFmpeg's periodic re-fetches.
+                            if proxy.keep_alive:
+                                try:
+                                    self.connection.settimeout(15)
+                                except Exception:
+                                    pass
+                            else:
+                                try:
+                                    self.connection.settimeout(10)
+                                except Exception:
+                                    pass
+                            self._serve_manifest(head_only=head_only)
+                        else:
+                            self._fail(404, b"Not found")
+                    finally:
+                        with proxy._client_sockets_lock:
+                            proxy._client_sockets.discard(self.connection)
+
+                def _serve_manifest(self, head_only: bool):
+                    raw_path = self.path.split("?")[0].lstrip("/")
+                    is_dmpd = raw_path.endswith(".mpd")
+                    ext_len = len(".mpd") if is_dmpd else len(".m3u8")
+                    token = raw_path[len(f"{proxy.name}/"):-ext_len]
+                    entry = proxy._upstream.get(token)
+                    if not entry:
+                        self._fail(404, b"Token not found")
+                        return
+
+                    # HEAD requests (Kodi VFS stat checks, curl-based) must never
+                    # trigger upstream fetches. After the player closes, Kodi's
+                    # CCurlFile::Stat sends a HEAD to the manifest URL. If the
+                    # 2-second cache has expired, the proxy re-fetches from
+                    # upstream which can hang for 20+ seconds on expired tokens,
+                    # freezing the UI. Serving from cache (or minimal headers)
+                    # returns instantly.
+                    if head_only:
+                        cached = entry.get("cache")
+                        if cached:
+                            content_type = "application/dash+xml" if is_dmpd else "application/vnd.apple.mpegurl"
+                            self.send_response(200)
+                            self.send_header("Content-Type", content_type)
+                            self.send_header("Content-Length", str(len(cached)))
+                            self.send_header("Access-Control-Allow-Origin", "*")
+                            if not proxy.keep_alive:
+                                self.send_header("Connection", "close")
+                            self.end_headers()
+                        else:
+                            self.send_response(200)
+                            self.send_header("Content-Type", "application/vnd.apple.mpegurl")
+                            self.send_header("Access-Control-Allow-Origin", "*")
+                            if not proxy.keep_alive:
+                                self.send_header("Connection", "close")
+                            self.end_headers()
+                        debug_log(f"[{proxy.name}] HEAD manifest served from cache ({'cached' if cached else 'empty'})", xbmc.LOGDEBUG)
+                        return
+
+                    upstream_url = entry["url"]
+                    headers = entry.get("headers") or {}
+                    port = proxy._port
+                    now = time.time()
+
+                    cached = entry.get("cache")
+                    cache_time = entry.get("cache_time", 0.0)
+                    cache_age = now - cache_time if cache_time > 0 else float('inf')
+
+                    # Stale-while-revalidate: if we have ANY cached data, serve it
+                    # immediately and refresh in background. This prevents the proxy
+                    # from blocking on slow upstream fetches after player close.
+                    if proxy.cache_manifest and cached and cache_age < proxy.manifest_ttl:
+                        # Fresh cache: serve directly
+                        data = cached
+                        content_type = entry.get("content_type") or ("application/dash+xml" if raw_path.endswith(".mpd") else "application/vnd.apple.mpegurl")
+                        debug_log(f"[{proxy.name}] Serving fresh cached manifest ({len(data)} bytes, age={cache_age:.1f}s)", xbmc.LOGDEBUG)
+                    elif proxy.cache_manifest and cached:
+                        # Stale cache: serve immediately, refresh in background
+                        data = cached
+                        content_type = entry.get("content_type") or ("application/dash+xml" if raw_path.endswith(".mpd") else "application/vnd.apple.mpegurl")
+                        debug_log(f"[{proxy.name}] Serving stale cached manifest ({len(data)} bytes, age={cache_age:.1f}s), refreshing in background", xbmc.LOGDEBUG)
+
+                        # Background refresh: single-flight per token. ffmpeg
+                        # polls faster than a refresh completes, so without this
+                        # each TTL window spawns ~4 duplicate upstream chain
+                        # walks. Losers just serve the stale cache.
+                        refresh_lock = entry.setdefault("refresh_lock", threading.Lock())
+                        if not refresh_lock.acquire(False):
+                            debug_log(f"[{proxy.name}] Refresh already in flight for token {token[:8]}, serving stale cache", xbmc.LOGDEBUG)
+                        else:
+                            def _refresh_cache():
+                                try:
+                                    self._refresh_manifest_cache(entry, token, raw_path)
+                                except Exception as e:
+                                    debug_log(f"[{proxy.name}] Background manifest refresh failed: {e}", xbmc.LOGWARNING)
+                                finally:
+                                    refresh_lock.release()
+
+                            refresh_thread = threading.Thread(target=_refresh_cache, name=f"{proxy.name}Refresh")
+                            refresh_thread.daemon = True
+                            refresh_thread.start()
+                    else:
+                        # No cache: fetch from upstream (blocking)
+                        data, content_type = self._fetch_manifest_upstream(entry, token, raw_path, headers, port, head_only)
+                        if data is None:
+                            return
+                        entry["cache"] = data
+                        entry["cache_time"] = now
+
+                    self.send_response(200)
+                    self.send_header("Content-Type", content_type)
+                    self.send_header("Content-Length", str(len(data)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.send_header("Cache-Control", "no-store")
+                    if not proxy.keep_alive:
+                        self.send_header("Connection", "close")
+                    self.end_headers()
+                    if not head_only:
+                        try:
+                            self.wfile.write(data)
+                            self.wfile.flush()
+                        except (ConnectionAbortedError, BrokenPipeError):
+                            pass
+
+                def _fetch_manifest_upstream(self, entry, token, raw_path, headers, port, head_only, override_url=None, _allow_refresh=True):
+                    """Fetch manifest from upstream. Returns (data, content_type) or (None, None) on failure."""
+                    upstream_url = override_url or entry["url"]
+                    urls_to_try = [upstream_url] + (entry.get("fallback_urls") or [])
+                    working_url = None
+                    body = None
+
+                    # Adaptive timeout: after the player stops (or when no
+                    # media has flowed for a while), use a single fast attempt
+                    # with a short timeout so a dead/blackholed portal can
+                    # never hang the handler thread — the client (Kodi curl)
+                    # gives up at 20s and that was the observed stall.
+                    idle = proxy._media_idle()
+                    if idle:
+                        up_timeout = (2, 3)
+                        deadline = time.time() + 4.0
+                    else:
+                        up_timeout = proxy.request_timeout
+                        deadline = time.time() + 10.0
+
+                    if proxy.use_urllib:
+                        entry["session"] = "urllib"
+                        from .manifest_rewriter import _UrllibClient
+                        request_client = _UrllibClient()
+                    else:
+                        token_session = requests.Session()
+                        if proxy.browser_tls:
+                            token_session.verify = False
+                            token_session.mount("https://", _ProxyTLSAdapter())
+                        entry["session"] = token_session
+                        request_client = token_session
+
+                    for try_url in urls_to_try:
+                        if time.time() >= deadline:
+                            debug_log(f"[{proxy.name}] Manifest fetch deadline reached for {try_url}", xbmc.LOGDEBUG)
+                            break
+                        try:
+                            req_headers = dict(proxy.default_headers)
+                            req_headers.update(headers)
+                            if proxy.upstream_user_agent:
+                                req_headers["User-Agent"] = proxy.upstream_user_agent
+                            if proxy.add_icy_metadata:
+                                req_headers.setdefault("Icy-MetaData", "1")
+                            debug_log(f"[{proxy.name}] Requesting {try_url} with headers: {req_headers}", xbmc.LOGDEBUG)
+
+                            resp = request_client.get(
+                                try_url,
+                                timeout=up_timeout,
+                                headers=req_headers,
+                                stream=True,
+                            )
+                            debug_log(f"[{proxy.name}] Upstream response: {resp.status_code} for {try_url}", xbmc.LOGDEBUG)
+                            if resp.status_code != 200:
+                                if resp.status_code == 404:
+                                    # 404 with "unknown channel" = the edge no
+                                    # longer hosts this slug (channel off air).
+                                    # Refreshing the token/manifest cannot fix
+                                    # that — fall through to _fail below.
+                                    try:
+                                        peek = b""
+                                        for chunk in resp.iter_content(chunk_size=256):
+                                            peek += chunk
+                                            if len(peek) >= 256:
+                                                break
+                                    except Exception:
+                                        peek = b""
+                                    if b"unknown channel" in peek:
+                                        debug_log(f"[{proxy.name}] upstream 404 unknown channel "
+                                                  f"(channel off air), no refresh for {try_url}",
+                                                  xbmc.LOGWARNING)
+                                        break
+                                debug_log(f"[{proxy.name}] Upstream error {resp.status_code}", xbmc.LOGWARNING)
+                                resp.close()
+                                continue
+
+                            raw_bytes = b""
+                            for chunk in resp.iter_content(chunk_size=8192):
+                                if proxy._abort.is_set():
+                                    resp.close()
+                                    debug_log(f"[{proxy.name}] Manifest fetch aborted", xbmc.LOGDEBUG)
+                                    return None, None
+                                raw_bytes += chunk
+                                if len(raw_bytes) > proxy.max_manifest_size:
+                                    break
+                            resp.close()
+
+                            raw_bytes = _decompress(raw_bytes)
+                            body = raw_bytes.decode("utf-8", errors="replace").replace("\x00", "")
+                            # Per-entry manifest transform (e.g. Backdoor2's
+                            # AES-CTR segment-URI decryption) runs on every raw
+                            # upstream body: initial fetch, TTL refresh and the
+                            # segment-retry manifest re-fetch.
+                            decoder = entry.get("manifest_decoder")
+                            if decoder:
+                                try:
+                                    # try_url carries the ?t= token whose k encrypted
+                                    # this body; resp.url may have dropped it on redirect.
+                                    body = decoder(body, try_url or resp.url)
+                                except Exception as e:
+                                    debug_log(f"[{proxy.name}] manifest_decoder failed: {e}", xbmc.LOGWARNING)
+                            debug_log(f"[{proxy.name}] Upstream body length: {len(body)}", xbmc.LOGDEBUG)
+                            is_hls = "#EXTM3U" in body
+                            is_dash = "<?xml" in body[:500] or "<MPD" in body[:500] or "MPD" in body[:200]
+                            if not body or (not is_hls and not is_dash):
+                                debug_log(f"[{proxy.name}] Upstream body invalid: {body[:200]}", xbmc.LOGWARNING)
+                                continue
+                            # Defense for AES-CTR-sealed segment URIs (Backdoor2
+                            # edge): a manifest whose non-comment lines are still
+                            # base64url blobs means decryption silently failed —
+                            # serving it makes every segment 404 at the edge and
+                            # burns the segment-retry ladder (Kodi then dies with
+                            # "Segment retry also failed: 404"). Re-fetch once
+                            # with a freshly minted token (the k for the old one
+                            # may have been evicted), then fail the manifest so
+                            # the foreground/background refresh path can re-resolve.
+                            if decoder:
+                                blob = 0
+                                plain = 0
+                                for ln in body.splitlines():
+                                    st = ln.strip()
+                                    if not st or st.startswith("#"):
+                                        continue
+                                    if st.startswith(("http://", "https://", "//")):
+                                        plain += 1
+                                    elif re.fullmatch(r"[A-Za-z0-9_=-]{40,}", st):
+                                        blob += 1
+                                if blob and not plain:
+                                    debug_log(f"[{proxy.name}] manifest still has {blob} encrypted "
+                                              f"segment URIs after decode — retrying with fresh token",
+                                              xbmc.LOGWARNING)
+                                    fresh_cb = entry.get("refresh_callback")
+                                    try:
+                                        entry["url"] = try_url or entry["url"]
+                                        fresh_url, fresh_headers = _refresh_result(fresh_cb()) \
+                                            if fresh_cb else (None, None)
+                                    except Exception as e:
+                                        debug_log(f"[{proxy.name}] decrypt-miss refresh failed: {e}",
+                                                  xbmc.LOGWARNING)
+                                        fresh_url, fresh_headers = None, None
+                                    if fresh_url and fresh_url != try_url:
+                                        return self._fetch_manifest_upstream(
+                                            entry, token, raw_path, fresh_headers or headers, port,
+                                            head_only, override_url=fresh_url, _allow_refresh=False,
+                                        )
+                                    resp.close()
+                                    debug_log(f"[{proxy.name}] manifest decrypt failed and refresh "
+                                              f"{'unavailable' if not fresh_url else 'returned same URL'}"
+                                              f" — failing fetch", xbmc.LOGWARNING)
+                                    break
+                            debug_log(f"[{proxy.name}] Upstream body length: {len(body)}", xbmc.LOGDEBUG)
+                            is_hls = "#EXTM3U" in body
+                            is_dash = "<?xml" in body[:500] or "<MPD" in body[:500] or "MPD" in body[:200]
+                            if not body or (not is_hls and not is_dash):
+                                debug_log(f"[{proxy.name}] Upstream body invalid: {body[:200]}", xbmc.LOGWARNING)
+                                continue
+                            # If a manifest decoder runs AFTER variant resolution,
+                            # a nested media playlist fetched here (variant
+                            # expansion) may still carry encrypted segment URIs —
+                            # decrypt it before the rewrite loop or every segment
+                            # 404s. No-op for non-HLS/nested-playlist decoders.
+                            if is_hls and decoder:
+                                try:
+                                    body = decoder(body, working_url or try_url or resp.url)
+                                except Exception as e:
+                                    debug_log(f"[{proxy.name}] nested manifest_decoder failed: {e}", xbmc.LOGWARNING)
+
+                            working_url = resp.url
+                            break
+                        except Exception as e:
+                            debug_log(f"[{proxy.name}] Upstream fetch failed for {try_url}: {e}", xbmc.LOGWARNING)
+                            continue
+                    if proxy.name == 'dailymotion':
+                        _dm_trace('master fetch', upstream_url,
+                                  200 if working_url else 502)
+                    if not working_url:
+                        # Manifest-level refresh. An expired short-lived
+                        # secure/<token> answers 404, not 403, so a 403-only
+                        # guard never fired here. Re-resolve once through
+                        # refresh_callback, adopt the new URL so segments
+                        # resolve against the live route, and retry.
+                        # Skipped when media is idle (player stopped): the
+                        # refresh re-walks the whole embed chain, which can
+                        # block the handler for seconds while Kodi's curl is
+                        # already timing out — exactly the close-time stall.
+                        refresh_cb = entry.get("refresh_callback")
+                        if refresh_cb and _allow_refresh and not idle and not proxy._abort.is_set() and not proxy._player_stopped_ts:
+                            try:
+                                fresh_url, fresh_headers = _refresh_result(refresh_cb())
+                                if fresh_url:
+                                    debug_log(f"[{proxy.name}] Manifest refresh, retrying with fresh URL: {str(fresh_url)[:120]}", xbmc.LOGDEBUG)
+                                    entry["url"] = fresh_url
+                                    if fresh_headers:
+                                        entry["headers"] = fresh_headers
+                                    return self._fetch_manifest_upstream(
+                                        entry, token, raw_path, fresh_headers or headers, port,
+                                        head_only, override_url=fresh_url, _allow_refresh=False,
+                                    )
+                            except Exception as e:
+                                debug_log(f"[{proxy.name}] Manifest refresh_callback failed: {e}", xbmc.LOGWARNING)
+                        self._fail(502, b"All upstream URLs failed")
+                        return None, None
+
+                    is_hls = "#EXTM3U" in body
+                    if is_hls:
+                        # If the master playlist has #EXT-X-MEDIA audio renditions,
+                        # don't resolve to a single variant - let ISA handle the full
+                        # master so it can select audio+video separately.
+                        has_media_audio = any(
+                            "TYPE=AUDIO" in line.upper()
+                            for line in body.splitlines()
+                            if line.strip().startswith("#EXT-X-MEDIA")
+                        )
+                        # DailyMotion masters must not be flattened to one quality: separate
+                        # audio renditions can be referenced by the master playlist.
+                        # Pass the original master through for Kodi to select BOTH.
+                        if proxy.name != 'dailymotion' and _is_variant_playlist(body) and not has_media_audio:
+                            if proxy.use_urllib:
+                                from .manifest_rewriter import _UrllibClient
+                                request_client_inner = _UrllibClient()
+                            else:
+                                request_client_inner = entry.get("session")
+                                if request_client_inner is None:
+                                    request_client_inner = requests
+                                    if proxy.browser_tls:
+                                        request_client_inner = requests.Session()
+                                        request_client_inner.verify = False
+                                        request_client_inner.mount("https://", _ProxyTLSAdapter())
+                            variant_headers = dict(proxy.default_headers)
+                            variant_headers.update(headers)
+                            variant_headers.setdefault("Accept", "*/*")
+                            resolved = _resolve_variant_to_media(body, working_url, request_client_inner, variant_headers)
+                            if resolved is not body:
+                                body = resolved
+                                debug_log(f"[{proxy.name}] Resolved variant playlist to media playlist ({len(body.splitlines())} lines)", xbmc.LOGDEBUG)
+                    # Apply png-to-ts rewrite AFTER variant resolution so it
+                    # processes the actual media playlist segment URLs.
+                    # NOTE: _rewrite_png_to_image in the encoding loop handles
+                    # .png→.image conversion for segment URLs. The manifest body
+                    # rewrite is only needed when the CDN serves actual PNG-wrapped
+                    # TS (not WebP-wrapped), so skip it when strip_png is active.
+                    if proxy.manifest_png_to_ts and not proxy.strip_png:
+                        body = _rewrite_png_to_ts(body)
+                    if is_hls:
+                        # HLS manifest: rewrite segment refs to proxy
+                        rewritten = []
+                        seg_urls = []
+                        parsed_upstream = urlparse(working_url)
+                        upstream_root = f"{parsed_upstream.scheme}://{parsed_upstream.netloc}"
+                        for line in body.splitlines():
+                            stripped = line.strip()
+                            if not stripped:
+                                continue
+                            if stripped.startswith("#"):
+                                # Rewrite URI attributes in HLS tags (#EXT-X-MEDIA,
+                                # #EXT-X-MAP, #EXT-X-KEY, etc.) so ISA fetches
+                                # them through the proxy instead of upstream.
+                                if proxy.name == 'dailymotion' and 'URI=' in stripped.upper():
+                                    stripped = _rewrite_dm_hls_uri(
+                                        stripped, working_url, port, proxy.name, token)
+                                elif proxy.proxy_absolute_urls and "URI=" in stripped.upper():
+                                    def _rewrite_hls_uri(m):
+                                        quote_char = m.group(1)
+                                        uri_val = m.group(2)
+                                        if uri_val.startswith("http://") or uri_val.startswith("https://"):
+                                            return f'URI={quote_char}{uri_val}{quote_char}'
+                                        if uri_val.startswith("/"):
+                                            uri_val = f"{upstream_root}{uri_val}"
+                                        else:
+                                            uri_val = urljoin(working_url, uri_val)
+                                        return f'URI={quote_char}http://127.0.0.1:{port}/{proxy.name}/seg/{token}/{quote(_rewrite_png_to_image(uri_val), safe="")}{quote_char}'
+                                    stripped = re.sub(r'URI=(["\'])([^"\']*)\1', _rewrite_hls_uri, stripped)
+                                rewritten.append(stripped)
+                                continue
+                            if not proxy.proxy_absolute_urls and (
+                                stripped.startswith("http://") or stripped.startswith("https://")
+                            ):
+                                rewritten.append(line)
+                                continue
+                            # Root-relative segment refs need an absolute base to resolve
+                            # correctly through the proxy.
+                            if stripped.startswith("/"):
+                                stripped = f"{upstream_root}{stripped}"
+                            rewritten.append(
+                                f"http://127.0.0.1:{port}/{proxy.name}/seg/{token}/{quote(_rewrite_png_to_image(stripped), safe='')}"
+                            )
+                            # Track the ordered upstream segment list (matching the
+                            # serve-time resolution) for the prefetcher.
+                            seg_url = stripped
+                            if not (seg_url.startswith("http://") or seg_url.startswith("https://")):
+                                seg_url = urljoin(working_url, seg_url)
+                            seg_urls.append(seg_url)
+                        entry["seg_list"] = seg_urls
+                        data = ("\n".join(rewritten) + "\n").encode("utf-8")
+                        content_type = "application/vnd.apple.mpegurl"
+                        debug_log(f"[{proxy.name}] Rewrote m3u8, {len(rewritten)} lines, {len(data)} bytes (from {working_url})", xbmc.LOGDEBUG)
+                    else:
+                        # DASH manifest: rewrite relative segment URLs to absolute upstream URLs
+                        parsed_upstream = urlparse(working_url)
+                        upstream_base = f"{parsed_upstream.scheme}://{parsed_upstream.netloc}"
+                        upstream_dir = working_url.rsplit("/", 1)[0] + "/"
+                        # Rewrite relative URLs in XML attributes (e.g., media="file.mp4")
+                        def _rewrite_dash_url(m):
+                            attr_val = m.group(0)
+                            prefix = m.group(1)
+                            url_val = m.group(2)
+                            suffix = m.group(3)
+                            if url_val.startswith("http://") or url_val.startswith("https://"):
+                                return attr_val
+                            if url_val.startswith("/"):
+                                return f'{prefix}{upstream_base}{url_val}{suffix}'
+                            return f'{prefix}{upstream_dir}{url_val}{suffix}'
+                        body = re.sub(r'((?:media|src|url|location|initialization)=")([^"]+)(")', _rewrite_dash_url, body)
+                        body = re.sub(r"((?:media|src|url|location|initialization)=')([^']+)(')", _rewrite_dash_url, body)
+                        # Also rewrite BaseURL element content
+                        def _rewrite_dash_baseurl(m):
+                            url_val = m.group(1)
+                            if url_val.startswith("http://") or url_val.startswith("https://"):
+                                return m.group(0)
+                            if url_val.startswith("/"):
+                                return f'<BaseURL>{upstream_base}{url_val}</BaseURL>'
+                            return f'<BaseURL>{upstream_dir}{url_val}</BaseURL>'
+                        body = re.sub(r'<BaseURL>([^<]+)</BaseURL>', _rewrite_dash_baseurl, body)
+                        data = body.encode("utf-8")
+                        content_type = "application/dash+xml"
+                        debug_log(f"[{proxy.name}] Serving DASH manifest, {len(data)} bytes (from {working_url})", xbmc.LOGDEBUG)
+
+                    entry["url"] = working_url
+                    return data, content_type
+
+                def _refresh_manifest_cache(self, entry, token, raw_path):
+                    """Background refresh of stale manifest cache."""
+                    if proxy._abort.is_set():
+                        return
+
+                    debug_log(f"[{proxy.name}] Background refresh starting for token {token[:8]}...", xbmc.LOGDEBUG)
+                    headers = entry.get("headers") or {}
+                    port = proxy._port
+
+                    # Re-fetch the CURRENT upstream URL. Do NOT call
+                    # refresh_callback() here: it re-walks the whole embed chain
+                    # and re-resolves a short-lived token, a measured 2.97-4.15s
+                    # against a 4s target duration, which gated the playlist the
+                    # player sees to ~14s. Polling the existing URL returns 200 in
+                    # ~1.4s and the sequence advances normally. The token only
+                    # needs re-resolving on genuine failure, which
+                    # _fetch_manifest_upstream handles in its
+                    # "all upstream URLs failed" branch.
+                    # This also keeps entry["url"] stable so segment threads
+                    # never read a half-resolved worker URL.
+                    data, content_type = self._fetch_manifest_upstream(entry, token, raw_path, headers, port, False)
+                    if data is not None and not proxy._abort.is_set():
+                        entry["cache"] = data
+                        entry["cache_time"] = time.time()
+                        debug_log(f"[{proxy.name}] Background refresh completed: {len(data)} bytes", xbmc.LOGDEBUG)
+                    elif proxy._abort.is_set():
+                        debug_log(f"[{proxy.name}] Background refresh aborted (proxy shutting down)", xbmc.LOGDEBUG)
+                    else:
+                        debug_log(f"[{proxy.name}] Background refresh failed to fetch upstream", xbmc.LOGWARNING)
+
+                def _serve_segment(self, head_only: bool):
+                    if proxy._abort.is_set():
+                        self._fail(503, b"Proxy shutting down")
+                        return
+                    prefix = f"/{proxy.name}/seg/"
+                    if not self.path.startswith(prefix):
+                        self._fail(404, b"Bad proxy path")
+                        return
+                    rest = self.path.split("?")[0].lstrip("/")
+                    rest = rest[len(f"{proxy.name}/seg/"):]
+                    # Token is a UUID hex string (32 chars) followed by '/' and the segment path.
+                    if len(rest) < 33 or rest[32] != "/":
+                        self._fail(404, b"Bad token/segment")
+                        return
+                    token = rest[:32]
+                    seg_path = unquote(rest[33:])
+
+                    entry = proxy._upstream.get(token)
+                    if not entry or not seg_path:
+                        self._fail(404, b"Token/segment not found")
+                        return
+
+                    upstream_url = entry["url"]
+                    headers = entry.get("headers") or {}
+                    parsed_upstream = urlparse(upstream_url)
+                    auth_query = parsed_upstream.query
+                    base = f"{parsed_upstream.scheme}://{parsed_upstream.netloc}{parsed_upstream.path.rsplit('/', 1)[0]}/"
+
+                    if seg_path.startswith("http://") or seg_path.startswith("https://"):
+                        target = seg_path
+                    else:
+                        target = urljoin(base, seg_path)
+
+                    if proxy.fetch_png_segments:
+                        target = _rewrite_ts_to_png(target)
+
+                    if auth_query and not (proxy.name == 'dailymotion' and
+                                           seg_path.startswith(('https://', 'http://'))):
+                        # Dailymotion fully qualified child URLs already have their own
+                        # signed parameters; adding the master query can break them.
+                        # Only append upstream auth params if the segment doesn't already
+                        # contain them (different tokens can cause upstream 403s).
+                        target_qs_keys = set(parse_qs(urlparse(target).query).keys())
+                        auth_qs_keys = set(parse_qs(auth_query).keys())
+                        if not auth_qs_keys.intersection(target_qs_keys):
+                            target += ("&" if "?" in target else "?") + auth_query
+
+                    # Prefetch: kick the next segment's background download as
+                    # early as possible (GET only), then serve from cache on hit
+                    # or coalesce with an in-flight prefetch.
+                    # Byte-range requests (single-file HLS) must hit upstream with the
+                    # Range header; the URL-keyed prefetch cache would return the wrong bytes.
+                    client_range = self.headers.get("Range")
+                    owns_fetch = not client_range
+                    if not head_only and proxy.prefetch_segments and not client_range:
+                        self._kick_prefetch(entry, token, target)
+                        hit = _seg_cache_get(entry, target)
+                        if hit is not None:
+                            data, ctype = hit
+                            debug_log(f"[{proxy.name}] Segment served from prefetch cache: {len(data)} bytes ({target})", xbmc.LOGDEBUG)
+                            self._send_segment_data(data, ctype, target, token)
+                            return
+                        ev = _seg_inflight_register(entry, target)
+                        if ev is not None:
+                            # A prefetch for this segment is already downloading:
+                            # wait for it instead of starting a duplicate
+                            # download (upstream bandwidth is the bottleneck).
+                            owns_fetch = False
+                            debug_log(f"[{proxy.name}] Waiting on in-flight prefetch: {target}", xbmc.LOGDEBUG)
+                            ev.wait(timeout=3)
+                            hit = _seg_cache_get(entry, target)
+                            if hit is not None:
+                                data, ctype = hit
+                                self._send_segment_data(data, ctype, target, token)
+                                return
+                            # Prefetch failed or was aborted: fetch ourselves.
+                            ev2 = _seg_inflight_register(entry, target)
+                            if ev2 is not None:
+                                ev2.wait(timeout=3)
+                                hit = _seg_cache_get(entry, target)
+                                if hit is not None:
+                                    data, ctype = hit
+                                    self._send_segment_data(data, ctype, target, token)
+                                    return
+                                self._fail(502, b"Segment fetch congestion")
+                                return
+                            owns_fetch = True
+
+                    debug_log(f"[{proxy.name}] Proxy segment: {target}", xbmc.LOGDEBUG)
+
+                    # HEAD requests (Kodi VFS stat checks) should never trigger
+                    # upstream segment fetches which can hang on CDNs with expired
+                    # tokens. Return minimal headers instantly.
+                    if head_only:
+                        self.send_response(200)
+                        self.send_header("Content-Type", "video/mp2t")
+                        self.send_header("Access-Control-Allow-Origin", "*")
+                        self.end_headers()
+                        return
+
+                    try:
+                        if proxy._abort.is_set():
+                            self._fail(503, b"Proxy shutting down")
+                            return
+
+                        seg_headers = dict(proxy.default_headers)
+                        seg_headers.update(headers)
+                        if proxy.upstream_user_agent:
+                            seg_headers["User-Agent"] = proxy.upstream_user_agent
+                        seg_headers.setdefault("Accept", "*/*")
+                        if client_range:
+                            seg_headers["Range"] = client_range
+                        if not proxy.upstream_keep_alive:
+                            seg_headers.setdefault("Connection", "close")
+
+                        # Strip Origin/Referer when segment domain differs from
+                        # manifest domain (avoids CDN403 on cross-origin).
+                        if proxy.segment_strip_origin:
+                            target_domain = urlparse(target).netloc
+                            manifest_domain = urlparse(entry["url"]).netloc
+                            if target_domain and manifest_domain and target_domain != manifest_domain:
+                                seg_headers.pop("Origin", None)
+                                seg_headers.pop("Referer", None)
+
+                        segment_client = entry.get("session")
+                        if segment_client is None or (isinstance(segment_client, str) and segment_client == "urllib"):
+                            if proxy.use_urllib:
+                                from .manifest_rewriter import _UrllibClient
+                                segment_client = _UrllibClient(proxy)
+                            else:
+                                segment_client = requests
+                                if proxy.browser_tls:
+                                    segment_client = requests.Session()
+                                    segment_client.verify = False
+                                    segment_client.mount("https://", _ProxyTLSAdapter())
+
+                        upstream_resp = segment_client.get(
+                            target,
+                            headers=seg_headers,
+                            timeout=(5, 20),
+                            stream=True,
+                            allow_redirects=True,
+                        )
+                        if proxy._abort.is_set():
+                            upstream_resp.close()
+                            self._fail(503, b"Proxy shutting down")
+                            return
+                        upstream_content_type = upstream_resp.headers.get("Content-Type", "")
+                        if proxy.name == 'dailymotion':
+                            _dm_trace('child fetch', target, upstream_resp.status_code)
+                        debug_log(
+                            f"[{proxy.name}] Segment upstream status: {upstream_resp.status_code}, "
+                            f"Content-Type: {upstream_content_type}, Target: {target}",
+                            xbmc.LOGDEBUG,
+                        )
+                        if upstream_resp.status_code not in (200, 206):
+                            # MAC portal / secure-token streams: tokens expire
+                            # quickly. 401, 403 AND 404 all mean "token dead"
+                            # (expired secure/<token> answers 404, not 403), so
+                            # re-fetch the manifest via refresh_callback to get a
+                            # fresh token, then re-resolve the segment.
+                            if upstream_resp.status_code in (401, 403, 404) and entry.get("refresh_callback"):
+                                failed_status = upstream_resp.status_code
+                                upstream_resp.close()
+                                try:
+                                    # Identify the failing segment's position in the
+                                    # CURRENT manifest's ordered segment list. When
+                                    # seg_path is absolute (proxy_absolute_urls),
+                                    # urljoin(new_base, seg_path) would just return
+                                    # seg_path unchanged — a "retry" would re-fetch
+                                    # the exact same stale URL. Instead re-resolve by
+                                    # index against the freshly-fetched manifest.
+                                    old_list = entry.get("seg_list") or []
+                                    seg_idx = None
+                                    seg_plain = seg_path.split("?")[0]
+                                    if seg_path.startswith("http://") or seg_path.startswith("https://"):
+                                        for i, u in enumerate(old_list):
+                                            if u.split("?")[0] == seg_plain:
+                                                seg_idx = i
+                                                break
+                                    fresh_url, fresh_headers = _refresh_result(entry["refresh_callback"]())
+                                    if fresh_url:
+                                        override_url = fresh_url
+                                        refresh_headers = fresh_headers or headers
+                                        port = proxy._port
+                                        raw_path = self.path.split("?")[0].lstrip("/")
+                                        self._fetch_manifest_upstream(entry, token, raw_path, refresh_headers, port, False, override_url=override_url)
+                                        new_list = entry.get("seg_list") or []
+                                        if seg_idx is not None and seg_idx < len(new_list):
+                                            target = new_list[seg_idx]
+                                            new_parsed = urlparse(entry["url"])
+                                            new_auth_query = new_parsed.query
+                                        else:
+                                            target = urljoin(entry["url"], seg_plain)
+                                            new_auth_query = urlparse(entry["url"]).query
+                                        # Same guard as the normal serve path: signed
+                                        # absolute segment URLs (e.g. Backdoor2's decrypted
+                                        # TikTok-CDN URIs) carry their own query keys —
+                                        # appending the manifest's auth params would
+                                        # duplicate/clobber them (both use `t`).
+                                        if new_auth_query:
+                                            t_qs_keys = set(parse_qs(urlparse(target).query).keys())
+                                            a_qs_keys = set(parse_qs(new_auth_query).keys())
+                                            if not a_qs_keys.intersection(t_qs_keys):
+                                                target += ("&" if "?" in target else "?") + new_auth_query
+                                        debug_log(f"[{proxy.name}] Segment {failed_status}, retrying with fresh token: {target}", xbmc.LOGDEBUG)
+                                        upstream_resp = segment_client.get(
+                                            target,
+                                            headers=seg_headers,
+                                            timeout=(5, 20),
+                                            stream=True,
+                                            allow_redirects=True,
+                                        )
+                                        if upstream_resp.status_code in (200, 206):
+                                            debug_log(f"[{proxy.name}] Segment retry succeeded: {upstream_resp.status_code}", xbmc.LOGDEBUG)
+                                        else:
+                                            debug_log(f"[{proxy.name}] Segment retry also failed: {upstream_resp.status_code}", xbmc.LOGWARNING)
+                                            self.send_response(upstream_resp.status_code)
+                                            self.end_headers()
+                                            upstream_resp.close()
+                                            return
+                                except Exception as e:
+                                    debug_log(f"[{proxy.name}] Segment {failed_status} refresh failed: {e}", xbmc.LOGWARNING)
+                                    self.send_response(failed_status)
+                                    self.end_headers()
+                                    return
+                            else:
+                                self.send_response(upstream_resp.status_code)
+                                self.end_headers()
+                                upstream_resp.close()
+                                return
+
+                        content_type = upstream_content_type if upstream_content_type else "video/mp2t"
+                        ct_lower = content_type.lower()
+                        if any(bad in ct_lower for bad in ("javascript", "text/", "image/", "application/json")):
+                            content_type = "video/mp2t"
+                        if proxy.fetch_png_segments and target.lower().endswith(".png"):
+                            content_type = "video/mp2t"
+
+                        # DM child HLS playlists need their own URI rewriting.
+                        # Otherwise the fast path forwards relative segment references
+                        # unchanged and FFmpeg resolves them against /seg/ locally.
+                        is_dm_playlist = (proxy.name == 'dailymotion' and
+                                          (urlparse(target).path.lower().endswith('.m3u8') or
+                                           'mpegurl' in upstream_content_type.lower()))
+                        if is_dm_playlist:
+                            child_body = bytearray()
+                            try:
+                                for chunk in upstream_resp.iter_content(chunk_size=8192):
+                                    if proxy._abort.is_set() or _player_stop_flag_exists():
+                                        return
+                                    if chunk:
+                                        child_body.extend(chunk)
+                                        if len(child_body) > proxy.max_manifest_size:
+                                            self._fail(502, b'Nested HLS manifest too large')
+                                            return
+                            finally:
+                                upstream_resp.close()
+                            if not bytes(child_body).lstrip(b'\xef\xbb\xbf\r\n\t ').startswith(b'#EXTM3U'):
+                                _dm_trace('invalid child playlist', target, 502)
+                                self._fail(502, b'Not an HLS playlist')
+                                return
+                            _dm_trace('rewriting child playlist', target, 200)
+                            self._send_segment_data(bytes(child_body),
+                                                    'application/vnd.apple.mpegurl',
+                                                    target, token, head_only=head_only)
+                            return
+
+                        # Fast path: no payload modification, stream directly.
+                        if not proxy.strip_png:
+                            if head_only:
+                                upstream_resp.close()
+                                self.send_response(200)
+                                self.send_header("Content-Type", content_type or "video/mp2t")
+                                self.send_header("Access-Control-Allow-Origin", "*")
+                                self.end_headers()
+                                return
+
+                            self.send_response(upstream_resp.status_code)
+                            self.send_header("Content-Type", content_type or "video/mp2t")
+                            self.send_header("Access-Control-Allow-Origin", "*")
+                            self.send_header("Connection", "close")
+                            self.send_header("Accept-Ranges", "bytes")
+                            crange = upstream_resp.headers.get("Content-Range")
+                            if crange:
+                                self.send_header("Content-Range", crange)
+                            cl = upstream_resp.headers.get("Content-Length")
+                            if cl:
+                                self.send_header("Content-Length", cl)
+                            self.end_headers()
+                            try:
+                                for chunk in upstream_resp.iter_content(chunk_size=proxy.chunk_size):
+                                    if proxy._abort.is_set() or _player_stop_flag_exists():
+                                        break
+                                    if chunk:
+                                        self.wfile.write(chunk)
+                                        proxy._note_media()
+                            except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError, OSError):
+                                pass
+                            finally:
+                                upstream_resp.close()
+                            return
+
+                        # strip_png path with sniffing: payloads that are
+                        # neither PNG-wrapped nor nested playlists stream
+                        # straight through (ISSUE_BUFFERING.md); everything
+                        # else keeps the buffered behavior.
+                        it = upstream_resp.iter_content(chunk_size=proxy.chunk_size)
+                        head = b""
+                        try:
+                            for chunk in it:
+                                if proxy._abort.is_set():
+                                    upstream_resp.close()
+                                    return
+                                if chunk:
+                                    head += chunk
+                                    if len(head) >= 8:
+                                        break
+                        except Exception as e:
+                            debug_log(f"[{proxy.name}] Segment download error: {e}", xbmc.LOGWARNING)
+                            self._fail(502, b"Download error")
+                            upstream_resp.close()
+                            return
+
+                        starts_with_webp_head = (len(head) >= 12
+                                    and head[:4] == WEBP_SIG
+                                    and head[8:12] == WEBP_LABEL)
+                        if (len(head) >= 8
+                                    and not head.startswith(PNG_SIG)
+                                    and not starts_with_webp_head
+                                    and not head.startswith(b"#EXTM3U")):
+                            # Raw TS payload (no PNG wrapper): stream
+                            # progressively instead of buffering the whole
+                            # segment first.
+                            self.send_response(200)
+                            self.send_header("Content-Type", content_type or "video/mp2t")
+                            self.send_header("Access-Control-Allow-Origin", "*")
+                            self.send_header("Connection", "close")
+                            cl = upstream_resp.headers.get("Content-Length")
+                            if cl:
+                                self.send_header("Content-Length", cl)
+                            self.end_headers()
+                            try:
+                                self.wfile.write(head)
+                                proxy._note_media()
+                                for chunk in it:
+                                    if proxy._abort.is_set():
+                                        break
+                                    if chunk:
+                                        self.wfile.write(chunk)
+                                        proxy._note_media()
+                            except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError, OSError):
+                                pass
+                            finally:
+                                upstream_resp.close()
+                            debug_log(f"[{proxy.name}] Segment streamed (no PNG wrapper), head={len(head)} bytes", xbmc.LOGDEBUG)
+                            return
+
+                        # PNG-wrapped or nested-m3u8 payload: buffer the rest.
+                        segment_data = head
+                        try:
+                            for chunk in it:
+                                if proxy._abort.is_set() or _player_stop_flag_exists():
+                                    break
+                                if chunk:
+                                    segment_data += chunk
+                                    proxy._note_media()
+                                    if len(segment_data) > proxy.max_segment_size:
+                                        break
+                            # Yield GIL after large download so other threads
+                            # can run before the heavy strip/send operations.
+                            time.sleep(0)
+                        except Exception as e:
+                            debug_log(f"[{proxy.name}] Segment download error: {e}", xbmc.LOGWARNING)
+                            self._fail(502, b"Download error")
+                            upstream_resp.close()
+                            return
+                        finally:
+                            upstream_resp.close()
+
+                        self._send_segment_data(segment_data, content_type, target, token)
+                    except Exception as e:
+                        debug_log(f"[{proxy.name}] proxy segment fetch failed: {e}", xbmc.LOGWARNING)
+                        try:
+                            self.send_response(502)
+                            self.end_headers()
+                        except Exception:
+                            pass
+                    finally:
+                        if proxy.prefetch_segments and owns_fetch:
+                            _seg_inflight_done(entry, target)
+
+                def _send_segment_data(self, segment_data, content_type, target, token, head_only=False):
+                    """Serve segment bytes already in memory (buffered download
+                    or prefetch cache) with full post-processing: content-type
+                    fix, PNG strip, fMP4/TS detection, nested-m3u8 rewrite."""
+                    content_type = content_type if content_type else "video/mp2t"
+                    ct_lower = content_type.lower()
+                    if any(bad in ct_lower for bad in ("javascript", "text/", "image/", "application/json")):
+                        content_type = "video/mp2t"
+                    if proxy.fetch_png_segments and target.lower().endswith(".png"):
+                        content_type = "video/mp2t"
+
+                    original_len = len(segment_data)
+                    prefix_hex = " ".join(f"{b:02x}" for b in segment_data[:8])
+                    starts_with_webp = segment_data[:4] == WEBP_SIG and len(segment_data) >= 12 and segment_data[8:12] == WEBP_LABEL
+                    debug_log(
+                        f"[{proxy.name}] Segment pre-strip: len={original_len}, "
+                        f"starts_with_png={segment_data.startswith(PNG_SIG)}, "
+                        f"starts_with_webp={starts_with_webp}, "
+                        f"first_bytes={prefix_hex}",
+                        xbmc.LOGDEBUG,
+                    )
+                    segment_data = _strip_png(segment_data)
+                    # Yield the GIL after heavy WebP/PNG decompression so
+                    # handler threads (Stat checks) and the watchdog can run.
+                    time.sleep(0)
+                    if len(segment_data) != original_len:
+                        debug_log(f"[{proxy.name}] Stripped image wrapper: {original_len} -> {len(segment_data)} bytes", xbmc.LOGDEBUG)
+                        # Detect fMP4 (ftyp box at offset 4-7) after PNG strip
+                        if (len(segment_data) >= 8
+                                    and segment_data[4:8] == b"ftyp"):
+                            content_type = "video/mp4"
+                            debug_log(f"[{proxy.name}] Detected fMP4 after PNG strip, setting content-type to video/mp4", xbmc.LOGDEBUG)
+                        elif len(segment_data) >= 1 and segment_data[0] != 0x47:
+                            prefix = " ".join(f"{b:02x}" for b in segment_data[:16])
+                            debug_log(f"[{proxy.name}] WARNING: Segment starts with 0x{segment_data[0]:02x} (not TS sync 0x47), bytes: {prefix}", xbmc.LOGWARNING)
+
+                    is_m3u8 = segment_data.startswith(b"#EXTM3U") or "mpegurl" in content_type.lower()
+                    if is_m3u8:
+                        try:
+                            manifest_body = segment_data.decode("utf-8", errors="replace").replace("\x00", "")
+                            if proxy.manifest_png_to_ts and not proxy.strip_png:
+                                manifest_body = _rewrite_png_to_ts(manifest_body)
+                            rewritten = []
+                            parsed_target = urlparse(target)
+                            target_base = f"{parsed_target.scheme}://{parsed_target.netloc}"
+                            target_dir = target.rsplit("/", 1)[0] + "/"
+                            for line in manifest_body.splitlines():
+                                stripped = line.strip()
+                                if not stripped:
+                                    continue
+                                if stripped.startswith("#"):
+                                    if proxy.name == 'dailymotion' and 'URI=' in stripped.upper():
+                                        line = _rewrite_dm_hls_uri(
+                                            line, target, proxy._port, proxy.name, token)
+                                    rewritten.append(line)
+                                    continue
+                                if not proxy.proxy_absolute_urls and (
+                                    stripped.startswith("http://") or stripped.startswith("https://")
+                                ):
+                                    rewritten.append(line)
+                                    continue
+                                if stripped.startswith("/"):
+                                    stripped = f"{target_base}{stripped}"
+                                elif not stripped.startswith("http://") and not stripped.startswith("https://"):
+                                    stripped = urljoin(target_dir, stripped)
+                                rewritten.append(
+                                    f"http://127.0.0.1:{proxy._port}/{proxy.name}/seg/{token}/{quote(_rewrite_png_to_image(stripped), safe='')}"
+                                )
+                            segment_data = ("\n".join(rewritten) + "\n").encode("utf-8")
+                            content_type = "application/vnd.apple.mpegurl"
+                            debug_log(
+                                f"[{proxy.name}] Nested m3u8 detected and rewritten ({len(rewritten)} lines)",
+                                xbmc.LOGDEBUG,
+                            )
+                        except Exception as e:
+                            debug_log(f"[{proxy.name}] Nested m3u8 rewrite failed: {e}", xbmc.LOGWARNING)
+
+                    if head_only:
+                        self.send_response(200)
+                        self.send_header("Content-Type", content_type or "video/mp2t")
+                        self.send_header("Access-Control-Allow-Origin", "*")
+                        self.send_header("Connection", "close")
+                        self.end_headers()
+                        return
+
+                    self.send_response(200)
+                    self.send_header("Content-Type", content_type or "video/mp2t")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.send_header("Connection", "close")
+                    self.send_header("Content-Length", str(len(segment_data)))
+                    self.end_headers()
+                    try:
+                        self.wfile.write(segment_data)
+                        proxy._note_media()
+                        debug_log(f"[{proxy.name}] Segment sent {len(segment_data)} bytes, type={content_type}", xbmc.LOGDEBUG)
+                    except (ConnectionAbortedError, BrokenPipeError):
+                        pass
+
+                def _final_target(self, entry, abs_url):
+                    """Apply the same transforms _serve_segment applies to a
+                    manifest segment reference (PNG rewrite + auth-query
+                    append), so prefetch cache keys match serve-time targets."""
+                    target = abs_url
+                    if proxy.fetch_png_segments:
+                        target = _rewrite_ts_to_png(target)
+                    auth_query = urlparse(entry["url"]).query
+                    if auth_query:
+                        target_qs_keys = set(parse_qs(urlparse(target).query).keys())
+                        auth_qs_keys = set(parse_qs(auth_query).keys())
+                        if not auth_qs_keys.intersection(target_qs_keys):
+                            target += ("&" if "?" in target else "?") + auth_query
+                    return target
+
+                def _kick_prefetch(self, entry, token, current_target):
+                    """Background-prefetch the segment after *current_target* in
+                    the token's current manifest segment list."""
+                    if proxy._abort.is_set():
+                        return
+                    seg_list = entry.get("seg_list") or []
+                    if not seg_list:
+                        return
+                    finals = [self._final_target(entry, u) for u in seg_list]
+                    try:
+                        idx = finals.index(current_target)
+                    except ValueError:
+                        return
+                    depth = proxy.prefetch_depth if proxy.prefetch_segments else 1
+                    for offset in range(1, depth + 1):
+                        nxt = idx + offset
+                        if nxt >= len(finals):
+                            break
+                        url = finals[nxt]
+                        if _seg_cache_get(entry, url) is not None:
+                            continue
+                        # Non-registering check: _seg_inflight_register would
+                        # CLAIM ownership and orphan the Event, deadlocking
+                        # every later waiter on this segment.
+                        if _seg_inflight_peek(entry, url) is not None:
+                            continue
+                        t = threading.Thread(
+                            target=_prefetch_segment,
+                            args=(proxy, entry, url),
+                            name=f"{proxy.name}Prefetch",
+                        )
+                        t.daemon = True
+                        t.start()
+
+            server = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
+            server.daemon_threads = True
+
+            def _serve():
+                # Custom accept loop instead of serve_forever().
+                #
+                # Deliberately keeps accepting even after abort(): during the
+                # drain window new connections MUST be accepted so they get an
+                # instant 503. Closing the listener immediately (the old
+                # behaviour) black-holed connections that landed in the accept
+                # backlog — the kernel completed the handshake but nobody
+                # accepted, so Kodi's CCurlFile::Stat hung on its 20s curl
+                # timeout.
+                #
+                # CRITICAL: an OSError anywhere in the loop must NOT kill the
+                # accept loop. Live kodi.log evidence showed the loop dying
+                # silently at player close (likely a transient WSAECONNRESET
+                # from accept/select when ffmpeg dropped its keep-alive
+                # connection), after which every CCurlFile::Stat was
+                # black-holed for its full 20s timeout — twice — which defers
+                # OnPlayBackStopped and froze the UI for 40s. Only _finalize()
+                # (listener closed) may end this loop.
+                try:
+                    with selectors.DefaultSelector() as selector:
+                        selector.register(server, selectors.EVENT_READ)
+                        while True:
+                            if proxy._server is None and proxy._abort.is_set():
+                                break  # finalized while between selects
+                            try:
+                                ready = selector.select(0.2)
+                            except OSError:
+                                if proxy._server is None:
+                                    break  # listen socket closed by _finalize()
+                                continue  # transient — keep accepting
+                            if not ready:
+                                continue
+                            try:
+                                server._handle_request_noblock()
+                                proxy._accept_count += 1
+                            except OSError:
+                                if proxy._server is None:
+                                    break
+                                continue  # transient accept error — keep accepting
+                            except Exception as e:
+                                debug_log(f"[{proxy.name}] serve loop error: {e}", xbmc.LOGWARNING)
+                                continue
+                except Exception as e:
+                    debug_log(f"[{proxy.name}] accept loop died: {e}", xbmc.LOGERROR)
+
+            thread = threading.Thread(target=_serve, name=f"{self.name}Proxy")
+            thread.daemon = True
+            thread.start()
+            self._server = server
+            self._thread = thread
+            self._port = port
+            self._last_activity = time.time()
+            if self._watchdog_thread is None or not self._watchdog_thread.is_alive():
+                self._watchdog_thread = threading.Thread(target=self._watchdog, name=f"{self.name}Watchdog")
+                self._watchdog_thread.daemon = True
+                self._watchdog_thread.start()
+            debug_log(f"[{self.name}] Proxy listening on 127.0.0.1:{port}", xbmc.LOGINFO)
+            return port
+
+    def _watchdog(self):
+        # ZERO Kodi APIs in this thread. Live kodi.log with heartbeats proved
+        # the previous design froze for 42s at player close: the watchdog sat
+        # inside xbmc.Monitor.waitForAbort() parked in the finished-plugin
+        # interpreter, and Kodi's notification dispatch into that Monitor
+        # deadlocked the whole interpreter — heartbeats stopped at 11:01:44
+        # and resumed only when OnPlayBackStopped dispatched at 11:02:26.
+        # xbmc.Player instances are equally hazardous (they register for C++
+        # callback dispatch). jetproxy solved this same stall class by
+        # dropping Monitor/Player entirely; we now do the same: the wait is a
+        # plain threading.Event.wait, and every stop signal is proxy-local
+        # (request/media activity), which cannot deadlock.
+        #
+        # Reduce the GIL switch interval so this thread gets scheduled even
+        # when segment download/stripping threads are CPU-bound.
+        import sys
+        old_interval = sys.getswitchinterval()
+        try:
+            sys.setswitchinterval(0.001)
+        except Exception:
+            pass
+
+        while True:
+            # Plain threading wait — no xbmc.Monitor, no message pumping.
+            if self._abort.wait(timeout=2.0):
+                # abort()/shutdown() called externally; the drain timer will
+                # close the listener. Exit the loop.
+                break
+
+            now = time.time()
+
+            if self._player_stopped_ts:
+                # Drain window: listener stays up serving instant 503s.
+                drain_age = now - self._player_stopped_ts
+                if drain_age >= _DRAIN_SECS:
+                    debug_log(
+                        f"[{self.name}] drain window expired ({drain_age:.0f}s), closing listener",
+                        xbmc.LOGINFO,
+                    )
+                    self._finalize()
+                    break
+                continue  # during drain: ignore idle checks
+
+            # PRIMARY stop signal — proxy-local, zero Kodi APIs, cannot
+            # deadlock: when the player closes, ffmpeg stops requesting within
+            # milliseconds (no manifest refreshes, no segments). If media HAD
+            # been flowing and nothing has been requested for >10s, the player
+            # is gone. Reset in-flight client connections so the pending
+            # CCurlFile::Stat's curl aborts immediately (TCP reset) instead of
+            # burning its 20s timeout — which is what defers OnPlayBackStopped
+            # and froze the UI for 40s in live testing.
+            # Threshold: healthy streams show manifest-refresh gaps up to ~6.2s
+            # (observed) and segment gaps up to ~10s, so 10s of NO request of
+            # any kind is safely past live cadence but well before curl's 20s.
+            request_age = now - max(self._last_media_ts, self._last_activity)
+            if (self._last_media_ts > 0 and request_age > 10.0
+                    and (now - self._last_idle_kill_ts) > 5.0):
+                self._last_idle_kill_ts = now
+                debug_log(
+                    f"[{self.name}] request idle {request_age:.1f}s after media — "
+                    f"killing client connections (player likely stopped)",
+                    xbmc.LOGINFO,
+                )
+                self._kill_client_sockets()
+
+            # Never-connected proxy with no local traffic. 30s (was 15s):
+            # resolution attempts (get_link retry/sibling ladders) interleave
+            # rate-limit sleeps and upstream page fetches that never touch the
+            # local proxy — touch_stream_proxies() marks those as in-use, and
+            # the higher bound also covers one slow in-flight request. A
+            # connected-then-stopped player never reaches this branch (it goes
+            # through the drain path via _player_stopped_ts / stop flag).
+            idle = now - self._last_activity
+            if _player_stop_flag_exists() and idle > 2:
+                debug_log(f"[{self.name}] Player-stop flag found, idle {idle:.1f}s, shutting down", xbmc.LOGINFO)
+                self._handle_player_stopped("flag file")
+                continue
+            if idle > 30:
+                debug_log(f"[{self.name}] Proxy idle for >{idle:.1f}s, shutting down", xbmc.LOGINFO)
+                self._finalize()
+                break
+
+            # DEBUG heartbeat: if these lines stop appearing in kodi.log while
+            # a stall is in progress, the watchdog thread itself is starved
+            # (interpreter/GIL-level blocking) — that pinpoints the problem
+            # class immediately in the next log capture.
+            media_age = (now - self._last_media_ts) if self._last_media_ts else -1.0
+            debug_log(
+                f"[{self.name}] watchdog hb: media_age={media_age:.1f}s "
+                f"activity_age={idle:.1f}s accepts={self._accept_count} "
+                f"stopped={bool(self._player_stopped_ts)}",
+                xbmc.LOGDEBUG,
+            )
+        try:
+            sys.setswitchinterval(old_interval)
+        except Exception:
+            pass
+
+    def _revive_for_new_playback(self):
+        """Clear stop/drain state from a previous playback so a fresh proxy
+        URL starts clean. Called before handing a URL to Kodi. If the
+        listener is still draining it is REUSED (never closed) — cancels the
+        pending drain-finalize timer."""
+        with self._lock:
+            timer = self._drain_timer
+            self._drain_timer = None
+        if timer is not None:
+            try:
+                timer.cancel()
+            except Exception:
+                pass
+        self._abort.clear()
+        self._player_stopped_ts = 0.0
+        self._last_media_ts = 0.0
+        self._last_playing = False
+        self._created_at = time.time()
+        self._last_activity = time.time()
+        _clear_player_stop_flag()
+        # An external abort() breaks the watchdog loop; if this proxy is
+        # reused for a new playback while the listener is still draining,
+        # _ensure_server() early-returns (server exists) and would never
+        # restart the watchdog — leaving the new stream with no stop
+        # detection. Restart it here if it died.
+        if self._watchdog_thread is None or not self._watchdog_thread.is_alive():
+            self._watchdog_thread = threading.Thread(target=self._watchdog, name=f"{self.name}Watchdog")
+            self._watchdog_thread.daemon = True
+            self._watchdog_thread.start()
+
+    def get_proxy_url(self, upstream_url: str, headers: dict = None, fallback_urls: list = None,
+                      refresh_callback=None, manifest_decoder=None) -> str:
+        """Register an upstream URL. manifest_decoder(body, url) -> body is an
+        optional callable applied to every raw manifest body fetched from
+        upstream (initial fetch and background refreshes) before rewriting —
+        e.g. Backdoor2 decrypts AES-CTR-sealed edge segment URIs."""
+        self._revive_for_new_playback()
+        port = self._ensure_server()
+        token = uuid.uuid4().hex
+        self._upstream[token] = {
+            "url": upstream_url,
+            "headers": headers or {},
+            "fallback_urls": fallback_urls or [],
+            "cache": None,
+            "cache_time": 0.0,
+            "refresh_callback": refresh_callback,
+            "manifest_decoder": manifest_decoder,
+        }
+        self._last_activity = time.time()
+        set_active_proxy(self)
+        return f"http://127.0.0.1:{port}/{self.name}/{token}.m3u8"
+
+    @staticmethod
+    def _manifest_has_encrypted_segs(body: str) -> bool:
+        """True when every non-comment segment line is a base64url blob.
+
+        Means a manifest_decoder (Backdoor2 AES-CTR decrypt) silently no-op'd
+        (missing/evicted `k`): serving this would resolve every segment to an
+        edge-relative ciphertext path and 404. Plaintext playlists (relative
+        paths, http(s) URLs) always return False.
+        """
+        if not body or "#EXTM3U" not in body:
+            return False
+        blob = plain = 0
+        for ln in body.splitlines():
+            st = ln.strip()
+            if not st or st.startswith("#"):
+                continue
+            if st.startswith(("http://", "https://", "//")) or "/" in st:
+                plain += 1
+            elif re.fullmatch(r"[A-Za-z0-9_=-]{40,}", st):
+                blob += 1
+        return bool(blob) and not plain
+
+    def cache_manifest_bytes(self, manifest_bytes: bytes, master_url: str, headers: dict = None,
+                             refresh_callback=None, manifest_decoder=None) -> str:
+        """Cache raw manifest bytes (pre-fetched by the extractor) with segment URLs
+        rewritten to flow through this proxy. Returns the proxy URL.
+
+        This is used when the extractor pre-fetches the manifest itself (e.g. because
+        it needs custom cookie handling that the proxy's generic fetch doesn't support),
+        then hands the bytes to the proxy for segment-level proxying.
+
+        Args:
+            manifest_bytes: Raw manifest body bytes from the CDN.
+            master_url: The upstream master playlist URL (used as base for relative URLs).
+            headers: Optional headers dict for the cache entry (used for segment fetches).
+            manifest_decoder: Optional (body, url) -> body transform. Applied to this
+                body and stored on the entry so background manifest refreshes run it too.
+        """
+        self._revive_for_new_playback()
+        port = self._ensure_server()
+        token = uuid.uuid4().hex
+        raw_bytes = _decompress(manifest_bytes)
+        body = raw_bytes.decode("utf-8", errors="replace").replace("\x00", "")
+        if manifest_decoder:
+            try:
+                body = manifest_decoder(body, master_url)
+            except Exception as e:
+                debug_log(f"[{self.name}] manifest_decoder failed: {e}", xbmc.LOGWARNING)
+            # Same decrypt-miss guard as _fetch_manifest_upstream: if segment
+            # lines are still base64url blobs, decryption silently no-op'd
+            # (k evicted/rotated). A broken pre-fetched manifest would be
+            # served as edge-relative ciphertext -> every segment 404s
+            # ("Segment retry also failed"). Re-mint once via refresh_callback
+            # and re-fetch the manifest through the normal upstream path.
+            if self._manifest_has_encrypted_segs(body):
+                debug_log(f"[{self.name}] pre-fetched manifest still encrypted after "
+                          f"decode — re-fetching via refresh_callback", xbmc.LOGWARNING)
+                fresh_cb = refresh_callback
+                try:
+                    fresh = _refresh_result(fresh_cb()) if fresh_cb else (None, None)
+                except Exception as e:
+                    debug_log(f"[{self.name}] decrypt-miss refresh failed: {e}", xbmc.LOGWARNING)
+                    fresh = (None, None)
+                fresh_url, fresh_headers = fresh
+                if fresh_url and fresh_url != master_url:
+                    # Delegate to the upstream fetch path (which has its own
+                    # one-shot guard) so the cached bytes are decrypted+proxied.
+                    fetched, ctype = self._fetch_manifest_upstream(
+                        {
+                            "url": fresh_url,
+                            "headers": fresh_headers or headers or {},
+                            "fallback_urls": [],
+                            "cache": None,
+                            "cache_time": 0.0,
+                            "refresh_callback": refresh_callback,
+                            "manifest_decoder": manifest_decoder,
+                        },
+                        token, f"{self.name}/{token}.m3u8",
+                        fresh_headers or headers or {}, port, False,
+                        override_url=fresh_url, _allow_refresh=False,
+                    )
+                    if fetched is not None:
+                        data, content_type = fetched, ctype
+                        # seg_list was populated by _fetch_manifest_upstream's
+                        # rewrite loop on the delegated entry; rebuild here so
+                        # this token's entry matches the served body.
+                        # (Re-scan the served body for proxy segment refs.)
+                        seg_urls = [
+                            urljoin(fresh_url, unquote(
+                                m.group(1).split("/", 1)[-1]
+                                if (m := re.match(r".*/seg/[^/]+/(.+)$", ln.strip()))
+                                else ln.strip()
+                            ))
+                            for ln in data.decode("utf-8", "replace").splitlines()
+                            if ln.strip() and not ln.strip().startswith("#")
+                        ]
+                        master_url = fresh_url
+                        headers = fresh_headers or headers or {}
+                        debug_log(f"[{self.name}] re-fetched decrypted manifest via refresh "
+                                  f"({len(data)} bytes)", xbmc.LOGINFO)
+                    else:
+                        debug_log(f"[{self.name}] decrypt-miss re-fetch failed — refusing to "
+                                  f"serve encrypted manifest", xbmc.LOGWARNING)
+                        return None
+                else:
+                    debug_log(f"[{self.name}] decrypt-miss and no fresh URL — refusing to "
+                              f"serve encrypted manifest", xbmc.LOGWARNING)
+                    return None
+
+        is_hls = "#EXTM3U" in body
+        is_dash = "<?xml" in body[:500] or "<MPD" in body[:500] or "MPD" in body[:200]
+
+        if not body or (not is_hls and not is_dash):
+            debug_log(f"[{self.name}] cache_manifest_bytes invalid body: {body[:200]}", xbmc.LOGWARNING)
+            return None
+
+        parsed_upstream = urlparse(master_url)
+        upstream_root = f"{parsed_upstream.scheme}://{parsed_upstream.netloc}"
+        upstream_dir = master_url.rsplit("/", 1)[0] + "/"
+
+        seg_urls = []
+        if is_hls:
+            # Preserve external AUDIO renditions before choosing a variant.
+            has_media_audio = any(
+                line.strip().startswith('#EXT-X-MEDIA') and 'TYPE=AUDIO' in line.upper()
+                for line in body.splitlines()
+            )
+            # Keep the original Dailymotion HLS master, even when its audio
+            # rendition tags are absent or use an unusual form. Selecting a
+            # video quality URL here can produce picture without any audio.
+            if self.name != 'dailymotion' and _is_variant_playlist(body) and not has_media_audio:
+                from .manifest_rewriter import _UrllibClient
+                if self.use_urllib:
+                    request_client_inner = _UrllibClient()
+                else:
+                    request_client_inner = requests
+                    if self.browser_tls:
+                        request_client_inner = requests.Session()
+                        request_client_inner.verify = False
+                        request_client_inner.mount("https://", _ProxyTLSAdapter())
+                variant_headers = dict(self.default_headers)
+                variant_headers.update(headers or {})
+                variant_headers.setdefault("Accept", "*/*")
+                resolved = _resolve_variant_to_media(body, master_url, request_client_inner, variant_headers)
+                if resolved is not body:
+                    body = resolved
+                    debug_log(f"[{self.name}] cache_manifest_bytes: resolved variant to media playlist", xbmc.LOGDEBUG)
+
+            rewritten = []
+            for line in body.splitlines():
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if stripped.startswith("#"):
+                    if self.proxy_absolute_urls and "URI=" in stripped.upper():
+                        def _rewrite_hls_uri_cache(m):
+                            quote_char = m.group(1)
+                            uri_val = m.group(2)
+                            if uri_val.startswith("http://") or uri_val.startswith("https://"):
+                                if not self.proxy_absolute_urls:
+                                    return f'URI={quote_char}{uri_val}{quote_char}'
+                                seg_url = uri_val
+                            elif uri_val.startswith("/"):
+                                seg_url = f"{upstream_root}{uri_val}"
+                            else:
+                                seg_url = urljoin(master_url, uri_val)
+                            seg_urls.append(seg_url)
+                            return f'URI={quote_char}http://127.0.0.1:{port}/{self.name}/seg/{token}/{quote(_rewrite_png_to_image(seg_url), safe="")}{quote_char}'
+                        stripped = re.sub(r'URI=(["\'])([^"\']*)\1', _rewrite_hls_uri_cache, stripped)
+                    rewritten.append(stripped)
+                    continue
+                if not stripped.startswith("http://") and not stripped.startswith("https://"):
+                    seg_url = urljoin(master_url, stripped)
+                else:
+                    seg_url = stripped
+                seg_urls.append(seg_url)
+                rewritten.append(
+                    f"http://127.0.0.1:{port}/{self.name}/seg/{token}/{quote(_rewrite_png_to_image(seg_url), safe='')}"
+                )
+            data = ("\n".join(rewritten) + "\n").encode("utf-8")
+            content_type = "application/vnd.apple.mpegurl"
+            debug_log(f"[{self.name}] cache_manifest_bytes: rewrote HLS, {len(rewritten)} lines, audio={has_media_audio}", xbmc.LOGDEBUG)
+            if self.name == 'dailymotion':
+                _dm_trace('cached master: {} lines, audio={}'.format(len(rewritten), has_media_audio), master_url)
+        else:
+            # DASH manifest: rewrite relative segment URLs to absolute upstream URLs
+            def _rewrite_dash_url_cache(m):
+                attr_val = m.group(0)
+                prefix = m.group(1)
+                url_val = m.group(2)
+                suffix = m.group(3)
+                if url_val.startswith("http://") or url_val.startswith("https://"):
+                    return attr_val
+                if url_val.startswith("/"):
+                    return f'{prefix}{upstream_root}{url_val}{suffix}'
+                return f'{prefix}{upstream_dir}{url_val}{suffix}'
+            body = re.sub(r'((?:media|src|url|location|initialization)=")([^"]+)(")', _rewrite_dash_url_cache, body)
+            body = re.sub(r"((?:media|src|url|location|initialization)=')([^']+)(')", _rewrite_dash_url_cache, body)
+            def _rewrite_dash_baseurl_cache(m):
+                url_val = m.group(1)
+                if url_val.startswith("http://") or url_val.startswith("https://"):
+                    return m.group(0)
+                if url_val.startswith("/"):
+                    return f'<BaseURL>{upstream_root}{url_val}</BaseURL>'
+                return f'<BaseURL>{upstream_dir}{url_val}</BaseURL>'
+            body = re.sub(r'<BaseURL>([^<]+)</BaseURL>', _rewrite_dash_baseurl_cache, body)
+            data = body.encode("utf-8")
+            content_type = "application/dash+xml"
+            debug_log(f"[{self.name}] cache_manifest_bytes: rewrote DASH, {len(data)} bytes", xbmc.LOGDEBUG)
+
+        self._upstream[token] = {
+            "url": master_url,
+            "headers": headers or {},
+            "fallback_urls": [],
+            "cache": data,
+            "cache_time": time.time(),
+            "content_type": content_type,
+            "refresh_callback": refresh_callback,
+            "manifest_decoder": manifest_decoder,
+        }
+        self._upstream[token]["seg_list"] = seg_urls
+
+        set_active_proxy(self)
+        return f"http://127.0.0.1:{port}/{self.name}/{token}.m3u8"
+
+    def _finalize(self):
+        """Actually release the listener and server object.
+
+        Runs on the drain-timer thread or from the watchdog after the drain
+        window / idle timeout — never synchronously from a player callback,
+        so it cannot race with an in-flight CCurlFile::Stat.
+        """
+        with self._lock:
+            server = self._server
+            timer = self._drain_timer
+            self._drain_timer = None
+            self._server = None
+            self._thread = None
+            self._port = None
+            self._upstream.clear()
+        if timer is not None:
+            try:
+                timer.cancel()
+            except Exception:
+                pass
+        if server is not None:
+            try:
+                server.socket.close()
+            except Exception:
+                pass
+            try:
+                server.server_close()
+            except Exception:
+                pass
+        # Let observers (e.g. a plugin script waiting for playback cleanup)
+        # see that this proxy is gone. Identity-checked: never clears a newer
+        # proxy that registered after this one.
+        clear_active_proxy(self)
+
+    def abort(self):
+        """Non-blocking, callback-safe teardown (drain variant).
+
+        Immediately:
+          * sets the abort flag (handlers answer 503 to everything),
+          * writes the player-stop flag file, and
+          * closes every tracked client socket at the OS level, so FFmpeg
+            gets an immediate TCP reset instead of blocking on its internal
+            ~20s timeout.
+
+        Deliberately does NOT close the listen socket. A _DRAIN_SECS timer
+        keeps it open (accepting, answering 503) so that the CCurlFile::Stat
+        Kodi fires right after CloseFile gets an instant, definitive answer.
+        Closing it immediately black-holed connections that had already
+        landed in the accept backlog: the kernel completed the handshake but
+        nobody accepted, so Kodi's curl hung on its 20s timeout — the
+        observed "20-second stall on player exit". After the drain window,
+        _finalize() closes the listener; later connects get ECONNREFUSED
+        (instant).
+
+        Uses NO xbmc.* API calls and does not wait for any thread, so it is
+        safe from fragile contexts (xbmc.Player callbacks firing while the
+        interpreter is tearing down with the GIL contended).
+        """
+        self._abort.set()
+        if not self._player_stopped_ts:
+            self._player_stopped_ts = time.time()
+        _write_player_stop_flag()
+        self._kill_client_sockets()
+        with self._lock:
+            if self._server is not None and self._drain_timer is None:
+                timer = threading.Timer(_DRAIN_SECS, self._finalize)
+                timer.daemon = True
+                self._drain_timer = timer
+                timer.start()
+        # Let observers see that playback is over. Identity-checked.
+        clear_active_proxy(self)
+
+    def shutdown(self, force=False):
+        """Backwards-compatible teardown.
+
+        force=True no longer closes the listener immediately — that was the
+        black-hole that stalled player exit for 20s. Both values now run the
+        same graceful drain (see abort()); the parameter is kept so existing
+        callers (e.g. consuming addons' onPlayBackStopped handlers) keep
+        working unchanged.
+        """
+        self.abort()
+
+
+# Global instances per (name, options) to avoid spawning multiple servers.
+_proxy_instances = {}
+_proxy_lock = threading.Lock()
+
+# Track the most-recently-used proxy so consuming addons can tear it down
+# when playback ends (mirrors ULAMA's service-level onPlayBackStopped).
+_active_proxy = None
+_active_proxy_lock = threading.Lock()
+
+
+def get_stream_proxy(name: str, default_headers: dict, options: dict = None) -> StreamProxy:
+    """Return a singleton StreamProxy for the given name/options."""
+    with _proxy_lock:
+        key = (name, _hashable_options(options))
+        if key not in _proxy_instances:
+            _proxy_instances[key] = StreamProxy(name, default_headers, options)
+        return _proxy_instances[key]
+
+
+def touch_stream_proxies(name: str = None) -> None:
+    """Reset the idle timer on live proxy instances.
+
+    Resolution (get_link retry ladders, sibling walks, rate-limit sleeps) can
+    easily exceed the watchdog's 15s idle threshold WITHOUT any request ever
+    hitting the local proxy — the watchdog then finalizes the listener and
+    clears _upstream, so the URL eventually handed to Kodi points at a dead
+    port ("connection refused" on OpenFile). Callers deep in a resolution
+    attempt call this to mark the proxy as still-in-use. It only affects the
+    never-connected idle path: a stopped playback goes through the drain
+    path (_player_stopped_ts), which ignores _last_activity entirely.
+    """
+    with _proxy_lock:
+        proxies = [p for (n, _o), p in _proxy_instances.items()
+                   if name is None or n == name]
+    now = time.time()
+    for p in proxies:
+        p._last_activity = now
+
+
+def set_active_proxy(proxy: StreamProxy):
+    """Register *proxy* as the active one (called when a proxy URL is handed to Kodi)."""
+    global _active_proxy
+    with _active_proxy_lock:
+        _active_proxy = proxy
+
+
+def get_active_proxy() -> StreamProxy:
+    """Return the currently active proxy, or None."""
+    with _active_proxy_lock:
+        return _active_proxy
+
+
+def clear_active_proxy(proxy: StreamProxy):
+    """Clear the global active proxy if it currently points to *proxy*.
+
+    Called by StreamProxy.abort() so observers polling get_active_proxy()
+    (pure Python, GIL-friendly) can detect proxy death without any Kodi API
+    calls. Identity check prevents clearing a newer proxy registered after
+    this one.
+    """
+    global _active_proxy
+    with _active_proxy_lock:
+        if _active_proxy is proxy:
+            _active_proxy = None
+
+
+def abort_active_proxy():
+    """Non-blocking abort of the active proxy (safe for xbmc.Player callbacks).
+
+    Unlike shutdown_active_proxy() this performs no blocking server shutdown
+    and no logging/Kodi API calls, so it cannot stall a callback thread that
+    holds the GIL while Kodi's main thread is frozen waiting on VFS Stat
+    calls against the proxy URL (the player-close freeze).
+    """
+    proxy = get_active_proxy()
+    if proxy is None:
+        return
+    with _active_proxy_lock:
+        _active_proxy = None
+    try:
+        proxy.abort()
+    except Exception:
+        pass
+
+
+def shutdown_active_proxy():
+    """Shut down the active proxy (if any). Called from PlaybackMonitor callbacks."""
+    proxy = get_active_proxy()
+    if proxy is None:
+        return
+    with _active_proxy_lock:
+        _active_proxy = None
+    debug_log("[StreamProxy] shutdown_active_proxy: shutting down", xbmc.LOGINFO)
+    try:
+        proxy.shutdown(force=True)
+    except Exception as e:
+        debug_log(f"[StreamProxy] shutdown_active_proxy error: {e}", xbmc.LOGWARNING)
+
+
+def build_proxy_url(
+    name: str,
+    upstream_url: str,
+    default_headers: dict,
+    options: dict = None,
+    per_request_headers: dict = None,
+    fallback_urls: list = None,
+    refresh_callback=None,
+    manifest_decoder=None,
+) -> str:
+    """One-shot helper: get/create the proxy and register an upstream URL."""
+    proxy = get_stream_proxy(name, default_headers, options)
+    return proxy.get_proxy_url(upstream_url, per_request_headers, fallback_urls=fallback_urls,
+                               refresh_callback=refresh_callback, manifest_decoder=manifest_decoder)
