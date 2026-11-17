@@ -83,6 +83,7 @@ def run(game, provider=None, clock=time.time):
                         with self.lock:
                             if self.stop.is_set():return
                             self.draw()
+                        self.refresh(reload=False)
                         last=clock()
             threading.Thread(target=tick,daemon=True).start()
 
@@ -93,13 +94,13 @@ def run(game, provider=None, clock=time.time):
                 if key=='play.error' or getattr(self,'_shown',{}).get(key)!=value:self.setProperty(key,value)
             self._shown = props.copy()
 
-        def refresh(self):
+        def refresh(self, reload=True):
             with self.lock:
                 if self.fetching:return
                 self.fetching=True
             def fetch():
                 try:
-                    provider.refresh()
+                    if reload: provider.refresh()
                     current=provider.game(game_id)
                     with self.lock:
                         if self.stop.is_set():return
@@ -116,15 +117,22 @@ def run(game, provider=None, clock=time.time):
         def onClick(self,ident):
             if ident==page.BACK:self.finish()
             elif ident in (page.REFRESH,page.RETRY):self.refresh()
+            elif ident==page.AUTO:
+                with self.lock: sources=list(self.sources)
+                if sources:
+                    import sports_loop_router
+                    self.start_play(sports_loop_router.automatic_source(sources))
             elif page.SOURCE<=ident<page.SOURCE+page.SLOTS*len(page.FORMS):
                 n=(ident-page.SOURCE)//len(page.FORMS)
                 with self.lock:source=self.sources[n] if n<len(self.sources) else None
-                if source is not None:
-                    self.setProperty('play.error','')
-                    try:sports_provider.play(source,log)
-                    except Exception as error:
-                        log('sports: play: %s: %s' % (type(error).__name__,diagnostics.error_text(error)))
-                        self.setProperty('play.error',"Can't play this source right now. Try another source.")
+                if source is not None:self.start_play(source)
+
+        def start_play(self,source):
+            self.setProperty('play.error','')
+            try:sports_provider.play(source,log)
+            except Exception as error:
+                log('sports: play: %s: %s' % (type(error).__name__,diagnostics.error_text(error)))
+                self.setProperty('play.error',"Can't play this source right now. Try another source.")
 
         def onAction(self,action):
             if action.getId() in BACK_KEYS:self.finish()

@@ -119,7 +119,7 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
                 if self.stop.is_set(): return
                 self.draw()
                 retry = self.failed or self.data is None
-            if retry: self.refresh()
+            self.refresh(reload=retry)
 
         def draw(self, error=None):
             if error is not None:self.failed=error
@@ -130,14 +130,14 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
                 if getattr(self,'_shown',{}).get(key)!=value:self.setProperty(key,value)
             self._shown = props.copy()
 
-        def refresh(self):
+        def refresh(self, reload=True):
             with self.lock:
                 if self.fetching: return
                 self.fetching = True
             def fetch():
                 global _CACHE
                 try:
-                    provider.refresh()
+                    if reload: provider.refresh()
                     data = (provider.upcoming_games(), provider.overview()['updated'])
                     with self.lock:
                         if self.stop.is_set(): return

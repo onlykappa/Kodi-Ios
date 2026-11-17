@@ -580,3 +580,8 @@ with one page at a time."
 
 The owner chose The Loop family's source add-on over ESPN. `sports_jet.py` is the provider; JetExtractors is called only through its own public classes and `get_extractors()`, so any check it makes on callers is
 respected, not bypassed. Supersedes DEC-060 for the phone; ESPN is kept behind `KODI_IOS_SPORTS=espn`.
+
+
+### DEC-061 implementation follow-up — normal Loop routes (2026-11-17)
+
+Following the owner's request to use the working Deck path across providers, the app reads The Loop's normal Kodi plugin listings and plays their exact plugin routes. Loop runs as its own add-on; bootstrap does not import protected JetExtractors on this path, impersonate another caller, or alter authorization. Public schedule data validates unique paired-team matches and current live/upcoming state; it supplies no stream. This currently limits matched coverage to the supported 14 schedule leagues; unmatched/ambiguous events and standalone channels are omitted, rather than guessed live. Independent source fallback remains separate. Unknown-quality native routes stay separate choices because their asynchronous failure cannot safely be treated as synchronous success/fallback.

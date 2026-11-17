@@ -166,6 +166,27 @@ class Controller(unittest.TestCase):
         self.assertEqual([call.args[0]['id'] for call in played.call_args_list],
                          [source['id'] for source in provider.game('epl-1')['sources']])
 
+    def test_background_read_picks_up_sources_without_forcing_another_scan(self):
+        provider=sm.Sample(now=NOW)
+        def scenario(w):
+            until(lambda:not w.fetching)
+            current=copy.deepcopy(provider.game('epl-1'))
+            current['sources']=current['sources'][:1]
+            provider.game=lambda ident:current
+            provider.refresh=lambda:(_ for _ in ()).throw(AssertionError('forced duplicate scan'))
+            w.refresh(reload=False);until(lambda:not w.fetching)
+            self.assertEqual(w.props['sources.count'],'1')
+        self.exercise(provider,scenario)
+
+    def test_auto_button_keeps_ranked_fallback_choices(self):
+        provider=sm.Sample(now=NOW)
+        def scenario(w):
+            until(lambda:not w.fetching)
+            w.onClick(page.AUTO)
+        _,played=self.exercise(provider,scenario)
+        self.assertEqual(played.call_count,1)
+        self.assertTrue(played.call_args.args[0]['alts'])
+
     def test_failed_refresh_keeps_seed_and_success_can_remove_sources(self):
         provider=sm.Sample(now=NOW)
         def fail():raise sm.SportsUnavailable('test provider offline')

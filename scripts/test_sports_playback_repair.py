@@ -51,6 +51,21 @@ class Repair(unittest.TestCase):
    self.assertFalse(home.getProperty(sj.RUN))
    with open(Path(folder)/'sports-jet-scan.lock','a') as guard:
     fcntl.flock(guard,fcntl.LOCK_EX|fcntl.LOCK_NB)
+ def test_late_workers_keep_scan_lock_and_do_not_publish_premature_done(self):
+  import fcntl,tempfile,contextlib
+  with tempfile.TemporaryDirectory() as folder:
+   home=Home();waits=[];published=[]
+   def wait(seconds):
+    waits.append(seconds)
+    with open(Path(folder)/'sports-jet-scan.lock','a') as other:
+     with self.assertRaises(BlockingIOError):fcntl.flock(other,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    self.assertFalse(published)
+    return len(waits)==3
+   provider=NS(_start=lambda:NS(wait=wait),_publish=lambda done:published.append(done))
+   with patch.dict(sys.modules,{'xbmc':NS(),'xbmcgui':NS(),'xbmcvfs':NS(translatePath=lambda p:folder)}),patch.object(sj,'named_addon',side_effect=contextlib.nullcontext),patch.object(sj,'JetProvider',return_value=provider):
+    sj.run_script([],home)
+   self.assertEqual(len(waits),3);self.assertEqual(published,[True]);self.assertFalse(home.getProperty(sj.RUN))
+   with open(Path(folder)/'sports-jet-scan.lock','a') as guard:fcntl.flock(guard,fcntl.LOCK_EX|fcntl.LOCK_NB)
  def test_fallback_log_does_not_include_exception_urls(self):
   logs=[]
   with patch.object(sj,'play_one',side_effect=RuntimeError('https://secret.invalid/path?token=private')):

@@ -3,6 +3,7 @@ import status_ui as u
 
 WINDOW = 'IOSSportsGame.xml'
 BACK, REFRESH, LIST, RETRY = 9001, 9002, 9300, 9003
+AUTO = 9005
 SOURCE, SLOTS = 50000, 24
 FORMS = tuple((title, detail) for title in range(1, 5) for detail in range(1, 10))
 TEAM_FORMS = range(1, 7)
@@ -78,6 +79,8 @@ def page(p):
     header = p.nav_button(BACK,32,5,'chevron-left.png','noop')
     header += p.nav_button(REFRESH,940,5,p.MEDIA+'hdr_refresh.png','noop',glyph_size=60).replace(p.WHITE,p.ACCENT)
     content = u.group(p,134,header) + _hero(p)
+    auto = p.pill_button(AUTO,p.SIDE,27,972,134,'Play best available',[('','noop')],'primary')
+    content += u.group(p,188,auto,u.has('sources.count'))
     heading = u.text(p,p.SIDE,43,700,70,'Sources','p_h2')
     heading += u.text(p,800,43,226,70,u.P('sources.count'),'p_sub',p.GREY,'right')
     content += u.group(p,134,heading,u.has('hero.lines')) + _sources(p)
@@ -86,7 +89,7 @@ def page(p):
     empty += p.textbox(97,115,886,112,'Check back closer to the start. Refresh looks again.','p_sub',p.GREY).replace(
         '<autoscroll>','<align>center</align><autoscroll>')
     content += u.group(p,274,empty,'String.IsEqual(Window().Property(state),empty)')
-    content += u.group(p,110,p.textbox(70,27,940,70,'Best is the clearest picture. Tap one to play it.','p_foot',p.GREY),u.has('sources.count'))
+    content += u.group(p,110,p.textbox(70,27,940,70,'Choose a source to play.','p_foot',p.GREY),u.has('sources.count'))
     error = p.textbox(108,118,864,160,u.P('error.title'),'p_h2').replace('<autoscroll>','<align>center</align><autoscroll>')
     error += p.pill_button(RETRY,270,320,540,134,'Try again',[('','noop')],'primary',extra='<visible>String.IsEqual(Window().Property(state),error)</visible>')
     content += u.group(p,520,error,u.has('error.title'))

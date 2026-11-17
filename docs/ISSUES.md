@@ -5758,3 +5758,49 @@ Public reference investigation: a plaintext Kodi extractor describes a source-is
 - **Cause:** source merge treated identical missing metadata as proof of the same stream.
 - **Fix:** native Loop records retain separate selectable routes with unique source identities; unknown quality is stated plainly and receives no Best claim. Existing synchronous alts behavior is unchanged.
 - **Test:** test_sports_merge verifies separate choices and identities; test_sports_game verifies readable missing-quality copy. Real desktop game page displayed four separate provider buttons without clipped text. Native plugin dispatch is not proof that a source plays; automatic fallback after asynchronous native failure remains unresolved.
+
+
+## Slow native Loop workers outlived the collection lock
+
+- **Seen:** real native Loop discovery needed roughly 113 seconds, while refreshes started another collector after the original 40-second wait; the new collector overlapped older workers.
+- **Cause:** run_script released its process lock and marked the snapshot complete after a bounded wait even though provider workers were still active.
+- **Fix:** retain scan ownership until completion, update the heartbeat while waiting, and honor Kodi shutdown. Page waits remain bounded. Upcoming and game timers reread incremental snapshots without forcing a new scan.
+- **Test:** test_sports_playback_repair checks lock ownership throughout late completion and release afterward; test_sports_upcoming_states/test_sports_game cover incremental results without another forced refresh. Real rig retest pending.
+
+
+## Background native channel catalogs interrupt Sports pages
+
+- **Seen:** native Loop Foxxy listing displayed a modal progress dialog over another Sports page.
+- **Cause:** source discovery included standalone channel catalogs and several replay menus that cannot yield schedule-matched game cards.
+- **Fix:** omit Foxxy/CDNLiveTV channel catalogs and explicit legacy Video replay menus from automatic game discovery; their original add-ons remain available normally. No third-party dialog or authorization code modified.
+- **Test:** test_sports_loop_routes checks replay/account/channel menu exclusion. Fresh rig candidate scan/visual retest pending; retain the observed failure rather than claiming every native catalog is quiet.
+
+
+## Native Sports opening acknowledged before fallback could observe failure
+
+- **Seen:** a card dispatched Loop but downstream 403/404 occurred asynchronously, after the old synchronous fallback returned success. Distinct buttons helped manual selection but not automatic routing.
+- **Cause:** Player.play acceptance is not AV startup.
+- **Fix candidate:** Play best available ranks reported quality and provider priority, puts native Loop routes into Kodi's video playlist, and lets native playback skip unplayable routes. The observer only reports playing after AV startup/video state, then clears remaining entries so the game does not replay from another provider. Non-native alternatives retain the existing resolver door; user Stop prevents another fallback. Manual provider choices remain available. Native nested-link choosers can still require selection.
+- **Test:** test_sports_loop_router, test_sports_game and import-review registration. Real Kodi controlled plugin test: failed route skipped, next fixture video played (1.0 -> 2.03 -> 3.03 seconds), remaining playlist empty without stopping video. Test-only validator accepted a separately named fixture addon, with no identity/auth changes. This is not a live-provider success claim. Real card/queue retest pending.
+
+## Kodi playlist timeout carried into a later Sports request
+
+- **Seen:** controlled all-failed queue followed later by a failed-first/good-second queue aborted before the good entry.
+- **Cause:** upstream Kodi 21.3 PlayListPlayer.cpp leaves the consecutive-failure timestamp/counter after the no-playable-items branch; the default elapsed-time threshold can abort a subsequent queue at its first failure. Verified in source and rig.
+- **Fix candidate:** packaged system advancedsettings sets playlisttimeout to 0, keeping Kodi's retry-count cap and profile overrides. App queue monitoring still has its own opening timeout, but cannot interrupt a blocking native Player.play call. This changes the system default for playlists, not authorization or provider rules.
+- **Test:** test_customized_ipa checks the installed setting and receipt hash; repeated controlled native routing succeeds in the restarted rig using that packaged default. Native/iPhone behavior remains unproven.
+
+## Rig process exited during simultaneous native plugin initialization
+
+- **Seen:** third stress scan ended the private Kodi process as eight Loop Python interpreters initialized together; cgroup reported no OOM kills.
+- **Cause:** unproven; no usable native crash backtrace captured.
+- **Mitigation candidate:** limit native Loop discovery to two concurrent starts and prioritize providers already seen returning matched games. Direct extractor concurrency is unchanged.
+- **Test:** test_sports_loop_routes checks peak native concurrency of two. Fresh real scan underway; this is not a proven native crash fix.
+
+
+## Automatic queue's real Loop opening still stalls — unresolved
+
+- **Seen:** Play best available from a real game card logs seven native choices, then shows Kodi busy opening; controlled separately named plugin fallback succeeds.
+- **Cause:** unknown; native Loop initialization/GUI calls, observer callbacks and overlapping listing are candidates, not diagnoses.
+- **Fix:** unresolved. Async payload now preserves the queue and UUID ownership; old requests cannot clear a replacement queue.
+- **Test:** test_sports_loop_router covers payload roundtrip and cancellation/replacement; controlled Kodi fixture proves native skip/AV cleanup, not Loop success. Real provider opening remains blocked. No IPA or completion claim.

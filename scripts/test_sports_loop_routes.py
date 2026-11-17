@@ -22,7 +22,7 @@ class Tests(unittest.TestCase):
   self.assertIsNone(lr.match_game('Alpha vs Beta',[game,dict(game)]))
  def test_discovery_retains_sources_but_skips_replay_and_account_menus(self):
   root='plugin://plugin.video.the-loop/';zone=root+'zone';route=root+'fawa'
-  entries={root:[{'label':'Scraper Zone','file':zone,'filetype':'directory'}],zone:[{'label':'FawaNews','file':route,'filetype':'directory'}, {'label':'HomeIPTV','file':root+'iptv','filetype':'directory'}, {'label':'Full Replays','file':root+'replay','filetype':'directory'}]}
+  entries={root:[{'label':'Scraper Zone','file':zone,'filetype':'directory'}],zone:[{'label':'FawaNews','file':route,'filetype':'directory'}, {'label':'HomeIPTV','file':root+'iptv','filetype':'directory'}, {'label':'Full Replays','file':root+'replay','filetype':'directory'}, {'label':'CollegeVideo','file':root+'old-games','filetype':'directory'}, {'label':'Foxxy','file':root+'channels','filetype':'directory'}]}
   found=lr.discover(read=lambda path:entries[path],schedule=[])
   self.assertEqual([x.name for x in found],['Loop FawaNews'])
  def test_real_loop_discovery_feeds_provider_without_direct_jet(self):
@@ -34,6 +34,18 @@ class Tests(unittest.TestCase):
    provider=sj.JetProvider(clock=lambda:1001);self.assertTrue(provider._start().wait(2))
    self.assertEqual(provider.records[source.name][0]['addon'],'Loop FawaNews')
    self.assertEqual(json.loads(provider.records[source.name][0]['play'])['e'],lr.NAME)
+ def test_native_plugin_starts_are_bounded_to_two(self):
+  import threading,time,sports_fawa
+  state={'active':0,'peak':0};lock=threading.Lock()
+  def items():
+   with lock:state['active']+=1;state['peak']=max(state['peak'],state['active'])
+   time.sleep(.03)
+   with lock:state['active']-=1
+   return []
+  sources=[NS(name='Loop fixture %d'%n,get_items=items) for n in range(8)]
+  with patch.object(sj,'_folder',side_effect=lambda name:'/fixture/loop' if name==lr.ADDON else None),patch.object(lr,'discover',return_value=sources),patch.object(sports_fawa.FawaNews,'get_items',return_value=[]):
+   provider=sj.JetProvider();self.assertTrue(provider._start().wait(2))
+  self.assertEqual(state['peak'],2)
  def test_reject_other_addon_or_network_url(self):
   for value in ['https://example.invalid','plugin://other.addon/play','plugin://user:pass@plugin.video.the-loop/play']:
    self.assertFalse(lr.valid_route(value))

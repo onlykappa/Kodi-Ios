@@ -23,7 +23,7 @@ import sports_model as sm
 TTL = 120               # seconds a finished answer is reused
 SHOW_AFTER = 6          # allow an initial scan to collect a useful first batch
 LOAD_SECONDS = 18       # how long a page waits for the scrapers before showing what it has
-EXTRACTOR_SECONDS = 40  # a scraper still running after this is left behind
+EXTRACTOR_SECONDS = 40  # heartbeat grace period; page waits are bounded separately
 LIVE_FOR = 4 * 3600     # a game with a start time is live from its start for this long
 SOON_BEFORE = 600       # a game that should have started minutes ago still lists as upcoming/live
 HORIZON = 8 * 86400
@@ -317,7 +317,7 @@ class JetProvider:
                         done.set()
                         log('jet: all scrapers answered after %ds (%d with games)' % (self.clock() - started, sum(1 for v in self.records.values() if v)))
 
-        gate = threading.Semaphore(8)
+        gate = threading.Semaphore(2 if how == 'Loop routes' else 8)
 
         def guarded(ext):
             with gate:
@@ -509,7 +509,8 @@ class JetProvider:
 
     def _games(self, every):
         now = int(self.clock())
-        order = sorted({r['addon'] for r in every}, key=lambda name: (not name.startswith('Loop '), name))
+        import sports_loop_routes
+        order = sorted({r['addon'] for r in every}, key=lambda name: (not name.startswith('Loop '), sports_loop_routes.source_rank(name) if name.startswith('Loop ') else 0, name))
         games = sports_merge.merge(every, order)
         live = [g for g in games if g['state'] == 'live']
         upcoming = [g for g in games if g['state'] == 'upcoming' and g['start'] >= now - SOON_BEFORE]
@@ -619,7 +620,17 @@ def run_script(args, window=None):
         provider = JetProvider(window=home, publish=lambda data: home.setProperty(DATA, json.dumps(data, separators=(',', ':'))))
         with named_addon():
             done = provider._start()
-            done.wait(EXTRACTOR_SECONDS)
+            try:
+                import xbmc
+                monitor = xbmc.Monitor()
+            except (ImportError, AttributeError):
+                monitor = None
+            # Native plugin listing can outlive the page's bounded wait. Keep
+            # ownership until workers finish instead of launching duplicate scans.
+            while not done.wait(1):
+                home.setProperty(RUN, str(time.time()))
+                if monitor is not None and monitor.abortRequested():
+                    return
         provider._publish(True)   # also when no scraper could start: the page then gets `reason`
     finally:
         home.clearProperty(RUN)
@@ -632,8 +643,12 @@ def play_request(source, logger=log, window=None, launch=None):
         import xbmcgui
         window = xbmcgui.Window(10000)
     home = window
-    key = str(int(time.time() * 1000))   # one property per tap: quick taps must not read or clear each other's (build 557: KeyError 'play')
-    home.setProperty(PLAY + key, json.dumps({'play': source.get('play'), 'alts': source.get('alts') or [], 'id': source.get('id')}, separators=(',', ':')))
+    import uuid, sports_loop_router
+    key = uuid.uuid4().hex   # separate payload/ownership even for taps in the same millisecond
+    home.setProperty(sports_loop_router.OWNER, key)
+    payload = {'play': source.get('play'), 'alts': source.get('alts') or [], 'id': source.get('id'),
+               'native_queue': source.get('native_queue') or [], 'native_owner': key}
+    home.setProperty(PLAY + key, json.dumps(payload, separators=(',', ':')))
     logger('sports: play %s from %s (%s, %s)' % (source.get('id'), source.get('addon'), source.get('quality'), source.get('language')))
     (launch or _launch)('sports_jet_run', 'play', key)
     return True
@@ -708,6 +723,17 @@ TRIES = 5   # the source's own add-on and up to four others that list the same s
 def play(source, logger=log):
     """Start a source (what a tap on a line does): its own add-on first, then the others that list the same stream, until one opens. Raises when none can."""
     values = [v for v in [source.get('play')] + list(source.get('alts') or []) if v][:TRIES]
+    if source.get('native_queue'):
+        import sports_loop_router
+        try:
+            return sports_loop_router.play(source['native_queue'], logger, owner=source.get('native_owner'))
+        except InterruptedError:
+            return False  # user stop/shutdown must not start a different provider
+        except Exception as error:
+            logger('jet: a source failed (native queue, %s)' % type(error).__name__)
+            values = [v for v in source.get('alts', []) if v][:TRIES]
+            if not values:
+                raise RuntimeError('no sports source opened') from None
     last = None
     for value in values:
         try:

@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Sports automatic routing candidate — 2026-11-17
+
+Play best available, native failure skipping, AV-start cleanup, request ownership and playlist timer default are implemented. All 178 workflow commands passed plus final affected retests. Controlled native routing skipped a failed route and played video; actual seven-source Loop queue from a game card currently stalls. This is an unresolved candidate, not a live-provider/device fix. Continuing diagnosis; no IPA. [Current checkpoint](SPORTS-HANDOFF.md).
+
 ## Sports native Loop cards checkpoint — 2026-11-17
 
 Native Loop catalog discovery now feeds schedule-matched cards; real rig found 43 eligible provider routes and 61 upcoming games. Exact routes dispatch via normal Loop without direct bootstrap Jet import. Failed initial Upcoming loads retry automatically, and distinct native source choices remain selectable when quality is unknown. All 177 workflow commands, affected final reruns and project/UI checks pass. A tapped provider returned HTTP 403; this checkpoint does not claim every provider plays. See [sports progress](SPORTS-PLAYBACK-PROGRESS.md). No IPA generated; continuing rig investigation.

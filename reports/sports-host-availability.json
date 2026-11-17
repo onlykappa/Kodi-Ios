@@ -1,0 +1,41 @@
+{
+  "test": "ordinary homepage/DNS checks, no stream tokens or account data",
+  "results": [
+    {
+      "hostname": "taifood-blog.asia",
+      "dns": "resolved",
+      "homepage_http": 404
+    },
+    {
+      "hostname": "strmfree.st",
+      "dns": "resolved",
+      "homepage_http": 200
+    },
+    {
+      "hostname": "ihdstreams.top",
+      "dns": "lookup_failed",
+      "request_failure": "URLError"
+    },
+    {
+      "hostname": "topembed.pw",
+      "dns": "lookup_failed",
+      "request_failure": "URLError"
+    },
+    {
+      "hostname": "gstream24.fun",
+      "dns": "lookup_failed",
+      "request_failure": "URLError"
+    },
+    {
+      "hostname": "espn.dlhd.net",
+      "dns": "lookup_failed",
+      "request_failure": "URLError"
+    },
+    {
+      "hostname": "streamcenter.st",
+      "dns": "resolved",
+      "homepage_http": 200
+    }
+  ],
+  "limitation": "A homepage failure or success does not establish stream availability or a reason for playlist HTTP 403. DNS is the host environment resolver, not the phone."
+}

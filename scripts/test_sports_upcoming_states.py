@@ -127,6 +127,16 @@ class Controller(unittest.TestCase):
             w.poll();self.assertEqual(provider.calls,2)
         self.exercise(provider,scenario)
 
+    def test_timer_picks_up_new_partial_results_without_forcing_a_scan(self):
+        provider=Provider()
+        def scenario(w):
+            until(lambda:not w.fetching)
+            provider.games=sm.Sample(now=NOW).upcoming_games()
+            w.poll();until(lambda:not w.fetching)
+            self.assertEqual(w.props['state'],'ready')
+            self.assertEqual(provider.calls,1)
+        self.exercise(provider,scenario)
+
     def test_timer_poll_does_not_retry_closed_page(self):
         provider=Provider(fail=True)
         def scenario(w):

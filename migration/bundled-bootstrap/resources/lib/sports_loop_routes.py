@@ -7,6 +7,12 @@ from urllib.parse import urlsplit
 
 ADDON = 'plugin.video.the-loop'
 NAME = 'TheLoopRoute'
+# Providers observed returning matched games get early background slots.
+PRIORITY = ('FawaNews','LiveFeeds','ReedStreams','Embedsport2','EmbedHD API','720pStream','XYZAlt','StreamEastVG','MethStreams')
+
+def source_rank(name):
+    name = label(name).removeprefix('Loop ')
+    return PRIORITY.index(name) if name in PRIORITY else len(PRIORITY)
 
 
 def valid_route(value):
@@ -47,7 +53,7 @@ def prepare_proxy():
 
 
 # Replay/account-input folders must not be opened by a background sports scan.
-SKIP_LABELS = ('replay', 'fullfight', 'fullrace', 'fullmatch', 'iptv', 'telegram', 'ondemand', 'wrestling', 'tvgarden')
+SKIP_LABELS = ('replay', 'fullfight', 'fullrace', 'fullmatch', 'iptv', 'telegram', 'ondemand', 'wrestling', 'tvgarden', 'nflvideo', 'rugbyvideo', 'sportsvideo', 'collegevideo', 'foxxy', 'cdnlivetv')
 
 
 def title_pair(text):
@@ -103,6 +109,6 @@ def discover(read=listing, schedule=None):
         provider = sports_espn.EspnProvider(fetch=lambda url: sports_espn.fetch_json(url, timeout=3))
         snapshot = provider._load()
         schedule = snapshot['live'] + snapshot['upcoming']
-    return [LoopSource(entry.get('label',''), entry['file'], schedule, read) for entry in entries[:64]
+    return [LoopSource(entry.get('label',''), entry['file'], schedule, read) for entry in sorted(entries[:64], key=lambda entry:source_rank(entry.get('label','')))
             if entry.get('filetype')=='directory' and valid_route(entry.get('file','')) and
             not any(word in label(entry.get('label')).lower().replace(' ', '') for word in SKIP_LABELS)]

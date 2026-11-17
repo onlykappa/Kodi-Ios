@@ -1,14 +1,14 @@
 # Sports handoff — current checkpoint
 
 Implementation PR: https://github.com/onlykappa/Kodi-Ios/pull/43 (draft).
-Branch: `claude/sports-jet`. Implementation checkpoint: `8f0936b`.
+Branch: `claude/sports-jet`. Last pushed catalog checkpoint: `8bea6f6`; use git log for the latest router candidate.
 Do not infer complete UI integration or phone success from the playback result.
 
 ## Owner objective and immediate next work
 
 Keep our existing Sports UI and connect its cards to the same real The Loop plugin routes used on the Deck. Test actual clicks from Live Now, game details, Upcoming and Leagues as applicable, including different games/providers and failure cases. The owner explicitly wants catalog-wide support, not only FawaNews. FawaNews is the verified playback case, not proof for every extractor.
 
-**Card/catalog discovery is implemented as a candidate.** Native Loop listings feed schedule-matched cards and preserve exact routes; a real Upcoming card dispatched normal Loop but its source returned HTTP 403. Continue testing different games/providers. Found initial Upcoming scan timeout needs automatic recovery. Do not repeat the completed proxy work.
+**Card/catalog discovery is implemented as a candidate.** Native Loop listings feed schedule-matched cards and preserve exact routes; a real Upcoming card dispatched normal Loop but its source returned HTTP 403. Continue testing different games/providers. Upcoming timeout recovery is implemented. New Play best available candidate passes controlled native fallback but stalls on the first actual Loop route; investigate before claiming readiness. Do not repeat the completed proxy work.
 
 1. Read AGENTS.md, CLAUDE.md, docs/ISSUES.md, docs/DECISIONS.md (DEC-061), docs/SPORTS-JET-TEST-NOTES.md and docs/SPORTS-PLAYBACK-PROGRESS.md. The older test notes contain superseded findings; preserve history and use the newer progress/evidence for current claims.
 2. Check the remote PR head before editing. Other agents may push. Merge new work; never force-push.
@@ -47,7 +47,7 @@ With those changes, the **normal Loop plugin route** played. Then original proxy
 
 ## Validation and limits
 
-All 177 test commands listed in the implementation checkpoint's import-review workflow passed, along with check_project.py. Focused tests cover route dispatch without direct Jet import, recognized-source patching/alias roundtrip/child base handling, refusal cooldown, and independent proxy headers/cookies/master/media/key/segment traversal. Actual page/card integration and different-game UI tests remain pending.
+All 177 test commands listed in the implementation checkpoint's import-review workflow passed, along with check_project.py. Focused tests cover route dispatch without direct Jet import, recognized-source patching/alias roundtrip/child base handling, refusal cooldown, and independent proxy headers/cookies/master/media/key/segment traversal. Actual page/card integration now has two-game UI dispatch evidence and a 62-game/322-route projection check. Controlled native automatic routing succeeds; actual automatic Loop opening currently stalls. Phone validation remains pending.
 
 Known upstream failures remain. Original FawaNews offered a second link that returned upstream 403, relayed as proxy 502. Independent StreamsCenter reached initial playlist requests that returned 403 on both phone build 566 and host. Cookie retention alone did not fix it. Browser playback succeeded for one source page, but no WKWebView/native web-player bridge was implemented. Do not resume that as the main direction without need; owner prefers the real Loop/Kodi route.
 
@@ -59,3 +59,13 @@ Use scripts/kodi_rig.py, RPC port 8089, DISPLAY :5. The rig's native binaries/li
 Private probes/results under /workspace/scratch include loop_sports_handoff_probe.py, loop-production-compat-result.json, fresh-loop-root.json, fresh-loop-scrapers.json, fresh-loop-fawa.json. Those JSON listings can contain source/plugin URLs; never put them into Git or print their raw values. Rig screenshots/logs stay private.
 
 A new account may not have this workspace. All committed implementation and sanitized evidence are in PR #43; recreate the rig if needed. Do not claim private scratch files are available until checked.
+
+## Latest automatic-router checkpoint
+
+New sports_loop_router.py ranks reported quality then provider priority, uses the native video playlist for failed-route skipping, and clears future entries only after actual AV/video startup. The async payload preserves native_queue and UUID ownership. Play best available uses existing pill/button tokens; rig render has readable text and spacing. Source choices with unknown quality carry no Best badge. System packaging sets playlisttimeout=0 because upstream Kodi carries its failure timestamp into later requests; retry-count cap/profile overrides remain. Controlled fixture advanced 1.0 -> 2.03 -> 3.03 seconds after a failed first route. This is not live-provider success.
+
+Native discovery is now 37 game-oriented folders with two concurrent plugin starts, after excluding replay/channel catalogs (Foxxy modal progress observed). A clean limited scan completed in 112 seconds with eight matched providers; no claim of a proven crash fix. The previous eight-way stress pass exited Kodi without OOM evidence.
+
+Current blocker: seven-choice automatic queue from the real Memphis/Cleveland game logs opening and stalls in the first Loop route. Last private rig PID60618; main and router thread observed in futex waits. Need capture Python/native stack or compare a fresh isolated Loop queue versus overlap/custom modal context. Do not decode authorization code or spoof caller identity. The normal native Loop path remains the authorized direction.
+
+All 178 workflow commands passed for this batch; final affected suites rerun after payload/ownership edits. No IPA built. Reports sports-native-router-rig.json (controlled), sports-native-cards-rig.json (projection/UI dispatch), sports-host-availability.json (ordinary homepage/DNS checks) distinguish their limits.

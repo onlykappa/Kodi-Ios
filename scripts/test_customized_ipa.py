@@ -130,6 +130,7 @@ class BundleTests(unittest.TestCase):
   self.assertFalse((self.app/'AppData/AppHome/addons/fixture.addon').exists());self.assertEqual(len(ET.parse(self.app/'AppData/AppHome/system/addon-manifest.xml').getroot()),1)
   # Kodi's splash off for every install: special://xbmc/system/advancedsettings.xml, read before the profile's file.
   self.assertEqual(ET.parse(base/'system/advancedsettings.xml').getroot().findtext('splash'),'false')
+  self.assertEqual(ET.parse(base/'system/advancedsettings.xml').getroot().findtext('playlisttimeout'),'0')
   self.assertEqual(receipt['splash']['path'],'advancedsettings.xml');self.assertFalse((self.app/'AppData/AppHome/system/advancedsettings.xml').exists())
  def elementum_inputs(self):
   inputs=self.root/'elementum';inputs.mkdir();files={}
