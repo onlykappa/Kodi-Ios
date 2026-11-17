@@ -171,6 +171,7 @@ jobs:
           python3 -B scripts/test_sports_scores.py
           python3 -B scripts/test_sports_jet.py
           python3 -B scripts/test_sports_independent.py
+          python3 -B scripts/test_sports_pause.py
           python3 -B scripts/test_sports_playback_repair.py
           python3 -B scripts/test_sports_dialogs.py
           python3 -B scripts/test_work_state.py

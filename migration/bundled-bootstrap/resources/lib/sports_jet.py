@@ -32,7 +32,6 @@ JETPROXY = 'plugin://plugin.video.jetproxy/play/'
 RUN = 'KodiIOS.SportsJetRun'      # Home window: when the collecting script started (epoch seconds)
 DATA = 'KodiIOS.SportsJetData'    # Home window: JSON {at, done, records, reason} the script keeps up to date
 _play_session = threading.local()  # each Kodi script owns its local scraper proxy
-REFUSED = 'KodiIOS.SportsJetRefused'  # Home-window lifetime: retry after Kodi restarts
 PLAY = 'KodiIOS.SportsJetPlay'    # Home window: JSON of the source a page asked to play
 
 # Scrapers of replays, full-match videos, IPTV lists and plain hosts: they give no games.
@@ -209,7 +208,7 @@ def import_jet(find=_folder):
         import jetextractors.extractor as module
         return module, None
     except Exception as error:
-        return None, '%s: %s' % (type(error).__name__, str(error)[:80])
+        return None, type(error).__name__
 
 
 def load_extractors(module):
@@ -260,7 +259,7 @@ class JetProvider:
             extractors, how = load_extractors(module)
             return extractors + independent, how + '+independent'
         except Exception as error:
-            self.reason = 'JetExtractors refused or failed (%s: %s)' % (type(error).__name__, str(error)[:90])
+            self.reason = 'JetExtractors refused or failed (%s)' % type(error).__name__
             log('jet: unavailable (%s); trying independent sources' % type(error).__name__)
             return independent, 'independent'
 
@@ -300,9 +299,9 @@ class JetProvider:
                     log('jet: %s %s, e.g. %s' % (name, text, '; '.join(sorted({sm.versus(r) for r in found})[:2])))
             except Exception as error:
                 with self.lock:
-                    self.stats[name] = '%s: %s' % (type(error).__name__, str(error)[:60])
+                    self.stats[name] = type(error).__name__
                     self.records.setdefault(name, [])
-                log('jet: %s failed (%s: %s)' % (name, type(error).__name__, str(error)[:60]))
+                log('jet: %s failed (%s)' % (name, type(error).__name__))
             finally:
                 with self.lock:
                     pending[0] -= 1
@@ -324,8 +323,8 @@ class JetProvider:
                 try:
                     try:
                         home = self._home()
-                        if home.getProperty(REFUSED) == 'banned':
-                            log('jet: skipped after ban response in this Kodi session')
+                        import sports_pause
+                        if sports_pause.Pause(window=home).active():
                             return
                     except Exception:
                         home = None
@@ -339,9 +338,11 @@ class JetProvider:
                     for ext in others:
                         threading.Thread(target=guarded, args=(ext,), daemon=True).start()
                 except Exception as error:
-                    self.reason = 'JetExtractors refused or failed (%s: %s)' % (type(error).__name__, str(error)[:90])
-                    if home is not None and str(error).strip().lower() == 'user is banned':
-                        home.setProperty(REFUSED, 'banned')
+                    self.reason = 'JetExtractors refused or failed (%s)' % type(error).__name__
+                    import sports_pause
+                    if sports_pause.is_refusal(error):
+                        sports_pause.Pause(window=home).pause()
+                        log('jet: paused (access refused)')
                     log('jet: unavailable (%s); independent sources remain available' % type(error).__name__)
                 finally:
                     with self.lock:
@@ -635,9 +636,19 @@ def proxy_path(address, headers):
     return path
 
 
+def jet_paused():
+    import sports_pause
+    try:
+        import xbmcgui
+        home = xbmcgui.Window(10000)
+    except Exception:
+        home = None
+    return sports_pause.Pause(window=home).active()
+
+
 def candidates(module, extractor, link, depth=0):
     """Yield each candidate; a failed nested stream must not hide its siblings."""
-    if depth > 4:
+    if depth > 4 or jet_paused():
         return
     if getattr(link, 'links', False):
         try:
@@ -661,6 +672,8 @@ def candidates(module, extractor, link, depth=0):
         # Some scrapers (including LiveFeeds) also implement their own resolver.
         # Only ask it if the caller advances after ResolveURL fails.
         yield link
+    if jet_paused():
+        return
     try:
         resolved = extractor.get_link(link)
     except Exception:
@@ -689,6 +702,15 @@ def play(source, logger=log):
             return play_one(value, logger)
         except Exception as error:
             last = error
+            import sports_pause
+            if sports_pause.is_refusal(error):
+                try:
+                    import xbmcgui
+                    home = xbmcgui.Window(10000)
+                except Exception:
+                    home = None
+                sports_pause.Pause(window=home).pause()
+                logger('jet: paused (access refused)')
             logger('jet: a source failed (%s); %s' % (type(error).__name__, 'trying the next' if value != values[-1] else 'no more'))
     raise last or RuntimeError('this source has nothing to play')
 
@@ -742,6 +764,14 @@ def play_one(play_value, logger=log):
         logger('sports: playing independent source via JetProxy')
         xbmc.Player().play(proxy_path(address, headers))
         return True
+    import sports_pause
+    try:
+        home = xbmcgui.Window(10000)
+    except Exception:
+        home = None
+    if sports_pause.Pause(window=home).active():
+        logger('jet: paused (access refused)')
+        raise RuntimeError('JetExtractors paused')
     module, reason = import_jet()
     if module is None:
         raise RuntimeError('JetExtractors missing: %s' % reason)

@@ -5684,3 +5684,28 @@ The private verification helper initially compared the unsigned packaged executa
 A 36-second scraper run contained upstream DNS failures; Leagues and Upcoming called the provider repeatedly while partial data was available. Snapshot reuse avoids repeated waits and briefly caches the same merged result, invalidating when the snapshot changes. The adapter also abandoned sibling streams after one ResolveURL failure and passed the original embed URL after a successful resolution. It now tries nested candidates and the scraper’s own resolver, passes the resolved address, and combines resolver/extractor headers for Kodi or JetProxy; app-owned failure logs omit exception URLs. The full sports suites pass. Desktop Kodi 21.3 with 300 synthetic games rendered both pages, reused one merge across four provider calls, and played a local video after a failed first mocked resolver and again via a mocked scraper-owned fallback. No live-provider or iPhone acceptance claim. Evidence: reports/sports-563-rig-validation.json.
 
 Rig follow-up: a Python optimized-mode assertion initially skipped a synthetic probe; explicit runtime checks and two independent reruns corrected that harness error. Two orphaned desktop Kodi rig processes also competed for port 8089; only those test processes were stopped, the rig was restarted, and the final probe passed. These were rig issues, not diagnosed phone failures.
+
+
+## Sports provider refusal repeats after refresh — 2026-11-17
+
+- **Seen:** build 566 repeatedly displayed JetExtractors refusal dialogs during Sports refresh; independent listings continued.
+- **Cause:** every collection launched JetExtractors again, and the previous in-memory pause only handled one refusal string for the current Kodi session.
+- **Fix:** explicit ban or authorization refusal pauses JetExtractors for six hours in a profile file and Home-window property; a changed build or expiry permits another attempt. Paused playback skips JetExtractors and allows alternate sources. This does not lift a ban or restore access.
+- **Test:** `test_sports_pause`, `test_sports_independent`, and `test_sports_playback_repair`; phone validation remains pending.
+
+## Independent sports playlist rejected — 2026-11-17
+
+- **Seen:** build 566 phone log and host checks show HTTP 403 on the initial HLS playlist before Kodi requests segments.
+- **Cause:** unknown. Player embed exposes a playlist URL; header, cookie, URL-query and access-decision requirements are not established. Host response passed through an intermediary; no conclusion about the upstream decision is justified.
+- **Fix:** unresolved; no protection bypass or speculative playback change.
+- **Test:** `test_sports_independent` covers header propagation at resolution and safe failure diagnostics, not successful live playback.
+
+
+## Import test batch: intermittent stream accounting assertion — 2026-11-17
+
+- **Seen:** `test_stream_loop.py` reported 0 rather than 100 served bytes once during the 173-command batch; the same suite passed immediately when rerun alone.
+- **Cause:** not established; the failure occurred in the existing asynchronous stream accounting assertion.
+- **Fix:** none made for this unrelated intermittent failure.
+- **Test:** standalone `python3 -B scripts/test_stream_loop.py` passed; retain this observation for future investigation.
+
+Public reference investigation: a plaintext Kodi extractor describes a source-issued access-grant playlist for one embed format; the currently observed embed did not contain that grant marker. A separate Android WebView project names the embed host. Neither establishes the cause of this phone’s 403 or proves a working stream; no third-party code was copied.

@@ -75,7 +75,7 @@ class Independent(unittest.TestCase):
   def blocked(module):calls.append(1);raise Exception('User is banned')
   with patch.object(si.StreamsCenter,'get_items',return_value=[]),patch.object(sj,'import_jet',return_value=(object(),None)),patch.object(sj,'load_extractors',side_effect=blocked):
    self.assertTrue(sj.JetProvider(window=home)._start().wait(2))
-   self.assertEqual(home.getProperty(sj.REFUSED),'banned')
+   self.assertTrue(home.getProperty('KodiIOS.SportsJetPause'))
    self.assertTrue(sj.JetProvider(window=home)._start().wait(2))
   self.assertEqual(len(calls),1)
  def test_play_request_routes_independent_without_jet_import(self):
