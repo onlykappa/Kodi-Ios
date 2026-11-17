@@ -25,6 +25,17 @@ class Independent(unittest.TestCase):
   address,headers=si.resolve(si.BASE+'/watch/test',get)
   self.assertEqual(address,'https://video.invalid/live.m3u8');self.assertEqual(headers['Referer'],'https://embed.invalid/b');self.assertEqual(headers['Origin'],'https://embed.invalid')
   with self.assertRaises(RuntimeError):si.resolve(si.BASE+'/watch/test',lambda *a:(a[0],'<html>not a video</html>'))
+ def test_default_resolver_reuses_one_cookie_session(self):
+  uid='12345678-1234-1234-1234-123456789abc';openers=[]
+  def fake_fetch(url,referer=si.BASE+'/',timeout=6,opener=None):
+   openers.append(opener)
+   if '/watch/' in url:return url,'{"id":"%s","provider":"one"}'%uid
+   if '/api/' in url:return 'https://embed.invalid/a','https://video.invalid/live.m3u8'
+   return url,'#EXTM3U\n'
+  with patch.object(si,'fetch',side_effect=fake_fetch):
+   si.resolve(si.BASE+'/watch/test')
+  self.assertEqual(len(openers),3)
+  self.assertTrue(all(x is openers[0] for x in openers))
  def test_logs_playlist_status_without_url_or_token(self):
   from urllib.error import HTTPError
   uid='12345678-1234-1234-1234-123456789abc';notes=[]
@@ -55,6 +66,18 @@ class Independent(unittest.TestCase):
    self.assertTrue(any(x.get('records') for x in published))
    self.assertFalse(done.is_set())
    release.set();self.assertTrue(done.wait(2))
+ def test_banned_jet_is_not_retried_during_same_kodi_session(self):
+  class Window:
+   def __init__(self):self.values={}
+   def getProperty(self,key):return self.values.get(key,'')
+   def setProperty(self,key,value):self.values[key]=value
+  home=Window();calls=[]
+  def blocked(module):calls.append(1);raise Exception('User is banned')
+  with patch.object(si.StreamsCenter,'get_items',return_value=[]),patch.object(sj,'import_jet',return_value=(object(),None)),patch.object(sj,'load_extractors',side_effect=blocked):
+   self.assertTrue(sj.JetProvider(window=home)._start().wait(2))
+   self.assertEqual(home.getProperty(sj.REFUSED),'banned')
+   self.assertTrue(sj.JetProvider(window=home)._start().wait(2))
+  self.assertEqual(len(calls),1)
  def test_play_request_routes_independent_without_jet_import(self):
   calls=[]
   with patch.object(si,'resolve',return_value=('https://video.invalid/live.m3u8',{})),patch.object(sj,'import_jet',side_effect=AssertionError('Jet called')),patch.dict(sys.modules,{'xbmc':NS(Player=lambda:NS(play=lambda path:calls.append(path))),'xbmcgui':NS()}):

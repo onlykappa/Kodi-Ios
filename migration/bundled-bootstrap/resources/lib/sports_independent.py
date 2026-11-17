@@ -10,7 +10,8 @@ import re
 from datetime import datetime
 from types import SimpleNamespace
 from urllib.parse import quote, urljoin, urlsplit
-from urllib.request import Request, HTTPRedirectHandler, build_opener
+from urllib.request import Request, HTTPRedirectHandler, HTTPCookieProcessor, build_opener
+from http.cookiejar import CookieJar
 
 BASE = 'https://streamcenter.st'
 NAME = 'IndependentStreamsCenter'
@@ -38,13 +39,13 @@ class PublicRedirect(HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def fetch(url, referer=BASE + '/', timeout=6):
+def fetch(url, referer=BASE + '/', timeout=6, opener=None):
     if not public_url(url):
         raise ValueError('invalid source address')
     ref = urlsplit(referer)
     origin = ref.scheme + '://' + ref.netloc if ref.scheme in ('http', 'https') and ref.netloc else BASE
     request = Request(url, headers={'User-Agent': UA, 'Referer': referer, 'Origin': origin})
-    with build_opener(PublicRedirect()).open(request, timeout=timeout) as response:
+    with (opener or build_opener(PublicRedirect())).open(request, timeout=timeout) as response:
         final = response.geturl()
         if not public_url(final):
             raise ValueError('invalid redirect')
@@ -94,7 +95,10 @@ def source_entries(page):
     return re.findall(r'\{\s*"id"\s*:\s*"([0-9a-fA-F-]{36})"\s*,\s*"provider"\s*:\s*"([a-zA-Z0-9_-]+)"', page)
 
 
-def resolve(address, get=fetch, note=lambda message: None):
+def resolve(address, get=None, note=lambda message: None):
+    if get is None:
+        opener = build_opener(PublicRedirect(), HTTPCookieProcessor(CookieJar()))
+        get = lambda url, referer=BASE + '/': fetch(url, referer, opener=opener)
     parts = urlsplit(address)
     match = re.fullmatch(r'/watch/([A-Za-z0-9_-]+)', parts.path)
     if parts.scheme != 'https' or parts.hostname != 'streamcenter.st' or not match:

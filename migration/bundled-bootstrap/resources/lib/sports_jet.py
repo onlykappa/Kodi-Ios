@@ -32,6 +32,7 @@ JETPROXY = 'plugin://plugin.video.jetproxy/play/'
 RUN = 'KodiIOS.SportsJetRun'      # Home window: when the collecting script started (epoch seconds)
 DATA = 'KodiIOS.SportsJetData'    # Home window: JSON {at, done, records, reason} the script keeps up to date
 _play_session = threading.local()  # each Kodi script owns its local scraper proxy
+REFUSED = 'KodiIOS.SportsJetRefused'  # Home-window lifetime: retry after Kodi restarts
 PLAY = 'KodiIOS.SportsJetPlay'    # Home window: JSON of the source a page asked to play
 
 # Scrapers of replays, full-match videos, IPTV lists and plain hosts: they give no games.
@@ -321,6 +322,13 @@ class JetProvider:
         if discover_jet:
             def discover():
                 try:
+                    try:
+                        home = self._home()
+                        if home.getProperty(REFUSED) == 'banned':
+                            log('jet: skipped after ban response in this Kodi session')
+                            return
+                    except Exception:
+                        home = None
                     module, reason = import_jet()
                     if module is None:
                         self.reason = 'JetExtractors is not installed (%s)' % reason
@@ -332,6 +340,8 @@ class JetProvider:
                         threading.Thread(target=guarded, args=(ext,), daemon=True).start()
                 except Exception as error:
                     self.reason = 'JetExtractors refused or failed (%s: %s)' % (type(error).__name__, str(error)[:90])
+                    if home is not None and str(error).strip().lower() == 'user is banned':
+                        home.setProperty(REFUSED, 'banned')
                     log('jet: unavailable (%s); independent sources remain available' % type(error).__name__)
                 finally:
                     with self.lock:
@@ -593,7 +603,7 @@ def run_script(args, window=None):
         log('jet: collection already running; reused')
         return
     try:
-        provider = JetProvider(publish=lambda data: home.setProperty(DATA, json.dumps(data, separators=(',', ':'))))
+        provider = JetProvider(window=home, publish=lambda data: home.setProperty(DATA, json.dumps(data, separators=(',', ':'))))
         with named_addon():
             done = provider._start()
             done.wait(EXTRACTOR_SECONDS)
