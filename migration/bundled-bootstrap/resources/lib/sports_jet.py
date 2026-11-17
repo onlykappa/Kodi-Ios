@@ -761,6 +761,15 @@ def play_one(play_value, logger=log):
     value = json.loads(play_value)
     import sports_independent
     import sports_fawa
+    import sports_loop_routes
+    if value.get('e') == sports_loop_routes.NAME:
+        route = value['l']['address']
+        if not sports_loop_routes.valid_route(route):
+            raise ValueError('invalid Loop playback route')
+        sports_loop_routes.prepare_proxy()
+        logger('sports: playing via The Loop')
+        xbmc.Player().play(route)
+        return True
     if value.get('e') == sports_fawa.NAME:
         address = sports_fawa.resolve(value['l']['address'])
         item = xbmcgui.ListItem(path=address)

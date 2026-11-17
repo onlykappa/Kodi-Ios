@@ -173,6 +173,9 @@ jobs:
           python3 -B scripts/test_sports_independent.py
           python3 -B scripts/test_sports_pause.py
           python3 -B scripts/test_sports_fawa.py
+          python3 -B scripts/test_sports_hls_proxy.py
+          python3 -B scripts/test_sports_loop_routes.py
+          python3 -B scripts/test_sports_loop_proxy_compat.py
           python3 -B scripts/test_sports_playback_repair.py
           python3 -B scripts/test_sports_dialogs.py
           python3 -B scripts/test_work_state.py

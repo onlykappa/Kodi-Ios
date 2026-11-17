@@ -55,6 +55,10 @@ def resolve(address):
         raise ValueError('invalid media address')
     import sports_jet as sj
     sj.add_module_paths('script.module.requests', sj._folder)
-    from fawa_proxy.util.stream_proxy import get_stream_proxy
-    proxy = get_stream_proxy('fawa', HEADERS, options={'strip_png': False, 'prefetch_segments': True, 'upstream_keep_alive': True, 'keep_alive': False, 'proxy_absolute_urls': True})
-    return proxy.get_proxy_url(url, HEADERS)
+    from sports_hls_proxy import Proxy
+    proxy = Proxy(url, HEADERS)
+    _proxies.append(proxy)
+    return proxy.url
+
+
+_proxies = []  # the playback script owns these servers until playback ends

@@ -1,1 +1,0 @@
-Local HLS proxy from the owner-provided JetExtractors 3.3.33 Deck bundle, under the accompanying MIT license. The original copyright is preserved. This package does not import JetExtractors authorization code. Changes: logging is suppressed through a Kodi runtime wrapper to prevent stream/session data in diagnostic logs.

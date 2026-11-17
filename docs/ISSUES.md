@@ -5717,3 +5717,21 @@ Public reference investigation: a plaintext Kodi extractor describes a source-is
 - Cause: providers differ; FawaNews has no explicit schedule in the extractor, so existing Sports classification drops unknown-time entries.
 - Fix candidate: independent FawaNews parsing matched only to unique live ESPN schedule events; isolated MIT local proxy from the owner Deck bundle, no JetExtractors authorization import; direct ffmpegdirect HLS handoff and existing script lifetime handling.
 - Test: test_sports_fawa, existing Sports tests; real rig proxy playback pending. No phone or real-playback claim.
+
+
+## Local FawaNews HLS resource paths rejected by FFmpeg — candidate fix
+
+- Seen: real Linux Kodi ffmpegdirect 21.3.8 / FFmpeg 9 rejected proxy segment addresses with a query encoded into the pathname.
+- Cause: exposed local URL did not end in an allowed media extension.
+- Fix candidate: new loopback proxy assigns opaque media-suffixed paths and keeps the complete source URLs server-side; shares session and headers for playlists, segments and URI attributes. No token mutation or authorization bypass.
+- Test: test_sports_hls_proxy uses a real controlled HTTP server and verifies master, media, key and segment traversal with headers/cookies and unchanged query. Real playback retest pending.
+
+- Real retest: Linux Kodi with ffmpegdirect 21.3.8 / FFmpeg 9 played an actual FawaNews source through the new proxy; after initialization time advanced 9267.7 -> 9272.7 -> 9277.7 -> 9282.7 in five-second intervals and remained playing. This verifies desktop playback, not stream identity or iPhone behavior. Removed the unused vendored proxy after replacement.
+
+
+## Shared Loop proxy media-path compatibility — rig verified candidate
+
+- Seen: fresh unmodified Loop route reached ffmpegdirect but FFmpeg 9 rejected local resource paths; extension-only patch then produced segment failures.
+- Cause: local proxy embedded query strings in pathname, and variant flattening returned relative media references without retaining their child-playlist base.
+- Fix candidate: version/hash-guarded compatibility patch gives local resource aliases media suffixes and preserves exact original references; variant resolver rebases child media/key references before flattening. Only two readable proxy modules change; authorization and caller identity are untouched.
+- Test: test_sports_loop_proxy_compat, test_sports_loop_routes, actual fresh Loop/FawaNews first-link rig playback. Kodi speed 1, time advanced 1:41:53 -> 1:42:08 across fifteen seconds. No claim that all scrapers or iPhone are verified.

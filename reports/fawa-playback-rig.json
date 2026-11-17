@@ -1,0 +1,20 @@
+{
+  "kind": "real matched live listing in desktop Kodi",
+  "playing": true,
+  "live_matches": 1,
+  "samples": [
+    0.0,
+    1.6280000000000001,
+    9376.672,
+    9381.672,
+    9386.665
+  ],
+  "still_playing": true,
+  "evidence": "desktop Kodi 21.3 with Debian ffmpegdirect 21.3.8 / FFmpeg 9; not iPhone",
+  "source_sha256": {
+    "sports_fawa.py": "a79128732c43783cf386655bca730c0bd636c73d3c1ba5baa985e3121fdc21dc",
+    "sports_hls_proxy.py": "26107d4d3c49dcf0b6860c381348f29aedbd5c4f8de572e141f710e834b70009",
+    "sports_jet.py": "e1473acd670b96a88dbc87fee12f4a9a26815e510f06c0e89fac5a30af8b0b5a"
+  },
+  "broadcast_identity_verified": false
+}
