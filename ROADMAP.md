@@ -1,5 +1,7 @@
 # Kodi-iOS master roadmap
 
+Sports testing-build follow-up (2026-11-17): ambiguous native startup stops/timeouts cancel rather than launch another source; definite errors can advance. Timing diagnostics added. Slow-opening Kodi 21.2 fixture did not open another source but took about 21 seconds to unwind; phone behavior and live acceptance remain pending. Owner authorized one testing IPA. Preserve prior releases. See docs/SPORTS-HANDOFF.md.
+
 Current Sports follow-up (2026-11-17): ESPN supplies live and upcoming games; Crew discovery is limited to ESPN-live games and their leagues, with fresh snapshot reuse. Owner reports Crew works, but the latest phone logs show menu navigation and repeated scans, not live video; iPhone acceptance and stop-during-opening behavior remain pending. See docs/SPORTS-HANDOFF.md. No IPA/merge.
 
 

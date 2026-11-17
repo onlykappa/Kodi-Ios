@@ -1,12 +1,18 @@
 # Current Sports handoff — ESPN schedule and live-only Crew discovery (2026-11-17)
 
-The owner wants ESPN to supply both live and upcoming games; Crew is the source provider only for ESPN-live events. The current implementation and ongoing draft are PR #43, branch `claude/sports-jet`. The owner reports Crew working on the phone, but the supplied build 568 log shows menu navigation, not a video start; live game-to-source playback, cancellation, smoothness and this follow-up still need iPhone evidence.
+The owner wants ESPN to supply both live and upcoming games; Crew is the source provider only for ESPN-live events. The current implementation and ongoing draft are PR #43, branch `claude/sports-jet`. The owner reports Crew working on the phone, but the supplied build 568 log shows menu navigation, not a video start; live game-to-source playback, cancellation responsiveness, smoothness and this follow-up still need iPhone evidence.
 
 Sports checks ESPN on first use or when its 45-second cached snapshot expires. The existing pages reuse fresh snapshots on entry; explicit refresh still forces a check. Crew is not opened when ESPN has no live games. When games are live, only their leagues and the shared live-sites menu are searched; Crew exposes nested menus, so this is targeted traversal, not a direct lookup API. Upcoming ESPN games remain in the catalog with no source scan until marked live. An existing scan is allowed to finish; an ESPN state change during a long scan may not be reflected until it completes and a later refresh runs.
 
 The owner's build 568 log showed three complete scans of 150, 146 and 177 seconds with zero matched sources, followed by another scan; it also recorded ignored taps during modal closing animations. These changes reduce unnecessary discovery but do not prove the cause of all lag. A real ESPN check in this environment returned 75 upcoming games, no live games, and the live-only discovery made no Crew calls. All 23 Sports test suites and the required project check passed. No IPA, merge or real-live acceptance is implied.
 
 The earlier local JetExtractors work diverged from PR #43; do not push it over the Crew branch. Old Loop and provider investigations below are historical evidence, not the current routing plan. Preserve secrets and raw logs outside Git.
+
+## Testing build follow-up — 2026-11-17
+
+An ambiguous stop before AV, an opening timeout, or an unclassified empty queue now cancels the native queue instead of automatically starting an alternate. A definite playback-error callback may still advance. Tradeoff: Kodi can report a genuine failed open only as a stop, so some failed streams require manual retry. A Kodi 21.2 slow-opening fixture produced no second source after stop, but took about 21 seconds to unwind; instant cancellation and phone behavior are not proven. The earlier fixture exposed a timeout path that could still have fallen back; it now cancels.
+
+ESPN schedule timing and live/upcoming counts, plus per-Crew-menu duration and aggregate counts, are logged without URLs or headers. Publishing a test IPA no longer prunes existing test releases. The owner authorized one testing IPA; do not infer live-game acceptance.
 
 ---
 Historical Loop checkpoints (retained):

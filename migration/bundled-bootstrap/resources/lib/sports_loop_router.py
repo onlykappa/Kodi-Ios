@@ -99,9 +99,14 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                 began += now - previous
             previous = now
             if not player.ready and now - began >= timeout:
-                raise RuntimeError('native sports opening timed out')
+                raise InterruptedError('native sports opening timed out')
             position = playlist.getposition()
-            if (player.failed or (player.stopped and player.started)) and not player.ready:
+            # Kodi also reports a user's stop during opening as a pre-AV
+            # Stop. Never infer failure from that ambiguous callback.
+            if player.stopped and not player.failed and not player.ready:
+                logger('sports: native opening stopped; queue cancelled')
+                raise InterruptedError('native opening stopped')
+            if player.failed and not player.ready:
                 current = max(current_index, 0, position)
                 for n in range(failed_through + 1, current + 1):
                     logger('jet: a source failed (native media open failed, choice %d)' % (n + 1))
@@ -124,11 +129,10 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                 continue
             if position < 0 and not player.isPlayingVideo():
                 if backend.getCondVisibility('Window.IsActive(okdialog)'):
-                    raise RuntimeError('no native source opened')
+                    raise InterruptedError('native opening ended with a dialog')
                 if now - began > 1 and not backend.getCondVisibility('Window.IsActive(progressdialog)') and not backend.getCondVisibility('Window.IsActive(selectdialog)'):
-                    for n in range(failed_through + 1, len(choices)):
-                        logger('jet: a source failed (native open failed, choice %d)' % (n + 1))
-                    raise RuntimeError('native queue exhausted')
+                    logger('sports: native opening ended without a confirmed error; queue cancelled')
+                    raise InterruptedError('native opening ended')
             for n in range(failed_through + 1, max(0, position)):
                 logger('jet: a source failed (native open failed, choice %d)' % (n + 1))
                 failed_through = n
@@ -136,7 +140,9 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                 logger('sports: playing (native addon queue)')
                 return True
             if now - began >= timeout:
-                raise RuntimeError('native sports opening timed out')
+                # A stop can remain queued while Kodi is blocked opening media.
+                # Do not launch an alternate after an ambiguous timeout.
+                raise InterruptedError('native sports opening timed out')
         raise InterruptedError('Kodi shutting down')
     finally:
         # This must not play another provider when the successful game ends.

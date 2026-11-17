@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Sports opening cancellation and testing build — 2026-11-17
+
+Kodi reports failed opens and user stops with the same pre-AV Stop callback. Ambiguous stops, timeouts and unclassified empty queues now cancel, avoiding an alternate after a user stop; explicit errors can still advance. The tradeoff is that some true failed opens require manual retry. A slow HTTP fixture in desktop Kodi 21.2 opened no second source after Stop, but took about 21 seconds to unwind. ESPN and Crew timing logs use aggregate counts and no source URLs. The owner authorized one testing IPA; build and phone acceptance pending. Prior test releases are preserved.
+
 ## Sports: ESPN live-first Crew discovery — 2026-11-17
 
 Owner requests ESPN for live and upcoming games, with Crew scanned only when ESPN marks games live. Crew discovery now skips entirely with no live games and limits league traversal to live games; normal page entry reuses fresh results, with explicit refresh retained and a 45-second cache. A real ESPN check returned 75 upcoming, zero live and zero Crew calls. The owner reports Crew works; build 568 logs show repeated scans and menu taps, not video playback. Existing stop-before-AV ambiguity, actual live matching, iPhone smoothness and long-scan schedule staleness remain open. No IPA built.

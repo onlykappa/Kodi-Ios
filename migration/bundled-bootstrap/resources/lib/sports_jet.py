@@ -332,7 +332,12 @@ class JetProvider:
                     home = None
                     if _folder('plugin.video.thecrew'):
                         import sports_crew_routes
+                        schedule_began = time.monotonic()
                         schedule = sports_crew_routes.schedule()
+                        log('jet: ESPN schedule ready in %.2fs (%d live, %d upcoming)' % (
+                            time.monotonic() - schedule_began,
+                            sum(g.get('state') == 'live' for g in schedule),
+                            sum(g.get('state') == 'upcoming' for g in schedule)))
                         with self.lock:
                             self.schedule = schedule
                         self._publish(False)

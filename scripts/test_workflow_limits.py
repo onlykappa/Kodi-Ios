@@ -19,6 +19,9 @@ class Limits(unittest.TestCase):
     def test_it_still_publishes_the_ipa(self):
         self.assertIn('Publish raw IPA as a prerelease download', WORKFLOW.read_text())
 
+    def test_publishing_preserves_previous_test_releases(self):
+        self.assertNotIn('gh release delete', WORKFLOW.read_text())
+
 
 if __name__ == '__main__':
     unittest.main()

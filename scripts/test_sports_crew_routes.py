@@ -61,6 +61,13 @@ class Tests(unittest.TestCase):
   items=crew.CrewSource('NBA',ROOT+'league',[GAME],read).get_items()
   self.assertEqual(len(items),1);self.assertLessEqual(len(calls),crew.MAX_FOLDERS)
   self.assertFalse(any(x.endswith('replays') for x in calls))
+ def test_crew_scan_timing_omits_routes_and_game_names(self):
+  with patch.object(jet,'log') as log:
+   self.assertEqual(crew.CrewSource('NBA',ROOT+'private-route',[GAME],lambda path:[]).get_items(),[])
+  message=log.call_args.args[0]
+  self.assertRegex(message,r'1 folders, 0 unavailable, 0 matched streams in [0-9.]+s')
+  self.assertNotIn('private-route',message)
+  self.assertNotIn('Alpha',message)
  def test_crew_primary_and_native_queue_retains_loop_and_independent_fallbacks(self):
   other={'addon':'Independent','quality':'','play':'fallback'}
   backup={'addon':'Loop FawaNews','quality':'4K','play':json.dumps({'e':loop.NAME,'l':{'address':'plugin://plugin.video.the-loop/play/fixture'}})}
@@ -83,9 +90,11 @@ class Tests(unittest.TestCase):
  def test_installed_crew_discovery_never_opens_loop_or_direct_jet(self):
   import sports_fawa
   ext=crew.CrewSource('NBA',ROOT+'league',[GAME],lambda path:[entry('Alpha vs Beta','play',False)])
-  with patch.object(jet,'_folder',return_value='/fixture/installed'),patch.object(crew,'discover',return_value=[ext]),patch.object(crew,'schedule',return_value=[dict(GAME,id='fixture',league='NBA',sport='Basketball',sources=[])]),patch.object(loop,'discover',side_effect=AssertionError('Loop touched')),patch.object(jet,'import_jet',side_effect=AssertionError('Jet touched')),patch.object(sports_fawa.FawaNews,'get_items',return_value=[]):
+  with patch.object(jet,'log') as log,patch.object(jet,'_folder',return_value='/fixture/installed'),patch.object(crew,'discover',return_value=[ext]),patch.object(crew,'schedule',return_value=[dict(GAME,id='fixture',league='NBA',sport='Basketball',sources=[])]),patch.object(loop,'discover',side_effect=AssertionError('Loop touched')),patch.object(jet,'import_jet',side_effect=AssertionError('Jet touched')),patch.object(sports_fawa.FawaNews,'get_items',return_value=[]):
    provider=jet.JetProvider(clock=lambda:1001)
    self.assertTrue(provider._start().wait(2));self.assertEqual(len(provider.records['Crew NBA']),1)
+   messages=[call.args[0] for call in log.call_args_list]
+   self.assertTrue(any('ESPN schedule ready in ' in s and '(1 live, 0 upcoming)' in s for s in messages))
  def test_espn_keeps_games_without_sources_and_owns_status_scores_and_ids(self):
   schedule=dict(GAME,id='espn:NBA:fixture',league='NBA',sport='Basketball',sources=[],clock='Q2 03:00',left=180,
                 away=dict(GAME['away'],score=41),home=dict(GAME['home'],score=40))

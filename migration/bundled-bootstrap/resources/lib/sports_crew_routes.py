@@ -97,7 +97,9 @@ class CrewSource:
         self.route, self.games, self.read = route, games, read
 
     def get_items(self):
+        import time
         from sports_independent import Link
+        began = time.monotonic()
         pending, visited, emitted, items = [(self.route, 0, None)], set(), set(), []
         failures = 0
         while pending and len(visited) < MAX_FOLDERS and not playback_requested():
@@ -133,7 +135,7 @@ class CrewSource:
                              league=game['league_name'], status='LIVE' if game['state']=='live' else '',
                              starttime=datetime.fromtimestamp(game['start']), links=[Link(address)]))
         import sports_jet
-        sports_jet.log('jet: %s: %d folders, %d unavailable, %d matched streams' % (self.name, len(visited), failures, len(items)))
+        sports_jet.log('jet: %s: %d folders, %d unavailable, %d matched streams in %.2fs' % (self.name, len(visited), failures, len(items), time.monotonic() - began))
         return items
 
 

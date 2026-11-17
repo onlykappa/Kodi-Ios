@@ -110,17 +110,20 @@ class Tests(unittest.TestCase):
   self.assertEqual(sum('media open failed' in line for line in logs),1)
  def test_timeout_cancels_queue(self):
   result,state,_=self.exercise()
-  self.assertIsInstance(result,RuntimeError);self.assertEqual(state['stops'],1)
+  self.assertIsInstance(result,InterruptedError);self.assertEqual(state['stops'],1)
  def test_native_all_failed_dialog_finishes_without_waiting_for_timeout(self):
   result,state,_=self.exercise(all_failed=True)
-  self.assertIsInstance(result,RuntimeError)
-  self.assertIn('no native source',str(result));self.assertLess(state['now'],.6)
+  self.assertIsInstance(result,InterruptedError)
+  self.assertIn('dialog',str(result));self.assertLess(state['now'],.6)
  def test_new_request_does_not_clear_or_stop_the_new_player(self):
   result,state,_=self.exercise(replaced=True)
   self.assertIsInstance(result,InterruptedError);self.assertEqual(state['stops'],0)
- def test_stop_before_av_is_an_open_failure_not_proof_of_user_cancel(self):
-  result,_,_=self.exercise(stopped=True)
-  self.assertIsInstance(result,RuntimeError)
+ def test_stop_before_av_cancels_without_opening_another_source(self):
+  result,state,logs=self.exercise(stopped=True)
+  self.assertIsInstance(result,InterruptedError)
+  self.assertFalse(state.get('advanced',False))
+  self.assertNotIn('error_dialog_closed',state)
+  self.assertIn('sports: native opening stopped; queue cancelled',logs)
  def test_nested_source_selection_does_not_consume_server_timeout(self):
   result,state,_=self.exercise(select=True)
   self.assertIsInstance(result,InterruptedError);self.assertGreater(state['now'],.6)
