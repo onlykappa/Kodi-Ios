@@ -5709,3 +5709,11 @@ Rig follow-up: a Python optimized-mode assertion initially skipped a synthetic p
 - **Test:** standalone `python3 -B scripts/test_stream_loop.py` passed; retain this observation for future investigation.
 
 Public reference investigation: a plaintext Kodi extractor describes a source-issued access-grant playlist for one embed format; the currently observed embed did not contain that grant marker. A separate Android WebView project names the embed host. Neither establishes the cause of this phone’s 403 or proves a working stream; no third-party code was copied.
+
+
+## FawaNews independent source candidate — implementation pending validation
+
+- Seen: owner Deck shows FawaNews local-proxy playback, while phone StreamsCenter returns 403.
+- Cause: providers differ; FawaNews has no explicit schedule in the extractor, so existing Sports classification drops unknown-time entries.
+- Fix candidate: independent FawaNews parsing matched only to unique live ESPN schedule events; isolated MIT local proxy from the owner Deck bundle, no JetExtractors authorization import; direct ffmpegdirect HLS handoff and existing script lifetime handling.
+- Test: test_sports_fawa, existing Sports tests; real rig proxy playback pending. No phone or real-playback claim.

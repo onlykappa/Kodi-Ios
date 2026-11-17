@@ -1,0 +1,146 @@
+import threading
+import os
+import time
+from urllib.parse import urlparse
+
+import requests
+from .. import kodi_runtime as xbmc
+from ..tools import debug_log
+from .tls_adapter import _ProxyTLSAdapter
+
+_FLAG_PATH_CACHE = None
+
+
+def _player_stop_flag_exists():
+    global _FLAG_PATH_CACHE
+    try:
+        if _FLAG_PATH_CACHE is None:
+            from xbmcvfs import translatePath
+            profile = translatePath("special://masterprofile/")
+            _FLAG_PATH_CACHE = os.path.join(profile, "jetextractors_player_stopped.flag")
+        return os.path.exists(_FLAG_PATH_CACHE)
+    except Exception:
+        return False
+
+
+def _seg_cache_get(entry, url):
+    cache = entry.get("seg_cache")
+    if not cache:
+        return None
+    return cache.get(url)
+
+
+def _seg_cache_put(entry, url, data, content_type, cap=4):
+    cache = entry.setdefault("seg_cache", {})
+    if url not in cache:
+        while len(cache) >= cap:
+            cache.pop(next(iter(cache)))
+    cache[url] = (data, content_type)
+
+
+def _seg_inflight_register(entry, url):
+    """Register an in-flight segment download for *url*.
+
+    Returns None when the CALLER owns the download (and must later call
+    _seg_inflight_done), or an Event to wait on when another thread already
+    owns it.
+    """
+    inflight = entry.setdefault("seg_inflight", {})
+    ev = inflight.get(url)
+    if ev is not None:
+        return ev
+    ev = threading.Event()
+    inflight[url] = ev
+    return None
+
+
+def _seg_inflight_done(entry, url):
+    inflight = entry.get("seg_inflight")
+    if inflight is not None:
+        ev = inflight.pop(url, None)
+        if ev is not None:
+            ev.set()
+
+
+def _seg_inflight_peek(entry, url):
+    """Non-registering read: is *url* already being downloaded?
+
+    Unlike _seg_inflight_register this never claims ownership, so it is safe
+    to use as an "is this in flight?" test. Using _seg_inflight_register for
+    that check creates an Event that no thread will ever set, deadlocking
+    every later waiter.
+    """
+    inflight = entry.get("seg_inflight")
+    if not inflight:
+        return None
+    return inflight.get(url)
+
+
+def _prefetch_segment(proxy, entry, url):
+    """Background download of one segment into the token's cache."""
+    ev = _seg_inflight_register(entry, url)
+    if ev is not None:
+        return  # someone else (live handler or another prefetcher) owns it
+    try:
+        if proxy._abort.is_set() or _seg_cache_get(entry, url) is not None:
+            return
+        headers = entry.get("headers") or {}
+        seg_headers = dict(proxy.default_headers)
+        seg_headers.update(headers)
+        if proxy.upstream_user_agent:
+            seg_headers["User-Agent"] = proxy.upstream_user_agent
+        seg_headers.setdefault("Accept", "*/*")
+        if not proxy.upstream_keep_alive:
+            seg_headers.setdefault("Connection", "close")
+
+        if proxy.segment_strip_origin:
+            target_domain = urlparse(url).netloc
+            manifest_domain = urlparse(entry["url"]).netloc
+            if target_domain and manifest_domain and target_domain != manifest_domain:
+                seg_headers.pop("Origin", None)
+                seg_headers.pop("Referer", None)
+
+        client = entry.get("session")
+        if client is None or (isinstance(client, str) and client == "urllib"):
+            if proxy.use_urllib:
+                from .manifest_rewriter import _UrllibClient
+                client = _UrllibClient(proxy)
+            else:
+                client = requests
+                if proxy.browser_tls:
+                    client = requests.Session()
+                    client.verify = False
+                    client.mount("https://", _ProxyTLSAdapter())
+        try:
+            resp = client.get(url, headers=seg_headers, timeout=(3, 15), stream=True, allow_redirects=True)
+        except Exception as e:
+            debug_log(f"[{proxy.name}] Prefetch request failed for {url}: {e}", xbmc.LOGDEBUG)
+            return
+        if resp.status_code not in (200, 206):
+            debug_log(f"[{proxy.name}] Prefetch got status {resp.status_code} for {url}", xbmc.LOGDEBUG)
+            resp.close()
+            return
+        data = b""
+        try:
+            for chunk in resp.iter_content(chunk_size=proxy.chunk_size):
+                if proxy._abort.is_set() or _player_stop_flag_exists():
+                    return
+                if chunk:
+                    data += chunk
+                    if len(data) > proxy.max_segment_size:
+                        break
+            # Yield GIL after large download so handler/watchdog threads
+            # can run before the heavy strip operations.
+            time.sleep(0)
+        except Exception as e:
+            debug_log(f"[{proxy.name}] Prefetch download error for {url}: {e}", xbmc.LOGDEBUG)
+            return
+        finally:
+            resp.close()
+        if proxy._abort.is_set():
+            return
+        ctype = resp.headers.get("Content-Type", "")
+        _seg_cache_put(entry, url, data, ctype)
+        debug_log(f"[{proxy.name}] Prefetched segment: {len(data)} bytes ({url})", xbmc.LOGDEBUG)
+    finally:
+        _seg_inflight_done(entry, url)

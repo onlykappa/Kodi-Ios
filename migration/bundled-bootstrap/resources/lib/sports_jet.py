@@ -269,7 +269,8 @@ class JetProvider:
             discover_jet = False
         else:
             import sports_independent
-            extractors, how = [sports_independent.StreamsCenter()], 'independent'
+            import sports_fawa
+            extractors, how = [sports_independent.StreamsCenter(), sports_fawa.FawaNews()], 'independent'
             discover_jet = True
         done = threading.Event()
         pending = [len(extractors) + int(discover_jet)]
@@ -759,6 +760,18 @@ def play_one(play_value, logger=log):
     import xbmcgui
     value = json.loads(play_value)
     import sports_independent
+    import sports_fawa
+    if value.get('e') == sports_fawa.NAME:
+        address = sports_fawa.resolve(value['l']['address'])
+        item = xbmcgui.ListItem(path=address)
+        item.setMimeType('application/x-mpegURL')
+        item.setProperty('inputstream', 'inputstream.ffmpegdirect')
+        item.setProperty('inputstream.ffmpegdirect.manifest_type', 'hls')
+        item.setProperty('inputstream.ffmpegdirect.is_realtime_stream', 'true')
+        xbmc.Player().play(address, item)
+        _play_session.proxy_url = address
+        logger('sports: playing FawaNews via local proxy')
+        return True
     if value.get('e') == sports_independent.NAME:
         address, headers = sports_independent.resolve(value['l']['address'], note=logger)
         logger('sports: playing independent source via JetProxy')
