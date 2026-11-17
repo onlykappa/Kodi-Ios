@@ -115,6 +115,26 @@ class Controller(unittest.TestCase):
         self.exercise(provider,scenario)
         self.assertEqual(provider.calls,2)
 
+    def test_timer_poll_recovers_after_slow_first_scan(self):
+        provider=Provider(fail=True)
+        def scenario(w):
+            until(lambda:not w.fetching)
+            self.assertEqual(w.props['state'],'error')
+            provider.fail=False;provider.games=sm.Sample(now=NOW).upcoming_games()
+            w.poll();until(lambda:not w.fetching)
+            self.assertEqual(w.props['state'],'ready')
+            self.assertEqual(w.props['row.0.title'],'Arsenal vs Chelsea')
+            w.poll();self.assertEqual(provider.calls,2)
+        self.exercise(provider,scenario)
+
+    def test_timer_poll_does_not_retry_closed_page(self):
+        provider=Provider(fail=True)
+        def scenario(w):
+            until(lambda:not w.fetching)
+            w.onClick(page.BACK);w.poll()
+            self.assertEqual(provider.calls,1)
+        self.exercise(provider,scenario)
+
     def test_retry_can_finish_successfully_with_no_games(self):
         provider=Provider(fail=True)
         def scenario(w):

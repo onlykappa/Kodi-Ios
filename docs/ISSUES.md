@@ -5735,3 +5735,26 @@ Public reference investigation: a plaintext Kodi extractor describes a source-is
 - Cause: local proxy embedded query strings in pathname, and variant flattening returned relative media references without retaining their child-playlist base.
 - Fix candidate: version/hash-guarded compatibility patch gives local resource aliases media suffixes and preserves exact original references; variant resolver rebases child media/key references before flattening. Only two readable proxy modules change; authorization and caller identity are untouched.
 - Test: test_sports_loop_proxy_compat, test_sports_loop_routes, actual fresh Loop/FawaNews first-link rig playback. Kodi speed 1, time advanced 1:41:53 -> 1:42:08 across fifteen seconds. No claim that all scrapers or iPhone are verified.
+
+
+## Sports cards lacked normal Loop plugin routes — catalog integration checkpoint
+
+- **Seen:** normal Loop playback worked in the rig, but our cards still used direct JetExtractors discovery under the bootstrap caller.
+- **Cause:** the real plugin listing/route handoff had no catalog adapter.
+- **Fix:** discover native Loop Scraper Zone listings, schedule-match unambiguous team pairs, retain exact plugin routes, and dispatch through normal Loop. Skip replay/account menus. When Loop is installed, avoid direct bootstrap Jet imports and the inferred-live independent StreamsCenter listing.
+- **Test:** test_sports_loop_routes covers discovery, ambiguous matches, exact route/card preservation and no direct Jet import. Real desktop scan discovered 43 eligible routes; Upcoming displayed 61 games. Actual card tap reached Loop; selected source returned HTTP 403. This establishes UI dispatch, not successful playback for that source or all providers. Upcoming initial-error recovery and asynchronous playback fallback still need work.
+
+
+## Sports Upcoming stayed in error after late scan results
+
+- **Seen:** real Loop scan produced its first usable result after the page's bounded initial wait; Upcoming remained in error until Retry.
+- **Cause:** the periodic timer only redrew old page data.
+- **Fix:** timer retries failed/uninitialized data loads through the existing guarded refresh; closing the page prevents retry.
+- **Test:** test_sports_upcoming_states covers late recovery and closed-page suppression; fresh real desktop scan recovered automatically to 57 games without a Retry tap. Later snapshot contained 61 upcoming games and no confirmed live games.
+
+## Different native Loop providers collapsed into one unknown-quality card
+
+- **Seen:** several unrelated Loop providers appeared as one source because each reported blank quality/language; asynchronous native-plugin failures could not reach synchronous fallback.
+- **Cause:** source merge treated identical missing metadata as proof of the same stream.
+- **Fix:** native Loop records retain separate selectable routes with unique source identities; unknown quality is stated plainly and receives no Best claim. Existing synchronous alts behavior is unchanged.
+- **Test:** test_sports_merge verifies separate choices and identities; test_sports_game verifies readable missing-quality copy. Real desktop game page displayed four separate provider buttons without clipped text. Native plugin dispatch is not proof that a source plays; automatic fallback after asynchronous native failure remains unresolved.

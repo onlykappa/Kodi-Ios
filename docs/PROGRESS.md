@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Sports native Loop cards checkpoint — 2026-11-17
+
+Native Loop catalog discovery now feeds schedule-matched cards; real rig found 43 eligible provider routes and 61 upcoming games. Exact routes dispatch via normal Loop without direct bootstrap Jet import. Failed initial Upcoming loads retry automatically, and distinct native source choices remain selectable when quality is unknown. All 177 workflow commands, affected final reruns and project/UI checks pass. A tapped provider returned HTTP 403; this checkpoint does not claim every provider plays. See [sports progress](SPORTS-PLAYBACK-PROGRESS.md). No IPA generated; continuing rig investigation.
+
 ## Sports playback and opening rig follow-up — 2026-11-16
 
 Build 563: an incomplete source scan repeatedly delayed Leagues/Upcoming; an already available snapshot is now reused and identical merges cached briefly. The playback adapter tries remaining nested candidates and the scraper’s own resolver after resolution failure, and hands Kodi the resolved address, including resolver and extractor headers. All 14 sports suites (189 tests) pass. Desktop Kodi 21.3 displayed both pages with a 300-game synthetic partial snapshot and played a local video after a mocked first resolver failed; four provider calls took 0.281 s versus 0.939 s for four uncached merges. This is synthetic rig evidence; real providers and iPhone behavior need testing. Details and retained failures: [sports progress](SPORTS-PLAYBACK-PROGRESS.md) and [validation](../reports/sports-563-rig-validation.json).

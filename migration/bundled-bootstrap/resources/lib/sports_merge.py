@@ -68,7 +68,10 @@ def game_id(record):
 
 
 def source_id(record):
-    return '%s|%s|%s' % (record.get('addon'), record.get('quality') or '', record.get('language') or '')
+    key = '%s|%s|%s' % (record.get('addon'), record.get('quality') or '', record.get('language') or '')
+    if record.get('separate_source'):
+        key += '|' + hashlib.sha1(str(record.get('play') or '').encode()).hexdigest()[:12]
+    return key
 
 
 def _rank(addon_order, addon):
@@ -79,9 +82,12 @@ def _sources(records, addon_order, language):
     """One source per (picture size, language); best first; tags."""
     groups = {}
     for r in records:
-        groups.setdefault(((r.get('quality') or '').lower(), (r.get('language') or '').lower()), []).append(r)
+        # Native plugin routes resolve asynchronously: keep distinct choices visible
+        # so a failed provider cannot hide every alternative behind one card.
+        choice = r.get('play') if r.get('separate_source') else ''
+        groups.setdefault(((r.get('quality') or '').lower(), (r.get('language') or '').lower(), choice), []).append(r)
     out = []
-    for (quality, lang), members in groups.items():
+    for (quality, lang, choice), members in groups.items():
         members.sort(key=lambda r: _rank(addon_order, r.get('addon')))
         first = members[0]
         also = []
@@ -99,7 +105,7 @@ def _sources(records, addon_order, language):
     want = (language or '').lower()
     out.sort(key=lambda s: (-quality_rank(s['quality']), 0 if (not want or s['language'].lower() in ('', want)) else 1,
                             _rank(addon_order, s['addon']), s['language']))
-    if out:
+    if out and (out[0]['quality'] or not any(r.get('separate_source') for r in records)):
         out[0]['tag'] = 'best'
     if len(out) > 1 and quality_rank(out[1]['quality']) >= GOOD_FROM:
         out[1]['tag'] = 'good'

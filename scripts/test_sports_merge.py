@@ -80,6 +80,15 @@ class Sources(unittest.TestCase):
     def sources(self, *records):
         return mg.merge(list(records), ORDER)[0]['sources']
 
+    def test_async_plugin_choices_remain_separate_and_are_not_ranked_as_known_quality(self):
+        sources=self.sources(rec('Loop A',quality='',language='',play='fixture-a',separate_source=True),
+                             rec('Loop B',quality='',language='',play='fixture-b',separate_source=True),
+                             rec('Loop A',quality='',language='',play='fixture-c',separate_source=True))
+        self.assertEqual(len(sources),3)
+        self.assertEqual(len({s['id'] for s in sources}),3)
+        self.assertFalse(any(s['tag'] for s in sources))
+        self.assertEqual({s['play'] for s in sources},{'fixture-a','fixture-b','fixture-c'})
+
     def test_the_same_stream_in_several_add_ons_is_one_line_naming_the_others(self):
         s = self.sources(rec('Loop TV'), rec('The Loop'), rec('Sports Hub'))
         self.assertEqual(len(s), 1)

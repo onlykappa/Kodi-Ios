@@ -8,7 +8,7 @@ Do not infer complete UI integration or phone success from the playback result.
 
 Keep our existing Sports UI and connect its cards to the same real The Loop plugin routes used on the Deck. Test actual clicks from Live Now, game details, Upcoming and Leagues as applicable, including different games/providers and failure cases. The owner explicitly wants catalog-wide support, not only FawaNews. FawaNews is the verified playback case, not proof for every extractor.
 
-**The card/catalog connection has NOT been implemented.** The last turn only inspected the relevant code before the owner requested this handoff. Do not start over or repeat the completed proxy work.
+**Card/catalog discovery is implemented as a candidate.** Native Loop listings feed schedule-matched cards and preserve exact routes; a real Upcoming card dispatched normal Loop but its source returned HTTP 403. Continue testing different games/providers. Found initial Upcoming scan timeout needs automatic recovery. Do not repeat the completed proxy work.
 
 1. Read AGENTS.md, CLAUDE.md, docs/ISSUES.md, docs/DECISIONS.md (DEC-061), docs/SPORTS-JET-TEST-NOTES.md and docs/SPORTS-PLAYBACK-PROGRESS.md. The older test notes contain superseded findings; preserve history and use the newer progress/evidence for current claims.
 2. Check the remote PR head before editing. Other agents may push. Merge new work; never force-push.
@@ -37,8 +37,8 @@ With those changes, the **normal Loop plugin route** played. Then original proxy
 
 ## Important source files
 
-- `sports_jet.py`: existing collector/data contract and asynchronous play_request -> sports_jet_run -> play_one. TheLoopRoute branch prepares the shared proxy then passes the original plugin route to Player.play. It is currently reachable with prepared test descriptors, not wired to actual card discovery.
-- `sports_loop_routes.py`: route validation, Kodi listing helper, label cleanup and prepare_proxy; no catalog/card adapter yet.
+- `sports_jet.py`: existing collector/data contract and asynchronous play_request -> sports_jet_run -> play_one. TheLoopRoute branch prepares the shared proxy then passes the original plugin route to Player.play. It is now wired to actual card discovery; real UI dispatch verified, source availability varies.
+- `sports_loop_routes.py`: route validation, Kodi listing helper, label cleanup, schedule-matched catalog discovery and prepare_proxy.
 - `sports_loop_proxy_compat.py`: guarded patch for exactly recognized proxy_server.py and manifest_rewriter.py sources. It does not touch config.py or authorization. Rejects unknown revisions, preserves original code backups, is idempotent.
 - `sports_pause.py`: explicit Jet authorization refusal cooldown, six hours across restarts, reset on a new app build. Direct-service refusal remains distinct from normal Loop plugin access.
 - `sports_fawa.py`, `sports_hls_proxy.py`: separate independent FawaNews path. The smaller proxy has its own real-playback evidence and controlled HTTP tests. Do not confuse that test with unchanged Loop proxy playback.

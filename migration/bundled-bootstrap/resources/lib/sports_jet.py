@@ -131,6 +131,9 @@ def state_of(item, start, now):
 
 def descriptor(extractor, link):
     """The opaque play value of one stream: which scraper, and the JetLink as the add-on's own to_dict() wrote it."""
+    import sports_loop_routes
+    if sports_loop_routes.valid_route(getattr(link, 'address', '')):
+        extractor = sports_loop_routes.NAME
     return json.dumps({'e': extractor, 'l': link.to_dict()}, separators=(',', ':'))
 
 
@@ -148,12 +151,13 @@ def records(item, extractor, now):
         joiner = 'at'
     out = []
     for link in links:
-        label = '%s %s' % (getattr(link, 'name', '') or '', getattr(link, 'address', '') if not getattr(link, 'links', False) else '')
+        address = getattr(link, 'address', '')
+        label = '%s %s' % (getattr(link, 'name', '') or '', address if not getattr(link, 'links', False) and not str(address).startswith('plugin://') else '')
         out.append({'addon': extractor, 'league': code, 'league_name': name, 'sport': sport, 'state': state, 'start': start if start is not None else now,
                     'away': {'code': code_of(away), 'name': away, 'score': None},
                     'home': {'code': code_of(home), 'name': home, 'score': None},
                     'joiner': joiner, 'clock': '', 'left': None, 'quality': quality_of(label), 'language': language_of(label),
-                    'play': descriptor(extractor, link)})
+                    'play': descriptor(extractor, link), 'separate_source': str(address).startswith('plugin://plugin.video.the-loop/')})
     return out
 
 
@@ -270,7 +274,8 @@ class JetProvider:
         else:
             import sports_independent
             import sports_fawa
-            extractors, how = [sports_independent.StreamsCenter(), sports_fawa.FawaNews()], 'independent'
+            extractors = [sports_fawa.FawaNews()] if _folder('plugin.video.the-loop') else [sports_independent.StreamsCenter(), sports_fawa.FawaNews()]
+            how = 'Loop routes' if _folder('plugin.video.the-loop') else 'independent'
             discover_jet = True
         done = threading.Event()
         pending = [len(extractors) + int(discover_jet)]
@@ -322,18 +327,24 @@ class JetProvider:
         if discover_jet:
             def discover():
                 try:
-                    try:
-                        home = self._home()
-                        import sports_pause
-                        if sports_pause.Pause(window=home).active():
+                    home = None
+                    if _folder('plugin.video.the-loop'):
+                        import sports_loop_routes
+                        others = sports_loop_routes.discover()
+                        log('jet: %d Loop source routes discovered' % len(others))
+                    else:
+                        try:
+                            home = self._home()
+                            import sports_pause
+                            if sports_pause.Pause(window=home).active():
+                                return
+                        except Exception:
+                            home = None
+                        module, reason = import_jet()
+                        if module is None:
+                            self.reason = 'JetExtractors is not installed (%s)' % reason
                             return
-                    except Exception:
-                        home = None
-                    module, reason = import_jet()
-                    if module is None:
-                        self.reason = 'JetExtractors is not installed (%s)' % reason
-                        return
-                    others, _ = load_extractors(module)
+                        others, _ = load_extractors(module)
                     with self.lock:
                         pending[0] += len(others)
                     for ext in others:
@@ -498,7 +509,7 @@ class JetProvider:
 
     def _games(self, every):
         now = int(self.clock())
-        order = sorted({r['addon'] for r in every})
+        order = sorted({r['addon'] for r in every}, key=lambda name: (not name.startswith('Loop '), name))
         games = sports_merge.merge(every, order)
         live = [g for g in games if g['state'] == 'live']
         upcoming = [g for g in games if g['state'] == 'upcoming' and g['start'] >= now - SOON_BEFORE]

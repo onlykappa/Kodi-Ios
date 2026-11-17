@@ -43,6 +43,12 @@ class Projection(unittest.TestCase):
         self.assertIs(sources[0],self.game['sources'][0])
         self.assertEqual(sources[0]['play'],self.game['sources'][0]['play'])
 
+    def test_unknown_quality_has_readable_copy_without_empty_separator(self):
+        self.game['sources']=self.game['sources'][:1]
+        self.game['sources'][0].update(quality='',language='',also=[],tag='')
+        props,_=game_page.model(self.game,NOW,0)
+        self.assertEqual(props['source.0.detail'],'Quality not reported')
+
     def test_board13_is_empty_not_a_provider_failure(self):
         self.game['sources']=[]
         props,sources=game_page.model(self.game,NOW,0)

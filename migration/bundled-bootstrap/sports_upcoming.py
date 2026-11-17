@@ -108,11 +108,18 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
                 last=clock()
                 while not page_wait.idle(self.stop,monitor,1):
                     if clock()-last >= 30:
-                        with self.lock:
-                            if self.stop.is_set(): return
-                            self.draw()
+                        self.poll()
                         last=clock()
             threading.Thread(target=tick,daemon=True).start()
+
+        def poll(self):
+            # A scan can finish after the first bounded wait. Recover without
+            # requiring a tap; refresh already guards against concurrent fetches.
+            with self.lock:
+                if self.stop.is_set(): return
+                self.draw()
+                retry = self.failed or self.data is None
+            if retry: self.refresh()
 
         def draw(self, error=None):
             if error is not None:self.failed=error
