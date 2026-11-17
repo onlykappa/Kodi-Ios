@@ -94,20 +94,27 @@ def source_entries(page):
     return re.findall(r'\{\s*"id"\s*:\s*"([0-9a-fA-F-]{36})"\s*,\s*"provider"\s*:\s*"([a-zA-Z0-9_-]+)"', page)
 
 
-def resolve(address, get=fetch):
+def resolve(address, get=fetch, note=lambda message: None):
     parts = urlsplit(address)
     match = re.fullmatch(r'/watch/([A-Za-z0-9_-]+)', parts.path)
     if parts.scheme != 'https' or parts.hostname != 'streamcenter.st' or not match:
         raise ValueError('invalid game address')
     _, page = get(address)
     entries = source_entries(page)
+    note('independent: %d embed sources' % len(entries))
     for source_id, provider in entries[:8]:
         url = BASE + '/api/stream-link/' + quote(provider, safe='') + '/' + quote(match.group(1), safe='') + '/' + quote(source_id, safe='')
         referer = address
         try:
-            for _ in range(6):
-                final, body = get(url, referer)
+            for hop in range(6):
+                try:
+                    final, body = get(url, referer)
+                except Exception as error:
+                    status = getattr(error, 'code', None)
+                    note('independent: %s request failed (%s)' % ('playlist' if '.m3u8' in urlsplit(url).path.lower() else 'embed', 'HTTP %d' % status if isinstance(status, int) else type(error).__name__))
+                    break
                 if body.lstrip().startswith('#EXTM3U'):
+                    note('independent: verified HLS playlist')
                     ref = urlsplit(referer)
                     origin = ref.scheme + '://' + ref.netloc if ref.scheme in ('http', 'https') and ref.netloc else BASE
                     return final, {'User-Agent': UA, 'Referer': referer, 'Origin': origin}
@@ -118,7 +125,9 @@ def resolve(address, get=fetch):
                 elif candidates:
                     referer, url = final, html.unescape(candidates[0])
                 else:
+                    note('independent: embed %d has no supported source' % (hop + 1))
                     break
-        except Exception:
+        except Exception as error:
+            note('independent: resolution failed (%s)' % type(error).__name__)
             continue
     raise RuntimeError('no verified HLS stream available')

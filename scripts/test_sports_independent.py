@@ -25,6 +25,16 @@ class Independent(unittest.TestCase):
   address,headers=si.resolve(si.BASE+'/watch/test',get)
   self.assertEqual(address,'https://video.invalid/live.m3u8');self.assertEqual(headers['Referer'],'https://embed.invalid/b');self.assertEqual(headers['Origin'],'https://embed.invalid')
   with self.assertRaises(RuntimeError):si.resolve(si.BASE+'/watch/test',lambda *a:(a[0],'<html>not a video</html>'))
+ def test_logs_playlist_status_without_url_or_token(self):
+  from urllib.error import HTTPError
+  uid='12345678-1234-1234-1234-123456789abc';notes=[]
+  def get(url,referer=si.BASE+'/'):
+   if '/watch/' in url:return url,'{"id":"%s","provider":"one"}'%uid
+   if '/api/' in url:return 'https://embed.invalid/a','https://video.invalid/live.m3u8?secret=private'
+   raise HTTPError(url,403,'Forbidden',None,None)
+  with self.assertRaises(RuntimeError):si.resolve(si.BASE+'/watch/test',get,notes.append)
+  self.assertIn('independent: playlist request failed (HTTP 403)',notes)
+  self.assertNotIn('private',' '.join(notes));self.assertNotIn('video.invalid',' '.join(notes))
  def test_rejects_local_and_bad_game_urls(self):
   for address in ['http://127.0.0.1/x','http://localhost/x','http://[::1]/x','file:///x']:
    self.assertFalse(si.public_url(address))

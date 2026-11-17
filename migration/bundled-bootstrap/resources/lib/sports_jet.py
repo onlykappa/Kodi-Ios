@@ -728,7 +728,7 @@ def play_one(play_value, logger=log):
     value = json.loads(play_value)
     import sports_independent
     if value.get('e') == sports_independent.NAME:
-        address, headers = sports_independent.resolve(value['l']['address'])
+        address, headers = sports_independent.resolve(value['l']['address'], note=logger)
         logger('sports: playing independent source via JetProxy')
         xbmc.Player().play(proxy_path(address, headers))
         return True
