@@ -5851,3 +5851,9 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 - **Fix:** cancel on ambiguous Stop, timeout, unclassified empty queue or generic dialog; only a definite playback-error callback advances the native queue. Some real failed opens that Kodi reports only as Stop now require manual retry.
 - **Retest and limitation:** focused regressions cover stop, timeout, dialog, definite error and replaced request. A desktop Kodi 21.2 slow HTTP fixture initially reached a RuntimeError after the stop and could have triggered another adapter; after fixing the timeout, it returned InterruptedError and did not invoke the second source. Kodi took about 21 seconds to unwind, so immediate stop and iPhone behavior remain unproven.
 - **Diagnostics:** ESPN scheduling and Crew source traversal now log elapsed times and aggregate counts without URLs or headers. The test IPA workflow now preserves older test releases instead of deleting them.
+## ISSUE-368 — Crew live title decorations prevent ESPN matching (2026-11-17)
+
+- **Seen:** a desktop Kodi rig showed an ESPN-live college basketball game in three Crew provider listings, but the collector matched no sources for the observed decorated titles.
+- **Cause:** provider-added live text, a half clock or an Eastern broadcast time became part of a team name or was parsed as a team separator.
+- **Fix:** remove only the observed decorations before comparing both teams against ESPN names and aliases; reject ambiguous games and different teams.
+- **Retest:** with Crew active, a rig collector matched three native routes for the real game. Regression tests cover the observed titles, distinct and ambiguous games, and source collection through direct and nested routes. This does not establish video playback or iPhone behavior. Automatic Crew activation beneath Sports remains open.

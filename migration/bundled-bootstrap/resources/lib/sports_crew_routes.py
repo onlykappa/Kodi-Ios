@@ -79,7 +79,13 @@ def listing(path):
 
 def match_game(text, games):
     """Match both sides only against ESPN's own names/aliases, rejecting ambiguity."""
-    import sports_merge
+    import re, sports_merge
+    # Crew providers add their own live status, clock, and broadcast time
+    # around the matchup. Strip only observed decorations, not team words.
+    text = common.label(text)
+    text = re.sub(r'^NCAA\s+Men\s+LIVE\s+', '', text, flags=re.I)
+    text = re.sub(r'^\d{1,2}:\d{2}\s*-\s*(?:1st|2nd)\s+Half\s+', '', text, flags=re.I)
+    text = re.sub(r'\s+\d{1,2}:\d{2}\s*[AP]M\s+ET\s*$', '', text, flags=re.I)
     pair = common.title_pair(text)
     if not pair:
         return None

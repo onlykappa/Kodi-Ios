@@ -132,6 +132,21 @@ class Tests(unittest.TestCase):
   self.assertIs(crew.match_game('Alpha vs Beta',[game]),game)
   self.assertIsNone(crew.match_game('Alpha vs Beta',[game,dict(game)]))
   self.assertIsNone(crew.match_game('Alpha vs Other',[game]))
+ def test_observed_crew_live_basketball_titles_match_espn(self):
+  game=dict(GAME,away={'name':'Notre Dame Fighting Irish','aliases':['Notre Dame']},home={'name':'Florida Gators','aliases':['Florida']})
+  for title in ['NCAA Men LIVE Florida vs Notre Dame','Florida vs Notre Dame 4:51 PM ET','19:48 - 2nd Half Florida Gators vs Notre Dame Fighting Irish']:
+   with self.subTest(title=title):
+    self.assertIs(crew.match_game(title,[game]),game)
+    self.assertIsNone(crew.match_game(title,[game,dict(game)]))
+  self.assertIsNone(crew.match_game('South Florida vs Notre Dame 4:51 PM ET',[game]))
+ def test_observed_titles_produce_sources_only_for_the_unique_espn_game(self):
+  game=dict(GAME,away={'name':'Notre Dame Fighting Irish','aliases':['Notre Dame']},home={'name':'Florida Gators','aliases':['Florida']})
+  routes={ROOT+'league':[entry('NCAA Men LIVE Florida vs Notre Dame','game'),entry('Florida vs Notre Dame 4:51 PM ET','direct',False),entry('South Florida vs Notre Dame 4:51 PM ET','wrong',False)],ROOT+'game':[entry('Source 1','nested',False)]}
+  ext=crew.CrewSource('NCAAB',ROOT+'league',[game],lambda route:routes[route])
+  items=ext.get_items()
+  self.assertEqual({item.links[0].address for item in items},{ROOT+'direct',ROOT+'nested'})
+  ext.games=[game,dict(game)]
+  self.assertEqual(ext.get_items(),[])
  def test_different_league_or_start_cannot_attach_a_stream(self):
   schedule=dict(GAME,id='fixture',league='NBA',sport='Basketball',sources=[])
   ext=crew.CrewSource('NBA',ROOT+'league',[GAME],lambda path:[entry('Alpha vs Beta','play',False)])

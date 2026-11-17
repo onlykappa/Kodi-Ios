@@ -583,3 +583,6 @@ Authorized scope: Python backend only, stacked on claude/build442-feedback; no m
 4. Notification/season data: backend helpers and progressive coverage (ISSUE-294), UI binding remains separate.
 5. Terminal retry classification and legacy phone failures: backend implemented (ISSUE-295), host validation complete
    before final commit; device retest and the target branch documentation integration remain separate.
+## Sports live matching checkpoint (2026-11-17)
+
+ISSUE-368 fixes observed Crew title decorations blocking uniquely matched ESPN live games; rig discovery found three routes for one real live game. Next: manage Crew context while Sports is open, safe exit and playback handoff, real-stream playback testing, then an owner-authorized iPhone test. Route discovery alone does not prove video playback.
