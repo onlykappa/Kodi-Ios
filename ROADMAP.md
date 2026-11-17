@@ -585,4 +585,4 @@ Authorized scope: Python backend only, stacked on claude/build442-feedback; no m
    before final commit; device retest and the target branch documentation integration remain separate.
 ## Sports live matching checkpoint (2026-11-17)
 
-ISSUE-368 fixes observed Crew title decorations blocking uniquely matched ESPN live games; rig discovery found three routes for one real live game. Next: manage Crew context while Sports is open, safe exit and playback handoff, real-stream playback testing, then an owner-authorized iPhone test. Route discovery alone does not prove video playback.
+ISSUE-368 fixes observed Crew title decorations blocking uniquely matched ESPN live games; rig discovery found three routes for one real live game. ISSUE-369 adds Crew context ownership, cooperative scan exit, navigation restoration and a controlled handoff, tested in the desktop rig. Next: real-stream playback and full source-picker testing, portrait visual review, then an owner-authorized iPhone test. Route discovery alone does not prove video playback.

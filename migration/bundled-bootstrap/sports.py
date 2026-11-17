@@ -111,11 +111,22 @@ def run(args=()):
     class Page(xbmcgui.WindowXMLDialog):
         def onInit(self):
             import live_window
+            if hasattr(self, 'stop') and not self.stop.is_set():
+                return
             self.guard = live_window.Guard(self)   # controls only while this page is open
             self.stop = threading.Event()
             self.last = {}
             self.show(props_updating())
-            self.fetch(False)
+            home = xbmcgui.Window(10000)
+            initial_owner = home.getProperty('KodiIOS.SportsNativeOwner')
+            def watch_handoff():
+                while not self.stop.wait(.1):
+                    owner = home.getProperty('KodiIOS.SportsNativeOwner')
+                    if owner and owner != initial_owner:
+                        self.finish()
+                        return
+            threading.Thread(target=watch_handoff, daemon=True).start()
+            self.fetch(True)
 
         def show(self, props):
             for key, value in props.items():
@@ -157,6 +168,7 @@ def run(args=()):
 
         def finish(self):
             self.stop.set()
+            self.crew_context.cancel()
             self.guard.close()
 
     here = HERE
@@ -167,9 +179,16 @@ def run(args=()):
         # Written while Kodi was running: its directory cache may not list it yet (build 173). Re-read and try once more.
         xbmcvfs.listdir(os.path.join(skin, 'portrait') + '/')
         page = Page(sp.WINDOW, here, 'Default', '1080i')
-    page.doModal()
-    if hasattr(page, 'stop'):
-        page.stop.set()
+    import sports_crew_context
+    page.crew_context = sports_crew_context.Context(xbmcgui.Window(10000), xbmc, xbmcgui)
+    try:
+        page.crew_context.open()
+        page.doModal()
+    finally:
+        if hasattr(page, 'stop'):
+            page.stop.set()
+        if hasattr(page, 'crew_context'):
+            page.crew_context.close()
     del page
 
 

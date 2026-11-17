@@ -55,21 +55,36 @@ def valid_route(value):
         return False
 
 
-def listing(path):
+def listing(path, session=None):
     if not valid_route(path):
         raise ValueError('invalid Crew route')
-    import json, xbmc
+    import json, threading, xbmc
     home = _home()
     if playback_requested():
         return []
     if home:
         home.setProperty(SCAN_BUSY, 'true')
+    stop = threading.Event()
+    if home and session is not None:
+        import sports_crew_context
+        def hide_background_busy():
+            # Crew displays this modal for dynamic lists. It blocks the Sports
+            # dialog even though the request runs in the background. Only hide
+            # it during our own listing, never during native playback handoff.
+            while not stop.wait(.1):
+                if not sports_crew_context.valid(home, session) or home.getProperty(OWNER):
+                    return
+                if (xbmc.getCondVisibility('Window.IsVisible(busydialognocancel)')
+                        and sports_crew_context.valid(home, session) and not home.getProperty(OWNER)):
+                    xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
+        threading.Thread(target=hide_background_busy, daemon=True).start()
     try:
         if playback_requested():
             return []
         reply = json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0', 'id':1, 'method':'Files.GetDirectory',
                            'params':{'directory':path, 'media':'files', 'properties':['title']}})))
     finally:
+        stop.set()
         if home:
             home.clearProperty(SCAN_BUSY)
     if reply.get('error'):
@@ -98,9 +113,10 @@ def match_game(text, games):
 
 
 class CrewSource:
-    def __init__(self, title, route, games, read=listing):
+    def __init__(self, title, route, games, read=listing, session=None):
         self.name = 'Crew ' + common.label(title)
         self.route, self.games, self.read = route, games, read
+        self.session = session
 
     def get_items(self):
         import time
@@ -108,7 +124,9 @@ class CrewSource:
         began = time.monotonic()
         pending, visited, emitted, items = [(self.route, 0, None)], set(), set(), []
         failures = 0
-        while pending and len(visited) < MAX_FOLDERS and not playback_requested():
+        import sports_crew_context
+        home = _home()
+        while pending and len(visited) < MAX_FOLDERS and not playback_requested() and (home is None or sports_crew_context.valid(home, self.session)):
             route, depth, parent_game = pending.pop(0)
             if route in visited or not valid_route(route):
                 continue
@@ -145,7 +163,7 @@ class CrewSource:
         return items
 
 
-def discover(read=listing, schedule=None):
+def discover(read=listing, schedule=None, session=None):
     if schedule is None:
         schedule = globals()['schedule']()
     # ESPN is authoritative for live status. Keep upcoming games in the
@@ -153,6 +171,13 @@ def discover(read=listing, schedule=None):
     live = [game for game in schedule if game.get('state') == 'live']
     if not live:
         return []
+    if session is not None:
+        import sports_crew_context, xbmc
+        home = _home()
+        if home is None or not sports_crew_context.wait_ready(home, session, xbmc):
+            return []
+        if read is listing:
+            read = lambda route: listing(route, session=session)
     entries = read('plugin://' + ADDON + '/?action=bluehat')
     sources, seen = [], set()
     league_codes = {game.get('league') or game.get('league_name') for game in live}
@@ -168,7 +193,7 @@ def discover(read=listing, schedule=None):
             continue
         seen.add(route)
         games = live if action == 'fullsites' else [game for game in live if (game.get('league') or game.get('league_name')) == league_actions[action]]
-        sources.append(CrewSource(entry.get('label') or 'Sports', route, games, read))
+        sources.append(CrewSource(entry.get('label') or 'Sports', route, games, read, session))
     return sorted(sources, key=lambda source: parse_qs(urlsplit(source.route).query).get('action') == ['fullsites'])
 
 AMERICAN_LEAGUES = frozenset(('NFL', 'NBA', 'WNBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'MLS'))

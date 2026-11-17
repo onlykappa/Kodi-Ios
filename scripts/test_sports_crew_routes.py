@@ -9,6 +9,7 @@ import sports_native_routes as native
 import sports_loop_routes as loop
 import sports_loop_router as router
 import sports_jet as jet
+import sports_crew_context as context
 
 ROOT = 'plugin://plugin.video.thecrew/'
 GAME = {'away':{'name':'Alpha'}, 'home':{'name':'Beta'}, 'league_name':'NBA', 'state':'live', 'start':1000}
@@ -211,4 +212,68 @@ class Tests(unittest.TestCase):
    return []
   items=crew.CrewSource('NBA',ROOT+'root',[GAME],read).get_items()
   self.assertEqual(len(items),1)
+ def test_closed_session_stops_the_next_crew_folder(self):
+  props={context.SESSION:'open:fixture'};calls=[]
+  home=NS(getProperty=lambda k:props.get(k,''))
+  def read(route):
+   calls.append(route);props[context.SESSION]='closed:fixture'
+   return [entry('another site','next')]
+  with patch.object(crew,'_home',return_value=home):
+   items=crew.CrewSource('NBA',ROOT+'root',[GAME],read,session='open:fixture').get_items()
+  self.assertEqual(items,[]);self.assertEqual(calls,[ROOT+'root'])
+ def test_new_session_cannot_revive_old_collector(self):
+  home=NS(getProperty=lambda k:'open:new' if k==context.SESSION else '')
+  with patch.object(crew,'_home',return_value=home):
+   self.assertEqual(crew.CrewSource('NBA',ROOT+'root',[GAME],lambda route:self.fail('stale scan opened a folder'),session='open:old').get_items(),[])
+ def test_context_restores_only_its_own_navigation_and_never_during_playback(self):
+  props={};actions=[];state={'crew':False,'playing':False}
+  home=NS(getProperty=lambda k:props.get(k,''),setProperty=lambda k,v:props.__setitem__(k,v))
+  def execute(command,*args):
+   actions.append(command)
+   if command.startswith('ActivateWindow'):state['crew']=True
+  xbmc=NS(getInfoLabel=lambda k:context.ADDON if state['crew'] else '',getCondVisibility=lambda k:True,
+          Player=lambda:NS(isPlayingVideo=lambda:state['playing']),executebuiltin=execute)
+  gui=NS(getCurrentWindowId=lambda:10025)
+  ctx=context.Context(home,xbmc,gui);ctx.open();self.assertTrue(ctx.ready.wait(1))
+  ctx.cancel();self.assertEqual(len(actions),1)
+  ctx.close();self.assertEqual(actions[-1],'Action(Back)')
+  ctx.close();self.assertEqual(actions.count('Action(Back)'),1)
+  state['crew']=False;ctx=context.Context(home,xbmc,gui);ctx.open();self.assertTrue(ctx.ready.wait(1))
+  props[context.OWNER]='playback';ctx.close();self.assertEqual(actions.count('Action(Back)'),1)
+ def test_existing_crew_and_missing_addon_are_not_navigated(self):
+  for already_open,installed in [(True,True),(False,False)]:
+   props={};actions=[]
+   home=NS(getProperty=lambda k:props.get(k,''),setProperty=lambda k,v:props.__setitem__(k,v))
+   xbmc=NS(getInfoLabel=lambda k:context.ADDON if already_open else '',getCondVisibility=lambda k:installed,
+           Player=lambda:NS(isPlayingVideo=lambda:False),executebuiltin=lambda *a:actions.append(a))
+   ctx=context.Context(home,xbmc,NS(getCurrentWindowId=lambda:10025));ctx.open();ctx.close()
+   self.assertEqual(actions,[])
+ def test_play_request_ends_scan_session_before_dispatch(self):
+  props={context.SESSION:'open:fixture'};calls=[]
+  home=NS(getProperty=lambda k:props.get(k,''),setProperty=lambda k,v:props.__setitem__(k,v))
+  def launch(*args):
+   calls.append(args)
+   self.assertEqual(props[context.SESSION],'closed:fixture')
+   self.assertTrue(props[context.OWNER])
+  jet.play_request(source(),lambda message:None,window=home,launch=launch)
+  self.assertEqual(len(calls),1)
+ def test_unready_or_cancelled_context_never_opens_a_crew_directory(self):
+  for current in ['closed:fixture','open:different']:
+   home=NS(getProperty=lambda k:current if k==context.SESSION else '')
+   xbmc=NS(getInfoLabel=lambda k:'',sleep=lambda ms:None)
+   with patch.object(crew,'_home',return_value=home),patch.dict(sys.modules,{'xbmc':xbmc}):
+    self.assertEqual(crew.discover(read=lambda path:self.fail('unexpected Crew listing'),schedule=[GAME],session='open:fixture'),[])
+ def test_only_sports_owned_background_listing_hides_crew_busy_dialog(self):
+  import time
+  for owner in ['', 'playing']:
+   props={context.SESSION:'open:fixture',context.OWNER:owner};calls=[]
+   home=NS(getProperty=lambda k:props.get(k,''),setProperty=lambda k,v:props.__setitem__(k,v),clearProperty=lambda k:props.pop(k,None))
+   def rpc(payload):
+    time.sleep(.25)
+    return json.dumps({'result':{'files':[]}})
+   xbmc=NS(executeJSONRPC=rpc,getCondVisibility=lambda x:True,executebuiltin=lambda x:calls.append(x),Player=lambda:NS(isPlayingVideo=lambda:False))
+   with patch.object(crew,'_home',return_value=home),patch.dict(sys.modules,{'xbmc':xbmc}):
+    self.assertEqual(crew.listing(ROOT+'?action=nba',session='open:fixture'),[])
+   self.assertEqual(bool(calls),not bool(owner))
+   self.assertTrue(all(x=='Dialog.Close(busydialognocancel)' for x in calls))
 if __name__=='__main__':unittest.main()

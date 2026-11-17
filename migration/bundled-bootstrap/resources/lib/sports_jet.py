@@ -233,8 +233,9 @@ def load_extractors(module):
 class JetProvider:
     """The shared contract provider; real pages select Crew-only collection. `loader()` -> (extractors, how) and `clock` are injectable (tests)."""
 
-    def __init__(self, loader=None, clock=time.time, wait=LOAD_SECONDS, remote=False, publish=None, window=None, launch=None, score_loader=None, crew_only=False):
+    def __init__(self, loader=None, clock=time.time, wait=LOAD_SECONDS, remote=False, publish=None, window=None, launch=None, score_loader=None, crew_only=False, crew_session=None):
         self.loader, self.clock, self.wait = loader, clock, wait
+        self.crew_session = crew_session
         self.crew_only = crew_only
         self.remote, self.publish, self.launch = remote, publish, launch   # remote: a page asks the script (run_script) and reads its answer
         self.window = window
@@ -341,7 +342,7 @@ class JetProvider:
                         with self.lock:
                             self.schedule = schedule
                         self._publish(False)
-                        others = sports_crew_routes.discover(schedule=schedule)
+                        others = sports_crew_routes.discover(schedule=schedule, session=self.crew_session)
                         log('jet: %d Crew source routes discovered' % len(others))
                     elif self.crew_only:
                         import sports_crew_routes
@@ -668,8 +669,10 @@ def run_script(args, window=None):
         guard.close()
         log('jet: collection already running; reused')
         return
+    import sports_crew_context
+    session = sports_crew_context.ticket(home)
     try:
-        provider = JetProvider(window=home, crew_only=True, publish=lambda data: home.setProperty(DATA, json.dumps(data, separators=(',', ':'))))
+        provider = JetProvider(window=home, crew_only=True, crew_session=session, publish=lambda data: home.setProperty(DATA, json.dumps(data, separators=(',', ':'))))
         import contextlib
         with (contextlib.nullcontext() if (_folder('plugin.video.thecrew') or _folder('plugin.video.the-loop')) else named_addon()):
             done = provider._start()
@@ -688,6 +691,13 @@ def run_script(args, window=None):
     finally:
         home.clearProperty(RUN)
         guard.close()
+    # A newly opened Sports page can arrive while an old session's last Kodi
+    # directory call is unwinding. Restart once, after releasing the scan lock.
+    current = sports_crew_context.ticket(home)
+    if session is not None and current != session and current and current.startswith(sports_crew_context.OPEN):
+        import sports_crew_routes
+        if not sports_crew_routes.playback_requested():
+            _launch('sports_jet_run')
 
 
 def play_request(source, logger=log, window=None, launch=None):
@@ -699,6 +709,8 @@ def play_request(source, logger=log, window=None, launch=None):
     import uuid, sports_loop_router
     key = uuid.uuid4().hex   # separate payload/ownership even for taps in the same millisecond
     home.setProperty(sports_loop_router.OWNER, key)
+    import sports_crew_context
+    sports_crew_context.cancel_current(home)
     payload = {'play': source.get('play'), 'alts': source.get('alts') or [], 'id': source.get('id'),
                'native_queue': source.get('native_queue') or [], 'native_owner': key}
     home.setProperty(PLAY + key, json.dumps(payload, separators=(',', ':')))
