@@ -243,9 +243,18 @@ class Foreground(drive_stream.DriveStream):
    # that do not make one block) never becomes a block (ISSUE-303 integrity).
    if self.cancelled.is_set() or any(w in str(error) for w in INTEGRITY):raise
    began=time.monotonic()
-   try:result=super()._fetch(item,start,end)
-   except Exception as again:
-    self._trace('block',start//self.block_size,began,error='retry '+describe(again));raise
+   # Preserve the previous retry budget for a server that continues refusing after the split requests. Without this,
+   # stopping the split attempts early also removes up to eight opportunities for an upstream source to recover.
+   fallback_limit=3 if isinstance(error,drive_stream.RangeRefused) else 1
+   for fallback in range(fallback_limit):
+    try:
+     result=super()._fetch(item,start,end);break
+    except drive_stream.RangeRefused as again:
+     if self.cancelled.is_set() or fallback+1==fallback_limit:
+      self._trace('block',start//self.block_size,began,error='retry '+describe(again));raise
+     time.sleep(.25*(fallback+1))
+    except Exception as again:
+     self._trace('block',start//self.block_size,began,error='retry '+describe(again));raise
   self._trace('block',start//self.block_size,began,size=len(result[0]))
   return result
 

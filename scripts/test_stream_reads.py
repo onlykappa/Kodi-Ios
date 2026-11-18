@@ -218,6 +218,18 @@ class Stutter(unittest.TestCase):
         g.calm(30)                     # a later, looser calm never loosens the tighter one
         self.assertEqual(g.calm_places, 2)
 
+    def test_permanent_range_refusal_stops_after_bounded_fallback(self):
+        s = rm.Foreground('https://x.example/E.mkv', open_url=opener)
+        self.addCleanup(s.close)
+        refused = rm.drive_stream.RangeRefused('Drive answered without the asked byte range')
+        with mock.patch.object(s, '_fetch_block', side_effect=refused), \
+             mock.patch.object(rm.drive_stream.DriveStream, '_fetch', side_effect=refused) as fallback, \
+             mock.patch.object(rm.time, 'sleep', lambda _: None):
+            with self.assertRaises(rm.drive_stream.RangeRefused):
+                s._fetch('media', rm.BLOCK, 2 * rm.BLOCK - 1)
+        self.assertEqual(fallback.call_count, 3)
+        self.assertEqual(s.pieces.calm_places, rm.REFUSED_PLACES)
+
 
 class SettleHold(unittest.TestCase):
     def test_the_first_seconds_of_a_video_stay_held_after_the_open_mark_is_cleared(self):
