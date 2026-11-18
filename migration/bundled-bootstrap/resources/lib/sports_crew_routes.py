@@ -55,12 +55,12 @@ def valid_route(value):
         return False
 
 
-def listing(path, session=None):
+def listing(path, session=None, playback=False):
     if not valid_route(path):
         raise ValueError('invalid Crew route')
     import json, threading, xbmc
     home = _home()
-    if playback_requested():
+    if not playback and playback_requested():
         return []
     if home:
         home.setProperty(SCAN_BUSY, 'true')
@@ -79,7 +79,7 @@ def listing(path, session=None):
                     xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
         threading.Thread(target=hide_background_busy, daemon=True).start()
     try:
-        if playback_requested():
+        if not playback and playback_requested():
             return []
         reply = json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0', 'id':1, 'method':'Files.GetDirectory',
                            'params':{'directory':path, 'media':'files', 'properties':['title']}})))
@@ -112,6 +112,68 @@ def match_game(text, games):
     return matches[0] if len(matches) == 1 else None
 
 
+class CrewLink:
+    """Keep native menu provenance: opening another league clears Crew's regex cache."""
+    def __init__(self, address, menu_path, game):
+        self.address, self.name, self.links = address, '', False
+        self.menu_path = menu_path
+        import re
+        provider = menu_path[1]['label'] if len(menu_path) > 1 else ''
+        alias = re.search(r'\(([A-Za-z0-9 _-]{1,16})\)', provider)
+        self.source_name = 'Crew ' + alias.group(1).strip() if alias else ''
+        self.game = {'league':game.get('league') or game.get('league_name'), 'start':game['start'],
+                     'away':{key:game['away'][key] for key in ('name','aliases') if key in game['away']},
+                     'home':{key:game['home'][key] for key in ('name','aliases') if key in game['home']}}
+
+    def to_dict(self):
+        return {'address':self.address, 'menu_path':self.menu_path, 'game':self.game}
+
+
+def refresh_link(link, read=None):
+    """Ask Crew to rebuild the selected menu chain; never write or patch its cache."""
+    route = link.get('address', '')
+    if not valid_route(route):
+        raise ValueError('invalid Crew playback route')
+    path = link.get('menu_path') or []
+    if not path:
+        if '$doregex[' in parse_qs(urlsplit(route).query).get('url', [''])[0]:
+            raise RuntimeError('Crew source needs a fresh menu scan')
+        return route
+    if len(path) > MAX_DEPTH + 1 or not all(isinstance(step, dict) and valid_route(step.get('address')) for step in path):
+        raise ValueError('invalid Crew source ancestry')
+    root = path[0]['address']
+    if parse_qs(urlsplit(root).query).get('action', [''])[0] not in ACTIONS:
+        raise ValueError('invalid Crew sports root')
+    game = link.get('game') or {}
+    if not all(game.get(side, {}).get('name') for side in ('away', 'home')):
+        raise ValueError('Crew source lacks its matched game')
+    home = _home()
+    owner = home.getProperty(OWNER) if home else ''
+    def check_owner():
+        if home and owner and home.getProperty(OWNER) != owner:
+            raise InterruptedError('Crew playback request replaced')
+    def load(address):
+        check_owner()
+        entries = (read or (lambda value: listing(value, playback=True)))(address)
+        check_owner()
+        return entries
+    entries = load(root)
+    for step in path[1:]:
+        folders = [entry for entry in entries if entry.get('filetype') == 'directory' and valid_route(entry.get('file'))]
+        exact = [entry for entry in folders if entry['file'] == step['address']]
+        matches = exact or [entry for entry in folders if common.label(entry.get('title') or entry.get('label')) == step.get('label')]
+        if len(matches) != 1:
+            raise RuntimeError('Crew source folder is no longer uniquely available')
+        entries = load(matches[0]['file'])
+    matches = [entry for entry in entries if entry.get('filetype') != 'directory' and valid_route(entry.get('file'))
+               and match_game(entry.get('title') or entry.get('label') or '', [game])]
+    exact = [entry for entry in matches if entry['file'] == route]
+    matches = exact or matches
+    if len(matches) != 1:
+        raise RuntimeError('Crew game source is no longer uniquely available')
+    return matches[0]['file']
+
+
 class CrewSource:
     def __init__(self, title, route, games, read=listing, session=None):
         self.name = 'Crew ' + common.label(title)
@@ -120,14 +182,13 @@ class CrewSource:
 
     def get_items(self):
         import time
-        from sports_independent import Link
         began = time.monotonic()
-        pending, visited, emitted, items = [(self.route, 0, None)], set(), set(), []
+        pending, visited, emitted, items = [(self.route, 0, None, [{'address':self.route, 'label':self.name}])], set(), set(), []
         failures = 0
         import sports_crew_context
         home = _home()
         while pending and len(visited) < MAX_FOLDERS and not playback_requested() and (home is None or sports_crew_context.valid(home, self.session)):
-            route, depth, parent_game = pending.pop(0)
+            route, depth, parent_game, menu_path = pending.pop(0)
             if route in visited or not valid_route(route):
                 continue
             visited.add(route)
@@ -148,16 +209,16 @@ class CrewSource:
                     # Do not walk a different/ambiguous game under an inherited match.
                     if depth < MAX_DEPTH and (not pair or game):
                         if game is not None:
-                            pending.insert(0, (address, depth + 1, game))
+                            pending.insert(0, (address, depth + 1, game, menu_path + [{'address':address, 'label':title}]))
                         else:
-                            pending.append((address, depth + 1, game))
+                            pending.append((address, depth + 1, game, menu_path + [{'address':address, 'label':title}]))
                     continue
                 if not game or address in emitted:
                     continue
                 emitted.add(address)
                 items.append(SimpleNamespace(title=game['away']['name']+' vs '+game['home']['name'],
                              league=game['league_name'], status='LIVE' if game['state']=='live' else '',
-                             starttime=datetime.fromtimestamp(game['start']), links=[Link(address)]))
+                             starttime=datetime.fromtimestamp(game['start']), links=[CrewLink(address, menu_path, game)]))
         import sports_jet
         sports_jet.log('jet: %s: %d folders, %d unavailable, %d matched streams in %.2fs' % (self.name, len(visited), failures, len(items), time.monotonic() - began))
         return items

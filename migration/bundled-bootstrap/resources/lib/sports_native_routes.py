@@ -22,3 +22,13 @@ def prepare_proxy(addresses=()):
     if any(crew.valid_route(address) for address in addresses):
         crew.wait_for_listing()
     return loop.prepare_proxy() if any(loop.valid_route(address) for address in addresses) else False
+
+
+def prepare_source(source):
+    """Rebuild only the candidate about to open; another root invalidates its cache."""
+    import json
+    value = json.loads(source['play'])
+    address = value['l']['address']
+    if route_kind(address) != value.get('e'):
+        raise ValueError('invalid native source')
+    return crew.refresh_link(value['l']) if value['e'] == crew.NAME else address

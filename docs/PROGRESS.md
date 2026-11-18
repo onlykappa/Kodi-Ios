@@ -1,5 +1,13 @@
 # Persistent progress
 
+## Step 3 resumed from 8806189 — 2026-11-18 (real UI playback proven; validation ongoing)
+
+Remote PR head verified before work; stale local build-568 documentation preserved in a stash. Missing documented rig recreated in a separate preserved profile/container using Kodi 21.2/Python3.13. Forced portrait skin canvas 1080×2090 at 603×1167, with portrait/Font.xml confirmed. Rig-only Home isolation and managed CA trust repair; Crew authorization and source code unchanged. The iPhone remains Kodi21.3/Python3.11 with native rotation/bar; those are not reproduced by this Linux renderer.
+
+Root cause established: Crew create_list clears its entire regex table at every league root. A multi-league scan therefore invalidates earlier saved routes; all three saved choices for one game had missing cache keys. Refreshing Crew's ordinary parent menus restored them and native Crew played 1080p H.264/AAC. Candidate fix stores each route's native menu ancestry and ESPN match, refreshes that chain immediately before playback, and uses only the fresh returned route. Native queues now stage one refreshed candidate at a time; preparing all at once would repeat the invalidation. Unknown/cancelled preparation aborts conservatively.
+
+Real acceptance checkpoint: actual Live Now NHL-filter/source control selected the ESPN-live Buffalo–Philadelphia game; its rebuilt Crew feed opened real 1080p H.264/AAC, speed1, with time advancing through 49s. This follows the actual app controls, not a media fixture or injected game. A second actual Sports route, Ottawa–Winnipeg, reached Crew's normal two-feed picker but its selected feed did not begin video in this run; source availability is not claimed. Portrait Sports/Live Now screenshots captured privately. iPhone cancellation, confirmed-error fallback and playback remain unproven. No IPA, merge or iPhone acceptance claim.
+
 ## Sports opening cancellation and testing build — 2026-11-17
 
 Kodi reports failed opens and user stops with the same pre-AV Stop callback. Ambiguous stops, timeouts and unclassified empty queues now cancel, avoiding an alternate after a user stop; explicit errors can still advance. The tradeoff is that some true failed opens require manual retry. A slow HTTP fixture in desktop Kodi 21.2 opened no second source after Stop, but took about 21 seconds to unwind. ESPN and Crew timing logs use aggregate counts and no source URLs. The owner authorized one testing IPA; build and phone acceptance pending. Prior test releases are preserved.

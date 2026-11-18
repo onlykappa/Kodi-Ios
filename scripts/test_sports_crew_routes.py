@@ -276,4 +276,40 @@ class Tests(unittest.TestCase):
     self.assertEqual(crew.listing(ROOT+'?action=nba',session='open:fixture'),[])
    self.assertEqual(bool(calls),not bool(owner))
    self.assertTrue(all(x=='Dialog.Close(busydialognocancel)' for x in calls))
+ def test_reopens_native_menu_chain_after_another_league_clears_regex_cache(self):
+  old=ROOT+'?action=play&url=%24doregex%5Bmakelist2%5D%7Cregex%3Dold'
+  fresh=ROOT+'?action=play&url=%24doregex%5Bmakelist2%5D%7Cregex%3Dfresh&content=0'
+  root=ROOT+'?action=nba';parent=ROOT+'?action=xdirectory&url=fresh-parent'
+  calls=[]
+  def read(route):
+   calls.append(route)
+   if route==root:return [entry('NBA LIVE (CS)','?action=xdirectory&url=fresh-parent')]
+   if route==parent:return [entry('Alpha vs Beta',fresh.removeprefix(ROOT),False)]
+   self.fail('old cached folder used')
+  link=crew.CrewLink(old,[{'address':root,'label':'Crew NBA'},{'address':ROOT+'?action=xdirectory&url=expired-parent','label':'NBA LIVE (CS)'}],GAME).to_dict()
+  self.assertEqual(crew.refresh_link(link,read),fresh)
+  self.assertEqual(calls,[root,parent]);self.assertEqual(link['address'],old)
+ def test_unresolved_legacy_expression_is_rejected_without_menu_provenance(self):
+  with self.assertRaises(RuntimeError):crew.refresh_link({'address':ROOT+'?action=play&url=%24doregex%5Bmakelist2%5D%7Cregex%3Dmissing'})
+ def test_refresh_refuses_missing_ambiguous_or_wrong_game(self):
+  link=crew.CrewLink(ROOT+'play',[{'address':ROOT+'?action=nba','label':'Crew NBA'}],GAME).to_dict()
+  for rows in [[],[entry('Alpha vs Other','wrong',False)],[entry('Alpha vs Beta','one',False),entry('Beta vs Alpha','two',False)]]:
+   with self.assertRaises(RuntimeError):crew.refresh_link(link,lambda route:rows)
+ def test_refresh_never_calls_another_addon_or_non_sports_root(self):
+  link=crew.CrewLink(ROOT+'play',[{'address':ROOT+'?action=movies','label':'Movies'}],GAME).to_dict()
+  with self.assertRaises(ValueError):crew.refresh_link(link,lambda route:self.fail('unexpected lookup'))
+  link['menu_path'][0]['address']='plugin://another.addon/'
+  with self.assertRaises(ValueError):crew.refresh_link(link,lambda route:self.fail('unexpected lookup'))
+ def test_refresh_stops_when_a_new_play_request_replaces_ownership(self):
+  props={crew.OWNER:'old'};home=NS(getProperty=lambda key:props.get(key,''))
+  link=crew.CrewLink(ROOT+'play',[{'address':ROOT+'?action=nba','label':'NBA'}],GAME).to_dict()
+  def read(route):props[crew.OWNER]='new';return [entry('Alpha vs Beta','play',False)]
+  with patch.object(crew,'_home',return_value=home):
+   with self.assertRaises(InterruptedError):crew.refresh_link(link,read)
+ def test_native_provider_abbreviation_is_preserved_for_distinct_source_labels(self):
+  ext=crew.CrewSource('NHL',ROOT+'?action=nhl',[GAME],lambda route:[entry('NHL LIVE (CS)','provider')] if route.endswith('nhl') else [entry('Alpha vs Beta','play',False)])
+  item=ext.get_items()[0];record=jet.records(item,ext.name,1001)[0]
+  self.assertEqual(record['addon'],'Crew CS')
+  self.assertEqual(json.loads(record['play'])['e'],crew.NAME)
+  self.assertEqual(json.loads(record['play'])['l']['menu_path'][-1]['label'],'NHL LIVE (CS)')
 if __name__=='__main__':unittest.main()

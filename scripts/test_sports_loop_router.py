@@ -69,9 +69,9 @@ class Tests(unittest.TestCase):
   with patch.object(router,'play',side_effect=InterruptedError()),patch.object(sports_jet,'play_one') as played:
    self.assertFalse(sports_jet.play(selected,lambda s:None));played.assert_not_called()
  def exercise(self,ready=False,stopped=False,select=False,all_failed=False,replaced=False,http_error=False):
-  state={'now':0,'entries':[],'clears':0,'stops':0};logs=[];props={}
+  state={'now':0,'entries':[],'clears':0,'stops':0,'prepared':[]};logs=[];props={}
   class Player:
-   def play(self,playlist,**kwargs):state['player']=self;state['advanced']=kwargs.get('startpos',0)>0
+   def play(self,playlist,**kwargs):state['player']=self;state['play_calls']=state.get('play_calls',0)+1;state['advanced']=state['play_calls']>1
    def isPlayingVideo(self):return ready or (http_error and state.get('advanced',False))
    def stop(self):
     if type(self) is Player:state['prior_stops']=state.get('prior_stops',0)+1
@@ -79,7 +79,7 @@ class Tests(unittest.TestCase):
   class Playlist:
    def clear(self):state['clears']+=1;state['entries']=[]
    def add(self,address,item):state['entries'].append(address)
-   def getposition(self):return -1 if all_failed else 1 if ready or (http_error and state.get('advanced',False)) else 0
+   def getposition(self):return -1 if all_failed else 0
    def size(self):return len(state['entries'])
   def sleep(ms):
    state['now']+=ms/1000
@@ -92,32 +92,36 @@ class Tests(unittest.TestCase):
     Monitor=lambda:NS(abortRequested=lambda:state['now']>2 if select else False),getCondVisibility=lambda cond:(select if "selectdialog" in cond else all_failed))
   home=NS(setProperty=lambda k,v:props.__setitem__(k,v),getProperty=lambda k:props.get(k,''),clearProperty=lambda k:props.pop(k,None))
   gui=NS(ListItem=lambda **kw:NS(setProperty=lambda *a:None),Window=lambda ident:home)
-  with patch.dict(sys.modules,{'xbmcgui':gui}),patch.object(router.routes,'prepare_proxy'):
+  original_prepare=router.routes.prepare_source
+  def prepare(candidate):
+   state['prepared'].append(candidate['play']);return original_prepare(candidate)
+  with patch.dict(sys.modules,{'xbmcgui':gui}),patch.object(router.routes,'prepare_proxy'),patch.object(router.routes,'prepare_source',side_effect=prepare):
    try:result=router.play([source(path='token-private'),source(path='second'),source(path='second')],logs.append,backend,lambda:state['now'],timeout=.6)
    except Exception as error:result=error
-  self.assertEqual(state['clears'],1 if replaced else 2)
+  self.assertEqual(state['clears'],1 if replaced else 3 if http_error else 2)
   self.assertNotIn('token-private',' '.join(logs))
   return result,state,logs
  def test_native_success_clears_future_sources_without_stopping_video(self):
   result,state,logs=self.exercise(ready=True)
-  self.assertTrue(result);self.assertEqual(state['stops'],0)
+  self.assertTrue(result);self.assertEqual(state['stops'],0);self.assertEqual(len(state['prepared']),1)
   self.assertIn('sports: playing (native addon queue)',logs)
-  self.assertEqual(sum('a source failed' in line for line in logs),1)
+  self.assertEqual(sum('a source failed' in line for line in logs),0)
  def test_media_http_error_after_resolution_advances_to_the_next_choice(self):
   result,state,logs=self.exercise(http_error=True)
   self.assertTrue(result)
+  self.assertEqual(len(state['prepared']),2)
   self.assertTrue(state['advanced']);self.assertEqual(state['error_dialog_closed'],'Dialog.Close(okdialog)')
   self.assertEqual(sum('media open failed' in line for line in logs),1)
  def test_timeout_cancels_queue(self):
   result,state,_=self.exercise()
-  self.assertIsInstance(result,InterruptedError);self.assertEqual(state['stops'],1)
+  self.assertIsInstance(result,InterruptedError);self.assertEqual(state['stops'],1);self.assertEqual(len(state['prepared']),1)
  def test_native_all_failed_dialog_finishes_without_waiting_for_timeout(self):
   result,state,_=self.exercise(all_failed=True)
   self.assertIsInstance(result,InterruptedError)
   self.assertIn('dialog',str(result));self.assertLess(state['now'],.6)
  def test_new_request_does_not_clear_or_stop_the_new_player(self):
   result,state,_=self.exercise(replaced=True)
-  self.assertIsInstance(result,InterruptedError);self.assertEqual(state['stops'],0)
+  self.assertIsInstance(result,InterruptedError);self.assertEqual(state['stops'],0);self.assertEqual(len(state['prepared']),1)
  def test_stop_before_av_cancels_without_opening_another_source(self):
   result,state,logs=self.exercise(stopped=True)
   self.assertIsInstance(result,InterruptedError)

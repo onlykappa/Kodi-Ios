@@ -40,10 +40,10 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
         address = native_route(source)
         if address and address not in seen:
             seen.add(address)
-            choices.append((address, source.get('addon') or 'Sports'))
+            choices.append((address, source.get('addon') or 'Sports', source))
     if not choices:
         raise ValueError('no native addon routes')
-    routes.prepare_proxy([address for address, _ in choices])
+    routes.prepare_proxy([choice[0] for choice in choices])
 
     class Observer(backend.Player):
         ready = False
@@ -78,8 +78,19 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
     backend.sleep(100)
     playlist = backend.PlayList(backend.PLAYLIST_VIDEO)
     playlist.clear()
-    for address, name in choices:
-        item = xbmcgui.ListItem(label=name)
+    def stage(index):
+        # Crew clears its resolver cache on a league menu. Preparing every
+        # candidate up front would invalidate earlier candidates again.
+        if not owns_queue():
+            raise InterruptedError('a newer play request replaced this queue')
+        try:
+            address = routes.prepare_source(choices[index][2])
+        except (ValueError, RuntimeError) as error:
+            logger('sports: native source preparation ended (%s)' % type(error).__name__)
+            raise InterruptedError('native source preparation incomplete') from error
+        if not owns_queue():
+            raise InterruptedError('a newer play request replaced this queue')
+        item = xbmcgui.ListItem(label=choices[index][1])
         item.setProperty('IsPlayable', 'true')
         playlist.add(address, item)
     player = Observer()
@@ -88,6 +99,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
     began, previous, failed_through = clock(), clock(), -1
     current_index = 0
     try:
+        stage(0)
         player.play(playlist)
         while not monitor.abortRequested():
             backend.sleep(200)  # permits native Player callbacks on the script thread
@@ -107,7 +119,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                 logger('sports: native opening stopped; queue cancelled')
                 raise InterruptedError('native opening stopped')
             if player.failed and not player.ready:
-                current = max(current_index, 0, position)
+                current = current_index
                 for n in range(failed_through + 1, current + 1):
                     logger('jet: a source failed (native media open failed, choice %d)' % (n + 1))
                     failed_through = n
@@ -119,13 +131,9 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                     raise RuntimeError('native queue exhausted')
                 player.failed = player.stopped = player.started = False
                 current_index = current + 1
-                if playlist.size() != len(choices):
-                    playlist.clear()
-                    for address, name in choices:
-                        item = xbmcgui.ListItem(label=name)
-                        item.setProperty('IsPlayable','true')
-                        playlist.add(address,item)
-                player.play(playlist, startpos=current_index)
+                playlist.clear()
+                stage(current_index)
+                player.play(playlist, startpos=0)
                 continue
             if position < 0 and not player.isPlayingVideo():
                 if backend.getCondVisibility('Window.IsActive(okdialog)'):
@@ -133,9 +141,6 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                 if now - began > 1 and not backend.getCondVisibility('Window.IsActive(progressdialog)') and not backend.getCondVisibility('Window.IsActive(selectdialog)'):
                     logger('sports: native opening ended without a confirmed error; queue cancelled')
                     raise InterruptedError('native opening ended')
-            for n in range(failed_through + 1, max(0, position)):
-                logger('jet: a source failed (native open failed, choice %d)' % (n + 1))
-                failed_through = n
             if player.ready and player.isPlayingVideo():
                 logger('sports: playing (native addon queue)')
                 return True

@@ -153,7 +153,7 @@ def records(item, extractor, now):
     for link in links:
         address = getattr(link, 'address', '')
         label = '%s %s' % (getattr(link, 'name', '') or '', address if not getattr(link, 'links', False) and not str(address).startswith('plugin://') else '')
-        out.append({'addon': extractor, 'league': code, 'league_name': name, 'sport': sport, 'state': state, 'start': start if start is not None else now,
+        out.append({'addon': (getattr(link, 'source_name', '') or extractor) if str(address).startswith('plugin://plugin.video.thecrew/') else extractor, 'league': code, 'league_name': name, 'sport': sport, 'state': state, 'start': start if start is not None else now,
                     'away': {'code': code_of(away), 'name': away, 'score': None},
                     'home': {'code': code_of(home), 'name': home, 'score': None},
                     'joiner': joiner, 'clock': '', 'left': None, 'quality': quality_of(label), 'language': language_of(label),
@@ -874,6 +874,12 @@ def play_one(play_value, logger=log):
         if sports_native_routes.route_kind(route) != value['e']:
             raise ValueError('invalid native playback route')
         sports_native_routes.prepare_proxy([route])
+        if value['e'] == 'TheCrewRoute':
+            import sports_crew_routes
+            try:
+                route = sports_crew_routes.refresh_link(value['l'])
+            except RuntimeError as error:
+                raise InterruptedError('Crew source refresh incomplete') from error
         logger('sports: opening via %s' % ('The Crew' if value['e'] == 'TheCrewRoute' else 'The Loop'))
         xbmc.Player().play(route)
         return True
