@@ -29,7 +29,7 @@ permissions:
 jobs:
   inspect-existing-candidate:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: macos-15
+    runs-on: macos-14
     permissions:
       actions: read
       contents: read
