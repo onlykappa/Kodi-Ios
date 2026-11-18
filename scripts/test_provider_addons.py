@@ -57,6 +57,25 @@ class Packaging(unittest.TestCase):
   spec=self.spec('plugin.fixture',data,remove_services=True);lock=self.inputs_for([spec],{'plugin.fixture':data});receipt=providers.install(self.inputs,self.addons,self.boot,lock)
   xml=ET.parse(self.addons/'plugin.fixture/addon.xml').getroot();self.assertIsNone(xml.find("extension[@point='xbmc.service']"));self.assertIsNotNone(xml.find("extension[@point='xbmc.python.pluginsource']"))
   self.assertEqual(receipt['patches'][0]['before_sha256'],providers.digest(providers.members(data,'plugin.fixture/')['addon.xml']))
+ def test_required_service_restored_on_reused_verified_provider(self):
+  service='<extension point="xbmc.service" library="service.py"/>'
+  data=archive('plugin.fixture',extensions=service,files={'service.py':'# upstream service\n'})
+  spec=self.spec('plugin.fixture',data,required_services=['service.py']);lock=self.inputs_for([spec],{'plugin.fixture':data})
+  dest=self.addons/'plugin.fixture';dest.mkdir(parents=True)
+  (dest/'addon.xml').write_text('<addon id="plugin.fixture" version="1.0.0"><requires/></addon>')
+  (dest/'service.py').write_text('# upstream service\n')
+  receipt=providers.install(self.inputs,self.addons,self.boot,lock)
+  self.assertEqual(ET.parse(dest/'addon.xml').getroot().find("extension[@point='xbmc.service']").get('library'),'service.py')
+  self.assertEqual(receipt['patches'][0]['changes'],['restored required upstream service'])
+  receipt=providers.install(self.inputs,self.addons,self.boot,lock)
+  self.assertEqual(receipt['patches'],[])
+ def test_required_service_rejects_unknown_reused_launcher(self):
+  data=archive('plugin.fixture',extensions='<extension point="xbmc.service" library="service.py"/>',files={'service.py':'# upstream service\n'})
+  spec=self.spec('plugin.fixture',data,required_services=['service.py']);lock=self.inputs_for([spec],{'plugin.fixture':data})
+  dest=self.addons/'plugin.fixture';dest.mkdir(parents=True)
+  (dest/'addon.xml').write_text('<addon id="plugin.fixture" version="1.0.0"><requires/></addon>')
+  (dest/'service.py').write_text('# unknown service\n')
+  with self.assertRaisesRegex(ValueError,'differs from pinned source'):providers.install(self.inputs,self.addons,self.boot,lock)
  def test_unused_crew_dependencies_removed_and_source_exclusions_recorded(self):
   data=archive('plugin.fixture',requires='<import addon="script.module.resolveurl.xxx"/><import addon="script.thecrew.artwork"/>',files={'LICENSE':'license','lib/adult/unused.py':'pass','lib/source.py':'pass'})
   spec=self.spec('plugin.fixture',data,remove_requires=['script.module.resolveurl.xxx','script.thecrew.artwork'],exclude_prefixes=['lib/adult/'])
@@ -126,7 +145,8 @@ class ReviewedLock(unittest.TestCase):
   self.assertNotIn('script.module.resolveurl.xxx',specs);self.assertIn('script.thecrew.artwork',specs)
   self.assertIn('script.module.resolveurl.xxx',specs['script.module.thecrew']['remove_requires'])
   self.assertNotIn('script.thecrew.artwork',specs['plugin.video.thecrew']['remove_requires'])
-  self.assertTrue(all(s.get('remove_services') for s in lock['packages'] if s['id'] in lock['roots'] and s['id'].startswith('plugin.video.')))
+  crew=specs['plugin.video.thecrew'];self.assertFalse(crew['remove_services']);self.assertEqual(crew['required_services'],['service.py'])
+  self.assertTrue(all(s.get('remove_services') for s in lock['packages'] if s['id'] in lock['roots'] and s['id'].startswith('plugin.video.') and s['id']!='plugin.video.thecrew'))
 
 class SportsLock(unittest.TestCase):
     def test_the_loop_family_is_fetched_live_by_kodi_not_unzipped_in_place(self):

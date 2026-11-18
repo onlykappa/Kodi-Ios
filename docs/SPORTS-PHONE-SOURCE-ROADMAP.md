@@ -145,3 +145,9 @@ Keep raw logs, stream URLs, headers, cookies, provider configuration, account
 data and screenshots outside Git and PR text. Do not merge or publish an IPA
 without a new explicit request. Do not implement anything in the roadmap-only
 turn; this file defines the next coding task when the owner assigns it.
+
+## Implementation checkpoint — 2026-11-18
+
+The owner subsequently authorized implementation. ISSUE-373 restores Crew's verified upstream service, including on an exact pinned reused installation; the isolated Kodi rig showed the segment proxy accepting local connections. The full upstream service has its own background workers and may fetch its proxy module remotely. ISSUE-374 refreshes genuine Crew menu ancestors when the serial scheduler switches leagues. A real rig comparison reproduced a stale NBA folder after visiting NHL and recovered five entries by reopening NBA; candidate NCAAB traversal had no unavailable folders versus 16 before, but parent refresh adds substantial latency. See `docs/SPORTS-PLAYBACK-PROGRESS.md` for the measured limits. These checks do not establish iPhone compatibility or real-source playback.
+
+The owner also supplied an AirPlay log: ISSUE-375 records repeated copied-audio empty segments, receiver HTTP 500 errors and stall recovery; the underlying timestamp/segment cause is not yet established. Continue the on-demand game action, safe fallback, real Sports UI playback and portrait rig work above. Do not build or publish an IPA without new authorization.

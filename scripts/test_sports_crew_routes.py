@@ -32,6 +32,45 @@ class Tests(unittest.TestCase):
   next(batches)
   self.assertEqual(calls[-1],ROOT+'next')
 
+ def test_round_robin_refreshes_stale_provider_folders_after_another_league(self):
+  from urllib.parse import parse_qs,urlsplit
+  serial={'generation':0,'active':None};calls=[]
+  def read(route):
+   q=parse_qs(urlsplit(route).query);action=q.get('action',[''])[0];calls.append(action)
+   if action in ('nba','nhl'):
+    serial['generation']+=1;serial['active']=action
+    return [entry(action.upper()+' LIVE (CS)','?action=xdirectory&url='+action+str(serial['generation']))]
+   token=q.get('url',[''])[0]
+   if token!=serial['active']+str(serial['generation']):raise RuntimeError('stale regex cache')
+   return [entry('Alpha vs Beta','?action=play&url='+token,False)]
+  live_nba=dict(GAME,league='NBA');live_nhl=dict(GAME,league='NHL',league_name='NHL')
+  def roots(path):return [entry('NBA','?action=nba'),entry('NHL','?action=nhl')]
+  categories=crew.discover(roots,schedule=[live_nba,live_nhl])
+  for ext in categories:ext.read=read
+  iters=[iter(ext.batches()) for ext in categories]
+  self.assertTrue(all(next(it)==[] for it in iters))
+  self.assertEqual([len(next(it)) for it in iters],[1,1])
+ def test_refreshing_discovery_ancestors_rejects_ambiguous_folder(self):
+  root=ROOT+'?action=nba';old=ROOT+'?action=xdirectory&url=old';calls=[]
+  state={'owner':'another'}
+  def read(route):
+   calls.append(route)
+   if len(calls)==1:return [entry('NBA LIVE (CS)','?action=xdirectory&url=old')]
+   return [entry('NBA LIVE (CS)','?action=xdirectory&url=one'),entry('NBA LIVE (CS)','?action=xdirectory&url=two')]
+  ext=crew.CrewSource('NBA',root,[GAME],read,cache_state=state);b=ext.batches();next(b)
+  state['owner']='another';self.assertEqual(next(b),[])
+  self.assertEqual(calls,[root,root]);self.assertNotIn(old,calls)
+ def test_cancel_during_discovery_ancestor_refresh_stops_before_child(self):
+  props={context.SESSION:'open:fixture'};home=NS(getProperty=lambda k:props.get(k,''));calls=[]
+  root=ROOT+'?action=nba';state={'owner':'another'}
+  def read(route):
+   calls.append(route)
+   if len(calls)==2:props[context.SESSION]='closed:fixture'
+   return [entry('NBA LIVE (CS)','?action=xdirectory&url=provider')]
+  with patch.object(crew,'_home',return_value=home):
+   b=crew.CrewSource('NBA',root,[GAME],read,session='open:fixture',cache_state=state).batches();next(b);state['owner']='another';next(b)
+  self.assertEqual(calls,[root,root])
+
  def test_crew_categories_rotate_and_publish_before_first_finishes(self):
   order=[]; snapshots=[]
   class Batched:

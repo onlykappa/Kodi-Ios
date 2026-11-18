@@ -601,3 +601,7 @@ Retain ESPN event ids, start times, state, scores and clock even when a source i
 ## DEC-063: ESPN live and upcoming, Crew discovery only for live games (2026-11-17)
 
 Owner confirms ESPN supplies both live and upcoming games; search Crew for sources only after ESPN marks a game live. Keep the American league scope and unique matching of DEC-062, preserve upcoming games even without sources, and do not claim a live broadcast has played from menu-only logs. Reuse a fresh schedule across navigation; explicit refresh forces a check. Crew's native menus do not expose a direct game lookup, so scan relevant live leagues and the shared live-sites route. No IPA or merge authorized.
+
+## DEC-064: Preserve Crew's supported Kodi service (2026-11-18)
+
+The owner requested investigation and repair of Crew's missing segment proxy using its supported behavior. This is a narrow exception to DEC-058's general removal of new add-on services: retain Crew's pinned upstream `service.py` declaration and launcher. For a reused Crew add-on, restore the declaration only when the exact pinned version and launcher bytes match; otherwise fail packaging instead of changing an unknown installation. The upstream service also runs Crew background workers and can fetch its proxy module from Crew's remote source; this is upstream behavior and is not proof of phone compatibility. Other provider services remain disabled by the existing policy. In the isolated Kodi rig, Kodi started the genuine declared service and its local proxy accepted connections. No IPA or merge is authorized.
