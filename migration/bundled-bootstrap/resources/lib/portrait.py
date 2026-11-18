@@ -1892,7 +1892,7 @@ def first_feed_publisher(info,log,clock,timeout=60,started=None):
 
 def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{},log=None):
  """Continue Watching: save the position of what the chooser started, and drop it once finished."""
- state={'playing':False,'saved':float('-inf'),'position':0,'total':0,'started':0,'seed':0,'remote':False,'handoff':False}
+ state={'playing':False,'saved':float('-inf'),'position':0,'total':0,'started':0,'seed':0,'remote':False,'handoff':False,'remote_file':'','generation':None}
  # ISSUE-299 (owner, build 442: "continue watching is only tracking the downloaded things"): one line per playback
  # says which title the row will follow, or that nothing was recorded for it (then the row cannot show it).
  def say(text):
@@ -1915,7 +1915,25 @@ def progress_tracker(player,continue_module,read,write,clock,every=10,external=l
           'continue watching: nothing recorded for this video (not started through the watch menu)')
      except (AttributeError,ValueError,TypeError):pass
     position,total=(remote.get('position',0),remote.get('duration',0)) if on_tv else (player.getTime(),player.getTotalTime())
-    if state['remote'] and not on_tv:state.update(seed=state['position'],started=now,handoff=True)
+    if on_tv and not state['remote']:
+     try:state['remote_file']=player.getPlayingFile()
+     except Exception:state['remote_file']=''
+     state['generation']=remote.get('generation')
+    # During a stalled item replacement AVPlayer can temporarily report zero for minutes. Keep the last known
+    # position until the item is ready; a deliberate rewind on a ready player still updates normally.
+    if on_tv and remote.get('buffer_empty') and remote.get('item_status')==0 and position<5 and state['position']>=5:
+     position,total=state['position'],state['total']
+    if state['remote'] and not on_tv:
+     # The native closed log can report zero after a stalled reload. Use the last valid sample only for the same
+     # owned session and the same Kodi file; never seek a replacement video or react to a stale active sample.
+     if (not remote.get('active') and remote.get('generation') and remote.get('generation')==state['generation']
+         and remote.get('sample_age_s',0)<=15 and state['remote_file'] and player.isPlayingVideo()):
+      try:
+       if player.getPlayingFile()==state['remote_file']:
+        import airplay
+        airplay.back_to_kodi(state['position'],player=player,log=say)
+      except Exception:pass
+     state.update(seed=state['position'],started=now,handoff=True)
     state['remote']=on_tv
     if state['handoff'] and not on_tv:
      if abs(position-state['seed'])>10 and now-state['started']<20:return

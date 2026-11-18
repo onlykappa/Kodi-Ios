@@ -100,6 +100,21 @@ class Progress(unittest.TestCase):
   tick();now[0]=11;remote['position']=1800;tick();self.assertEqual(store.update.call_args.args[-2:],(1800,8800))
   now[0]=12;remote['active']=0;tick();self.assertEqual(store.update.call_args.args[-2:],(1800,8800))
   now[0]=22;player.getTime.return_value=1801;tick();self.assertEqual(store.update.call_args.args[-2:],(1801,8800))
+ def test_stalled_reload_zero_keeps_last_tv_position_and_returns_it_to_same_video(self):
+  store=Mock();store.load.return_value={'items':{'x':{'position':120,'total':8800}},'current':'x'}
+  player=Mock();player.isPlayingVideo.return_value=True;player.getTime.return_value=120;player.getTotalTime.return_value=8800;player.getPlayingFile.return_value='fixture-a'
+  remote=dict(active=1,state=1,generation=4,position=947,duration=8800,sample_age_s=0,item_status=1,buffer_empty=0);now=[0]
+  tick=portrait.progress_tracker(player,store,None,None,lambda:now[0],external=lambda:remote)
+  tick();now[0]=31;remote.update(position=0,item_status=0,buffer_empty=1);tick()
+  self.assertEqual(store.update.call_args.args[-2:],(947,8800))
+  now[0]=32;remote.update(active=0,state=0);tick();player.seekTime.assert_called_once_with(947)
+ def test_remote_rewind_is_saved_and_replacement_video_is_not_seeked(self):
+  store=Mock();store.load.return_value={'items':{'x':{'position':100,'total':8800}},'current':'x'}
+  player=Mock();player.isPlayingVideo.return_value=True;player.getTime.return_value=100;player.getTotalTime.return_value=8800;player.getPlayingFile.return_value='fixture-a'
+  remote=dict(active=1,state=1,generation=4,position=500,duration=8800,sample_age_s=0,item_status=1,buffer_empty=0);now=[0]
+  tick=portrait.progress_tracker(player,store,None,None,lambda:now[0],external=lambda:remote)
+  tick();now[0]=11;remote['position']=50;tick();self.assertEqual(store.update.call_args.args[-2:],(50,8800))
+  player.getPlayingFile.return_value='fixture-b';remote.update(active=0,state=0);tick();player.seekTime.assert_not_called()
  def test_idle_downloaded_movie_page_refreshes_after_progress_changes(self):
   route=page.page_url({'type':'movie'});states=[('',False,0),(route,False,1),(route,True,1),(route,False,2),(route,False,2)]
   i=[-1];refresh=[]
