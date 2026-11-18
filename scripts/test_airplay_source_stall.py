@@ -10,6 +10,11 @@ TEST=(ROOT/'migration/airplay-ios/remux/tests/test_remux.c').read_text()
 SERVER=(ROOT/'migration/airplay-ios/remux/tests/range_server.py').read_text()
 
 class QuietConnection(unittest.TestCase):
+ def test_compat_replacement_also_waits_before_playing(self):
+  objc=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  section=objc[objc.index('watchPlayback(player,next,generation);'):objc.index('externalTicks = 0; video0')]
+  self.assertNotIn('[player play];',section)
+  self.assertIn('initialSeekAllowed = NO; recoveryDeadline = ticks + 30;',section)
  def test_a_quiet_read_is_cut_and_retried(self):
   self.assertLessEqual(int(re.search(r'#define STALL_SECONDS (\d+)',SRC).group(1)),5)
   self.assertIn('else if(now-s->progress_ns>(int64_t)STALL_SECONDS*1000000000LL){s->stalled=1;return 1;}',SRC)

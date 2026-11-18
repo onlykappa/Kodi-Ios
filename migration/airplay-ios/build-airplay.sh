@@ -620,11 +620,13 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                             player = fresh;
                             airplayController.player = fresh;
                         }
+                        [player pause];
                         watchPlayback(player,next,generation);
                         [player replaceCurrentItemWithPlayerItem:next];
                         airplayHolder.ticket=restartTicket;
                         kr_remux_player(restartTicket,tvRoute(player));
-                        [player play];
+                        // Same recovery contract as a stall reload: ready, owned seek, then play.
+                        initialSeekAllowed = NO; recoveryDeadline = ticks + 30;
                         resumeAt = at; errorsSeen = 0; waiting = 0; warned = NO;
                         externalTicks = 0; video0 = kr_remux_served(1); audio0 = kr_remux_served(0);
                         setNote(nil);

@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Step 2 compatibility recovery follow-up — 2026-11-18
+
+Found another premature-play path in compatibility conversion replacement. Candidate now pauses before replacement and uses the shared readiness/owned-seek/deadline path before playing, with initial-seek suppression. Eight stall source-wiring checks and shell syntax pass; these do not execute AVPlayer. This source differs from the previously inspected95bb0d2 artifact and needs new native compilation/inspection before publication. User-pause intent and actual receiver behavior remain unproven; step2 is not complete.
+
 ## AirPlay step 2 review — 2026-11-18
 
 Reviewed ready/seek/deadline and cancellation/replacement wiring; timeout deactivates playback so late completion is rejected. Seven stall wiring tests and22 local-history tests pass; these are not AVPlayer execution. Concrete remaining gap: user-pause intent is not separately tracked from recovery's programmatic pause, and owned successful completion calls play. A rate check alone cannot resolve that ambiguity. Actual AVPlayer readiness/seek/pause tests require an Apple runtime; Linux fixtures cannot prove external-receiver behavior. No runtime change or publication. Step2 remains incomplete pending meaningful native behavioral tests and pause-intent design.
