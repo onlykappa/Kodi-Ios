@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Owner-authorized testing IPA 575 — 2026-11-18
+
+Published build 575 from `63b4434013d947e6e45973b4f17908331329e4a4` after successful full import-review workflow 44220815857. Downloaded the 588,958,897-byte IPA and verified ZIP CRC, embedded build/commit identity, and six exact Sports UI/native routing source files. SHA256: `bb0927b28faabd51753b1b8f493e5a2304ed9900094b873239bfc98d9c463d18`. Release: https://github.com/onlykappa/Kodi-Ios/releases/tag/build-575. PR #43 remains draft and unmerged. Phone acceptance pending: open Library > Sports > Live Now, tap a live game's Crew source, select any native feed, and export kodi.log including `Kodi iOS Sports:` events. Test another source if the first fails and cancel an opening to check it does not restart unexpectedly. Real automatic best-pick/cancellation/fallback coverage remains incomplete; one real Sports-selected broadcast played in the desktop rig.
+
 ## Step 3 resumed from 8806189 — 2026-11-18 (real UI playback proven; validation ongoing)
 
 Remote PR head verified before work; stale local build-568 documentation preserved in a stash. Missing documented rig recreated in a separate preserved profile/container using Kodi 21.2/Python3.13. Forced portrait skin canvas 1080×2090 at 603×1167, with portrait/Font.xml confirmed. Rig-only Home isolation and managed CA trust repair; Crew authorization and source code unchanged. The iPhone remains Kodi21.3/Python3.11 with native rotation/bar; those are not reproduced by this Linux renderer.
