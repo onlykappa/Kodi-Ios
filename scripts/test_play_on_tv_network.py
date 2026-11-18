@@ -485,6 +485,20 @@ class AfterAirPlay(unittest.TestCase):
   class Idle(Player):
    def isPlayingVideo(self):return False
   self.assertFalse(airplay.back_to_kodi(300,Idle(),log=lambda m:None))
+ def test_late_close_only_seeks_original_kodi_file(self):
+  window=Window();seen=[]
+  class Player:
+   path='fixture-a'
+   def isPlayingVideo(self):return True
+   def getPlayingFile(self):return self.path
+   def seekTime(self,t):seen.append(t)
+  player=Player();airplay.remember_kodi(window,player)
+  self.assertNotIn('fixture-a',str(window.props))
+  player.path='fixture-b';self.assertFalse(airplay.return_to_original(300,window,player,log=lambda _:None))
+  self.assertEqual(seen,[])
+  player.path='fixture-a';airplay.remember_kodi(window,player)
+  self.assertTrue(airplay.return_to_original(300,window,player,log=lambda _:None));self.assertEqual(seen,[300])
+  self.assertFalse(airplay.return_to_original(400,window,player,log=lambda _:None))
  def test_the_tv_starts_where_kodi_is(self):
   text=(BOOT/'cast.py').read_text()
   self.assertLess(text.index('lib.kodi_airplay_start_at(float(player.getTime()))'),text.index("lib.kodi_airplay_play(source.encode('utf-8')"))

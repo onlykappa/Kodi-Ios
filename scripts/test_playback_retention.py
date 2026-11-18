@@ -115,6 +115,36 @@ class Progress(unittest.TestCase):
   tick=portrait.progress_tracker(player,store,None,None,lambda:now[0],external=lambda:remote)
   tick();now[0]=11;remote['position']=50;tick();self.assertEqual(store.update.call_args.args[-2:],(50,8800))
   player.getPlayingFile.return_value='fixture-b';remote.update(active=0,state=0);tick();player.seekTime.assert_not_called()
+ def test_final_snapshot_is_saved_before_handoff_and_completed_movie_is_marked(self):
+  files={history.STORE:json.dumps({'items':{'movie:1::':{'kind':'movie','tmdb_id':'1','title':'Movie','position':100,'total':1000,'download_path':'/fixture/movie.mkv'}},'current':'movie:1::'})}
+  read=lambda p:files[p];write=lambda p,v:files.__setitem__(p,v);now=[0]
+  player=Mock();player.isPlayingVideo.return_value=True;player.getTime.return_value=100;player.getTotalTime.return_value=1000;player.getPlayingFile.return_value='fixture-a'
+  remote=dict(active=1,state=1,generation=4,position=800,duration=1000,sample_age_s=0,item_status=1,buffer_empty=0)
+  tick=portrait.progress_tracker(player,history,read,write,lambda:now[0],external=lambda:remote)
+  tick();now[0]=2;remote.update(active=0,state=0,position=950);tick()
+  self.assertEqual(json.loads(files[history.STORE])['items']['movie:1::']['position'],950)
+  player.seekTime.assert_called_once_with(950)
+  player.isPlayingVideo.return_value=False;now[0]=3;tick();data=json.loads(files[history.STORE])
+  self.assertNotIn('movie:1::',data['items']);self.assertIn('/fixture/movie.mkv',data['watched'])
+ def test_confirmed_rewind_to_zero_is_returned_and_saved(self):
+  store=Mock();store.load.return_value={'items':{'x':{'position':500,'total':1000}},'current':'x'}
+  player=Mock();player.isPlayingVideo.return_value=True;player.getTime.return_value=500;player.getTotalTime.return_value=1000;player.getPlayingFile.return_value='fixture-a'
+  remote=dict(active=1,state=1,generation=4,position=500,duration=1000,sample_age_s=0,item_status=1,buffer_empty=0);now=[0]
+  tick=portrait.progress_tracker(player,store,None,None,lambda:now[0],external=lambda:remote);tick()
+  now[0]=30;remote.update(active=0,state=0,position=0);tick()
+  player.seekTime.assert_called_once_with(0);self.assertEqual(store.update.call_args.args[-2:],(0,1000))
+ def test_replaced_video_does_not_inherit_old_tv_progress(self):
+  first={'kind':'movie','tmdb_id':'1','title':'First','position':100,'total':1000}
+  second={'kind':'movie','tmdb_id':'2','title':'Second','position':0,'total':900}
+  files={history.STORE:json.dumps({'items':{'one':first,'two':second},'current':'one'})}
+  read=lambda p:files[p];write=lambda p,v:files.__setitem__(p,v);now=[0]
+  player=Mock();player.isPlayingVideo.return_value=True;player.getTime.return_value=100;player.getTotalTime.return_value=1000;player.getPlayingFile.return_value='fixture-a'
+  remote=dict(active=1,state=1,generation=4,position=500,duration=1000,sample_age_s=0,item_status=1,buffer_empty=0)
+  tick=portrait.progress_tracker(player,history,read,write,lambda:now[0],external=lambda:remote);tick()
+  data=json.loads(files[history.STORE]);data['current']='two';files[history.STORE]=json.dumps(data)
+  player.getPlayingFile.return_value='fixture-b';player.getTime.return_value=20;player.getTotalTime.return_value=900
+  now[0]=11;tick();now[0]=12;tick()
+  self.assertEqual(json.loads(files[history.STORE])['items']['two']['position'],20);player.seekTime.assert_not_called()
  def test_idle_downloaded_movie_page_refreshes_after_progress_changes(self):
   route=page.page_url({'type':'movie'});states=[('',False,0),(route,False,1),(route,True,1),(route,False,2),(route,False,2)]
   i=[-1];refresh=[]
