@@ -1,16 +1,16 @@
 {
   "framework_release": {
+    "tag": "kodi-airplay-r66",
+    "asset": "KodiAirPlay.framework.zip",
+    "sha256": "bab8cbcf6549eff5c1c57e18327a08aaa696b6c82d1d4445895d560184ed16e8"
+  },
+  "previous": {
     "tag": "kodi-airplay-r65",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "05ef394f931b321dda54e0c8378e6420c912d4cf525602bb70529d8c864acf7a"
   },
-  "previous": {
-    "tag": "kodi-airplay-r64",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "5c12216733aeeb0e2488115256b71431b142cf983378be4273e3aed179c7a028"
-  },
-  "source_commit": "7e6249fa2460549bd9388a4a52cd0a499b4220e4",
+  "source_commit": "4b72d9c35da51b51bae6127ec1979607dcdffa51",
   "pin_note": "r65: PR #44 separate six-second converted video/audio timeline, with r64 subtitle and source-watchdog work retained. Candidate run 43911296606 compiled arm64 iPhoneOS with Xcode 26.3 (SDK 26.2) and passed five Foundation transport tests. Its host-evidence job verified the entire AirPlay tree matches successful host run 43907784636 (768 converted frames, matching A/V, captions, exact copied packets, seek/cancel/recovery). Archive SHA from the successful compiler log; publish_verified_candidate verifies the archive before immutable publication. Device acceptance pending. Published by verified-candidate run 43912960249; public archive downloaded and SHA/ZIP CRC/arm64 architecture/new conversion markers verified before IPA dispatch.",
-  "verified_run": 43911296606,
-  "verified_host_run": 43907784636
+  "verified_run": 44399079914,
+  "verified_host_run": 44399079914
 }
