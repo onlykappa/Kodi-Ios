@@ -154,7 +154,11 @@ def refresh_link(link, read=None):
             raise InterruptedError('Crew playback request replaced')
     def load(address):
         check_owner()
+        import time
+        began = time.monotonic()
         entries = (read or (lambda value: listing(value, playback=True)))(address)
+        import sports_jet
+        sports_jet.log('sports: Crew refresh folder completed in %.3fs (%d entries)' % (time.monotonic() - began, len(entries)))
         check_owner()
         return entries
     entries = load(root)

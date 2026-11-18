@@ -8,7 +8,13 @@ dialog appear during opening. The supplied log shows ESPN1live/82upcoming in
 at15:22:13.338. Another media open/codec event occurs nearby; do not infer
 distinct successful games or assign the full wait to a single operation.
 
-The log does not separate native menu refresh, provider resolution, user
+Source review confirms the opening-via-Crew log occurs after refresh_link,
+so the13.228s gap is after app menu refresh, in native resolver/opening work.
+Sports closes at15:21:54.909 and dispatch logs at15:21:59.007:4.098s includes
+script startup and preparation, not solely menu network time. Two media opens
+have different addresses, so duplicate playback cannot be concluded from
+their proximity. Added safe per-folder refresh duration/entry-count diagnostics.
+The log does not separate native provider resolution, user
 selection and source network time. Measure those phases before promising a
 speed improvement. Do not skip ancestry refresh blindly: Crew clears resolver
 cache at league roots, and prior stale expressions failed to play.
