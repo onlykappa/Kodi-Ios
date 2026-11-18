@@ -43,7 +43,7 @@ jobs:
       - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
         with:
           name: KodiAirPlay-source-candidate
-          run-id: 44343640378
+          run-id: 44399079914
           github-token: ${{ github.token }}
           path: candidate
       - name: Inspect existing candidate without publication
@@ -62,8 +62,8 @@ jobs:
           import hashlib,json,os,subprocess
           from pathlib import Path
           def gh(*args): return subprocess.check_output(['gh','api',*args],text=True)
-          run=json.loads(gh('repos/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/44343640378'))
-          assert run['head_sha']=='95bb0d23fd5cb53c3b450e8a839c0b2fab3c611e' and run['conclusion']=='success'
+          run=json.loads(gh('repos/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/44399079914'))
+          assert run['head_sha']=='4b72d9c35da51b51bae6127ec1979607dcdffa51' and run['conclusion']=='success'
           binary=Path('KodiAirPlay.framework/KodiAirPlay')
           platform=subprocess.check_output(['xcrun','vtool','-show-build',str(binary)],text=True)
           assert 'platform IOS' in platform
