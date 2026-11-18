@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Build 575 phone result and fresh roadmap — 2026-11-18
+
+Owner reports ESPN cards but no source choices in Sports; manual Crew browsing eventually played a game after several failed sources. Phone log confirms build575, ESPN18live/51upcoming in1.62s, NHL36 matched streams after53.37s, and NBA/NCAAB/FullLiveSites zero visited folders. Live Now visits ended before the first scan completed; Sports closed immediately before skipped-category summaries. Session cancellation/serial category starvation needs reproduction, not a speculative code change. Manual media opened with H.264/AAC later; exact successful provider is not established. All existing code is pushed through30722ac; only an obsolete build568 documentation stash is retained privately. Owner requests roadmap only: [fresh-agent roadmap](SPORTS-PHONE-SOURCE-ROADMAP.md). No implementation, IPA or merge in this follow-up.
+
 ## Owner-authorized testing IPA 575 — 2026-11-18
 
 Published build 575 from `63b4434013d947e6e45973b4f17908331329e4a4` after successful full import-review workflow 44220815857. Downloaded the 588,958,897-byte IPA and verified ZIP CRC, embedded build/commit identity, and six exact Sports UI/native routing source files. SHA256: `bb0927b28faabd51753b1b8f493e5a2304ed9900094b873239bfc98d9c463d18`. Release: https://github.com/onlykappa/Kodi-Ios/releases/tag/build-575. PR #43 remains draft and unmerged. Phone acceptance pending: open Library > Sports > Live Now, tap a live game's Crew source, select any native feed, and export kodi.log including `Kodi iOS Sports:` events. Test another source if the first fails and cancel an opening to check it does not restart unexpectedly. Real automatic best-pick/cancellation/fallback coverage remains incomplete; one real Sports-selected broadcast played in the desktop rig.
