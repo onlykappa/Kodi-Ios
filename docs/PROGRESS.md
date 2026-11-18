@@ -1,5 +1,9 @@
 # Persistent progress
 
+## AirPlay step 2 review — 2026-11-18
+
+Reviewed ready/seek/deadline and cancellation/replacement wiring; timeout deactivates playback so late completion is rejected. Seven stall wiring tests and22 local-history tests pass; these are not AVPlayer execution. Concrete remaining gap: user-pause intent is not separately tracked from recovery's programmatic pause, and owned successful completion calls play. A rate check alone cannot resolve that ambiguity. Actual AVPlayer readiness/seek/pause tests require an Apple runtime; Linux fixtures cannot prove external-receiver behavior. No runtime change or publication. Step2 remains incomplete pending meaningful native behavioral tests and pause-intent design.
+
 ## AirPlay step 1 candidate inspection complete — 2026-11-18
 
 Import CI44360201249 passed for86b6eb9. Workspace artifact/log downloads remained forbidden; verification-only run44378712092 downloaded the original candidate from run44343640378 on a GitHub macOS runner and saved its verified report as a check-run summary accessible through GitHub API. Original source95bb0d23fd5cb53c3b450e8a839c0b2fab3c611e; framework archive SHA25643ed7f35b5333670852f6beaaa84531982eb266f77a4fec23285c91edbb4569c; binary SHA2565d07a3671bf3eb67652d288368bd6034742b59e0156421af29c78b065c624a7d. ZIP integrity passed. Mach-O build platform IOS, minimum14.0, SDK26.2. Native preparation/probe/streamed preparation/verification/HDR/subtitle/start-at/serving/background exports verified with nm. This establishes artifact identity/platform/exports, not AVPlayer recovery behavior. No framework publication or pin change; r65 remains pinned. Ready for step2 controlled stall-recovery review/testing.
