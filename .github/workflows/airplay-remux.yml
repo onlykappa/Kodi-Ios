@@ -16,6 +16,10 @@ on:
       - 'migration/airplay-ios/**'
   workflow_dispatch:
     inputs:
+      inspect_only:
+        description: Inspect existing artifact without rebuilding
+        type: boolean
+        default: false
       reuse_host_run:
         description: Reuse a successful host-tests job only when its complete AirPlay source tree matches
         type: string
@@ -29,6 +33,7 @@ jobs:
     permissions:
       actions: read
       contents: read
+      checks: write
     steps:
       - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
         with:
@@ -37,6 +42,8 @@ jobs:
           github-token: ${{ github.token }}
           path: candidate
       - name: Inspect existing candidate without publication
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           cd candidate
           shasum -a 256 KodiAirPlay.framework.zip
@@ -46,8 +53,26 @@ jobs:
           file KodiAirPlay.framework/KodiAirPlay
           xcrun vtool -show-build KodiAirPlay.framework/KodiAirPlay
           nm -gU KodiAirPlay.framework/KodiAirPlay
+          python3 - <<'PY'
+          import hashlib,json,os,subprocess
+          from pathlib import Path
+          def gh(*args): return subprocess.check_output(['gh','api',*args],text=True)
+          run=json.loads(gh('repos/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/44343640378'))
+          assert run['head_sha']=='95bb0d23fd5cb53c3b450e8a839c0b2fab3c611e' and run['conclusion']=='success'
+          binary=Path('KodiAirPlay.framework/KodiAirPlay')
+          platform=subprocess.check_output(['xcrun','vtool','-show-build',str(binary)],text=True)
+          assert 'platform IOS' in platform
+          exports=subprocess.check_output(['nm','-gU',str(binary)],text=True)
+          required=['prepare','probe','prepare_streams','prepare_to','verify','probe_ex','prepare_hdr','prepare_keep_image_subs','prepare_keep_dvd_subs','start_at','serve','serve_segmented']
+          for name in required: assert '_kodi_airplay_'+name in exports
+          assert '_kodi_background_state' in exports
+          report={'source_commit':run['head_sha'],'candidate_run':run['id'],'archive_sha256':hashlib.sha256(Path('KodiAirPlay.framework.zip').read_bytes()).hexdigest(),'binary_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),'platform':platform,'required_exports_verified':required,'exports':exports,'device_playback_verified':False}
+          payload={'name':'AirPlay candidate inspection report','head_sha':os.environ['GITHUB_SHA'],'status':'completed','conclusion':'success','output':{'title':'Existing candidate verified without publication','summary':json.dumps(report,indent=2)}}
+          Path('report.json').write_text(json.dumps(payload))
+          gh('repos/'+os.environ['GITHUB_REPOSITORY']+'/check-runs','--method','POST','--input','report.json')
+          PY
   host-tests:
-    if: github.event_name != 'workflow_dispatch' || inputs.reuse_host_run == ''
+    if: inputs.inspect_only != true && (github.event_name != 'workflow_dispatch' || inputs.reuse_host_run == '')
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -106,7 +131,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    if: github.event_name == 'workflow_dispatch' && inputs.reuse_host_run != ''
+    if: inputs.inspect_only != true && github.event_name == 'workflow_dispatch' && inputs.reuse_host_run != ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -139,7 +164,7 @@ jobs:
           PY
   framework:
     needs: host-evidence
-    if: ${{ !cancelled() && (needs.host-evidence.result == 'success' || needs.host-evidence.result == 'skipped') }}
+    if: ${{ inputs.inspect_only != true && !cancelled() && (needs.host-evidence.result == 'success' || needs.host-evidence.result == 'skipped') }}
     # macos-15 selects ARM64; capacity exhaustion canceled the candidate before it got a runner.
     # The Intel image also has Xcode 26; the framework remains cross-compiled for iPhone arm64.
     runs-on: macos-15-intel
