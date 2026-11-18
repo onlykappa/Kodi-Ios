@@ -38,7 +38,7 @@ def also_text(names):
 
 def _empty_game(g):
     props = {}
-    for k in ('league', 'clock', 'pos', 'n'):
+    for k in ('id', 'league', 'clock', 'pos', 'n'):
         props['g.%d.%s' % (g, k)] = ''
     for t in 'ah':
         for k in ('code', 'name', 'score', 'lead', 'crest'):
@@ -55,7 +55,8 @@ def game_props(g, game):
     sources = (game.get('sources') or [])[:lp.SOURCES]
     props['g.%d.league' % g] = game.get('league') or ''
     props['g.%d.clock' % g] = game.get('clock') or ''
-    props['g.%d.pos' % g] = 'first' if sources else 'only'
+    props['g.%d.id' % g] = game.get('id') or ''
+    props['g.%d.pos' % g] = 'first' if sources or game.get('id') else 'only'
     props['g.%d.n' % g] = str(len(sources))
     away, home = game['away'], game['home']
     for t, team in (('a', away), ('h', home)):
@@ -153,6 +154,8 @@ def control_target(control):
         local = control - lp.PLAY0 - offset
         if 0 <= local < lp.GAMES * 10 and local % 10 < lp.SOURCES:
             return ('source', local // 10 + 1, local % 10 + 1)
+    if lp.SEARCH0 <= control < lp.SEARCH0 + lp.GAMES:
+        return ('search', control - lp.SEARCH0 + 1)
     return None
 
 
@@ -182,6 +185,15 @@ def play_source(source, provider, finish, xbmc, notify, log):
         xbmc.Player().play(path)
 
 
+def watch_handoff(stop, home, initial_owner, finish):
+    """Stop the Live Now page when a child hands control to native playback."""
+    while not stop.wait(.1):
+        owner = home.getProperty('KodiIOS.SportsNativeOwner')
+        if owner and owner != initial_owner:
+            finish()
+            return
+
+
 def run(args=()):
     import xbmc
     import xbmcgui
@@ -193,8 +205,13 @@ def run(args=()):
     class Page(xbmcgui.WindowXMLDialog):
         def onInit(self):
             import live_window
+            if hasattr(self, 'stop') and not self.stop.is_set():
+                return
             self.guard = live_window.Guard(self)
             self.stop = threading.Event()
+            home = xbmcgui.Window(10000)
+            initial_owner = home.getProperty('KodiIOS.SportsNativeOwner')
+            threading.Thread(target=watch_handoff,args=(self.stop,home,initial_owner,self.finish),daemon=True).start()
             self.chosen, self.codes, self.slots, self.busy = (args[0] if args else 'All'), [], {}, threading.Lock()   # a league page starts on its chip
             self.setProperty('sub', 'Updating')
             self.fetch(False)
@@ -258,6 +275,18 @@ def run(args=()):
                 elif target and target[0] == 'source' and (target[1], target[2]) in self.slots:
                     play_source(self.slots[(target[1], target[2])], sports_provider, self.finish, xbmc,
                                 lambda: xbmcgui.Dialog().notification('Sports', "Can't open the player right now. Try again.", xbmcgui.NOTIFICATION_WARNING, 4000), log)
+                elif target and target[0] == 'search':
+                    game_id = self.getProperty('g.%d.id' % target[1])
+                    try:
+                        provider = sports_provider.get()
+                        game = provider.game(game_id) if game_id else None
+                        if not game or game.get('state') != 'live':
+                            raise sm.SportsUnavailable('game is no longer live')
+                        import sports_game
+                        sports_game.run(game, provider=provider, search=True)
+                    except Exception as error:
+                        log('live game search could not open (%s)' % type(error).__name__)
+                        xbmcgui.Dialog().notification('Sports', "Can't search for this game right now. Try again.", xbmcgui.NOTIFICATION_WARNING, 4000)
 
         def finish(self):
             self.stop.set()

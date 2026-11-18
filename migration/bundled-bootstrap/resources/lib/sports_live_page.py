@@ -19,6 +19,7 @@ BACK, REFRESH, RETRY, SEE_UPCOMING = sp.BACK, sp.REFRESH, sp.RETRY, 9106
 GAMES, SOURCES = 12, 4                 # cards on a page and sources shown under each; the rest is behind the league chips and the note
 CHIPS, CHIPS_PER_ROW = 15, 5
 CHIP0, PLAY0, LIST = 9200, 9300, 9099
+SEARCH0 = 9700
 ALSO_IDS, CHIP_IDS = 200, 20          # the row variants with an "Also on" line, and the ids one chip-row variant spans
 TOP = 370
 CHIP_W, CHIP_H, CHIP_GAP, CHIP_ROW = 160, 91, 21, 118
@@ -106,6 +107,16 @@ def src_row(p, g, s, also):
     return u.group(p, h, body, cond)
 
 
+def search_row(p, g):
+    """A source-free live game can request a focused search."""
+    S, w, key = p.SIDE, p.WIDTH - 2 * p.SIDE, 'g.%d.' % g
+    body = p.image(S, 0, w, SRC_H, p.MEDIA + 'row_last.png', p.SURFACE, border=43)
+    body += p.pill_button(SEARCH0 + g - 1, S + (w - 440) // 2, 16, 440, 128,
+                          'Find sources', [('', 'noop')], 'primary')
+    cond = u.has(key + 'id') + ' + String.IsEqual(Window().Property(%sn),0)' % key
+    return u.group(p, SRC_H, body, cond)
+
+
 def chip_id(rows, n):
     return CHIP0 + (rows - 1) * CHIP_IDS + n
 
@@ -147,6 +158,7 @@ def page(p):
     items = rows
     for g in range(1, GAMES + 1):
         items += head_row(p, g)
+        items += search_row(p, g)
         for s in range(1, SOURCES + 1):
             items += src_row(p, g, s, False) + src_row(p, g, s, True)
         items += u.group(p, GAP, '', u.has('g.%d.a.name' % g))

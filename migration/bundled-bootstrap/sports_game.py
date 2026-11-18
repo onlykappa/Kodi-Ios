@@ -21,10 +21,10 @@ def _lines(text, width):
     return choice_sheet.lines(words,width)
 
 
-def model(game, now, offset, state='ready'):
+def model(game, now, offset, state='ready', searching=False):
     """Project the contract without losing source identities or opaque play values."""
     props = {'state':state,'hero.lines':'','league':'','starts':'','clock':'','day':'',
-             'sources.count':'','error.title':'','play.error':''}
+             'sources.count':'','error.title':'','play.error':'','empty.text':'','game.live':''}
     sources = sm.order_sources(game['sources']) if game else []
     for side in ('away','home'):
         for key in ('code','name','crest'):props[side+'.'+key] = game[side].get(key,'') if game else ''
@@ -33,7 +33,9 @@ def model(game, now, offset, state='ready'):
                       'league':game['league'],'starts':sm.start_text(game['start'],now,offset),
                       'clock':sm.clock_text(game['start'],offset),'day':sm.day_label(game['start'],now,offset),
                       'sources.count':str(len(sources)) if sources else '',
-                      'state':'ready' if sources else 'empty'})
+                      'state':'ready' if sources else 'searching' if searching else 'empty',
+                      'game.live':'true' if game.get('state')=='live' else '',
+                      'empty.text':'No sources available yet. Try again.' if game.get('state')=='live' else 'Check back closer to the start. Refresh looks again.'})
     elif state=='error':props['error.title']="Can't load this game right now"
     elif state=='loading':props.update({'hero.lines':'1'})
     else:props.update(state='gone',**{'error.title':'This game is no longer listed'})
@@ -56,7 +58,7 @@ def model(game, now, offset, state='ready'):
     return props,sources
 
 
-def run(game, provider=None, clock=time.time):
+def run(game, provider=None, clock=time.time, search=False):
     import xbmc
     import xbmcgui
     import xbmcvfs
@@ -73,12 +75,27 @@ def run(game, provider=None, clock=time.time):
             self.lock = threading.Lock()
             self.fetching = False
             self.data = game
+            self.search_token = None
+            self.search_failed = False
+            if search:
+                self.find_sources()
             self.draw()
             self.refresh(reload=False)
             def tick():
                 monitor=xbmc.Monitor()
                 last=clock()
+                last_search=time.monotonic()
                 while not page_wait.idle(self.stop,monitor,1):
+                    token = self.search_token
+                    if token and time.monotonic()-last_search>=3:
+                        last_search=time.monotonic()
+                        try:searching = getattr(provider,'searching_game',lambda *args:False)(game_id,token)
+                        except Exception:searching = False;self.search_failed = True
+                        if not searching and self.search_token == token:
+                            try:self.search_failed = self.search_failed or getattr(provider,'game_search_failed',lambda value:False)(token)
+                            except Exception:self.search_failed = True
+                            self.search_token = None
+                        self.refresh(reload=False)
                     if clock()-last>=30:
                         with self.lock:
                             if self.stop.is_set():return
@@ -88,7 +105,10 @@ def run(game, provider=None, clock=time.time):
             threading.Thread(target=tick,daemon=True).start()
 
         def draw(self,error=False):
-            props,self.sources = model(self.data,clock(),sm.device_offset(clock()),'error' if error else 'ready')
+            searching = bool(self.search_token and getattr(provider,'searching_game',lambda *args:False)(game_id,self.search_token))
+            props,self.sources = model(self.data,clock(),sm.device_offset(clock()),'error' if error else 'ready',searching)
+            if self.search_failed and not self.sources:
+                props['state']='error';props['error.title']="Can't search for sources right now"
             for key,value in props.items():
                 # The tap handler also writes play.error; a refresh must still clear it.
                 if key=='play.error' or getattr(self,'_shown',{}).get(key)!=value:self.setProperty(key,value)
@@ -116,7 +136,13 @@ def run(game, provider=None, clock=time.time):
 
         def onClick(self,ident):
             if ident==page.BACK:self.finish()
+            elif ident==page.RETRY and self.search_failed:
+                self.find_sources()
+                self.draw()
             elif ident in (page.REFRESH,page.RETRY):self.refresh()
+            elif ident==page.SEARCH_RETRY:
+                self.find_sources()
+                self.draw()
             elif ident==page.AUTO:
                 with self.lock: sources=list(self.sources)
                 if sources:
@@ -151,12 +177,26 @@ def run(game, provider=None, clock=time.time):
                         except Exception:pass
                 threading.Thread(target=handoff,daemon=True).start()
 
+        def find_sources(self):
+            try:
+                self.search_token = provider.request_game(game_id)
+                self.search_failed = False
+            except Exception as error:
+                self.search_token = None
+                self.search_failed = True
+                log('sports: game search failed (%s)' % type(error).__name__)
+                try:xbmcgui.Dialog().notification('Sports',"Can't search for sources right now. Try again.",xbmcgui.NOTIFICATION_WARNING,4000)
+                except Exception:pass
+
         def onAction(self,action):
             if action.getId() in BACK_KEYS:self.finish()
 
         def finish(self):
             with self.lock:
                 self.stop.set()
+                if self.search_token:
+                    try:provider.cancel_game_search(self.search_token)
+                    except Exception:pass
                 self.close()
 
     try:window=Game(page.WINDOW,HERE,'Default','1080i')
