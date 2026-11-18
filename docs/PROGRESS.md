@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Step 2 native callback evidence — 2026-11-18
+
+Run44380509148 passed the new macOS Foundation harness, compiling the actual production seek-completion body and executing five controlled cases: owned success plays once/clears deadline; changed generation, changed item, inactive playback (including timeout/close), and interrupted seek do not play. This is native callback execution against a controlled object, not AVPlayer readiness or receiver simulation. Run44379604495 successfully compiled the compatibility-recovery sourcef4c8e44 for iPhone; its host suite was still running at this checkpoint. Pause intent remains a concrete evidence gap: the current integration observes rate/status but has no independent user-command signal while recovery itself pauses the item. Correctness for AVKit controls/receiver remote pause cannot be established by a fake object's rate. Need actual command/transition tracing on an Apple runtime and eventual receiver test before claiming it is solved. No subclass/swizzle or guessed rate heuristic introduced. No publication/pin/IPA.
+
 ## Step 2 compatibility recovery follow-up — 2026-11-18
 
 Found another premature-play path in compatibility conversion replacement. Candidate now pauses before replacement and uses the shared readiness/owned-seek/deadline path before playing, with initial-seek suppression. Eight stall source-wiring checks and shell syntax pass; these do not execute AVPlayer. This source differs from the previously inspected95bb0d2 artifact and needs new native compilation/inspection before publication. User-pause intent and actual receiver behavior remain unproven; step2 is not complete.
