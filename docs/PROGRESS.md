@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Pause/recovery tracing preparation — 2026-11-18
+
+Added bounded state-change diagnostics (generation/rate/time-control/item status) and recovery-completion ownership/state diagnostics without URLs. Sampling is every0.5s and may miss short transitions; logs cannot alone establish the origin of a pause. Controlled callback harness explicitly retains the known active-session pause ambiguity instead of claiming pause intent is solved. Eight source-wiring cases and shell syntax pass. Previous run44379604495 framework compilation succeeded but host-tests failed; this remains unresolved and must not be presented as full validation. New framework publication/IPA remains unauthorized. Future device acceptance requires usual receiver and pause during recovery; no test required while owner is away.
+
 ## Step 2 native callback evidence — 2026-11-18
 
 Run44380509148 passed the new macOS Foundation harness, compiling the actual production seek-completion body and executing five controlled cases: owned success plays once/clears deadline; changed generation, changed item, inactive playback (including timeout/close), and interrupted seek do not play. This is native callback execution against a controlled object, not AVPlayer readiness or receiver simulation. Run44379604495 successfully compiled the compatibility-recovery sourcef4c8e44 for iPhone; its host suite was still running at this checkpoint. Pause intent remains a concrete evidence gap: the current integration observes rate/status but has no independent user-command signal while recovery itself pauses the item. Correctness for AVKit controls/receiver remote pause cannot be established by a fake object's rate. Need actual command/transition tracing on an Apple runtime and eventual receiver test before claiming it is solved. No subclass/swizzle or guessed rate heuristic introduced. No publication/pin/IPA.

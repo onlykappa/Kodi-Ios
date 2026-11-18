@@ -29,7 +29,7 @@ static void playerNote(NSString *message) {}
 - (void)play { self.plays++; }
 @end
 int main(void) { @autoreleasepool {
- for(int scenario=0;scenario<5;scenario++) {
+ for(int scenario=0;scenario<6;scenario++) {
   unsigned generation=10;
   atomic_store(&playGeneration,scenario==1?11:10);
   atomic_store(&playbackActive,scenario==3?0:1);
@@ -40,10 +40,13 @@ int main(void) { @autoreleasepool {
   __block int recoveryDeadline=30;
   void (^completion)(void)=^{ BODY };
   completion();
-  int expected=scenario==0;
+  // Scenario 5 models a pause with session/item still active. The production
+  // callback has no user-intent input and currently plays: retain this known
+  // limitation explicitly rather than claiming that rate or active imply intent.
+  int expected=scenario==0 || scenario==5;
   if(player.plays!=expected || recoveryDeadline!=(expected?0:30))return 10+scenario;
  }
- printf("5 production completion scenarios passed\n");
+ printf("6 production completion scenarios passed; active pause remains ambiguous\n");
  return 0;
 }}
 '''.replace('BODY',body)

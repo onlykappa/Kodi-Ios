@@ -654,6 +654,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                     [player seekToTime:CMTimeMakeWithSeconds(resumeAt, 600) toleranceBefore:kCMTimeZero
                         toleranceAfter:kCMTimePositiveInfinity completionHandler:^(BOOL done) {
                             dispatch_async(dispatch_get_main_queue(), ^{
+                                playerNote(@"recovery seek completion: done %d owned %d same item %d active %d rate %.1f control %ld", done, generation==atomic_load(&playGeneration), player.currentItem==seekItem, atomic_load(&playbackActive), player.rate, (long)player.timeControlStatus);
                                 if(generation!=atomic_load(&playGeneration) || player.currentItem!=seekItem || !atomic_load(&playbackActive))return;
                                 if (!done) { playerNote(@"resume seek interrupted"); return; }
                                 recoveryDeadline=0;[player play];
@@ -806,11 +807,16 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
         while (top.presentedViewController) top = top.presentedViewController;
         [top presentViewController:holder animated:YES completion:^{
             if(generation!=atomic_load(&playGeneration))return;
-            __block int failedSeen=0;
+            __block int failedSeen=0, previousControl=-1, previousItemStatus=-1;
+            __block float previousRate=-1;
             routeWatch=[NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
                 if(generation!=atomic_load(&playGeneration)){[timer invalidate];return;}
                 healthSample(player,generation);
                 AVPlayerItem *item=player.currentItem;
+                if(previousControl!=(int)player.timeControlStatus || previousItemStatus!=(int)item.status || previousRate!=player.rate) {
+                    playerNote(@"playback transition: generation %u rate %.1f control %ld item %ld", generation, player.rate, (long)player.timeControlStatus, (long)item.status);
+                    previousControl=(int)player.timeControlStatus; previousItemStatus=(int)item.status; previousRate=player.rate;
+                }
                 BOOL failed=item.status==AVPlayerItemStatusFailed || player.status==AVPlayerStatusFailed;
                 failedSeen=failed && !atomic_load(&compatBusy) ? failedSeen+1 : 0;
                 // r37: a failure is final after 1.5 s, so the player's 1 s timer can first restart with the H.264 picture.
