@@ -594,7 +594,7 @@ Step 3 checkpoint (ISSUE-370): Live Now's native dispatch is now staged after mo
 ## AirPlay source reliability (2026-11-18)
 
 1. **Controlled source reproduction — done:** ISSUE-378 covers delayed/rejected byte ranges and shared cache waits during simulated inspection and playback. The fixture is not an iPhone or video test.
-2. **Source reads and buffering — next:** test a targeted response to refused ranges, request priority and contention; compare the fixture with production read-ahead and fast/slow source cases.
+2. **Source reads and buffering — targeted candidate:** refused split ranges reach the existing constrained fallback sooner. ISSUE-378 records mixed controlled results and read-ahead tests; real conversion, playback and iPhone validation remain open.
 3. **10-bit H.264:** determine real receiver support for High 10 and test a safe fallback before enabling direct play.
 4. **Stall recovery:** validate resumption near the correct position without indefinite retries.
 5. **Position and watch history:** ISSUE-377 candidate has controlled tests; validate normal and stalled close, rewind, replacement and completion on device.

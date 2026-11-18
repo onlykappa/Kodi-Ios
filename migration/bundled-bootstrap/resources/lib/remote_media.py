@@ -290,7 +290,9 @@ class Foreground(drive_stream.DriveStream):
   spans=[(start+i*step,min(stop,start+(i+1)*step-1)) for i in range(SPLIT) if start+i*step<=stop]
   results=[None]*len(spans);errors=[]
   def piece(i,a,b):
-   try:results[i]=super(Foreground,self)._fetch(item,a,b)
+   # A refused split range should yield to the existing single-connection fallback immediately. Retrying each piece
+   # three times first can keep every reader waiting and flood a source that is already rejecting parallel requests.
+   try:results[i]=super(Foreground,self)._fetch(item,a,b,fail_fast_range=True)
    except urllib.error.HTTPError as error:
     if error.code==416 and i>0:results[i]=(b'',None)   # the file ended inside the block
     else:errors.append(error)
