@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Sports source selection follow-up — 2026-11-18
+
+Owner approved investigating Crew's shared segment proxy and tracking reliable source outcomes. Build 575 phone log reports 28 proxy-not-running failures across seven streamer names; exact cause and the successful provider remain unknown. Roadmap now prioritizes inspecting the service's bundled manifest, lifecycle and startup, then ranking candidates using confirmed video outcomes without storing private stream data or treating cancellation as failure. No implementation or IPA in this update.
+
 ## Sports discovery candidate — 2026-11-18
 
 Step 1 candidate rotates serial Crew discovery by folder and publishes category matches incrementally, avoiding a complete first-league traversal before starting the next. Existing session and playback cancellation checks remain in each traversal. A single slow folder can still delay other categories; phone behavior is unverified. Focused Crew and Jet tests pass. No IPA or merge.

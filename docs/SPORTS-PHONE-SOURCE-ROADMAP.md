@@ -40,6 +40,28 @@ Desktop Buffalo–Philadelphia playback remains valid desktop evidence only.
 
 ## Implementation order for the next agent
 
+**Priority investigation — Crew segment proxy:** The build 575 phone log
+contains 28 `segment proxy service not running` failures across seven named
+Crew streamers. These are failed attempts, not 28 proven distinct streams.
+Investigate why Crew's normal service is unavailable on the phone: compare
+its installed manifest, service lifecycle, bundling and startup with a
+working installation. Establish whether the service was intentionally
+omitted or failed, then restore supported operation if appropriate without
+modifying authorization or bypassing provider blocks. Some sources may not
+need that service; do not label all sources unavailable. The successful manual
+source is not identified by the log.
+
+**Source-selection follow-up:** Prefer sources whose required components are
+available, and retain bounded local provider-level success/failure history to
+inform ranking if identity and outcome can be established reliably. Success
+requires actual video startup and advancing time; an HTTP response alone is
+not proof. Avoid penalizing a provider for cancellation, ambiguous stops,
+temporary outages or failures of a shared local service. Try a subsequent
+source only after a confirmed failure and preserve the user's Cancel action.
+Do not store URLs, cookies, account information or identifying request data
+in ranking history or diagnostics. Verify these rules with controlled failures,
+real Crew flows, and the owner's eventual phone test.
+
 1. **Reproduce discovery starvation and lifecycle.** Trace the shared category
    gate, session ticket, pending count, page navigation and result publication
    in `sports_jet.py`, `sports_crew_context.py` and `sports_crew_routes.py`.
