@@ -19,6 +19,19 @@ def source(name='Crew NBA', quality='', route='?action=play&url=fixture'):
  return {'addon':name, 'quality':quality, 'play':json.dumps({'e':crew.NAME, 'l':{'address':ROOT+route}})}
 
 class Tests(unittest.TestCase):
+ def test_failed_folder_yields_before_another_folder_is_read(self):
+  calls=[]
+  def read(route):
+   calls.append(route)
+   if route.endswith('broken'): raise OSError('unavailable')
+   return [entry('site','broken'),entry('site','next')]
+  batches=crew.CrewSource('NBA',ROOT+'league',[GAME],read).batches()
+  next(batches)
+  next(batches)
+  self.assertEqual(calls,[ROOT+'league',ROOT+'broken'])
+  next(batches)
+  self.assertEqual(calls[-1],ROOT+'next')
+
  def test_crew_categories_rotate_and_publish_before_first_finishes(self):
   order=[]; snapshots=[]
   class Batched:

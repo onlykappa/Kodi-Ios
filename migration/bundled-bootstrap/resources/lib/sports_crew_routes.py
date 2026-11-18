@@ -203,6 +203,7 @@ class CrewSource:
             except Exception:
                 # A dead subfolder must not discard games from other sites.
                 failures += 1
+                yield list(items)
                 continue
             for entry in entries[:512]:
                 address = entry.get('file', '')
