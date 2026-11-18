@@ -156,6 +156,32 @@ def control_target(control):
     return None
 
 
+def play_source(source, provider, finish, xbmc, notify, log):
+    """Close the Sports modal stack before dispatching a native source."""
+    pending = []
+    try:
+        path = provider.play(source, log, launch=lambda *args: pending.append(args))
+    except Exception as error:
+        log('live source handoff failed (%s)' % type(error).__name__)
+        notify()
+        return
+    if pending:
+        finish()
+        xbmc.executebuiltin('Dialog.Close(all,true)')
+        def handoff():
+            xbmc.sleep(250)
+            try:
+                import sports_jet
+                for args in pending:
+                    sports_jet._launch(*args)
+            except Exception as error:
+                log('live source dispatch failed (%s)' % type(error).__name__)
+                notify()
+        threading.Thread(target=handoff, daemon=True).start()
+    elif isinstance(path, str) and path and not path.startswith('sample://'):
+        xbmc.Player().play(path)
+
+
 def run(args=()):
     import xbmc
     import xbmcgui
@@ -230,9 +256,8 @@ def run(args=()):
                         self.chosen = code
                         self.fetch(False, quiet=True)
                 elif target and target[0] == 'source' and (target[1], target[2]) in self.slots:
-                    path = sports_provider.play(self.slots[(target[1], target[2])], log)
-                    if isinstance(path, str) and path and not path.startswith('sample://'):
-                        xbmc.Player().play(path)
+                    play_source(self.slots[(target[1], target[2])], sports_provider, self.finish, xbmc,
+                                lambda: xbmcgui.Dialog().notification('Sports', "Can't open the player right now. Try again.", xbmcgui.NOTIFICATION_WARNING, 4000), log)
 
         def finish(self):
             self.stop.set()

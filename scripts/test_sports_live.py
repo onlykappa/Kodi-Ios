@@ -5,6 +5,9 @@ import importlib.util
 import re
 import sys
 import unittest
+import threading
+from types import SimpleNamespace
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -137,6 +140,30 @@ class Properties(unittest.TestCase):
 
 
 class Taps(unittest.TestCase):
+    def test_native_live_source_closes_dialogs_before_dispatch(self):
+        import sports_jet
+        events = []
+        launched = threading.Event()
+        def play(source, log, launch):
+            events.append('prepare')
+            launch('sports_jet_run', 'play', 'fixture')
+        def dispatch(*args):
+            events.append('launch')
+            launched.set()
+        xbmc = SimpleNamespace(executebuiltin=lambda cmd: events.append(cmd), sleep=lambda ms: None)
+        with patch.object(sports_jet, '_launch', side_effect=dispatch):
+            ctl.play_source({}, SimpleNamespace(play=play), lambda: events.append('finish'), xbmc, lambda: events.append('error'), lambda msg: None)
+            self.assertTrue(launched.wait(2))
+        self.assertEqual(events, ['prepare', 'finish', 'Dialog.Close(all,true)', 'launch'])
+
+    def test_direct_and_failed_live_source_keep_expected_behavior(self):
+        events = []
+        xbmc = SimpleNamespace(Player=lambda: SimpleNamespace(play=lambda url: events.append(url)))
+        ctl.play_source({}, SimpleNamespace(play=lambda *a, **k: 'fixture'), lambda: events.append('closed'), xbmc, lambda: events.append('error'), lambda msg: None)
+        def fail(*args, **kwargs): raise RuntimeError('private fixture')
+        ctl.play_source({}, SimpleNamespace(play=fail), lambda: events.append('closed'), xbmc, lambda: events.append('error'), lambda msg: None)
+        self.assertEqual(events, ['fixture', 'error'])
+
     def test_every_control_id_maps_back(self):
         self.assertEqual(ctl.control_target(lp.chip_id(1, 3)), ('chip', 3))
         self.assertEqual(ctl.control_target(lp.chip_id(2, 7)), ('chip', 7))

@@ -586,3 +586,5 @@ Authorized scope: Python backend only, stacked on claude/build442-feedback; no m
 ## Sports live matching checkpoint (2026-11-17)
 
 ISSUE-368 fixes observed Crew title decorations blocking uniquely matched ESPN live games; rig discovery found three routes for one real live game. ISSUE-369 adds Crew context ownership, cooperative scan exit, navigation restoration and a controlled handoff, tested in the desktop rig. Next: real-stream playback and full source-picker testing, portrait visual review, then an owner-authorized iPhone test. Route discovery alone does not prove video playback.
+
+Step 3 checkpoint (ISSUE-370): Live Now's native dispatch is now staged after modal dismissal; a real tap reached Kodi but attempted to open an unresolved Crew list expression and did not play. Investigate usable child routes, actual playback/fallback, and proper portrait-rig screenshots before any iPhone test build.

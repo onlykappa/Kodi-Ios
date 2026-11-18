@@ -172,9 +172,12 @@ class Repair(unittest.TestCase):
   self.assertEqual(len(waits),2)
  def test_live_page_does_not_play_handled_boolean(self):
   # Execute the actual onClick method with only its native dependencies substituted.
+  import importlib.util
+  spec=importlib.util.spec_from_file_location('sports_live_repair',ROOT/'migration/bundled-bootstrap/sports_live.py')
+  live=importlib.util.module_from_spec(spec);spec.loader.exec_module(live)
   tree=ast.parse((ROOT/'migration/bundled-bootstrap/sports_live.py').read_text());node=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='onClick')
-  plays=[];env={'lp':NS(BACK=1,REFRESH=2,RETRY=3,SEE_UPCOMING=4),'control_target':lambda c:('source',1,1),'sports_provider':NS(play=lambda *a:True),'log':lambda *a:None,'xbmc':NS(Player=lambda:NS(play=lambda p:plays.append(p)))}
+  plays=[];env={'lp':NS(BACK=1,REFRESH=2,RETRY=3,SEE_UPCOMING=4),'control_target':lambda c:('source',1,1),'sports_provider':NS(play=lambda *a,**k:True),'play_source':live.play_source,'log':lambda *a:None,'xbmc':NS(Player=lambda:NS(play=lambda p:plays.append(p))),'xbmcgui':NS()}
   exec(compile(ast.Module(body=[node],type_ignores=[]),'actual-onclick','exec'),env)
-  page=NS(slots={(1,1):{'id':'fixture'}});env['onClick'](page,10);self.assertFalse(plays)
-  env['sports_provider'].play=lambda *a:'https://fixture.invalid/live.m3u8';env['onClick'](page,10);self.assertEqual(len(plays),1)
+  page=NS(slots={(1,1):{'id':'fixture'}},finish=lambda:None);env['onClick'](page,10);self.assertFalse(plays)
+  env['sports_provider'].play=lambda *a,**k:'https://fixture.invalid/live.m3u8';env['onClick'](page,10);self.assertEqual(len(plays),1)
 if __name__=='__main__':unittest.main()
