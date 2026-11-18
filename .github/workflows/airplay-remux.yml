@@ -23,6 +23,29 @@ on:
 permissions:
   contents: read
 jobs:
+  inspect-existing-candidate:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-15
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: KodiAirPlay-source-candidate
+          run-id: 44343640378
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Inspect existing candidate without publication
+        run: |
+          cd candidate
+          shasum -a 256 KodiAirPlay.framework.zip
+          unzip -t KodiAirPlay.framework.zip
+          unzip -q KodiAirPlay.framework.zip
+          shasum -a 256 KodiAirPlay.framework/KodiAirPlay
+          file KodiAirPlay.framework/KodiAirPlay
+          xcrun vtool -show-build KodiAirPlay.framework/KodiAirPlay
+          nm -gU KodiAirPlay.framework/KodiAirPlay
   host-tests:
     if: github.event_name != 'workflow_dispatch' || inputs.reuse_host_run == ''
     runs-on: ubuntu-24.04
