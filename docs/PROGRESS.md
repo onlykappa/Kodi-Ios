@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Latest-source native artifact verified — 2026-11-18
+
+Step2 (compile/inspect latest source) completed: native run44399079914 passed host tests and iPhone framework compilation for4b72d9c35da51b51bae6127ec1979607dcdffa51. Its AirPlay source tree is unchanged on the current branch. Independent inspection run44403574416 passed ZIP integrity, native callback tests, hashes/platform/required exports and retained its report via check-run API. Archive SHA256bab8cbcf6549eff5c1c57e18327a08aaa696b6c82d1d4445895d560184ed16e8; binary SHA2569e6bc5dc4e0b2c6dd1100285cd8f660bae91d7aee92f6429a77568391e3dbc8d. LC_BUILD_VERSION: IOS, minimum14.0, SDK26.2. All45 public symbol names exactly match the previously inspected candidate (no missing/added exports); explicit preparation/probe/stream serving/HDR/subtitle/background checks passed. No framework publication or pin update; r65 remains pinned. This completes artifact verification, not pause-intent implementation or device acceptance.
+
 ## Native host CI dependency-install repair — 2026-11-18
 
 Run44379604495 failed twice at dependency installation: regional Ubuntu mirror downloads were slow and the three-attempt command budget exceeded the12-minute step cap. Candidate4b72d9c uses the standard signed Ubuntu HTTPS archive, excludes recommended packages and bounds two update/install attempts within15minutes. In run44399079914 the dependency-install step passed and the host FFmpeg build started. Native host tests/conversion results remain pending; installation success is not a test pass. No runtime code, framework pin or publication changed.
