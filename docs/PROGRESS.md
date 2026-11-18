@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Step 2 validation clarification — 2026-11-18
+
+Run44384291944 passed the controlled native callback test from789a3e3. Host run44379604495 failed during FFmpeg fixture dependency installation, before host tests executed; it is not an observed recovery assertion failure. Failed-job retry requested. User-pause intent remains unresolved; transition tracing is preparation for establishing the missing command-origin evidence, not an intent implementation. Step2 remains incomplete. No device result or publication.
+
 ## Pause/recovery tracing preparation — 2026-11-18
 
 Added bounded state-change diagnostics (generation/rate/time-control/item status) and recovery-completion ownership/state diagnostics without URLs. Sampling is every0.5s and may miss short transitions; logs cannot alone establish the origin of a pause. Controlled callback harness explicitly retains the known active-session pause ambiguity instead of claiming pause intent is solved. Eight source-wiring cases and shell syntax pass. Previous run44379604495 framework compilation succeeded but host-tests failed; this remains unresolved and must not be presented as full validation. New framework publication/IPA remains unauthorized. Future device acceptance requires usual receiver and pause during recovery; no test required while owner is away.
