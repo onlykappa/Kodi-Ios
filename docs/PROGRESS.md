@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Sports discovery candidate — 2026-11-18
+
+Step 1 candidate rotates serial Crew discovery by folder and publishes category matches incrementally, avoiding a complete first-league traversal before starting the next. Existing session and playback cancellation checks remain in each traversal. A single slow folder can still delay other categories; phone behavior is unverified. Focused Crew and Jet tests pass. No IPA or merge.
+
 ## Build 575 phone result and fresh roadmap — 2026-11-18
 
 Owner reports ESPN cards but no source choices in Sports; manual Crew browsing eventually played a game after several failed sources. Phone log confirms build575, ESPN18live/51upcoming in1.62s, NHL36 matched streams after53.37s, and NBA/NCAAB/FullLiveSites zero visited folders. Live Now visits ended before the first scan completed; Sports closed immediately before skipped-category summaries. Session cancellation/serial category starvation needs reproduction, not a speculative code change. Manual media opened with H.264/AAC later; exact successful provider is not established. All existing code is pushed through30722ac; only an obsolete build568 documentation stash is retained privately. Owner requests roadmap only: [fresh-agent roadmap](SPORTS-PHONE-SOURCE-ROADMAP.md). No implementation, IPA or merge in this follow-up.

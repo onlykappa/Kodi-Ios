@@ -290,10 +290,8 @@ class JetProvider:
             return done
         log('jet: %d scrapers (%s)' % (len(extractors), how))
 
-        def work(ext):
-            name = getattr(ext, 'name', None) or type(ext).__name__
-            try:
-                items = ext.get_items() or []
+        def save(ext, items):
+                name = getattr(ext, 'name', None) or type(ext).__name__
                 found = []
                 for item in items:
                     try:
@@ -306,6 +304,10 @@ class JetProvider:
                     self.stats[name] = text
                 if found:
                     log('jet: %s %s, e.g. %s' % (name, text, '; '.join(sorted({sm.versus(r) for r in found})[:2])))
+        def work(ext):
+            name = getattr(ext, 'name', None) or type(ext).__name__
+            try:
+                save(ext, ext.get_items() or [])
             except Exception as error:
                 with self.lock:
                     self.stats[name] = type(error).__name__
@@ -369,10 +371,26 @@ class JetProvider:
                             self.reason = 'JetExtractors is not installed (%s)' % reason
                             return
                         others, _ = load_extractors(module)
-                    with self.lock:
-                        pending[0] += len(others)
-                    for ext in others:
-                        threading.Thread(target=guarded, args=(ext,), daemon=True).start()
+                    if how == 'Crew routes' and all(hasattr(ext, 'batches') for ext in others):
+                        # One Kodi listing at a time, rotating after each folder.
+                        active = [(ext, iter(ext.batches())) for ext in others]
+                        while active:
+                            next_active = []
+                            for ext, batches in active:
+                                try:
+                                    save(ext, next(batches))
+                                    self._publish(False)
+                                    next_active.append((ext, batches))
+                                except StopIteration:
+                                    pass
+                                except Exception as error:
+                                    log('jet: %s failed (%s)' % (ext.name, type(error).__name__))
+                            active = next_active
+                    else:
+                        with self.lock:
+                            pending[0] += len(others)
+                        for ext in others:
+                            threading.Thread(target=guarded, args=(ext,), daemon=True).start()
                 except Exception as error:
                     if how == 'Crew routes':
                         self.reason = 'Crew discovery unavailable (%s)' % type(error).__name__

@@ -19,6 +19,20 @@ def source(name='Crew NBA', quality='', route='?action=play&url=fixture'):
  return {'addon':name, 'quality':quality, 'play':json.dumps({'e':crew.NAME, 'l':{'address':ROOT+route}})}
 
 class Tests(unittest.TestCase):
+ def test_crew_categories_rotate_and_publish_before_first_finishes(self):
+  order=[]; snapshots=[]
+  class Batched:
+   def __init__(self,name): self.name=name
+   def batches(self):
+    order.append(self.name+' first');yield []
+    order.append(self.name+' second');yield []
+  with patch.object(jet,'_folder',return_value='/installed'),patch.object(crew,'schedule',return_value=[]),patch.object(crew,'discover',return_value=[Batched('NHL'),Batched('NBA')]):
+   provider=jet.JetProvider(clock=lambda:1001,publish=lambda value:snapshots.append(value))
+   self.assertTrue(provider._start().wait(2))
+  self.assertEqual(order,['NHL first','NBA first','NHL second','NBA second'])
+  self.assertTrue(any(not value['done'] for value in snapshots))
+  self.assertTrue(snapshots[-1]['done'])
+
  def test_discover_only_actual_sports_menu_routes(self):
   entries=[entry('NBA','?action=nba'),entry('Replay','?action=sreplays'),entry('Movies','?action=movies'),entry('Live sites','?action=fullsites'),entry('NBA duplicate','?action=nba')]
   found=crew.discover(lambda route:entries,schedule=[GAME])

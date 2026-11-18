@@ -181,6 +181,12 @@ class CrewSource:
         self.session = session
 
     def get_items(self):
+        latest = []
+        for latest in self.batches():
+            pass
+        return latest
+
+    def batches(self):
         import time
         began = time.monotonic()
         pending, visited, emitted, items = [(self.route, 0, None, [{'address':self.route, 'label':self.name}])], set(), set(), []
@@ -219,9 +225,10 @@ class CrewSource:
                 items.append(SimpleNamespace(title=game['away']['name']+' vs '+game['home']['name'],
                              league=game['league_name'], status='LIVE' if game['state']=='live' else '',
                              starttime=datetime.fromtimestamp(game['start']), links=[CrewLink(address, menu_path, game)]))
+            yield list(items)
         import sports_jet
         sports_jet.log('jet: %s: %d folders, %d unavailable, %d matched streams in %.2fs' % (self.name, len(visited), failures, len(items), time.monotonic() - began))
-        return items
+        yield list(items)
 
 
 def discover(read=listing, schedule=None, session=None):
