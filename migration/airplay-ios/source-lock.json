@@ -10,7 +10,7 @@
     "sha256": "05ef394f931b321dda54e0c8378e6420c912d4cf525602bb70529d8c864acf7a"
   },
   "source_commit": "4b72d9c35da51b51bae6127ec1979607dcdffa51",
-  "pin_note": "r65: PR #44 separate six-second converted video/audio timeline, with r64 subtitle and source-watchdog work retained. Candidate run 43911296606 compiled arm64 iPhoneOS with Xcode 26.3 (SDK 26.2) and passed five Foundation transport tests. Its host-evidence job verified the entire AirPlay tree matches successful host run 43907784636 (768 converted frames, matching A/V, captions, exact copied packets, seek/cancel/recovery). Archive SHA from the successful compiler log; publish_verified_candidate verifies the archive before immutable publication. Device acceptance pending. Published by verified-candidate run 43912960249; public archive downloaded and SHA/ZIP CRC/arm64 architecture/new conversion markers verified before IPA dispatch.",
+  "pin_note": "r66 diagnostic: readiness and owned seek before stall/compat recovery play, bounded deadline and transition diagnostics. Candidate 44399079914 passed native host tests and iPhoneOS compilation; independent inspection 44403574416 verified ZIP integrity, IOS platform (minimum14.0 SDK26.2), binary SHA256 9e6bc5dc4e0b2c6dd1100285cd8f660bae91d7aee92f6429a77568391e3dbc8d and all45 exports. Owner authorized framework publication/pin and one diagnostic IPA. User-pause intent, empty audio and real receiver acceptance remain unproven.",
   "verified_run": 44399079914,
   "verified_host_run": 44399079914
 }
