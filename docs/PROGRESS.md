@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Owner-authorized diagnostic IPA588 published — 2026-11-18
+
+Build588 from24ba0c4ebfa9b7c4b4b3ba6ea7e740a5df94c674 passed workflow44420277871 and published. Downloaded588,979,457-byte IPA: SHA2567c63b2231ab9bff0b19e9349fbe864e15e4ca22537eea1a5ccd5003f3c7a7794; ZIP CRC and build identity passed; exact AirPlay/source/history Python files matched source; packaged r66 binary SHA2569e6bc5dc4e0b2c6dd1100285cd8f660bae91d7aee92f6429a77568391e3dbc8d matched verified candidate. Framework publication44420093836 initially hit integration release-creation403; owner-authorized repository access created the empty release, then rerun uploaded/verified immutable archive. Device acceptance, empty audio and pause intent remain open. Sports loading review/mockup is isolated in draftPR47 and absent from this IPA. Test when home: open/seek/sustain/pause during recovery/close/reopen Continue Watching and export log. PR46 unmerged.
+
 ## Latest-source native artifact verified — 2026-11-18
 
 Step2 (compile/inspect latest source) completed: native run44399079914 passed host tests and iPhone framework compilation for4b72d9c35da51b51bae6127ec1979607dcdffa51. Its AirPlay source tree is unchanged on the current branch. Independent inspection run44403574416 passed ZIP integrity, native callback tests, hashes/platform/required exports and retained its report via check-run API. Archive SHA256bab8cbcf6549eff5c1c57e18327a08aaa696b6c82d1d4445895d560184ed16e8; binary SHA2569e6bc5dc4e0b2c6dd1100285cd8f660bae91d7aee92f6429a77568391e3dbc8d. LC_BUILD_VERSION: IOS, minimum14.0, SDK26.2. All45 public symbol names exactly match the previously inspected candidate (no missing/added exports); explicit preparation/probe/stream serving/HDR/subtitle/background checks passed. No framework publication or pin update; r65 remains pinned. This completes artifact verification, not pause-intent implementation or device acceptance.
