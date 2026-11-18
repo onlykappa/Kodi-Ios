@@ -590,3 +590,12 @@ Authorized scope: Python backend only, stacked on claude/build442-feedback; no m
 ISSUE-368 fixes observed Crew title decorations blocking uniquely matched ESPN live games; rig discovery found three routes for one real live game. ISSUE-369 adds Crew context ownership, cooperative scan exit, navigation restoration and a controlled handoff, tested in the desktop rig. Next: real-stream playback and full source-picker testing, portrait visual review, then an owner-authorized iPhone test. Route discovery alone does not prove video playback.
 
 Step 3 checkpoint (ISSUE-370): Live Now's native dispatch is now staged after modal dismissal; a real tap reached Kodi but attempted to open an unresolved Crew list expression and did not play. Investigate usable child routes, actual playback/fallback, and proper portrait-rig screenshots before any iPhone test build.
+
+## AirPlay source reliability (2026-11-18)
+
+1. **Controlled source reproduction — done:** ISSUE-378 covers delayed/rejected byte ranges and shared cache waits during simulated inspection and playback. The fixture is not an iPhone or video test.
+2. **Source reads and buffering — next:** test a targeted response to refused ranges, request priority and contention; compare the fixture with production read-ahead and fast/slow source cases.
+3. **10-bit H.264:** determine real receiver support for High 10 and test a safe fallback before enabling direct play.
+4. **Stall recovery:** validate resumption near the correct position without indefinite retries.
+5. **Position and watch history:** ISSUE-377 candidate has controlled tests; validate normal and stalled close, rewind, replacement and completion on device.
+6. **Full regression and owner-authorized testing IPA:** validate conversion, subtitles, audio, seeking, cancellation and empty segments, then measure startup, playback and resume on the owner's iPhone and Apple TV.
