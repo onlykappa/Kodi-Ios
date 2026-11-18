@@ -596,6 +596,6 @@ Step 3 checkpoint (ISSUE-370): Live Now's native dispatch is now staged after mo
 1. **Controlled source reproduction — done:** ISSUE-378 covers delayed/rejected byte ranges and shared cache waits during simulated inspection and playback. The fixture is not an iPhone or video test.
 2. **Source reads and buffering — targeted candidate:** refused split ranges reach the existing constrained fallback sooner. ISSUE-378 records mixed controlled results and read-ahead tests; real conversion, playback and iPhone validation remain open.
 3. **10-bit H.264 — investigated, device evidence open:** Apple's HLS authoring limit is High Profile or below, while the owner has High 10. Existing native host tests exercise conversion; retain it. ISSUE-379 records why passthrough is not enabled and what a receiver test would need to establish.
-4. **Stall recovery:** validate resumption near the correct position without indefinite retries.
+4. **Stall recovery — source candidate:** seek the replacement before playing and bound the wait (ISSUE-380). Native framework compilation and real AVPlayer/iPhone validation remain open.
 5. **Position and watch history:** ISSUE-377 candidate has controlled tests; validate normal and stalled close, rewind, replacement and completion on device.
 6. **Full regression and owner-authorized testing IPA:** validate conversion, subtitles, audio, seeking, cancellation and empty segments, then measure startup, playback and resume on the owner's iPhone and Apple TV.
