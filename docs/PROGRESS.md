@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Native host CI dependency-install repair — 2026-11-18
+
+Run44379604495 failed twice at dependency installation: regional Ubuntu mirror downloads were slow and the three-attempt command budget exceeded the12-minute step cap. Candidate4b72d9c uses the standard signed Ubuntu HTTPS archive, excludes recommended packages and bounds two update/install attempts within15minutes. In run44399079914 the dependency-install step passed and the host FFmpeg build started. Native host tests/conversion results remain pending; installation success is not a test pass. No runtime code, framework pin or publication changed.
+
 ## AirPlay steps 3–6 host checkpoint — 2026-11-18
 
 All181 registered local import check/test commands passed; platform-specific skips are not native execution. Separately reran22 history cases and2 production source-cache HTTP fixture tests successfully. The range fixture again showed mixed timing (concurrency-limited case improved, repeated fallback-refusal case did not), without real playback claims. No new substantiated cause for ISSUE-375; exact original-source packet/timestamp/selected-audio evidence is required to reproduce the repeated empty segments. Native host retry44379604495 failed again during FFmpeg fixture dependency installation before executing tests, while the iPhone framework job passed. New [test-build readiness document](AIRPLAY-TEST-BUILD-READINESS.md) records evidence, remaining native/pause/source gates, required final-source compile/inspection/publication/pin sequence and concise future phone tests. No framework pin, IPA, release or merge changed.
