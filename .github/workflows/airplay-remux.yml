@@ -86,11 +86,15 @@ jobs:
           persist-credentials: false
       # Run 43056244487 hung here twice for 20-35 min (Ubuntu mirror): apt now times out and retries.
       - name: ffmpeg for the test fixtures (x264, x265, DTS and TrueHD encoders)
-        timeout-minutes: 12
+        timeout-minutes: 15
         run: |
-          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
-          for try in 1 2 3; do
-            sudo timeout 240 apt-get $APT update -q && sudo timeout 300 apt-get $APT install -yq ffmpeg libx265-dev && exit 0
+          # The runner's regional mirror stalled repeatedly. Keep Ubuntu's signed
+          # repository metadata, but use its standard HTTPS archive directly.
+          sudo sed -i 's|^URIs:.*|URIs: https://archive.ubuntu.com/ubuntu/|' /etc/apt/sources.list.d/ubuntu.sources
+          APT="-o Acquire::Retries=1 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20"
+          # Two attempts fit inside the step's 15-minute bound, including cleanup.
+          for try in 1 2; do
+            sudo timeout --kill-after=10 120 apt-get $APT update -q && sudo timeout --kill-after=10 240 apt-get $APT install --no-install-recommends -yq ffmpeg libx265-dev && exit 0
             echo "apt try $try failed; retrying"; sleep 10
           done
           exit 1
