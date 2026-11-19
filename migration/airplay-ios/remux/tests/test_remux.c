@@ -2425,8 +2425,9 @@ static void test_startup_repairs(const char *base) {
 // fix retries whichever side failed, so either outcome should recover without failing the whole seek.
 static void test_seek_audio_retry(const char *base) {
     char url[512],list[512],log[8192];
-    // long_big.mkv: 600 kbit/s video + 64 kbit/s audio over 1300 s, so 40 s in, both tracks are
-    // comfortably past the fault's 256 KiB-per-connection threshold (audio alone: ~320 KiB).
+    // long_big.mkv: 600 kbit/s video + 64 kbit/s audio over 1300 s, so 40 s in, both tracks sit
+    // around 3-3.6 MiB in, inside the fault's 256 KiB-10 MiB window (which excludes the first
+    // chunk and a format/index probe observed near the end of this ~108 MiB fixture).
     snprintf(url,sizeof url,"%s/busy/long_big.mkv",base);
     unsigned ticket=kr_remux_begin(0);
     int opening=kr_remux_start_for(ticket,url,0,0,list,sizeof list);
