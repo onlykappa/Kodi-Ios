@@ -294,7 +294,7 @@ def arc(size,stroke,degrees):
 _GLYPHS={}
 def header_glyphs():
  """The round-5 header textures, drawn once per process (supersampled, so not cheap)."""
- if not _GLYPHS:_GLYPHS.update({'ring_arc.png':arc(132,5,150),'hdr_gear.png':shape(96,gear_inside),'hdr_refresh.png':shape(96,refresh_inside),
+ if not _GLYPHS:_GLYPHS.update({'ring_arc.png':arc(132,5,150),'hdr_ring.png':arc(128,3,360),'hdr_gear.png':shape(96,gear_inside),'hdr_refresh.png':shape(96,refresh_inside),
   **{'bell_%s.png'%k:shape(96,bell_inside(k),3) for k in ('line','fill','halo_line','halo_fill')}})
  return _GLYPHS
 
@@ -438,10 +438,19 @@ def nav_button(id,x,y,glyph,actions,extra='',visible='',glyph_size=NAV_GLYPH):
 NOTICES='RunScript(service.kodi.ios.bootstrap,notifications)'
 SETTINGS='ActivateWindow(settings)'
 HDR=108;HDR_GAP=24;HDR_GLYPH=46   # header buttons (owner-approved round 5, option A): 40 pt glass circles; button glyphs 46 (APPLE-UI-POLICY §5.5)
+HDR_BOX=80   # settings and refresh (owner, 2026-11-19): no circle behind them, one solid icon family with the bell, both the same size; the skin's icons fill half their box, so 80 shows 40 units
+def hdr_ring(visible=''):
+ """A light hairline ring (white at about 40 %) around a header icon, no fill: it shows where to tap and lets the artwork through."""
+ return image(0,0,HDR,HDR,MEDIA+'hdr_ring.png','66FFFFFF',visible)
+def bare_glyph(x,y,name,visible=''):
+ """A header icon with no circle: a faint shadow copy under it keeps it readable over artwork (Kodi cannot blur what is behind)."""
+ return icon(x,y+3,HDR_BOX,name,'55000000',visible)+icon(x,y,HDR_BOX,name,WHITE,visible)
 def header_button(id,x,y,glyph,action,extra=''):
- """Glass header circle with a centred glyph (bell, gear, refresh); glyph is an icons/ name or a full path."""
- off=(HDR-HDR_GLYPH)//2
- return pill_button(id,x,y,HDR,HDR,'',[('',action)],'glass','',extra)[:-len('</control>')]+icon(off,off,HDR_GLYPH,glyph)+'</control>'
+ """Settings: a bare gear (no glass circle) with a 118 hit target; glyph is an icons/ name or a full path."""
+ off=(HDR-HDR_BOX)//2
+ return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+hdr_ring()+bare_glyph(off,off,glyph)+
+  '<control type="button" id="%d"><left>-5</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><onclick>%s</onclick>%s'
+  '<animation effect="fade" start="100" end="65" time="0" condition="Control.HasFocus(%d)">Conditional</animation></control></control>'%(id,action,extra,id))
 def bell(x,y,extra=''):
  """Real model percentage; needs-you is the only red badge. No looping arc."""
  active='!String.IsEmpty(Window(Home).Property(Notices.Active))'
@@ -459,15 +468,15 @@ def bell(x,y,extra=''):
  count='!String.IsEmpty(Window(Home).Property(Notices.Count))'
  for key,tint,cond in (('Count','FF0A84FF',active+' + '+count+' + String.IsEmpty(Window(Home).Property(Notices.Needs))'),('Needs','FFFF453A',needs)):
   badge+='<control type="group"><left>70</left><top>-6</top><visible>'+cond+'</visible>'+image(0,0,50,50,MEDIA+'dot.png',tint)+label(0,0,50,50,'$INFO[Window(Home).Property(Notices.%s)]'%key,'p_cap',WHITE,'center','<scroll>false</scroll>')+'</control>'
- # The invisible hit target is 118, while the visible bell remains 24 pt.
- return '<control type="group"><left>%d</left><top>%d</top>'%(x,y)+rings+icon(23,23,62,'bell.png')+'<control type="button" id="9207"><left>-5</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><onclick>'+NOTICES+'</onclick>'+extra+'</control>'+badge+'</control>'
+ # The invisible hit target is 118; the bell glyph is the same size as the gear and refresh (HDR_BOX), inside its progress ring.
+ return '<control type="group"><left>%d</left><top>%d</top>'%(x,y)+hdr_ring('<visible>String.IsEmpty(Window(Home).Property(Notices.Active))</visible>')+rings+bare_glyph((HDR-HDR_BOX)//2,(HDR-HDR_BOX)//2,'bell.png')+'<control type="button" id="9207"><left>-5</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><onclick>'+NOTICES+'</onclick>'+extra+'</control>'+badge+'</control>'
 
 
 def gear(x,y,extra=''):
  """Gear in place of the profile picture: opens Settings (Accounts is its first row). A dot while add-on updates wait."""
  updates='!String.IsEmpty(System.AddonUpdateCount) + !String.IsEqual(System.AddonUpdateCount,0)'
  return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+
-  header_button(9206,0,0,MEDIA+'hdr_gear.png',SETTINGS,extra)+
+  header_button(9206,0,0,'gear.png',SETTINGS,extra)+
   '<control type="group"><left>78</left><top>-4</top><visible>%s</visible>'%updates+
   image(0,0,36,36,MEDIA+'dot.png','FF000000')+image(4,4,28,28,MEDIA+'dot.png','FFFF453A')+'</control></control>')
 
@@ -475,15 +484,16 @@ REFRESHING='Window(Home).Property(Portrait.Refreshing)'
 def refresh_rows_action(tab):return 'RunScript(service.kodi.ios.bootstrap,refresh_rows,tab=%s)'%tab
 def refresh_button(x,y,tab,extra=''):
  """Refresh on Home, Movies and TV: every TMDb Helper row and the hero show the next page of their list
- (refresh_rows.py). The arrow spins while the rows load, then a tick for a moment."""
+ (refresh_rows.py). A bare arrow (no circle, owner 2026-11-19) that spins while the rows load, then a tick for a moment."""
  busy='String.IsEqual(%s,%s)'%(REFRESHING,tab);done='String.IsEqual(%s,done.%s)'%(REFRESHING,tab)
- off=(HDR-HDR_GLYPH)//2
- return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+
-  pill_button(9208,0,0,HDR,HDR,'',[('!'+busy,refresh_rows_action(tab))],'glass','',extra)+
-  '<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><visible>!%s</visible>'%(off,off,HDR_GLYPH,HDR_GLYPH,done)+
+ off=(HDR-HDR_BOX)//2
+ return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+hdr_ring()+
+  '<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><visible>!%s</visible>'%(off,off,HDR_BOX,HDR_BOX,done)+
   '<animation effect="rotate" end="-360" center="auto" time="900" loop="true" reversible="false" condition="%s">Conditional</animation>'%busy+
-  icon(0,0,HDR_GLYPH,MEDIA+'hdr_refresh.png')+'</control>'+
-  icon(off,off,HDR_GLYPH,'circle-check.png',GREEN,'<visible>%s</visible>'%done)+'</control>')
+  bare_glyph(0,0,'arrow-rotate-right.png')+'</control>'+
+  icon(off,off,HDR_BOX,'circle-check.png',GREEN,'<visible>%s</visible>'%done)+
+  '<control type="button" id="9208"><left>-5</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus />'
+  '<onclick condition="!%s">%s</onclick>%s<animation effect="fade" start="100" end="65" time="0" condition="Control.HasFocus(9208)">Conditional</animation></control></control>'%(busy,refresh_rows_action(tab),extra))
 
 def refreshed_toast(tab,title):
  """'New picks on Home': under the header for a moment after a refresh."""
