@@ -20,6 +20,7 @@ _spec=_iu.spec_from_file_location('settings_page',os.path.join(os.path.dirname(o
 settings_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(settings_page)
 _spec=_iu.spec_from_file_location('pages',os.path.join(os.path.dirname(os.path.abspath(__file__)),'pages.py'))
 pages=_iu.module_from_spec(_spec);_spec.loader.exec_module(pages)
+sys.modules.setdefault('pages',pages)   # sports_opening_page imports it by name (pages.slide_bar)
 _spec=_iu.spec_from_file_location('skin_textures',os.path.join(os.path.dirname(os.path.abspath(__file__)),'skin_textures.py'))
 skin_textures=_iu.module_from_spec(_spec);_spec.loader.exec_module(skin_textures)
 _spec=_iu.spec_from_file_location('library_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_page.py'))

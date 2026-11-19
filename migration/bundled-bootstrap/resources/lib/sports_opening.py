@@ -34,7 +34,9 @@ class Opening:
             def onAction(self,action):
                 if action.getId() in (9,10,92,110):parent.cancel()
         class Observer(xbmc.Player):
-            def onAVStarted(self):parent.started.set()
+            def onAVStarted(self):
+                if parent.owner and parent.home.getProperty(OWNER)!=parent.owner:return
+                parent.started.set()
         self.observer=Observer()
         here=os.path.dirname(os.path.dirname(os.path.dirname(xbmcvfs.translatePath(__file__))))
         try:
@@ -80,3 +82,4 @@ class Opening:
         if self.closed.is_set():return
         self.closed.set()
         if hasattr(self,'window'):self.window.close()
+        self.observer=None

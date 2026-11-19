@@ -30,4 +30,22 @@ class Tests(unittest.TestCase):
  def test_matchup_from_descriptor_not_url(self):
   self.assertEqual(opening.matchup({'play':json.dumps({'l':{'game':{'away':{'name':'Alpha'},'home':{'name':'Beta'}}}})}),'Alpha\nBeta')
   self.assertEqual(opening.matchup({'play':'not-json'}),'Live game')
+ def test_matchup_handles_long_team_names(self):
+  long_name='A'*500
+  value=opening.matchup({'play':json.dumps({'l':{'game':{'away':{'name':long_name},'home':{'name':'Beta'}}}})})
+  self.assertEqual(value,'%s\nBeta'%long_name)
+ def test_matchup_handles_malformed_queue(self):
+  self.assertEqual(opening.matchup({'native_queue':[],'play':'{}'}),'Live game')
+  self.assertEqual(opening.matchup({'native_queue':[{'play':123}]}),'Live game')
+ def test_close_drops_observer_so_stale_callback_is_inert(self):
+  obj=self.make();obj.observer='sentinel';obj.close()
+  self.assertIsNone(obj.observer)
+ def test_late_avstarted_from_replaced_opening_does_not_set_started(self):
+  obj=self.make('mine');self.props[opening.OWNER]='someone-else'
+  class FakeObserver:
+   def onAVStarted(inner_self):
+    if obj.owner and obj.home.getProperty(opening.OWNER)!=obj.owner:return
+    obj.started.set()
+  FakeObserver().onAVStarted()
+  self.assertFalse(obj.started.is_set())
 if __name__=='__main__':unittest.main()
