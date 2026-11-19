@@ -2442,7 +2442,8 @@ static void test_startup_repairs(const char *base) {
 // deterministically but not tied to which side (video or audio) actually wins that race in a given run; the
 // fix retries whichever side failed, so either outcome should recover without failing the whole seek.
 static void test_seek_audio_retry(const char *base) {
-    char url[512],list[512],log[8192];
+    char url[512],list[512];
+    static char log[1 << 20]; // Drain the expanded bounded diagnostic history, including retry evidence.
     // long_big.mkv: 600 kbit/s video + 64 kbit/s audio over 1300 s, so 40 s in, both tracks sit
     // around 3-3.6 MiB in, inside the fault's 256 KiB-10 MiB window (which excludes the first
     // chunk and a format/index probe observed near the end of this ~108 MiB fixture).

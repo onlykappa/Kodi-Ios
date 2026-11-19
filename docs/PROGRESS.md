@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Diagnostic framework validation — 2026-11-19
+
+Native run44639179231 compiled the iPhone framework but passed3810/3811 host checks. The earlier three request-history retention failures are resolved. The remaining retry-evidence assertion reads only8192 bytes from the expanded bounded log and can miss later retry lines. Its drain buffer now matches the full-history test (1MiB); the assertion remains unchanged. Retest is required before framework publication and the owner-authorized diagnostic IPA. This does not fix or prove the phone's seek failure.
+
 ## Build600 phone seek failures / new follow-up — 2026-11-19
 
 Owner authorized PR49 merge; merged as2629184. New phone log confirms build600/r67 and contains two MKV openings then MP4. Likely streamed MKV attempts show31.6–41.6s priming and slow converted video delivery. MP4 long-target video178 succeeds, but audio178 repeatedly returns empty with2scanned packets and no new source I/O; nativeHTTP500 then buffering/failure. Source provenance and the reported>10minute stream-seek command need confirmation; not every server-successful segment proves receiver playback. Start with reproducible MP4 audio-window/reader reuse failure, then MKV source/conversion waits. See [new roadmap](AIRPLAY-BUILD600-ROADMAP.md). No new runtime fix or IPA.
