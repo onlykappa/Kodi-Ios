@@ -56,7 +56,7 @@ class Properties(unittest.TestCase):
         self.assertEqual((props['state'], props['sub']), ('ok', 'Updated just now'))
         self.assertEqual((props['live.mode'], props['live.badge'], props['live.title'], props['live.detail']), ('live', '4 live', 'Live right now', 'Soccer, Basketball and 2 more'))
         self.assertEqual((props['up.d1'], props['up.d2'], props['up.lines']), ('Next at 7:30 PM', '2 more today', '2'))
-        self.assertEqual((props['lg.d1'], props['lg.lines']), ('12 leagues', '1'))
+        self.assertEqual((props['lg.d1'], props['lg.lines']), ('13 leagues', '1'))
         counted = ctl.props_for(dict(overview(), upcoming=59), NOW, 0)   # mockup A1: "59 games · 2 more today"
         self.assertEqual((counted['up.d1'], counted['up.d2']), ('59 games · 2 more', 'today'))
         self.assertNotIn('fin', props)   # the Finished today row is not in the mockup

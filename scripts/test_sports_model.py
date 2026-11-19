@@ -69,10 +69,10 @@ class Ordering(unittest.TestCase):
 
     def test_leagues_live_sports_first_then_fixed_order(self):
         order = sm.order_leagues(provider().leagues())
-        self.assertEqual([s for s, _ in order], ['Soccer', 'Basketball', 'American football', 'Hockey', 'Baseball', 'Combat sports', 'Motorsport'])
+        self.assertEqual([s for s, _ in order], ['Soccer', 'Basketball', 'American football', 'Hockey', 'Baseball', 'Golf', 'Combat sports', 'Motorsport'])
         self.assertEqual([l['code'] for l in dict(order)['Soccer']], ['UCL', 'EPL', 'LIGA', 'BUN'])   # live first, then the soonest game
         self.assertEqual([l['code'] for l in dict(order)['Basketball']], ['NBA', 'WNBA'])
-        self.assertEqual(sum(len(l) for _, l in order), 12)
+        self.assertEqual(sum(len(l) for _, l in order), 13)
         # a sport that goes live moves up: baseball with a live game comes before the others without
         leagues = provider().leagues()
         next(l for l in leagues if l['code'] == 'MLB')['live'] = 1
@@ -103,7 +103,7 @@ class Ordering(unittest.TestCase):
 class Provider(unittest.TestCase):
     def test_overview_matches_the_landing_board(self):
         o = provider().overview()
-        self.assertEqual((o['live'], o['leagues'], o['more_today']), (4, 12, 2))
+        self.assertEqual((o['live'], o['leagues'], o['more_today']), (4, 13, 2))
         self.assertEqual(o['live_sports'], ['American football', 'Basketball', 'Hockey', 'Soccer'])
         self.assertEqual(o['next'], NOW + 45 * 60)
 

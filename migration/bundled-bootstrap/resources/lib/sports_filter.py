@@ -183,7 +183,7 @@ def unwrap(provider):
     return getattr(provider, '_base', provider)
 
 
-# --- the Edit sheet (the app's choice sheet: rows with switches that flip in place) -----------------------------------------
+# --- the Edit sheet (sports_edit_page.py) ------------------------------------------------------------------------------------
 SPORT_ORDER = ('American football', 'Basketball', 'Baseball', 'Hockey', 'Soccer', 'Golf', 'Combat sports', 'Motorsport')
 
 
@@ -201,37 +201,10 @@ SPORT_ICONS = {'American football': 'football-american.png', 'Basketball': 'bask
                'Motorsport': 'flag-checkered.png'}   # existing skin icons (special://skin/extras/icons/); others get the medal
 
 
-def sports_spec(rows, off):
-    """Step 1: one row per sport ('3 of 7 leagues on'), "Turn every league on" as the link row."""
-    out = []
-    for sport, entries in sports_of(rows):
-        on = len([r for r in entries if r['code'] not in off])
-        out.append({'label': sport, 'detail': '%d of %d league%s on' % (on, len(entries), '' if len(entries) == 1 else 's'),
-                    'tag': '' if on == len(entries) else ('Off' if not on else 'Some'), 'tint': 'FF0A84FF',
-                    'glyph': SPORT_ICONS.get(sport, 'medal.png')})
-    summ = summary(off, known(rows))
-    return {'heading': 'Leagues', 'sub': summ or 'Every league is on. Choose a sport to switch leagues off.',
-            'rows': out[:8], 'link': 'Turn every league on' if off else '', 'button': 'Done',
-            'foot': 'The choice applies to the hub, Upcoming and Leagues.'}
-
-
 def _detail(row, now, offset):
     import sports_model as sm
     live, nxt = sm.league_detail(row, now, offset)
     return ' · '.join(x for x in (live, nxt) if x) or 'Nothing coming up'
-
-
-def leagues_spec(rows, off, sport, logos=None, now=None):
-    """Step 2: a switch per league of one sport, each with its real logo on a light tile (a neutral tile when it has none)."""
-    import time
-    import sports_model as sm
-    entries = dict(sports_of(rows)).get(sport, [])[:8]
-    logos = logos or {}
-    now = int(time.time()) if now is None else now
-    offset = sm.device_offset(now)
-    return {'heading': sport, 'sub': 'Switch leagues on or off', 'button': 'Back',
-            'rows': [{'label': r.get('name') or r['code'], 'detail': _detail(r, now, offset), 'switch': r['code'] not in off, 'tint': 'FFF2F2F7',
-                      'glyph': logos.get(r['code'], '')} for r in entries]}, [r['code'] for r in entries]
 
 
 def edit_state(provider):
@@ -246,3 +219,34 @@ def edit_state(provider):
     if not active(off, codes):
         return plain
     return {'edit.label': 'Edit · %d' % count_on(off, codes), 'edit.on': 'true', 'edit.summary': summary(off, rows)}
+
+
+# --- the Edit sheet window (owner mockups B1-B2): one flat list of sport headings and league rows ------------------------------
+EDIT_SLOTS = 40   # sports_edit_page.SLOTS: eight sports and thirty-two leagues
+
+
+def sheet_items(rows, off, logos=None, now=None):
+    """[{'kind': 'head'|'row', 'title', 'detail', 'logo', 'on', 'pos', 'sport', 'code'}] for the sheet, sports in a steady order, leagues by name."""
+    import time
+    import sports_model as sm
+    now = int(time.time()) if now is None else now
+    offset = sm.device_offset(now)
+    logos = logos or {}
+    items = []
+    for sport, entries in sports_of(rows):
+        items.append({'kind': 'head', 'title': sport, 'sport': sport})
+        for n, r in enumerate(entries):
+            items.append({'kind': 'row', 'title': r.get('name') or r['code'], 'detail': _detail(r, now, offset), 'logo': logos.get(r['code'], ''),
+                          'on': 'off' if r['code'] in off else 'on', 'sport': sport, 'code': r['code'],
+                          'pos': 'only' if len(entries) == 1 else 'first' if n == 0 else 'last' if n == len(entries) - 1 else 'mid'})
+    return items[:EDIT_SLOTS]
+
+
+def sheet_props(items):
+    """Window properties item.N.* for the items (unused slots empty), and the help line."""
+    props = {'edit.help': 'Choose what shows in Sports. Games from leagues that are off are hidden.'}
+    for n in range(EDIT_SLOTS):
+        item = items[n] if n < len(items) else {}
+        for key in ('kind', 'title', 'detail', 'logo', 'on', 'pos'):
+            props['item.%d.%s' % (n, key)] = item.get(key, '')
+    return props

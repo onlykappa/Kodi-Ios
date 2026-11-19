@@ -49,7 +49,7 @@ class Projection(unittest.TestCase):
         expected=sm.order_leagues(source)
         self.assertEqual([r['league'] for r in rows],[lg for _,items in expected for lg in items])
         self.assertEqual([r['sport'] for r in rows if r['sport']],[sport for sport,_ in expected])
-        self.assertEqual(props['subtitle'],'12 leagues · updated just now')
+        self.assertEqual(props['subtitle'],'13 leagues · updated just now')
         self.assertEqual(props['row.0.sport.count'],'4 leagues')
         self.assertEqual(rows[0]['code'],'UCL')
         nba=next(r for r in rows if r['code']=='NBA')
@@ -150,7 +150,7 @@ class Controller(unittest.TestCase):
             provider.fail=False
             w.onClick(page.RETRY);until(lambda:not w.fetching)
             self.assertEqual(w.props['state'],'ready')
-            self.assertEqual(w.props['subtitle'],'12 leagues · updated just now')
+            self.assertEqual(w.props['subtitle'],'13 leagues · updated just now')
             self.assertFalse(w.props['error.title'])
         self.exercise(provider,scenario)
         self.assertEqual(provider.calls,2)

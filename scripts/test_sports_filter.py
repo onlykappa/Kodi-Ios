@@ -97,76 +97,110 @@ class Provider(unittest.TestCase):
 class EditSheet(unittest.TestCase):
     ROWS = [{'code': 'NFL', 'name': 'NFL', 'sport': 'American football'}, {'code': 'NCAAF', 'name': 'College Football', 'sport': 'American football'},
             {'code': 'NBA', 'name': 'NBA', 'sport': 'Basketball'}, {'code': 'MLS', 'name': 'MLS', 'sport': 'Soccer'},
-            {'code': 'EPL', 'name': 'Premier League', 'sport': 'Soccer'}, {'code': 'UFC', 'name': 'UFC', 'sport': 'Combat sports'}]
+            {'code': 'EPL', 'name': 'Premier League', 'sport': 'Soccer'}, {'code': 'UFC', 'name': 'UFC', 'sport': 'Combat sports'},
+            {'code': 'PGA', 'name': 'PGA Tour', 'sport': 'Golf'}, {'code': 'F1', 'name': 'Formula 1', 'sport': 'Motorsport'}]
 
-    def test_step_one_lists_sports_with_their_counts(self):
-        spec = sf.sports_spec(self.ROWS, {'NCAAF', 'MLS', 'EPL'})
-        self.assertEqual([r['label'] for r in spec['rows']], ['American football', 'Basketball', 'Soccer', 'Combat sports'])
-        self.assertEqual([r['detail'] for r in spec['rows']][:3], ['1 of 2 leagues on', '1 of 1 league on', '0 of 2 leagues on'])
-        self.assertEqual([r['tag'] for r in spec['rows']][:3], ['Some', '', 'Off'])
-        self.assertEqual(spec['rows'][1]['glyph'], 'basketball.png')   # every sport has an icon, never an empty tile
-        self.assertEqual(spec['link'], 'Turn every league on')
-        self.assertEqual(sf.sports_spec(self.ROWS, set())['link'], '')   # nothing off: nothing to turn on
+    def test_the_sheet_lists_every_sport_then_its_leagues_by_name(self):
+        items = sf.sheet_items(self.ROWS, {'MLS'}, {'EPL': '/x/EPL.png'}, now=1_700_000_000)
+        heads = [i['title'] for i in items if i['kind'] == 'head']
+        self.assertEqual(heads, ['American football', 'Basketball', 'Soccer', 'Golf', 'Combat sports', 'Motorsport'])   # a steady order, golf and combat included
+        rows = {i['code']: i for i in items if i['kind'] == 'row'}
+        self.assertEqual([i['code'] for i in items if i['sport'] == 'American football' and i['kind'] == 'row'], ['NCAAF', 'NFL'])
+        self.assertEqual((rows['EPL']['on'], rows['MLS']['on']), ('on', 'off'))
+        self.assertEqual((rows['EPL']['logo'], rows['MLS']['logo']), ('/x/EPL.png', ''))
+        self.assertTrue(all(r['detail'] for r in rows.values()))   # a second line, so the name is centred beside the logo
+        self.assertEqual([rows[c]['pos'] for c in ('MLS', 'EPL')], ['first', 'last'])   # by name: MLS, Premier League
+        self.assertEqual(rows['PGA']['pos'], 'only')
 
-    def test_step_two_has_a_switch_and_a_logo_per_league(self):
-        spec, codes = sf.leagues_spec(self.ROWS, {'MLS'}, 'Soccer', {'EPL': '/x/EPL.png'})
-        self.assertEqual(sorted(codes), ['EPL', 'MLS'])
-        rows = {r['label']: r for r in spec['rows']}
-        self.assertTrue(rows['Premier League']['switch'] and not rows['MLS']['switch'])
-        self.assertEqual(rows['Premier League']['glyph'], '/x/EPL.png')
-        self.assertEqual(rows['MLS']['glyph'], '')
-        self.assertTrue(all(r['detail'] for r in spec['rows']))   # a second line, so the title is centred beside the logo
+    def test_properties_fill_the_slots_and_clear_the_rest(self):
+        items = sf.sheet_items(self.ROWS, set(), now=1_700_000_000)
+        props = sf.sheet_props(items)
+        self.assertEqual((props['item.0.kind'], props['item.0.title']), ('head', 'American football'))
+        self.assertEqual(props['item.%d.kind' % len(items)], '')
+        self.assertEqual(len([k for k in props if k.endswith('.kind')]), sf.EDIT_SLOTS)
+        self.assertIn('Games from leagues that are off are hidden', props['edit.help'])
 
-    def test_at_most_eight_rows_fit_the_sheet(self):
-        many = [{'code': 'L%d' % n, 'name': 'League %d' % n, 'sport': 'S%d' % n} for n in range(12)]
-        self.assertEqual(len(sf.sports_spec(many, set())['rows']), 8)
+    def test_every_league_the_data_layer_lists_fits_the_sheet(self):
+        import sports_espn
+        rows = [{'code': c, 'name': n, 'sport': s} for c, n, s, *_ in sports_espn.LEAGUES]
+        self.assertLessEqual(len(sf.sheet_items(rows, set())), sf.EDIT_SLOTS)
 
-    def test_the_sheet_accepts_these_specs(self):
-        import choice_sheet
-        spec, _ = sf.leagues_spec(self.ROWS, set(), 'Soccer')
-        props = choice_sheet.properties(spec)
-        self.assertEqual((props['switches'], props['row.1.switch']), ('true', 'on'))
-        self.assertEqual(choice_sheet.properties(sf.sports_spec(self.ROWS, set()))['row.1.label'], 'American football')
 
-class EditScript(unittest.TestCase):
-    """sports_edit.edit drives the two sheets and saves every flip at once."""
+class EditActions(unittest.TestCase):
     ROWS = EditSheet.ROWS
 
-    def run_edit(self, profile, answers, flips=()):
+    def test_flip_only_all_on_all_off(self):
         import sports_edit
-        asked = []
-        script = iter(answers)
-        def choose(spec, toggle=None):
-            asked.append(spec['heading'])
-            answer = next(script)
-            if toggle is not None:
-                for index in flips:
-                    toggle(index)
-            return answer
-        return sports_edit.edit(self.ROWS, profile, {}, choose=choose), asked
-
-    def test_turning_one_league_off_is_saved_and_reported(self):
-        with tempfile.TemporaryDirectory() as profile:
-            # step 1: Soccer (index 2) -> step 2: flip the first league (EPL, sorted by name) -> back -> step 1 Done (-1)
-            changed, asked = self.run_edit(profile, [2, -1, -1], flips=[0])
-            self.assertTrue(changed)
-            self.assertEqual(asked, ['Leagues', 'Soccer', 'Leagues'])
-            self.assertEqual(len(sf.load(profile)), 1)
-
-    def test_turn_every_league_on(self):
-        with tempfile.TemporaryDirectory() as profile:
-            sf.save(profile, {'NBA', 'UFC'})
-            changed, _ = self.run_edit(profile, [4, -1])    # the link row is index len(rows) = 4 sports
-            self.assertTrue(changed)
-            self.assertEqual(sf.load(profile), set())
-
-    def test_leaving_without_a_change_reports_none(self):
-        with tempfile.TemporaryDirectory() as profile:
-            self.assertFalse(self.run_edit(profile, [-1])[0])
+        a = sports_edit.apply
+        self.assertEqual(a(set(), self.ROWS, 'flip', 'NBA'), {'NBA'})
+        self.assertEqual(a({'NBA'}, self.ROWS, 'flip', 'NBA'), set())
+        self.assertEqual(a(set(), self.ROWS, 'only', 'Soccer'), {'NFL', 'NCAAF', 'NBA', 'UFC', 'PGA', 'F1'})   # just this sport stays on
+        self.assertEqual(a({'NBA'}, self.ROWS, 'all_on'), set())
+        self.assertEqual(a(set(), self.ROWS, 'all_off'), {r['code'] for r in self.ROWS})
+        self.assertEqual(a({'NBA'}, self.ROWS, 'nonsense'), {'NBA'})
 
     def test_it_is_a_page_the_app_can_run(self):
         default = (ROOT / 'migration/bundled-bootstrap/default.py').read_text()
         self.assertIn("'sports_edit'", default)
+
+    def test_the_sheet_xml_is_well_formed_with_unique_ids_and_real_hit_areas(self):
+        import re
+        import xml.dom.minidom
+        import portrait
+        page = portrait.sports_edit_page
+        text = page.page(portrait)
+        xml.dom.minidom.parseString(text.encode())
+        ids = re.findall(r'<control type="\w+" id="(\d+)"', text)
+        self.assertEqual(len(ids), len(set(ids)))
+        for ident in (page.DONE, page.ALL_ON, page.ALL_OFF, page.ROW0, page.ONLY0, page.ROW0 + page.SLOTS - 1, page.ONLY0 + page.SLOTS - 1):
+            self.assertIn(str(ident), ids)
+        self.assertNotIn('!(', text)
+        for height in re.findall(r'<control type="button" id="(?:%d|%d|%d)"><left>\d+</left><top>\d+</top><width>\d+</width><height>(\d+)</height>' % (
+                page.ONLY0, page.ALL_ON, page.ALL_OFF), text):
+            self.assertGreaterEqual(int(height), 118)   # 44 pt
+
+
+class NewLeagues(unittest.TestCase):
+    """Golf, UFC and F1 (owner: include them in the app's data)."""
+    def parse(self, code, body):
+        import sports_espn as espn
+        row = next(r for r in espn.LEAGUES if r[0] == code)
+        return espn.parse(row[0], row[1], row[2], row[4], row[5], body, 1_700_000_000)
+
+    def test_the_leagues_are_listed_with_their_sports(self):
+        import sports_espn as espn
+        listed = {r[0]: r[2] for r in espn.LEAGUES}
+        self.assertEqual((listed['PGA'], listed['LPGA'], listed['UFC'], listed['F1']), ('Golf', 'Golf', 'Combat sports', 'Motorsport'))
+
+    def test_a_tournament_in_progress_is_live_with_its_round_and_its_title(self):
+        body = {'events': [{'id': '9', 'name': 'The RSM Classic', 'date': '2023-11-14T05:00Z', 'status': {'type': {'state': 'in'}},
+                            'competitions': [{'status': {'period': 2}, 'competitors': []}]}]}
+        live, upcoming, _ = self.parse('PGA', body)
+        self.assertEqual((len(live), len(upcoming)), (1, 0))
+        game = live[0]
+        import sports_model as sm
+        self.assertEqual((sm.versus(game), game['clock'], game['home']['name'], game['league']), ('The RSM Classic', 'Round 2', '', 'PGA'))
+
+    def test_a_race_weekend_is_one_upcoming_title(self):
+        body = {'events': [{'id': '5', 'name': 'Las Vegas Grand Prix', 'date': '2023-11-17T00:30Z', 'status': {'type': {'state': 'pre'}},
+                            'competitions': [{'status': {}, 'competitors': []}]}]}
+        _, upcoming, _ = self.parse('F1', body)
+        import sports_model as sm
+        self.assertEqual([(g['id'], sm.versus(g), g['state']) for g in upcoming], [('espn:F1:5', 'Las Vegas Grand Prix', 'upcoming')])
+
+    def test_a_fight_card_shows_its_main_event(self):
+        fight = lambda a, b: {'status': {}, 'competitors': [{'athlete': {'displayName': a}}, {'athlete': {'displayName': b}}]}
+        body = {'events': [{'id': '7', 'name': 'UFC Fight Night', 'date': '2023-11-18T15:00Z', 'status': {'type': {'state': 'pre'}},
+                            'competitions': [fight('Prelim A', 'Prelim B'), fight('Jiri Prochazka', 'Navajo Stirling')]}]}
+        _, upcoming, _ = self.parse('UFC', body)
+        import sports_model as sm
+        self.assertEqual(sm.versus(upcoming[0]), 'Jiri Prochazka vs Navajo Stirling')
+
+    def test_finished_and_odd_events_are_skipped(self):
+        body = {'events': [{'id': '1', 'name': 'Done', 'date': '2023-11-10T05:00Z', 'status': {'type': {'state': 'post'}}, 'competitions': [{}]},
+                           {'id': '2', 'date': 'not a date', 'status': {'type': {'state': 'pre'}}}, {}, None]}
+        live, upcoming, finished = self.parse('PGA', body)
+        self.assertEqual((live, upcoming, finished), ([], [], 1))
 
 
 if __name__ == '__main__':

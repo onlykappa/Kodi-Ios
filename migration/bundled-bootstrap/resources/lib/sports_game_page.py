@@ -43,12 +43,14 @@ def _hero(p):
         card += u.text(p,420,43,568,56,u.P('starts'),'p_pill',p.ACCENT,'right')
         for side,x in (('away',92),('home',704)):
             cx = x+62
-            card += p.image(cx,137,161,161,p.MEDIA+'pill_170.png',p.SURFACE2,border=80)
-            card += p.image(cx,137,161,161,u.P(side+'.crest'),extra='<visible>'+u.has(side+'.crest')+'</visible>',aspect='>keep',background=True)
-            card += u.text(p,cx,137,161,161,u.P(side+'.code'),'p_pill',align='center').replace(
+            side_xml = p.image(cx,137,161,161,p.MEDIA+'pill_170.png',p.SURFACE2,border=80)
+            side_xml += p.image(cx,137,161,161,u.P(side+'.crest'),extra='<visible>'+u.has(side+'.crest')+'</visible>',aspect='>keep',background=True)
+            side_xml += u.text(p,cx,137,161,161,u.P(side+'.code'),'p_pill',align='center').replace(
                 '</control>','<visible>'+u.neg(u.has(side+'.crest'))+'</visible></control>')
-            card += p.textbox(x,319,285,51*lines,u.P(side+'.name'),'p_pill').replace(
+            side_xml += p.textbox(x,319,285,51*lines,u.P(side+'.name'),'p_pill').replace(
                 '<autoscroll>','<align>center</align><autoscroll>')
+            # A tournament or a race weekend has a title and no opponent: only the first side is drawn.
+            card += '<control type="group"><visible>%s</visible>%s</control>' % (u.has('home.name') if side == 'home' else 'true',side_xml)
         card += u.text(p,325,164,430,94,u.P('clock'),'p_title',align='center')
         card += u.text(p,360,263,360,51,u.P('day'),'p_sub',p.GREY,'center')
         out += u.group(p,height,card,'String.IsEqual(Window().Property(hero.lines),%d)' % lines)

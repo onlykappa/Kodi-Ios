@@ -21,7 +21,7 @@ Times are epoch seconds; the helpers below turn them into the phone's own wordin
 import copy
 import time
 
-SPORT_ORDER = ('Soccer', 'Basketball', 'American football', 'Hockey', 'Baseball', 'Combat sports', 'Motorsport')
+SPORT_ORDER = ('Soccer', 'Basketball', 'American football', 'Hockey', 'Baseball', 'Golf', 'Combat sports', 'Motorsport')
 MONTHS = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')
 WEEKDAYS = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
 
@@ -105,6 +105,8 @@ def updated_text(updated, now, offset):
 
 def versus(game):
     """'Arsenal vs Chelsea' or 'Kansas City Chiefs at Buffalo Bills' (away first)."""
+    if not game['home']['name']:   # a tournament or a race weekend: the event's own title
+        return game['away']['name']
     return '%s %s %s' % (game['away']['name'], game.get('joiner') or 'vs', game['home']['name'])
 
 
@@ -221,7 +223,7 @@ class Sample:
         self._leagues = [('EPL', 'Premier League', 'Soccer'), ('LIGA', 'La Liga', 'Soccer'), ('UCL', 'UEFA Champions League', 'Soccer'),
                          ('BUN', 'Bundesliga', 'Soccer'), ('NBA', 'NBA', 'Basketball'), ('WNBA', 'WNBA', 'Basketball'),
                          ('NFL', 'NFL', 'American football'), ('NCAAF', 'College Football', 'American football'), ('NHL', 'NHL', 'Hockey'),
-                         ('MLB', 'MLB', 'Baseball'), ('UFC', 'UFC', 'Combat sports'), ('F1', 'Formula 1', 'Motorsport')]
+                         ('MLB', 'MLB', 'Baseball'), ('PGA', 'PGA Tour', 'Golf'), ('UFC', 'UFC', 'Combat sports'), ('F1', 'Formula 1', 'Motorsport')]
 
     def _check(self):
         if self.fail:

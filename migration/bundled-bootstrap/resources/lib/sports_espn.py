@@ -38,6 +38,11 @@ LEAGUES = (
     ('LIG1', 'Ligue 1', 'Soccer', 'soccer/fra.1', 'vs', (2, 45)),
     ('UCL', 'UEFA Champions League', 'Soccer', 'soccer/uefa.champions', 'vs', (2, 45)),
     ('MLS', 'MLS', 'Soccer', 'soccer/usa.1', 'vs', (2, 45)),
+    # One event rather than a two-team game: a tournament or a race weekend (a title, no opponent), and a fight card (its main event's two fighters).
+    ('PGA', 'PGA Tour', 'Golf', 'golf/pga', '', 'event'),
+    ('LPGA', 'LPGA Tour', 'Golf', 'golf/lpga', '', 'event'),
+    ('UFC', 'UFC', 'Combat sports', 'mma/ufc', 'vs', 'fight'),
+    ('F1', 'Formula 1', 'Motorsport', 'racing/f1', '', 'event'),
 )
 
 
@@ -127,8 +132,54 @@ def _venue(v):
         return ('', '')
 
 
+def _person(name):
+    return {'id': '', 'record': '', 'split': '', 'code': (name or '???')[:4].upper(), 'name': name or '', 'score': None, 'crest': '',
+            'aliases': [name] if name else []}
+
+
+def parse_events(code, name, sport, joiner, kind, body, now):
+    """(live, upcoming, finished) for a league whose events are not two-team games: golf and F1 (the event's title alone) and UFC (the card's main
+    event: the last fight listed, its two fighters). A tournament that began and is not over is live (its round is the clock)."""
+    live, upcoming, finished = [], [], 0
+    for event in (body or {}).get('events') or []:
+        try:
+            status = event.get('status') or {}
+            state = (status.get('type') or {}).get('state')
+            start = _epoch(event.get('date'))
+            comps = event.get('competitions') or [{}]
+            if state not in ('pre', 'in', 'post') or start is None:
+                continue
+            if state == 'post':
+                finished += 1
+                continue
+            title = event.get('name') or event.get('shortName') or name
+            if kind == 'fight':
+                fighters = [((c.get('athlete') or {}).get('displayName') or '') for c in (comps[-1].get('competitors') or [])]
+                if len(fighters) != 2:
+                    continue
+                away, home = _person(fighters[0]), _person(fighters[1])
+            else:
+                away, home = _person(title), _person('')
+                away['code'] = code
+            game = {'id': 'espn:%s:%s' % (code, event.get('id')), 'league': code, 'league_name': name, 'sport': sport,
+                    'state': 'live' if state == 'in' else 'upcoming', 'away': away, 'home': home, 'joiner': joiner, 'start': start,
+                    'sources': [], 'path': path_of(code), 'venue': _venue((comps[0] or {}).get('venue')), 'title': title}
+            if state == 'in':
+                period = (comps[0].get('status') or {}).get('period') or status.get('period')
+                game['clock'] = ('Round %s' % period) if kind == 'event' and period and sport == 'Golf' else 'Live'
+                game['left'] = None
+                live.append(game)
+            elif start >= now - 600:
+                upcoming.append(game)
+        except (AttributeError, TypeError, KeyError, IndexError):
+            continue
+    return live, upcoming, finished
+
+
 def parse(code, name, sport, joiner, cfg, body, now):
     """(live games, upcoming games, finished count) from one league's scoreboard answer."""
+    if cfg in ('event', 'fight'):
+        return parse_events(code, name, sport, joiner, cfg, body, now)
     live, upcoming, finished = [], [], 0
     for event in (body or {}).get('events') or []:
         try:

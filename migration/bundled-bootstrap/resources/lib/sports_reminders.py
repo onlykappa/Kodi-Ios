@@ -36,7 +36,7 @@ def save(profile, data):
 
 def title_of(game):
     away, home = (game.get('away') or {}).get('name', ''), (game.get('home') or {}).get('name', '')
-    return '%s %s %s' % (away, game.get('joiner') or 'vs', home)
+    return '%s %s %s' % (away, game.get('joiner') or 'vs', home) if home else away   # a tournament or race weekend has just its title
 
 
 def set_reminder(profile, game, on_source=True, before=True):
