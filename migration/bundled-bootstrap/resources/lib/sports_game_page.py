@@ -3,6 +3,7 @@ import status_ui as u
 
 WINDOW = 'IOSSportsGame.xml'
 BACK, REFRESH, LIST, RETRY = 9001, 9002, 9300, 9003
+SEARCH_RETRY = 9004
 AUTO = 9005
 SOURCE, SLOTS = 50000, 24
 FORMS = tuple((title, detail) for title in range(1, 5) for detail in range(1, 10))
@@ -86,9 +87,13 @@ def page(p):
     content += u.group(p,134,heading,u.has('hero.lines')) + _sources(p)
     empty = u.card(p,p.SIDE,0,972,274)
     empty += u.text(p,97,48,886,56,'No sources yet','p_h3',align='center')
-    empty += p.textbox(97,115,886,112,'Check back closer to the start. Refresh looks again.','p_sub',p.GREY).replace(
+    empty += p.textbox(97,115,886,112,u.P('empty.text'),'p_sub',p.GREY).replace(
         '<autoscroll>','<align>center</align><autoscroll>')
     content += u.group(p,274,empty,'String.IsEqual(Window().Property(state),empty)')
+    searching = u.card(p,p.SIDE,0,972,180) + u.text(p,97,48,886,80,'Searching for sources','p_h3',align='center')
+    content += u.group(p,180,searching,'String.IsEqual(Window().Property(state),searching)')
+    retry = p.pill_button(SEARCH_RETRY,p.SIDE,20,972,128,'Find sources',[('','noop')],'primary')
+    content += u.group(p,168,retry,"String.IsEqual(Window().Property(state),empty) + String.IsEqual(Window().Property(game.live),true)")
     content += u.group(p,110,p.textbox(70,27,940,70,'Choose a source to play.','p_foot',p.GREY),u.has('sources.count'))
     error = p.textbox(108,118,864,160,u.P('error.title'),'p_h2').replace('<autoscroll>','<align>center</align><autoscroll>')
     error += p.pill_button(RETRY,270,320,540,134,'Try again',[('','noop')],'primary',extra='<visible>String.IsEqual(Window().Property(state),error)</visible>')

@@ -260,6 +260,8 @@ jobs:
           python3 -B scripts/test_playback_retention.py
           python3 -B scripts/test_fast_open.py
           python3 -B scripts/test_remote_media.py
+          python3 -B scripts/test_slowdown.py
+          python3 -B scripts/test_airplay_range_fixture.py
           python3 -B scripts/test_transfer_efficiency.py
           python3 -B scripts/test_umbrella_recovery.py
           python3 -B scripts/test_notices.py

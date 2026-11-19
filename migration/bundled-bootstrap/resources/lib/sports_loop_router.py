@@ -97,6 +97,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
     monitor = backend.Monitor()
     logger('sports: opening native addon queue (%d choices)' % len(choices))
     began, previous, failed_through = clock(), clock(), -1
+    first_video_time = None
     current_index = 0
     try:
         stage(0)
@@ -115,7 +116,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             position = playlist.getposition()
             # Kodi also reports a user's stop during opening as a pre-AV
             # Stop. Never infer failure from that ambiguous callback.
-            if player.stopped and not player.failed and not player.ready:
+            if player.stopped and not player.failed:
                 logger('sports: native opening stopped; queue cancelled')
                 raise InterruptedError('native opening stopped')
             if player.failed and not player.ready:
@@ -142,8 +143,16 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                     logger('sports: native opening ended without a confirmed error; queue cancelled')
                     raise InterruptedError('native opening ended')
             if player.ready and player.isPlayingVideo():
-                logger('sports: playing (native addon queue)')
-                return True
+                try:
+                    position_seconds = player.getTime()
+                except (RuntimeError, AttributeError, ValueError):
+                    position_seconds = None
+                if position_seconds is not None:
+                    if first_video_time is None or position_seconds < first_video_time:
+                        first_video_time = position_seconds
+                    elif position_seconds - first_video_time > .1:
+                        logger('sports: playing (native addon queue)')
+                        return True
             if now - began >= timeout:
                 # A stop can remain queued while Kodi is blocked opening media.
                 # Do not launch an alternate after an ambiguous timeout.

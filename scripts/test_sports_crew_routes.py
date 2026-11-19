@@ -19,6 +19,135 @@ def source(name='Crew NBA', quality='', route='?action=play&url=fixture'):
  return {'addon':name, 'quality':quality, 'play':json.dumps({'e':crew.NAME, 'l':{'address':ROOT+route}})}
 
 class Tests(unittest.TestCase):
+ def test_failed_folder_yields_before_another_folder_is_read(self):
+  calls=[]
+  def read(route):
+   calls.append(route)
+   if route.endswith('broken'): raise OSError('unavailable')
+   return [entry('site','broken'),entry('site','next')]
+  batches=crew.CrewSource('NBA',ROOT+'league',[GAME],read).batches()
+  next(batches)
+  next(batches)
+  self.assertEqual(calls,[ROOT+'league',ROOT+'broken'])
+  next(batches)
+  self.assertEqual(calls[-1],ROOT+'next')
+
+ def test_round_robin_refreshes_stale_provider_folders_after_another_league(self):
+  from urllib.parse import parse_qs,urlsplit
+  serial={'generation':0,'active':None};calls=[]
+  def read(route):
+   q=parse_qs(urlsplit(route).query);action=q.get('action',[''])[0];calls.append(action)
+   if action in ('nba','nhl'):
+    serial['generation']+=1;serial['active']=action
+    return [entry(action.upper()+' LIVE (CS)','?action=xdirectory&url='+action+str(serial['generation']))]
+   token=q.get('url',[''])[0]
+   if token!=serial['active']+str(serial['generation']):raise RuntimeError('stale regex cache')
+   return [entry('Alpha vs Beta','?action=play&url='+token,False)]
+  live_nba=dict(GAME,league='NBA');live_nhl=dict(GAME,league='NHL',league_name='NHL')
+  def roots(path):return [entry('NBA','?action=nba'),entry('NHL','?action=nhl')]
+  categories=crew.discover(roots,schedule=[live_nba,live_nhl])
+  for ext in categories:ext.read=read
+  iters=[iter(ext.batches()) for ext in categories]
+  self.assertTrue(all(next(it)==[] for it in iters))
+  self.assertEqual([len(next(it)) for it in iters],[1,1])
+ def test_refreshing_discovery_ancestors_rejects_ambiguous_folder(self):
+  root=ROOT+'?action=nba';old=ROOT+'?action=xdirectory&url=old';calls=[]
+  state={'owner':'another'}
+  def read(route):
+   calls.append(route)
+   if len(calls)==1:return [entry('NBA LIVE (CS)','?action=xdirectory&url=old')]
+   return [entry('NBA LIVE (CS)','?action=xdirectory&url=one'),entry('NBA LIVE (CS)','?action=xdirectory&url=two')]
+  ext=crew.CrewSource('NBA',root,[GAME],read,cache_state=state);b=ext.batches();next(b)
+  state['owner']='another';self.assertEqual(next(b),[])
+  self.assertEqual(calls,[root,root]);self.assertNotIn(old,calls)
+ def test_cancel_during_discovery_ancestor_refresh_stops_before_child(self):
+  props={context.SESSION:'open:fixture'};home=NS(getProperty=lambda k:props.get(k,''));calls=[]
+  root=ROOT+'?action=nba';state={'owner':'another'}
+  def read(route):
+   calls.append(route)
+   if len(calls)==2:props[context.SESSION]='closed:fixture'
+   return [entry('NBA LIVE (CS)','?action=xdirectory&url=provider')]
+  with patch.object(crew,'_home',return_value=home):
+   b=crew.CrewSource('NBA',root,[GAME],read,session='open:fixture',cache_state=state).batches();next(b);state['owner']='another';next(b)
+  self.assertEqual(calls,[root,root])
+
+ def test_crew_categories_rotate_and_publish_before_first_finishes(self):
+  order=[]; snapshots=[]
+  class Batched:
+   def __init__(self,name): self.name=name
+   def batches(self):
+    order.append(self.name+' first');yield []
+    order.append(self.name+' second');yield []
+  with patch.object(jet,'_folder',return_value='/installed'),patch.object(crew,'schedule',return_value=[]),patch.object(crew,'discover',return_value=[Batched('NHL'),Batched('NBA')]):
+   provider=jet.JetProvider(clock=lambda:1001,publish=lambda value:snapshots.append(value))
+   self.assertTrue(provider._start().wait(2))
+  self.assertEqual(order,['NHL first','NBA first','NHL second','NBA second'])
+  self.assertTrue(any(not value['done'] for value in snapshots))
+  self.assertTrue(snapshots[-1]['done'])
+
+ def test_requested_live_game_takes_priority_without_parallel_listings(self):
+  order=[];props={};game=dict(GAME,id='espn:fixture',league='NBA')
+  request={'id':game['id'],'token':'request','session':'open:one','at':1000};props[jet.SEARCH]=json.dumps(request)
+  home=NS(getProperty=lambda key:props.get(key,''),clearProperty=lambda key:props.pop(key,None))
+  class Batched:
+   def __init__(self,name,games,route):self.name,self.games,self.route=name,games,ROOT+route
+   def batches(self):
+    for n in range(3):
+     order.append((self.name,n))
+     yield [game] if self.name=='NBA' and n==1 else []
+  nba=Batched('NBA',[game],'?action=nba');other=Batched('NHL',[dict(game,id='other')],'?action=nhl')
+  jet._crew_batches([other,nba],lambda ext,items,preserve:items,lambda:None,home,'open:one',[game])
+  self.assertEqual(order[:2],[('NBA',0),('NBA',1)])
+  self.assertNotIn(jet.SEARCH,props);self.assertIn(('NHL',0),order)
+ def test_search_request_rejects_stale_or_replaced_session(self):
+  props={jet.SEARCH:json.dumps({'id':'game','token':'one','session':'open:old'})}
+  home=NS(getProperty=lambda k:props.get(k,''),clearProperty=lambda k:props.pop(k,None))
+  self.assertIsNone(jet._search_request(home,'open:new'))
+  old=jet._search_request(home,'open:old');props[jet.SEARCH]=json.dumps(dict(old,token='new'))
+  jet._clear_search(home,old);self.assertEqual(json.loads(props[jet.SEARCH])['token'],'new')
+ def test_search_restarts_a_category_already_finished_without_losing_other_work(self):
+  order=[];props={};game=dict(GAME,id='espn:fixture',league='NBA')
+  home=NS(getProperty=lambda k:props.get(k,''),clearProperty=lambda k:props.pop(k,None))
+  class Batched:
+   def __init__(self,name,games,route):self.name,self.games,self.route=name,games,ROOT+route;self.runs=0
+   def batches(self):
+    self.runs+=1;order.append((self.name,self.runs))
+    yield [game] if self.name=='NBA' and self.runs==2 else []
+  nba=Batched('NBA',[game],'?action=nba');other=Batched('NHL',[dict(game,id='other')],'?action=nhl')
+  def save(ext,items,preserve):
+   if ext is other and nba.runs==1 and not props:
+    props[jet.SEARCH]=json.dumps({'id':game['id'],'token':'later','session':'open:one'})
+   return items
+  jet._crew_batches([nba,other],save,lambda:None,home,'open:one',[game])
+  self.assertEqual(nba.runs,2);self.assertIn(('NHL',1),order);self.assertNotIn(jet.SEARCH,props)
+ def test_target_search_empty_finishes_and_resumes_other_leagues(self):
+  order=[];game=dict(GAME,id='espn:fixture',league='NBA')
+  props={jet.SEARCH:json.dumps({'id':game['id'],'token':'empty','session':'open:one'})}
+  home=NS(getProperty=lambda k:props.get(k,''),clearProperty=lambda k:props.pop(k,None))
+  class Batched:
+   def __init__(self,name,games,route):self.name,self.games,self.route=name,games,ROOT+route
+   def batches(self):order.append(self.name);yield []
+  nba=Batched('NBA',[game],'?action=nba');other=Batched('NHL',[dict(game,id='other')],'?action=nhl')
+  jet._crew_batches([other,nba],lambda ext,items,preserve:items,lambda:None,home,'open:one',[game])
+  self.assertEqual(order,['NBA','NHL']);self.assertNotIn(jet.SEARCH,props)
+ def test_expired_target_search_is_reported_as_error_not_empty(self):
+  request={'id':'espn:fixture','token':'expired','session':'open:fixture','at':1}
+  props={context.SESSION:'open:fixture',jet.SEARCH:json.dumps(request)}
+  home=NS(getProperty=lambda k:props.get(k,''),setProperty=lambda k,v:props.__setitem__(k,v),clearProperty=lambda k:props.pop(k,None))
+  provider=jet.JetProvider(remote=True,clock=lambda:400,window=home)
+  self.assertFalse(provider.searching_game(request['id'],request['token']))
+  self.assertTrue(provider.game_search_failed(request['token']))
+ def test_game_search_accepts_only_live_espn_event_and_cancels_by_token(self):
+  game=dict(GAME,id='espn:live',league='NBA');upcoming=dict(game,id='espn:upcoming',state='upcoming')
+  props={context.SESSION:'open:fixture',jet.DATA:json.dumps({'at':1000,'done':True,'schedule':[game,upcoming],'records':[]})}
+  home=NS(getProperty=lambda k:props.get(k,''),setProperty=lambda k,v:props.__setitem__(k,v),clearProperty=lambda k:props.pop(k,None))
+  provider=jet.JetProvider(remote=True,clock=lambda:1001,window=home,wait=.01,launch=lambda *args:None)
+  with self.assertRaises(Exception):provider.request_game('espn:upcoming')
+  with patch.object(provider,'_remote_load',return_value={}):
+   token=provider.request_game('espn:live');self.assertTrue(provider.searching_game('espn:live',token))
+   provider.cancel_game_search('different');self.assertTrue(provider.searching_game('espn:live',token))
+   provider.cancel_game_search(token);self.assertFalse(provider.searching_game('espn:live',token))
+
  def test_discover_only_actual_sports_menu_routes(self):
   entries=[entry('NBA','?action=nba'),entry('Replay','?action=sreplays'),entry('Movies','?action=movies'),entry('Live sites','?action=fullsites'),entry('NBA duplicate','?action=nba')]
   found=crew.discover(lambda route:entries,schedule=[GAME])

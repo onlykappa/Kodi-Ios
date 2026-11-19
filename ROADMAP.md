@@ -1,5 +1,7 @@
 # Kodi-iOS master roadmap
 
+Current phone checkpoint (2026-11-18): build575 shows ESPN cards but no Sports source choices in owner testing; manual Crew eventually plays. Documentation-only next task: [Sports source discovery, game-button and fallback roadmap](docs/SPORTS-PHONE-SOURCE-ROADMAP.md), branch `codex/sports-phone-source-roadmap`, stacked on PR #43. No new implementation/build/merge authorized by this roadmap request.
+
 Sports testing-build follow-up (2026-11-17): ambiguous native startup stops/timeouts cancel rather than launch another source; definite errors can advance. Timing diagnostics added. Slow-opening Kodi 21.2 fixture did not open another source but took about 21 seconds to unwind; phone behavior and live acceptance remain pending. Owner authorized one testing IPA. Preserve prior releases. See docs/SPORTS-HANDOFF.md.
 
 Current Sports follow-up (2026-11-17): ESPN supplies live and upcoming games; Crew discovery is limited to ESPN-live games and their leagues, with fresh snapshot reuse. Owner reports Crew works, but the latest phone logs show menu navigation and repeated scans, not live video; iPhone acceptance and stop-during-opening behavior remain pending. See docs/SPORTS-HANDOFF.md. No IPA/merge.
@@ -588,3 +590,12 @@ Authorized scope: Python backend only, stacked on claude/build442-feedback; no m
 ISSUE-368 fixes observed Crew title decorations blocking uniquely matched ESPN live games; rig discovery found three routes for one real live game. ISSUE-369 adds Crew context ownership, cooperative scan exit, navigation restoration and a controlled handoff, tested in the desktop rig. Next: real-stream playback and full source-picker testing, portrait visual review, then an owner-authorized iPhone test. Route discovery alone does not prove video playback.
 
 Step 3 checkpoint (ISSUE-370): Live Now's native dispatch is now staged after modal dismissal; a real tap reached Kodi but attempted to open an unresolved Crew list expression and did not play. Investigate usable child routes, actual playback/fallback, and proper portrait-rig screenshots before any iPhone test build.
+
+## AirPlay source reliability (2026-11-18)
+
+1. **Controlled source reproduction — done:** ISSUE-378 covers delayed/rejected byte ranges and shared cache waits during simulated inspection and playback. The fixture is not an iPhone or video test.
+2. **Source reads and buffering — targeted candidate:** refused split ranges reach the existing constrained fallback sooner. ISSUE-378 records mixed controlled results and read-ahead tests; real conversion, playback and iPhone validation remain open.
+3. **10-bit H.264 — investigated, device evidence open:** Apple's HLS authoring limit is High Profile or below, while the owner has High 10. Existing native host tests exercise conversion; retain it. ISSUE-379 records why passthrough is not enabled and what a receiver test would need to establish.
+4. **Stall recovery — source candidate:** seek the replacement before playing and bound the wait (ISSUE-380). Native framework compilation and real AVPlayer/iPhone validation remain open.
+5. **Position and watch history — host candidate:** latest snapshot, rewind, same-file ownership and completion have controlled history tests (ISSUE-377); validate real iPhone, Kodi library and provider-specific resume on device.
+6. **Full regression — host and native checks passed:** progress records the full CI run, local 180-command run and Python 3.11 retest, plus unresolved empty-segment reproduction and artifact access. The native candidate is not pinned; an owner-authorized testing IPA and iPhone/Apple TV playback, buffering and resume measurements remain open.

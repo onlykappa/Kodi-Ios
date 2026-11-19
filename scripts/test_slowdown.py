@@ -112,7 +112,7 @@ class Workers(Reset):
   self.assertNotIn('and not airplay_busy()',svc)
   self.assertNotIn('isPlayingVideo() or transfer_control',svc)
   self.assertIn("preparation.paused=lambda:(not monitor.abortRequested() and transfer_control.paused(profile,'conv') and",svc)
-  self.assertEqual(svc.count("slowdown.configure(lambda:'airplay' if"),2)
+  self.assertEqual(svc.count('slowdown.configure(lambda:slowdown.play_reason('),2)
   # The owner's Pause reaches the converter's hold loop (its words: "Paused by you").
   self.assertIn("not transfer_control.paused(profile,'conv')",svc.split('converting=lambda:')[1].split('\n')[0])
   cloud=(LIB/'prepare_cloud.py').read_text()
@@ -183,7 +183,7 @@ class DownloadCap(unittest.TestCase):
   g,slept=self.gate(['']);self.assertEqual(g.after(0.08,1024*1024,download=True),0.0);self.assertEqual(slept,[])
  def test_the_service_reports_buffering(self):
   text=(BOOT/'service.py').read_text()
-  self.assertEqual(text.count("'buffering' if xbmc.getCondVisibility('Player.Caching') else 'video'"),2)
+  self.assertEqual(text.count("xbmc.getCondVisibility('Player.Caching')"),2)
   self.assertIn("reader_gate.after(time.monotonic()-piece,len(data),download=True)",(LIB/'driveupload.py').read_text())
 
 class Watched(Reset):

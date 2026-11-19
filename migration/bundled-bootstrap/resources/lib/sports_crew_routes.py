@@ -175,28 +175,64 @@ def refresh_link(link, read=None):
 
 
 class CrewSource:
-    def __init__(self, title, route, games, read=listing, session=None):
+    def __init__(self, title, route, games, read=listing, session=None, cache_state=None):
         self.name = 'Crew ' + common.label(title)
         self.route, self.games, self.read = route, games, read
         self.session = session
+        self.cache_state = cache_state
 
     def get_items(self):
+        latest = []
+        for latest in self.batches():
+            pass
+        return latest
+
+    def batches(self):
         import time
         began = time.monotonic()
         pending, visited, emitted, items = [(self.route, 0, None, [{'address':self.route, 'label':self.name}])], set(), set(), []
         failures = 0
         import sports_crew_context
         home = _home()
+        def active():
+            return not playback_requested() and (home is None or sports_crew_context.valid(home, self.session))
+        def read_fresh(path):
+            # Opening a different Crew league clears its global regex table.
+            # Reopen the native ancestors and follow only unique Crew folders.
+            if not active():
+                raise InterruptedError('Crew discovery cancelled')
+            fresh_path = [path[0]]
+            entries = self.read(path[0]['address'])
+            for step in path[1:]:
+                if not active():
+                    raise InterruptedError('Crew discovery cancelled')
+                folders = [e for e in entries if e.get('filetype') == 'directory' and valid_route(e.get('file'))]
+                exact = [e for e in folders if e['file'] == step['address']]
+                matches = exact or [e for e in folders if common.label(e.get('title') or e.get('label')) == step.get('label')]
+                if len(matches) != 1:
+                    raise RuntimeError('Crew folder is no longer uniquely available')
+                address = matches[0]['file']
+                fresh_path.append({'address':address, 'label':step['label']})
+                entries = self.read(address)
+            return entries, fresh_path
         while pending and len(visited) < MAX_FOLDERS and not playback_requested() and (home is None or sports_crew_context.valid(home, self.session)):
             route, depth, parent_game, menu_path = pending.pop(0)
             if route in visited or not valid_route(route):
                 continue
             visited.add(route)
             try:
-                entries = self.read(route)
+                if self.cache_state is not None and self.cache_state.get('owner') != self.route and depth:
+                    entries, menu_path = read_fresh(menu_path)
+                else:
+                    entries = self.read(route)
+                if self.cache_state is not None:
+                    self.cache_state['owner'] = self.route
             except Exception:
                 # A dead subfolder must not discard games from other sites.
+                if self.cache_state is not None:
+                    self.cache_state['owner'] = None
                 failures += 1
+                yield list(items)
                 continue
             for entry in entries[:512]:
                 address = entry.get('file', '')
@@ -219,9 +255,10 @@ class CrewSource:
                 items.append(SimpleNamespace(title=game['away']['name']+' vs '+game['home']['name'],
                              league=game['league_name'], status='LIVE' if game['state']=='live' else '',
                              starttime=datetime.fromtimestamp(game['start']), links=[CrewLink(address, menu_path, game)]))
+            yield list(items)
         import sports_jet
         sports_jet.log('jet: %s: %d folders, %d unavailable, %d matched streams in %.2fs' % (self.name, len(visited), failures, len(items), time.monotonic() - began))
-        return items
+        yield list(items)
 
 
 def discover(read=listing, schedule=None, session=None):
@@ -240,7 +277,7 @@ def discover(read=listing, schedule=None, session=None):
         if read is listing:
             read = lambda route: listing(route, session=session)
     entries = read('plugin://' + ADDON + '/?action=bluehat')
-    sources, seen = [], set()
+    sources, seen, cache_state = [], set(), {'owner':None}
     league_codes = {game.get('league') or game.get('league_name') for game in live}
     league_actions = {'nfl':'NFL', 'nba':'NBA', 'nhl':'NHL', 'mlb':'MLB', 'ncaa':'NCAAF', 'ncaab':'NCAAB', 'fifa':'MLS'}
     for entry in entries[:64]:
@@ -254,7 +291,7 @@ def discover(read=listing, schedule=None, session=None):
             continue
         seen.add(route)
         games = live if action == 'fullsites' else [game for game in live if (game.get('league') or game.get('league_name')) == league_actions[action]]
-        sources.append(CrewSource(entry.get('label') or 'Sports', route, games, read, session))
+        sources.append(CrewSource(entry.get('label') or 'Sports', route, games, read, session, cache_state))
     return sorted(sources, key=lambda source: parse_qs(urlsplit(source.route).query).get('action') == ['fullsites'])
 
 AMERICAN_LEAGUES = frozenset(('NFL', 'NBA', 'WNBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'MLS'))

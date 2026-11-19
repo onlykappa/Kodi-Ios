@@ -10,6 +10,11 @@ TEST=(ROOT/'migration/airplay-ios/remux/tests/test_remux.c').read_text()
 SERVER=(ROOT/'migration/airplay-ios/remux/tests/range_server.py').read_text()
 
 class QuietConnection(unittest.TestCase):
+ def test_compat_replacement_also_waits_before_playing(self):
+  objc=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  section=objc[objc.index('watchPlayback(player,next,generation);'):objc.index('externalTicks = 0; video0')]
+  self.assertNotIn('[player play];',section)
+  self.assertIn('initialSeekAllowed = NO; recoveryDeadline = ticks + 30;',section)
  def test_a_quiet_read_is_cut_and_retried(self):
   self.assertLessEqual(int(re.search(r'#define STALL_SECONDS (\d+)',SRC).group(1)),5)
   self.assertIn('else if(now-s->progress_ns>(int64_t)STALL_SECONDS*1000000000LL){s->stalled=1;return 1;}',SRC)
@@ -34,6 +39,21 @@ class QuietConnection(unittest.TestCase):
   self.assertIn('kr_remux_video_waiting() == 0',objc[objc.index('ISSUE-336 (owner log 53a92f39'):])
   self.assertIn('recoveries < 3',objc)
   self.assertIn('[player replaceCurrentItemWithPlayerItem:next];',objc[objc.index('ISSUE-336 (owner log 53a92f39'):])
+ def test_stall_reload_waits_for_owned_successful_seek_and_has_deadline(self):
+  objc=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  timer=objc[objc.index('stallWatch = [NSTimer scheduledTimerWithTimeInterval:1.0'):]
+  reload=timer[timer.index('still stuck at %.1f s after a source stall'):timer.index('waiting = player.timeControlStatus')]
+  self.assertLess(reload.index('[player pause];'),reload.index('[player replaceCurrentItemWithPlayerItem:next];'))
+  self.assertNotIn('[player play];',reload)
+  self.assertIn('initialSeekAllowed = NO;recoveryDeadline = ticks + 30;',reload)
+  seek=timer[timer.index('if (resumeAt >= 0 && item.status'):timer.index('// r6: Apple')]
+  self.assertIn('generation!=atomic_load(&playGeneration)',seek)
+  self.assertIn('player.currentItem!=seekItem',seek)
+  self.assertIn('if (!done)',seek)
+  self.assertLess(seek.index('if (!done)'),seek.index('[player play]'))
+  self.assertIn('if (recoveryDeadline) return;',seek)
+  self.assertIn('ticks >= recoveryDeadline',timer)
+  self.assertIn('playbackStateFor(generation,-1,0)',timer[:timer.index('// r6: Apple')])
  def test_prepared_index_is_repaired_or_segmented(self):
   # ISSUE-337 (owner log d8524f8d): "no usable fragment index; Apple's player gets the MP4 itself", then -11819.
   self.assertIn('qsort(fr,(size_t)n,sizeof *fr,frag_by_offset);',REMUX)

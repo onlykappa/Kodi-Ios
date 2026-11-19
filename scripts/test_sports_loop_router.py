@@ -68,11 +68,12 @@ class Tests(unittest.TestCase):
   selected=router.automatic_source([source(),{'addon':'Independent','play':'independent-value'}])
   with patch.object(router,'play',side_effect=InterruptedError()),patch.object(sports_jet,'play_one') as played:
    self.assertFalse(sports_jet.play(selected,lambda s:None));played.assert_not_called()
- def exercise(self,ready=False,stopped=False,select=False,all_failed=False,replaced=False,http_error=False):
+ def exercise(self,ready=False,stopped=False,select=False,all_failed=False,replaced=False,http_error=False,frozen=False):
   state={'now':0,'entries':[],'clears':0,'stops':0,'prepared':[]};logs=[];props={}
   class Player:
    def play(self,playlist,**kwargs):state['player']=self;state['play_calls']=state.get('play_calls',0)+1;state['advanced']=state['play_calls']>1
    def isPlayingVideo(self):return ready or (http_error and state.get('advanced',False))
+   def getTime(self):return 0 if frozen else state['now']
    def stop(self):
     if type(self) is Player:state['prior_stops']=state.get('prior_stops',0)+1
     else:state['stops']+=1
@@ -106,6 +107,11 @@ class Tests(unittest.TestCase):
   self.assertTrue(result);self.assertEqual(state['stops'],0);self.assertEqual(len(state['prepared']),1)
   self.assertIn('sports: playing (native addon queue)',logs)
   self.assertEqual(sum('a source failed' in line for line in logs),0)
+ def test_av_start_without_advancing_video_is_not_counted_as_success(self):
+  result,state,logs=self.exercise(ready=True,frozen=True)
+  self.assertIsInstance(result,InterruptedError)
+  self.assertEqual(len(state['prepared']),1)
+  self.assertNotIn('sports: playing (native addon queue)',logs)
  def test_media_http_error_after_resolution_advances_to_the_next_choice(self):
   result,state,logs=self.exercise(http_error=True)
   self.assertTrue(result)

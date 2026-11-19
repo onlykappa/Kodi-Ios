@@ -35,6 +35,9 @@ READ_AHEAD = 4       # blocks fetched ahead in parallel (32 MB on its way while 
 READ_AHEAD_WIDE = 8
 SPAN = re.compile(r'bytes (\d+)-(\d+)/(\d+)')
 
+class RangeRefused(ConnectionError):
+    """The upstream answered without a usable byte range (not a mismatched range)."""
+
 
 def ahead_count(playback, slowed, wide, lanes=1):
     """Blocks fetched ahead of the reader: 2 for Kodi's own playback, 1 while a video or AirPlay plays (work slows),
@@ -280,7 +283,7 @@ class DriveStream(object):
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
-    def _fetch(self, item, start, end):
+    def _fetch(self, item, start, end, fail_fast_range=False):
         """Bytes start..end of a Drive file, read whole, and the file's size; transient failures retried."""
         renewed=False
         outside=self.external.get(item)   # F1: with_link(action) runs action(link), renewing an expired link once
@@ -308,7 +311,7 @@ class DriveStream(object):
                     elif status == 200 and start == 0:
                         total = int(upstream.headers.get('Content-Length') or 0)
                     else:
-                        raise ConnectionError('Drive answered without the asked byte range')
+                        raise RangeRefused('Drive answered without the asked byte range')
                     want = min(end, total - 1) - start + 1
                     parts = []
                     got = 0
@@ -340,7 +343,7 @@ class DriveStream(object):
                     raise
             except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as error:
                 with self.metric_lock:self.metrics['http_errors']+=1
-                if 'CERTIFICATE_VERIFY_FAILED' in str(error) or attempt == 2:
+                if (fail_fast_range and isinstance(error, RangeRefused)) or 'CERTIFICATE_VERIFY_FAILED' in str(error) or attempt == 2:
                     raise
             finally:
                 with self.metric_lock:

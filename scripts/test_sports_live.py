@@ -81,14 +81,15 @@ class Properties(unittest.TestCase):
         self.assertEqual(p['g.4.s.2.addon'], '')   # the NHL game has one source
         self.assertEqual(p['g.4.pos'], 'first')
 
-    def test_a_tie_has_no_leader_and_a_game_without_sources_is_one_row(self):
+    def test_a_tie_has_no_leader_and_a_game_without_sources_can_be_searched(self):
         games = SAMPLE.live_games()
         nhl = next(g for g in games if g['league'] == 'NHL')
         nhl['sources'] = []
         p, _ = props(games)
         row = next(g for g in range(1, 5) if p['g.%d.league' % g] == 'NHL')
         self.assertEqual((p['g.%d.a.lead' % row], p['g.%d.h.lead' % row]), ('', ''))
-        self.assertEqual((p['g.%d.pos' % row], p['g.%d.n' % row]), ('only', '0'))
+        self.assertEqual((p['g.%d.pos' % row], p['g.%d.n' % row]), ('first', '0'))
+        self.assertTrue(p['g.%d.id' % row])
 
     def test_only_the_best_four_sources_are_shown(self):
         game = SAMPLE.live_games()[0]
@@ -140,6 +141,25 @@ class Properties(unittest.TestCase):
 
 
 class Taps(unittest.TestCase):
+    def test_live_page_stops_when_child_requests_native_playback(self):
+        stop=threading.Event();props={'KodiIOS.SportsNativeOwner':''};finished=threading.Event()
+        home=SimpleNamespace(getProperty=lambda k:props.get(k,''))
+        thread=threading.Thread(target=ctl.watch_handoff,args=(stop,home,'',finished.set),daemon=True)
+        thread.start();props['KodiIOS.SportsNativeOwner']='fixture'
+        self.assertTrue(finished.wait(2));stop.set();thread.join(2)
+    def test_source_free_game_button_opens_targeted_search(self):
+        import ast
+        tree=ast.parse((BOOT/'sports_live.py').read_text())
+        node=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='onClick')
+        game={'id':'espn:fixture','state':'live'};opened=[]
+        provider=SimpleNamespace(game=lambda ident:game if ident==game['id'] else None)
+        env={'lp':lp,'control_target':ctl.control_target,'sports_provider':SimpleNamespace(get=lambda:provider),
+             'sm':sm,'log':lambda *args:None,'xbmcgui':SimpleNamespace()}
+        exec(compile(ast.Module(body=[node],type_ignores=[]),'live-onclick','exec'),env)
+        window=SimpleNamespace(getProperty=lambda key:game['id'],slots={})
+        with patch.dict(sys.modules,{'sports_game':SimpleNamespace(run=lambda selected,**kw:opened.append((selected,kw)))}):
+            env['onClick'](window,lp.SEARCH0)
+        self.assertEqual(opened,[(game,{'provider':provider,'search':True})])
     def test_native_live_source_closes_dialogs_before_dispatch(self):
         import sports_jet
         events = []
@@ -173,6 +193,7 @@ class Taps(unittest.TestCase):
         self.assertEqual(ctl.control_target(lp.PLAY0 + lp.ALSO_IDS + 23), ('source', 3, 4))   # the variant with an "Also on" line
         self.assertEqual(ctl.control_target(lp.PLAY0 + 7 * 10 + 5), None)                     # no fifth source
         self.assertIsNone(ctl.control_target(lp.BACK))
+        self.assertEqual(ctl.control_target(lp.SEARCH0), ('search', 1))
         seen = set()
         for g in range(1, lp.GAMES + 1):
             for s in range(1, lp.SOURCES + 1):

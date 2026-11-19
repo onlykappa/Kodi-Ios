@@ -243,9 +243,18 @@ class Foreground(drive_stream.DriveStream):
    # that do not make one block) never becomes a block (ISSUE-303 integrity).
    if self.cancelled.is_set() or any(w in str(error) for w in INTEGRITY):raise
    began=time.monotonic()
-   try:result=super()._fetch(item,start,end)
-   except Exception as again:
-    self._trace('block',start//self.block_size,began,error='retry '+describe(again));raise
+   # Preserve the previous retry budget for a server that continues refusing after the split requests. Without this,
+   # stopping the split attempts early also removes up to eight opportunities for an upstream source to recover.
+   fallback_limit=3 if isinstance(error,drive_stream.RangeRefused) else 1
+   for fallback in range(fallback_limit):
+    try:
+     result=super()._fetch(item,start,end);break
+    except drive_stream.RangeRefused as again:
+     if self.cancelled.is_set() or fallback+1==fallback_limit:
+      self._trace('block',start//self.block_size,began,error='retry '+describe(again));raise
+     time.sleep(.25*(fallback+1))
+    except Exception as again:
+     self._trace('block',start//self.block_size,began,error='retry '+describe(again));raise
   self._trace('block',start//self.block_size,began,size=len(result[0]))
   return result
 
@@ -290,7 +299,9 @@ class Foreground(drive_stream.DriveStream):
   spans=[(start+i*step,min(stop,start+(i+1)*step-1)) for i in range(SPLIT) if start+i*step<=stop]
   results=[None]*len(spans);errors=[]
   def piece(i,a,b):
-   try:results[i]=super(Foreground,self)._fetch(item,a,b)
+   # A refused split range should yield to the existing single-connection fallback immediately. Retrying each piece
+   # three times first can keep every reader waiting and flood a source that is already rejecting parallel requests.
+   try:results[i]=super(Foreground,self)._fetch(item,a,b,fail_fast_range=True)
    except urllib.error.HTTPError as error:
     if error.code==416 and i>0:results[i]=(b'',None)   # the file ended inside the block
     else:errors.append(error)

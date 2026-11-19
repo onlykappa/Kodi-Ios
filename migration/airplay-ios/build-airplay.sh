@@ -551,6 +551,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
             const BOOL preparedLink = [link hasSuffix:@"/prepared.mp4"] || [link hasSuffix:@"/prepared.m3u8"];   // r38: HLS over the prepared file
             __block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO, everExternal = NO, slowNoted = NO;
             __block double resumeAt = -1;
+            __block int recoveryDeadline = 0;
             // ISSUE-336: position watch for recovery after a source stall.
             __block double lastPos = -1;
             __block int stuckTicks = 0, stuckSince = 0, recoveries = 0, lastErrorTick = -1000;
@@ -619,11 +620,13 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                             player = fresh;
                             airplayController.player = fresh;
                         }
+                        [player pause];
                         watchPlayback(player,next,generation);
                         [player replaceCurrentItemWithPlayerItem:next];
                         airplayHolder.ticket=restartTicket;
                         kr_remux_player(restartTicket,tvRoute(player));
-                        [player play];
+                        // Same recovery contract as a stall reload: ready, owned seek, then play.
+                        initialSeekAllowed = NO; recoveryDeadline = ticks + 30;
                         resumeAt = at; errorsSeen = 0; waiting = 0; warned = NO;
                         externalTicks = 0; video0 = kr_remux_served(1); audio0 = kr_remux_served(0);
                         setNote(nil);
@@ -636,14 +639,31 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 AVPlayerItem *item = player.currentItem;
                 ticks++;
                 if (restarting) return;  // r7: the compat session is starting
+                // A replacement item can wait indefinitely for the original opening segment after a source stall.
+                // Stop a bounded recovery rather than playing at the wrong position or retrying forever.
+                if (recoveryDeadline && ticks >= recoveryDeadline) {
+                    playerNote(@"stall recovery timed out before the seek completed");
+                    [player pause];playbackStateFor(generation,-1,0);
+                    showProblem(@"The TV could not play the converted stream.");
+                    [timer invalidate];return;
+                }
                 // r7: the compat stream is ready: back to where the TV was, then play.
                 if (resumeAt >= 0 && item.status == AVPlayerItemStatusReadyToPlay) {
                     playerNote(@"compat stream ready, resuming at %.1f s", resumeAt);
+                    AVPlayerItem *seekItem = item;
                     [player seekToTime:CMTimeMakeWithSeconds(resumeAt, 600) toleranceBefore:kCMTimeZero
-                        toleranceAfter:kCMTimePositiveInfinity completionHandler:^(BOOL done) { [player play]; }];
+                        toleranceAfter:kCMTimePositiveInfinity completionHandler:^(BOOL done) {
+                            dispatch_async(dispatch_get_main_queue(), ^{
+                                playerNote(@"recovery seek completion: done %d owned %d same item %d active %d rate %.1f control %ld", done, generation==atomic_load(&playGeneration), player.currentItem==seekItem, atomic_load(&playbackActive), player.rate, (long)player.timeControlStatus);
+                                if(generation!=atomic_load(&playGeneration) || player.currentItem!=seekItem || !atomic_load(&playbackActive))return;
+                                if (!done) { playerNote(@"resume seek interrupted"); return; }
+                                recoveryDeadline=0;[player play];
+                            });
+                        }];
                     resumeAt = -1;
                     showConverting(NO);
                 }
+                if (recoveryDeadline) return; // no new recovery until this item's seek completes or times out
                 // r6: Apple's player error log (segment / decoder failures it recovered from or not), once each.
                 NSArray<AVPlayerItemErrorLogEvent *> *errors = item.errorLog.events;
                 if (errors.count > errorsSeen) lastErrorTick = ticks;
@@ -751,10 +771,11 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                         if (url) {
                             playerNote(@"still stuck at %.1f s after a source stall: reloading the stream there", here);
                             AVPlayerItem *next = [AVPlayerItem playerItemWithURL:url];
+                            [player pause];
                             watchPlayback(player, next, generation);
                             [player replaceCurrentItemWithPlayerItem:next];
-                            [player play];
                             resumeAt = isfinite(here) && here > 0 ? here : 0; errorsSeen = 0;
+                            initialSeekAllowed = NO;recoveryDeadline = ticks + 30;
                         }
                     }
                 }
@@ -786,11 +807,16 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
         while (top.presentedViewController) top = top.presentedViewController;
         [top presentViewController:holder animated:YES completion:^{
             if(generation!=atomic_load(&playGeneration))return;
-            __block int failedSeen=0;
+            __block int failedSeen=0, previousControl=-1, previousItemStatus=-1;
+            __block float previousRate=-1;
             routeWatch=[NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
                 if(generation!=atomic_load(&playGeneration)){[timer invalidate];return;}
                 healthSample(player,generation);
                 AVPlayerItem *item=player.currentItem;
+                if(previousControl!=(int)player.timeControlStatus || previousItemStatus!=(int)item.status || previousRate!=player.rate) {
+                    playerNote(@"playback transition: generation %u rate %.1f control %ld item %ld", generation, player.rate, (long)player.timeControlStatus, (long)item.status);
+                    previousControl=(int)player.timeControlStatus; previousItemStatus=(int)item.status; previousRate=player.rate;
+                }
                 BOOL failed=item.status==AVPlayerItemStatusFailed || player.status==AVPlayerStatusFailed;
                 failedSeen=failed && !atomic_load(&compatBusy) ? failedSeen+1 : 0;
                 // r37: a failure is final after 1.5 s, so the player's 1 s timer can first restart with the H.264 picture.

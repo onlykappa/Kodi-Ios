@@ -248,7 +248,32 @@ def activity(lines,window,now):
   # A TV fed by the phone's server keeps its mark while it asks for the video (its GET lines).
   if serve_busy(window,now) and any(l.startswith(('GET ','HEAD ')) for l in lines):mark_serve(window,now)
  at=closed_at(lines)
- if at is not None:back_to_kodi(at)
+ if at is not None:return_to_original(at,window)
+
+RETURN_FILE='KodiIOS.AirPlayReturnFile'
+def _file_fingerprint(player):
+ import hashlib
+ try:
+  path=player.getPlayingFile()
+  return hashlib.sha256(path.encode('utf-8')).hexdigest() if path else ''
+ except Exception:return ''
+
+def remember_kodi(window,player):
+ """Remember only a digest, so a late native close cannot seek a different Kodi video."""
+ value=_file_fingerprint(player)
+ window.setProperty(RETURN_FILE,value)
+
+def return_to_original(at,window,player=None,log=None):
+ expected=window.getProperty(RETURN_FILE)
+ if not expected:return False
+ window.clearProperty(RETURN_FILE)
+ try:
+  if player is None:
+   import xbmc
+   player=xbmc.Player()
+  if _file_fingerprint(player)!=expected:return False
+  return back_to_kodi(at,player,log)
+ except Exception:return False
 
 def closed_at(lines):
  """r39: the position Apple's player had when it closed ("player: closed at 246.9 s"), or None."""

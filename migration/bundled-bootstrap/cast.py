@@ -417,6 +417,7 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
  import time,xbmcgui
  # Build 186 (owner: "airplay stops out of nowhere"): the copies, uploads and conversion step aside from now on.
  home=xbmcgui.Window(10000);airplay.mark_busy(home,time.time())
+ airplay.remember_kodi(home,player)
  # Roadmap 1G.3: while AirPlay starts, the app's Drive proxy holds Kodi's own read-ahead so the converter has the line.
  airplay.mark_starting(home,time.time())
  # Owner-approved card (airplay_flow): the steps at once, with Cancel. A direct link has nothing to open first.

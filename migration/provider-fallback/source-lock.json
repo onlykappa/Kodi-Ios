@@ -16,6 +16,7 @@
   "policy": {
     "reuse_existing_modules_if_minimum_dependencies_satisfied": true,
     "disable_new_background_services": true,
+    "required_service_exceptions": ["plugin.video.thecrew"],
     "exclude_adult_only_crew_dependency_and_artwork": true,
     "preserve_upstream_licences_and_headers": true,
     "no_device_verification_claim": true
@@ -110,7 +111,8 @@
       "version": "3.2.2",
       "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
       "install": "app",
-      "remove_services": true,
+      "remove_services": false,
+      "required_services": ["service.py"],
       "remove_requires": [
         "script.module.resolveurl.xxx"
       ]

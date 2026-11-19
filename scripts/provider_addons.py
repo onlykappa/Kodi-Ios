@@ -68,6 +68,26 @@ def patched_manifest(data,spec):
  if not changes:return data,changes
  return ET.tostring(root,encoding='utf-8',xml_declaration=True)+b'\n',changes
 
+def restore_required_services(dest,spec,files):
+ """Restore only a verified upstream service for a reused pinned add-on."""
+ required=spec.get('required_services',[])
+ if not required:return None
+ installed=dest/'addon.xml';before=installed.read_bytes();root=ET.fromstring(before)
+ upstream=manifest(files['addon.xml'],spec)
+ if root.get('version')!=spec['version']:raise ValueError('Required service add-on version differs: '+spec['id'])
+ changes=[]
+ for library in required:
+  original=[x for x in upstream.findall("extension[@point='xbmc.service']") if x.get('library')==library]
+  if len(original)!=1 or library not in files:raise ValueError('Pinned provider service missing: '+spec['id'])
+  path=dest/library
+  if not path.is_file() or path.read_bytes()!=files[library]:raise ValueError('Reused provider service differs from pinned source: '+spec['id'])
+  existing=root.findall("extension[@point='xbmc.service']")
+  if len(existing)>1 or any(x.attrib!=original[0].attrib or len(x)!=len(original[0]) for x in existing):raise ValueError('Unexpected reused provider service: '+spec['id'])
+  if not existing:root.append(original[0]);changes.append('restored required upstream service')
+ if not changes:return None
+ after=ET.tostring(root,encoding='utf-8',xml_declaration=True)+b'\n';installed.write_bytes(after)
+ return {'id':spec['id'],'path':'addon.xml','before_sha256':digest(before),'after_sha256':digest(after),'changes':changes}
+
 def validate_asset(data,spec):
  if spec.get('bytes') is not None and len(data)!=spec['bytes']:raise ValueError('Provider data asset size mismatch')
  if spec.get('format')!='sqlite':raise ValueError('Unsupported provider data asset')
@@ -116,10 +136,15 @@ def install(inputs,addonroot,bootstrap,lock=None):
   if (dest/'addon.xml').is_file():
    found=ET.parse(dest/'addon.xml').getroot()
    if found.get('id')!=id or version(found.get('version'))<minimums.get(id,version('0')):raise ValueError('Bundled provider dependency is too old: '+id)
+   patch=restore_required_services(dest,spec,members(verified(inputs/(id+'.zip'),spec),id+'/'))
+   if patch:receipt['patches'].append(patch)
    receipt['reused'].append({'id':id,'version':found.get('version')});continue
   if dest.exists():raise ValueError('Provider destination collision: '+id)
   files=members(verified(inputs/(id+'.zip'),spec),id+'/');before=files['addon.xml'];files['addon.xml'],changes=patched_manifest(before,spec)
   if changes:receipt['patches'].append({'id':id,'path':'addon.xml','before_sha256':digest(before),'after_sha256':digest(files['addon.xml']),'changes':changes})
+  for library in spec.get('required_services',[]):
+   if library not in files or not any(x.get('library')==library for x in ET.fromstring(files['addon.xml']).findall("extension[@point='xbmc.service']")):
+    raise ValueError('Required provider service missing: '+id)
   for name,data in files.items():
    if name in spec.get('exclude_files',[]) or any(name.startswith(p) for p in spec.get('exclude_prefixes',[])):
     receipt['excluded'].append({'id':id,'path':name,'sha256':digest(data)});continue

@@ -34,6 +34,79 @@ RUN = 'KodiIOS.SportsJetRun'      # Home window: when the collecting script star
 DATA = 'KodiIOS.SportsJetData'    # Home window: JSON {at, done, records, reason} the script keeps up to date
 _play_session = threading.local()  # each Kodi script owns its local scraper proxy
 PLAY = 'KodiIOS.SportsJetPlay'    # Home window: JSON of the source a page asked to play
+SEARCH = 'KodiIOS.SportsCrewSearch'  # ESPN game id, request token and Sports session only
+SEARCH_RESULT = 'KodiIOS.SportsCrewSearchResult'
+
+
+def _search_request(home, session):
+    if home is None:
+        return None
+    try:
+        value = json.loads(home.getProperty(SEARCH) or '{}')
+        if value.get('session') == session and value.get('id') and value.get('token'):
+            return value
+    except (ValueError, TypeError, AttributeError):
+        pass
+    return None
+
+
+def _clear_search(home, request):
+    if request and _search_request(home, request.get('session')) == request:
+        home.clearProperty(SEARCH)
+
+
+def _fail_search(home, request):
+    if request and _search_request(home, request.get('session')) == request:
+        home.setProperty(SEARCH_RESULT, json.dumps({'token':request['token'], 'state':'error'}, separators=(',', ':')))
+        _clear_search(home, request)
+
+
+def _crew_batches(extractors, save, publish, home=None, session=None, schedule=()):
+    """Serialize listings; temporarily prioritize an explicitly requested live game."""
+    from urllib.parse import parse_qs, urlsplit
+    active = [(ext, iter(ext.batches())) for ext in extractors]
+    request_token, attempted, restarted = None, set(), set()
+    while active:
+        request = _search_request(home, session)
+        target = next((g for g in schedule if request and g.get('id') == request['id'] and g.get('state') == 'live'), None)
+        if request and not target:
+            _clear_search(home, request)
+            request = None
+        if request:
+            candidates = [ext for ext in extractors if any(g.get('id') == target['id'] for g in getattr(ext, 'games', []))]
+            candidates.sort(key=lambda ext: parse_qs(urlsplit(getattr(ext, 'route', '')).query).get('action') == ['fullsites'])
+            if request['token'] != request_token:
+                request_token, attempted, restarted = request['token'], set(), set(candidates)
+                # The ordinary scan may already have passed this game. Start
+                # its candidate categories again from their genuine roots.
+                active = [pair for pair in active if pair[0] not in restarted]
+                active.extend((ext, iter(ext.batches())) for ext in candidates)
+            for ext in candidates:
+                if ext not in attempted and not any(item[0] is ext for item in active):
+                    active.append((ext, iter(ext.batches())))
+                    restarted.add(ext)
+            choice = next((i for ext in candidates if ext not in attempted for i, pair in enumerate(active) if pair[0] is ext), None)
+            if choice is None:
+                _clear_search(home, request)
+                continue
+        else:
+            choice = 0
+        ext, batches = active.pop(choice)
+        try:
+            found = save(ext, next(batches), target if ext in restarted else None)
+            publish()
+            active.append((ext, batches))
+            if request and any(sports_merge.same_game(record, target) for record in found):
+                _clear_search(home, request)
+        except StopIteration:
+            attempted.add(ext)
+        except Exception as error:
+            attempted.add(ext)
+            log('jet: %s failed (%s)' % (ext.name, type(error).__name__))
+    # A request may have arrived after its last category ended.
+    request = _search_request(home, session)
+    if request and (not extractors or request['token'] == request_token):
+        _clear_search(home, request)
 
 # Scrapers of replays, full-match videos, IPTV lists and plain hosts: they give no games.
 SKIP = {'basketballreplays', 'fullfightreplays', 'fullraces', 'fullreplays', 'nflvideo', 'nhlvideo', 'rugbyvideo', 'soccerfullmatch', 'sportsvideo',
@@ -290,10 +363,8 @@ class JetProvider:
             return done
         log('jet: %d scrapers (%s)' % (len(extractors), how))
 
-        def work(ext):
-            name = getattr(ext, 'name', None) or type(ext).__name__
-            try:
-                items = ext.get_items() or []
+        def save(ext, items, preserve_others_for=None):
+                name = getattr(ext, 'name', None) or type(ext).__name__
                 found = []
                 for item in items:
                     try:
@@ -302,10 +373,17 @@ class JetProvider:
                         continue
                 text = '%d games, %d streams' % (len({(r['away']['name'], r['home']['name']) for r in found}), len(found))
                 with self.lock:
+                    if preserve_others_for is not None:
+                        found = [r for r in self.records.get(name, []) if not sports_merge.same_game(r, preserve_others_for)] + found
                     self.records[name] = found
                     self.stats[name] = text
                 if found:
                     log('jet: %s %s, e.g. %s' % (name, text, '; '.join(sorted({sm.versus(r) for r in found})[:2])))
+                return found
+        def work(ext):
+            name = getattr(ext, 'name', None) or type(ext).__name__
+            try:
+                save(ext, ext.get_items() or [])
             except Exception as error:
                 with self.lock:
                     self.stats[name] = type(error).__name__
@@ -349,6 +427,7 @@ class JetProvider:
                         with self.lock:
                             self.schedule = sports_crew_routes.schedule()
                         self.reason = 'The Crew is not installed; schedule is available without sources'
+                        _fail_search(self.window, _search_request(self.window, self.crew_session))
                         log('jet: Crew unavailable; ESPN schedule only')
                         self._publish(False)
                         return
@@ -369,12 +448,16 @@ class JetProvider:
                             self.reason = 'JetExtractors is not installed (%s)' % reason
                             return
                         others, _ = load_extractors(module)
-                    with self.lock:
-                        pending[0] += len(others)
-                    for ext in others:
-                        threading.Thread(target=guarded, args=(ext,), daemon=True).start()
+                    if how == 'Crew routes' and all(hasattr(ext, 'batches') for ext in others):
+                        _crew_batches(others, save, lambda:self._publish(False), self.window, self.crew_session, schedule)
+                    else:
+                        with self.lock:
+                            pending[0] += len(others)
+                        for ext in others:
+                            threading.Thread(target=guarded, args=(ext,), daemon=True).start()
                 except Exception as error:
                     if how == 'Crew routes':
+                        _fail_search(self.window, _search_request(self.window, self.crew_session))
                         self.reason = 'Crew discovery unavailable (%s)' % type(error).__name__
                         log('jet: Crew discovery failed (%s); %s' % (type(error).__name__,
                             'ESPN schedule retained' if self.schedule is not None else 'schedule unavailable'))
@@ -562,6 +645,57 @@ class JetProvider:
         return {'at': self.at, 'live': live, 'upcoming': upcoming, 'leagues': sorted(leagues.values(), key=lambda l: l['name'])}
 
     # -- the contract
+    def request_game(self, game_id):
+        """Prioritize one ESPN-live game without starting concurrent Crew scans."""
+        if not self.remote:
+            raise sm.SportsUnavailable('game search requires the Sports collector')
+        import sports_crew_context, uuid
+        home = self._home()
+        session = sports_crew_context.ticket(home)
+        try:
+            data = json.loads(home.getProperty(DATA) or '{}')
+        except (ValueError, TypeError):
+            data = {}
+        if not session or not session.startswith(sports_crew_context.OPEN):
+            raise sm.SportsUnavailable('open Sports to search for sources')
+        if not any(g.get('id') == game_id and g.get('state') == 'live' for g in data.get('schedule') or []):
+            raise sm.SportsUnavailable('this game is no longer live')
+        request = {'id':game_id, 'token':uuid.uuid4().hex, 'session':session, 'at':self.clock()}
+        home.clearProperty(SEARCH_RESULT)
+        home.setProperty(SEARCH, json.dumps(request, separators=(',', ':')))
+        def start():
+            try:
+                self._remote_load(True)
+            except Exception:
+                _fail_search(home, request)
+        threading.Thread(target=start, daemon=True).start()
+        return request['token']
+
+    def searching_game(self, game_id, token):
+        import sports_crew_context
+        home = self._home()
+        request = _search_request(home, sports_crew_context.ticket(home))
+        if not request or request['id'] != game_id or request['token'] != token:
+            return False
+        if self.clock() - request.get('at', 0) > 300:
+            _fail_search(home, request)
+            return False
+        return True
+
+    def game_search_failed(self, token):
+        try:
+            result = json.loads(self._home().getProperty(SEARCH_RESULT) or '{}')
+            return result.get('token') == token and result.get('state') == 'error'
+        except (ValueError, TypeError):
+            return False
+
+    def cancel_game_search(self, token):
+        import sports_crew_context
+        home = self._home()
+        request = _search_request(home, sports_crew_context.ticket(home))
+        if request and request.get('token') == token:
+            _clear_search(home, request)
+
     def refresh(self):
         self._load(force=True)
 
@@ -694,7 +828,7 @@ def run_script(args, window=None):
     # A newly opened Sports page can arrive while an old session's last Kodi
     # directory call is unwinding. Restart once, after releasing the scan lock.
     current = sports_crew_context.ticket(home)
-    if session is not None and current != session and current and current.startswith(sports_crew_context.OPEN):
+    if session is not None and current and current.startswith(sports_crew_context.OPEN) and (current != session or _search_request(home, current)):
         import sports_crew_routes
         if not sports_crew_routes.playback_requested():
             _launch('sports_jet_run')

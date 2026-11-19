@@ -59,6 +59,14 @@ class Projection(unittest.TestCase):
         self.assertEqual(props['clock'],'7:30 PM')
         self.assertFalse(sources)
 
+    def test_live_search_states_are_distinct_from_empty_and_upcoming(self):
+        self.game.update(state='live',sources=[])
+        props,_=game_page.model(self.game,NOW,0,searching=True)
+        self.assertEqual(props['state'],'searching')
+        props,_=game_page.model(self.game,NOW,0)
+        self.assertEqual((props['state'],props['game.live']),('empty','true'))
+        self.assertIn('Try again',props['empty.text'])
+
     def test_long_teams_and_source_metadata_keep_all_text(self):
         self.game['away'].update(name='Borussia Mönchengladbach',code='BMG',crest='https://example.invalid/crest.png')
         self.game['home'].update(name='Brighton & Hove Albion',code='BHA')
@@ -107,7 +115,9 @@ class Structure(unittest.TestCase):
         self.assertEqual(len(ids),len(set(ids)))
         self.assertNotIn('!(',xml);self.assertNotIn('…',xml)
         self.assertIn('No sources yet',xml)
-        self.assertIn('Check back closer to the start. Refresh looks again.',xml)
+        self.assertIn('Window().Property(empty.text)',xml)
+        self.assertIn('Searching for sources',xml)
+        self.assertIn('Find sources',xml)
         self.assertIn('Window().Property(away.crest)',xml)
         self.assertIn('Window().Property(home.crest)',xml)
         clock=next(c for c in root.iter('control') if c.findtext('label')=='$INFO[Window().Property(clock)]')
@@ -125,7 +135,7 @@ class Structure(unittest.TestCase):
 
 
 class Controller(unittest.TestCase):
-    def exercise(self,provider,scenario,play=None):
+    def exercise(self,provider,scenario,play=None,search=False):
         seed=copy.deepcopy(sm.Sample(now=NOW).game('epl-1'))
         windows=[];writes_after_close=[]
         class Window:
@@ -145,9 +155,23 @@ class Controller(unittest.TestCase):
         vfs=types.SimpleNamespace(translatePath=lambda x:x,listdir=lambda x:None)
         with patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':types.SimpleNamespace(WindowXMLDialog=Window),'xbmcvfs':vfs}),\
              patch.object(game_page.sports_provider,'play',side_effect=play) as played:
-            game_page.run(seed,provider=provider,clock=lambda:NOW)
+            game_page.run(seed,provider=provider,clock=lambda:NOW,search=search)
         self.assertFalse(writes_after_close)
         return windows[0],played
+
+    def test_focused_search_opens_loading_and_cancels_with_page(self):
+        provider=sm.Sample(now=NOW);calls=[]
+        provider.request_game=lambda ident:calls.append(('request',ident)) or 'token'
+        provider.searching_game=lambda ident,token:True
+        provider.cancel_game_search=lambda token:calls.append(('cancel',token))
+        seed=provider.game('epl-1');seed['sources']=[]
+        def scenario(w):
+            self.assertEqual(w.props['state'],'searching')
+            w.onClick(page.BACK)
+        original=sm.Sample.game
+        with patch.object(sm.Sample,'game',lambda self,ident:seed if ident=='epl-1' else original(self,ident)):
+            self.exercise(provider,scenario,search=True)
+        self.assertEqual(calls,[('request','epl-1'),('cancel','token')])
 
     def test_seed_opens_immediately_and_whole_source_row_uses_play_door(self):
         provider=sm.Sample(now=NOW)
