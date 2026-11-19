@@ -129,12 +129,12 @@ class EditSheet(unittest.TestCase):
 class EditActions(unittest.TestCase):
     ROWS = EditSheet.ROWS
 
-    def test_flip_only_all_on_all_off(self):
+    def test_flip_all_on_all_off(self):
         import sports_edit
         a = sports_edit.apply
         self.assertEqual(a(set(), self.ROWS, 'flip', 'NBA'), {'NBA'})
         self.assertEqual(a({'NBA'}, self.ROWS, 'flip', 'NBA'), set())
-        self.assertEqual(a(set(), self.ROWS, 'only', 'Soccer'), {'NFL', 'NCAAF', 'NBA', 'UFC', 'PGA', 'F1'})   # just this sport stays on
+        self.assertEqual(a(set(), self.ROWS, 'only', 'Soccer'), set())   # no per-sport "Only" any more (owner): an unknown action changes nothing
         self.assertEqual(a({'NBA'}, self.ROWS, 'all_on'), set())
         self.assertEqual(a(set(), self.ROWS, 'all_off'), {r['code'] for r in self.ROWS})
         self.assertEqual(a({'NBA'}, self.ROWS, 'nonsense'), {'NBA'})
@@ -152,11 +152,12 @@ class EditActions(unittest.TestCase):
         xml.dom.minidom.parseString(text.encode())
         ids = re.findall(r'<control type="\w+" id="(\d+)"', text)
         self.assertEqual(len(ids), len(set(ids)))
-        for ident in (page.DONE, page.ALL_ON, page.ALL_OFF, page.ROW0, page.ONLY0, page.ROW0 + page.SLOTS - 1, page.ONLY0 + page.SLOTS - 1):
+        for ident in (page.DONE, page.ALL_ON, page.ALL_OFF, page.ROW0, page.ROW0 + page.SLOTS - 1):
             self.assertIn(str(ident), ids)
         self.assertNotIn('!(', text)
-        for height in re.findall(r'<control type="button" id="(?:%d|%d|%d)"><left>\d+</left><top>\d+</top><width>\d+</width><height>(\d+)</height>' % (
-                page.ONLY0, page.ALL_ON, page.ALL_OFF), text):
+        self.assertNotIn('>Only<', text)
+        for height in re.findall(r'<control type="button" id="(?:%d|%d)"><left>\d+</left><top>\d+</top><width>\d+</width><height>(\d+)</height>' % (
+                page.ALL_ON, page.ALL_OFF), text):
             self.assertGreaterEqual(int(height), 118)   # 44 pt
 
 
@@ -195,6 +196,16 @@ class NewLeagues(unittest.TestCase):
         _, upcoming, _ = self.parse('UFC', body)
         import sports_model as sm
         self.assertEqual(sm.versus(upcoming[0]), 'Jiri Prochazka vs Navajo Stirling')
+
+    def test_team_colour_short_name_and_week_come_through(self):
+        body = {'events': [{'id': '1', 'date': '2026-11-20T18:00Z', 'week': {'number': 11}, 'competitions': [{
+            'status': {'type': {'state': 'pre'}}, 'competitors': [
+                {'homeAway': 'home', 'team': {'id': '34', 'displayName': 'Houston Texans', 'shortDisplayName': 'Texans', 'abbreviation': 'HOU', 'color': '03202f'}},
+                {'homeAway': 'away', 'team': {'id': '11', 'displayName': 'Indianapolis Colts', 'name': 'Colts', 'abbreviation': 'IND'}}]}]}]}
+        import sports_espn as espn
+        _, upcoming, _ = espn.parse('NFL', 'NFL', 'American football', 'at', (4, 15), body, 0)
+        game = upcoming[0]
+        self.assertEqual((game['home']['short'], game['home']['color'], game['away']['short'], game['away']['color'], game['week']), ('Texans', '03202f', 'Colts', '', 11))
 
     def test_finished_and_odd_events_are_skipped(self):
         body = {'events': [{'id': '1', 'name': 'Done', 'date': '2023-11-10T05:00Z', 'status': {'type': {'state': 'post'}}, 'competitions': [{}]},

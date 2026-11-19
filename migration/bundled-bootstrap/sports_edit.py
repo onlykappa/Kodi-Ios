@@ -1,6 +1,6 @@
 """Sports › Edit: which leagues show (owner mockups B1-B2: sports_edit_page.py draws the sheet).
 
-One sheet: every league grouped by sport with a switch each, "Only" on a sport heading, All on / All off, Done. Every change is saved at once
+One sheet: every league grouped by sport with a switch each, All on / All off, Done. Every change is saved at once
 (sports_filter), so closing the sheet any way keeps the choice. `run()` returns True when the choice changed, so the page that opened it draws
 itself again. `apply()` is the pure part (the tests drive it without Kodi).
 """
@@ -13,12 +13,10 @@ import sports_filter as sf
 
 
 def apply(off, rows, action, target=None):
-    """The new set of leagues that are off after a tap. action: 'flip' (target: a league code), 'only' (a sport), 'all_on', 'all_off'."""
+    """The new set of leagues that are off after a tap. action: 'flip' (target: a league code), 'all_on', 'all_off'."""
     codes = [r['code'] for r in rows]
     if action == 'flip':
         return sf.toggled(off, target)
-    if action == 'only':
-        return sf.only_sport([(r.get('sport') or '', r['code'], r.get('name') or r['code']) for r in rows], target)
     if action == 'all_on':
         return sf.all_on()
     if action == 'all_off':
@@ -78,10 +76,6 @@ def run(args=()):
                 n = control - page.ROW0
                 if n < len(self.items) and self.items[n]['kind'] == 'row':
                     self.change('flip', self.items[n]['code'])
-            elif page.ONLY0 <= control < page.ONLY0 + page.SLOTS:
-                n = control - page.ONLY0
-                if n < len(self.items) and self.items[n]['kind'] == 'head':
-                    self.change('only', self.items[n]['sport'])
 
         def onAction(self, action):
             if action.getId() in (9, 10, 92, 110):

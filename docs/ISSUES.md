@@ -6023,3 +6023,13 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 - **Not built:** the third chip "Only what I picked · N" from the mockup (it is a status, not an action; the Edit pill already says "Edit · N").
 - **Tests:** test_sports_filter (sheet items, properties, actions, sheet XML, the new leagues' parsing); sample data gained a PGA league, so the sample league count is 13 in three tests.
 - **Desktop Kodi rig (sample data):** sheet, "Only" on Hockey (the file and the hub behind it follow). Live golf, UFC and F1 data checked against ESPN with a script. Not seen on a phone yet.
+
+## ISSUE-387 — Sports game page rebuilt to the owner's mockup (page 6) (2026-11-19)
+
+- **Owner:** page 6 of the eight mockups: "Remind me if there are no sources, and then game info", plus (later the same day) "remove the Only button, it should only be simple switches".
+- **Game page (`sports_game_page.py`, `sports_game.py`):** each team's colour glows behind it; big crests (a ring with the code when there is none), the short name ("Colts") and the record under it; the time in the middle with "Today · in 2 h 10 min"; the league's code above. A narrower centred capsule: Remind me / Reminder on / Play. Under Remind me: "No source yet. We'll tell you when one is ready." (the reminder's own line once it is on). **Sources** is a card: "None yet · Checked 2 minutes ago · Check now" (Check now looks for sources again, for upcoming and live games), or the source rows. **Game info** is a card ("NFL · Week 11 / Today at 5:15 PM") that opens the facts page.
+- **Facts page (`sports_game_facts_page.py`, `sports_game_facts.py`):** the Info section that used to sit under the sources moved here unchanged (kickoff, venue, recent form, standings with the Divisional / Wild Card switch). Page 8 of the mockups (tabs, compact hero) is next.
+- **Data:** ESPN's team colour, short name and the week number are kept on each game; `sm.until_text`; sample teams RS and AC carry colours so the glow can be seen in the rig.
+- **Edit sheet:** the per-sport "Only" links are removed (plain switches only), All on / All off stay.
+- **Tests:** test_sports_game (+5, Hero), test_sports_game_info (facts window), test_sports_filter (colour, short name, week).
+- **Desktop Kodi rig (sample data):** page 6 and the facts page opened from the Game info card. Not seen on a phone yet.

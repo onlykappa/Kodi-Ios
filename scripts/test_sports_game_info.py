@@ -142,40 +142,45 @@ class Build(unittest.TestCase):
 
 
 class PageProperties(unittest.TestCase):
+    """The facts window's properties and its XML (the game page only carries the Game info card)."""
     def setUp(self):
-        import sports_game
-        import sports_game_page as page
-        self.sg, self.page = sports_game, page
+        import sports_game_facts
+        import sports_game_facts_page as page
+        self.facts, self.page = sports_game_facts, page
         self.game = {'id': 'g', 'league': 'NFL', 'start': NOW, 'sources': [], 'state': 'upcoming', 'joiner': 'at',
                      'away': {'code': 'IND', 'name': 'Colts'}, 'home': {'code': 'HOU', 'name': 'Texans'}}
 
+    def props(self, info=None, view=0):
+        return self.facts.info_props(self.game, info, view, NOW, 0)
+
     def test_nothing_is_shown_until_the_facts_arrive(self):
-        props, _ = self.sg.model(self.game, NOW, 0)
+        props = self.props()
         for key in ('info.kickoff', 'info.venue', 'form.0.name', 'st.title', 'st.0.team', 'st.switch'):
             self.assertEqual(props[key], '', key)
+        self.assertEqual(props['matchup'], 'Colts at Texans')
 
     def test_facts_fill_every_part_and_the_switch_picks_the_view(self):
         facts = gi.sample()
-        props, _ = self.sg.model(self.game, NOW, 0, info=facts)
+        props = self.props(facts)
         self.assertEqual((props['info.venue'], props['info.place']), ('NRG Stadium', 'Houston, TX'))
         self.assertTrue(props['info.kickoff'])
         self.assertEqual(props['form.0.line'], '3-7 · Away 1-4')
         self.assertEqual([props['form.1.d%d' % d] for d in range(5)], ['W', 'L', 'W', 'W', 'L'])
         self.assertEqual((props['st.title'], props['st.switch'], props['st.0.team'], props['st.0.me'], props['st.3.me']), ('Standings · AFC South', 'wild', 'Texans', 'true', 'true'))
         self.assertEqual(props['st.3.pos'], 'last')
-        wild, _ = self.sg.model(self.game, NOW, 0, info=facts, view=1)
+        wild = self.props(facts, 1)
         self.assertEqual((wild['st.switch'], wild['st.0.team']), ('div', 'Bills'))
-        self.assertEqual(self.sg.model(self.game, NOW, 0, info=facts, view=2)[0]['st.title'], props['st.title'])   # the view wraps
+        self.assertEqual(self.props(facts, 2)['st.title'], props['st.title'])   # the view wraps
 
     def test_a_missing_part_hides_only_itself(self):
         facts = gi.sample()
         facts['standings'] = None
-        props, _ = self.sg.model(self.game, NOW, 0, info=facts)
+        props = self.props(facts)
         self.assertEqual((props['st.title'], props['st.0.team']), ('', ''))
         self.assertEqual(props['form.0.name'], 'Indianapolis Colts')
 
     def test_there_is_no_watch_on_row(self):
-        text = (ROOT / 'migration/bundled-bootstrap/resources/lib/sports_game_page.py').read_text()
+        text = (ROOT / 'migration/bundled-bootstrap/resources/lib/sports_game_facts_page.py').read_text()
         self.assertNotRegex(text, r'(?i)watch on')
 
     def test_page_xml_is_well_formed_and_ids_are_unique(self):

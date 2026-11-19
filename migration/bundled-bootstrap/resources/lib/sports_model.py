@@ -86,6 +86,16 @@ def count_text(n, one, many=None):
     return '%d %s' % (n, one if n == 1 else (many or one + 's'))
 
 
+def until_text(start, now):
+    """'in 2 h 10 min' / 'in 45 min' for a game that starts within a day, else ''."""
+    seconds = start - now
+    if not 0 <= seconds < 24 * 3600:
+        return ''
+    minutes = max(1, seconds // 60)
+    hours, minutes = divmod(minutes, 60)
+    return 'in %d h %d min' % (hours, minutes) if hours and minutes else 'in %d h' % hours if hours else 'in %d min' % minutes
+
+
 def sources_text(n):
     """'No sources yet', '1 source', '2 sources'."""
     return 'No sources yet' if not n else count_text(n, 'source')
@@ -169,8 +179,11 @@ def league_codes(games):
 
 
 # --- sample data (the approved boards) ---------------------------------------------------------------------------------
-def _team(code, name, score=None):
-    return {'code': code, 'name': name, 'score': score, 'crest': ''}
+def _team(code, name, score=None, color=''):
+    team = {'code': code, 'name': name, 'score': score, 'crest': ''}
+    if color:   # a few sample teams carry the colour ESPN gives, so the game page's glow can be looked at in the rig
+        team['color'] = color
+    return team
 
 
 def _src(addon, quality, language, tag='', also=()):
@@ -210,7 +223,7 @@ class Sample:
         self.upcoming = [
             g('epl-1', 'EPL', 'Soccer', 'upcoming', _team('ARS', 'Arsenal'), _team('CHE', 'Chelsea'), now + 45 * 60, lname='Premier League',
               sources=[_src('The Loop', '1080p', 'English', 'best', ['Loop TV']), _src('Loop Guide', '720p', 'English', 'good')]),
-            g('liga-1', 'LIGA', 'Soccer', 'upcoming', _team('RS', 'Real Sociedad'), _team('AC', 'Athletic Club'), now + 75 * 60, lname='La Liga'),
+            g('liga-1', 'LIGA', 'Soccer', 'upcoming', _team('RS', 'Real Sociedad', color='0A4EA0'), _team('AC', 'Athletic Club', color='D4001A'), now + 75 * 60, lname='La Liga'),
             g('nba-2', 'NBA', 'Basketball', 'upcoming', _team('LAL', 'Los Angeles Lakers'), _team('GSW', 'Golden State Warriors'), now + 150 * 60,
               sources=[_src('The Loop', '1080p', 'English', 'best'), _src('Loop TV', '720p', 'English', 'good'), _src('Sports Hub', '720p', 'Spanish')]),
             g('nhl-2', 'NHL', 'Hockey', 'upcoming', _team('TOR', 'Toronto Maple Leafs'), _team('MTL', 'Montréal Canadiens'), at(1, 19, 0),

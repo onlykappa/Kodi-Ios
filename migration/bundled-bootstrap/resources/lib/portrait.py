@@ -36,6 +36,8 @@ _spec=_iu.spec_from_file_location('sports_upcoming_page',os.path.join(os.path.di
 sports_upcoming_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_upcoming_page)
 _spec=_iu.spec_from_file_location('sports_game_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_game_page.py'))
 sports_game_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_game_page)
+_spec=_iu.spec_from_file_location('sports_game_facts_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_game_facts_page.py'))
+sports_game_facts_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_game_facts_page)
 _spec=_iu.spec_from_file_location('sports_opening_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_opening_page.py'))
 sports_opening_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_opening_page)
 _spec=_iu.spec_from_file_location('sports_leagues_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_leagues_page.py'))
@@ -1700,6 +1702,7 @@ def portrait_files(skin,profile):
  files.update(sports_live_page.files(ns))   # Library › Sports › Live Now (DEC-055; sports_live_page.py, filled by sports_live.py)
  files.update(sports_upcoming_page.files(ns))
  files.update(sports_game_page.files(ns))
+ files.update(sports_game_facts_page.files(ns))   # the game's facts page (owner mockup page 8)
  files.update(sports_opening_page.files(ns))
  files.update(sports_leagues_page.files(ns))
  files.update(sports_edit_page.files(ns))   # Sports › Edit, the league sheet (owner mockups B1-B2)
@@ -1820,7 +1823,7 @@ def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(library_files_page.__file__),Path(sports_page.__file__),Path(sports_live_page.__file__),Path(copy_problems_page.__file__),Path(favourites_report_page.__file__),Path(favourites_manager_page.__file__),Path(library_show_page.__file__),Path(library_item_page.__file__),Path(upscale_show_page.__file__),Path(upscale_main_page.__file__),Path(queue_page.__file__),Path(library_select_page.__file__),Path(library_freeup_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(skin_textures.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py'),Path(sports_upcoming_page.__file__),Path(sports_game_page.__file__),Path(sports_leagues_page.__file__),Path(sports_edit_page.__file__)):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(library_files_page.__file__),Path(sports_page.__file__),Path(sports_live_page.__file__),Path(copy_problems_page.__file__),Path(favourites_report_page.__file__),Path(favourites_manager_page.__file__),Path(library_show_page.__file__),Path(library_item_page.__file__),Path(upscale_show_page.__file__),Path(upscale_main_page.__file__),Path(queue_page.__file__),Path(library_select_page.__file__),Path(library_freeup_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(skin_textures.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py'),Path(sports_upcoming_page.__file__),Path(sports_game_page.__file__),Path(sports_game_facts_page.__file__),Path(sports_leagues_page.__file__),Path(sports_edit_page.__file__)):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())

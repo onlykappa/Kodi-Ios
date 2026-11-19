@@ -199,6 +199,7 @@ def parse(code, name, sport, joiner, cfg, body, now):
                 rec = next((r.get('summary') for r in c.get('records') or [] if r.get('type') == 'total' or r.get('name') == 'overall'), '')
                 split = next((r.get('summary') for r in c.get('records') or [] if r.get('type') == ('home' if c.get('homeAway') == 'home' else 'road')), '')
                 out = {'id': str(t.get('id') or ''), 'record': rec or '', 'split': split or '',
+                       'short': t.get('shortDisplayName') or t.get('name') or '', 'color': str(t.get('color') or '')[:6],
                        'code': (t.get('abbreviation') or t.get('shortDisplayName') or '???')[:4].upper(),
                        'name': t.get('displayName') or t.get('name') or 'Team', 'score': None, 'crest': t.get('logo') or '',
                        'aliases': list(dict.fromkeys(value for key in ('displayName', 'shortDisplayName', 'name', 'abbreviation') if (value := t.get(key))))}
@@ -211,7 +212,7 @@ def parse(code, name, sport, joiner, cfg, body, now):
             game = {'id': 'espn:%s:%s' % (code, event.get('id')), 'league': code, 'league_name': name, 'sport': sport,
                     'state': 'live' if state == 'in' else 'upcoming', 'away': team(teams['away']), 'home': team(teams['home']),
                     'joiner': joiner, 'start': start, 'sources': [], 'path': path_of(code),
-                    'venue': _venue(comp.get('venue'))}
+                    'venue': _venue(comp.get('venue')), 'week': ((event.get('week') or {}).get('number') or 0)}
             if state == 'in':
                 game['clock'] = _clock(code, status, cfg)
                 game['left'] = _left(cfg, status.get('period'), status.get('displayClock'))

@@ -107,6 +107,44 @@ class Projection(unittest.TestCase):
         self.assertEqual(props['day'],'Sat, Nov 21')
 
 
+class Hero(unittest.TestCase):
+    """The hero of the owner's page 6 mockup: short names with records on each team's colour, the time and how long until it, Game info."""
+    def game(self,**extra):
+        game={'id':'g','league':'NFL','league_name':'NFL','start':NOW+2*3600+600,'sources':[],'state':'upcoming','joiner':'at',
+              'away':{'code':'IND','name':'Indianapolis Colts','short':'Colts','record':'3-7','color':'0c2340'},
+              'home':{'code':'HOU','name':'Houston Texans','short':'Texans','record':'3-6'}}
+        game.update(extra)
+        return game
+
+    def test_short_names_records_colours_and_when(self):
+        props,_=game_page.model(self.game(week=11),NOW,0)
+        self.assertEqual((props['away.name'],props['home.name'],props['away.record'],props['home.record']),('Colts','Texans','3-7','3-6'))
+        self.assertEqual((props['away.tint'],props['home.tint']),('990C2340',game_page.NEUTRAL))   # a team without a colour gets the soft grey
+        self.assertEqual(props['when'],'Today · in 2 h 10 min')
+        self.assertEqual((props['info.title'],props['info.sub']),('NFL · Week 11','Today at 8:55 PM'))
+        self.assertEqual(game_page.model(self.game(),NOW,0)[0]['info.title'],'NFL')   # no week, no "· Week"
+
+    def test_a_colour_that_is_not_hex_is_ignored(self):
+        game=self.game();game['away']['color']='not-hex'
+        self.assertEqual(game_page.model(game,NOW,0)[0]['away.tint'],game_page.NEUTRAL)
+
+    def test_the_sources_card_says_when_it_last_looked(self):
+        self.assertEqual(game_page.checked_text(None,NOW),'')
+        self.assertEqual(game_page.checked_text(NOW-20,NOW),'Checked just now')
+        self.assertEqual(game_page.checked_text(NOW-120,NOW),'Checked 2 minutes ago')
+        self.assertEqual(game_page.checked_text(NOW-60,NOW),'Checked 1 minute ago')
+        self.assertEqual(game_page.checked_text(NOW-7300,NOW),'Checked 2 hours ago')
+        self.assertEqual(game_page.model(self.game(),NOW,0,checked=NOW-120)[0]['checked'],'Checked 2 minutes ago')
+
+    def test_until_text(self):
+        self.assertEqual([sm.until_text(NOW+s,NOW) for s in (45*60,3600,7800,-5,24*3600)],['in 45 min','in 1 h','in 2 h 10 min','',''])
+
+    def test_a_title_only_event_names_just_its_title(self):
+        game=self.game(away={'code':'PGA','name':'The RSM Classic','short':'','record':''},home={'code':'','name':'','record':''})
+        props,_=game_page.model(game,NOW,0)
+        self.assertEqual((props['away.name'],props['home.name']),('The RSM Classic',''))
+
+
 class Structure(unittest.TestCase):
     def test_xml_has_real_buttons_complete_text_and_runtime_crests(self):
         import portrait
@@ -114,10 +152,11 @@ class Structure(unittest.TestCase):
         ids=[c.get('id') for c in root.iter('control') if c.get('id')]
         self.assertEqual(len(ids),len(set(ids)))
         self.assertNotIn('!(',xml);self.assertNotIn('…',xml)
-        self.assertIn('No sources yet',xml)
-        self.assertIn('Window().Property(empty.text)',xml)
+        self.assertIn('None yet',xml)
+        self.assertIn('Check now',xml)
+        self.assertIn('Window().Property(away.tint)',xml)
+        self.assertIn('Window().Property(info.title)',xml)
         self.assertIn('Searching for sources',xml)
-        self.assertIn('Find sources',xml)
         self.assertIn('Window().Property(away.crest)',xml)
         self.assertIn('Window().Property(home.crest)',xml)
         clock=next(c for c in root.iter('control') if c.findtext('label')=='$INFO[Window().Property(clock)]')
@@ -315,7 +354,7 @@ class RemindThenPlay(unittest.TestCase):
     def test_no_source_offers_a_reminder_then_says_it_is_on(self):
         import sports_reminders as sr
         props,_=game_page.model(self.game(False),NOW,0)
-        self.assertEqual((props['state'],props['remind.on'],props['remind.note'],props['play.best']),('empty','','',''))
+        self.assertEqual((props['state'],props['remind.on'],props['remind.note'],props['play.best']),('empty','',"No source yet. [B]We'll tell you[/B] when one is ready.",''))
         record={'on_source':True,'before':True}
         props,_=game_page.model(self.game(False),NOW,0,reminder=record)
         self.assertEqual(props['remind.on'],'true')

@@ -1,14 +1,14 @@
 """Sports › Edit: the league sheet (owner's mockups B1 and B2, 2026-11-19), drawn as its own window, IOSSportsEdit.xml.
 
 A bottom sheet over the page that opened it: grabber, "Leagues" with a white Done capsule, one line of help, the All on / All off capsules, then
-every league grouped by sport: a small caps heading with "Only" (just this sport) and one row per league (its real logo, name, the next game, a
-green switch). It scrolls; sports_edit.py fills the properties item.N.* and saves each flip at once. Existing tokens and helpers only.
+every league grouped by sport: a small caps heading and one row per league (its real logo, name, the next game, a green switch; plain switches
+only, the owner dropped the per-sport "Only" links). It scrolls; sports_edit.py fills the properties item.N.* and saves each flip at once. Existing tokens and helpers only.
 """
 import status_ui as u
 
 WINDOW = 'IOSSportsEdit.xml'
 DONE, ALL_ON, ALL_OFF, LIST = 9203, 9201, 9202, 9300
-ROW0, ONLY0, SLOTS = 41000, 42000, 40
+ROW0, SLOTS = 41000, 40
 ROW_H, HEAD_H = 150, 118
 TILE, TILE_PAD = 100, 12
 
@@ -26,9 +26,6 @@ def _items(p):
     for n in range(SLOTS):
         key = 'item.%d.' % n
         head = u.text(p, 92, 29, 640, 60, '[UPPERCASE]%s[/UPPERCASE]' % u.P(key + 'title'), 'p_foot_b', p.GREY)
-        head += ('<control type="button" id="%d"><left>780</left><top>0</top><width>240</width><height>%d</height><label>Only</label><font>p_foot_b</font>'
-                 '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny><textoffsetx>0</textoffsetx>'
-                 '<scroll>false</scroll><texturefocus /><texturenofocus /></control>') % (ONLY0 + n, HEAD_H, p.ACCENT, p.ACCENT)
         out += u.group(p, HEAD_H, head, 'String.IsEqual(Window().Property(%skind),head)' % key)
         body = u.row_back(p, key, 972, ROW_H, color='FF000000')
         body += u.tap(p, ROW0 + n, p.SIDE, 0, 972, ROW_H)
