@@ -1,5 +1,7 @@
 # Kodi-iOS master roadmap
 
+Current AirPlay follow-up (2026-11-19): PR49 merged with owner approval. Build600 still fails owner seeking tests. [Build600 roadmap](docs/AIRPLAY-BUILD600-ROADMAP.md) separates slow MKV delivery from repeated empty MP4 audio at a successful video target. Prioritize audio-reader/seek reproduction, then latency; phone acceptance remains open. No new release authorized.
+
 Current phone checkpoint (2026-11-18): build575 shows ESPN cards but no Sports source choices in owner testing; manual Crew eventually plays. Documentation-only next task: [Sports source discovery, game-button and fallback roadmap](docs/SPORTS-PHONE-SOURCE-ROADMAP.md), branch `codex/sports-phone-source-roadmap`, stacked on PR #43. No new implementation/build/merge authorized by this roadmap request.
 
 Sports testing-build follow-up (2026-11-17): ambiguous native startup stops/timeouts cancel rather than launch another source; definite errors can advance. Timing diagnostics added. Slow-opening Kodi 21.2 fixture did not open another source but took about 21 seconds to unwind; phone behavior and live acceptance remain pending. Owner authorized one testing IPA. Preserve prior releases. See docs/SPORTS-HANDOFF.md.

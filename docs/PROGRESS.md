@@ -1,5 +1,9 @@
 # Persistent progress
 
+## Build600 phone seek failures / new follow-up — 2026-11-19
+
+Owner authorized PR49 merge; merged as2629184. New phone log confirms build600/r67 and contains two MKV openings then MP4. Likely streamed MKV attempts show31.6–41.6s priming and slow converted video delivery. MP4 long-target video178 succeeds, but audio178 repeatedly returns empty with2scanned packets and no new source I/O; nativeHTTP500 then buffering/failure. Source provenance and the reported>10minute stream-seek command need confirmation; not every server-successful segment proves receiver playback. Start with reproducible MP4 audio-window/reader reuse failure, then MKV source/conversion waits. See [new roadmap](AIRPLAY-BUILD600-ROADMAP.md). No new runtime fix or IPA.
+
 ## AirPlay seek retry test IPA600 — 2026-11-19
 
 Owner authorized repair and testing IPA. Resolved PR49 documentation conflict by preserving both histories and renumbering AirPlay to ISSUE-391; merged main8e707e5 into the feature branch, without changing tested native source2fde082. Candidate44612304285 passed native host tests and iPhone compilation; inspection44617321795 verified archive d7bb7cc432771bf4aa54244670e1396369df65e4bf03d75555f17f460d48f552, iPhoneOS platform and45-export parity. Published exact r67 via44617373885 and pinned it. Build600 from684d54b57208cfdff637f6a7ae39da3f0c0a322e passed full import workflow44617491985. Downloaded589,157,845-byte IPA: SHA256abe3a0eab7d028757317d6146acc149408f8ea10aee96c6a7b1d903dc59b016c; ZIP CRC, embedded build identity, selected Python sources and exact r67 binary c874d74a315f42a067bd02e6e50439baf269fb87429780c203d971f088571cbd pass. PR49 remains open/unmerged to main. Phone test: same failing source, AirPlay, seek forward about10minutes then backward, sustain playback and export log. This bounded retry is controlled-host-proven, not universal source/receiver acceptance.
