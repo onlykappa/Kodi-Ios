@@ -129,14 +129,14 @@ def standings(body, team_ids):
         name = path[-2]
     rows = [_row(e, n, me) for n, e in enumerate(entries, 1)]
     divisions = len(path) > 2
-    views = [_view('Divisional' if divisions else 'Table', 'Standings · ' + name, rows)]
+    views = [_view('Divisional' if divisions else 'Table', name, rows)]
     if divisions:
         conf = [e for g in groups if g[0][:-1] == path[:-1] for e in g[1]]
         ordered = sorted(conf, key=lambda e: int(_stat(e, 'playoffSeed') or 999))
         wild = [_row(e, n, me) for n, e in enumerate(ordered, 1)]
         for row, entry in zip(wild, ordered):
             row['rank'] = _stat(entry, 'playoffSeed') or row['rank']
-        views.append(_view('Wild Card', 'Standings · ' + path[-2], wild))
+        views.append(_view('Wild Card', path[-2], wild))
     return {'views': views}
 
 
@@ -149,7 +149,7 @@ def sample():
     return {'venue': 'NRG Stadium', 'place': 'Houston, TX',
             'form': [{'name': 'Indianapolis Colts', 'record': '3-7', 'split': '1-4', 'side': 'Away', 'results': ['L', 'L', 'W', 'L', 'L']},
                      {'name': 'Houston Texans', 'record': '3-6', 'split': '2-2', 'side': 'Home', 'results': ['W', 'L', 'W', 'W', 'L']}],
-            'standings': {'views': [_view('Divisional', 'Standings · AFC South', div), _view('Wild Card', 'Standings · American Football Conference', wild)]}}
+            'standings': {'views': [_view('Divisional', 'AFC South', div), _view('Wild Card', 'American Football Conference', wild)]}}
 
 
 def build(game, fetch=None, now=None):

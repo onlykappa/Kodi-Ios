@@ -1,25 +1,21 @@
 """The game page (owner mockup page 6, 2026-11-19): the two teams on their colours, the time, Remind me / Play, Sources, Game info."""
 import status_ui as u
+import sports_hero as hero
 
 WINDOW = 'IOSSportsGame.xml'
 BACK, REFRESH, LIST, RETRY = 9001, 9002, 9300, 9003
 SEARCH_RETRY = 9004
 AUTO = 9005
 REMIND, REMIND_ON = 9006, 9008      # Remind me / Reminder on (two buttons, one visible at a time) (board C of docs/design/sports-game-mockups.html)
-INFO_OPEN = 9011                    # the "Game info" card (opens the game's facts page)
+INFO_OPEN = 9011                    # the "Game info" card (opens the game's Info / Standings page)
+OTHER = 9012                        # "Other sources (3)" under the best-source line: jumps to the list
 SOURCE, SLOTS = 50000, 24
 FORMS = tuple((title, detail) for title in range(1, 5) for detail in range(1, 10))
-TEAM_FORMS = range(1, 4)    # lines the short team names take (a long one wraps, never cut)
 TITLE_LINE, DETAIL_LINE = 55, 51
 
 
-CREST, NAME_LINE = 230, 57
 PILL_W = 640                    # the action capsule is centred and narrower than the cards (mockup page 6)
 PILL_X = (1080 - PILL_W) // 2
-
-
-def hero_height(lines):
-    return 180 + CREST + 40 + NAME_LINE*lines + 60 + 70
 
 
 def source_height(title, detail):
@@ -29,38 +25,6 @@ def source_height(title, detail):
 def _badge(p, x, y, w, text, tint=None, fill=None):
     return (p.image(x,y,w,56,p.MEDIA+'r21.png',fill or p.SURFACE2,border=21) +
             u.text(p,x,y,w,56,text,'p_foot_b',tint or p.WHITE,'center'))
-
-
-def textures(p):
-    """A soft round glow (white, fading to nothing): the page tints it with each team's colour."""
-    size = 256
-    def pixel(x, y):
-        d = (((x + .5) / size - .5) ** 2 + ((y + .5) / size - .5) ** 2) ** .5 * 2
-        return (255, 255, 255, int(255 * max(0.0, 1 - d) ** 1.25))
-    return {'sports_glow.png': p.png(size, size, pixel)}
-
-
-def _hero(p):
-    """Both teams' colours glow behind them; a big crest, the short name and the record under it, the time between."""
-    out = ''
-    for lines in TEAM_FORMS:
-        height = hero_height(lines)
-        card = p.image(-260, 0, 960, height, p.MEDIA + 'sports_glow.png', u.P('away.tint'), aspect='>stretch')
-        card += p.image(380, 0, 960, height, p.MEDIA + 'sports_glow.png', u.P('home.tint'), aspect='>stretch')
-        card += u.text(p, p.SIDE, 134, 972, 56, u.P('league'), 'p_foot_b', p.GREY, 'center')
-        for side, x in (('away', 90), ('home', 760)):
-            side_xml = p.image(x, 200, CREST, CREST, p.MEDIA + 'avatar_s.png', p.SURFACE2)
-            side_xml += p.image(x, 200, CREST, CREST, u.P(side + '.crest'), extra='<visible>' + u.has(side + '.crest') + '</visible>', aspect='>keep', background=True)
-            side_xml += u.text(p, x, 200, CREST, CREST, u.P(side + '.code'), 'p_pill', align='center').replace(
-                '</control>', '<visible>' + u.neg(u.has(side + '.crest')) + '</visible></control>')
-            side_xml += p.textbox(x - 40, 450, CREST + 80, NAME_LINE * lines, u.P(side + '.name'), 'p_h3').replace('<autoscroll>', '<align>center</align><autoscroll>')
-            side_xml += u.text(p, x - 40, 450 + NAME_LINE * lines + 6, CREST + 80, 51, u.P(side + '.record'), 'p_foot', p.GREY, 'center')
-            # A tournament or a race weekend has a title and no opponent: only the first side is drawn.
-            card += '<control type="group"><visible>%s</visible>%s</control>' % (u.has('home.name') if side == 'home' else 'true', side_xml)
-        card += u.text(p, 325, 270, 430, 94, u.P('clock'), 'p_title', align='center')
-        card += u.text(p, 310, 372, 460, 51, u.P('when'), 'p_foot', p.GREY, 'center')
-        out += u.group(p, height, card, 'String.IsEqual(Window().Property(hero.lines),%d)' % lines)
-    return out
 
 
 def _sources(p):
@@ -91,11 +55,12 @@ def _sources(p):
 def page(p):
     header = p.nav_button(BACK, 32, 5, 'chevron-left.png', 'noop')
     header += p.nav_button(REFRESH, 940, 5, p.MEDIA + 'hdr_refresh.png', 'noop', glyph_size=60).replace(p.WHITE, p.ACCENT)
-    content = u.group(p, 134, header) + _hero(p)
+    content = u.group(p, 134, header) + hero.hero(p)
     auto = p.pill_button(AUTO, PILL_X, 27, PILL_W, 128, 'Play', [('', 'noop')], 'primary', 'play.png', inline=True)
     content += u.group(p, 182, auto, u.has('sources.count'))
     # "Best source: The Loop · 1080p · English", under Play (owner: "providing you with best source").
     content += u.group(p, 70, u.text(p, p.SIDE, 0, 972, 60, u.P('play.best'), 'p_sub', p.GREY, 'center'), u.has('play.best'))
+    content += u.group(p, 130, u.link(p, OTHER, p.SIDE, 6, 972, 118, '', 'center', 'p_body').replace('<label></label>', '<label>%s</label>' % u.P('other.text')), u.has('other.text'))
     # No source yet and the game has not started: Remind me (white) or Reminder on (frosted); the line under says what happens next.
     no_source = 'String.IsEqual(Window().Property(state),empty) + String.IsEmpty(Window().Property(game.live))'
     remind = p.pill_button(REMIND, PILL_X, 27, PILL_W, 128, 'Remind me', [('', 'noop')], 'primary', 'bell.png', inline=True)
@@ -105,7 +70,6 @@ def page(p):
     content += u.group(p, 134, p.textbox(92, 0, 896, 120, u.P('remind.note'), 'p_sub', p.GREY).replace('<autoscroll>', '<align>center</align><autoscroll>'),
                        'String.IsEqual(Window().Property(state),empty) + !String.IsEmpty(Window().Property(remind.note))')
     heading = u.text(p, p.SIDE, 43, 700, 70, 'Sources', 'p_h2')
-    heading += u.text(p, 800, 43, 226, 70, u.P('sources.count'), 'p_sub', p.GREY, 'right')
     content += u.group(p, 134, heading, u.has('hero.lines')) + _sources(p)
     # None yet: when it was last looked at, and a link to look again now (mockup page 6).
     none = u.card(p, p.SIDE, 0, 972, 190)
@@ -115,7 +79,6 @@ def page(p):
     content += u.group(p, 190, none, 'String.IsEqual(Window().Property(state),empty)')
     searching = u.card(p, p.SIDE, 0, 972, 180) + u.text(p, 97, 48, 886, 80, 'Searching for sources', 'p_h3', align='center')
     content += u.group(p, 180, searching, 'String.IsEqual(Window().Property(state),searching)')
-    content += u.group(p, 110, p.textbox(70, 27, 940, 70, 'Choose a source to play.', 'p_foot', p.GREY), u.has('sources.count'))
     error = p.textbox(108, 118, 864, 160, u.P('error.title'), 'p_h2').replace('<autoscroll>', '<align>center</align><autoscroll>')
     error += p.pill_button(RETRY, 270, 320, 540, 134, 'Try again', [('', 'noop')], 'primary', extra='<visible>String.IsEqual(Window().Property(state),error)</visible>')
     content += u.group(p, 520, error, u.has('error.title'))
@@ -138,5 +101,5 @@ def page(p):
 
 def files(p):
     out = {p.FOLDER + '/' + WINDOW: page(p).encode()}
-    out.update({'extras/portrait/' + name: data for name, data in textures(p).items()})
+    out.update({'extras/portrait/' + name: data for name, data in hero.textures(p).items()})
     return out

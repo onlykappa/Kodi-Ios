@@ -1,4 +1,5 @@
-"""The game's facts window (owner mockup page 8): kickoff and venue, recent form, standings; opened from the game page's "Game info" card."""
+"""The game's Info / Standings window (owner mockups page 8 and D1/D2); opened from the game page's "Game info" card. It carries the game page's hero and action
+capsule (Remind me opens the reminder sheet; Play closes this window and plays, see `run`) over the two tabs."""
 import os
 import sys
 import threading
@@ -10,11 +11,13 @@ import page_wait
 import sports_model as sm
 import sports_game_facts_page as page
 import sports_game_info as info_mod
+import sports_game as game_page
+import sports_reminders as sr
 
 BACK_KEYS = (9,10,92,110)
 
 
-def info_props(game, info, view, now, offset):
+def info_props(game, info, view, now, offset, tab='info'):
     """The Info section's properties (board D3 / D4): empty strings hide a part."""
     props = {'info.kickoff':'','info.venue':'','info.place':'','st.title':'','st.switch':'','st.n':'','matchup':sm.versus(game) if game else ''}
     for n in range(2):
@@ -23,6 +26,8 @@ def info_props(game, info, view, now, offset):
     for i in range(4):props['st.h%d' % i] = ''
     for n in range(page.ST_ROWS):
         for key in ('rank','team','crest','c0','c1','c2','c3','me','pos'):props['st.%d.%s' % (n,key)] = ''
+    props['tab'] = tab if tab in ('info','standings') else 'info'
+    props['has.tabs'] = ''
     if not game or not info:return props
     props['info.kickoff'] = sm.day_label(game['start'],now,offset) + ' · ' + sm.clock_text(game['start'],offset)
     props['info.venue'],props['info.place'] = info.get('venue',''),info.get('place','')
@@ -32,6 +37,7 @@ def info_props(game, info, view, now, offset):
         for d,letter in enumerate(team['results']):props['form.%d.d%d' % (n,d)] = letter
     table = info.get('standings')
     if table and table['views']:
+        props['has.tabs'] = 'true'
         shown = table['views'][view % len(table['views'])]
         props['st.title'] = shown['title']
         if len(table['views']) > 1:props['st.switch'] = 'wild' if shown['name'] == 'Divisional' else 'div'
@@ -47,10 +53,14 @@ def info_props(game, info, view, now, offset):
 
 
 def run(game, clock=time.time):
+    """Open the window. Returns True when Play was tapped (the caller plays the game's best source)."""
     import xbmc
     import xbmcgui
+    import xbmcvfs
     import diagnostics
     log = lambda text:xbmc.log(text,xbmc.LOGINFO)
+    profile = xbmcvfs.translatePath('special://profile/')
+    answer = {'play':False}
 
     class Facts(xbmcgui.WindowXMLDialog):
         def onInit(self):
@@ -59,11 +69,15 @@ def run(game, clock=time.time):
             self.lock = threading.Lock()
             self.info = None
             self.view = 0
+            self.tab = 'info'
             self.draw()
             threading.Thread(target=self.load,daemon=True).start()
 
         def draw(self):
-            props = info_props(game,self.info,self.view,clock(),sm.device_offset(clock()))
+            now = clock()
+            offset = sm.device_offset(now)
+            props,_ = game_page.model(game,now,offset,'ready',False,sr.get(profile,game['id']),now)
+            props.update(info_props(game,self.info,self.view,now,offset,self.tab))
             for key,value in props.items():self.setProperty(key,value)
 
         def load(self):
@@ -82,6 +96,17 @@ def run(game, clock=time.time):
                 with self.lock:
                     self.view = 1 if ident==page.STANDINGS_SWITCH else 0
                     self.draw()
+            elif ident in (page.TAB_INFO,page.TAB_STANDINGS):
+                with self.lock:
+                    self.tab = 'standings' if ident==page.TAB_STANDINGS else 'info'
+                    self.draw()
+            elif ident in (page.REMIND,page.REMIND_ON):
+                import sports_remind
+                sports_remind.ask(game,profile)
+                with self.lock:self.draw()
+            elif ident==page.AUTO:
+                answer['play'] = True
+                self.finish()
 
         def onAction(self,action):
             if action.getId() in BACK_KEYS:self.finish()
@@ -90,7 +115,6 @@ def run(game, clock=time.time):
             self.stop.set()
             self.close()
 
-    import xbmcvfs
     try:window = Facts(page.WINDOW,HERE,'Default','1080i')
     except RuntimeError:
         xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'portrait')+'/')
@@ -98,3 +122,4 @@ def run(game, clock=time.time):
     window.doModal()
     if hasattr(window,'stop'):window.stop.set()
     del window
+    return answer['play']

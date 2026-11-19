@@ -22,7 +22,13 @@ def _lines(text, width):
     return choice_sheet.lines(words,width)
 
 
-NEUTRAL,TINT = '445F6B7A','99'   # a team without a colour gets a soft grey glow; ESPN's colours are 6 hex digits
+WHITE_B = '[COLOR FFFFFFFF][B]%s[/B][/COLOR]'   # bold and white inside a grey line (owner: "We'll tell you" should stand out)
+NEUTRAL,TINT = '445F6B7A','B8'   # a team without a colour gets a soft grey glow; ESPN's colours are 6 hex digits
+
+
+def lighten(color, amount=.3):
+    """ESPN's team colours are often very dark (navy, maroon): mix them toward white so the glow behind the crest is a colour, not black."""
+    return ''.join('%02X' % round(int(color[i:i+2],16)+(255-int(color[i:i+2],16))*amount) for i in (0,2,4))
 
 
 def checked_text(checked, now):
@@ -40,7 +46,7 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
     props = {'state':state,'hero.lines':'','league':'','starts':'','clock':'','day':'',
              'sources.count':'','error.title':'','play.error':'','empty.text':'','game.live':'',
              'play.best':'','remind.on':'true' if reminder else '','remind.note':sr.summary(reminder),
-             'when':'','checked':'','info.title':'','info.sub':'','away.record':'','home.record':'','away.tint':NEUTRAL,'home.tint':NEUTRAL}
+             'other.text':'','when':'','checked':'','info.title':'','info.sub':'','away.record':'','home.record':'','away.tint':NEUTRAL,'home.tint':NEUTRAL}
     sources = sm.order_sources(game['sources']) if game else []
     for side in ('away','home'):
         for key in ('code','crest'):props[side+'.'+key] = game[side].get(key,'') if game else ''
@@ -48,7 +54,7 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
             props[side+'.name'] = game[side].get('short') or game[side].get('name','')
             props[side+'.record'] = game[side].get('record','')
             color = str(game[side].get('color') or '')
-            if len(color) == 6 and all(c in '0123456789abcdefABCDEF' for c in color):props[side+'.tint'] = TINT + color.upper()
+            if len(color) == 6 and all(c in '0123456789abcdefABCDEF' for c in color):props[side+'.tint'] = TINT + lighten(color)
         else:props[side+'.name'] = ''
     if game:
         until = sm.until_text(game['start'],now)
@@ -64,18 +70,23 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
                       'state':'ready' if sources else 'searching' if searching else 'empty',
                       'game.live':'true' if game.get('state')=='live' else '',
                       'empty.text':'No sources available yet. Try again.' if game.get('state')=='live' else 'Check back closer to the start. Refresh looks again.'})
+        if game.get('state')=='live':   # "● LIVE", the score, the clock (owner mockup C5); no score (golf, F1): just the clock
+            scores = (game['away'].get('score'),game['home'].get('score'))
+            if None not in scores:props.update({'clock':'%s – %s' % scores,'when':game.get('clock') or ''})
+            else:props.update({'clock':game.get('clock') or '','when':''})
     elif state=='error':props['error.title']="Can't load this game right now"
     elif state=='loading':props.update({'hero.lines':'1'})
     else:props.update(state='gone',**{'error.title':'This game is no longer listed'})
     if game and not sources and state != 'error' and not reminder and not game.get('state')=='live':
-        props['remind.note'] = "No source yet. [B]We'll tell you[/B] when one is ready."
+        props['remind.note'] = "No source yet. %s when one is ready." % WHITE_B % "We'll tell you"
     if sources:   # the best source, named under Play (the same choice the Play button makes)
         try:
             import sports_loop_router
             best = sports_loop_router.automatic_source(sources)
-            props['play.best'] = 'Best source: ' + ' · '.join(v for v in (best.get('addon'),best.get('quality'),best.get('language')) if v)
+            props['play.best'] = (WHITE_B % 'Best source:') + ' ' + ' · '.join(v for v in (best.get('addon'),best.get('quality'),best.get('language')) if v)
         except Exception:
             props['play.best'] = ''
+        props['other.text'] = 'Other sources (%d)' % (len(sources)-1) if len(sources)>1 else ''
     for n in range(page.SLOTS):
         values = {}
         if n < len(sources):
@@ -189,11 +200,19 @@ def run(game, provider=None, clock=time.time, search=False):
                 if current is not None:
                     sports_remind.ask(current,xbmcvfs.translatePath('special://profile/'))
                     with self.lock: self.draw()
+            elif ident==page.OTHER:   # jump to the first source (the list scrolls to the focused row)
+                try:self.setFocusId(page.SOURCE+int(self.getProperty('source.0.form') or 0))
+                except Exception:pass
             elif ident==page.INFO_OPEN:
                 with self.lock: current=self.data
                 if current is not None:
                     import sports_game_facts
-                    sports_game_facts.run(current,clock=clock)
+                    if sports_game_facts.run(current,clock=clock):   # Play was tapped on the Info page
+                        with self.lock:sources=list(self.sources)
+                        if sources:
+                            import sports_loop_router
+                            self.start_play(sports_loop_router.automatic_source(sources))
+                    with self.lock:self.draw()
             elif ident==page.AUTO:
                 with self.lock: sources=list(self.sources)
                 if sources:

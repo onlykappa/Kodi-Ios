@@ -107,6 +107,9 @@ class Projection(unittest.TestCase):
         self.assertEqual(props['day'],'Sat, Nov 21')
 
 
+TINT_B8='B8'
+
+
 class Hero(unittest.TestCase):
     """The hero of the owner's page 6 mockup: short names with records on each team's colour, the time and how long until it, Game info."""
     def game(self,**extra):
@@ -119,7 +122,7 @@ class Hero(unittest.TestCase):
     def test_short_names_records_colours_and_when(self):
         props,_=game_page.model(self.game(week=11),NOW,0)
         self.assertEqual((props['away.name'],props['home.name'],props['away.record'],props['home.record']),('Colts','Texans','3-7','3-6'))
-        self.assertEqual((props['away.tint'],props['home.tint']),('990C2340',game_page.NEUTRAL))   # a team without a colour gets the soft grey
+        self.assertEqual((props['away.tint'],props['home.tint']),(TINT_B8+game_page.lighten('0c2340'),game_page.NEUTRAL))   # a team without a colour gets the soft grey
         self.assertEqual(props['when'],'Today · in 2 h 10 min')
         self.assertEqual((props['info.title'],props['info.sub']),('NFL · Week 11','Today at 8:55 PM'))
         self.assertEqual(game_page.model(self.game(),NOW,0)[0]['info.title'],'NFL')   # no week, no "· Week"
@@ -135,6 +138,17 @@ class Hero(unittest.TestCase):
         self.assertEqual(game_page.checked_text(NOW-60,NOW),'Checked 1 minute ago')
         self.assertEqual(game_page.checked_text(NOW-7300,NOW),'Checked 2 hours ago')
         self.assertEqual(game_page.model(self.game(),NOW,0,checked=NOW-120)[0]['checked'],'Checked 2 minutes ago')
+
+    def test_lighten_mixes_dark_team_colours_toward_white(self):
+        self.assertEqual(game_page.lighten('000000'),'4C4C4C')
+        self.assertEqual(game_page.lighten('FFFFFF'),'FFFFFF')
+
+    def test_a_live_game_shows_live_the_score_and_the_clock(self):
+        game=self.game(state='live',clock='Q3 · 4:12');game['away']['score']=88;game['home']['score']=91
+        props,_=game_page.model(game,NOW,0)
+        self.assertEqual((props['game.live'],props['clock'],props['when']),('true','88 – 91','Q3 · 4:12'))
+        game['away']['score']=None
+        self.assertEqual(game_page.model(game,NOW,0)[0]['clock'],'Q3 · 4:12')   # no score (golf, F1): just the clock
 
     def test_until_text(self):
         self.assertEqual([sm.until_text(NOW+s,NOW) for s in (45*60,3600,7800,-5,24*3600)],['in 45 min','in 1 h','in 2 h 10 min','',''])
@@ -354,15 +368,16 @@ class RemindThenPlay(unittest.TestCase):
     def test_no_source_offers_a_reminder_then_says_it_is_on(self):
         import sports_reminders as sr
         props,_=game_page.model(self.game(False),NOW,0)
-        self.assertEqual((props['state'],props['remind.on'],props['remind.note'],props['play.best']),('empty','',"No source yet. [B]We'll tell you[/B] when one is ready.",''))
+        self.assertEqual((props['state'],props['remind.on'],props['remind.note'],props['play.best']),('empty','',"No source yet. [COLOR FFFFFFFF][B]We'll tell you[/B][/COLOR] when one is ready.",''))
         record={'on_source':True,'before':True}
         props,_=game_page.model(self.game(False),NOW,0,reminder=record)
         self.assertEqual(props['remind.on'],'true')
         self.assertEqual(props['remind.note'],sr.summary(record))
 
     def test_a_source_names_the_best_one_under_play(self):
-        props,_=game_page.model(self.game(True),NOW,0)
-        self.assertTrue(props['play.best'].startswith('Best source: '))
+        props,found=game_page.model(self.game(True),NOW,0)
+        self.assertTrue(props['play.best'].startswith('[COLOR FFFFFFFF][B]Best source:[/B][/COLOR] '))   # the label is bold white, the rest grey
+        self.assertEqual(props['other.text'],'Other sources (%d)' % (len(found)-1))
         self.assertIn('1080p',props['play.best'])
 
     def test_the_page_has_both_buttons_and_the_script_runs_the_sheet(self):

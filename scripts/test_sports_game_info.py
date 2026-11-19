@@ -59,12 +59,12 @@ class Standings(unittest.TestCase):
         names = [v['name'] for v in table['views']]
         self.assertEqual(names, ['Divisional', 'Wild Card'])
         div = table['views'][0]
-        self.assertEqual(div['title'], 'Standings · AFC South')
+        self.assertEqual(div['title'], 'AFC South')
         self.assertEqual([r['team'] for r in div['rows']], ['Jaguars', 'Texans', 'Colts', 'Titans'])
         self.assertEqual([r['me'] for r in div['rows']], [False, True, True, False])
         self.assertEqual(div['cols'], ('W', 'L', '', 'PCT'))
         wild = table['views'][1]
-        self.assertEqual(wild['title'], 'Standings · AFC')
+        self.assertEqual(wild['title'], 'AFC')
         self.assertEqual([r['team'] for r in wild['rows']][:2], ['Bills', 'Jaguars'])   # conference by playoff seed, NFC left out
         self.assertNotIn('Rams', [r['team'] for r in wild['rows']])
 
@@ -80,7 +80,7 @@ class Standings(unittest.TestCase):
         table = gi.standings(body, [2])
         self.assertEqual(len(table['views']), 1)
         self.assertEqual(table['views'][0]['cols'], ('W', 'D', 'L', 'PTS'))
-        self.assertEqual(table['views'][0]['title'], 'Standings · English Premier League')
+        self.assertEqual(table['views'][0]['title'], 'English Premier League')
 
     def test_no_table_for_a_team_that_is_not_listed(self):
         self.assertIsNone(gi.standings(STAND, [404]))
@@ -166,7 +166,7 @@ class PageProperties(unittest.TestCase):
         self.assertTrue(props['info.kickoff'])
         self.assertEqual(props['form.0.line'], '3-7 · Away 1-4')
         self.assertEqual([props['form.1.d%d' % d] for d in range(5)], ['W', 'L', 'W', 'W', 'L'])
-        self.assertEqual((props['st.title'], props['st.switch'], props['st.0.team'], props['st.0.me'], props['st.3.me']), ('Standings · AFC South', 'wild', 'Texans', 'true', 'true'))
+        self.assertEqual((props['st.title'], props['st.switch'], props['st.0.team'], props['st.0.me'], props['st.3.me']), ('AFC South', 'wild', 'Texans', 'true', 'true'))
         self.assertEqual(props['st.3.pos'], 'last')
         wild = self.props(facts, 1)
         self.assertEqual((wild['st.switch'], wild['st.0.team']), ('div', 'Bills'))
@@ -178,6 +178,25 @@ class PageProperties(unittest.TestCase):
         props = self.props(facts)
         self.assertEqual((props['st.title'], props['st.0.team']), ('', ''))
         self.assertEqual(props['form.0.name'], 'Indianapolis Colts')
+
+    def test_tabs_exist_only_when_there_is_a_table_and_the_tab_is_remembered(self):
+        facts = gi.sample()
+        props = self.props(facts)
+        self.assertEqual((props['has.tabs'], props['tab']), ('true', 'info'))
+        self.assertEqual(self.facts.info_props(self.game, facts, 0, NOW, 0, 'standings')['tab'], 'standings')
+        self.assertEqual(self.facts.info_props(self.game, facts, 0, NOW, 0, 'nonsense')['tab'], 'info')
+        facts['standings'] = None
+        self.assertEqual(self.props(facts)['has.tabs'], '')   # a game with no table (golf, a fight) has no tabs
+        self.assertEqual(self.props()['has.tabs'], '')
+
+    def test_the_page_carries_the_hero_the_action_capsule_and_the_tabs(self):
+        import portrait
+        text = self.page.page(portrait)
+        for needle in ('Window().Property(away.tint)', 'Remind me', 'Reminder on', '>Play<', 'Window().Property(tab)', 'Window().Property(has.tabs)',
+                       'Divisional', 'Wild Card', 'Recent form'):
+            self.assertIn(needle, text)
+        for ident in (self.page.TAB_INFO, self.page.TAB_STANDINGS, self.page.AUTO, self.page.REMIND, self.page.REMIND_ON):
+            self.assertIn('id="%d"' % ident, text)
 
     def test_there_is_no_watch_on_row(self):
         text = (ROOT / 'migration/bundled-bootstrap/resources/lib/sports_game_facts_page.py').read_text()
