@@ -8,6 +8,7 @@ SLOW_LATENCY=0.1
 SLOW_RATE=2*1024*1024
 RECOVERED=set()
 QUIETED=set()   # ISSUE-335: /quiet/ goes silent once per file mid-body
+BUSY=set()      # r13: /busy/ refuses a second concurrent connection to the same path (a server's per-resource limit)
 RECOVER_LOCK=threading.Lock()
 STATS={'requests':0,'bytes':0}
 STATS_LOCK=threading.Lock()
@@ -45,7 +46,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
   if self.path.startswith('/open-stall/'):
    self.path=self.path[len('/open-stall'):];time.sleep(8)
   self.fault=None
-  for mode in ('bounded','recover','stall','quiet'):
+  for mode in ('bounded','recover','stall','quiet','busy'):
    if self.path.startswith('/'+mode+'/'):
     self.fault=mode;self.path=self.path[len(mode)+1:];break
   self.slow=self.path.startswith('/slow/')
@@ -61,6 +62,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
    return f
   a=int(m.group(1));b=int(m.group(2)) if m.group(2) else size-1
   if a>=size:self.send_error(416);f.close();return None
+  if a>262144 and self.fault=='busy':
+   with RECOVER_LOCK:
+    if path in BUSY:f.close();self.send_error(503,'too many connections to this resource');return None
+    BUSY.add(path)
+   self.busy_path=path;time.sleep(1)  # held just long enough for a concurrent second request to arrive and be refused
   b=min(b,size-1);f.seek(a)
   self.send_response(206);self.send_header('Content-Range','bytes %d-%d/%d'%(a,b,size))
   self.send_header('Content-Length',str(b-a+1));self.send_header('Accept-Ranges','bytes');self.end_headers()
@@ -74,21 +80,26 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     if path not in QUIETED:QUIETED.add(path);self.quiet=True
   return f
  def copyfile(self,src,dst):
-  if getattr(self,'drop',False):return # headers promised bytes, but this connection dies before its body
-  left=getattr(self,'range_left',None);step=16384 if self.slow else 65536
-  while left is None or left>0:
-   chunk=src.read(step if left is None else min(step,left))
-   if not chunk:break
-   try:dst.write(chunk)
-   except (BrokenPipeError,ConnectionResetError):return
-   if getattr(self,'quiet',False):  # a connection that stops sending (owner log 65cca4ce: 31.7 s on one read)
-    try:dst.flush()
-    except OSError:pass
-    time.sleep(25);return
-   if self.indexed:
-    with STATS_LOCK:STATS['bytes']+=len(chunk)
-   if self.slow:time.sleep(len(chunk)/SLOW_RATE)
-   if left is not None:left-=len(chunk)
+  try:
+   if getattr(self,'drop',False):return # headers promised bytes, but this connection dies before its body
+   left=getattr(self,'range_left',None);step=16384 if self.slow else 65536
+   while left is None or left>0:
+    chunk=src.read(step if left is None else min(step,left))
+    if not chunk:break
+    try:dst.write(chunk)
+    except (BrokenPipeError,ConnectionResetError):return
+    if getattr(self,'quiet',False):  # a connection that stops sending (owner log 65cca4ce: 31.7 s on one read)
+     try:dst.flush()
+     except OSError:pass
+     time.sleep(25);return
+    if self.indexed:
+     with STATS_LOCK:STATS['bytes']+=len(chunk)
+    if self.slow:time.sleep(len(chunk)/SLOW_RATE)
+    if left is not None:left-=len(chunk)
+  finally:
+   busy_path=getattr(self,'busy_path',None)
+   if busy_path:
+    with RECOVER_LOCK:BUSY.discard(busy_path)
 
 if __name__=='__main__':
  os.chdir(sys.argv[1])

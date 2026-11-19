@@ -2417,6 +2417,33 @@ static void test_startup_repairs(const char *base) {
     at=mono_ms();kr_remux_stop();CHECK(mono_ms()-at<1500,"stopping aborts unfinished subtitle work promptly");kr_remux_set_prefetch(1);
 }
 
+// r13 (owner's phone log: an Umbrella seek buffered video in 23.5 s but the parallel audio fetch failed in 1.0 s
+// right after, killing the whole seek with "operation could not be completed"): a seek sends the video and its
+// independent audio connection new range requests together; a server that refuses a second concurrent connection
+// to the same resource reproduces exactly that shape (one succeeds slowly, the other fails fast). One retry run
+// after the video attempt's own traffic has settled should recover it instead of failing the whole seek.
+static void test_seek_audio_retry(const char *base) {
+    char url[512],list[512],log[8192];
+    // long_big.mkv: 600 kbit/s video + 64 kbit/s audio over 1300 s, so 40 s in, both tracks are
+    // comfortably past the fault's 256 KiB-per-connection threshold (audio alone: ~320 KiB).
+    snprintf(url,sizeof url,"%s/busy/long_big.mkv",base);
+    unsigned ticket=kr_remux_begin(0);
+    int opening=kr_remux_start_for(ticket,url,0,0,list,sizeof list);
+    CHECK(opening==KR_READY,"busy-fault session opens: %s",kr_remux_message());if(opening!=KR_READY)return;
+    snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
+    char *end=strstr(prefix_path,"/master.m3u8");if(end)*end=0;
+    int r=kr_remux_prime_for(ticket,40.0);
+    CHECK(r==KR_READY,"seek recovers after the independent audio connection is refused once, via retry (result %d)",r);
+    kr_remux_log(log,sizeof log);
+    CHECK(strstr(log,"retrying audio segment"),"log shows the retry actually ran, not an accidental first-try pass");
+    if(r==KR_READY){
+        // SEG_SECONDS=6.0: 40.0 s falls in segment 6.
+        double v=get_ms(kr_remux_port(),"/video/seg6.m4s"),a=get_ms(kr_remux_port(),"/audio/1/seg6.m4s");
+        CHECK(v<50 && a<50,"both lanes actually buffered after the recovered seek (%.1f/%.1f ms)",v,a);
+    }
+    kr_remux_stop();
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: test_remux FIXTURE_DIR [HTTP_BASE]\n"); return 2; }
     fixture_dir = argv[1];
@@ -2452,7 +2479,7 @@ int main(int argc, char **argv) {
         return failures ? 1 : 0;
     }
     if(argc>3 && !strcmp(argv[3],"--startup-only")) {
-        test_startup_repairs(argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+        test_startup_repairs(argv[2]);test_seek_audio_retry(argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
     if(argc>3 && !strcmp(argv[3],"--subtitles-only")) {
         test_subtitle_retention(argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
@@ -2576,7 +2603,7 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
+        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_seek_audio_retry(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }

@@ -2015,7 +2015,21 @@ int kr_remux_prime_for(unsigned ticket,double seconds) {
     if(made<0 && parallel)abort_sources();
     if(parallel) {
         pthread_join(thread,NULL);
-        if(made==0 && sound.result<0){made=sound.result;snprintf(err,sizeof err,"%s",sound.error);}
+        if(made==0 && sound.result<0){
+            made=sound.result;snprintf(err,sizeof err,"%s",sound.error);
+            // r13: a seek sends the video and audio connections new byte-range requests together; a server
+            // can refuse the second one quickly while the first still succeeds slowly (observed: video
+            // segment buffered in 23.5 s, audio segment failed in 1.0 s right after). One retry, run only
+            // after the video attempt's own traffic has settled, recovers this without masking a real
+            // failure: it still respects the overall startup deadline and the request's own cancellation.
+            if(!atomic_load(&S.stopping) && !source_interrupted((void *)(uintptr_t)ticket) && now_ms()<S.startup_end_ms) {
+                log_line("startup: retrying audio segment %d after \"%s\"",seg,err);
+                gm_buf retry={0};char retry_err[256]="";
+                if(get_part(R_AUDIO+audio,seg,&retry,retry_err,sizeof retry_err)==0){made=0;}
+                else{snprintf(err,sizeof err,"%s",retry_err);}
+                free(retry.data);
+            }
+        }
     } else if(made==0 && audio>=0){free(part.data);part=(gm_buf){0};made=get_part(R_AUDIO+audio,seg,&part,err,sizeof err);}
     free(part.data);
     int expired=now_ms()>=S.startup_end_ms;
