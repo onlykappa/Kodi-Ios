@@ -74,9 +74,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
   if 262144<a<10*1024*1024 and self.fault=='busy':
    with RECOVER_LOCK:
     if path not in BUSY:
-     BUSY.add(path)
-     import sys;print('BUSY-DEBUG3 hanging on a=%d'%a,file=sys.stderr,flush=True)
-     time.sleep(35);f.close();return None
+     BUSY.add(path);time.sleep(35);f.close();return None
   b=min(b,size-1);f.seek(a)
   self.send_response(206);self.send_header('Content-Range','bytes %d-%d/%d'%(a,b,size))
   self.send_header('Content-Length',str(b-a+1));self.send_header('Accept-Ranges','bytes');self.end_headers()
