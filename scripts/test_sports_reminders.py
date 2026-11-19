@@ -100,6 +100,47 @@ class Sheet(unittest.TestCase):
         props = choice_sheet.properties(self.remind.spec(GAME, None, True, True, 0))
         self.assertEqual((props['switches'], props['row.1.switch'], props['row.2.switch']), ('true', 'on', 'on'))
 
+class SheetWindow(unittest.TestCase):
+    """The reminder sheet's own window (owner mockup page 7): properties, which tap answers what, and the XML."""
+    def setUp(self):
+        sys.path.insert(0, str(ROOT / 'migration/bundled-bootstrap'))
+        import sports_remind
+        import sports_remind_page
+        self.remind, self.page = sports_remind, sports_remind_page
+
+    def test_new_reminder_properties_and_wording(self):
+        spec = self.remind.spec(GAME, None, True, False, 0, NOW)
+        props = self.remind.window_props(spec)
+        self.assertEqual((props['mode'], props['row.1.on'], props['row.2.on']), ('new', 'on', 'off'))
+        self.assertEqual(props['heading'], 'Remind me about Indianapolis Colts at Houston Texans')
+        self.assertEqual(props['row.1.detail'], 'Then Play appears here')
+        self.assertRegex(props['row.2.detail'], r'^(Today|Tomorrow|\w{3}, \w{3} \d+) at \d+:\d\d [AP]M$')   # "Today at 5:00 PM"
+
+    def test_the_white_capsule_and_the_text_button_answer_as_before(self):
+        page = self.page
+        new = self.remind.spec(GAME, None, True, True, 0, NOW)
+        self.assertEqual(new['primary'], 'link')
+        self.assertEqual((self.remind.answer_for(page.PRIMARY, new), self.remind.answer_for(page.SECONDARY, new)), (2, -1))   # Turn on reminder / Cancel
+        old = self.remind.spec(GAME, {'on_source': True, 'before': True}, True, True, 0, NOW)
+        self.assertEqual((old['primary'], self.remind.window_props(old)['mode']), ('button', 'existing'))
+        self.assertEqual((self.remind.answer_for(page.DONE, old), self.remind.answer_for(page.SECONDARY_OFF, old)), (-1, 2))   # Done / Turn reminder off
+
+    def test_the_xml_is_well_formed_with_unique_ids_and_real_hit_areas(self):
+        import re
+        import xml.dom.minidom
+        sys.path.insert(0, str(ROOT / 'migration/bundled-bootstrap/resources/lib'))
+        import portrait
+        text = self.page.page(portrait)
+        xml.dom.minidom.parseString(text.encode())
+        ids = re.findall(r'<control type="\w+" id="(\d+)"', text)
+        self.assertEqual(len(ids), len(set(ids)))
+        for ident in (self.page.ROW1, self.page.ROW2, self.page.PRIMARY, self.page.DONE, self.page.SECONDARY, self.page.SECONDARY_OFF):
+            self.assertIn(str(ident), ids)
+        for word in ('Turn on reminder', 'Cancel', 'Done', 'Turn reminder off', 'Window().Property(heading)'):
+            self.assertIn(word, text)
+        self.assertNotIn('!(', text)
+
+
 class Watcher(unittest.TestCase):
     """The background check: one notification per reason, searches asked sparingly, a tap opens the game."""
     class Provider:
