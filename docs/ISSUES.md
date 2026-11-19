@@ -5959,6 +5959,19 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 - **New tests:** `scripts/test_sports_opening.py` grew from 5 to 9 cases (long team names, malformed/empty native-queue descriptors, observer dropped on close, late ownership-mismatched callback ignored). These remain pure logic tests of `Opening` with fakes for `home`/`window`; they do not exercise real Kodi XML generation, consistent with the standing caution against treating passing tests as proof of correct GUI wiring.
 - **Checks:** `scripts/test_sports_opening.py` (9), `test_sports_jet.py` (23), `test_sports_crew_routes.py` (53), `test_sports_live.py`, `test_sports_game.py`, `test_sports_loop_router.py` (17, after the fix above) all pass; `check_project.py` and `check_ui_guidance.py` pass; `kodi_rig.py sync` succeeds cold. See `docs/SPORTS-OPENING-REVIEW.md` for the full per-question checkpoint, including what is still outstanding (app-shutdown path, background-thread `setProperty` safety, slow-wait text/stage ordering under a live call sequence, cold-install robustness beyond the `pages` fix, pixel comparison to the approved mockup, and any real Crew source played end-to-end through this loader). No real-source playback demonstration, no native Crew chooser interaction with a live provider, and no before/after timing measurement were produced in this review pass; none of that is claimed as done.
 
+## ISSUE-392 — Build600 receiver seek repeats an empty MP4 audio window (2026-11-19)
+
+- **Seen:** owner reports downloaded short/long seek failures. MP4 attempt requests video178 successfully, but audio178 repeatedly returns HTTP500/empty segment,2scanned packets,0ms source I/O, without cancellation/deadline expiry; receiver/app eventually fail.
+- **Cause:** unresolved; inspect independent audio reader reuse, seek/window timestamps and out-of-order requests. Do not equate packets scanned with packets muxed or infer corrupt media. Container/order align with the downloaded report but do not independently prove origin.
+- **Fix:** none yet. Prioritize deterministic reproduction of0→9→132→171→178 including audio1 contention; see docs/AIRPLAY-BUILD600-ROADMAP.md.
+- **Test:** phone regression evidence, not a passing fix. Verify ordinary receiver HTTP requests separately from PR49's initial-priming retry; no new runtime tests in this documentation checkpoint.
+
+## ISSUE-393 — Build600 MKV AirPlay preparation/delivery remains slow (2026-11-19)
+
+- **Seen:** likely streamed MKV attempts prime video/audio in31.6–41.6s; High10 video is converted with subtitles, some6s video windows take7–16s production. One attempt fails, another advances before close. Owner reports long-seek TV response timeouts.
+- **Cause:** not isolated. Source I/O, shared waits and conversion overlap; summing them would be wrong. The log does not independently isolate a>10minute user seek in these MKV sessions. Canceled requests following receiver failure are not automatically the initiating cause.
+- **Fix/test:** none yet; reproduce constrained source+conversion workload and separate timings before changing retries or timeouts. Preserve codec compatibility. Roadmap and phone acceptance remain open.
+
 ## ISSUE-391 — AirPlay seek kills the session when its parallel audio fetch fails once (2026-11-19)
 
 - **Release validation follow-up:** native host/compiler run44612304285 and independent artifact inspection44617321795 passed; verified r67 is in testing IPA600 (source684d54b), confirmed by exact packaged binary hash. Earlier verification status below is historical. The deterministic fixture creates a read timeout and confirms retry recovery; it does not prove the owner's provider enforces a particular concurrency rule. Real receiver/source acceptance remains pending. PR49 is not merged to main.
