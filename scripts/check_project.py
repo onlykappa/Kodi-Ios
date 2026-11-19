@@ -36,7 +36,7 @@ PORTRAIT_FILES = {'.github/workflows/kodi-ios-portrait.yml','migration/ios-portr
                   '.github/workflows/glassbar-ios.yml','migration/glassbar-ios/build-glassbar.sh',
                   'docs/design/settings-mockups.html','docs/design/fuse-pages-mockups.html','docs/design/season-pack-mockups.html','docs/design/video-picture-mockups.html','docs/design/ai-upscale-settings-mockups.html','docs/design/library-files-mockups.html','docs/design/download-problems-mockups.html',
                   'docs/design/poster-cards-mockups.html','docs/design/activity-indicator-mockups.html','docs/design/activity-mockups-r4.html',
-                  'docs/design/library-status-mockup.html','docs/design/library-tools-mockups.html',
+                  'docs/design/library-status-mockup.html','docs/design/library-tools-mockups.html','docs/design/sports-opening-mockup.html',
                   'docs/design/transfers-simple-mockup.html','docs/design/library-status-mockups-r1.html',
                   'docs/design/sports-landing-mockups.html','docs/design/sports-approved-pages.html','docs/design/sports-live-now-mockups.html','docs/design/sports-upcoming-mockups.html','docs/design/sports-leagues-mockups.html',
                   'docs/design/player-subtitles-audio-mockups.html','docs/design/subtitles-menu-mockups.html','docs/design/subtitles-manage-mockups.html',

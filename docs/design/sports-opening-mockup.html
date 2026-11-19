@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sports opening — design mockup</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#111;color:white;font:17px Inter,Arial,sans-serif;padding:24px}
+header{max-width:850px;margin:auto auto 24px;color:#bdbdc4}h1{font-size:24px}
+.preview{margin:auto;width:min(402px,100%);height:778px;background:#000;position:relative;overflow:hidden}
+.backdrop{position:absolute;inset:0;padding:28px 20px;display:flex;flex-direction:column}
+.back{font-size:24px;color:#4fa8ff}
+.label{font-size:13px;color:#bdbdc4;margin-top:36px}
+.teams{font-size:28px;line-height:1.2;margin:12px 0 8px;overflow-wrap:anywhere}
+.meta{color:#bdbdc4;font-size:15px}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;transition:opacity .2s}
+.dim.on{opacity:1}
+.card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:268px;background:#1c1c1e;border-radius:15px;padding:24px;text-align:center;opacity:0;transition:opacity .2s}
+.card.on{opacity:1}
+.card h2{font-size:17px;font-weight:600;margin:0 0 6px;line-height:1.3}
+.source{color:#bdbdc4;font-size:13px;margin-bottom:18px}
+.detail{color:#bdbdc4;font-size:13px;line-height:1.4;min-height:36px}
+.bar{height:4px;background:#444448;border-radius:2px;overflow:hidden;margin:16px 0}
+.bar span{display:block;height:100%;width:30%;background:#0a84ff;animation:slide 1.5s infinite alternate ease-in-out}
+@keyframes slide{to{transform:translateX(230%)}}
+.elapsed{color:#bdbdc4;font-size:11px;margin-top:2px}
+.slow{color:white;font-size:13px;font-weight:600;margin-top:14px;display:none}
+.slow.on{display:block}
+button{border:0;cursor:pointer;font:inherit;min-height:44px;border-radius:28px;padding:10px 20px;background:#3a3a3c;color:white;font-size:15px}
+.cancel{width:100%;margin-top:16px}
+.states{display:flex;gap:8px;flex-wrap:wrap;margin-top:24px}
+footer{max-width:850px;margin:24px auto;color:#bdbdc4;font-size:14px;line-height:1.5}
+@media(prefers-reduced-motion:reduce){.bar span{animation:none}}
+</style>
+<header><h1>Sports opening</h1>Interactive design mockup · not an app or iPhone screenshot. Reuses the shape of the
+existing opening card (<code>pages.busy_dialog</code>, boards 04/05) instead of a bespoke full-screen layout.</header>
+<main class="preview">
+  <div class="backdrop"><div class="back">‹ Sports</div><div class="label">NCAAB · LIVE</div>
+    <div class="teams">Houston Cougars<br>at Florida Gators</div><div class="meta">Your selected source</div></div>
+  <div class="dim on"></div>
+  <section class="card on">
+    <h2 id="title">Opening your game</h2>
+    <div class="source" id="source">Houston Cougars at Florida Gators</div>
+    <div class="detail" id="detail">Connecting to the selected source.</div>
+    <div class="bar" id="bar"><span></span></div>
+    <div class="elapsed" id="elapsed">3 seconds elapsed</div>
+    <div class="slow" id="slow">Taking longer than usual. You can cancel.</div>
+    <button class="cancel" onclick="state('cancel')">Cancel</button>
+  </section>
+</main>
+<footer>One compact centered card, matching the existing opening-card pattern already shipped for other long-running
+opens, instead of a full-screen layout with its own duplicated title. No percentage is shown because provider
+progress is unknown. Source selection must remain accessible when the add-on requires it. The slow-wait line
+appears after about ten seconds without replacing the live stage/detail text above it.
+<div class="states">
+  <button onclick="state('connect')">Connecting</button>
+  <button onclick="state('refresh')">Refreshing source</button>
+  <button onclick="state('slow')">Long wait</button>
+  <button onclick="state('fail')">Failed</button>
+  <button onclick="state('cancel')">Canceled</button>
+</div></footer>
+<script>
+function state(key){
+  const states={
+    connect:{detail:'Connecting to the selected source.',elapsed:'3 seconds elapsed',slow:false,bar:true},
+    refresh:{detail:'Refreshing the selected source.',elapsed:'1 second elapsed',slow:false,bar:true},
+    slow:{detail:'Connecting to the selected source.',elapsed:'14 seconds elapsed',slow:true,bar:true},
+    fail:{detail:"This source didn't open. Go back and choose another source.",elapsed:'',slow:false,bar:false},
+    cancel:{detail:'Opening canceled. No other source will start automatically.',elapsed:'',slow:false,bar:false}
+  };
+  const s=states[key];
+  document.getElementById('detail').textContent=s.detail;
+  document.getElementById('elapsed').textContent=s.elapsed;
+  document.getElementById('elapsed').style.visibility=s.elapsed?'visible':'hidden';
+  document.getElementById('bar').style.visibility=s.bar?'visible':'hidden';
+  document.getElementById('slow').className='slow'+(s.slow?' on':'');
+}
+</script></html>

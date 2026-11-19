@@ -763,6 +763,7 @@ def run_script(args, window=None):
     if args[:1] == ['play']:
         key = args[1] if len(args) > 1 else ''
         source = {}
+        opening = None
         try:
             source = json.loads(home.getProperty(PLAY + key) or '{}')
             home.clearProperty(PLAY + key)
@@ -777,11 +778,20 @@ def run_script(args, window=None):
             # Native Loop owns its plugin interpreter and identity. Only direct
             # Jet imports need the bootstrap's bare-Addon context.
             with (contextlib.nullcontext() if native else named_addon()):
+                if native:
+                    import sports_opening
+                    opening = sports_opening.Opening(source, home)
+                    opening.open()
+                    if opening.cancelled:return
+                    _play_session.opening = opening
                 _play_session.proxy_url = None
                 play(source)
+                if opening:opening.wait()
                 if getattr(_play_session, 'proxy_url', None):
                     import xbmc
                     hold_local_proxy(xbmc, _play_session.proxy_url)
+        except InterruptedError:
+            log('sports: opening cancelled')
         except Exception as error:
             log('jet: play failed (%s)' % type(error).__name__)
             try:
@@ -789,6 +799,8 @@ def run_script(args, window=None):
             except Exception:
                 pass
         finally:
+            _play_session.opening = None
+            if opening:opening.close()
             import sports_loop_router
             if source.get('native_owner') and home.getProperty(sports_loop_router.OWNER) == source['native_owner']:
                 home.clearProperty(sports_loop_router.OWNER)
@@ -1010,11 +1022,13 @@ def play_one(play_value, logger=log):
         sports_native_routes.prepare_proxy([route])
         if value['e'] == 'TheCrewRoute':
             import sports_crew_routes
+            if getattr(_play_session,'opening',None):_play_session.opening.stage('Refreshing the selected source.')
             try:
                 route = sports_crew_routes.refresh_link(value['l'])
             except RuntimeError as error:
                 raise InterruptedError('Crew source refresh incomplete') from error
         logger('sports: opening via %s' % ('The Crew' if value['e'] == 'TheCrewRoute' else 'The Loop'))
+        if getattr(_play_session,'opening',None):_play_session.opening.stage('Connecting to the selected source.')
         xbmc.Player().play(route)
         return True
     if value.get('e') == sports_fawa.NAME:

@@ -46,7 +46,8 @@ class Tests(unittest.TestCase):
   import sports_jet
   props={};home=NS(getProperty=lambda k:props.get(k,''),clearProperty=lambda k:props.pop(k,None))
   selected=router.automatic_source([source()]);props[sports_jet.PLAY+'fixture']=json.dumps(selected)
-  with patch.dict(sys.modules,{'xbmcgui':NS()}),patch.object(sports_jet,'named_addon',side_effect=AssertionError('native context patched')),patch.object(sports_jet,'play',return_value=True) as played:
+  fake_opening=NS(open=lambda:None,cancelled=False,wait=lambda timeout=45:None,close=lambda:None)
+  with patch.dict(sys.modules,{'xbmcgui':NS(),'sports_opening':NS(Opening=lambda source,home:fake_opening)}),patch.object(sports_jet,'named_addon',side_effect=AssertionError('native context patched')),patch.object(sports_jet,'play',return_value=True) as played:
    sports_jet.run_script(['play','fixture'],home)
    played.assert_called_once()
  def test_stale_script_cannot_start_after_a_new_request(self):
