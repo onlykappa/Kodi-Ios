@@ -22,6 +22,7 @@ import sports_merge
 import sports_model as sm
 
 TTL = 45                # recheck ESPN while avoiding a scan for each page tap
+SCORE_EVERY, SCORE_STALE = 8, 40   # live scores: asked again at most every 8 s while a page polls, trusted for 40 s (owner: scores and clocks must be live)
 SHOW_AFTER = 6          # allow an initial scan to collect a useful first batch
 LOAD_SECONDS = 18       # how long a page waits for the scrapers before showing what it has
 EXTRACTOR_SECONDS = 40  # heartbeat grace period; page waits are bounded separately
@@ -301,6 +302,25 @@ def load_extractors(module):
             continue
         out.append(ext)
     return out, 'configured'
+
+
+def annotate_clocks(values, previous, now=None):
+    """Stamp each live game's countdown clock with when it was read and whether it is running (it moved since the last answer, or ESPN says the game
+    is in progress), so pages can tick it every second (sports_model.live_clock) and stop ticking when the clock is stopped."""
+    now = time.time() if now is None else now
+    before = {g.get('id'): g for g in previous or [] if g.get('clock_secs') is not None}
+    for game in values:
+        if game.get('clock_secs') is None:
+            continue
+        game['clock_at'] = now
+        old = before.get(game.get('id'))
+        if old and now - old['clock_at'] >= 3:
+            game['clock_running'] = abs(old['clock_secs'] - game['clock_secs']) >= 1.0
+        elif old:
+            game['clock_running'] = old.get('clock_running', True)
+        else:
+            game['clock_running'] = game.get('clock_state') == 'STATUS_IN_PROGRESS'
+    return values
 
 
 class JetProvider:
@@ -584,18 +604,18 @@ class JetProvider:
         now = time.monotonic()
         codes = sorted({g['league'] for g in data['live'] if g.get('league')})
         with self.lock:
-            start = not self._score_busy and (not self._score_started or now - self._score_started >= 45 or not set(codes).issubset(self._score_requested))
+            start = not self._score_busy and (not self._score_started or now - self._score_started >= SCORE_EVERY or not set(codes).issubset(self._score_requested))
             if start:
                 self._score_busy = True
                 self._score_started = now
                 self._score_requested = set(codes)
-            scores = list(self._scores) if self._score_at and now - self._score_at < 90 else []
+            scores = list(self._scores) if self._score_at and now - self._score_at < SCORE_STALE else []
         if start:
             def fetch():
                 try:
                     values = self.score_loader(codes)
                     with self.lock:
-                        self._scores, self._score_at = list(values or []), time.monotonic()
+                        self._scores, self._score_at = annotate_clocks(list(values or []), self._scores), time.monotonic()
                 except Exception as error:
                     log('scores: lookup failed (%s)' % type(error).__name__)
                 finally:
@@ -618,6 +638,8 @@ class JetProvider:
                 for side, other in (('away', 'home'), ('home', 'away')):
                     game[side]['score'] = score[other if reverse else side].get('score')
                 game['clock'], game['left'] = score.get('clock') or '', score.get('left')
+                for key in ('clock_secs', 'clock_at', 'clock_mark', 'clock_running'):
+                    game[key] = score.get(key)
         return data
 
     def _games(self, every, schedule=None):

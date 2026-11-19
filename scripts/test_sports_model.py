@@ -2,6 +2,7 @@
 import calendar
 import sys
 import unittest
+import unittest.mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -69,10 +70,10 @@ class Ordering(unittest.TestCase):
 
     def test_leagues_live_sports_first_then_fixed_order(self):
         order = sm.order_leagues(provider().leagues())
-        self.assertEqual([s for s, _ in order], ['Soccer', 'Basketball', 'American football', 'Hockey', 'Baseball', 'Combat sports', 'Motorsport'])
+        self.assertEqual([s for s, _ in order], ['Soccer', 'Basketball', 'American football', 'Hockey', 'Baseball', 'Golf', 'Combat sports', 'Motorsport'])
         self.assertEqual([l['code'] for l in dict(order)['Soccer']], ['UCL', 'EPL', 'LIGA', 'BUN'])   # live first, then the soonest game
         self.assertEqual([l['code'] for l in dict(order)['Basketball']], ['NBA', 'WNBA'])
-        self.assertEqual(sum(len(l) for _, l in order), 12)
+        self.assertEqual(sum(len(l) for _, l in order), 13)
         # a sport that goes live moves up: baseball with a live game comes before the others without
         leagues = provider().leagues()
         next(l for l in leagues if l['code'] == 'MLB')['live'] = 1
@@ -103,7 +104,7 @@ class Ordering(unittest.TestCase):
 class Provider(unittest.TestCase):
     def test_overview_matches_the_landing_board(self):
         o = provider().overview()
-        self.assertEqual((o['live'], o['leagues'], o['more_today']), (4, 12, 2))
+        self.assertEqual((o['live'], o['leagues'], o['more_today']), (4, 13, 2))
         self.assertEqual(o['live_sports'], ['American football', 'Basketball', 'Hockey', 'Soccer'])
         self.assertEqual(o['next'], NOW + 45 * 60)
 
@@ -193,6 +194,33 @@ class GameRules(unittest.TestCase):
         self.assertEqual(sm.order_sources(sources),[best1,best2,good,plain])
         self.assertEqual(sources,[plain,good,best1,best2])
         self.assertIs(sm.order_sources(sources)[0],best1)
+
+
+class KodiClock(unittest.TestCase):
+    """Times follow the phone's own clock as Kodi shows it, even when Python believes the zone is UTC."""
+    def fake(self, shown):
+        import sys, types
+        return unittest.mock.patch.dict(sys.modules, {'xbmc': types.SimpleNamespace(getInfoLabel=lambda label: shown)})
+
+    def test_offset_from_kodis_local_time(self):
+        import time
+        now = 1_794_768_300   # 2026-11-15 18:45:00 UTC
+        with self.fake('13:45:00'):
+            self.assertEqual(sm.kodi_offset(now), -5 * 3600)    # New York in winter
+        with self.fake('03:15:00'):
+            self.assertEqual(sm.kodi_offset(now), 8 * 3600 + 30 * 60)   # a half-hour zone, across midnight
+        with self.fake('20:44:58'):
+            self.assertEqual(sm.kodi_offset(now), 2 * 3600)     # seconds apart between the two clocks round to the quarter hour
+        with self.fake('nonsense'):
+            self.assertIsNone(sm.kodi_offset(now))
+
+    def test_the_device_offset_prefers_kodi_for_now_and_python_for_other_moments(self):
+        import time
+        with self.fake('%s' % time.strftime('%H:%M:%S', time.gmtime(time.time() + 9 * 3600))):
+            self.assertEqual(sm.device_offset(), 9 * 3600)
+            python_only = sm.device_offset(time.time() + 86400 * 100)   # another moment: Python's own table, not the fake clock
+            self.assertEqual(python_only, sm.device_offset(time.time() + 86400 * 100))
+        self.assertIsNotNone(sm.device_offset())   # outside Kodi: Python's table
 
 
 if __name__ == '__main__':

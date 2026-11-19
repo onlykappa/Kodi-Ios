@@ -49,7 +49,7 @@ class Projection(unittest.TestCase):
         expected=sm.order_leagues(source)
         self.assertEqual([r['league'] for r in rows],[lg for _,items in expected for lg in items])
         self.assertEqual([r['sport'] for r in rows if r['sport']],[sport for sport,_ in expected])
-        self.assertEqual(props['subtitle'],'12 leagues · updated just now')
+        self.assertEqual(props['subtitle'],'13 leagues · updated just now')
         self.assertEqual(props['row.0.sport.count'],'4 leagues')
         self.assertEqual(rows[0]['code'],'UCL')
         nba=next(r for r in rows if r['code']=='NBA')
@@ -150,7 +150,7 @@ class Controller(unittest.TestCase):
             provider.fail=False
             w.onClick(page.RETRY);until(lambda:not w.fetching)
             self.assertEqual(w.props['state'],'ready')
-            self.assertEqual(w.props['subtitle'],'12 leagues · updated just now')
+            self.assertEqual(w.props['subtitle'],'13 leagues · updated just now')
             self.assertFalse(w.props['error.title'])
         self.exercise(provider,scenario)
         self.assertEqual(provider.calls,2)
@@ -217,6 +217,26 @@ class Structure(unittest.TestCase):
         source=(BOOT/'sports_upcoming.py').read_text()
         self.assertIn('sports_leagues.run(provider=provider,clock=clock)',source)
         self.assertIn('page.LEAGUES',source)
+
+class RealLogos(unittest.TestCase):
+    """Owner: "I want the real logos, not just letters": every league row has a logo tile, never its letters."""
+    def test_rows_carry_the_logo_and_the_page_draws_it(self):
+        import portrait
+        rows=sm.Sample(now=NOW,offset=0).leagues()
+        first=leagues.model(rows,NOW,NOW,0)[0]['row.0.code']   # the rows come ordered by sport
+        logos={first:'special://profile/addon_data/x/sports-logos/%s.png'%first}
+        props,_=leagues.model(rows,NOW,NOW,0,logos=logos)
+        self.assertEqual(props['row.0.logo'],next(iter(logos.values())))
+        self.assertEqual(props['row.1.logo'],'')   # a league without a logo: a neutral ring
+        xml=page.files(portrait)['portrait/'+page.WINDOW].decode()
+        ET.fromstring(xml)
+        self.assertIn('Window().Property(row.0.logo)',xml)
+        self.assertNotIn('Property(row.0.code)',xml)   # the letters are gone
+        self.assertIn('ring_20.png',xml)
+
+    def test_the_script_fetches_logos_after_drawing_the_rows(self):
+        src=(BOOT/'sports_leagues.py').read_text()
+        self.assertIn('sports_logos.paths(xbmcvfs.translatePath(\'special://profile/\')',src)
 
 
 if __name__=='__main__':unittest.main()

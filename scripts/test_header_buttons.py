@@ -98,7 +98,7 @@ class Header(unittest.TestCase):
   for off in (0,10000,20000):
    for n in (9206,9207,9208):self.assertIn(str(n+off),ids)
   for tab in ('home','movies','tv'):self.assertIn('refresh_rows,tab=%s'%tab,self.xml)
-  self.assertIn('hdr_gear.png',self.xml);self.assertIn('ActivateWindow(settings)',self.xml);self.assertNotIn('circle-user.png',self.xml)
+  self.assertIn('gear.png',self.xml);self.assertNotIn('hdr_gear.png',self.xml);self.assertIn('ActivateWindow(settings)',self.xml);self.assertNotIn('circle-user.png',self.xml)
   self.assertNotIn('ring_arc.png',self.xml);self.assertIn('Notices.Pct',self.xml);self.assertIn('New picks on Movies',self.xml)
  def test_glyph_sizes_follow_the_policy(self):
   self.assertEqual(portrait.HDR_GLYPH,46);self.assertEqual(portrait.NAV_GLYPH,104)

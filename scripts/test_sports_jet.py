@@ -307,5 +307,28 @@ class Fallback(unittest.TestCase):
         self.assertEqual(json.loads(win.getProperty(sj.PLAY + launched[0][2]))['id'], 's1')
 
 
+class LiveClockStamps(unittest.TestCase):
+    def test_a_clock_that_moved_is_running_and_one_that_did_not_is_stopped(self):
+        import sports_jet
+        first = sports_jet.annotate_clocks([{'id': 'g', 'clock_secs': 500.0, 'clock_state': 'STATUS_IN_PROGRESS'}], [], now=1000)
+        self.assertEqual((first[0]['clock_at'], first[0]['clock_running']), (1000, True))   # a first look: running while ESPN says in progress
+        moved = sports_jet.annotate_clocks([{'id': 'g', 'clock_secs': 488.0}], first, now=1012)
+        self.assertTrue(moved[0]['clock_running'])
+        stopped = sports_jet.annotate_clocks([{'id': 'g', 'clock_secs': 488.0}], moved, now=1030)
+        self.assertFalse(stopped[0]['clock_running'])   # same seconds 18 s later: a timeout or a stoppage
+        resumed = sports_jet.annotate_clocks([{'id': 'g', 'clock_secs': 470.0}], stopped, now=1048)
+        self.assertTrue(resumed[0]['clock_running'])
+        quick = sports_jet.annotate_clocks([{'id': 'g', 'clock_secs': 488.0}], moved, now=1013)
+        self.assertTrue(quick[0]['clock_running'])      # under 3 s apart tells nothing: keep what was known
+        stoppage = sports_jet.annotate_clocks([{'id': 'h', 'clock_secs': 60.0, 'clock_state': 'STATUS_END_PERIOD'}], [], now=1000)
+        self.assertFalse(stoppage[0]['clock_running'])
+        self.assertNotIn('clock_at', sports_jet.annotate_clocks([{'id': 'x'}], [], now=1)[0])   # soccer and baseball carry no seconds
+
+    def test_scores_are_asked_for_often_and_trusted_briefly(self):
+        import sports_jet
+        self.assertLessEqual(sports_jet.SCORE_EVERY, 10)
+        self.assertLessEqual(sports_jet.SCORE_STALE, 60)
+
+
 if __name__ == '__main__':
     unittest.main()

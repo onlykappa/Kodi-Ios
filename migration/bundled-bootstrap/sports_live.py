@@ -15,7 +15,8 @@ import sports_live_page as lp  # noqa: E402
 import sports_model as sm  # noqa: E402
 
 BACK_KEYS = (9, 10, 92, 110)
-EVERY = 30   # seconds between automatic refreshes while the page is open
+EVERY = 30   # seconds between automatic refreshes while the page is open (a fresh score batch, about every 8 s, refreshes it sooner)
+LAST = {}    # the games of the last load by id: the page's one-second clock tick reads them
 ERROR = {'state': 'error', 'sub': 'Not updated', 'err.title': 'Can’t load live games right now',
          'err.text': 'The sports add-ons didn’t answer. Check the connection, then try again.', 'err.button': 'Try again'}
 
@@ -54,7 +55,7 @@ def game_props(g, game):
     props = _empty_game(g)
     sources = (game.get('sources') or [])[:lp.SOURCES]
     props['g.%d.league' % g] = game.get('league') or ''
-    props['g.%d.clock' % g] = game.get('clock') or ''
+    props['g.%d.clock' % g] = sm.live_clock(game, time.time()) if game.get('state') == 'live' else game.get('clock') or ''
     props['g.%d.id' % g] = game.get('id') or ''
     props['g.%d.pos' % g] = 'first' if sources or game.get('id') else 'only'
     props['g.%d.n' % g] = str(len(sources))
@@ -142,6 +143,8 @@ def load(provider, chosen='All', now=None, offset=None, refresh=False):
     except sm.SportsUnavailable:
         return dict(ERROR), chosen, {}
     props, chosen = props_for(games, chosen, upcoming, now, offset, updated)
+    LAST.clear()
+    LAST.update({g.get('id'): g for g in games})
     return props, chosen, slots_for(games, chosen)
 
 
@@ -230,6 +233,17 @@ def run(args=()):
                 if time.monotonic() - last >= EVERY:
                     last = time.monotonic()
                     self.fetch(False, quiet=True)
+                self.tick_clocks()
+
+        def tick_clocks(self):
+            """Every second: each card's game clock counted on from the last ESPN answer (only a changed clock is written)."""
+            now = time.time()
+            for n in range(1, lp.GAMES + 1):
+                game = LAST.get(self.getProperty('g.%d.id' % n))
+                if game and game.get('state') == 'live':
+                    text = sm.live_clock(game, now)
+                    if text and self.getProperty('g.%d.clock' % n) != text:
+                        self.setProperty('g.%d.clock' % n, text)
 
         def show(self, props):
             for key, value in props.items():

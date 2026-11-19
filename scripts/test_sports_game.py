@@ -107,6 +107,81 @@ class Projection(unittest.TestCase):
         self.assertEqual(props['day'],'Sat, Nov 21')
 
 
+TINT_B8='B8'
+
+
+class Hero(unittest.TestCase):
+    """The hero of the owner's page 6 mockup: short names with records on each team's colour, the time and how long until it, Game info."""
+    def game(self,**extra):
+        game={'id':'g','league':'NFL','league_name':'NFL','start':NOW+2*3600+600,'sources':[],'state':'upcoming','joiner':'at',
+              'away':{'code':'IND','name':'Indianapolis Colts','short':'Colts','record':'3-7','color':'0c2340'},
+              'home':{'code':'HOU','name':'Houston Texans','short':'Texans','record':'3-6'}}
+        game.update(extra)
+        return game
+
+    def test_short_names_records_colours_and_when(self):
+        props,_=game_page.model(self.game(week=11),NOW,0)
+        self.assertEqual((props['away.name'],props['home.name'],props['away.record'],props['home.record']),('Colts','Texans','3-7','3-6'))
+        self.assertEqual((props['away.tint'],props['home.tint']),(TINT_B8+game_page.lighten('0c2340'),game_page.NEUTRAL))   # a team without a colour gets the soft grey
+        self.assertEqual(props['when'],'Today · in 2 h 10 min')
+        self.assertEqual((props['info.title'],props['info.sub']),('NFL · Week 11','Today at 8:55 PM'))
+        self.assertEqual(game_page.model(self.game(),NOW,0)[0]['info.title'],'NFL')   # no week, no "· Week"
+
+    def test_crests_come_from_the_phones_own_copies(self):
+        game=self.game();game['away']['crest']='https://a.espncdn.com/i/teamlogos/nfl/500/ind.png'
+        self.assertEqual(game_page.model(game,NOW,0)[0]['away.crest'],game['away']['crest'])   # no mapping given: the address as it is
+        self.assertEqual(game_page.model(game,NOW,0,crests={})[0]['away.crest'],'')             # not downloaded yet: the ring with the code shows
+        self.assertEqual(game_page.model(game,NOW,0,crests={game['away']['crest']:'/p/c.png'})[0]['away.crest'],'/p/c.png')
+
+    def test_a_colour_that_is_not_hex_is_ignored(self):
+        game=self.game();game['away']['color']='not-hex'
+        self.assertEqual(game_page.model(game,NOW,0)[0]['away.tint'],game_page.NEUTRAL)
+
+    def test_the_sources_card_says_when_it_last_looked(self):
+        self.assertEqual(game_page.checked_text(None,NOW),'')
+        self.assertEqual(game_page.checked_text(NOW-20,NOW),'Checked just now')
+        self.assertEqual(game_page.checked_text(NOW-120,NOW),'Checked 2 minutes ago')
+        self.assertEqual(game_page.checked_text(NOW-60,NOW),'Checked 1 minute ago')
+        self.assertEqual(game_page.checked_text(NOW-7300,NOW),'Checked 2 hours ago')
+        self.assertEqual(game_page.model(self.game(),NOW,0,checked=NOW-120)[0]['checked'],'Checked 2 minutes ago')
+
+    def test_lighten_mixes_dark_team_colours_toward_white(self):
+        self.assertEqual(game_page.lighten('000000'),'4C4C4C')
+        self.assertEqual(game_page.lighten('FFFFFF'),'FFFFFF')
+
+    def test_a_live_game_shows_live_the_score_and_the_clock(self):
+        game=self.game(state='live',clock='Q3 · 4:12');game['away']['score']=88;game['home']['score']=91
+        props,_=game_page.model(game,NOW,0)
+        self.assertEqual((props['game.live'],props['clock'],props['when']),('true','88 – 91','Q3 · 4:12'))
+        game['away']['score']=None
+        self.assertEqual(game_page.model(game,NOW,0)[0]['clock'],'Q3 · 4:12')   # no score (golf, F1): just the clock
+
+    def test_the_live_clock_counts_down_between_espn_answers(self):
+        game={'state':'live','clock':'Q3 · 8:41','clock_secs':521.0,'clock_at':NOW,'clock_mark':'Q3','clock_running':True}
+        self.assertEqual(sm.live_clock(game,NOW),'Q3 · 8:41')
+        self.assertEqual(sm.live_clock(game,NOW+1),'Q3 · 8:40')
+        self.assertEqual(sm.live_clock(game,NOW+61),'Q3 · 7:40')
+        self.assertEqual(sm.live_clock(game,NOW+500),'Q3 · 7:11')            # never more than 90 s without a fresh answer
+        stopped=dict(game,clock_running=False)
+        self.assertEqual(sm.live_clock(stopped,NOW+30),'Q3 · 8:41')            # a stopped clock (timeout) is not counted
+        self.assertEqual(sm.live_clock(dict(game,clock_secs=None),NOW+30),'Q3 · 8:41')   # soccer, baseball: ESPN's own text
+        self.assertEqual(sm.live_clock(dict(game,clock_secs=3.0),NOW+10),'Q3 · 8:41')    # ran out: wait for ESPN's answer (end of period)
+        self.assertEqual(sm.live_clock(dict(game,state='upcoming'),NOW+5),'Q3 · 8:41')
+
+    def test_the_game_page_shows_the_ticking_clock(self):
+        game=self.game(state='live',clock='Q3 · 4:12',clock_secs=252.0,clock_at=NOW,clock_mark='Q3',clock_running=True);game['away']['score']=88;game['home']['score']=91
+        self.assertEqual(game_page.model(game,NOW,0)[0]['when'],'Q3 · 4:12')
+        self.assertEqual(game_page.model(game,NOW+12,0)[0]['when'],'Q3 · 4:00')
+
+    def test_until_text(self):
+        self.assertEqual([sm.until_text(NOW+s,NOW) for s in (45*60,3600,7800,-5,24*3600)],['in 45 min','in 1 h','in 2 h 10 min','',''])
+
+    def test_a_title_only_event_names_just_its_title(self):
+        game=self.game(away={'code':'PGA','name':'The RSM Classic','short':'','record':''},home={'code':'','name':'','record':''})
+        props,_=game_page.model(game,NOW,0)
+        self.assertEqual((props['away.name'],props['home.name']),('The RSM Classic',''))
+
+
 class Structure(unittest.TestCase):
     def test_xml_has_real_buttons_complete_text_and_runtime_crests(self):
         import portrait
@@ -114,10 +189,11 @@ class Structure(unittest.TestCase):
         ids=[c.get('id') for c in root.iter('control') if c.get('id')]
         self.assertEqual(len(ids),len(set(ids)))
         self.assertNotIn('!(',xml);self.assertNotIn('…',xml)
-        self.assertIn('No sources yet',xml)
-        self.assertIn('Window().Property(empty.text)',xml)
+        self.assertIn('None yet',xml)
+        self.assertIn('Check now',xml)
+        self.assertIn('Window().Property(away.tint)',xml)
+        self.assertIn('Window().Property(info.title)',xml)
         self.assertIn('Searching for sources',xml)
-        self.assertIn('Find sources',xml)
         self.assertIn('Window().Property(away.crest)',xml)
         self.assertIn('Window().Property(home.crest)',xml)
         clock=next(c for c in root.iter('control') if c.findtext('label')=='$INFO[Window().Property(clock)]')
@@ -131,7 +207,8 @@ class Structure(unittest.TestCase):
         text=(BOOT/'resources/lib/portrait.py').read_text()
         self.assertIn('sports_game_page.files(ns)',text)
         self.assertIn('Path(sports_game_page.__file__)',text)
-        self.assertNotIn("'sports_game'",(BOOT/'default.py').read_text())
+        # A reminder's notification opens a game by id (RunScript ... sports_game,<id>), so it is a page now (board C of the game page).
+        self.assertIn("'sports_game'",(BOOT/'default.py').read_text())
 
 
 class Controller(unittest.TestCase):
@@ -303,6 +380,37 @@ class Controller(unittest.TestCase):
             until(lambda:not window.fetching)
             self.assertEqual(window.props['play.error'],'')
         self.exercise(sm.Sample(now=NOW),scenario,play=[RuntimeError('fixture play failure')])
+
+class RemindThenPlay(unittest.TestCase):
+    """Owner-approved board C: Remind me before a source exists, Reminder on once asked, Play with the best source when one is found."""
+    def game(self,sources=True):
+        g=copy.deepcopy(sm.Sample(now=NOW,offset=0).upcoming[0])
+        if not sources:g['sources']=[]
+        return g
+
+    def test_no_source_offers_a_reminder_then_says_it_is_on(self):
+        import sports_reminders as sr
+        props,_=game_page.model(self.game(False),NOW,0)
+        self.assertEqual((props['state'],props['remind.on'],props['remind.note'],props['play.best']),('empty','',"No source yet. Tap Remind me for a notification when one is ready.",''))
+        record={'on_source':True,'before':True}
+        props,_=game_page.model(self.game(False),NOW,0,reminder=record)
+        self.assertEqual(props['remind.on'],'true')
+        self.assertEqual(props['remind.note'],'Reminders are set for this game.')   # plain words, no bold (owner)
+
+    def test_a_source_names_the_best_one_under_play(self):
+        props,found=game_page.model(self.game(True),NOW,0)
+        self.assertTrue(props['play.best'].startswith('[COLOR FFFFFFFF][B]Best source:[/B][/COLOR] '))   # the label is bold white, the rest grey
+        self.assertEqual(props['other.text'],'Other sources (%d)' % (len(found)-1))
+        self.assertIn('1080p',props['play.best'])
+
+    def test_the_page_has_both_buttons_and_the_script_runs_the_sheet(self):
+        import portrait
+        xml=page.files(portrait)['portrait/'+page.WINDOW].decode()
+        ET.fromstring(xml)
+        for ident in (page.REMIND,page.REMIND_ON):self.assertIn('id="%d"'%ident,xml)
+        self.assertIn('Window().Property(remind.note)',xml);self.assertIn('Window().Property(play.best)',xml)
+        src=(BOOT/'sports_game.py').read_text()
+        self.assertIn('ident in (page.REMIND,page.REMIND_ON)',src);self.assertIn('sports_remind.ask(',src)
 
 
 if __name__=='__main__':unittest.main()

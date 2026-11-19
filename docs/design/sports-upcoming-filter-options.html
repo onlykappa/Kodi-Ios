@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Upcoming: league picker options</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt.
+     Three ways to replace the Upcoming chip row (owner, 2026-11-19). Existing tokens only: the grouped rows, the grey capsule, the
+     blue accent, the app's choice sheet. League logos are drawn as plain tiles here; the app fetches the real ones at runtime. -->
+<style>
+:root{--grey:rgba(235,235,245,.6);--blue:#0a84ff;--blue-text:#4fa8ff;--card:#1c1c1e}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro,.board{max-width:1180px;margin:0 auto}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:30px;font-weight:800;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:860px;margin-bottom:8px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;margin-top:26px}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.45;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:48px 14px 0}
+.top{position:absolute;left:14px;right:14px;top:16px;display:flex;justify-content:space-between;align-items:center;color:var(--blue-text);font-size:15px}
+.edit{background:#06223a;border-radius:14px;padding:5px 14px;font-weight:600}
+h2{font-size:30px;font-weight:800;letter-spacing:-.02em;margin-top:6px}
+.sub{color:var(--grey);font-size:12.5px;margin:3px 0 12px}
+.day{display:flex;justify-content:space-between;align-items:baseline;margin:14px 2px 7px}.day b{font-size:17px}.day span{color:var(--grey);font-size:12px}
+.grp{background:var(--card);border-radius:16px;overflow:hidden}
+.row{display:flex;gap:12px;align-items:center;padding:11px 12px;border-top:1px solid #2c2c2e}.row:first-child{border-top:0}
+.row .t{width:46px;color:var(--blue-text);font-weight:700;font-size:14px;line-height:1.1}.row .t i{display:block;font-style:normal;color:var(--grey);font-size:10.5px;font-weight:500}
+.row .n{flex:1;font-weight:700;font-size:13.5px;line-height:1.25}.row .n small{display:flex;gap:6px;align-items:center;margin-top:5px;color:var(--grey);font-weight:500;font-size:11.5px}
+.lg{width:19px;height:19px;border-radius:6px;background:#f2f2f7;color:#111;font-size:7px;font-weight:800;display:grid;place-items:center}
+/* A: one capsule */
+.pill{display:inline-flex;gap:8px;align-items:center;background:#2c2c2e;border-radius:20px;padding:8px 14px;font-weight:700;font-size:13px}
+.pill em{font-style:normal;color:var(--blue-text);font-weight:600}
+/* B: segmented sports */
+.seg{display:flex;background:#1c1c1e;border-radius:12px;padding:3px}.seg span{flex:1;text-align:center;font-size:12.5px;font-weight:600;padding:7px 0;border-radius:9px;color:var(--grey)}.seg .on{background:#48484a;color:#fff}
+/* C: logo circles */
+.logos{display:flex;gap:10px;margin:0 -14px;padding:0 14px;overflow:hidden}
+.c{width:46px;flex:none;text-align:center;font-size:9.5px;color:var(--grey)}.c div{width:46px;height:46px;border-radius:50%;background:#f2f2f7;color:#111;display:grid;place-items:center;font-weight:800;font-size:10px;margin-bottom:4px}
+.c.on div{outline:2.5px solid var(--blue);outline-offset:2px}.c.on{color:#fff}
+.sheet{position:absolute;left:8px;right:8px;bottom:8px;background:#2c2c2e;border-radius:26px;padding:12px 14px 16px;box-shadow:0 -10px 40px rgba(0,0,0,.6)}
+.sheet .grab{width:36px;height:4px;border-radius:2px;background:#636366;margin:0 auto 10px}.sheet h3{font-size:17px;margin-bottom:8px}
+.sheet .r{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #3a3a3c;font-size:13.5px;font-weight:600}.sheet .r:first-of-type{border-top:0}
+.sheet .r b{margin-left:auto;color:var(--blue-text)}.sheet .tick{margin-left:auto;color:var(--blue-text)}
+.dim{opacity:.35}
+</style></head><body>
+<div class="intro"><span class="mk">MOCKUP · not a Kodi render</span>
+<h1>Upcoming: replacing the league chips</h1>
+<p>The chips are gone because the Edit filter already decides which leagues show. These are three ways to still jump to one league
+(or one sport) from the page itself, in case you want one. Each keeps the list directly underneath exactly as it is today.</p>
+<p>Pick A, B or C, or "none" (what is built now).</p></div>
+
+<div class="board"><div class="shots">
+
+<div class="slot"><div class="pframe"><div class="ps">
+<div class="top"><span>‹</span><span class="edit">Edit</span></div>
+<h2>Upcoming</h2><p class="sub">59 games coming up · updated just now</p>
+<span class="pill">League <em>All ▾</em></span>
+<div class="day"><b>Today</b><span>3 games</span></div>
+<div class="grp">
+<div class="row"><div class="t">4:30<i>PM</i></div><div class="n">FC Cincinnati vs Orlando City SC<small><span class="lg">MLS</span>No sources yet</small></div></div>
+<div class="row"><div class="t">5:15<i>PM</i></div><div class="n">Indianapolis Colts at Houston Texans<small><span class="lg">NFL</span>No sources yet</small></div></div>
+<div class="row"><div class="t">7:00<i>PM</i></div><div class="n">Real Salt Lake vs Seattle Sounders FC<small><span class="lg">MLS</span>No sources yet</small></div></div></div>
+<div class="sheet"><div class="grab"></div><h3>Show games from</h3>
+<div class="r">All leagues<span class="tick">✓</span></div><div class="r">NFL<b>1</b></div><div class="r">NBA<b>1</b></div><div class="r">MLS<b>2</b></div></div>
+</div></div>
+<p class="cap"><b>A · One capsule.</b> "League · All ▾" under the subtitle. Tap it and the app's choice sheet lists the leagues that have games, with a count each. Nothing to scroll; works for any number of leagues. Not saved: it resets when you leave (the Edit filter is the saved one).</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps">
+<div class="top"><span>‹</span><span class="edit">Edit</span></div>
+<h2>Upcoming</h2><p class="sub">59 games coming up · updated just now</p>
+<div class="seg"><span class="on">All</span><span>Football</span><span>Basketball</span><span>Soccer</span></div>
+<div class="day"><b>Today</b><span>3 games</span></div>
+<div class="grp">
+<div class="row"><div class="t">4:30<i>PM</i></div><div class="n">FC Cincinnati vs Orlando City SC<small><span class="lg">MLS</span>No sources yet</small></div></div>
+<div class="row"><div class="t">5:15<i>PM</i></div><div class="n">Indianapolis Colts at Houston Texans<small><span class="lg">NFL</span>No sources yet</small></div></div>
+<div class="row"><div class="t">7:00<i>PM</i></div><div class="n">Real Salt Lake vs Seattle Sounders FC<small><span class="lg">MLS</span>No sources yet</small></div></div></div>
+</div></div>
+<p class="cap"><b>B · Sport tabs.</b> A segmented control with the sports you have on (All, then up to three more; a fourth sport joins under "More"). Fewer, bigger targets than league chips, and it still reads like Apple's own segmented controls.</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps">
+<div class="top"><span>‹</span><span class="edit">Edit</span></div>
+<h2>Upcoming</h2><p class="sub">59 games coming up · updated just now</p>
+<div class="logos"><div class="c on"><div>ALL</div>All</div><div class="c"><div>NCAAF</div>NCAAF</div><div class="c"><div>NFL</div>NFL</div><div class="c"><div>NBA</div>NBA</div><div class="c"><div>NCAAB</div>NCAAB</div><div class="c"><div>MLS</div>MLS</div><div class="c"><div>NHL</div>NHL</div></div>
+<div class="day"><b>Today</b><span>3 games</span></div>
+<div class="grp">
+<div class="row"><div class="t">4:30<i>PM</i></div><div class="n">FC Cincinnati vs Orlando City SC<small><span class="lg">MLS</span>No sources yet</small></div></div>
+<div class="row"><div class="t">5:15<i>PM</i></div><div class="n">Indianapolis Colts at Houston Texans<small><span class="lg">NFL</span>No sources yet</small></div></div>
+<div class="row"><div class="t">7:00<i>PM</i></div><div class="n">Real Salt Lake vs Seattle Sounders FC<small><span class="lg">MLS</span>No sources yet</small></div></div></div>
+</div></div>
+<p class="cap"><b>C · Logo circles.</b> One row of round league logos (the real ones), the picked one ringed in blue, scrolling sideways. Looks like Apple Sports and the Edit sheet, with no words to wrap.</p></div>
+
+</div></div></body></html>

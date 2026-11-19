@@ -182,7 +182,7 @@ class Provider(unittest.TestCase):
         try:
             os.environ['KODI_IOS_SPORTS'] = 'espn'
             sports_provider.reset()
-            self.assertIsInstance(sports_provider.get(), se.EspnProvider)
+            self.assertIsInstance(__import__('sports_filter').unwrap(sports_provider.get()), se.EspnProvider)   # the league filter wraps it
         finally:
             os.environ.pop('KODI_IOS_SPORTS', None) if old is None else os.environ.__setitem__('KODI_IOS_SPORTS', old)
             sports_provider.reset()

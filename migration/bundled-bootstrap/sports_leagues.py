@@ -12,6 +12,7 @@ import page_wait
 import sports_model as sm
 import sports_provider
 import sports_leagues_page as page
+import sports_filter as sf
 
 _CACHE = None
 BACK_KEYS = (9,10,92,110)
@@ -22,7 +23,7 @@ def _lines(text, width):
     return choice_sheet.lines(words,width)
 
 
-def model(leagues, updated, now, offset, state='ready'):
+def model(leagues, updated, now, offset, state='ready', logos=None):
     """Flat grouped rows for Kodi; order, live counts and next-game wording remain the shared helpers' decisions."""
     props = {'state':state,'subtitle':'%s · %s' % (sm.count_text(len(leagues),'league'),
              sm.updated_text(updated,now,offset).lower()) if updated else 'Updating',
@@ -38,11 +39,12 @@ def model(leagues, updated, now, offset, state='ready'):
             rows.append({'league':league,'sport':sport if n==0 else '',
                          'sport.count':sm.count_text(len(entries),'league') if n==0 else '',
                          'firstsport':'true' if not rows else '', 'code':league['code'],'title':league['name'],
+                         'logo':(logos or {}).get(league['code'],''),
                          'live':live,'next':nxt,'detail':detail,'form':str(form),
                          'pos':'only' if len(entries)==1 else 'first' if n==0 else 'last' if n==len(entries)-1 else 'mid'})
     for n in range(page.SLOTS):
         row = rows[n] if n<len(rows) else {}
-        for key in ('sport','sport.count','firstsport','code','title','live','next','detail','form','pos'):
+        for key in ('sport','sport.count','firstsport','code','title','logo','live','next','detail','form','pos'):
             props['row.%d.%s'%(n,key)] = row.get(key,'')
     if state=='loading' and not rows:
         for n in range(3):
@@ -86,6 +88,7 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
             self.fetching = False
             self.failed = False
             self.data = seed if seed is not None else _CACHE
+            self.logos = {}
             self.draw()
             self.refresh(reload=False)
             def tick():
@@ -103,7 +106,9 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
             if error is not None:self.failed=error
             leagues,updated = self.data if self.data is not None else ([],0)
             props,self.rows = model(leagues,updated,clock(),sm.device_offset(clock()),
-                                   'error' if self.failed and self.data is None else 'ready' if self.data is not None else 'loading')
+                                   'error' if self.failed and self.data is None else 'ready' if self.data is not None else 'loading',
+                                   logos=self.logos)
+            props.update(sf.edit_state(provider))
             for key,value in props.items():self.setProperty(key,value)
 
         def refresh(self, reload=True):
@@ -119,6 +124,16 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
                         if self.stop.is_set():return
                         self.data=_CACHE=data
                         self.draw(error=False)
+                    # Real league logos: fetched once, kept on the phone; the rows draw first and gain them a moment later.
+                    try:
+                        import sports_logos
+                        found=sports_logos.paths(xbmcvfs.translatePath('special://profile/'),[l['code'] for l in data[0]])
+                        with self.lock:
+                            if not self.stop.is_set():
+                                self.logos=found
+                                self.draw()
+                    except Exception as error:
+                        log('sports: league logos: %s'%type(error).__name__)
                 except Exception as error:
                     log('sports: leagues refresh: %s: %s'%(type(error).__name__,diagnostics.error_text(error)))
                     with self.lock:
@@ -130,6 +145,9 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
         def onClick(self,ident):
             if ident==page.BACK:self.finish()
             elif ident in (page.REFRESH,page.RETRY):self.refresh()
+            elif ident==page.edit_button.ID:
+                import sports_edit
+                if sports_edit.run():self.refresh(reload=False)
             elif page.ROW<=ident<page.ROW+page.SLOTS*len(page.FORMS):
                 n=(ident-page.ROW)//len(page.FORMS)
                 with self.lock:league=self.rows[n]['league'] if n<len(self.rows) else None

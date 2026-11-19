@@ -1,18 +1,21 @@
-"""The upcoming game's card and sources, approved boards 12 and 13."""
+"""The game page (owner mockup page 6, 2026-11-19): the two teams on their colours, the time, Remind me / Play, Sources, Game info."""
 import status_ui as u
+import sports_hero as hero
 
 WINDOW = 'IOSSportsGame.xml'
 BACK, REFRESH, LIST, RETRY = 9001, 9002, 9300, 9003
 SEARCH_RETRY = 9004
 AUTO = 9005
+REMIND, REMIND_ON = 9006, 9008      # Remind me / Reminder on (two buttons, one visible at a time) (board C of docs/design/sports-game-mockups.html)
+INFO_OPEN = 9011                    # the "Game info" card (opens the game's Info / Standings page)
+OTHER = 9012                        # "Other sources (3)" under the best-source line: jumps to the list
 SOURCE, SLOTS = 50000, 24
 FORMS = tuple((title, detail) for title in range(1, 5) for detail in range(1, 10))
-TEAM_FORMS = range(1, 7)
 TITLE_LINE, DETAIL_LINE = 55, 51
 
 
-def hero_height(lines):
-    return 319 + 51*lines + 48
+PILL_W = 640                    # the action capsule is centred and narrower than the cards (mockup page 6)
+PILL_X = (1080 - PILL_W) // 2
 
 
 def source_height(title, detail):
@@ -22,33 +25,6 @@ def source_height(title, detail):
 def _badge(p, x, y, w, text, tint=None, fill=None):
     return (p.image(x,y,w,56,p.MEDIA+'r21.png',fill or p.SURFACE2,border=21) +
             u.text(p,x,y,w,56,text,'p_foot_b',tint or p.WHITE,'center'))
-
-
-def _hero(p):
-    out = ''
-    for lines in TEAM_FORMS:
-        height = hero_height(lines)
-        card = p.surface(p.SIDE,0,972,height,'row_only.png',p.SURFACE,54)
-        # Auto-width, label-only badge: short league codes stay whole.
-        card += ('<control type="grouplist"><left>92</left><top>43</top><width>300</width><height>56</height>'
-                 '<orientation>horizontal</orientation><usecontrolcoords>true</usecontrolcoords>'
-                 '<control type="button"><width min="102">auto</width><height>56</height><enable>false</enable>'
-                 '<label>%s</label><font>p_foot_b</font><textoffsetx>24</textoffsetx><disabledcolor>%s</disabledcolor>'
-                 '<texturefocus /><texturenofocus border="21" colordiffuse="%s">%sr21.png</texturenofocus>'
-                 '</control></control>') % (u.P('league'),p.WHITE,p.SURFACE2,p.MEDIA)
-        card += u.text(p,420,43,568,56,u.P('starts'),'p_pill',p.ACCENT,'right')
-        for side,x in (('away',92),('home',704)):
-            cx = x+62
-            card += p.image(cx,137,161,161,p.MEDIA+'pill_170.png',p.SURFACE2,border=80)
-            card += p.image(cx,137,161,161,u.P(side+'.crest'),extra='<visible>'+u.has(side+'.crest')+'</visible>',aspect='>keep',background=True)
-            card += u.text(p,cx,137,161,161,u.P(side+'.code'),'p_pill',align='center').replace(
-                '</control>','<visible>'+u.neg(u.has(side+'.crest'))+'</visible></control>')
-            card += p.textbox(x,319,285,51*lines,u.P(side+'.name'),'p_pill').replace(
-                '<autoscroll>','<align>center</align><autoscroll>')
-        card += u.text(p,325,164,430,94,u.P('clock'),'p_title',align='center')
-        card += u.text(p,360,263,360,51,u.P('day'),'p_sub',p.GREY,'center')
-        out += u.group(p,height,card,'String.IsEqual(Window().Property(hero.lines),%d)' % lines)
-    return out
 
 
 def _sources(p):
@@ -77,36 +53,53 @@ def _sources(p):
 
 
 def page(p):
-    header = p.nav_button(BACK,32,5,'chevron-left.png','noop')
-    header += p.nav_button(REFRESH,940,5,p.MEDIA+'hdr_refresh.png','noop',glyph_size=60).replace(p.WHITE,p.ACCENT)
-    content = u.group(p,134,header) + _hero(p)
-    auto = p.pill_button(AUTO,p.SIDE,27,972,128,'Play best available',[('','noop')],'primary')
-    content += u.group(p,182,auto,u.has('sources.count'))
-    heading = u.text(p,p.SIDE,43,700,70,'Sources','p_h2')
-    heading += u.text(p,800,43,226,70,u.P('sources.count'),'p_sub',p.GREY,'right')
-    content += u.group(p,134,heading,u.has('hero.lines')) + _sources(p)
-    empty = u.card(p,p.SIDE,0,972,274)
-    empty += u.text(p,97,48,886,56,'No sources yet','p_h3',align='center')
-    empty += p.textbox(97,115,886,112,u.P('empty.text'),'p_sub',p.GREY).replace(
-        '<autoscroll>','<align>center</align><autoscroll>')
-    content += u.group(p,274,empty,'String.IsEqual(Window().Property(state),empty)')
-    searching = u.card(p,p.SIDE,0,972,180) + u.text(p,97,48,886,80,'Searching for sources','p_h3',align='center')
-    content += u.group(p,180,searching,'String.IsEqual(Window().Property(state),searching)')
-    retry = p.pill_button(SEARCH_RETRY,p.SIDE,20,972,128,'Find sources',[('','noop')],'primary')
-    content += u.group(p,168,retry,"String.IsEqual(Window().Property(state),empty) + String.IsEqual(Window().Property(game.live),true)")
-    content += u.group(p,110,p.textbox(70,27,940,70,'Choose a source to play.','p_foot',p.GREY),u.has('sources.count'))
-    error = p.textbox(108,118,864,160,u.P('error.title'),'p_h2').replace('<autoscroll>','<align>center</align><autoscroll>')
-    error += p.pill_button(RETRY,270,320,540,134,'Try again',[('','noop')],'primary',extra='<visible>String.IsEqual(Window().Property(state),error)</visible>')
-    content += u.group(p,520,error,u.has('error.title'))
-    content += u.group(p,160,p.textbox(92,21,896,120,u.P('play.error'),'p_sub',p.GREY),u.has('play.error'))
-    content += u.group(p,260,'')
+    header = p.nav_button(BACK, 32, 5, 'chevron-left.png', 'noop')
+    header += p.nav_button(REFRESH, 940, 5, p.MEDIA + 'hdr_refresh.png', 'noop', glyph_size=60).replace(p.WHITE, p.ACCENT)
+    content = u.group(p, 134, header) + hero.hero(p)
+    auto = p.pill_button(AUTO, PILL_X, 27, PILL_W, 128, 'Play', [('', 'noop')], 'primary', 'play.png', inline=True)
+    content += u.group(p, 182, auto, u.has('sources.count'))
+    # "Best source: The Loop · 1080p · English", under Play (owner: "providing you with best source").
+    content += u.group(p, 70, u.text(p, p.SIDE, 0, 972, 60, u.P('play.best'), 'p_sub', p.GREY, 'center'), u.has('play.best'))
+    content += u.group(p, 130, u.link(p, OTHER, p.SIDE, 6, 972, 118, '', 'center', 'p_body').replace('<label></label>', '<label>%s</label>' % u.P('other.text')), u.has('other.text'))
+    # No source yet and the game has not started: Remind me (white) or Reminder on (frosted); the line under says what happens next.
+    no_source = 'String.IsEqual(Window().Property(state),empty) + String.IsEmpty(Window().Property(game.live))'
+    remind = p.pill_button(REMIND, PILL_X, 27, PILL_W, 128, 'Remind me', [('', 'noop')], 'primary', 'bell.png', inline=True)
+    content += u.group(p, 182, remind, no_source + ' + String.IsEmpty(Window().Property(remind.on))')
+    on = p.pill_button(REMIND_ON, PILL_X, 27, PILL_W, 128, 'Reminder on', [('', 'noop')], 'glass', 'check.png', inline=True)
+    content += u.group(p, 182, on, no_source + ' + !String.IsEmpty(Window().Property(remind.on))')
+    content += u.group(p, 134, p.textbox(92, 0, 896, 120, u.P('remind.note'), 'p_sub', p.GREY).replace('<autoscroll>', '<align>center</align><autoscroll>'),
+                       'String.IsEqual(Window().Property(state),empty) + !String.IsEmpty(Window().Property(remind.note))')
+    heading = u.text(p, p.SIDE, 43, 700, 70, 'Sources', 'p_h2')
+    content += u.group(p, 134, heading, u.has('hero.lines')) + _sources(p)
+    # None yet: when it was last looked at, and a link to look again now (mockup page 6).
+    none = u.card(p, p.SIDE, 0, 972, 190)
+    none += u.text(p, 92, 28, 600, 70, 'None yet', 'p_h3')
+    none += u.text(p, 92, 98, 600, 56, u.P('checked'), 'p_sub', p.GREY)
+    none += u.link(p, SEARCH_RETRY, 650, 36, 338, 118, 'Check now')
+    content += u.group(p, 190, none, 'String.IsEqual(Window().Property(state),empty)')
+    searching = u.card(p, p.SIDE, 0, 972, 180) + u.text(p, 97, 48, 886, 80, 'Searching for sources', 'p_h3', align='center')
+    content += u.group(p, 180, searching, 'String.IsEqual(Window().Property(state),searching)')
+    error = p.textbox(108, 118, 864, 160, u.P('error.title'), 'p_h2').replace('<autoscroll>', '<align>center</align><autoscroll>')
+    error += p.pill_button(RETRY, 270, 320, 540, 134, 'Try again', [('', 'noop')], 'primary', extra='<visible>String.IsEqual(Window().Property(state),error)</visible>')
+    content += u.group(p, 520, error, u.has('error.title'))
+    content += u.group(p, 160, p.textbox(92, 21, 896, 120, u.P('play.error'), 'p_sub', p.GREY), u.has('play.error'))
+    # Game info: one card that opens the facts page (kickoff, venue, recent form, standings).
+    content += u.group(p, 134, u.text(p, p.SIDE, 43, 700, 70, 'Game info', 'p_h2'), u.has('hero.lines') + ' + !String.IsEqual(Window().Property(state),error)')
+    info = u.card(p, p.SIDE, 0, 972, 190)
+    info += u.text(p, 92, 28, 760, 70, u.P('info.title'), 'p_h3') + u.text(p, 92, 98, 760, 56, u.P('info.sub'), 'p_sub', p.GREY)
+    info += u.glyph(p, 940, 79, 32, 'chevron-right.png', p.GREY)
+    info += u.tap(p, INFO_OPEN, p.SIDE, 0, 972, 190)
+    content += u.group(p, 230, info, u.has('hero.lines') + ' + !String.IsEqual(Window().Property(state),error)')
+    content += u.group(p, 260, '')
     body = p.backdrop()
     body += ('<control type="grouplist" id="%d"><top>0</top><width>1080</width><bottom>0</bottom>'
              '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
-             '<scrolltime tween="cubic" easing="out">220</scrolltime>%s</control>') % (LIST,content)
+             '<scrolltime tween="cubic" easing="out">220</scrolltime>%s</control>') % (LIST, content)
     body += p.tabbar('library')
     return '<?xml version="1.0" encoding="UTF-8"?>\n<window><defaultcontrol always="false">9001</defaultcontrol><controls>%s</controls></window>' % body
 
 
 def files(p):
-    return {p.FOLDER+'/'+WINDOW:page(p).encode()}
+    out = {p.FOLDER + '/' + WINDOW: page(p).encode()}
+    out.update({'extras/portrait/' + name: data for name, data in hero.textures(p).items()})
+    return out
