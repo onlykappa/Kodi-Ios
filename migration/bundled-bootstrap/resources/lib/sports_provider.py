@@ -15,6 +15,12 @@ _real = [None]
 
 
 def get():
+    """The provider with the owner's league filter applied (sports_filter, board B of the Sports redesign)."""
+    import sports_filter
+    return sports_filter.wrap(_get())
+
+
+def _get():
     mode = os.environ.get('KODI_IOS_SPORTS', '')
     if mode == 'down':
         return sports_model.Sample(fail=True)

@@ -21,7 +21,7 @@ Times are epoch seconds; the helpers below turn them into the phone's own wordin
 import copy
 import time
 
-SPORT_ORDER = ('Soccer', 'Basketball', 'American football', 'Hockey', 'Baseball', 'Combat sports', 'Motorsport')
+SPORT_ORDER = ('Soccer', 'Basketball', 'American football', 'Hockey', 'Baseball', 'Golf', 'Combat sports', 'Motorsport')
 MONTHS = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')
 WEEKDAYS = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
 
@@ -30,10 +30,31 @@ class SportsUnavailable(Exception):
     """No add-on answered: the page shows "Can't load ... right now" with one Try again button."""
 
 
+def kodi_offset(utc_now=None):
+    """Seconds east of UTC by Kodi's own clock (System.Time is the phone's local time), or None outside Kodi. Python's idea of the time zone can be
+    UTC inside an iOS app, which would show every game at the wrong hour; Kodi's clock is what the phone shows."""
+    try:
+        import xbmc
+        shown = xbmc.getInfoLabel('System.Time(hh:mm:ss)')
+        hours, minutes, seconds = (int(part) for part in (shown.split(':') + ['0', '0'])[:3])
+    except Exception:
+        return None
+    utc_now = time.time() if utc_now is None else utc_now
+    delta = (hours * 3600 + minutes * 60 + seconds) - int(utc_now) % 86400
+    delta = (delta + 12 * 3600) % 86400 - 12 * 3600      # into -12 h .. +12 h
+    return int(round(delta / 900.0)) * 900                  # time zones are whole quarter hours
+
+
 def device_offset(now=None):
-    """Seconds east of UTC on this phone right now (daylight saving included)."""
+    """Seconds east of UTC on this phone (daylight saving included). Kodi's own clock decides while the question is about the present, so a phone
+    whose Python thinks it is UTC still shows its real local times; Python's table answers for another moment or outside Kodi."""
     local = time.localtime(now)
-    return -(time.altzone if local.tm_isdst > 0 and time.daylight else time.timezone)
+    python_offset = -(time.altzone if local.tm_isdst > 0 and time.daylight else time.timezone)
+    if now is None or abs(now - time.time()) < 3600:
+        kodi = kodi_offset()
+        if kodi is not None:
+            return kodi
+    return python_offset
 
 
 # --- time wording ------------------------------------------------------------------------------------------------------
@@ -86,6 +107,29 @@ def count_text(n, one, many=None):
     return '%d %s' % (n, one if n == 1 else (many or one + 's'))
 
 
+def until_text(start, now):
+    """'in 2 h 10 min' / 'in 45 min' for a game that starts within a day, else ''."""
+    seconds = start - now
+    if not 0 <= seconds < 24 * 3600:
+        return ''
+    minutes = max(1, seconds // 60)
+    hours, minutes = divmod(minutes, 60)
+    return 'in %d h %d min' % (hours, minutes) if hours and minutes else 'in %d h' % hours if hours else 'in %d min' % minutes
+
+
+def live_clock(game, now):
+    """The game clock as it is now: 'Q3 · 4:12' counted down second by second from the last ESPN answer (clock_secs at clock_at) while the clock is
+    running; otherwise the text ESPN gave. A stopped clock (timeout, end of a period), soccer and baseball keep ESPN's own text."""
+    secs, at = game.get('clock_secs'), game.get('clock_at')
+    if secs is None or at is None or not game.get('clock_running') or game.get('state') != 'live':
+        return game.get('clock') or ''
+    left = secs - min(max(0, now - at), 90)   # never run on more than 90 s without a fresh answer
+    if left <= 0:
+        return game.get('clock') or ''
+    text = '%d:%02d' % divmod(int(left), 60)
+    return '%s · %s' % (game['clock_mark'], text) if game.get('clock_mark') else text
+
+
 def sources_text(n):
     """'No sources yet', '1 source', '2 sources'."""
     return 'No sources yet' if not n else count_text(n, 'source')
@@ -105,6 +149,8 @@ def updated_text(updated, now, offset):
 
 def versus(game):
     """'Arsenal vs Chelsea' or 'Kansas City Chiefs at Buffalo Bills' (away first)."""
+    if not game['home']['name']:   # a tournament or a race weekend: the event's own title
+        return game['away']['name']
     return '%s %s %s' % (game['away']['name'], game.get('joiner') or 'vs', game['home']['name'])
 
 
@@ -167,8 +213,18 @@ def league_codes(games):
 
 
 # --- sample data (the approved boards) ---------------------------------------------------------------------------------
-def _team(code, name, score=None):
-    return {'code': code, 'name': name, 'score': score, 'crest': ''}
+_ESPN = 'https://a.espncdn.com/i/teamlogos/%s.png'
+SAMPLE_CRESTS = {   # real ESPN crest addresses for the sample teams, so the desktop rig shows logos (the app takes the address from the feed)
+    'ARS': _ESPN % 'soccer/500/359', 'CHE': _ESPN % 'soccer/500/363', 'RS': _ESPN % 'soccer/500/89', 'AC': _ESPN % 'soccer/500/93',
+    'BOS': _ESPN % 'nba/500/bos', 'DEN': _ESPN % 'nba/500/den', 'LAL': _ESPN % 'nba/500/lal', 'GSW': _ESPN % 'nba/500/gs',
+    'TOR': _ESPN % 'nhl/500/tor', 'MTL': _ESPN % 'nhl/500/mtl', 'KC': _ESPN % 'nfl/500/kc', 'BUF': _ESPN % 'nfl/500/buf'}
+
+
+def _team(code, name, score=None, color=''):
+    team = {'code': code, 'name': name, 'score': score, 'crest': SAMPLE_CRESTS.get(code, '')}
+    if color:   # a few sample teams carry the colour ESPN gives, so the game page's glow can be looked at in the rig
+        team['color'] = color
+    return team
 
 
 def _src(addon, quality, language, tag='', also=()):
@@ -183,6 +239,7 @@ class Sample:
     def __init__(self, now=None, offset=0, fail=False, quiet=False):
         self.offset = offset
         self.fail = fail
+        ticking = now is None   # the rig (no fixed `now`): the basketball and football clocks count down for real; tests keep fixed data
         if now is None:
             now = int(time.time())
         self.now = now
@@ -205,10 +262,15 @@ class Sample:
             g('nhl-1', 'NHL', 'Hockey', 'live', _team('TOR', 'Toronto Maple Leafs', 1), _team('MTL', 'Montréal Canadiens', 1),
               now - 50 * 60, clock='P2 · 8:40', left=0.48, sources=[_src('The Loop', '720p', 'English', 'best', ['Loop TV'])]),
         ]
+        if ticking:
+            for game in self.live:
+                if game['id'] in ('nba-1', 'nfl-1'):
+                    secs = {'nba-1': 252.0, 'nfl-1': 521.0}[game['id']]
+                    game.update({'clock_secs': secs, 'clock_at': time.time(), 'clock_mark': 'Q3', 'clock_running': True})
         self.upcoming = [
             g('epl-1', 'EPL', 'Soccer', 'upcoming', _team('ARS', 'Arsenal'), _team('CHE', 'Chelsea'), now + 45 * 60, lname='Premier League',
               sources=[_src('The Loop', '1080p', 'English', 'best', ['Loop TV']), _src('Loop Guide', '720p', 'English', 'good')]),
-            g('liga-1', 'LIGA', 'Soccer', 'upcoming', _team('RS', 'Real Sociedad'), _team('AC', 'Athletic Club'), now + 75 * 60, lname='La Liga'),
+            g('liga-1', 'LIGA', 'Soccer', 'upcoming', _team('RS', 'Real Sociedad', color='0A4EA0'), _team('AC', 'Athletic Club', color='D4001A'), now + 75 * 60, lname='La Liga'),
             g('nba-2', 'NBA', 'Basketball', 'upcoming', _team('LAL', 'Los Angeles Lakers'), _team('GSW', 'Golden State Warriors'), now + 150 * 60,
               sources=[_src('The Loop', '1080p', 'English', 'best'), _src('Loop TV', '720p', 'English', 'good'), _src('Sports Hub', '720p', 'Spanish')]),
             g('nhl-2', 'NHL', 'Hockey', 'upcoming', _team('TOR', 'Toronto Maple Leafs'), _team('MTL', 'Montréal Canadiens'), at(1, 19, 0),
@@ -221,7 +283,7 @@ class Sample:
         self._leagues = [('EPL', 'Premier League', 'Soccer'), ('LIGA', 'La Liga', 'Soccer'), ('UCL', 'UEFA Champions League', 'Soccer'),
                          ('BUN', 'Bundesliga', 'Soccer'), ('NBA', 'NBA', 'Basketball'), ('WNBA', 'WNBA', 'Basketball'),
                          ('NFL', 'NFL', 'American football'), ('NCAAF', 'College Football', 'American football'), ('NHL', 'NHL', 'Hockey'),
-                         ('MLB', 'MLB', 'Baseball'), ('UFC', 'UFC', 'Combat sports'), ('F1', 'Formula 1', 'Motorsport')]
+                         ('MLB', 'MLB', 'Baseball'), ('PGA', 'PGA Tour', 'Golf'), ('UFC', 'UFC', 'Combat sports'), ('F1', 'Formula 1', 'Motorsport')]
 
     def _check(self):
         if self.fail:

@@ -284,7 +284,7 @@ class Provider(unittest.TestCase):
         os.environ.pop('KODI_IOS_SPORTS', None)
         sp.reset()
         try:
-            self.assertIsInstance(sp.get(), sports_jet.JetProvider)   # DEC-061: the real provider is JetExtractors
+            self.assertIsInstance(__import__('sports_filter').unwrap(sp.get()), sports_jet.JetProvider)   # DEC-061: the real provider is JetExtractors
             with patch.object(sports_jet, 'import_jet', return_value=(None, 'not installed')):   # no add-on in the tests
                 with self.assertRaises(sm.SportsUnavailable):
                     sp.get().overview()

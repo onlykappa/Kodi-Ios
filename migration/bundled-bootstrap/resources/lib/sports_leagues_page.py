@@ -1,5 +1,6 @@
 """Leagues grouped by sport: approved boards 16–17 and the board 20 provider failure."""
 import status_ui as u
+import sports_edit_button as edit_button
 
 WINDOW = 'IOSSportsLeagues.xml'
 BACK, REFRESH, RETRY, LIST = 9001, 9002, 9003, 9300
@@ -7,6 +8,7 @@ ROW, SLOTS = 50000, 80
 TITLE_LINE, DETAIL_LINE, PAD, MIN_ROW = 57, 52, 27, 183
 FORMS = tuple((title, detail) for title in range(1, 5) for detail in range(1, 5))
 SCROLL_CLEAR = 720
+LOGO_TILE, LOGO_PAD, LOGO_BG = 118, 14, 'FFF2F2F7'   # a 44 pt light tile; the logo sits 5 pt inside it
 
 
 def row_height(title, detail):
@@ -29,8 +31,14 @@ def _rows(p):
             top = (h-text_h)//2
             body = u.row_back(p,key,972,h)
             body += u.tap(p,ROW+n*len(FORMS)+form,p.SIDE,0,972,h)
-            body += p.image(92,(h-118)//2,118,118,p.MEDIA+'pill_124.png',p.SURFACE2)
-            body += u.text(p,92,(h-118)//2,118,118,'[B]%s[/B]'%u.P(key+'code'),'p_cap',p.GREY,'center')
+            # The league's real logo on a light rounded tile (owner: "I want the real logos, not just letters"); a league with
+            # no logo gets a neutral ring on the same tile, never letters (sports_logos.py).
+            top_t = (h-LOGO_TILE)//2
+            body += p.image(92,top_t,LOGO_TILE,LOGO_TILE,p.MEDIA+'round.png',LOGO_BG,border=32)
+            body += p.image(92+LOGO_PAD,top_t+LOGO_PAD,LOGO_TILE-2*LOGO_PAD,LOGO_TILE-2*LOGO_PAD,u.P(key+'logo'),p.WHITE,
+                            '<aspectratio>keep</aspectratio><visible>%s</visible>'%u.has(key+'logo'))
+            body += p.image(92+38,top_t+38,LOGO_TILE-76,LOGO_TILE-76,p.MEDIA+'ring_20.png','FF8E8E93',
+                            '<visible>!%s</visible>'%u.has(key+'logo'))
             body += p.textbox(242,top,680,title*TITLE_LINE,u.P(key+'title'),'p_h3')
             body += p.textbox(242,top+title*TITLE_LINE+3,680,detail*DETAIL_LINE,u.P(key+'detail'),'p_sub',p.GREY)
             body += u.glyph(p,960,(h-32)//2,32,'chevron-right.png',p.GREY)
@@ -53,6 +61,7 @@ def _error(p):
 def page(p):
     header = p.nav_button(BACK,32,5,'chevron-left.png','noop')
     header += p.nav_button(REFRESH,940,5,p.MEDIA+'hdr_refresh.png','noop',glyph_size=60).replace(p.WHITE,p.ACCENT)
+    header += edit_button.xml(p,940-20-edit_button.W,22)
     header += u.text(p,p.SIDE,124,972,110,'Leagues','p_large')
     header += u.text(p,p.SIDE,239,972,51,u.P('subtitle'),'p_sub',p.GREY)
     empty = u.group(p,118,u.text(p,p.SIDE,30,972,60,u.P('empty.text'),'p_sub',p.GREY,'center'),u.has('empty.text'))

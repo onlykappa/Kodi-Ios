@@ -1,22 +1,26 @@
 """Sports landing page (DEC-054, DEC-057; approved board 2 of docs/design/sports-approved-pages.html, option A).
 
-Draws IOSSports.xml: back, refresh (top right), the large title "Sports" with "Updated just now", then three gradient tiles
-(Live Now the big one, Upcoming and Leagues side by side, the Search category tiles' style) and one slim "Finished today" row.
+Draws IOSSports.xml: back, Edit and refresh (top right), the large title "Sports" with "Updated just now", then (owner's mockup A1, 2026-11-19)
+a compact Live Now card, "Up next" (the next three games, the Upcoming page's own rows, with See all) and the Upcoming and Leagues gradient tiles.
 sports.py fills it from sports_model / sports_provider and sets every property below. Kodi skin XML, portrait units
 (2.687 per pt); existing tokens and helpers only. The tile colours are the board's: red live, blue later, purple leagues, grey idle.
 """
 import status_ui as u
+import sports_edit_button as edit_button
+import sports_upcoming_page as upcoming_page
 
 WINDOW = 'IOSSports.xml'
 BACK, REFRESH, LIVE, UPCOMING, LEAGUES, FINISHED, RETRY = 9001, 9002, 9101, 9102, 9103, 9104, 9105
-TOP = 370                       # the tiles start 14 pt under the subtitle
-TILE_H = 527                    # 196 pt
+SEE_ALL, LIST, NEXT, NEXT_ROWS = 9106, 9300, 9120, 3     # See all, the scrolling list, the three Up next rows' ids (NEXT + 4 * row + lines - 1)
+TOP = 370                       # the list starts 14 pt under the subtitle
+TILE_H = 310                    # 115 pt (mockup A1)
+LIVE_H = 314                    # the compact Live Now card
 GAP = 32                        # 12 pt
 PAD = 43                        # 16 pt inside a tile
 LINE = 52                       # one line of 15 pt detail text
 FINISHED_H = 150                # 56 pt
 # Characters per detail line, kept under what the tile's width holds in Inter at 15 pt (DEC-050: text wraps, it is never cut off).
-FIT_BIG, FIT_HALF = 36, 16
+FIT_BIG, FIT_HALF = 36, 18
 
 # (name, top colour, bottom colour) of each tile's gradient, from the board's CSS (150 deg: mostly top to bottom)
 TILES = {'live': ((196, 48, 43), (74, 14, 18)), 'idle': ((58, 58, 60), (28, 28, 30)),
@@ -75,29 +79,37 @@ def _text_block(p, w, h, key, big):
     return out
 
 
-def _tile_xml(p, ident, key, x, y, w, texture_for, glyph, big, mask):
-    """One tile: gradient, a translucent circle with its glyph, the text, and a button over all of it."""
-    P = u.P
-    out = ''
-    for name, cond in texture_for:
-        out += p.image(0, 0, w, TILE_H, p.MEDIA + 'sports_%s.png' % name, p.WHITE, '<visible>%s</visible>' % cond, '>stretch')
-    out += p.image(PAD, PAD, 124, 124, p.MEDIA + 'pill_124.png', '33FFFFFF')
-    out += p.icon(PAD + 27, PAD + 27, 70, glyph, p.WHITE)
-    out += _text_block(p, w, TILE_H, key, big)
+def _tile_xml(p, ident, key, x, w, texture, mask):
+    """One short gradient tile (title and one or two lines, bottom-anchored) with a button over all of it."""
+    out = p.image(0, 0, w, TILE_H, p.MEDIA + 'sports_%s.png' % texture, p.WHITE, aspect='>stretch')
+    out += _text_block(p, w, TILE_H, key, False)
     out += ('<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
             '<texturefocus colordiffuse="30FFFFFF" border="27">%s%s</texturefocus><texturenofocus /></control>' % (ident, w, TILE_H, p.MEDIA, mask))
-    return '<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>%s</control>' % (x, y, w, TILE_H, out)
+    return '<control type="group"><left>%d</left><top>0</top><width>%d</width><height>%d</height>%s</control>' % (x, w, TILE_H, out)
+
+
+def _live_card(p, w):
+    """Nothing live: a grey card with the next game. Live: the red gradient with the "4 live" capsule."""
+    S = p.SIDE
+    out = p.image(S, 0, w, LIVE_H, p.MEDIA + 'row_only.png', p.SURFACE, '<visible>String.IsEqual(Window().Property(live.mode),idle)</visible>', border=43)
+    out += p.image(S, 0, w, LIVE_H, p.MEDIA + 'sports_live.png', p.WHITE, '<visible>String.IsEqual(Window().Property(live.mode),live)</visible>', '>stretch')
+    out += u.text(p, S + PAD, 38, 500, 50, 'LIVE NOW', 'p_foot_b', p.GREY)
+    out += u.text(p, S + PAD, 92, w - 2 * PAD, 80, u.P('live.title'), 'p_h2')
+    out += p.textbox(S + PAD, 178, w - 2 * PAD, 104, u.P('live.detail'), 'p_sub', 'EBFFFFFF')
+    out += ('<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><label></label>'
+            '<texturefocus colordiffuse="30FFFFFF" border="43">%srow_only.png</texturefocus><texturenofocus /></control>' % (LIVE, S, w, LIVE_H, p.MEDIA))
+    return out
 
 
 def _badge(p):
     """The white "● 4 live" capsule at the top right of Live Now."""
     w = p.WIDTH - 2 * p.SIDE
-    x = w - PAD - 250
+    x = p.SIDE + w - PAD - 250
     body = p.image(0, 0, 250, 72, p.MEDIA + 'pill_72.png', p.WHITE, border=36)
     body += p.image(26, 25, 22, 22, p.MEDIA + 'dot.png', 'FFFF453A')
     body += u.text(p, 62, 0, 170, 72, u.P('live.badge'), 'p_foot_b', 'FF8E1B16')
     return '<control type="group"><left>%d</left><top>%d</top><width>250</width><height>72</height><visible>%s</visible>%s</control>' % (
-        x, PAD + 6, u.has('live.badge'), body)
+        x, 30, u.has('live.badge'), body)
 
 
 def page(p):
@@ -110,22 +122,25 @@ def page(p):
              '<texturefocus /><texturenofocus /><animation effect="fade" start="100" end="65" time="0" condition="Control.HasFocus(%d)">Conditional</animation></control>'
              % (REFRESH, W - S - 150, 150, REFRESH))
     head += p.icon(W - S - 84, 57, 84, 'arrows-rotate.png', p.ACCENT)
+    head += edit_button.xml(p, W - S - 150 - 20 - edit_button.W, 52)
     head += u.text(p, S, 160, w, 110, 'Sports', 'p_large') + u.text(p, S, 268, w, 56, P('sub'), 'p_sub', p.GREY)
-    live = _tile_xml(p, LIVE, 'live', 0, 0, w, (('live', 'String.IsEqual(Window().Property(live.mode),live)'),
-                                              ('idle', 'String.IsEqual(Window().Property(live.mode),idle)')), 'tower-broadcast.png', True, 'sports_big_mask.png')
-    live += _badge(p)
-    up = _tile_xml(p, UPCOMING, 'up', 0, TILE_H + GAP, half, (('up', 'true'),), 'calendar-day.png', False, 'sports_half_mask.png')
-    lg = _tile_xml(p, LEAGUES, 'lg', half + GAP, TILE_H + GAP, half, (('lg', 'true'),), 'medal.png', False, 'sports_half_mask.png')
-    fin_y = 2 * TILE_H + 2 * GAP
-    fin = u.card(p, 0, 0, w, FINISHED_H)
-    fin += u.text(p, PAD + 6, 0, w - 420, FINISHED_H, 'Finished today', 'p_h3')
-    fin += u.text(p, w - 420 - 90, 0, 420, FINISHED_H, P('fin'), 'p_sub', p.GREY, 'right')
-    fin += p.icon(w - PAD - 30, (FINISHED_H - 32) // 2, 32, 'chevron-right.png', p.GREY)
-    fin += ('<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
-            '<texturefocus colordiffuse="22FFFFFF" border="43">%srow_only.png</texturefocus><texturenofocus /></control>' % (FINISHED, w, FINISHED_H, p.MEDIA))
-    tiles = ('<control type="group"><left>%d</left><top>%d</top><width>%d</width><visible>%s</visible>%s%s%s'
-             '<control type="group"><left>0</left><top>%d</top><width>%d</width><height>%d</height><visible>%s</visible>%s</control></control>'
-             % (S, TOP, w, ok, live, up, lg, fin_y, w, FINISHED_H, u.has('fin'), fin))
+    # Everything under the title scrolls as one list: the live card, Up next, the two tiles.
+    items = u.group(p, LIVE_H + GAP, _live_card(p, w) + _badge(p))
+    see_all = ('<control type="button" id="%d"><left>%d</left><top>0</top><width>260</width><height>118</height><label>See all</label><font>p_sub</font>'
+               '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny><textoffsetx>0</textoffsetx><scroll>false</scroll>'
+               '<texturefocus /><texturenofocus /></control>' % (SEE_ALL, W - S - 260, p.GREY, p.GREY))
+    items += u.group(p, 118, u.text(p, S + 10, 24, 600, 70, 'Up next', 'p_h2') + see_all, u.has('next.0.lines'))
+    for n in range(NEXT_ROWS):
+        key = 'next.%d.' % n
+        for lines in upcoming_page.FORMS:
+            items += u.group(p, upcoming_page.row_height(lines), upcoming_page.game_row(p, key, NEXT + 4 * n + lines - 1, lines, w),
+                             'String.IsEqual(Window().Property(%slines),%d)' % (key, lines))
+    items += u.group(p, GAP + 30, '', u.has('next.0.lines'))
+    tiles = _tile_xml(p, UPCOMING, 'up', S, half, 'up', 'sports_half_mask.png') + _tile_xml(p, LEAGUES, 'lg', S + half + GAP, half, 'lg', 'sports_half_mask.png')
+    items += u.group(p, TILE_H, tiles) + u.group(p, 260, '')
+    tiles = ('<control type="grouplist" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+             '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords><visible>%s</visible><scrolltime tween="cubic" easing="out">220</scrolltime>%s</control>'
+             % (LIST, TOP, W, ok, items))
     # Can't load: plain words, one button; the details go to the log, never the screen (APPLE-UI-POLICY section 6).
     err = p.image((W - 161) // 2, 700, 161, 161, p.MEDIA + 'pill_150.png', '2EFF9F0A')
     err += p.icon((W - 80) // 2, 740, 80, 'triangle-exclamation.png', 'FFFF9F0A')

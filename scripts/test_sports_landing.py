@@ -54,19 +54,21 @@ class Properties(unittest.TestCase):
     def test_the_approved_board(self):
         props = ctl.props_for(overview(), NOW, 0)
         self.assertEqual((props['state'], props['sub']), ('ok', 'Updated just now'))
-        self.assertEqual((props['live.mode'], props['live.badge'], props['live.d1'], props['live.lines']), ('live', '4 live', 'Soccer, Basketball', '2'))   # the break after the sports keeps "and 2 more" whole
+        self.assertEqual((props['live.mode'], props['live.badge'], props['live.title'], props['live.detail']), ('live', '4 live', 'Live right now', 'Soccer, Basketball and 2 more'))
         self.assertEqual((props['up.d1'], props['up.d2'], props['up.lines']), ('Next at 7:30 PM', '2 more today', '2'))
-        self.assertEqual((props['lg.d1'], props['lg.lines']), ('12 leagues', '1'))
-        self.assertEqual(props['fin'], '6 replays')
+        self.assertEqual((props['lg.d1'], props['lg.lines']), ('13 leagues', '1'))
+        counted = ctl.props_for(dict(overview(), upcoming=59), NOW, 0)   # mockup A1: "59 games · 2 more today"
+        self.assertEqual((counted['up.d1'], counted['up.d2']), ('59 games · 2 more', 'today'))
+        self.assertNotIn('fin', props)   # the Finished today row is not in the mockup
 
     def test_nothing_live_goes_grey_and_says_when_the_next_game_starts(self):
         props = ctl.props_for(overview(live=0, live_sports=[]), NOW, 0)
         self.assertEqual((props['live.mode'], props['live.badge']), ('idle', ''))
-        self.assertEqual((props['live.d1'], props['live.d2'], props['live.lines']), ('Nothing live right now. Next game', 'starts at 7:30 PM.', '2'))
+        self.assertEqual((props['live.title'], props['live.detail']), ('Nothing live right now', 'Next game starts at 7:30 PM.'))
         tomorrow = ctl.props_for(overview(live=0, live_sports=[], next=NOW + 24 * 3600), NOW, 0)
-        self.assertIn('starts tomorrow at 6:45 PM.', tomorrow['live.d2'])
+        self.assertIn('starts tomorrow at 6:45 PM.', tomorrow['live.detail'])
         none = ctl.props_for(overview(live=0, live_sports=[], next=None), NOW, 0)
-        self.assertEqual((none['live.d1'], none['live.lines']), ('Nothing live right now.', '1'))
+        self.assertEqual((none['live.title'], none['live.detail']), ('Nothing live right now', ''))
         self.assertEqual((none['up.d1'], none['up.d2'], none['up.lines']), ('No games', 'coming up', '2'))   # never "No games coming" / "up"
 
     def test_the_upcoming_tile_when_the_next_game_is_not_today(self):
@@ -77,19 +79,29 @@ class Properties(unittest.TestCase):
         one = ctl.props_for(overview(more_today=0), NOW, 0)
         self.assertEqual((one['up.d2'], one['up.lines']), ('', '1'))
 
-    def test_finished_row_and_one_league(self):
-        props = ctl.props_for(overview(finished_today=0, leagues=1), NOW, 0)
-        self.assertEqual((props['fin'], props['lg.d1']), ('', '1 league'))
+    def test_up_next_rows_are_the_next_three_games_in_the_upcoming_rows_shape(self):
+        games = [{'state': 'upcoming', 'league': 'NFL', 'start': NOW + n * 3600, 'joiner': 'at', 'away': {'name': 'Away %d' % n},
+                  'home': {'name': 'Home %d' % n}, 'sources': []} for n in (5, 2, 9, 3)]
+        games.append({'state': 'upcoming', 'league': 'NBA', 'start': NOW - 3600, 'joiner': 'at', 'away': {'name': 'Past'}, 'home': {'name': 'Game'}, 'sources': []})
+        props = ctl.next_props(games, NOW, 0, {'NFL': '/logo/NFL.png'})
+        self.assertEqual([props['next.%d.title' % n] for n in range(3)], ['Away 2 at Home 2', 'Away 3 at Home 3', 'Away 5 at Home 5'])   # soonest first, past games left out
+        self.assertEqual([props['next.%d.pos' % n] for n in range(3)], ['first', 'mid', 'last'])
+        self.assertEqual((props['next.0.clock.main'], props['next.0.clock.ampm'], props['next.0.sources'], props['next.0.logo']), ('8:45', 'PM', 'Today', '/logo/NFL.png'))
+        self.assertEqual(ctl.next_props(games[:1], NOW, 0)['next.1.lines'], '')   # fewer games than rows: the rest stay empty
+        self.assertEqual(ctl.next_props(games[:1], NOW, 0)['next.0.pos'], 'only')
+
+    def test_one_league(self):
+        props = ctl.props_for(overview(leagues=1), NOW, 0)
+        self.assertEqual(props['lg.d1'], '1 league')
 
     def test_updating_keeps_the_shape(self):
         last = ctl.props_for(overview(), NOW, 0)
         props = ctl.props_updating(last)
         self.assertEqual((props['sub'], props['live.badge'], props['live.mode']), ('Updating', '', 'live'))
-        self.assertEqual(props['live.d1'], 'Checking what is on')
+        self.assertEqual(props['live.title'], 'Live right now')   # the card keeps what it showed while the answer is on its way
         self.assertEqual((props['up.d1'], props['up.d2'], props['up.lines']), ('Checking today’s', 'games', '2'))
         self.assertEqual(props['lg.d1'], 'Checking leagues')
-        self.assertEqual(props['fin'], '6 replays')
-        self.assertEqual(ctl.props_updating()['fin'], '')
+        self.assertEqual(ctl.props_updating()['live.title'], 'Checking what is on')
 
     def test_no_answer_is_the_cant_load_state_and_a_refresh_asks_again(self):
         down = ctl.load(sm.Sample(now=NOW, fail=True), now=NOW, offset=0)
@@ -111,12 +123,12 @@ class Page(unittest.TestCase):
     def test_ids_are_unique_and_the_buttons_are_there(self):
         ids = [c.get('id') for c in self.root.iter('control') if c.get('id')]
         self.assertEqual(len(ids), len(set(ids)))
-        for ident in (sp.BACK, sp.REFRESH, sp.LIVE, sp.UPCOMING, sp.LEAGUES, sp.FINISHED, sp.RETRY):
+        for ident in (sp.BACK, sp.REFRESH, sp.LIVE, sp.UPCOMING, sp.LEAGUES, sp.SEE_ALL, sp.NEXT, sp.RETRY):
             self.assertIn(str(ident), ids)
 
     def test_every_property_the_page_reads_is_set_by_the_controller(self):
         read = set(re.findall(r'Window\(\)\.Property\(([\w.]+)\)', self.xml))
-        given = set(ctl.props_for(overview(), NOW, 0)) | set(ctl.props_for(overview(live=0), NOW, 0)) | set(ctl.ERROR) | set(ctl.props_updating())
+        given = set(ctl.props_for(overview(), NOW, 0)) | set(ctl.props_for(overview(live=0), NOW, 0)) | set(ctl.ERROR) | set(ctl.props_updating()) | set(ctl.next_props([], NOW, 0))
         self.assertEqual(sorted(read - given), [])
 
     def test_kodi_condition_rules(self):

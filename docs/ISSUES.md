@@ -5958,3 +5958,107 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 - **Review question 4 (stale/late `onAVStarted`), partially mitigated:** `xbmc.Player` callbacks fire for any playback in the app on every live `Player` subclass instance, not scoped to the instance that issued `play()`. Added an ownership check inside `Observer.onAVStarted` (matching the one `tick()` already performs) and clear `self.observer` in `close()` so a finished Opening's Observer is released for GC promptly. This narrows but does not provably eliminate the exposure, since Kodi's API does not expose per-call-scoped playback callbacks; no other code path in this app calls `xbmc.Player().play()` concurrently with an open Sports loader in normal use.
 - **New tests:** `scripts/test_sports_opening.py` grew from 5 to 9 cases (long team names, malformed/empty native-queue descriptors, observer dropped on close, late ownership-mismatched callback ignored). These remain pure logic tests of `Opening` with fakes for `home`/`window`; they do not exercise real Kodi XML generation, consistent with the standing caution against treating passing tests as proof of correct GUI wiring.
 - **Checks:** `scripts/test_sports_opening.py` (9), `test_sports_jet.py` (23), `test_sports_crew_routes.py` (53), `test_sports_live.py`, `test_sports_game.py`, `test_sports_loop_router.py` (17, after the fix above) all pass; `check_project.py` and `check_ui_guidance.py` pass; `kodi_rig.py sync` succeeds cold. See `docs/SPORTS-OPENING-REVIEW.md` for the full per-question checkpoint, including what is still outstanding (app-shutdown path, background-thread `setProperty` safety, slow-wait text/stage ordering under a live call sequence, cold-install robustness beyond the `pages` fix, pixel comparison to the approved mockup, and any real Crew source played end-to-end through this loader). No real-source playback demonstration, no native Crew chooser interaction with a live provider, and no before/after timing measurement were produced in this review pass; none of that is claimed as done.
+
+## ISSUE-382 — Sports: a league filter, applied to every page (owner request, 2026-11-19) — backend done; pages and logos next
+
+- **Owner:** "make a way to edit what leagues show up … so if you only want to see NFL games then that's the only option picked" (approved board B, docs/design/sports-redesign-mockups.html).
+- **Done:**
+  - `sports_filter.py` keeps the leagues turned off in `sports-leagues.json` (default none, so every league and any new one shows).
+  - `FilteredProvider` wraps the one provider every Sports page reads (`sports_provider.get()`). It filters live games, upcoming games and leagues, and recomputes the overview (live count, sports, next game, more today, league count), so the hub, Upcoming and Leagues always agree.
+  - `all_leagues()` lists every league for the Edit sheet, filtered or not.
+  - `summary()` gives "Showing NFL and NBA", "Showing 4 leagues" or "No leagues selected".
+- **Tests:** test_sports_filter (12). test_sports_espn, test_sports_loop and test_sports_model now look through the wrapper (`sports_filter.unwrap`).
+- **Done in the app (desktop Kodi rig, sample data; screenshots kept out of Git):**
+  - **Edit button** on the hub, Upcoming and Leagues (`sports_edit_button.py`): blue "Edit", white "Edit · 11" while a filter is on.
+  - **Edit sheet** (`sports_edit.py`, on the app's choice sheet): step 1 lists the sports with "3 of 4 leagues on" and an icon each, plus "Turn every league on"; step 2 shows one green switch per league with its logo. Every flip is saved at once and the pages follow (Bundesliga off: the Leagues page showed 11 leagues).
+  - **Real league logos** (`sports_logos.py`) on the Leagues rows, the Edit sheet and each Upcoming game, replacing the letters. Fetched from ESPN's image host on first use and kept on the phone; never committed. A league with none (boxing) gets a neutral ring.
+  - A test had written logo files beside the code (a stand-in for Kodi's path translation, with network access). `sports_logos.fetch` now writes nothing unless the profile path is a real folder (test added). The commit that shipped it contained no images.
+- **Tests:** test_sports_filter (20), test_sports_logos (4), test_sports_leagues (RealLogos).
+- **Not done yet:**
+  - The cleaner page layouts of board A (the hub keeps its approved gradient tiles; Upcoming and Leagues keep their rows).
+  - "Only" per sport and "All off" shortcuts in the sheet.
+  - The hub's "Showing NFL and NBA" line is coded but not seen in the rig with a filter on.
+  - Logos on the Live Now page and the game page.
+  - The phone check.
+
+## ISSUE-383 — Sports game page: Remind me, then Play with the best source (owner request, 2026-11-19)
+
+- **Owner:** "follow should ask to send a reminder to your phone, then when the link is available it will replace the remind with the play button providing you with best source" (approved board C, docs/design/sports-game-mockups.html). Kodi can notify, so the reminder is real.
+- **Done:**
+  - `sports_reminders.py` keeps `sports-reminders.json` (one record per game, two switches: "when a source is ready", "15 minutes before it starts"), decides what is due, and `watch()` runs in the service (`sports_reminder_loop`), searching for sources about every 10 minutes for reminded games. Each notice is sent once, pruned 6 hours after the game, and opens the game on tap (`RunScript(...,sports_game,<id>)`).
+  - `sports_remind.py` is the reminder sheet on the app's choice sheet. A new reminder is saved only by "Turn on reminder"; an existing one saves each flip at once and can be turned off.
+  - Game page: no sources → white "Remind me" capsule; reminder set → "Reminder on" capsule plus a note of what we'll notify; sources → "Play" with "Best source: …" under it.
+- **Tests:** test_sports_reminders (13), RemindThenPlay in test_sports_game (the old "sports_game is not in default.py" assertion was inverted on purpose: a notification opens a game by id).
+- **Desktop Kodi rig (sample data):** Remind me → sheet (no cut-off text) → "Reminder on" with its note. Not seen on a phone yet.
+- **Not done yet:** see ISSUE-384 (Info and standings).
+
+## ISSUE-384 — Sports game page: Info, recent form and standings (owner request, 2026-11-19)
+
+- **Owner:** approved board D (one scrolling Info page), minus the "Watch on" row ("this is literally the player").
+- **Done:**
+  - `sports_game_info.py`: venue (from the scoreboard), each team's record and home/away split, the last five results (ESPN team schedule, W / L / D) and the standings (ESPN standings, `level=3`). The table shown is the smallest one holding a game team (division, or a league table for soccer); sports with divisions also get a "Wild Card" view (the conference by playoff seed). A game team below the 8-row cut replaces the last row. A feed that fails leaves only its own part out; answers are reused for 10 minutes.
+  - `sports_espn.parse` now keeps team id, record, split, venue and the league path on each game.
+  - Game page: Kickoff / Venue card, "Recent form" card with W / L / D dots, "Standings · AFC South" with crests, the two game teams tinted, and a Divisional / Wild Card switch. A part with no data is not drawn.
+  - `KODI_IOS_SPORTS=sample` shows board D's Colts at Texans fixture in the desktop rig (never used in the app).
+- **Tests:** test_sports_game_info (15), listed in import-review.yml.
+- **Desktop Kodi rig (sample data):** Info card, recent form, standings (tint, header, rows) and the switch to Wild Card and back, no cut-off text. Checked live ESPN answers for NFL, NBA and EPL with a script.
+- **Not built:** the "Full standings" link (the app's choice sheet holds 8 rows, so a 32-team table does not fit it; needs its own page). Not seen on a phone yet.
+
+## ISSUE-385 — Sports pages rebuilt to the owner's mockups, one page at a time (2026-11-19)
+
+- **Owner:** eight mockup screens (hub, Upcoming, Leagues, Edit sheet x2, game page, Remind sheet, Game info) — "this is ideally how I want it", "one at a time … show me the rig match".
+- **Page 1, the hub (mockup A1):** compact Live Now card (grey "Nothing live right now · Next game starts at …", or the red gradient with the "4 live" capsule), "Up next" (the next three games in the Upcoming page's own rows, with See all) and two short Upcoming / Leagues tiles ("59 games · 2 more today"). The "Finished today" placeholder row is gone (it only said "coming in an update"). The page scrolls as one list.
+- **Time style (A1 and A2):** the time is "4:30" large and blue with "PM" under it, and "in 44 min" under that when the game is close; Upcoming uses the same rows (`sports_upcoming_page.game_row`, now shared).
+- **Tests:** test_sports_landing updated to the new properties plus a test for the Up next rows.
+- **Desktop Kodi rig (sample data):** live state and idle state (filter hides the live leagues) checked against the mockup. Not seen on a phone yet.
+- **Page 2 follow-up (owner):** the Upcoming league chips wrapped and left one chip alone on a second line. They are now one row that scrolls sideways (the screen edge cuts what does not fit), `CHIP_LINES = 1`; test_sports_upcoming updated. The Live Now page's chip grid is not in the owner's mockups and is unchanged.
+- **Page 2, second follow-up (owner: "is that even needed if we have our filter?"):** the chip row is removed from Upcoming; the Edit filter already chooses leagues for every page. A league opened from the Leagues page still filters to that league and the subtitle names it ("NBA · 1 game coming up · …"). test_sports_upcoming updated.
+- **Page 2, option A withdrawn (owner):** the League capsule is removed again; the Leagues page already opens a league's games, so Upcoming has no picker (state of caebe63).
+
+## ISSUE-386 — Sports Edit sheet rebuilt to the mockups; golf, UFC and F1 added (owner request, 2026-11-19)
+
+- **Owner:** the Edit filter must look like mockups B1/B2 "and actually work", and "include app data" for the sports the mockup shows.
+- **Data (`sports_espn.py`):** PGA Tour, LPGA Tour (golf), UFC (combat sports) and Formula 1 (motorsport) from ESPN's public scoreboards. A tournament or race weekend is one game with just its title (`sm.versus` returns it alone; a golf tournament in progress is live and its round is the clock); a UFC card is its main event's two fighters. Golf joins `sm.SPORT_ORDER`. The game page draws only the first side when there is no opponent. Boxing has no ESPN feed (owner: does not matter), so it is not listed.
+- **Sheet (`sports_edit_page.py`, `sports_edit.py`, `sports_filter.sheet_items`):** one scrolling sheet instead of the two-step choice sheet: "Leagues" with a white Done capsule, the help line, All on / All off, then each sport with "Only" and a row per league (real logo, name, next game, green switch). Every tap is saved at once and the page behind redraws when the sheet closes. The old two-step specs are removed.
+- **Not built:** the third chip "Only what I picked · N" from the mockup (it is a status, not an action; the Edit pill already says "Edit · N").
+- **Tests:** test_sports_filter (sheet items, properties, actions, sheet XML, the new leagues' parsing); sample data gained a PGA league, so the sample league count is 13 in three tests.
+- **Desktop Kodi rig (sample data):** sheet, "Only" on Hockey (the file and the hub behind it follow). Live golf, UFC and F1 data checked against ESPN with a script. Not seen on a phone yet.
+
+## ISSUE-387 — Sports game page rebuilt to the owner's mockup (page 6) (2026-11-19)
+
+- **Owner:** page 6 of the eight mockups: "Remind me if there are no sources, and then game info", plus (later the same day) "remove the Only button, it should only be simple switches".
+- **Game page (`sports_game_page.py`, `sports_game.py`):** each team's colour glows behind it; big crests (a ring with the code when there is none), the short name ("Colts") and the record under it; the time in the middle with "Today · in 2 h 10 min"; the league's code above. A narrower centred capsule: Remind me / Reminder on / Play. Under Remind me: "No source yet. We'll tell you when one is ready." (the reminder's own line once it is on). **Sources** is a card: "None yet · Checked 2 minutes ago · Check now" (Check now looks for sources again, for upcoming and live games), or the source rows. **Game info** is a card ("NFL · Week 11 / Today at 5:15 PM") that opens the facts page.
+- **Facts page (`sports_game_facts_page.py`, `sports_game_facts.py`):** the Info section that used to sit under the sources moved here unchanged (kickoff, venue, recent form, standings with the Divisional / Wild Card switch). Page 8 of the mockups (tabs, compact hero) is next.
+- **Data:** ESPN's team colour, short name and the week number are kept on each game; `sm.until_text`; sample teams RS and AC carry colours so the glow can be seen in the rig.
+- **Edit sheet:** the per-sport "Only" links are removed (plain switches only), All on / All off stay.
+- **Tests:** test_sports_game (+5, Hero), test_sports_game_info (facts window), test_sports_filter (colour, short name, week).
+- **Desktop Kodi rig (sample data):** page 6 and the facts page opened from the Game info card. Not seen on a phone yet.
+- **Page 6 / 8 follow-up (owner: "page 6 needs help", "the info page should look like the photo, not whatever you provided"):** the Info page is now the mockup's (board D1/D2): the same hero and action capsule as the game page, an Info | Standings switch, Kickoff / Venue / Recent form, or the table with the Divisional / Wild Card switch; a game with no table has no tabs. The hero is one shared module (`sports_hero.py`). Game page cleanup: richer team glows (ESPN's dark colours are lightened), "We'll tell you" and "Best source:" are bold white inside the grey line, the live game shows "● LIVE", the score and the clock (mockup C5), "Other sources (n)" jumps to the list, and the "Choose a source to play." line and the Sources count are gone. Standings headings are the table's own name ("AFC South"). Tests: test_sports_game (live, lighten, other sources), test_sports_game_info (tabs, page content).
+- **Page 6 wording and logos (owner):** no bold "We'll tell you": the note under Remind me is plain, "No source yet. Tap Remind me for a notification when one is ready.", and once a reminder is on it says "Reminders are set for this game." Real team logos, not circles: crests are downloaded once from ESPN's image host and kept on the phone (`sports_logos.crest` / `crests`, ESPN host and PNG only, 400 KB cap, never beside the code), for the hero and for every standings row; the ring with the team code now shows only while a crest is not there yet. The sample teams carry real ESPN crest addresses so the rig shows logos. Tests: test_sports_logos (Crests), test_sports_game (crests, note wording).
+
+## ISSUE-388 — Sports reminder sheet to the owner's mockup (page 7) (2026-11-19)
+
+- **Owner:** "lets do the remind sheet".
+- **Done (`sports_remind_page.py`, `sports_remind.py`):** its own bottom sheet over the dimmed game page instead of the app's choice sheet: grabber, "Remind me about Colts at Texans", "A notification on this phone. It opens this game.", a card with the two green switches ("When a source is ready · Then Play appears here", "15 minutes before it starts · Today at 5:00 PM"), a wide white "Turn on reminder" capsule with the bell and a blue "Cancel". With a reminder already on it shows the same switches (each flip is saved at once), a white "Done" and a red "Turn reminder off". The save / cancel / turn-off rules are unchanged (`ask()` and its tests).
+- **Tests:** test_sports_reminders (SheetWindow: wording, which tap answers what, the XML).
+- **Desktop Kodi rig (sample data):** both versions, and Turn on reminder → "Reminder on" → reopened as Done / Turn reminder off. Not seen on a phone yet.
+
+## ISSUE-389 — Sports: scores, clocks and times were not live (owner, 2026-11-19)
+
+- **Owner:** "we need to ensure times and scores are live, directly from ESPN, and update on the second; I remember times were not syncing or updating regularly."
+- **Root causes (read in the code):** on the phone the games come from the Crew provider and ESPN only overlays live scores: asked at most every 45 s and trusted for 90 s (`sports_jet._with_scores`); the game page drew every 30 s and asked for data every 30 s; the game clock text ("Q3 · 4:12") only changed when a new answer arrived; the hub never refreshed itself; and a start time uses Python's idea of the time zone, which can be UTC inside an iOS app.
+- **Fix:**
+  - Scores are asked for at most every 8 s while a page polls and trusted for 40 s (`SCORE_EVERY`, `SCORE_STALE`).
+  - ESPN's countdown clock seconds are kept on each live game (`clock_secs`, `clock_mark`) and `sports_jet.annotate_clocks` stamps when they were read and whether the clock is running (it moved since the last answer, or ESPN says in progress; a timeout or end of period stops it). `sports_model.live_clock` counts it down second by second between answers, never more than 90 s without a fresh one; soccer and baseball keep ESPN's own text.
+  - The game page redraws every second (only changed values are written) and asks for fresh scores every 5 s while the game is live (30 s otherwise); Live Now ticks every card's clock every second; the hub refreshes itself every 15 s.
+  - `sports_model.device_offset` takes the phone's time zone from Kodi's own clock (`System.Time`) when asked about now, falling back to Python's table, so a Python that believes it is UTC no longer shifts every game.
+- **Tests:** test_sports_game (live clock, ticking page), test_sports_filter (clock seconds from ESPN), test_sports_jet (clock stamps, cadence), test_sports_model (Kodi clock), test_sports_scores updated.
+- **Limit, stated plainly:** ESPN's scoreboard changes every few seconds, not every second, so a score appears within about 5-10 s of ESPN having it; the clock itself moves every second. The sample data in the desktop rig counts a basketball clock down for real (4:03 → 3:55 over 8 s); a running clock on a real ESPN game was not seen because the only live game at the time was at half time. Not checked on a phone.
+
+## ISSUE-390 — Home / Movies / TV header icons: no circle, one size, a light ring (owner, 2026-11-19)
+
+- **Owner:** "a clear background behind the settings and refresh button, make the settings icon cleaner and the refresh button a bit bigger so all of the icons are the same size; the bell can stay as it has the ring" and, after seeing it, "make the settings look like this (the 6-tooth gear), maybe a light ring around them, Apple glass style, so they know where to tap".
+- **Done (`portrait.py`: `header_button`, `refresh_button`, `bell`, `bare_glyph`, `hdr_ring`):** the filled glass circles behind settings and refresh are gone. All three icons come from the skin's one solid family: the 6-tooth `gear.png` (replacing the chunky 8-tooth drawn gear), `arrow-rotate-right.png` (replacing the thin drawn arc; it still spins while the rows load and ticks when done) and the bell, each shown at the same size (`HDR_BOX`, 40 units visible). Each has a hairline ring (white at about 40 %, no fill, `hdr_ring.png`) and a faint shadow copy under the glyph so it stays readable over artwork. The bell shows the ring only while idle (its progress ring takes over while something runs). Hit targets stay 118 units (44 pt). Settings, Movies and TV share the same helpers, so they follow.
+- **Policy note:** APPLE-UI-POLICY §5.5 says to match the existing glyph size; the ring and the 40-unit glyphs are the owner's call (Kodi cannot blur, so the faint shadow is what keeps a bare glyph legible on bright artwork).
+- **Tests:** test_header_icons (new, registered). `test_header_buttons.py` is not in import-review.yml and four of its tests (list URLs, row hashes, favourites route) already failed before this change; its one header assertion was updated.
+- **Desktop Kodi rig:** Home before and after. Not seen on a phone yet.

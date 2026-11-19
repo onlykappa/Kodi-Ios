@@ -11,7 +11,7 @@ refreshes the rows from the owner's widget lists and reloads the skin when the p
 import sys
 import hashlib,json,os,re,struct,zlib,xml.etree.ElementTree as ET
 import importlib.util as _iu
-for _name in ('status_ui','notifications_skin'):
+for _name in ('status_ui','notifications_skin','sports_edit_button','sports_upcoming_page','sports_hero'):   # sports_edit_button: the Edit capsule on the three Sports pages; sports_upcoming_page: the hub reuses its game rows
  _shared=_iu.spec_from_file_location(_name,os.path.join(os.path.dirname(os.path.abspath(__file__)),_name+'.py'))
  _module=_iu.module_from_spec(_shared);sys.modules[_name]=_module;_shared.loader.exec_module(_module)
 _spec=_iu.spec_from_file_location('player_osd',os.path.join(os.path.dirname(os.path.abspath(__file__)),'player_osd.py'))
@@ -36,10 +36,16 @@ _spec=_iu.spec_from_file_location('sports_upcoming_page',os.path.join(os.path.di
 sports_upcoming_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_upcoming_page)
 _spec=_iu.spec_from_file_location('sports_game_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_game_page.py'))
 sports_game_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_game_page)
+_spec=_iu.spec_from_file_location('sports_game_facts_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_game_facts_page.py'))
+sports_game_facts_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_game_facts_page)
 _spec=_iu.spec_from_file_location('sports_opening_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_opening_page.py'))
 sports_opening_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_opening_page)
 _spec=_iu.spec_from_file_location('sports_leagues_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_leagues_page.py'))
 sports_leagues_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_leagues_page)
+_spec=_iu.spec_from_file_location('sports_edit_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_edit_page.py'))
+sports_edit_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_edit_page)
+_spec=_iu.spec_from_file_location('sports_remind_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_remind_page.py'))
+sports_remind_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_remind_page)
 _spec=_iu.spec_from_file_location('copy_problems_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'copy_problems_page.py'))
 copy_problems_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(copy_problems_page)
 _spec=_iu.spec_from_file_location('favourites_report_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'favourites_report_page.py'))
@@ -288,7 +294,7 @@ def arc(size,stroke,degrees):
 _GLYPHS={}
 def header_glyphs():
  """The round-5 header textures, drawn once per process (supersampled, so not cheap)."""
- if not _GLYPHS:_GLYPHS.update({'ring_arc.png':arc(132,5,150),'hdr_gear.png':shape(96,gear_inside),'hdr_refresh.png':shape(96,refresh_inside),
+ if not _GLYPHS:_GLYPHS.update({'ring_arc.png':arc(132,5,150),'hdr_ring.png':arc(128,3,360),'hdr_gear.png':shape(96,gear_inside),'hdr_refresh.png':shape(96,refresh_inside),
   **{'bell_%s.png'%k:shape(96,bell_inside(k),3) for k in ('line','fill','halo_line','halo_fill')}})
  return _GLYPHS
 
@@ -432,10 +438,19 @@ def nav_button(id,x,y,glyph,actions,extra='',visible='',glyph_size=NAV_GLYPH):
 NOTICES='RunScript(service.kodi.ios.bootstrap,notifications)'
 SETTINGS='ActivateWindow(settings)'
 HDR=108;HDR_GAP=24;HDR_GLYPH=46   # header buttons (owner-approved round 5, option A): 40 pt glass circles; button glyphs 46 (APPLE-UI-POLICY §5.5)
+HDR_BOX=80   # settings and refresh (owner, 2026-11-19): no circle behind them, one solid icon family with the bell, both the same size; the skin's icons fill half their box, so 80 shows 40 units
+def hdr_ring(visible=''):
+ """A light hairline ring (white at about 40 %) around a header icon, no fill: it shows where to tap and lets the artwork through."""
+ return image(0,0,HDR,HDR,MEDIA+'hdr_ring.png','66FFFFFF',visible)
+def bare_glyph(x,y,name,visible=''):
+ """A header icon with no circle: a faint shadow copy under it keeps it readable over artwork (Kodi cannot blur what is behind)."""
+ return icon(x,y+3,HDR_BOX,name,'55000000',visible)+icon(x,y,HDR_BOX,name,WHITE,visible)
 def header_button(id,x,y,glyph,action,extra=''):
- """Glass header circle with a centred glyph (bell, gear, refresh); glyph is an icons/ name or a full path."""
- off=(HDR-HDR_GLYPH)//2
- return pill_button(id,x,y,HDR,HDR,'',[('',action)],'glass','',extra)[:-len('</control>')]+icon(off,off,HDR_GLYPH,glyph)+'</control>'
+ """Settings: a bare gear (no glass circle) with a 118 hit target; glyph is an icons/ name or a full path."""
+ off=(HDR-HDR_BOX)//2
+ return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+hdr_ring()+bare_glyph(off,off,glyph)+
+  '<control type="button" id="%d"><left>-5</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><onclick>%s</onclick>%s'
+  '<animation effect="fade" start="100" end="65" time="0" condition="Control.HasFocus(%d)">Conditional</animation></control></control>'%(id,action,extra,id))
 def bell(x,y,extra=''):
  """Real model percentage; needs-you is the only red badge. No looping arc."""
  active='!String.IsEmpty(Window(Home).Property(Notices.Active))'
@@ -453,15 +468,15 @@ def bell(x,y,extra=''):
  count='!String.IsEmpty(Window(Home).Property(Notices.Count))'
  for key,tint,cond in (('Count','FF0A84FF',active+' + '+count+' + String.IsEmpty(Window(Home).Property(Notices.Needs))'),('Needs','FFFF453A',needs)):
   badge+='<control type="group"><left>70</left><top>-6</top><visible>'+cond+'</visible>'+image(0,0,50,50,MEDIA+'dot.png',tint)+label(0,0,50,50,'$INFO[Window(Home).Property(Notices.%s)]'%key,'p_cap',WHITE,'center','<scroll>false</scroll>')+'</control>'
- # The invisible hit target is 118, while the visible bell remains 24 pt.
- return '<control type="group"><left>%d</left><top>%d</top>'%(x,y)+rings+icon(23,23,62,'bell.png')+'<control type="button" id="9207"><left>-5</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><onclick>'+NOTICES+'</onclick>'+extra+'</control>'+badge+'</control>'
+ # The invisible hit target is 118; the bell glyph is the same size as the gear and refresh (HDR_BOX), inside its progress ring.
+ return '<control type="group"><left>%d</left><top>%d</top>'%(x,y)+hdr_ring('<visible>String.IsEmpty(Window(Home).Property(Notices.Active))</visible>')+rings+bare_glyph((HDR-HDR_BOX)//2,(HDR-HDR_BOX)//2,'bell.png')+'<control type="button" id="9207"><left>-5</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><onclick>'+NOTICES+'</onclick>'+extra+'</control>'+badge+'</control>'
 
 
 def gear(x,y,extra=''):
  """Gear in place of the profile picture: opens Settings (Accounts is its first row). A dot while add-on updates wait."""
  updates='!String.IsEmpty(System.AddonUpdateCount) + !String.IsEqual(System.AddonUpdateCount,0)'
  return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+
-  header_button(9206,0,0,MEDIA+'hdr_gear.png',SETTINGS,extra)+
+  header_button(9206,0,0,'gear.png',SETTINGS,extra)+
   '<control type="group"><left>78</left><top>-4</top><visible>%s</visible>'%updates+
   image(0,0,36,36,MEDIA+'dot.png','FF000000')+image(4,4,28,28,MEDIA+'dot.png','FFFF453A')+'</control></control>')
 
@@ -469,15 +484,16 @@ REFRESHING='Window(Home).Property(Portrait.Refreshing)'
 def refresh_rows_action(tab):return 'RunScript(service.kodi.ios.bootstrap,refresh_rows,tab=%s)'%tab
 def refresh_button(x,y,tab,extra=''):
  """Refresh on Home, Movies and TV: every TMDb Helper row and the hero show the next page of their list
- (refresh_rows.py). The arrow spins while the rows load, then a tick for a moment."""
+ (refresh_rows.py). A bare arrow (no circle, owner 2026-11-19) that spins while the rows load, then a tick for a moment."""
  busy='String.IsEqual(%s,%s)'%(REFRESHING,tab);done='String.IsEqual(%s,done.%s)'%(REFRESHING,tab)
- off=(HDR-HDR_GLYPH)//2
- return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+
-  pill_button(9208,0,0,HDR,HDR,'',[('!'+busy,refresh_rows_action(tab))],'glass','',extra)+
-  '<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><visible>!%s</visible>'%(off,off,HDR_GLYPH,HDR_GLYPH,done)+
+ off=(HDR-HDR_BOX)//2
+ return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+hdr_ring()+
+  '<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><visible>!%s</visible>'%(off,off,HDR_BOX,HDR_BOX,done)+
   '<animation effect="rotate" end="-360" center="auto" time="900" loop="true" reversible="false" condition="%s">Conditional</animation>'%busy+
-  icon(0,0,HDR_GLYPH,MEDIA+'hdr_refresh.png')+'</control>'+
-  icon(off,off,HDR_GLYPH,'circle-check.png',GREEN,'<visible>%s</visible>'%done)+'</control>')
+  bare_glyph(0,0,'arrow-rotate-right.png')+'</control>'+
+  icon(off,off,HDR_BOX,'circle-check.png',GREEN,'<visible>%s</visible>'%done)+
+  '<control type="button" id="9208"><left>-5</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus />'
+  '<onclick condition="!%s">%s</onclick>%s<animation effect="fade" start="100" end="65" time="0" condition="Control.HasFocus(9208)">Conditional</animation></control></control>'%(busy,refresh_rows_action(tab),extra))
 
 def refreshed_toast(tab,title):
  """'New picks on Home': under the header for a moment after a refresh."""
@@ -1698,8 +1714,11 @@ def portrait_files(skin,profile):
  files.update(sports_live_page.files(ns))   # Library › Sports › Live Now (DEC-055; sports_live_page.py, filled by sports_live.py)
  files.update(sports_upcoming_page.files(ns))
  files.update(sports_game_page.files(ns))
+ files.update(sports_game_facts_page.files(ns))   # the game's facts page (owner mockup page 8)
  files.update(sports_opening_page.files(ns))
  files.update(sports_leagues_page.files(ns))
+ files.update(sports_remind_page.files(ns))   # Sports › Remind me, the reminder sheet (owner mockup page 7)
+ files.update(sports_edit_page.files(ns))   # Sports › Edit, the league sheet (owner mockups B1-B2)
  files.update(copy_problems_page.files(ns))   # Settings › Library › Download problems (approved mockup)
  files.update(favourites_report_page.files(ns))   # Favourites › Import a List › Last import (board I3)
  files.update(favourites_manager_page.files(ns))  # Settings › Favourites: the manager and its poster picker (boards K1-K8)
@@ -1817,7 +1836,7 @@ def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(library_files_page.__file__),Path(sports_page.__file__),Path(sports_live_page.__file__),Path(copy_problems_page.__file__),Path(favourites_report_page.__file__),Path(favourites_manager_page.__file__),Path(library_show_page.__file__),Path(library_item_page.__file__),Path(upscale_show_page.__file__),Path(upscale_main_page.__file__),Path(queue_page.__file__),Path(library_select_page.__file__),Path(library_freeup_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(skin_textures.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py'),Path(sports_upcoming_page.__file__),Path(sports_game_page.__file__),Path(sports_leagues_page.__file__)):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(library_files_page.__file__),Path(sports_page.__file__),Path(sports_live_page.__file__),Path(copy_problems_page.__file__),Path(favourites_report_page.__file__),Path(favourites_manager_page.__file__),Path(library_show_page.__file__),Path(library_item_page.__file__),Path(upscale_show_page.__file__),Path(upscale_main_page.__file__),Path(queue_page.__file__),Path(library_select_page.__file__),Path(library_freeup_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(skin_textures.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py'),Path(sports_upcoming_page.__file__),Path(sports_game_page.__file__),Path(sports_game_facts_page.__file__),Path(sports_leagues_page.__file__),Path(sports_edit_page.__file__),Path(sports_remind_page.__file__)):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())
