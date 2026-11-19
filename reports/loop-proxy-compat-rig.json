@@ -1,0 +1,69 @@
+{
+  "samples": [
+    {
+      "speed": 1,
+      "time": {
+        "hours": 0,
+        "milliseconds": 0,
+        "minutes": 0,
+        "seconds": 0
+      }
+    },
+    {
+      "speed": 1,
+      "time": {
+        "hours": 0,
+        "milliseconds": 0,
+        "minutes": 0,
+        "seconds": 0
+      }
+    },
+    {
+      "speed": 1,
+      "time": {
+        "hours": 1,
+        "milliseconds": 403,
+        "minutes": 41,
+        "seconds": 38
+      }
+    },
+    {
+      "speed": 1,
+      "time": {
+        "hours": 1,
+        "milliseconds": 43,
+        "minutes": 41,
+        "seconds": 43
+      }
+    },
+    {
+      "speed": 1,
+      "time": {
+        "hours": 1,
+        "milliseconds": 437,
+        "minutes": 41,
+        "seconds": 48
+      }
+    },
+    {
+      "speed": 1,
+      "time": {
+        "hours": 1,
+        "milliseconds": 839,
+        "minutes": 41,
+        "seconds": 53
+      }
+    }
+  ],
+  "evidence": "desktop Kodi 21.3 + ffmpegdirect 21.3.8 / FFmpeg 9, fresh Loop 8.4 + JetExtractors 3.3.33, production app route applies guarded proxy patch",
+  "iphone_verified": false,
+  "source_sha256": {
+    "sports_jet.py": "250e79d89e9ae034989027bee6fef4bb043e917c5221142fa81a211233496b65",
+    "sports_loop_routes.py": "ac9ae9608013616650fd5787227aa60e03ab2c793ac71311e2a01fe9b0a7bd68",
+    "sports_loop_proxy_compat.py": "bc9857464bae1d25c1e6408c5acb87dd53e8eaefc0bd067d14257eab66506a09"
+  },
+  "workflow_tests": {
+    "total": 177,
+    "failures": []
+  }
+}

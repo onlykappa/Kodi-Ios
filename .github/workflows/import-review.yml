@@ -109,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -156,6 +156,30 @@ jobs:
           python3 -B scripts/test_upscale_measure.py
           python3 -B scripts/test_upscale_queue.py
           python3 -B scripts/test_library_files.py
+          python3 -B scripts/test_sports_model.py
+          python3 -B scripts/test_sports_landing.py
+          python3 -B scripts/test_sports_live.py
+          python3 -B scripts/test_sports_merge.py
+          python3 -B scripts/test_sports_loop.py
+          python3 -B scripts/test_workflow_limits.py
+          python3 -B scripts/test_sports_upcoming.py
+          python3 -B scripts/test_sports_upcoming_states.py
+          python3 -B scripts/test_sports_leagues.py
+          python3 -B scripts/test_sports_game.py
+          python3 -B scripts/test_sports_league.py
+          python3 -B scripts/test_sports_espn.py
+          python3 -B scripts/test_sports_scores.py
+          python3 -B scripts/test_sports_jet.py
+          python3 -B scripts/test_sports_independent.py
+          python3 -B scripts/test_sports_pause.py
+          python3 -B scripts/test_sports_fawa.py
+          python3 -B scripts/test_sports_hls_proxy.py
+          python3 -B scripts/test_sports_crew_routes.py
+          python3 -B scripts/test_sports_loop_routes.py
+          python3 -B scripts/test_sports_loop_router.py
+          python3 -B scripts/test_sports_loop_proxy_compat.py
+          python3 -B scripts/test_sports_playback_repair.py
+          python3 -B scripts/test_sports_dialogs.py
           python3 -B scripts/test_work_state.py
           python3 -B scripts/test_repack_lanes.py
           python3 -B scripts/test_debrid_ready.py
@@ -178,6 +202,7 @@ jobs:
           python3 -B scripts/test_provider_adapters_primary.py
           python3 -B scripts/test_provider_adapters_secondary.py
           python3 -B scripts/test_provider_fallback_hooks.py
+          python3 -B scripts/test_bundle_syntax.py
           python3 -B scripts/test_build442_logs.py
           python3 -B scripts/test_library_remove.py
           python3 -B scripts/test_upscale_from_index.py
@@ -205,6 +230,15 @@ jobs:
           python3 -B scripts/test_queue_index.py
           python3 -B scripts/test_upload_speed.py
           python3 -B scripts/test_subtitle_match.py
+          python3 -B scripts/test_next_episode.py
+          python3 -B scripts/test_airplay_subtitle_sync.py
+          python3 -B scripts/test_tv_banner.py
+          python3 -B scripts/test_prepared_keyframes.py
+          python3 -B scripts/test_speech_check.py
+          python3 -B scripts/test_airplay_exports.py
+          python3 -B scripts/test_track_menu.py
+          python3 -B scripts/test_subtitle_hold.py
+          python3 -B scripts/test_drive_proxy_alive.py
           python3 -B scripts/test_notice_season_data.py
           python3 -B scripts/test_build442_sheets.py
           python3 -B scripts/test_terminal_copy_errors.py
@@ -233,6 +267,8 @@ jobs:
           python3 -B scripts/test_pages.py
           python3 -B scripts/test_airplay_remux.py
           python3 -B scripts/test_airplay_long_fragments.py
+          python3 -B scripts/test_airplay_source_stall.py
+          python3 -B scripts/test_umbrella_early_exit.py
           python3 -B scripts/test_airplay_flow.py
           python3 -B scripts/test_airplay_room.py
           python3 -B scripts/test_play_on_tv_start.py
@@ -322,7 +358,4 @@ jobs:
           # ISSUE-332: if the tag cannot be made on this commit (HTTP 403), it is made on the default branch; the pin is the asset's sha256.
           gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$SHA" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update." ||
           gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$DEFAULT" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update."
-          # Keep the three newest test builds by publish time (a release's createdAt is its commit date, so a
-          # re-run or an older branch would lose to newer commits elsewhere).
-          gh release list --repo "$REPO" --limit 100 --json tagName,publishedAt --jq '[.[] | select(.tagName | startswith("build-"))] | sort_by(.publishedAt) | reverse | .[3:] | .[].tagName' |
-            while read -r tag; do gh release delete "$tag" --repo "$REPO" --cleanup-tag --yes; done
+          # Preserve existing test releases; publishing a build must not delete earlier test artifacts.

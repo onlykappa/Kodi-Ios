@@ -66,6 +66,23 @@ class Slots(unittest.TestCase):
         self.assertIn("'favourites_manager'", (BOOT / 'default.py').read_text())
 
 
+class Picker(unittest.TestCase):
+    """ISSUE-338 (owner log a42d17d7): Kodi drops buttons inside list cells ("Trying to add unsupported control type 7"),
+    and the search closed the picker for the keyboard and rebuilt it."""
+    def test_no_button_inside_a_grid_cell(self):
+        root = ET.fromstring(page.pick(portrait).split('\n', 1)[1])
+        for layout in root.iter():
+            if layout.tag in ('itemlayout', 'focusedlayout'):
+                self.assertEqual([c.get('type') for c in layout.iter('control') if c.get('type') in ('button', 'edit', 'radiobutton', 'togglebutton')], [])
+        best = [c for c in root.iter('control') if c.get('type') == 'label' and 'Property(best)' in (c.findtext('label') or '')]
+        self.assertTrue(best and all(int(c.findtext('width')) >= page.BADGE_W for c in best))
+    def test_search_stays_on_the_page(self):
+        src = (BOOT / 'favourites_manager.py').read_text()
+        self.assertIn("elif control == page.SEARCH and self.refresh:", src)
+        self.assertIn("self.spec, self.extra = self.refresh(query)", src)
+        self.assertIn("answer, choices = show_pick(spec, refresh=build, extra=choices)", src)
+
+
 class ContinueRow(unittest.TestCase):
     def test_an_entry_without_a_show_title_does_not_stop_the_row(self):
         src = (ROOT / 'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_continue.py').read_text()

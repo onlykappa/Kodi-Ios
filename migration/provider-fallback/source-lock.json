@@ -307,6 +307,16 @@
       "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
       "install": "app",
       "remove_services": true
+    },
+    {
+      "id": "repository.loop",
+      "repo": "loopaddon.uk/theloop",
+      "url": "https://loopaddon.uk/theloop/repository.loop-3.0.4.zip",
+      "sha256": "9d0addce2bf96831b3d77b85c38f6efda40eddc648b1277b89bf3bdbf20d0431",
+      "version": "3.0.4",
+      "license": "see package",
+      "install": "app",
+      "remove_services": false
     }
   ],
   "provider_packages": [
@@ -357,5 +367,8 @@
       },
       "licence_note": "Upstream repository has no separate licence declaration; this is the public identifier database fetched by upstream Otaku service.py, not user profile data."
     }
+  ],
+  "sports_roots": [
+    "repository.loop"
   ]
 }

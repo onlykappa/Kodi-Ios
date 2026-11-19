@@ -709,6 +709,9 @@ def build_identity():
          'built_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'frameworks':frameworks}
 
 LOCAL_NETWORK_PURPOSE='Kodi streams the video from this iPhone to your TV over Wi-Fi.'
+# ISSUE-347: the subtitle check listens to a little of the video's sound, on this iPhone only (iOS stops an app that
+# asks for speech recognition without this text).
+SPEECH_PURPOSE='Kodi listens to a little of the video on this iPhone to check that subtitles match what is said.'
 
 def allow_local_network(app):
  # Direct unicast TV discovery triggers the permission request; no Bonjour types are browsed or advertised.
@@ -716,6 +719,7 @@ def allow_local_network(app):
  path=Path(app)/'Info.plist'
  info=plistlib.loads(path.read_bytes()) if path.exists() else {}
  info['NSLocalNetworkUsageDescription']=LOCAL_NETWORK_PURPOSE
+ info['NSSpeechRecognitionUsageDescription']=SPEECH_PURPOSE
  modes=list(info.get('UIBackgroundModes') or [])
  if 'audio' not in modes:modes.append('audio')
  info['UIBackgroundModes']=modes

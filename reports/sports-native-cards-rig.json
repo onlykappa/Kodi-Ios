@@ -1,0 +1,24 @@
+{
+  "evidence_class": "desktop Kodi rig",
+  "fixture_records_injected": false,
+  "live_games": 0,
+  "upcoming_games": 62,
+  "projected_game_cards": 62,
+  "projected_source_choices": 322,
+  "validated_native_loop_routes": 322,
+  "listed_providers": 8,
+  "snapshot_complete": true,
+  "heartbeat_age_seconds": -0.0,
+  "upcoming_projected_rows": 62,
+  "automatic_native_failure_fallback_verified": false,
+  "phone_verified": false,
+  "all_sources_opened": false,
+  "actual_ui_games_opened": 2,
+  "actual_ui_provider_dispatches": [
+    "EmbedHD API",
+    "Embedsport2",
+    "LiveFeeds"
+  ],
+  "native_livefeeds_chooser_opened": true,
+  "selected_livefeeds_video_response": 404
+}

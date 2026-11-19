@@ -459,3 +459,145 @@ names in capitals are skipped, a bare "(3)" is a watch count shown as 3×, "//" 
 (TMDb Helper's API key), keeps list order as rank, and ends with a report of duplicates, questions and names not found;
 sort by list order, year, name, list or date added; a movie stopped part-way offers Continue Watching. Alerts do not depend on
 the Library automatic-download setting. No IPA, release or merge; device behaviour is pending the owner's phone.
+
+## DEC-054 — Sports: Library › Sports opens a landing page of three tiles (2026-11-15)
+
+The owner, after looking at the round-1 mockups on the iPhone (`docs/design/sports-landing-mockups.html`, PR #33): "these are
+money". Approved: **option A**, the tiles, and its can't-load state. Recorded in `docs/design/sports-approved-pages.html`,
+which grows one approved page at a time and is what the code is built from.
+
+- Library gets a **Sports** row between TV Shows and Favourites (the existing Library list, `portrait.LIBRARY`).
+- The Sports landing page has a back button, a refresh button (top right), the title, "Updated …" and three tiles: **Live
+  Now** (the big one, with the number of live games), **Upcoming** and **Leagues** (side by side), then one slim
+  **Finished today** row. The tiles follow the Search category tiles.
+- Nothing live: Live Now goes grey and says when the next game starts; it still opens. Updating: the same shape, small lines
+  say so. Can't load: plain words and one "Try again" button; details go to the log.
+- Owner (2026-11-15): every sports add-on will feed Sports eventually (The Loop, Loop Guide, Loop TV, the Loop Sports Hub and
+  the others); the foundation (add-on access and the data behind the page) is coded by ChatGPT, not in the UI rounds. What
+  the approved screens need from it is in [sports-landing-data.md](design/sports-landing-data.md).
+- Not decided yet: the pages inside each tag (Live Now, Upcoming, Leagues, a league, a game) and the tag order (as drawn:
+  Live Now, Upcoming, Leagues). Each page is mocked up and approved before it is coded.
+
+## DEC-055 — Sports › Live Now: option B, all four add-ons, duplicates merged, closest to the end first, a tap plays (2026-11-15)
+
+The owner, on the round-2 mockups (PR #35): "I like B. Yes order games from ending first at top, and yes have it open right away."
+And on the add-ons: "we will use all 4, more sources the better, and if there is a duplicate make it show the best one or have
+it show me different options if there are more than one it recommends". Approved boards are in
+`docs/design/sports-approved-pages.html`.
+
+- **Layout (option B):** one card per live game: league label, the two teams with their scores, the clock, then the game's
+  sources under it, best first, each with a play button. League chips (All, NFL, NBA, UCL, NHL) filter the list.
+- **Order:** the game **closest to its end** is first (the share of the game left, worked out per sport; a game whose end
+  cannot be told goes last).
+- **A tap on a source plays it at once** (no "How would you like to watch" sheet; Play on TV stays in the player as today).
+- **Add-ons:** The Loop, Loop Guide, Loop TV and the Loop Sports Hub all feed the page (the foundation, coded by ChatGPT, may
+  add others, DEC-054). Combining:
+  1. A game that several add-ons list is **one game**, matched by league, teams and start time.
+  2. The **same stream** (same picture size and language) from several add-ons is shown **once**, on the line of the one
+     chosen as best, with the others named under it ("Also on Loop TV").
+  3. **Different choices** (another size or language) stay as separate lines, the best one first.
+  4. The clearest picture is tagged **Best**; a second source worth recommending is tagged **Also good**; the rest carry no tag.
+  5. The page shows whatever the add-ons that answered found; one slow or failing add-on never blanks it.
+- Options A (one row per game, sources on its own page) and C (one row per source) were not chosen.
+- The **nothing-live** page ("No games live right now", the next game's time, a "See Upcoming" button) was approved too (owner: "looks great").
+
+Rule detail for the foundation: [design/sports-live-data.md](design/sports-live-data.md).
+
+## DEC-056 — Sports › Upcoming: option A, a tap opens the game's page; a league is a filter (2026-11-15)
+
+The owner, on the round-3 mockups (PR #36): "I pick A and yeah have it open its page". Approved boards are in
+`docs/design/sports-approved-pages.html`.
+
+- **Upcoming (option A):** a compact list by day (Today, Tomorrow, then the date), soonest first. Each row: the start time (and "in 45
+  min" when it is within the hour), who plays whom, the league label and how many sources are ready ("2 sources", "No sources yet").
+  The same league chips as Live Now filter it. A game that has started moves to Live Now by itself. Times are in the phone's time zone.
+- **A tap on a game opens its page:** the teams, the start time where a score would be, "Starts in 45 min", and the sources found so far,
+  best first, which play at once (the same source lines as Live Now); or "No sources yet. Check back closer to the start."
+- **Leagues (owner, same day):** "leagues is just a good way to look at only those games". A league page is the approved Live Now cards and
+  the approved Upcoming list filtered to one league; no new game layouts are drawn for it. Only the list of leagues is new (PR for round 4).
+
+Rule detail for the foundation: [design/sports-upcoming-data.md](design/sports-upcoming-data.md).
+
+## DEC-057 — Sports: every page approved; Claude codes it, The Loop first, one page at a time (2026-11-15)
+
+The owner, on the round-4 mockups (PR #37): "I like A! and yeah live first, and I approve the nothing playing screen, so that's all
+pages". And on who builds it: "ChatGPT won't be doing the foundation, it's actually super easy if we start with only The Loop; Chat is
+implementing more backup providers as we speak, and we will implement them later once this is set up with The Loop and the other
+providers that are already pre-installed and working. Would you like to start coding the pages and testing implementation? Maybe start
+with one page at a time."
+
+- **Leagues (option A):** a section per sport; each league has its label, name and how many games are live and when the next one is.
+  Sports with something live first, then the rest in a fixed order; inside a sport the leagues with something live first. A tap opens a
+  league page: the approved Live Now cards and the approved Upcoming list, filtered to that league. A league with no games says so (WNBA board).
+- **All pages are approved** and in `docs/design/sports-approved-pages.html`: Library row, Sports landing, Live Now, Upcoming, a game's
+  page, Leagues, a league page, and the nothing / can't-load states.
+- **Who builds it (supersedes the ChatGPT notes in DEC-054, DEC-055 and DEC-056):** the owner's follow-up: "give me a prompt to have ChatGPT code its
+  own set of pages, and you review and fix it once done". The foundation is The Loop first, then the other pre-installed, working providers; the
+  backup providers the owner's ChatGPT is writing come afterwards. The combining rules of DEC-055 stay, so a provider is added without changing a page.
+  - **Claude:** the data contract (`sports_model.py`, `sports_provider.py`, tested), The Loop provider, the Library › Sports row, the Sports landing,
+    Live Now, a league's page, wiring a tap on a source to playback, and the review of ChatGPT's pages.
+  - **ChatGPT:** Upcoming, a game's page and Leagues, built against the contract and its sample data, following
+    [design/sports-chatgpt-brief.md](design/sports-chatgpt-brief.md); one page per commit on its own branch, then a draft PR that Claude reviews and fixes.
+  - Each page is checked in the desktop Kodi rig against its approved board, then on the owner's iPhone.
+
+## DEC-058: The Loop family and The Crew are the sports providers; both are bundled in the app (2026-11-15)
+
+- **Finding:** build 538's discovery log showed the Loop add-ons were not installed in the iPhone app (`Unable to find plugin`), so the
+  Sports page had no data. They had been `excluded_or_deferred` in the add-on plan.
+- **Owner decisions:** bundle The Loop family (The Loop, Loop Guide, Loop TV, with their dependencies); the main sports providers are
+  **The Crew** (it has a sports section, "Bluehat") and **The Loop**; the other backup providers (PR #32, merged) are movie/TV only and
+  appear as extra sources where they carry a game. The owner allowed fetching the Loop repository as Kodi does, because its host answers only
+  Kodi's own client.
+- **How:** pinned in `migration/provider-fallback/source-lock.json` (new `sports_roots`) and staged by `provider_addons.py` like the PR #32
+  providers: SHA-256 per package, no native code, background services removed, no account state. `script.module.pycryptodome` (native) and
+  `plugin.video.dailymotion_com` (not offered by the repository) are dropped from the Loop manifests; Loop TV streams that need AES may not play.
+  The Loop's own code is obfuscated by its author and is shipped unchanged.
+- **Not yet done:** the Loop's data is read by the discovery walk (`sports_loop.py`, now also The Crew's sports menu) from the owner's next phone log;
+  the real adapter and the phone check come after that.
+
+## DEC-059: Subtitles menu is a full-height right drawer; hold a track to find another or remove it (2026-11-16)
+
+- **Owner:** liked option C of `docs/design/subtitles-menu-mockups.html`, then asked for: "if I hold down a subtitle like English or Spanish I can
+  remove/delete it or find new ones if the one found is bad". Mockup: `docs/design/subtitles-manage-mockups.html` (owner: "BEAUTIFUL").
+- **Design:** the drawer shows Download and apply, "On this video" with up to five tracks (the list scrolls), and one row "Timing and more" (Timing,
+  Find another, Add from a file, Remove, Use for all videos, keys). Holding a track opens Find another <language> and, for a subtitle this menu downloaded or
+  added from a file, Remove from this video (asks first). A track inside the video file cannot be removed. The same actions are on the More page.
+- **Remove** hides the track in the menu, turns it off if it was on, and deletes the file the menu downloaded; the player keeps its own copy of the track
+  list until the video ends. Audio and Playback speed keep their dropdown.
+
+## DEC-060: Sports games come from ESPN's public scoreboard feed; add-ons are only for streams (2026-11-16)
+
+- **Why:** the discovery logs (builds 544-548) showed that none of the Loop add-ons gives games on the phone: The Loop fails or blocks for 22 minutes, Loop TV's server answers 404,
+  Loop Guide lists five buttons, and walking The Crew ended the app. The owner agreed to the recommended route: "make sports work".
+- **What:** `sports_espn.EspnProvider` (sports_provider's real provider) reads `site.api.espn.com/apis/site/v2/sports/<sport>/<league>/scoreboard` for 14 leagues (NFL, college
+  football, NBA, WNBA, college basketball, NHL, MLB, Premier League, La Liga, Bundesliga, Serie A, Ligue 1, Champions League, MLS): the plain scoreboard and tomorrow's date (a date range
+  answers HTTP 400), gzip, merged by event id; one league failing never fails the rest. Live games show score, clock and how much is left; upcoming games the start time.
+- **Not official:** the feed is the one ESPN's own site uses; it has no key and no promise. If it changes, the pages say "Can't load" and the log says why (`Kodi iOS Sports: no league answered (...)`).
+- **Streams:** every game says "No sources yet" until an add-on can supply a stream for it (the merge rules of DEC-055 stay). The Crew and The Loop are not called (`sports_loop.WALK = False`).
+
+
+## DEC-061: Sports games and streams come from JetExtractors; ESPN stays dormant (2026-11-16)
+
+The owner chose The Loop family's source add-on over ESPN. `sports_jet.py` is the provider; JetExtractors is called only through its own public classes and `get_extractors()`, so any check it makes on callers is
+respected, not bypassed. Supersedes DEC-060 for the phone; ESPN is kept behind `KODI_IOS_SPORTS=espn`.
+
+
+### DEC-061 implementation follow-up — normal Loop routes (2026-11-17)
+
+Following the owner's request to use the working Deck path across providers, the app reads The Loop's normal Kodi plugin listings and plays their exact plugin routes. Loop runs as its own add-on; bootstrap does not import protected JetExtractors on this path, impersonate another caller, or alter authorization. Public schedule data validates unique paired-team matches and current live/upcoming state; it supplies no stream. This currently limits matched coverage to the supported 14 schedule leagues; unmatched/ambiguous events and standalone channels are omitted, rather than guessed live. Independent source fallback remains separate. Unknown-quality native routes stay separate choices because their asynchronous failure cannot safely be treated as synchronous success/fallback.
+
+
+### Owner-authorized direct-addon diagnostic IPA — 2026-11-17
+
+Owner: “send me a ipa with the fresh stuff and any fixes uve done and ill open the loop as a addon without the ui then send log.” This authorizes one fresh test IPA/prerelease from claude/sports-jet, with the current fixes and startup preparation of the recognized shared proxy files. It does not authorize merging PR #43. Keep authorization checks and configuration intact; do not claim the unresolved automatic-picker dialog issue is fixed. Legacy discovery is disabled in favor of on-demand catalog loading.
+
+
+## DEC-062: American ESPN schedule with The Crew playback (2026-11-17)
+
+Owner reports The Crew works on the phone and explicitly replaces Loop as the Sports source provider; Loop is deferred. ESPN is the catalog authority, rather than constructing the event list from scraper answers. Default scope is NFL, NBA, WNBA, MLB, NHL, college football, men's college basketball and MLS, including Canadian teams in those leagues. Future filter customization, Formula 1 and boxing are deferred by the owner. No overseas leagues, unscheduled channels or ambiguous team guesses enter the default catalog.
+
+Retain ESPN event ids, start times, state, scores and clock even when a source is missing. Add only uniquely matched Crew native routes, preserving their entire query and Crew's own resolver/player/inputstream handling. Do not import protected JetExtractors, impersonate callers or alter authorization. Existing Loop/independent modules remain for compatibility but the real Sports collector is Crew-only. No new IPA, release or merge is authorized by this integration/testing request.
+
+## DEC-063: ESPN live and upcoming, Crew discovery only for live games (2026-11-17)
+
+Owner confirms ESPN supplies both live and upcoming games; search Crew for sources only after ESPN marks a game live. Keep the American league scope and unique matching of DEC-062, preserve upcoming games even without sources, and do not claim a live broadcast has played from menu-only logs. Reuse a fresh schedule across navigation; explicit refresh forces a check. Crew's native menus do not expose a direct game lookup, so scan relevant live leagues and the shared live-sites route. No IPA or merge authorized.

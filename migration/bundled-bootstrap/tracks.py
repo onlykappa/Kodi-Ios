@@ -21,6 +21,11 @@ import subtitle_match as sm
 
 BACK = (9, 10, 92, 110)
 CLOSE, MORE, CTA, LIST, T_MINUS, T_PLUS, B_MINUS, B_PLUS = 9500, 9501, 9510, 9310, 9401, 9402, 9403, 9404
+# The Subtitles drawer (owner, 2026-11-16): its own list and timing buttons; holding a track opens a menu (Find another / Remove).
+SUBS_LIST, T_MINUS_S, T_PLUS_S = 9312, 9405, 9406
+HOLD_FIND, HOLD_REMOVE, HOLD_SCRIM, SURE_SCRIM, SURE_CANCEL, SURE_REMOVE = 9601, 9602, 9690, 9691, 9611, 9612
+LONG = (101, 117, 10)   # a long press on the phone arrives as 101 / 117, and as 10 (Back) first; see favourites_page.onAction
+SUBS_ROWS = 5
 SPEED_LIST = 9311   # board 02: Playback speed's own six-row list
 BACK_LINK = 9502    # board 02: the sub-page's back link in the header (owner log 89a98e5b: named BACK, it
                     # replaced the back actions above and every key press in the menu raised a TypeError)
@@ -122,6 +127,7 @@ def run(mode):
     log = lambda m: xbmc.log('Kodi iOS tracks: ' + redact(m), xbmc.LOGINFO)
     lang, lang_name = subtitle_language(xbmc)
     folder = xbmcvfs.translatePath('special://temp/kodiios-subtitles/')
+    LIST_ID = SUBS_LIST if mode == 'subtitles' else LIST   # the drawer has a taller list of its own
 
     class Menu(xbmcgui.WindowXMLDialog):
         closed = False
@@ -143,6 +149,8 @@ def run(mode):
             xbmcgui.Window(10000).setProperty('KodiIOS.TrackMenu', 'open')
             self.rows, self.results, self.added = [], [], set()
             self.track_evidence, self.auto_chosen = {}, False
+            self.hidden, self.paths, self.held = set(), {}, None   # removed tracks, files this menu downloaded, the row held
+            self.lang, self.lang_name, self.from_hold = lang, lang_name, False
             self.page = 'tracks'
             self.setProperty('mode', mode)
             self.setProperty('title', {'subtitles': 'Subtitles', 'speed': 'Playback speed'}.get(mode, 'Audio'))
@@ -150,7 +158,7 @@ def run(mode):
             self.fill()
             self.timing()
             # Roadmap 2.14: the list is empty until fill(), so the window opens on Close and moves here once filled.
-            self.setFocusId(SPEED_LIST if mode == 'speed' else LIST)
+            self.setFocusId(SPEED_LIST if mode == 'speed' else LIST_ID)
 
         def missing(self, name):
             # Nothing found or no answer while no subtitle key is saved: say how to add one (Podnapisi is gone).
@@ -158,9 +166,9 @@ def run(mode):
 
         def state(self, name):
             self.setProperty('cta_state', 'busy' if name in ('search', 'download') else 'error' if name == 'nokey' else name)
-            self.setProperty('cta', tm.cta(name, lang_name))
-            self.setProperty('hint', tm.note(name, lang_name) or
-                             {'idle': 'Finds %s subtitles for this video' % lang_name, 'search': 'Matching this exact version of the video',
+            self.setProperty('cta', tm.cta(name, self.lang_name))
+            self.setProperty('hint', tm.note(name, self.lang_name) or
+                             {'idle': 'Finds %s subtitles for this video' % self.lang_name, 'search': 'Matching this exact version of the video',
                               'download': 'Matching this exact version of the video', 'done': 'Wrong one? More › Choose another'}.get(name, ''))
 
         def fill(self, focus_on=True):
@@ -171,7 +179,9 @@ def run(mode):
             if mode == 'speed':
                 self.rows = tm.speed_rows(xbmc.getInfoLabel('Player.PlaySpeed'))
             elif mode == 'subtitles' and page == 'more':
-                self.rows = tm.more_rows(len(self.results), self.always_on(), keys_tag(xbmcvfs))
+                shown = [r for r in tm.subtitle_rows(*self.subtitle_streams()) if r['on'] and r['index'] is not None]
+                self.rows = tm.more_rows(len(self.results), self.always_on(), keys_tag(xbmcvfs),
+                                         shown[0]['label'] if shown else '', bool(shown and shown[0].get('removable')))
             elif mode == 'subtitles' and page == 'choose':
                 self.rows = tm.result_rows(self.results)
             elif mode == 'subtitles' and page == 'keys':
@@ -200,14 +210,15 @@ def run(mode):
                 li.setProperty('tag', r['tag'])
                 li.setProperty('on', 'true' if r['on'] else '')
                 li.setProperty('new', 'true' if r['tag'] == 'NEW' else '')
+                li.setProperty('danger', 'true' if r.get('danger') else '')   # Remove is red
                 li.setProperty('sep', 'true' if n < len(self.rows) - 1 else '')
                 # Backend evidence for the approved menu; its layout is wired separately.
                 for key in ('match_reason', 'match_score', 'match_rejected', 'match_timing_checked', 'match_offset_s'):
                     value = r.get(key)
                     li.setProperty(key, str(value).lower() if isinstance(value, bool) else '' if value is None else str(value))
                 items.append(li)
-            self.setProperty('rows', str(max(1, min(6 if mode == 'speed' else 3, len(self.rows)))))   # the cards and the menu fit the rows shown
-            lst = self.getControl(SPEED_LIST if mode == 'speed' else LIST)
+            self.setProperty('rows', str(max(1, min(6 if mode == 'speed' else SUBS_ROWS if mode == 'subtitles' else 3, len(self.rows)))))   # the cards and the menu fit the rows shown
+            lst = self.getControl(SPEED_LIST if mode == 'speed' else LIST_ID)
             lst.reset()
             lst.addItems(items)
             if focus_on:
@@ -274,13 +285,30 @@ def run(mode):
                 duration = xbmc.Player().getTotalTime()
             except Exception:
                 duration = 0
-            return {'filename': name, 'duration': duration, 'language': lang,
+            try:   # ISSUE-339: a dub with the original language's audio beside it
+                a = rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['audiostreams', 'currentaudiostream']}) or {}
+                dubbed = sm.dubbed(a.get('audiostreams'), a.get('currentaudiostream'), self.lang)
+            except Exception:
+                dubbed = False
+            return {'filename': name, 'duration': duration, 'language': self.lang, 'dubbed': dubbed,
                     'season': it.get('season') if it.get('season') is not None and it['season'] >= 0 else guess.get('season'),
                     'episode': it.get('episode') if it.get('episode') is not None and it['episode'] > 0 else guess.get('episode')}
 
+        def checked_video(self):
+            """video() plus the words heard in it (ISSUE-347), for checking a download against the speech."""
+            video = self.video()
+            try:
+                import speech_check
+                video['heard'] = speech_check.for_playing(xbmc, xbmcgui, xbmcvfs, video, log)
+            except Exception as error:
+                log('speech check: skipped (%s)' % type(error).__name__)
+            return video
+
         def with_evidence(self, streams):
-            return [dict(s, downloaded=s.get('index') in self.added, **self.track_evidence.get(s.get('index'), {}))
-                    for s in streams]
+            # A track this menu downloaded or added from a file can be removed; one inside the video file cannot.
+            return [dict(s, downloaded=s.get('index') in self.added, removable=s.get('index') in self.added or s.get('index') in self.track_evidence,
+                         **self.track_evidence.get(s.get('index'), {}))
+                    for s in streams if s.get('index') not in self.hidden]
 
         def search(self):
             it = self.item()
@@ -303,9 +331,10 @@ def run(mode):
             keys = ss.load_keys(keys_folder(xbmcvfs))
             self.episode = ep
             tmdb = (it.get('uniqueid') or {}).get('tmdb') if not ep[0] else None
-            log('search %s %r %s S%sE%s via %s' % (lang, title, year, ep[0], ep[1], ', '.join(ss.sources(keys))))
-            return sm.rank(ss.find(http_get, keys, lang, title, year, ep[0], ep[1], name, tmdb,
-                                   log=lambda m: log('subtitles ' + m)), self.video())
+            log('search %s %r %s S%sE%s via %s' % (self.lang, title, year, ep[0], ep[1], ', '.join(ss.sources(keys))))
+            video = self.video()
+            return sm.rank(ss.find(http_get, keys, self.lang, title, year, ep[0], ep[1], name, tmdb,
+                                   log=lambda m: log('subtitles ' + m), dubbed=video.get('dubbed')), video)
 
         def fetch_result(self, result):
             import subtitle_sources as ss
@@ -314,13 +343,13 @@ def run(mode):
 
         def apply(self, result, got=None):
             if got is None:
-                result, name, data = sm.choose_download([result], self.fetch_result, self.video())
+                result, name, data = sm.choose_download([result], self.fetch_result, self.checked_video())
                 got = (name, data)
             name, data = got
             os.makedirs(folder, exist_ok=True)
             # Owner log 20b1ca76: SubDL's id is its download path ('/subtitle/…zip?…'), which made an absolute, missing
             # path; the file is named by a hash of the id.
-            path = os.path.join(folder, '%s.%s.%s' % (zlib.crc32(str(result['id']).encode('utf-8')) & 0xffffffff, lang,
+            path = os.path.join(folder, '%s.%s.%s' % (zlib.crc32(str(result['id']).encode('utf-8')) & 0xffffffff, self.lang,
                                                       name.rsplit('.', 1)[-1].lower()))
             with open(path, 'wb') as f:
                 f.write(data)
@@ -331,8 +360,10 @@ def run(mode):
             added = {s.get('index') for s in after} - before
             self.added |= added
             for index in added:
-                self.track_evidence[index] = {'filename': name, 'cues': sm.cue_times(data, name), 'language': lang}
-            log('applied %s (%d bytes)' % (result['id'], len(data)))
+                self.paths[index] = path
+                self.track_evidence[index] = {'filename': name, 'cues': sm.cue_times(data, name), 'language': self.lang}
+            log('applied %s (%d bytes, speech %s%s)' % (result['id'], len(data), result.get('match_speech') or 'not checked',
+                                                        ', shifted %+.1f s' % result['match_speech_shift'] if result.get('match_speech_shift') else ''))
 
         def download_and_apply(self, result=None):
             try:
@@ -344,16 +375,18 @@ def run(mode):
                         log('nothing found')
                         return
                 self.state('download')
-                selected, name, data = sm.choose_download(self.results if result is None else [result], self.fetch_result, self.video())
+                selected, name, data = sm.choose_download(self.results if result is None else [result], self.fetch_result, self.checked_video())
                 self.apply(selected, (name, data))
                 self.state('done')
                 self.fill()
-                xbmcgui.Dialog().notification('%s subtitles on' % lang_name, '', xbmcgui.NOTIFICATION_INFO, 2000, False)
+                xbmcgui.Dialog().notification('%s subtitles on' % self.lang_name, '', xbmcgui.NOTIFICATION_INFO, 2000, False)
             except Exception as error:
                 log('download and apply failed: %s: %s' % (type(error).__name__, error))
                 self.state(self.missing('error'))
                 if isinstance(error, sm.Mismatch):
                     self.setProperty('hint', str(error))
+            finally:
+                self.reset_language()
 
         def always_on(self):
             try:
@@ -368,9 +401,9 @@ def run(mode):
             self.page = page
             # Board 02: a sub-page shows a blue back link in the header instead of the title (pages.track_menu).
             self.setProperty('page', '' if page == 'tracks' else page)
-            self.setProperty('back', {'more': '\u2039 Subtitles', 'choose': '\u2039 More', 'keys': '\u2039 More', 'files': '\u2039 More'}.get(page, ''))
+            self.setProperty('back', {'more': '\u2039 Subtitles', 'choose': '\u2039 Subtitles' if self.from_hold else '\u2039 More', 'keys': '\u2039 More', 'files': '\u2039 More'}.get(page, ''))
             self.fill()
-            self.setFocusId(LIST)
+            self.setFocusId(LIST_ID)
 
         def pick_more(self, r):
             what = r['index']
@@ -392,6 +425,10 @@ def run(mode):
                     return
                 self.state('idle')
                 self.more('choose')
+            elif what == 'remove':
+                shown = [x for x in tm.subtitle_rows(*self.subtitle_streams()) if x['on'] and x['index'] is not None]
+                if shown:
+                    self.ask_remove(shown[0])
             elif what == 'file':
                 self.files = tm.subtitle_files(file_roots(xbmc, xbmcvfs))
                 self.more('files')
@@ -446,9 +483,27 @@ def run(mode):
         def onClick(self, control):
             if control == CLOSE:
                 self.close()
-            elif control == BACK_LINK:   # the sub-page's back link: Choose another -> More -> the tracks
-                self.more('more' if self.page in ('choose', 'keys', 'files') else 'tracks')
-            elif control in (LIST, SPEED_LIST):
+            elif control == BACK_LINK:   # the sub-page's back link: Find another -> More -> the tracks (from a hold: straight to the tracks)
+                if self.page == 'choose' and self.from_hold:
+                    self.reset_language()
+                    self.state('idle')
+                    self.more('tracks')
+                else:
+                    self.more('more' if self.page in ('choose', 'keys', 'files') else 'tracks')
+            elif control in (HOLD_SCRIM, SURE_SCRIM):
+                if control == HOLD_SCRIM:
+                    self.end_hold()
+            elif control == HOLD_FIND and self.held:
+                row = self.held
+                self.end_hold()
+                threading.Thread(target=self.find_another, args=(row,), daemon=True).start()
+            elif control == HOLD_REMOVE and self.held and self.held.get('removable'):   # a track inside the video file is never removed
+                self.ask_remove(self.held)
+            elif control == SURE_CANCEL:
+                self.end_hold()
+            elif control == SURE_REMOVE:
+                self.do_remove()
+            elif control in (LIST_ID, SPEED_LIST):
                 n = self.getControl(control).getSelectedPosition()
                 if 0 <= n < len(self.rows):
                     self.pick(n)
@@ -457,9 +512,9 @@ def run(mode):
                     threading.Thread(target=self.download_and_apply, daemon=True).start()
             elif control == MORE:
                 self.more()
-            elif control in (T_MINUS, T_PLUS):
+            elif control in (T_MINUS, T_PLUS, T_MINUS_S, T_PLUS_S):
                 step = 'SubtitleDelay' if mode == 'subtitles' else 'AudioDelay'
-                xbmc.executebuiltin('Action(%s%s)' % (step, 'Minus' if control == T_MINUS else 'Plus'))
+                xbmc.executebuiltin('Action(%s%s)' % (step, 'Minus' if control in (T_MINUS, T_MINUS_S) else 'Plus'))
                 xbmc.sleep(150)
                 self.timing()
             elif control in (B_MINUS, B_PLUS):
@@ -477,8 +532,101 @@ def run(mode):
                 log('volume boost %s' % tm.boost_text(new))
 
         def onAction(self, action):
-            if action.getId() in BACK:
+            code = action.getId()
+            if mode == 'subtitles':
+                # Holding a track (iOS sends 10, then 101/117): its menu, never Back; the rest of the same press does nothing.
+                recent = time.time() - getattr(self, 'menu_done', 0) < 1.5
+                if self.getProperty('ctx'):
+                    if code in BACK and not recent:
+                        self.end_hold()
+                    return
+                if code in LONG and self.page == 'tracks' and self.getFocusId() == SUBS_LIST:
+                    if not recent:
+                        n = self.getControl(SUBS_LIST).getSelectedPosition()
+                        if 0 <= n < len(self.rows):
+                            self.hold(n)
+                    self.menu_done = time.time()
+                    return
+            if code in BACK:
                 self.close()
+
+        # --- hold a subtitle (docs/design/subtitles-manage-mockups.html) ---------------------------------------
+        def hold(self, n):
+            options = tm.hold_options(self.rows[n])
+            if not options:
+                return   # Off has no menu
+            self.held = self.rows[n]
+            self.setProperty('ctx.find', options[0])
+            self.setProperty('ctx.remove', options[1])
+            self.setProperty('ctx.row', str(min(n, SUBS_ROWS - 1)))
+            self.setProperty('ctx', '1')
+            self.setFocusId(HOLD_FIND)
+            self.menu_done = time.time()
+
+        def end_hold(self):
+            for key in ('ctx', 'ctx.find', 'ctx.remove', 'sure.title', 'sure.text'):
+                self.setProperty(key, '')
+            self.setProperty('ctx.row', '0')
+            self.held = None
+            self.setFocusId(LIST_ID)
+
+        def reset_language(self):
+            if self.from_hold:
+                self.results = []   # they were found for another language
+            self.lang, self.lang_name, self.from_hold = lang, lang_name, False
+
+        def find_another(self, row):
+            """Hold > Find another: the other results for this track's language; picking one downloads it, the current one stays until then."""
+            code = ''
+            try:
+                code = xbmc.convertLanguage(row.get('language') or '', xbmc.ISO_639_1)
+            except Exception:
+                pass
+            self.lang, self.lang_name, self.from_hold, self.results = code or lang, row['label'], True, []
+            try:
+                self.state('search')
+                self.results = self.search()
+            except Exception as error:
+                log('find another failed: %s: %s' % (type(error).__name__, error))
+                self.state(self.missing('error'))
+                self.reset_language()
+                return
+            if not self.results:
+                self.state(self.missing('none'))
+                self.reset_language()
+                return
+            self.state('idle')
+            self.more('choose')
+
+        def ask_remove(self, row):
+            title, text = tm.sure_text(row)
+            self.held = row
+            self.setProperty('sure.title', title)
+            self.setProperty('sure.text', text)
+            self.setProperty('ctx', 'sure')
+            self.setFocusId(SURE_CANCEL)
+
+        def do_remove(self):
+            row = self.held
+            if not row:
+                return
+            index = row['index']
+            if row.get('on'):
+                rpc(xbmc, 'Player.SetSubtitle', {'playerid': pid, 'subtitle': 'off'})
+            self.hidden.add(index)
+            path = self.paths.pop(index, None)
+            if path and os.path.dirname(path) == os.path.dirname(os.path.join(folder, 'x')):   # only a file this menu downloaded
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+            log('removed subtitle %s' % row['label'])
+            self.end_hold()
+            if self.page != 'tracks':
+                self.more('tracks')
+            else:
+                self.fill()
+            xbmcgui.Dialog().notification('%s removed' % row['label'], '', xbmcgui.NOTIFICATION_INFO, 2000, False)
 
     home = HERE
     menu = Menu('IOSTrackMenu.xml', home, 'Default', '1080i')

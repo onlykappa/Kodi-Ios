@@ -88,6 +88,14 @@ def disable_splash(system):
  else:
   data=('<advancedsettings version="1.0">\n  <!-- Kodi-iOS: no "KODI 21.3 OMEGA" splash between the launch screen and Home -->\n'
         '  %s\n</advancedsettings>\n'%SPLASH_OFF).encode()
+ # Kodi 21.3 keeps its playlist failure timer across exhausted queues. Its
+ # default timeout can then abort a later Sports queue at the first failure.
+ # The app bounds each queue; retain Kodi's retry-count cap and owner overrides.
+ root=ET.fromstring(data)
+ timeout=root.find('playlisttimeout')
+ if timeout is None:timeout=ET.SubElement(root,'playlisttimeout')
+ timeout.text='0'
+ data=ET.tostring(root,encoding='utf-8')+b'\n'
  path.write_bytes(data)
  return {'path':path.name,'sha256':sha(data)}
 

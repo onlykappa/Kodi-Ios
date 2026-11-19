@@ -10,6 +10,8 @@ boards 1, 2, 3, 5 and 6). It replaces Kodi's generic progress box and OK alerts 
 - make(xbmc, xbmcgui): the window class; its bar is set through live_window.Guard (ISSUE-123).
 """
 WINDOW = 'IOSAirPlayFlow.xml'
+BANNER = 'IOSTVBanner.xml'      # ISSUE-345: the slim progress banner at the top (owner-approved mockup C)
+BANNER_BAR, BANNER_STOP = 9810, 9811
 CLOSE, B1, B2, B3, LINK, BAR = 9500, 9701, 9702, 9703, 9705, 9710
 STAGES = ('opening', 'waiting_tv', 'connecting')
 STEPS = (('Opening the movie', 'reading its index'), ('Choose your TV', 'in the AirPlay list'),
@@ -110,6 +112,40 @@ def problem_view(kind, title='', reason='', busy='', settings=False):
     return props
 
 
+# Owner screenshot IMG_0156 (log a83e06c7): the problem card opened after the video had been closed, so Kodi drew the
+# landscape (1080i) card on the upright screen: stretched, capsules turned into ovals, the title cut off. With no video
+# on screen the problem is asked in the portrait choice sheet instead (choice_sheet.py, the app's own bottom sheet).
+GLYPHS = {'retry': ('arrow-rotate-right.png', 'FF0A84FF'), 'pause_retry': ('pause.png', 'FFFF9F0A'),
+          'settings': ('gear.png', 'FF8E8E93'), 'watch': ('mobile-screen.png', 'FF8E8E93')}
+
+
+def _split(text):
+    """(first sentence, the rest) of a problem's text."""
+    text = str(text or '').strip()
+    cut = text.find('. ')
+    return (text, '') if cut < 0 else (text[:cut + 1], text[cut + 2:].strip())
+
+
+def sheet_spec(props):
+    """(choice_sheet spec, the action of each row) for problem_view's properties. Cancel / Back means 'watch'."""
+    first, rest = _split(props.get('text'))
+    checks = [c + (' (%s)' % props['%s.note' % k] if props.get('%s.note' % k) else '')
+              for k in ('check1', 'check2') for c in [props.get(k)] if c]
+    foot = ' '.join(x for x in (rest, ('Check: ' + '; '.join(checks) + '.') if checks else '') if x)
+    rows, actions = [], []
+    for n in (1, 2, 3):
+        label, action = props.get('b%d.label' % n), props.get('b%d.action' % n)
+        if label and action != 'watch':
+            glyph, tint = GLYPHS.get(action, GLYPHS['retry'])
+            rows.append({'label': label, 'glyph': glyph, 'tint': tint})
+            actions.append(action)
+    spec = {'heading': props.get('title') or 'Play on TV', 'sub': first, 'rows': rows, 'foot': foot,
+            # No video on screen, so not "Keep watching here".
+            'button': next((props.get('b%d.label' % n) for n in (1, 2, 3) if props.get('b%d.action' % n) == 'watch'), '')
+            or ('Not now' if props.get('link.label') else 'Cancel')}
+    return spec, actions
+
+
 # --- layout (Fuse 1920x1080 landscape canvas; 1 pt of the approved boards = 2.687 units) ---------------------------
 W, PAD = 1500, 54
 MEDIA, ICONS = 'special://skin/extras/portrait/', 'special://skin/extras/icons/'
@@ -146,13 +182,14 @@ def _box(x, y, w, h, text, font, color=GREY):
             '<textcolor>%s</textcolor><autoscroll>false</autoscroll><label>%s</label></control>' % (x, y, w, h, font, color, text))
 
 
-def _capsule(ident, w, label, primary, cond, extra=''):
+def _capsule(ident, w, label, primary, cond, extra='', h=129):
     fill, text = (WHITE, 'FF000000') if primary else (SURF3, WHITE)
-    return ('<control type="button" id="%d"><width>%d</width><height>129</height><label>%s</label><font>font_main_bold</font>'
+    pill = 'pill_128.png' if h >= 128 else 'pill_96.png'   # a cut-down border would point the round ends
+    return ('<control type="button" id="%d"><width>%d</width><height>%d</height><label>%s</label><font>font_main_bold</font>'
             '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
-            '<texturenofocus border="64" colordiffuse="%s">%spill_128.png</texturenofocus>'
-            '<texturefocus border="64" colordiffuse="%s">%spill_128.png</texturefocus><visible>%s</visible>%s</control>'
-            % (ident, w, label, text, text, fill, MEDIA, 'FFD1D1D6' if primary else 'FF5A5A5E', MEDIA, cond, extra))
+            '<texturenofocus border="%d" colordiffuse="%s">%s%s</texturenofocus>'
+            '<texturefocus border="%d" colordiffuse="%s">%s%s</texturefocus><visible>%s</visible>%s</control>'
+            % (ident, w, h, label, text, text, min(64, h // 2) if h >= 128 else 48, fill, MEDIA, pill, min(64, h // 2) if h >= 128 else 48, 'FFD1D1D6' if primary else 'FF5A5A5E', MEDIA, pill, cond, extra))
 
 
 def _step(n, y):
@@ -223,6 +260,136 @@ def page(close_button):
         close_button(CLOSE, W - PAD - 118, 40, size=118) + '</control>')
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: Play on TV flow (owner-approved boards 1-3, 5, 6) -->\n'
             '<window type="dialog"><defaultcontrol always="true">%d</defaultcontrol><controls>%s</controls></window>\n' % (B1, body))
+
+
+# ISSUE-345 (owner, log 53a92f39 and a83e06c7: Play on TV pressed again and again while nothing showed; owner-approved
+# mockup C, docs/design/play-on-tv-connecting-mockups.html): one slim banner at the top of the video from the moment a TV
+# is picked until the TV plays: the step, a thin bar and Stop; then "Playing on your TV" for two seconds.
+BANNER_STEPS = {
+    'opening': ('Getting the video ready for your TV', 'Step 1 of 3 · usually a few seconds'),
+    'converting': ('Converting the picture for your TV', 'Step 1 of 3 · this video needs it'),
+    'waiting_tv': ('Choose your TV in the AirPlay list', 'Step 2 of 3 · on the same Wi-Fi as this iPhone'),
+    'connecting': ('Waiting for your TV to start playing', 'Step 3 of 3 · up to 15 s'),
+}
+
+
+# Owner (2026-11-16, build 544: "slow to prepare ... make a progress bar showing progress when it's preparing TV"; build 549: "it gets to about 50% then immediately
+# plays"): the bar follows the whole wait, not each step. It climbs on one smooth curve that is tuned to how long this phone's last starts took (a repeat cast
+# is about 6 s, a first 4K cast from Drive about 25 s), is lifted to the native phase's floor when the work is ahead of the curve (reading the video, first
+# seconds ready, the TV connecting), never goes back, and stays under 97 % until the TV plays, when the banner fills it and then says "Playing on your TV".
+# These are estimates: the native side reports no percentage.
+EXPECTED = 14.0   # seconds a start is assumed to take until a real one has been measured
+PHASE_FLOOR = {'inspecting': 15, 'ready': 40, 'connecting': 70, 'playing': 90}
+GROUP_FLOOR = {'waiting_tv': 35, 'connecting': 70}
+PHASE_WORDS = {'opening': 'Opening the video', 'inspecting': 'Reading the video', 'ready': 'Getting the first seconds ready'}
+
+
+def progress_pct(elapsed, phase='', group='', last=0, expected=EXPECTED):
+    """The bar's percent after `elapsed` seconds of the start: a smooth curve (about 80 % after `expected` seconds), lifted to the phase's floor, never below `last`, under 97."""
+    import math
+    expected = min(60.0, max(3.0, float(expected or EXPECTED)))
+    value = 92.0 * (1 - math.exp(-max(0.0, float(elapsed)) / (expected / 2.2)))
+    value = max(value, PHASE_FLOOR.get(phase, 0), GROUP_FLOOR.get(group, 0), last)
+    return int(round(min(97.0, value)))
+
+
+def next_expected(measured, previous=EXPECTED):
+    """What the next start is expected to take: this start's real time, blended with the one before (one odd start does not swing it)."""
+    try:
+        measured = float(measured)
+    except (TypeError, ValueError):
+        return previous
+    return round(min(60.0, max(3.0, 0.6 * measured + 0.4 * previous)), 1)
+
+
+def banner_view(stage, converting=False, tv='', phase=''):
+    """Properties of the banner for a running step. tv: a TV's own player (Roku, DLNA, Chromecast) by name: two steps,
+    no AirPlay list to choose from."""
+    key = 'converting' if converting and stage == 'opening' else stage if stage in BANNER_STEPS else 'opening'
+    title, sub = BANNER_STEPS[key]
+    if tv:   # the name goes on the smaller line: in the title a long Roku name was cut off (landscape rig)
+        if key == 'connecting':
+            sub = 'Step 2 of 2 · %s' % tv
+        else:
+            sub = sub.replace('Step 1 of 3', 'Step 1 of 2')
+    if key in ('opening', 'converting') and phase in PHASE_WORDS:   # what the first step is doing now, in place of "usually a few seconds"
+        sub = '%s · %s' % (sub.split(' · ')[0], PHASE_WORDS[phase])
+    return {'title': title, 'sub': sub, 'bar': str(progress_pct(0, '', stage if stage in GROUP_FLOOR else '')), 'icon': 'tv.png', 'tint': '380A84FF',
+            'stop': 'Stop', 'done': ''}
+
+
+def banner_done(at=None, tv=''):
+    """'Playing on your TV · From 27:03' with a green tick, no bar and no Stop."""
+    sub = ''
+    if at:
+        at = int(at)
+        sub = 'From %d:%02d:%02d' % (at // 3600, at // 60 % 60, at % 60) if at >= 3600 else 'From %d:%02d' % (at // 60, at % 60)
+    sub = ' · '.join(x for x in (tv, sub) if x)
+    return {'title': 'Playing on your TV', 'sub': sub, 'bar': '', 'icon': 'check.png', 'tint': '3830D158', 'stop': '', 'done': '1'}
+
+
+def banner_page():
+    """1080i/IOSTVBanner.xml: a modeless strip at the top of the landscape video (Fuse's 1920 canvas, centred)."""
+    BW, BH = 1180, 196
+    text_w = BW - 156 - 240
+    body = ('<control type="group"><centerleft>50%%</centerleft><top>28</top><width>%d</width><height>%d</height>' % (BW, BH) +
+            '<animation effect="slide" start="0,-240" end="0,0" time="220" tween="cubic" easing="out">WindowOpen</animation>'
+            '<animation effect="fade" start="100" end="0" time="160">WindowClose</animation>' +
+            _img(0, 0, BW, BH, MEDIA + 'row_only.png', 'F21C1C1E', border='43') +
+            _img(34, (BH - 96) // 2, 96, 96, MEDIA + 'round_s.png', _p('tint'), border='24') +
+            _img(54, (BH - 96) // 2 + 20, 56, 56, ICONS + _p('icon'), WHITE, '<aspectratio>keep</aspectratio>') +
+            '<control type="group"><visible>%s</visible>' % _has('bar') +
+            _lab(156, 30, text_w, 62, _p('title'), 'font_main_bold') +
+            _lab(156, 92, text_w, 46, _p('sub'), 'font_mini', GREY) +
+            '<control type="progress" id="%d"><left>156</left><top>148</top><width>%d</width><height>11</height>'
+            '<texturebg border="5" colordiffuse="FF3A3A3C">%spill11.png</texturebg><midtexture border="5" colordiffuse="%s">%spill11.png</midtexture>'
+            '<lefttexture /><righttexture /><overlaytexture /></control></control>' % (BANNER_BAR, text_w, MEDIA, BLUE, MEDIA) +
+            '<control type="group"><visible>%s</visible>' % _has('done') +
+            _lab(156, 44, BW - 190, 62, _p('title'), 'font_main_bold') +
+            _lab(156, 104, BW - 190, 46, _p('sub'), 'font_mini', GREY) + '</control>' +
+            # 100 px is about 45 pt on the phone: the mockup's small capsule, still over the 44 pt touch minimum.
+            '<control type="group"><left>%d</left><top>%d</top>' % (BW - 214, (BH - 100) // 2) +
+            _capsule(BANNER_STOP, 180, _p('stop'), False, _has('stop'), h=100).replace('<textcolor>FFFFFFFF</textcolor>', '<textcolor>FFFF453A</textcolor>', 1) +
+            '</control></control>')
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: Play on TV progress banner (mockup C, ISSUE-345) -->\n'
+            '<window type="dialog"><defaultcontrol always="true">%d</defaultcontrol><controls>%s</controls></window>\n' % (BANNER_STOP, body))
+
+
+def make_banner(xbmc, xbmcgui, on_stop):
+    """The banner's window class (shown with show(): it never blocks the start). on_stop() runs when Stop is tapped."""
+    import live_window
+
+    class Banner(xbmcgui.WindowXMLDialog):
+        def onInit(self):
+            self.guard = live_window.Guard(self)
+            for k, v in getattr(self, 'props', {}).items():
+                self.setProperty(k, v)
+            try:
+                self.getControl(BANNER_BAR).setPercent(float(getattr(self, 'props', {}).get('bar') or 0))
+            except Exception:
+                pass
+
+        def apply(self, props):
+            self.props = dict(getattr(self, 'props', {}), **props)
+            for k, v in props.items():
+                self.setProperty(k, v)
+            if hasattr(self, 'guard') and props.get('bar'):
+                self.guard.percent(BANNER_BAR, props.get('bar'))
+
+        def onClick(self, control):
+            if control == BANNER_STOP and getattr(self, 'props', {}).get('stop'):
+                on_stop()
+
+        def onAction(self, action):
+            pass   # Back and other keys go to the video under it; only Stop stops
+
+        def finish(self):
+            if hasattr(self, 'guard'):
+                self.guard.close()
+            else:
+                self.close()
+
+    return Banner
 
 
 def make(xbmc, xbmcgui):

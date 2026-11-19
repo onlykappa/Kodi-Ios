@@ -59,6 +59,7 @@ class BundleTests(unittest.TestCase):
   app,_=prepare(self.app,self.bundle,self.sha,self.root/'work')
   info=plistlib.loads((app/'Info.plist').read_bytes())
   self.assertEqual(info['NSLocalNetworkUsageDescription'],'Kodi streams the video from this iPhone to your TV over Wi-Fi.')
+  self.assertIn('subtitles match',info['NSSpeechRecognitionUsageDescription'])   # ISSUE-347
   self.assertEqual(info['CFBundleIdentifier'],original['CFBundleIdentifier'])
   self.assertEqual(info['NSBonjourServices'],original['NSBonjourServices'])
   self.assertEqual(info['UIBackgroundModes'],['fetch','audio'])
@@ -129,6 +130,7 @@ class BundleTests(unittest.TestCase):
   self.assertFalse((self.app/'AppData/AppHome/addons/fixture.addon').exists());self.assertEqual(len(ET.parse(self.app/'AppData/AppHome/system/addon-manifest.xml').getroot()),1)
   # Kodi's splash off for every install: special://xbmc/system/advancedsettings.xml, read before the profile's file.
   self.assertEqual(ET.parse(base/'system/advancedsettings.xml').getroot().findtext('splash'),'false')
+  self.assertEqual(ET.parse(base/'system/advancedsettings.xml').getroot().findtext('playlisttimeout'),'0')
   self.assertEqual(receipt['splash']['path'],'advancedsettings.xml');self.assertFalse((self.app/'AppData/AppHome/system/advancedsettings.xml').exists())
  def elementum_inputs(self):
   inputs=self.root/'elementum';inputs.mkdir();files={}

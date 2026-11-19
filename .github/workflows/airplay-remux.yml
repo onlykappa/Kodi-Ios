@@ -15,10 +15,16 @@ on:
       - '.github/workflows/airplay-remux.yml'
       - 'migration/airplay-ios/**'
   workflow_dispatch:
+    inputs:
+      reuse_host_run:
+        description: Reuse a successful host-tests job only when its complete AirPlay source tree matches
+        type: string
+        default: ''
 permissions:
   contents: read
 jobs:
   host-tests:
+    if: github.event_name != 'workflow_dispatch' || inputs.reuse_host_run == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -73,8 +79,47 @@ jobs:
           path: |
             ${{ runner.temp }}/remux-tests/fixtures/dovi.mkv
             ${{ runner.temp }}/ff-host/FFMPEG-CONFIG.txt
+  host-evidence:
+    permissions:
+      contents: read
+      actions: read
+    if: github.event_name == 'workflow_dispatch' && inputs.reuse_host_run != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify successful host job and identical native source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REUSED_RUN: ${{ inputs.reuse_host_run }}
+        run: |
+          python3 - <<'PY'
+          import json,os,re,subprocess
+          repo,run=os.environ['REPO'],os.environ['REUSED_RUN']
+          assert re.fullmatch(r'[0-9]+',run), 'Invalid run id'
+          def api(path):
+              return json.loads(subprocess.check_output(['gh','api','repos/'+repo+path]))
+          data=api('/actions/runs/'+run)
+          assert data['repository']['full_name']==repo
+          assert data['path']=='.github/workflows/airplay-remux.yml'
+          jobs=api('/actions/runs/'+run+'/jobs?per_page=100')['jobs']
+          assert any(j['name']=='host-tests' and j['conclusion']=='success' for j in jobs), 'No successful host-tests job'
+          source=data['head_sha']
+          subprocess.run(['git','-c','credential.helper=!gh auth git-credential','fetch','--no-tags','--depth=1','origin',source],check=True)
+          def tree(ref):
+              return subprocess.check_output(['git','rev-parse',ref+':migration/airplay-ios']).strip()
+          assert tree(source)==tree('HEAD'), 'AirPlay source differs from tested host source'
+          print('Reused successful host tests from run',run,'with identical AirPlay tree',tree(source).decode())
+          PY
   framework:
-    runs-on: macos-15
+    needs: host-evidence
+    if: ${{ !cancelled() && (needs.host-evidence.result == 'success' || needs.host-evidence.result == 'skipped') }}
+    # macos-15 selects ARM64; capacity exhaustion canceled the candidate before it got a runner.
+    # The Intel image also has Xcode 26; the framework remains cross-compiled for iPhone arm64.
+    runs-on: macos-15-intel
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683

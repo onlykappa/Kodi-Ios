@@ -278,11 +278,88 @@ class Controller(unittest.TestCase):
         self.assertEqual(json.loads(properties['KodiIOS.SubtitleMatches'])[0]['index'], 1)
 
 
+class Dubbed(unittest.TestCase):
+    """ISSUE-339 (owner, Naruto Shippuden 1x01 in English): the file's English subtitles translate the Japanese script, so
+    the words were "near but not exactly what they say"; captions made from the English audio come first for a dub."""
+    def test_dual_audio_with_english_on_is_a_dub(self):
+        streams = [{'language': 'jpn'}, {'language': 'eng'}]
+        self.assertTrue(sm.dubbed(streams, {'language': 'eng'}, 'en'))
+        self.assertFalse(sm.dubbed(streams, {'language': 'jpn'}, 'en'))          # original audio: subtitles are right
+        self.assertFalse(sm.dubbed([{'language': 'eng'}], {'language': 'eng'}, 'en'))   # one language only
+    def test_dub_captions_beat_a_translation_track(self):
+        video = dict(VIDEO, dubbed=True)
+        plain = {'index': 0, 'name': 'English', 'language': 'eng'}
+        cc = {'index': 1, 'name': 'English [CC]', 'language': 'eng'}
+        sdh = {'index': 2, 'name': 'English', 'language': 'eng', 'isimpaired': True}
+        self.assertEqual([t['index'] for t in sm.rank([plain, cc, sdh], video)][:2], [1, 2])
+        self.assertEqual(sm.preferred([plain, cc], 0, True, video), 1)
+        self.assertEqual(sm.preferred([plain, cc], 0, True, dict(VIDEO)), 0)   # not dubbed: the current one stays
+    def test_downloads_put_captions_first_for_a_dub(self):
+        results = [{'releases': ['Show.S01E05.1080p.WEB.x264-GRP'], 'impaired': False},
+                   {'releases': ['Show.S01E05.Dub.CC'], 'impaired': False},
+                   {'releases': ['Show.S01E05'], 'impaired': True}]
+        ranked = tm.rank(results, 'Show.S01E05.1080p.WEB.x264-GRP.mkv', dubbed=True)
+        self.assertTrue(ranked[0]['impaired'] or 'Dub' in ranked[0]['releases'][0])
+        self.assertFalse(ranked[-1]['impaired'] or 'Dub' in ranked[-1]['releases'][0])
+        self.assertEqual(tm.rank(results, 'Show.S01E05.1080p.WEB.x264-GRP.mkv')[0]['releases'][0], 'Show.S01E05.1080p.WEB.x264-GRP')
+    def test_the_monitor_and_the_menu_pass_it(self):
+        self.assertIn("'dubbed': dubbed(props.get('audiostreams'), props.get('currentaudiostream'), preference),",
+                      (BOOT / 'resources/lib/subtitle_match.py').read_text())
+        tracks = (BOOT / 'tracks.py').read_text()
+        self.assertIn("dubbed = sm.dubbed(a.get('audiostreams'), a.get('currentaudiostream'), self.lang)", tracks)
+        self.assertIn("dubbed=video.get('dubbed')", tracks)
+
+
 class ConservativeNames(unittest.TestCase):
     def test_movie_title_is_not_a_language_suffix(self):
         result = sm.assess({'filename': 'It.2017.srt', 'language': 'eng'}, {'language': 'en'})
         self.assertFalse(result['rejected'])
         self.assertTrue(sm.assess({'filename': 'Film.it.srt'}, {'language': 'en'})['rejected'])
+
+
+class DubCaptions(unittest.TestCase):
+    """ISSUE-342: a dubbed video with no CC / SDH / dub track gets one downloaded and turned on at playback start."""
+    import dub_captions as dc
+    keys = {'subdl': 'k', 'opensubtitles': ''}
+    video = dict(VIDEO, dubbed=True)
+
+    def test_only_when_dubbed_on_with_no_marked_track_and_a_key(self):
+        plain = [{'index': 0, 'name': 'English', 'language': 'eng'}]
+        self.assertTrue(self.dc.wanted(self.video, plain, True, self.keys))
+        self.assertFalse(self.dc.wanted(dict(self.video, dubbed=False), plain, True, self.keys))
+        self.assertFalse(self.dc.wanted(self.video, plain, False, self.keys))                       # subtitles off
+        self.assertFalse(self.dc.wanted(self.video, plain, True, {'subdl': '', 'opensubtitles': ''}))
+        self.assertFalse(self.dc.wanted(self.video, plain + [{'index': 1, 'name': 'English (SDH)'}], True, self.keys))
+
+    def test_an_episode_is_searched_by_its_show(self):
+        item = {'showtitle': 'Naruto Shippuden', 'title': 'Homecoming', 'uniqueid': {'tmdb': '1'}}
+        self.assertEqual(self.dc.query(item, self.video), ('Naruto Shippuden', None, 1, 5, None))
+        self.assertEqual(self.dc.query({'title': 'Akira', 'year': 1988, 'uniqueid': {'tmdb': '149'}}, {}),
+                         ('Akira', 1988, None, None, '149'))
+
+    def test_only_captions_marked_from_the_dub_are_downloaded(self):
+        results = [{'source': 'subdl', 'id': 1, 'name': 'Naruto.Shippuden.S01E05.WEB.srt', 'language': 'en'},
+                   {'source': 'subdl', 'id': 2, 'name': 'Naruto.Shippuden.S01E05.English.SDH.srt', 'language': 'en'}]
+        fetched = []
+
+        def fetch(result):
+            fetched.append(result['id'])
+            return 'Naruto.Shippuden.S01E05.srt', srt(CUES)
+        got = self.dc.best(lambda: results, fetch, self.video)
+        self.assertEqual(got[0]['id'], 2)
+        self.assertEqual(fetched, [2])
+        self.assertIsNone(self.dc.best(lambda: results[:1], fetch, self.video))   # nothing marked: nothing downloaded
+
+    def test_the_matcher_keeps_what_it_saw_once_per_video(self):
+        m = sm.PlaybackMatcher()
+        state = {'streams': [{'index': 0, 'name': 'English', 'language': 'eng'}], 'current': 0, 'enabled': True,
+                 'video': self.video, 'item': {}}
+        m.step('a.mkv', lambda: state, lambda i: None)
+        self.assertTrue(m.done)
+        self.assertIs(m.state, state)
+        m.dub_started = True
+        m.step('b.mkv', lambda: state, lambda i: None)
+        self.assertFalse(m.dub_started)   # a new video can ask again
 
 
 if __name__ == '__main__':

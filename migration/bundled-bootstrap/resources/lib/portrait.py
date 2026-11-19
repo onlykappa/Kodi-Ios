@@ -26,6 +26,17 @@ _spec=_iu.spec_from_file_location('library_page',os.path.join(os.path.dirname(os
 library_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_page)
 _spec=_iu.spec_from_file_location('library_files_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_files_page.py'))
 library_files_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_files_page)
+_spec=_iu.spec_from_file_location('sports_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_page.py'))
+sports_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_page)
+sys.modules.setdefault('sports_page',sports_page)   # sports_live_page imports it by name
+_spec=_iu.spec_from_file_location('sports_live_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_live_page.py'))
+sports_live_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_live_page)
+_spec=_iu.spec_from_file_location('sports_upcoming_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_upcoming_page.py'))
+sports_upcoming_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_upcoming_page)
+_spec=_iu.spec_from_file_location('sports_game_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_game_page.py'))
+sports_game_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_game_page)
+_spec=_iu.spec_from_file_location('sports_leagues_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'sports_leagues_page.py'))
+sports_leagues_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(sports_leagues_page)
 _spec=_iu.spec_from_file_location('copy_problems_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'copy_problems_page.py'))
 copy_problems_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(copy_problems_page)
 _spec=_iu.spec_from_file_location('favourites_report_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'favourites_report_page.py'))
@@ -108,6 +119,7 @@ def titled_page(title,path):
 LIBRARY_PAGE='plugin://plugin.video.kodi.ios.watch/?action=library&type='
 # Owner (build 319): the Home Library tab keeps the poster grid; the file manager (DEC-043) opens from Settings › Library.
 LIBRARY=[('Movies','film.png',titled_page('Movies',LIBRARY_PAGE+'movie')),('TV Shows','tv.png',titled_page('TV Shows',LIBRARY_PAGE+'tv')),
+         ('Sports','trophy.png','RunScript(service.kodi.ios.bootstrap,sports)'),   # DEC-054: between TV Shows and Favourites
          ('Favourites','star.png','RunScript(service.kodi.ios.bootstrap,favourites_page)')]
 TMDB='plugin://plugin.video.themoviedb.helper/'
 SEARCH_ACTION='ActivateWindow(Videos,%s?info=search&tmdb_type=multi,return)'%TMDB
@@ -136,13 +148,15 @@ VIDEO_ONLY={'DialogSeekBar.xml','Custom_1156_Buffering.xml','DialogFullScreenInf
             'Custom_1143_OSD_NextOverlay.xml','Custom_1145_OSD_InfoPanel.xml','Custom_1146_OSD_AudioStreams.xml',
             'Custom_1147_OSD_SubtitleStreams.xml','Custom_1148_OSD_VideoStreams.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
             'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml','Custom_1193_VideoOSDInfo.xml',
-            'IOSPlayOnTV.xml','IOSAirPlayFlow.xml','IOSTrackMenu.xml','IOSPictureMenu.xml'}   # pages.play_on_tv, pages.track_menu, airplay_flow: Play on TV over video
+            'IOSPlayOnTV.xml','IOSAirPlayFlow.xml','IOSTVBanner.xml','IOSTrackMenu.xml','IOSPictureMenu.xml'}   # pages.play_on_tv, pages.track_menu, airplay_flow: Play on TV over video
 # iOS text styles at 2.687 units/pt (large title 34pt, title2 22pt, headline/body 17pt, subhead 15pt, footnote 13pt...).
 FONTS=[('p_large','Inter-Bold.ttf',92),('p_title','Inter-Bold.ttf',78),('p_h2','Inter-Bold.ttf',58),
        ('p_h3','Inter-Bold.ttf',46),('p_body','Inter-Regular.ttf',44),('p_sub','Inter-Regular.ttf',40),
        ('p_foot','Inter-Regular.ttf',35),('p_foot_b','Inter-Bold.ttf',35),('p_cap','Inter-Regular.ttf',30),
        ('p_tab','Inter-Bold.ttf',27),('p_tile','Inter-Bold.ttf',38),('p_btn','Inter-Bold.ttf',46),
        ('p_pill','Inter-Bold.ttf',40),('p_pill_s','Inter-Regular.ttf',35)]   # Notifications' rows
+# Approved Sports states (boards 14–15) use a 20 pt headline; the neighbouring tokens are 17 and 22 pt.
+FONTS.append(('p_state_title','Inter-Bold.ttf',54))
 SIDE=54                      # 20 pt margins
 POSTER=(300,450);CARD=(640,360);GAP=26;RADIUS=26
 HERO=1420
@@ -398,7 +412,7 @@ def pill_button(id,x,y,w,h,text,actions,style,glyph='',extra='',glyph_x=None,inl
 def circle_button(id,x,y,size,glyph,action,extra=''):return pill_button(id,x,y,size,size,'',[('',action)],'glass',glyph,extra)
 
 NAV_TOUCH=150;NAV_GLYPH=104
-def nav_button(id,x,y,glyph,actions,extra='',visible=''):
+def nav_button(id,x,y,glyph,actions,extra='',visible='',glyph_size=NAV_GLYPH):
  """Back and refresh as the video player has them (owner, build 146: "I love this back button, apply it everywhere"):
  a bold white glyph with no circle, the player's 104 in a 150 touch area (both layouts show 1 unit as the same size
  on the phone). x, y place it where the 108 glass circle was; the glyph dims while focused so a tap shows.
@@ -410,7 +424,7 @@ def nav_button(id,x,y,glyph,actions,extra='',visible=''):
  return ('<control type="group"><left>%s</left><top>%s</top><width>108</width><height>108</height>%s'%(x,y,'<visible>%s</visible>'%visible if visible else '')+
   '<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
   '<texturefocus /><texturenofocus />%s%s</control>'%(id,c-NAV_TOUCH//2,c-NAV_TOUCH//2,NAV_TOUCH,NAV_TOUCH,clicks,extra)+
-  icon(c-NAV_GLYPH//2,c-NAV_GLYPH//2,NAV_GLYPH,glyph,WHITE,dim)+'</control>')
+  icon(c-glyph_size//2,c-glyph_size//2,glyph_size,glyph,WHITE,dim)+'</control>')
 
 NOTICES='RunScript(service.kodi.ios.bootstrap,notifications)'
 SETTINGS='ActivateWindow(settings)'
@@ -1022,7 +1036,7 @@ def bell_button():
  service found an upcoming episode for (anticipated.bell_service sets KodiIOS.Bell.*). Off: a white outline; on: filled white.
  The 150-unit touch area is the nav buttons'."""
  prop=lambda k:'Window(Home).Property(KodiIOS.Bell.%s)'%k
- shown=('Container.Content(seasons) + !String.IsEmpty(%s) + String.IsEqual(%s,$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)])'%(prop('Tmdb'),prop('Tmdb')))
+ shown=('Container.Content(seasons) + !String.IsEmpty(%s) + String.IsEqual(%s,Container(50).ListItem.Property(tvshow.tmdb_id))'%(prop('Tmdb'),prop('Tmdb')))   # ISSUE-333
  on='!String.IsEmpty(%s)'%prop('On')
  c=54;off=c-BELL_SIZE//2
  layer=lambda name,color,vis:image(off,off,BELL_SIZE,BELL_SIZE,MEDIA+name,color,'<visible>%s</visible>'%vis,'>keep')
@@ -1035,8 +1049,10 @@ def bell_button():
   layer('bell_line.png',WHITE,'!'+on)+layer('bell_fill.png',WHITE,on)+'</control>')
 
 # ISSUE-312: opening a favourite show sets these (favourites_import_page.mark_show); the show's in-progress episode says Continue.
-SHOW_CONTINUE=('String.IsEqual(ListItem.Season,$INFO[Window(Home).Property(KodiIOS.ShowContinueSeason)]) + String.IsEqual(ListItem.Episode,$INFO[Window(Home).Property(KodiIOS.ShowContinueEpisode)]) + '
- 'String.Contains(Container.FolderPath,tmdb_id=$INFO[Window(Home).Property(KodiIOS.ShowContinueTmdb)]) + !String.IsEmpty(Window(Home).Property(KodiIOS.ShowContinueLeft))')
+# ISSUE-333 (owner log 218a6000: "Misplaced [" / "Error parsing boolean expression"): Kodi cannot parse $INFO[...] inside a
+# condition; String.IsEqual compares with another infolabel when its second argument is a bare infolabel.
+SHOW_CONTINUE=('String.IsEqual(ListItem.Season,Window(Home).Property(KodiIOS.ShowContinueSeason)) + String.IsEqual(ListItem.Episode,Window(Home).Property(KodiIOS.ShowContinueEpisode)) + '
+ 'String.IsEqual(ListItem.Property(tvshow.tmdb_id),Window(Home).Property(KodiIOS.ShowContinueTmdb)) + !String.IsEmpty(Window(Home).Property(KodiIOS.ShowContinueLeft))')
 def episode_item(focused):
  thumb_w,thumb_h=400,225
  bg=surface(SIDE-18,4,WIDTH-2*SIDE+36,thumb_h+176,'round_s.png','14FFFFFF',26) if focused else ''
@@ -1055,6 +1071,17 @@ def video_nav(original):
  chips=('<control type="list" id="50"><left>%d</left><top>%d</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
   '<ondown>60</ondown><onup condition="%s">9002</onup><onup condition="%s">9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'
   '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,0,WIDTH-SIDE,'['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)]','!'+DOWNLOADED_SHOW+' + System.HasAddon(plugin.video.elementum)',chip(False),chip(True))
+ # ISSUE-334 (owner, build 502: "anytime i click a season … it hides the season selector, it only shows them if i press
+ # back"): Kodi opens a tapped season as its own episodes page (a view container's click goes to the window, which no
+ # skin onclick can stop). That page now carries the same season row, read from the show's seasons folder; a tap goes
+ # up to the show, then into the other season, so Back still returns to the show (Container.Update's "replace" clears
+ # the whole history instead: Back then left the add-on, desktop Kodi rig).
+ episode_chips=('<control type="list" id="48"><left>%d</left><top>0</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
+  '<ondown>52</ondown><onup>9001</onup><scrolltime tween="cubic">250</scrolltime><visible>%s</visible>'
+  '<onclick>Action(ParentDir)</onclick><onclick>Container.Update($INFO[ListItem.FolderPath])</onclick>'
+  '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout>'
+  '<content>plugin://plugin.video.themoviedb.helper/?info=seasons&amp;tmdb_type=tv&amp;tmdb_id=$INFO[Container(52).ListItem.Property(tvshow.tmdb_id)]</content>'
+  '</control>')%(SIDE,WIDTH-SIDE,SEASON_EPISODES,season_chip(False),season_chip(True))
  episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
   '<itemlayout height="420">%s</itemlayout><focusedlayout height="420">%s</focusedlayout>%s</control>')
@@ -1078,7 +1105,7 @@ def video_nav(original):
  show_page=('<control type="grouplist" id="9900"><left>0</left><top>0</top><width>%d</width><height>%d</height>'
   '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'
-  '%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,
+  '%s%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,episode_chips,
   episodes%(60,0,WIDTH,HEIGHT,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'),
   episodes%(52,0,WIDTH,HEIGHT,'9002','Container.Content(episodes)',episode_item(False),episode_item(True),''))
  # Owner (build 229): "If i scroll down after i select a season the season selecter disappears". Once the page has
@@ -1095,6 +1122,16 @@ def video_nav(original):
    '<content>$INFO[Container.FolderPath]</content></control>')%(SIDE,WIDTH-SIDE,pinned_chip(False),pinned_chip(True))+'</control>')
  body=('<controls>'+backdrop()+show_page+generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+pinned+back+plain_title+refresh+bell_button()+'</controls>')
  return window(original,body,'50','<views>50,51,52,53</views>')
+
+SEASON_EPISODES=('Container.Content(episodes) + String.StartsWith(Container.FolderPath,plugin://plugin.video.themoviedb.helper/) + '
+                 '!String.IsEmpty(Container(52).ListItem.Property(tvshow.tmdb_id))')   # ISSUE-334
+def season_chip(focused):
+ """ISSUE-334: a season on an episodes page: white for the season the page shows."""
+ on='String.IsEqual(ListItem.Season,Container(52).ListItem.Season)'
+ return ('<control type="group"><visible>String.IsEqual(ListItem.DBType,season)</visible>'+
+  surface(0,8,250,96,'pill_96.png',WHITE,48,'<visible>%s</visible>'%on)+surface(0,8,250,96,'glass_96.png',WHITE,48,'<visible>!%s</visible>'%on)+
+  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b','FF000000','center','<visible>%s</visible>'%on)+
+  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b',WHITE,'center','<visible>!%s</visible>'%on)+'</control>')
 
 def pinned_chip(focused):
  """A season in the pinned row: white when it is the season the page shows (the row on the page decides)."""
@@ -1653,6 +1690,12 @@ def portrait_files(skin,profile):
  files.update(library_page.files(ns))
  # Library › TV Shows / Movies, the file manager (DEC-043 board A, library_files_page.py).
  files.update(library_files_page.files(ns))
+ # Library › Sports, the landing page (DEC-054, DEC-057; sports_page.py, filled by sports.py).
+ files.update(sports_page.files(ns))
+ files.update(sports_live_page.files(ns))   # Library › Sports › Live Now (DEC-055; sports_live_page.py, filled by sports_live.py)
+ files.update(sports_upcoming_page.files(ns))
+ files.update(sports_game_page.files(ns))
+ files.update(sports_leagues_page.files(ns))
  files.update(copy_problems_page.files(ns))   # Settings › Library › Download problems (approved mockup)
  files.update(favourites_report_page.files(ns))   # Favourites › Import a List › Last import (board I3)
  files.update(favourites_manager_page.files(ns))  # Settings › Favourites: the manager and its poster picker (boards K1-K8)
@@ -1763,14 +1806,14 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','Custom_1156_Buffering.xml','IOSPlayOnTV.xml','IOSTrackMenu.xml','IOSPictureMenu.xml','IOSAirPlayFlow.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + skin_textures.py, pages.BUSY, player_osd.INSET
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','Custom_1156_Buffering.xml','IOSPlayOnTV.xml','IOSTrackMenu.xml','IOSPictureMenu.xml','IOSAirPlayFlow.xml','IOSTVBanner.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + skin_textures.py, pages.BUSY, player_osd.INSET
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(library_files_page.__file__),Path(copy_problems_page.__file__),Path(favourites_report_page.__file__),Path(favourites_manager_page.__file__),Path(library_show_page.__file__),Path(library_item_page.__file__),Path(upscale_show_page.__file__),Path(upscale_main_page.__file__),Path(queue_page.__file__),Path(library_select_page.__file__),Path(library_freeup_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(skin_textures.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py')):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(library_files_page.__file__),Path(sports_page.__file__),Path(sports_live_page.__file__),Path(copy_problems_page.__file__),Path(favourites_report_page.__file__),Path(favourites_manager_page.__file__),Path(library_show_page.__file__),Path(library_item_page.__file__),Path(upscale_show_page.__file__),Path(upscale_main_page.__file__),Path(queue_page.__file__),Path(library_select_page.__file__),Path(library_freeup_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(skin_textures.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py'),Path(sports_upcoming_page.__file__),Path(sports_game_page.__file__),Path(sports_leagues_page.__file__)):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())

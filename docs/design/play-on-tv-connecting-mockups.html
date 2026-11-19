@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Play on TV connecting mockups</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Landscape video
+     874 x 402 pt; tokens from portrait.py (§4.3). The picture is a placeholder gradient. -->
+<style>
+:root{--s1:#1c1c1e;--s2:#2c2c2e;--grey:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);--blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--red:#ff453a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro,.board{max-width:1180px;margin:0 auto}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:34px;font-weight:800;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:880px;margin-bottom:8px}
+.board{margin-top:30px;padding-top:16px;border-top:1px solid #26272b}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board>p{color:var(--grey);font-size:14px;line-height:1.5;max-width:880px;margin-bottom:16px}
+.shots{display:flex;gap:26px;flex-wrap:wrap}
+.slot{width:560px}
+.cap{color:var(--grey);font-size:13px;line-height:1.4;margin-top:10px}.cap b{color:#fff}
+.frame{width:560px;aspect-ratio:874/402;border-radius:40px;padding:10px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d)}
+.screen{position:relative;width:100%;height:100%;border-radius:31px;overflow:hidden;
+ background:linear-gradient(120deg,#3b2a1a,#16314a 60%,#0d1b2a)}
+.shade{position:absolute;inset:0;background:rgba(0,0,0,.25)}
+.banner{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:62%;background:rgba(28,28,30,.94);border-radius:16px;
+ padding:10px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.tile{width:34px;height:34px;border-radius:9px;background:rgba(10,132,255,.22);display:grid;place-items:center;flex:none;font-size:16px}
+.t{flex:1;min-width:0}.t b{display:block;font-size:13.5px}.t span{display:block;color:var(--grey);font-size:11.5px;margin-top:1px}
+.bar{height:3px;border-radius:2px;background:rgba(235,235,245,.2);margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--blue)}
+.stop{flex:none;background:var(--s2);color:var(--red);font-weight:700;font-size:12.5px;border-radius:14px;padding:7px 12px}
+.pill{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(28,28,30,.94);border-radius:22px;padding:7px 8px 7px 12px;
+ display:flex;gap:9px;align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.5);white-space:nowrap}
+.spin{width:16px;height:16px;border-radius:50%;border:2.5px solid rgba(235,235,245,.25);border-top-color:var(--blue);flex:none}
+.pill b{font-size:13px}.pill span{color:var(--grey);font-size:11.5px}
+.ring{width:22px;height:22px;flex:none}
+.ok{background:rgba(48,209,88,.22)}
+.toast{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:rgba(28,28,30,.94);border-radius:16px;padding:9px 14px;font-size:12.5px;color:var(--grey)}
+.toast b{color:#fff}
+</style></head><body>
+<div class="intro"><span class="mk">MOCKUP</span><h1>Play on TV: connecting</h1>
+<p>Owner (log 53a92f39): after tapping Play on TV nothing showed while the stream was made ready, so it was pressed again, and a
+second tap stops the start (ISSUE-255). Earlier the owner asked for the full progress card to go (ISSUE-251, “the ugly loading
+screen”). These options are small and sit over the video; Apple’s AirPlay list still opens on its own once the stream is ready.</p>
+<p>In both: the progress shows at once on the first tap and stays until the TV plays; a second tap on Play on TV does nothing
+but keep it shown; only Stop stops. When the TV plays it says so for two seconds and goes. Evidence class: mockup, not a Kodi render.</p></div>
+
+<div class="board"><div class="n">C · OPTION A · BANNER AT THE TOP</div><h2>A slim banner with the step, a thin bar and Stop</h2>
+<p>The same three steps the old card had, in one line each: Getting the video ready → Choose your TV (Apple’s list) → Waiting for the TV.</p>
+<div class="shots">
+<div class="slot"><div class="frame"><div class="screen"><div class="shade"></div>
+<div class="banner"><div class="tile">📺</div><div class="t"><b>Getting the video ready for your TV</b><span>Step 1 of 3 · usually a few seconds</span><div class="bar"><i style="width:22%"></i></div></div><div class="stop">Stop</div></div>
+</div></div><p class="cap"><b>C1 · Straight after the tap.</b> Shown at once, before anything else happens.</p></div>
+<div class="slot"><div class="frame"><div class="screen"><div class="shade"></div>
+<div class="banner"><div class="tile">📺</div><div class="t"><b>Waiting for the Apple TV to start playing</b><span>Step 3 of 3 · up to 15 s · Kodi keeps playing here</span><div class="bar"><i style="width:74%"></i></div></div><div class="stop">Stop</div></div>
+</div></div><p class="cap"><b>C2 · TV chosen.</b> Names the TV once Apple’s list says which one.</p></div>
+<div class="slot"><div class="frame"><div class="screen"><div class="shade"></div>
+<div class="banner"><div class="tile ok">✓</div><div class="t"><b>Playing on the Apple TV</b><span>From 27:03</span></div></div>
+</div></div><p class="cap"><b>C3 · Done.</b> Two seconds, then it goes.</p></div>
+</div></div>
+
+<div class="board"><div class="n">D · OPTION B · PILL AT THE BOTTOM</div><h2>A small pill with a spinner, the step and Stop</h2>
+<p>Takes the least room; the words are shorter so they fit on one line.</p>
+<div class="shots">
+<div class="slot"><div class="frame"><div class="screen"><div class="shade"></div>
+<div class="pill"><div class="spin"></div><div><b>Getting it ready</b> <span>· 1 of 3</span></div><div class="stop">Stop</div></div>
+</div></div><p class="cap"><b>D1 · Straight after the tap.</b></p></div>
+<div class="slot"><div class="frame"><div class="screen"><div class="shade"></div>
+<div class="pill"><div class="spin"></div><div><b>Connecting to Apple TV</b> <span>· 3 of 3</span></div><div class="stop">Stop</div></div>
+</div></div><p class="cap"><b>D2 · TV chosen.</b></p></div>
+<div class="slot"><div class="frame"><div class="screen"><div class="shade"></div>
+<div class="toast"><b>Playing on Apple TV</b> · from 27:03</div>
+</div></div><p class="cap"><b>D3 · Done.</b> Two seconds, then it goes.</p></div>
+</div></div>
+</body></html>

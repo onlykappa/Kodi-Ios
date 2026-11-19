@@ -4918,6 +4918,299 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Test:** test_favourites_import `test_a_leading_article_does_not_hide_the_famous_title` (the fake search now
   normalises its own keys).
 
+## ISSUE-350 — The IPA build was killed by its own 10-minute limit while publishing (run 43769622376, build of claude/sports-ipa) — fixed in the workflow
+
+- **Seen (2026-11-15, 22:30–22:40 UTC):** `import-review.yml` dispatched on `claude/sports-ipa` (PR #31's head plus the Sports work). Steps 1–11
+  passed, including "Build and validate full customized unsigned ARM64 IPA"; step 12 "Publish raw IPA as a prerelease download" was cancelled after
+  the job had run 10 minutes 12 seconds. No release was made.
+- **Cause:** the `review` job's `timeout-minutes: 10`. Each added test suite (the Sports work added five) and step makes the job longer; build 528 had
+  finished just inside the limit.
+- **Fix:** `timeout-minutes: 25`.
+- **Retest:** the build is dispatched again; a release `build-NNN` must appear (recorded in docs/PROGRESS.md).
+- **Test:** `scripts/test_workflow_limits.py` (the limit is at least 20 minutes, the publish step is still there).
+
+## ISSUE-349 — Play on TV to a Roku (its own player) showed no progress while the phone made the stream ready (owner: "make airplay work seemless on any device mainly roku") — fixed in code
+
+- **Seen (review):** ISSUE-345's banner was only made on the AirPlay route (`send_airplay`). Play on TV to a Roku, a
+  smart TV (DLNA) or a Chromecast goes through `send`, where the progress card has been hidden since ISSUE-251
+  (`QUIET_PROGRESS`): nothing showed while the stream was made and the Roku launched it, so a second tap started it
+  again.
+- **Fix (`cast.send`):** that route makes the banner too, in two steps (getting ready → waiting for the TV, no AirPlay
+  list), with the TV's name on the small line ("Step 2 of 2 · TCL 55 inch Roku TV Living Room"; in the title a long
+  name was cut off in the rig), "Playing on your TV · <name> · From m:ss" before the phone's video stops, and the
+  same start guard (a second tap only logs, Stop stops). A Roku that refuses and hands over to AirPlay keeps one
+  banner.
+- **Retest:** desktop Kodi rig, landscape 1311x603, with a 30-character TV name: all three states fit. Device: needs
+  the owner's iPhone and Roku.
+- **Test:** `scripts/test_tv_banner.py` (`RokuToo`).
+
+## ISSUE-348 — Play on TV's problem card drawn stretched over the upright app, title cut off (owner screenshot IMG_0156, log a83e06c7) — fixed in code
+
+- **Seen:** "The movie took too long …" with the icon tile, the close button and "Try again" drawn as tall ovals over the
+  show page ("Starting the video… 7 s"): the owner had closed the video (08:32:18) while Play on TV was still starting,
+  and its problem card opened afterwards.
+- **Cause:** the card (`IOSAirPlayFlow.xml`) and ISSUE-345's banner (`IOSTVBanner.xml`) are landscape (1080i) windows
+  with no portrait copy (`portrait.VIDEO_ONLY`); opened with no video on screen, Kodi draws them on the upright screen,
+  stretched.
+- **Fix (`cast.py`, `airplay_flow.sheet_spec`):** with no full-screen video (`video_on_screen`), the problem is asked in
+  the app's portrait choice sheet: the title, the first sentence under it, one row per action (Try again, Pause uploads
+  and try again, Open Settings), the rest of the advice and the checklist as its footnote, and "Not now" (no video
+  to keep watching). The banner opens only over the video (waiting up to 3 s for Library's Play on TV to bring it up)
+  and closes itself when the video goes.
+- **Also (`choice_sheet.py`):** a row title wraps from 24 characters beside a tile (was 30): "Pause uploads and try
+  again" (27) was cut at 24 in the rig.
+- **Retest:** desktop Kodi rig (portrait 603x1167): the slow-source, unreachable and busy-internet sheets; every word
+  shows, nothing cut off. Device: needs the owner's iPhone.
+- **Test:** `scripts/test_tv_banner.py` (`NoVideoOnScreen`).
+
+## ISSUE-347 — Subtitles were checked by timing and names only, never against what is said (owner: "match subtitle check needs to be added") — built in code (needs an AirPlay framework build)
+
+- **Seen:** a downloaded subtitle could be for another release or for the original script of a dub, or seconds out of
+  time, and nothing could tell: `subtitle_match` only had cue times, names and languages.
+- **Fix:** the phone listens to two 45-second stretches of the playing video (about 30 % and 60 % in) and compares
+  the words with each candidate subtitle before it is turned on (Subtitles › Download and apply, and ISSUE-342's
+  dub captions):
+  - `kr_speech.c`: the chosen audio track (Kodi's audio stream number) as 16 kHz mono, at most 48 MB read per stretch;
+  - `kr_speech.m` (`kodi_speech_words`, `kodi_speech_authorize`, `kodi_speech_state`): Apple's speech recognition,
+    **on the phone only** (`requiresOnDeviceRecognition`; a language the phone cannot recognise by itself is not
+    sent anywhere and the check is skipped); words with their times;
+  - `speech_check.py`: the share of heard words found in a cue at the best shift. Almost none of plenty of words
+    (≤12 %): "Words do not match the speech", the next result is tried. A clear shift of 0.4 s or more: every cue in
+    the file is moved by it before it is turned on. Agreement: +10 to the match score. Too few words, or sound in
+    another language than the subtitles: no claim.
+  - It listens only when a download is checked (not at every playback start: another reader on a debrid link can make
+    the host refuse ranges, ISSUE-344), once per video (`KodiIOS.SpeechHeard`). The first time, iOS asks for
+    permission (`NSSpeechRecognitionUsageDescription` in the IPA's Info.plist).
+- **Build:** `build-airplay.sh` compiles `kr_speech.m`, links `-framework Speech`, exports the three `kodi_speech_*`
+  functions and checks them with `nm`; staged as AirPlay r62 with the owner's OK (2026-11-15). Before r62 is in the
+  app, `listen()` finds no `kodi_speech_words` and the check is skipped (logged).
+- **Follow-up (airplay-ios run 43743217717, nothing published):** the first r62 build failed to link
+  (`_kr_speech_pcm` undefined): `kr_speech.m` was compiled to `kr_speech.o`, over `kr_speech.c`'s object. It is now
+  `kr_speech_objc.o`; `test_airplay_exports.py` checks that no two sources make the same object.
+- **Retest:** CI host tests (`test_speech_sound`). Device: needs the framework build; the owner's iPhone log should
+  show `speech check: ok at … s: N words` and `applied … (speech fits|shift …)`.
+- **Test:** `scripts/test_speech_check.py`; `tests/test_remux.c` (`test_speech_sound`: a tone is heard after the
+  5.1 downmix, from the asked time, past the end, missing track, byte budget, over HTTP);
+  `scripts/test_customized_ipa.py` (the purpose string).
+
+## ISSUE-346 — A prepared movie's first cast still scanned every storage fragment for keyframes (owner: "do the keyframe during prep") — fixed in code (needs an AirPlay framework build)
+
+- **Seen:** ISSUE-335 saved the keyframe scan only after a cast had made it, so each prepared movie's first cast still
+  read every fragment header before the TV got its playlist (`segmented: 171 keyframes inside 29 storage fragments …
+  (metadata 5587 ms)`, owner log 65cca4ce).
+- **Cause:** nothing knew the keyframes until a cast read the finished file.
+- **Fix:** the preparation reads each fragment header as it goes out (`kr_mp4_moof_keys`, the same parser the cast
+  uses) and, after the index (mfra) is written, saves the list under the key a cast computes (mfra bytes, file size,
+  picture track; `kr_mp4_cache_*`, moved from `kr_remux.c` to `kr_mp4.c`). The saved list is in the track's own ticks
+  (`KRKF2`) and the cast turns it into seconds as before, so a saved and a fresh scan give the same segments. A
+  preparation that carries on after Kodi was closed gets the earlier keyframes from its mark (`kfirst`, `kcount`,
+  `kf` lines, kept across marks by `drive_prepare.parse_mark` like the `tfra` lines); a mark without them (an older
+  one) or with some missing still resumes, and then nothing is saved and the first cast scans. The cast logs
+  `from this phone's saved scan (made while preparing)`. Saved scans from before (`KRKF1`) are read again once.
+- **Retest:** CI host tests (`airplay-remux`). Device: needs a framework build (new rNN tag) and the owner's iPhone:
+  the first cast of a movie prepared after the update should log "made while preparing".
+- **Test:** `tests/test_remux.c` (`prepared_scan_matches`: a straight and a resumed preparation save exactly the
+  keyframes a fresh scan finds; a record missing keyframe lines saves none); `scripts/test_prepared_keyframes.py`;
+  `scripts/test_resume.py` (marks keep the `kf` lines).
+
+## ISSUE-345 — Play on TV showed nothing while the stream was made ready, so it was tapped again and again (owner log a83e06c7, build 513; mockup C chosen) — fixed in code
+
+- **Seen (08:31):** after Play on TV the phone showed no progress for about 25 s while the source was inspected and
+  converted; Play on TV was tapped 13 more times ("second press ignored"). Before ISSUE-251 removed the full progress
+  card, a second tap stopped the start (ISSUE-255).
+- **Cause:** with the card gone (`QUIET_PROGRESS`), the only sign was a notification, sent late, after
+  `remote_media.acquire`, and a second tap during the start stopped it.
+- **Fix:** a slim banner at the top of the video (owner's choice, mockup C in
+  `docs/design/play-on-tv-connecting-mockups.html`): `1080i/IOSTVBanner.xml` from `airplay_flow.banner_page()`, shown
+  modeless by `cast.Banner` before anything else happens. It names the step (getting ready or converting → choose your
+  TV → waiting for the TV), a thin bar and a red Stop capsule (100 px, about 45 pt); when the TV plays it says
+  "Playing on your TV · From m:ss" for two seconds and goes. A second tap on Play on TV only logs; only Stop stops.
+  Apple's AirPlay list (`FlowUI.ask`) closes the banner. If Kodi says the window file is missing (written after it
+  listed the skin), the skin's 1080i folder is listed again and the window opened once more.
+- **Also:** `airplay_flow._capsule` takes a height; short capsules use `pill_96.png` (cutting the 128 px pill's border
+  pointed its ends).
+- **Retest:** desktop Kodi rig, landscape 1311x603: getting ready, converting, choose your TV, waiting for the TV and
+  done all fit on one line, nothing cut off. Device: needs the owner's iPhone.
+- **Test:** `scripts/test_tv_banner.py`; `scripts/test_play_on_tv_network.py` (a second tap gives no notice and does
+  not stop; the banner's Stop stops a start).
+
+## ISSUE-344 — AirPlay of an Umbrella stream: AllDebrid refused ranged reads, the start took 25 s and then failed (owner log a83e06c7, build 513) — fixed in code
+
+- **Seen (08:31:43, a 10-bit H.264 Umbrella episode, converted for the TV):** the stream cache's blocks failed again and
+  again with `ConnectionError: Drive answered without the asked byte range` (ISSUE-321's error text) while Kodi and the
+  AirPlay converter read the same AllDebrid link; single fetches went through. The source took 24 s to inspect
+  (`indexed inspection finished after 23895 ms`), Play on TV was tapped 13 more times meanwhile ("second press
+  ignored"), the video on the phone was closed at 08:32:18, and the cast ended with `audio segment 118 … result=-5`
+  (source I/O). The same refusal is the likely cause of ISSUE-321's failures just after a stream starts.
+- **Cause:** the server answers a ranged request with the whole file (status 200) when too many connections ask at once;
+  the cache treated that like any failure (half its 8 places for 30 s) and never retried the block over one connection
+  (it was listed as an integrity error).
+- **Fix (`remote_media.py`):** that answer leaves 2 request places for 60 s (`REFUSED_PLACES`, `REFUSED_FOR`; a later
+  looser calm never loosens it), and the block is fetched again over one connection (the answer is still checked; it is
+  no longer in `INTEGRITY`).
+- **Also:** the Play on TV banner (mockup C, ISSUE-345) shows progress at once, so a slow start is not tapped again.
+- **Open:** "sometimes only audio": the 08:21 cast to the Apple TV sent the picture as HEVC 10-bit unchanged and the TV
+  fetched video segments, so the existing sound-only restart did not apply; which cast was audio-only is asked of the owner.
+- **Test:** test_stream_reads `test_a_refused_range_leaves_two_places_for_a_minute`, the INTEGRITY check.
+
+## ISSUE-343 — AirPlay subtitles on the Apple TV doubled and badly out of sync (owner log 1f143748, build 513) — fixed in code (needs an AirPlay framework build)
+
+- **Seen:** a prepared HEVC episode cast to the Apple TV (`segmented: … 148 streaming segments`, picture copied,
+  `SUBTITLES="subs"`, `player: subtitles on: Unknown`): the owner saw each line twice and the timing far off. On the Apple TV
+  the subtitles come only from the WebVTT rendition (the burn-in is for third-party receivers' converted picture).
+- **Causes (gm_stream.c):**
+  - Every WebVTT segment said `X-TIMESTAMP-MAP=MPEGTS:900000,LOCAL:00:00:00.000`, the value Apple's segmenter writes for
+    media that starts at 10 s. Our video and audio segments keep the source's own absolute times (`gm_ts`, the test
+    table's "absolute tfdt"), and the cue times are those same times, so every subtitle was shown 10 s late (also the
+    "subtitles delayed" of ISSUE-335).
+  - Anime subtitle files draw one line several times on stacked layers (outline, fill, sign copies). Kodi's renderer
+    stacks them into one line; each became its own WebVTT cue and the TV showed the line twice.
+- **Fix:** one header for every cue file and the empty answer (`GM_VTT_HEADER`: `MPEGTS:0` ↔ `LOCAL 0`); in a segment, a
+  cue with the same text as one already written that overlaps it in time is skipped.
+- **Retest:** the AirPlay host tests (CI `airplay-remux`); the phone check needs the next AirPlay framework (rNN) and IPA.
+- **Test:** test_remux.c (every subtitle fixture: the media-time map and the line exactly once; new fixture
+  h264_aac_layers.mkv with a line on two layers); test_airplay_subtitle_sync (wiring).
+- **Follow-up (CI run 43736061457, 2 of 3461 host checks failed):** the new fixture row moved the table, so the HTTP
+  check of `h264_ac3_dts_srt.mkv` used TrueHD's expectations (`&fx[4]`); it now uses its own row (`&fx[5]`).
+
+## ISSUE-342 — Dubbed video with no caption made from the dub: none was downloaded at playback start (owner, after ISSUE-339) — fixed in code
+
+- **Seen:** ISSUE-339 ranks CC / SDH / dub tracks first, but when the file had only a plain English track (the translation
+  of the original script) nothing better was fetched by itself; the owner had to open Subtitles › Download and apply.
+- **Fix (`dub_captions.py`, started from `subtitle_match.run`):** once the playback-start check has run for a video, when
+  it is dubbed (`subtitle_match.dubbed`), subtitles are on, no track is marked CC / SDH / dub (`dub_marked`) and a SubDL or
+  OpenSubtitles key is saved, a background thread searches with the dub preference (`subtitle_sources.find(dubbed=True)`),
+  keeps only results marked CC / SDH / dub, downloads up to three with the usual timing check (`choose_download`), and turns
+  the best on with `Player.setSubtitles`, only if the same video is still playing. Once per video; logged as
+  "Kodi iOS dub captions: …". Without a key, or with no marked result, nothing changes.
+- **Retest:** host tests; the phone check is a dubbed anime episode whose file has only plain English subtitles.
+- **Test:** test_subtitle_match `DubCaptions`.
+
+## ISSUE-341 — Next Episode after a season's last episode asked for an episode that does not exist (owner) — fixed in code
+
+- **Cause:** `next_episode.plan` always asked TMDb Helper for episode + 1 of the same season.
+- **Fix:** `show_seasons` reads the show's seasons from TMDb (TMDb Helper's key, 4 s) and `aired_seasons` counts the
+  episodes aired in each (specials left out; the airing season up to its last aired episode; later seasons 0). After a
+  season's last aired episode `next_of` gives the next season's episode 1; after the last aired episode of the show,
+  "That was the last episode out so far." Without TMDb it is episode + 1, as before. The notice and log name the episode.
+- **Test:** test_next_episode `AcrossSeasons`.
+
+## ISSUE-340 — Umbrella: a 5 s cache wait that could not finish before opening directly (owner log 218a6000, build 502) — fixed in code
+
+- **Seen:** "route=direct wait_ms=5017 ready=False blocks=0/3 … bytes=3145728": the opening blocks (3 × 4 MB) were
+  arriving at ~0.6 MB/s, the cache waited its whole 5 s budget, then Kodi opened the link directly; 15.8 s in all.
+- **Fix (remote_media.hopeless):** after 1.5 s the wait stops when, at the speed so far, the opening blocks cannot be
+  complete within the budget, or nothing has arrived; fast sources keep the cache route.
+- **Test:** test_umbrella_early_exit. Needs the phone: Umbrella opening times in the log.
+
+## ISSUE-339 — Dubbed episodes: the file's English subtitles translate the original script (owner, Naruto Shippuden 1x01) — fixed in code
+
+- **Seen:** English audio, the file's one "English" track on: "near but not exactly what they say".
+- **Cause:** for dual-audio anime the English track is usually the translation of the Japanese dialogue, not the dub's
+  words; downloads put hearing-impaired (CC/SDH) versions after plain ones.
+- **Fix:** `subtitle_match.dubbed` (more than one audio language, the one playing is the subtitle language): tracks and
+  downloads marked CC / SDH / dub / hearing impaired come first, an unmarked one is ranked down (playback-start choice,
+  the Subtitles menu and Download and apply). Not yet: a dub caption is not downloaded on its own at playback start.
+- **Test:** test_subtitle_match `Dubbed`.
+
+## ISSUE-338 — Favourites search "nearly kicks me out"; the "Most likely" badge never showed (owner log a42d17d7, build 502) — fixed in code; rig-checked
+
+- **Seen:** on the poster picker (IOSFavPick) Kodi logged "Trying to add unsupported control type 7" four times and
+  "Control 9600/9601 … asked to focus, but it can't"; tapping the search field closed the picker, opened the iPhone
+  keyboard over a blank landscape-sized screen ("Click … in (1280 x 720 layout): control 0 (not handled)"), and a tap
+  outside it cancelled; the picker was then built again.
+- **Cause:** (1) the search closed the picker for the keyboard and rebuilt it afterwards; (2) type 7 is Kodi's button:
+  list cells take no buttons (GUIListGroup), so the auto-width "Most likely" pill added in ISSUE-325 was dropped on the
+  phone (the desktop rig render had looked right).
+- **Fix:** the keyboard opens over the picker and the results refill it in place (`Pick.refresh`); the badge is a fixed
+  240-unit pill image with a centred label.
+- **Test:** test_favourites_manager `Picker` (no button/edit/toggle inside any cell; the badge label is at least the pill
+  wide; the search refreshes in place). **Rig:** K7 "one peice": "Most likely" shows in full on the first poster.
+
+## ISSUE-337 — AirPlay of a prepared episode: the TV got the raw MP4, then "Cannot Complete Action" (owner log d8524f8d, build 502) — fixed in code (AirPlay r60 staged); needs phone retest
+
+- **Seen:** Kodi opened the prepared HEVC 10-bit episode "by its fragment index", but Play on TV logged "prepared: no
+  usable fragment index; Apple's player gets the MP4 itself": the TV read the 168 MB file in jumps for 12 s, then "the
+  player failed while the TV had the sound only"; the H.264 restart made its first segment in 2.9 s, yet 1.3 s later
+  "could not open the stream: … -11819 Cannot Complete Action". The owner's retry took the raw MP4 path again and failed
+  the same way.
+- **Cause:** (1) the AirPlay index reader rejected the whole index when one entry did not run forward (preparations that
+  resumed write it from both runs; Kodi's reader tolerates that), and with no index the TV was given the MP4 itself;
+  (2) the first failure left Apple's player itself failed (AVPlayerStatusFailed), which cannot be used again, and the
+  restart put the converted stream into that same player.
+- **Fix:** (1) entries are sorted by offset and only those that do not run forward are dropped; why an index is
+  unusable is logged; a fragmented prepared file without a usable index goes as six-second segments (picture copied),
+  never as the MP4 itself (a plain MP4 with its moov in front still plays as it is: CI run 43729474040 caught the first
+  version sending those to segments too). (2) A restart replaces a failed player with a new one of the same settings (every watcher follows it).
+- **Test:** C host test `test_prepared_index_repairs` (a copy with two index entries swapped, and one without an index:
+  both served in segments covering the whole film, each logs why); test_airplay_source_stall (wiring). The player
+  replacement runs only on the phone.
+
+## ISSUE-336 — After a source stall the TV paused itself and never resumed (owner log 53a92f39, build 502) — fixed in code (AirPlay r60 staged); needs phone retest
+
+- **Seen:** casting a Drive copy (06:26): video segment 1 took 32.6 s (one quiet Drive read, ISSUE-335); the TV logged
+  "-12889 No response for media file in 10.416s (seg1.m4s)" and "-15628", then sat at 7.4 s with rate 0.0 for 7 minutes
+  ("120s: at 7.4 s, rate 0.0 … segments served video 26") although every later segment had been made. The owner gave up
+  and pressed Play on TV again (06:34; a second press 10 s later was ignored while it started). The same session's audio
+  segment 1 also took 32 s with 1.3 s of its own I/O: it waited on a cache block the stuck video read was loading.
+- **Cause:** the player watcher restarts for receivers that refuse the picture and reports a failed item, but a TV that
+  paused itself after a stall (item not failed) was left alone.
+- **Fix (build-airplay.sh, the native player watcher):** when the TV's position has not moved for 6 s, an error-log entry
+  came within 15 s of it stopping, and no video segment is still owed, the player is told to play again; if it still
+  does not move, the stream is reloaded at that position (at most three recoveries). A pause long after any error is
+  left alone. The quiet read itself is cut after 4 s (ISSUE-335), which also frees the waiting audio.
+- **Test:** test_airplay_source_stall (wiring). The watcher runs only in the iOS framework (macOS build): phone retest.
+
+## ISSUE-335 — AirPlay froze 30 s and read Drive too slowly (owner logs 87d9a389, 65cca4ce, build 502) — fixed in code (AirPlay r59 staged); needs phone retest
+
+- **Seen:** casting a Drive copy took 10.6 s to the first picture (0.6 open, 1.2 index, **5.6 keyframe scan**, 2.8 first
+  segment), then the TV sat at 1.5 s for ~30 s: video segment 1 took **31.7 s** of source I/O while every other segment
+  took 1-3 s, and the TV logged "-12889 No response for media file in 10.416s (seg1.m4s)". The Naruto cast (06:24) read
+  6-s segments in 6.5-12.5 s (~0.5 MB/s over one connection), slower than playback, so the TV kept stalling around 45 s
+  while subtitles came and went ("subtitles delayed and not working").
+- **Cause:** a read only gave up at its whole 15-30 s budget, so one Drive connection that stopped sending held the
+  segment; each cursor read over one connection; the prepared file's keyframe timeline was rebuilt on every cast.
+- **Fix (kr_source.c, kr_remux.c):** (1) a no-progress watchdog: a read that receives nothing for 4 s is cut, its
+  connection closed, and the read retried on a fresh one (not for Elementum's local server, which waits for torrent
+  pieces); (2) the keyframe scan is saved on the phone (Library/Caches/KodiAirPlay), keyed by size, track and a hash of the
+  file's fragment index, so later casts of the file skip it; (3) when a cursor reads in order and measures slower than
+  1.5 MB/s, two helper connections fetch the 1 MiB chunks ahead of it and publish each 128 KiB block as it arrives.
+- **Host measurements (system FFmpeg, local range server, 6 MB):** quiet connection once 30 s → 4.2 s; 0.4 MB/s per
+  connection 15.3 → 8.7 s; 1 MB/s 6.3 → 4.3 s; 1 MB/s with a quiet connection 10.6 → 4.3 s; a fast high-latency source
+  unchanged (0.31 s; helpers stay off). Every byte matched in every run.
+- **Test:** C host tests `test_quiet_connection` (range_server `/quiet/`: every byte, under 15 s) and `test_long_fragments`
+  (second cast uses the saved scan, same segments); test_airplay_source_stall (wiring).
+- **Not done:** the scan is saved on the first cast, not yet while a download is prepared.
+
+## ISSUE-334 — Tapping a season hid the season row; it came back only after Back (owner screenshot + log 88be95be, build 502) — fixed in code; rig-checked
+
+- **Seen:** on a show page (Naruto), tapping Season 2 showed its episodes under the show's header with no season row;
+  the row returned only after Back. Log: `Click … MyVideoNav.xml … control 50 (handled)`.
+- **Cause:** the season row is the page's own view list (id 50). Kodi sends a tap on a view list to the window, which opens
+  the season as its own episodes page (Content(episodes), list 52); a skin `<onclick>` cannot stop that (CGUIBaseContainer
+  OnClick: only lists with their own `<content>` run their onclick). The episodes page had no season row. Reproduced in
+  the desktop Kodi rig (Naruto, Season 2: Content episodes, no row).
+- **Fix:** the episodes page of a TMDb Helper show now shows the same season row (list 48, from the show's seasons folder,
+  `tvshow.tmdb_id` of its episodes), the shown season white. A tap goes up to the show and into the other season
+  (`Action(ParentDir)` then `Container.Update`), so Back still returns to the show; `Container.Update(…,replace)` was
+  tried first and cleared the history (Back left the add-on).
+- **Rig (desktop Kodi rig):** Naruto Season 2 page shows Season 1-4 chips with Season 2 white; Season 3 chip opens Season 3;
+  Back returns to the seasons page. Needs the phone: tapping chips, scrolling the page.
+- **Test:** test_portrait `test_episode_page_keeps_the_season_row`.
+
+## ISSUE-333 — Show page: "Misplaced [" errors; Continue badge and bell condition never true (owner log 218a6000, build 502) — fixed in code
+
+- **Seen:** opening a TV show page logged `Misplaced [` and `Error parsing boolean expression
+  string.isequal(listitem.season,$info[window(home).property(kodiios.showcontinueseason)]) …` and the same for the bell
+  (`… string.isequal(window(home).property(kodiios.bell.tmdb),$info[container(50).listitem.…`).
+- **Cause:** Kodi does not resolve `$INFO[...]` inside a condition. Its string conditions compare against another infolabel
+  when the second argument is a bare infolabel (GUIInfoManager.cpp, string bools: TranslateSingleString of param 2).
+  So the show page's "Continue" episode mark (ISSUE-312) and the anticipated-episodes bell never showed.
+- **Fix:** both conditions use bare infolabels; the Continue mark matches the show by `ListItem.Property(tvshow.tmdb_id)`
+  instead of a `String.Contains` on the folder path with `$INFO`.
+- **Test:** test_portrait `test_no_infolabel_markup_inside_conditions`: no `$INFO[`, `$VAR[` or `$ESCINFO[` in any
+  generated `<visible>` or `condition=""`. Needs the phone: the Continue mark on a favourite show's episode, the bell.
+
 ## ISSUE-332 — Actions can no longer publish releases: r33 built but "HTTP 403: Resource not accessible by integration" (2026-11-15) — blocked on a repository setting
 
 - **Seen:** kodi-ios-portrait run 43681992197 (workflow_dispatch, r33 for ISSUE-316): the executable built; the publish job's
@@ -5054,6 +5347,290 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 
 Real rig testing exposed required Crew artwork imports despite a guarded main artwork helper; restored the pinned dependency. Worker RunScript UUID arguments broke Otaku numeric plugin handles and broad library paths shadowed stdlib calendar; scoped numeric plugin arguments and dependency module paths fix both. Host and rig regressions caught canceled primary searches starting backups, unusable backup quality being treated as cancellation, cached zero-seeder sources being dropped, and verified anime coordinates being rejected again by the picker. Explicit cancellation markers, reusable source-check callbacks and exact authoritative mapping retain original TMDb queue coordinates. Direct downloads validate request ownership and byte ranges and preserve headers; Stream rejects unresolved magnets instead of initiating a download. Final regression and real rig counts are recorded in reports/provider-fallback-validation.json. Live provider/account availability and phone behavior remain unverified.
 
+## ISSUE-351 — PR #32 shipped a syntax error in the startup service (found after merge)
+
+- **Seen:** after PR #32 merged, `service.py` in the app did not parse: its two provider-fallback lines sat between an
+  `if` and its `elif` (line 127). On the phone that would have stopped the setup service from starting at all. PR #32's
+  commits skipped CI (`[skip ci]`), so nothing compiled the file; six existing suites (notices, service_scoping,
+  undefined_names, pinned_addons, speed_fixes, updates_calibration) failed with `SyntaxError` as soon as they ran.
+- **Cause:** the hook install was inserted into the middle of an if/elif chain.
+- **Fix:** the install now runs after the chain (Umbrella present, whichever source window it has).
+- **Retest:** all suites in the workflow run; the six pass again.
+- **Test:** `scripts/test_bundle_syntax.py` parses every shipped Python file and pins the order.
+
+## ISSUE-329 — Upcoming timer could delay closing the page — fixed before first commit
+
+- **Seen:** the host `test_speed_fixes.py` regression check rejected the new Upcoming timer's use of
+  `Monitor.waitForAbort(1)` while a separate stop event controlled the page lifetime.
+- **Cause:** Kodi waits for a script's background threads at exit; that sleep would ignore Back until its timeout.
+- **Fix:** use the existing `page_wait.idle` helper, which wakes when the page closes or Kodi exits.
+- **Retest:** the page controller tests and the stop-aware-loop regression checks pass. The desktop rendering was
+  checked before this wait-only correction; it is not iPhone evidence.
+- **Test:** `scripts/test_speed_fixes.py` (`PageLoops`) and `scripts/test_sports_upcoming.py` (controller lifecycle).
+
+## ISSUE-330 — Upcoming could not reach the approved scrolled position — fixed in the desktop rig
+
+- **Seen:** board 11 needs the later days higher in the viewport than the original list's scroll range allowed.
+- **Cause:** its 260-unit trailing clearance allowed only about 208 pt of scrolling with the sample's wrapped
+  league chips; the approved board scrolls 330 pt before allowing for the extra chip row.
+- **Fix:** reserve 720 units after the final day, so the header can scroll away and the later games can occupy
+  the approved positions without the tab bar covering their text.
+- **Retest:** desktop Kodi 21.3: wheel scrolling and Last Page show Tomorrow and Sat, Nov 21 with complete titles,
+  times, counts and source details above the fallback tab bar. Device gestures remain unverified.
+- **Test:** `scripts/test_sports_upcoming.py` checks the shared six-game, three-day projection and generated XML;
+  the actual scroll range was checked visually in the desktop rig.
+
+## ISSUE-331 — Returning from a game reset the Upcoming filter — fixed in the desktop rig
+
+- **Seen:** choosing NBA, opening its game, then pressing Back restored All rather than the chosen league.
+- **Cause:** Kodi calls the parent window's `onInit` again when the child closes; it reset the filter and created
+  another timer. The unconditional default focus also discarded the row's navigation position.
+- **Fix:** initialize each Sports window once and let Kodi restore its existing focus on return.
+- **Retest:** desktop Kodi 21.3: NBA → game → Back preserves the NBA chip, one-game count and selected row. The
+  controller regression simulates the repeated `onInit` and checks the existing filter and stop event survive.
+- **Test:** `scripts/test_sports_upcoming.py` and `scripts/test_sports_game.py` cover re-entry without new workers.
+
+## ISSUE-332 — A long source description lost its final line — fixed in the desktop rig
+
+- **Seen:** the long-source fixture ended after “Loop Guide, Sports”, clipping “Hub” in the Also on line.
+- **Cause:** the estimate allowed too many characters per line beside the Also good badge. The language and
+  alternative-provider text needed six actual Kodi lines, while the model reserved five.
+- **Fix:** use more conservative wrapping estimates for each badge width, grow the row to fit and provide forms
+  for up to nine detail lines. The source title and details remain complete.
+- **Retest:** desktop Kodi 21.3: International Sports Network, French Canadian commentary and all three alternative
+  provider names now fit, including the final Hub line. Standard board 12's row sizes remain the same.
+- **Test:** `scripts/test_sports_game.py` keeps the exact long fixture and checks its required line allocation.
+
+## ISSUE-333 — Two-digit start hours were shortened in the game card — fixed in the desktop rig
+
+- **Seen:** opening the later Manchester City game drew “12:30 …” instead of its complete start time.
+- **Cause:** the central clock's 360-unit label was narrower than the existing headline font's 12:30 PM text.
+- **Fix:** widen the centered label to 430 units, within the gap between the crest/code columns. Keep the same font
+  and center point, so board 12's 7:30 PM appearance is unchanged.
+- **Retest:** desktop Kodi 21.3 shows 12:30 PM and the day in full without touching either crest. An offline font
+  check of every 12-hour clock string found a maximum width of 386 units.
+- **Test:** `scripts/test_sports_game.py` checks the later-day value and enough clock space between the crests.
+
+## ISSUE-334 — Game refresh test assumed mutable provider snapshots — fixed for the updated contract
+
+- **Seen:** GitHub's PR check failed the empty-after-refresh test although all local scripts passed.
+- **Cause:** the base branch advanced: Sample now returns independent copies. The fixture edited a returned game
+  and expected that edit to change the provider's next response, which the updated contract deliberately prevents.
+- **Fix:** have the test provider explicitly return the next empty-source snapshot. The application still reads
+  only the public provider methods and needs no change.
+- **Retest:** all 137 listed scripts, including the thirteen game-page cases, pass against the actual PR tree
+  combined with the updated base. The feature checkout's game-page tests also pass; GitHub is checked after push.
+- **Test:** `scripts/test_sports_game.py`, `test_failed_refresh_keeps_seed_and_success_can_remove_sources`.
+
+## ISSUE-335 — Upcoming's timer could replace a failure with loading placeholders — fixed in the desktop rig
+
+- **Seen:** a cold provider failure was drawn once, but the next normal redraw no longer knew the request failed.
+- **Cause:** `draw(error=False)` used a temporary argument rather than preserving the last fetch result. With no
+  cached data, the periodic redraw selected loading again until another request finished.
+- **Fix:** retain the failure flag across redraws; clear it only when a fetch succeeds. Keep cached games visible
+  when refresh fails, and distinguish a successful empty result from an unavailable provider.
+- **Retest:** desktop Kodi 21.3: advancing the fixture clock by 31 seconds keeps board 15 visible. Repeated failure
+  stays on the error screen; Try again with a recovered test provider restores the game list.
+- **Test:** `scripts/test_sports_upcoming_states.py` covers persistent error, retries, successful emptiness, cached
+  results, stale rows/chips and closing during a fetch.
+
+## ISSUE-336 — State icon backgrounds and error text needed renderer corrections — fixed before commit
+
+- **Seen:** the first desktop render showed a thin seam across a translucent icon circle; automatic body wrapping
+  also put Check on the wrong line and used tighter line spacing than approved board 15.
+- **Cause:** nine-slice scaling was unnecessary for a circular texture, and the generic textbox's wrap/line spacing
+  differed from the approved two-line state message.
+- **Fix:** scale the circular mask uniformly and expose the approved description lines separately, preserving the
+  complete plain-text message. Draw them at the board's 21 pt spacing and keep both primary controls' focus visible.
+- **Retest:** desktop Kodi 21.3: both icon circles are seamless; boards 14–15 match the approved copy, line breaks and
+  action positions. Retry and See Leagues show focus feedback without moving the layout.
+- **Test:** state projection checks preserve the complete message across the rendered lines; the seam, typography
+  and button feedback were checked visually in Kodi, not inferred from a unit test.
+
+## ISSUE-337 — Leagues badges initially referenced unavailable resources — fixed before commit
+
+- **Seen:** implementation review caught references to a 118-unit capsule asset and bold-caption font that the
+  existing generator did not supply.
+- **Cause:** the approved 44 pt badge's display size was mistaken for an existing texture/font resource name.
+- **Fix:** scale the existing circular pill_124 texture and use the existing caption font with bold text markup.
+- **Retest:** desktop Kodi shows full league codes and badges in boards 16–17, including the scrolled sections.
+- **Test:** `scripts/test_sports_leagues.py` covers generated controls and registration; actual font/texture rendering
+  was checked in Kodi. No new asset or font variant was added.
+
+## ISSUE-352 — Sports discovery was skipped for twelve hours after an earlier empty run (owner log 0d2dbf1a, build 544)
+
+- **Seen:** build 544 opened Sports but logged nothing from the discovery walk, although The Loop family and The Crew were installed.
+- **Cause:** build 538's walk (the add-ons were not installed then) had saved an empty answer, and the walk is only repeated every 12 hours.
+- **Fix:** an earlier answer that listed no add-on at all is retried after ten minutes (`sports_loop.wait_for`).
+- **Retest:** host tests only; the phone needs the next build.
+- **Test:** `test_sports_loop` (`test_an_empty_earlier_discovery_is_retried_soon_but_a_good_one_keeps_for_twelve_hours`).
+
+## ISSUE-353 — The Play on TV banner's bar sat at one number for the whole first step (owner, build 544: "show progress when it's preparing TV")
+
+- **Seen:** casting a 4K movie took 25-28 s to start and the banner's bar stayed at 22 % throughout; short starts (5-10 s) looked the same.
+- **Cause:** one fixed percent per step (`BAR_PCT`), and "usually a few seconds" as the only words.
+- **Fix:** the bar climbs the whole time inside each step toward the next step's start (estimates: the native side reports no
+  percentage), is lifted by the native phase (opening, inspecting, ready), never goes back, and stops short of full until the TV plays.
+  The first step's line names the phase ("Reading the video", "Getting the first seconds ready"). `cast.airplay_outcome` calls a
+  `tick` twice a second; a failing tick never stops the start.
+- **What the log showed about the slow starts (not changed here):** 4K 10-bit HEVC casts took 25-28 s: the keyframe scan of a prepared file
+  that has no saved scan (12-14 s, `segmented: ... (metadata 13926 ms)`) plus the first picture and sound segments read cold from Drive (7-9 s).
+  A phone-local show (Naruto) took 5.5 s; a 1080p Umbrella show 10.5 s. Quality is not the cause; file size and where it is read from are.
+  The scan is saved after the first cast of each movie, so a second cast of the same movie skips it.
+- **Test:** `test_tv_banner` (bar bands, phase floor and words, the controller tick).
+
+## ISSUE-354 — The first cast of a 4K movie from Drive spent 12-14 s scanning for keyframes (owner log 0d2dbf1a, build 544)
+
+- **Seen:** `segmented: 1697 keyframes inside 109 storage fragments give 772 streaming segments (metadata 13926 ms)` on a first cast; 12.4 s on a second
+  4K movie; 4 s on 1080p. The scan is saved afterwards (ISSUE-335/346), so later casts skip it, but every library title pays once.
+- **Cause:** the scan read each fragment's index with two requests (the 8-byte box header, then the moof) on four connections: about 0.5 s per
+  fragment per connection against Drive.
+- **Fix (r63, `kr_mp4.c`):** one request of 40 KB per fragment (a fragment's index is about 30 KB; a larger one reads the rest) and eight
+  connections. Same parser, same saved result, so the segments are unchanged. Expected: roughly a quarter of the time (about 3-4 s for the 4K movie); to be measured on the phone.
+- **Not changed:** the 7-9 s the first picture and sound segments take to arrive from Drive (cold connections; the source reader already adds helper
+  connections on a slow link). The next log will show the scan time and, with it, what remains.
+- **Test:** the converter host tests (airplay-remux) cover the scan; a phone log gives the time.
+
+## ISSUE-355 — Drive copies would not play after the app had been in the background ("Umbrella streams not working", owner log 46025e07, build 545)
+
+- **Seen:** Phony S01E04 (an Umbrella show kept as a Drive copy) failed to open with `CCurlFile::Open - http://127.0.0.1:62654/drive/... Could not connect to
+  server(7)`, over and over. Before it, `JSONRPC Server: Accept of new connection failed: 9` and Elementum's `jsonrpc service stopped ([Errno 9] Bad file
+  descriptor), starting it again` (it restarts itself).
+- **Cause:** iOS closed the app's listening sockets while it sat suspended (about 25 minutes). The Drive proxy (`drive_proxy`, the loopback server every
+  Library play of a Drive copy goes through) was started once and never checked, so it stayed dead until the app was quit and opened again.
+- **Fix:** `drive_proxy.supervise` asks the proxy for a page every 4 seconds; one that does not answer is stopped and started again (on the same port when it
+  can be, else another; the Home window property follows), and the log says so.
+- **Retest:** host tests; on the phone: leave the app in the background for half an hour, then play a Library episode.
+- **Test:** `test_drive_proxy_alive` (health probe on a real server, restart on the same port, fallback port, clean stop when Kodi closes).
+
+## ISSUE-356 — Sports discovery never finished: its walk ran on a thread of the page's own script (owner logs 3633b638, 70f32729, builds 544-545)
+
+- **Seen:** with The Loop family and The Crew installed, three logs had no "Kodi iOS Sports discovery" line at all, even after the per-build fix.
+- **Cause:** the walk (a minute or more: every folder is a call to an add-on that goes to the internet) ran on a daemon thread of the Sports
+  page's RunScript process. Kodi ends that process when the page closes, so the walk died before it logged or saved anything.
+- **Fix:** the page only sets `KodiIOS.SportsDiscover`; the service (alive as long as the app) walks 45 s after start and whenever asked
+  (`sports_loop.serve`), and logs "started", "walking <add-on>" and one line per folder with its time as each answers, so a log exported at
+  any moment shows how far it got.
+- **Also (ISSUE-355 follow-up):** a Library play checks the Drive proxy first; a dead one is restarted at once and its new port read, else
+  the Drive add-on's stream plays the copy (`drive_proxy.live_port`, `supervise(nudge=...)`).
+- **Test:** `test_sports_loop` (per-folder log, the page's ask, the service loop), `test_drive_proxy_alive`.
+
+## ISSUE-357 — Walking The Crew's menu ended the app, and the walk came back 45 s after every start (owner log f8d75848, build 548)
+
+- **Seen:** the discovery walk ran in the service as designed (ISSUE-356) and showed what the add-ons do: The Loop failed (`Invalid params`, after a
+  confirm box), Loop TV's own server answered 404 when it registered, Loop Guide listed five buttons (Open EPG, Open Sports Guide, Refresh Guide, Settings, Exit).
+  Then, four seconds after "walking plugin.video.thecrew", Kodi started again from the top: the app ended during The Crew's menu.
+- **Cause:** not known (no crash report). Because the walk never finished, no result was saved and it was due again 45 s after each start: a repeating crash.
+- **Fix (build 549):** The Crew is not walked (`HELD_BACK`); each add-on's walk is wrapped in a marker file (`Guard`), and an add-on whose walk ended the app is never
+  walked again for that build; the service walks only when the Sports page asks, not at every start.
+- **Test:** `test_sports_loop` (held-back Crew, the guard, ask-only walk).
+- **Still open:** the sports data itself. None of the three Loop add-ons gives games on this phone (The Loop errors, Loop TV's server is gone, Loop Guide has only buttons).
+
+## ISSUE-358 — No sports walk until a source is chosen: The Loop blocked for 22 minutes, and none of the add-ons gives games (owner log c22859a4, build 548)
+
+- **Seen:** (build 548, 18:56-19:19) Library shows and AirPlay worked: the Drive proxy served the episode, AirPlay r63 started in 11.5 s, and the saved keyframe scan was
+  used ("148 keyframes from this phone's saved scan ... 1 ms"). The sports walk: The Loop took 1352.8 s (22 minutes) to fail with `Invalid params`, Loop TV 1.7 s (its server
+  answers 404), Loop Guide listed five buttons; then The Crew's walk began and the log stops.
+- **Cause:** The Loop's plugin waits (probably on a dialog nobody sees); a walk can also raise dialogs over the screen. None of the add-ons returned games.
+- **Fix (build 550):** `sports_loop.WALK = False`: the service never walks and never calls an add-on until the sports source is chosen. The Sports pages say "Can't load" as before.
+- **Test:** `test_sports_loop` (`test_no_walk_runs_while_the_sources_are_not_chosen`).
+
+## ISSUE-359 — Subtitle lines stacked on the TV instead of replacing the old one (owner photo, build 549)
+
+- **Seen:** four caption lines at once on the TV ("[group] Hi, Sharla!", "I'm back doing PI work", "[Sharla]", "Yeah, it's been a stressful time."); the old line did not leave when the new one came.
+- **Cause:** each WebVTT cue stayed up until its own end time (a 5 s fallback when a sample has no duration, or a file whose end times overrun), past the start of the next cue. The TV shows
+  overlapping cues stacked.
+- **Fix (r64, `gm_stream.c`):** each cue now ends where the next one starts (the next cue of the segment, or the first cue after the segment, which is read but not used); cues that begin
+  together stay together. Segment by segment the same rule gives the same result.
+- **Retest:** the converter host tests (airplay-remux) must still pass; on the TV a new caption replaces the old.
+
+## ISSUE-360 — Sports had no data source (DEC-060)
+
+- **Fix:** ESPN's public scoreboard feed (see DEC-060). First run: `HTTP 400` because the feed rejects a date range; fixed by asking for the plain scoreboard and tomorrow's date; the "Live Now" tile
+  no longer splits "1 / more".
+- **Retest:** desktop Kodi rig with the live feed (Live Now with crests, scores and clocks; Upcoming; Leagues; the landing): evidence class desktop Kodi rig, not device.
+- **Test:** `test_sports_espn` (11), `test_sports_landing`.
+
+## ISSUE-361 — The Play on TV bar reached about 50 % and then the TV played (owner, build 549, with a screenshot)
+
+- **Seen:** the banner's bar (Step 1 of 3 · Opening the video) stopped near half and the TV started at once; the first version of the moving bar (ISSUE-353) was built from three bands per step, with
+  step 1 capped at 52 %, and a repeat cast now takes only about 6-11 s.
+- **Fix:** one curve for the whole start, tuned to how long this phone's last start took (`KodiIOS.TVStartSeconds`, blended 60/40 with the one before; 14 s until measured), lifted to the native phase's floor
+  (reading the video 15, first seconds ready 40, the TV connecting 70), never going back, under 97 % until the TV plays; on playing the bar fills to 100 % for a moment before "Playing on your TV".
+- **Not changed:** the native side reports no percentage, so the bar stays an estimate. The 7.5 s cold read of the first segments from Drive is not changed (owner: skip it for now).
+- **Test:** `test_tv_banner` (curve, floors, expected time).
+- **AirPlay stopping when the phone locks or another app opens (owner):** the 548 log shows a 22-minute cast with the app off the screen playing on ("stays awake for AirPlay", segments served all the way), so
+  the framework's silent-audio keep-alive works there. The case that quits is not in any log yet: after it happens, export the log at once.
+
+## ISSUE-357 follow-up — The Loop failed because it was unzipped in place, not installed (owner Steam Deck files + rig, 2026-11-16)
+
+- **Correction:** an earlier message claimed the desktop rig had reproduced the exact "unofficial repository" popup from the owner's phone.
+  That rig test used a hand-copied file drop outside any Kodi install process, which is not how the real IPA ships add-ons, so it did not
+  actually confirm the phone's cause. The Loop/JetExtractors files from the owner's Steam Deck matched our bundled copies byte for byte,
+  ruling out a bad package.
+- **Real cause:** the build unzipped The Loop's files straight into the add-ons folder. Kodi then has no record of where the add-on came
+  from (no repository origin), and The Loop's own code treats that as untrusted and fails ("Invalid params" in the owner's log).
+- **Fix:** only a small pointer add-on, `repository.loop` (The Loop's real repository, pinned with a checksum), is bundled now. The app's
+  background service calls Kodi's own `Addons.InstallAddon` once (no confirm box; it is the JSON-RPC method, not the `InstallAddon()`
+  builtin) to fetch `plugin.video.the-loop` properly, which brings LoopTV, Loop Guide and JetExtractors with it as declared dependencies —
+  proven in the desktop Kodi rig: the live-installed Loop listed real sport links ("Todays Football", "Todays Rugby", schedules) with no
+  popup and no crash, where the old unzip-in-place method failed. The discovery walk (`sports_loop.WALK`) is on again.
+- **JetExtractors' own protection is untouched.** It still refuses a caller it does not recognize; this fix never calls it directly — The
+  Loop calls it the way it is designed to, because The Loop is now a real, properly-installed add-on.
+- **The Crew stays held back** (`HELD_BACK`): its own walk ended the app earlier and the cause is still unknown. The per-add-on guard
+  (ISSUE-357) still protects every add-on this discovery walks, including The Loop, in case anything regresses.
+- **Test:** `test_sports_loop` (`ensure_installed`: installs once, retries bounded, no-op without the repository bundled, never raises),
+  `test_provider_addons` (`SportsLock`: only the pointer add-on is bundled, not the Loop files themselves).
+
+
+## ISSUE-362 — Sports "See upcoming", Upcoming and Leagues did nothing (owner log 6f2ebc1a, 2026-11-16)
+
+- **Seen:** Live Now opened ("no games are live"), but "See upcoming", the Upcoming tile and Leagues did not open; kodi.log: "Activate of window ... refused because there are active modal dialogs".
+- **Cause:** the Sports landing and Live pages are `WindowXMLDialog` (modal); Upcoming, Leagues and Game were full `WindowXML` windows, which Kodi will not open over a modal dialog.
+- **Fix:** those three pages are `WindowXMLDialog` too (they stack). Verified in the desktop Kodi rig, before and after.
+- **Test:** `test_sports_dialogs` (every Sports page class derives from `WindowXMLDialog`).
+
+## ISSUE-363 — Sports had no real games or streams: ESPN gave games but no streams, The Loop had no adapter (owner, 2026-11-16)
+
+- **Seen:** every game said "No sources yet"; the owner wants The Loop family's own source add-on (JetExtractors) as the source of games and streams, not ESPN.
+- **Fix:** `sports_jet.py` asks the JetExtractors scrapers (through the add-on's own `get_extractors()`; nothing is worked around), turns each JetItem into merge records, merges them, and plays a source through
+  JetProxy (`plugin://plugin.video.jetproxy/play/...?h=`) or Kodi's player. A page waits 18 s, then shows what has answered; slow scrapers finish in the background. ESPN stays in the app (`KODI_IOS_SPORTS=espn`).
+- **Unknown until a phone log exists:** JetExtractors may refuse a caller that is not The Loop. The first build logs why (`Kodi iOS Sports: jet: ...`: scraper counts, names, a few titles; never a stream address). If it refuses, the
+  fix is on The Loop's side (a prompt for the owner's agent), not a workaround here.
+- **Test:** `test_sports_jet` (titles, leagues, state, records, merge of two scrapers, failing and slow scrapers, nothing-answers, JetProxy path).
+
+## ISSUE-364 — Sports said "The sports add-ons didn't answer": our script could not import `requests` (owner build 552 log 916e0a6a)
+
+- **Seen:** every Sports page showed "Can't load sports right now"; the log said `jet: no scrapers (JetExtractors is not installed (ModuleNotFoundError: No module named 'requests'))` although
+  JetExtractors 3.3.33 and requests 2.31.0 were both installed.
+- **Cause:** Kodi puts a module add-on on the python path only for an add-on that declares it. The Sports script is not JetExtractors, so JetExtractors' own imports (requests, bs4, dateutil...) failed.
+  JetExtractors was never asked anything, so this says nothing yet about whether it accepts our caller.
+- **Fix:** `sports_jet.add_module_paths` adds the module folder of JetExtractors and of every add-on it requires, recursively, from their addon.xml files; a missing one is skipped.
+- **Test:** `test_sports_jet.ModulePaths`.
+
+## ISSUE-365 — Sports: JetExtractors failed with "No valid addon id could be obtained" (owner build 554 log a01ae2c6)
+
+- **Seen:** with the modules importable (ISSUE-364) every page still said "Can't load sports right now"; log: `jet: no scrapers (JetExtractors refused or failed (RuntimeError: No valid addon id could be obtained...))`.
+- **Cause:** JetExtractors asks Kodi for "the current add-on" with a bare `xbmcaddon.Addon()`. Our scripts run through `default.py`'s `runpy`, where Kodi cannot tell which add-on that is (the same cause as the Library status failure in the build 159 log, test_library_status.EveryScriptNamesItsAddon),
+  so it raises. (A first guess, that only a page's worker thread was the problem, was wrong; a separate script alone does not fix it.)
+- **Fix:** Jet's work runs in its own script `sports_jet_run` (a page's thread is not used, and the page only reads the answer from a Home window property: partial answers after 6 s, the rest as they come, 2 min reuse; playing
+  a source goes the same way), and while that script runs `sports_jet.named_addon` makes a bare `Addon()` mean this add-on (`service.kodi.ios.bootstrap`). JetExtractors is not changed and its own checks stay; this only says who we are.
+  If it still refuses, the next step is a prompt for The Loop's side with the exact error.
+- **Test:** `test_sports_jet.Remote` and `NamedAddon`.
+
+## ISSUE-366 — Sports: tapping a stream did nothing (owner, after JetExtractors accepted the add-on)
+
+- **Seen:** games list from JetExtractors (owner's config.py change on their side), but no stream opens.
+- **Found so far:** the Live page handed whatever `sports_provider.play` returned to `xbmc.Player().play`; the Jet route returns `True` after starting the play script, so Live would try to play "True". Fixed (skips `True`).
+- **Still to check on the phone:** the Game page route (`sports_jet_run play`) and what `expand()`/JetProxy do with a real stream. Needs the kodi.log from just after a tap (look for `jet: play failed` or `sports: playing`).
+- **Test:** `test_sports_jet.LivePageDoesNotPlayTrue`.
+
+## Sports build 557: source tap fails and collection work repeats — 2026-11-16
+
+Owner build 557 log confirms an asynchronous Jet play request returned True and Live Now passed it to Player.play; ResolveURL was installed but absent from the script import path; failed extractor resolution could pass a webpage to Kodi. Load ResolveURL's declared dependency graph, accept only actual playback strings at the page boundary, and reject unresolved links. Forced refresh now joins an active collection, with a process-wide file lock preventing simultaneous interpreter scans. Keep existing results during refresh and avoid rewriting unchanged page properties. Provider outages in the log remain upstream failures; these changes cannot guarantee their availability or phone frame rate.
+
+All 14 sports suites pass (179 tests). Seven focused regression cases cover dependency loading, the asynchronous acknowledgement, refresh joining and failed/successful link resolution. Existing mock window failures exposed the need to cache previous properties within each page; corrected and all suites rerun. Owner also approved review/merge of PR #44 and one combined testing IPA. PR #44 merged as 9b276e7 after its 265 Python tests and project check passed. Next: integrate newer sports/subtitle source with main, run native candidate CI, verify/pin its framework, then package and verify the IPA. Actual iPhone playback/scrolling/AirPlay checks remain pending.
+
 ## Drive startup follow-up — optional index admission blocks playback (2026-11-16)
 
 Build 554's first decoded picture was queued 4.168 s after Play, while the streams-ready
@@ -5086,3 +5663,217 @@ native string-wiring assertions needed audio-route updates; initial continuity a
 misinterpreted the first packet edit-list anchor (all later pairs and boundaries now checked);
 standard rig setup lacks sudo; first desktop harness used an unsupported JSON-RPC option.
 Detailed evidence/remaining checks: DRIVE-STARTUP-AIRPLAY-PROGRESS.md.
+
+## Combined build integration: portrait source digest mismatch — 2026-11-16
+
+ 38dad1e is pushed on PR #43. Native candidate run 43907784636 tests and builds that source, including r64 subtitle changes and PR #44's separate six-second converted timeline. No IPA has been built yet. The ordinary import CI caught a portrait patch digest mismatch: PR #44 adds an optional first-frame logging marker, but the approved r33 executable was built without that marker. The testing branch now retains the exact r33 patch and pin together; the marker remains in main for a future Kodi executable build. This does not remove the Drive admission or native AirPlay playback fixes; first-picture timing remains explicitly unmeasured. test_smooth_pages passes after restoring that consistency.
+
+Native infrastructure failure retained: candidate run 43907784636 passed host tests but GitHub canceled its unassigned macos-15 ARM64 compile after 15 minutes: "The job was not acquired by Runner of type hosted even after multiple attempts"; annotations report ARM64 capacity constraints. Retry compilation on the documented macos-15-intel image (Xcode 26 available). A manual reuse_host_run option verifies the earlier host job succeeded and the entire migration/airplay-ios Git tree is identical before allowing the compile; default PR runs still execute the full host suite. This reuses evidence, not an older binary.
+
+## Build 561 artifact validation: signed versus unsigned r33 comparison — 2026-11-16
+
+The private verification helper initially compared the unsigned packaged executable to the signed r33 pin. It now verifies the pinned original archive/binary and compares the exact result of the existing unsign function. One signature command removed; all other bytes match. Release SHA, ZIP CRC, repaired source and exact r65 framework checks pass. Build 561 published; device acceptance remains pending. No app change or extra IPA was needed.
+
+- **Update (owner log b7b8ef70, build 557):** games load (9 scrapers: LiveFeeds 229 games, Embedsport2 160, ...). Every tap chose Embedsport2, whose own stream request to its helper host failed on the phone (`[SSL] unknown error`),
+  while other scrapers list the same matches; and quick taps raced on one Home window property (`KeyError: 'play'`, 3 times).
+  **Fix:** a game's source now carries the other add-ons' play values as `alts`; `play` tries the source's own add-on and then up to four others until one opens (one log line per failure, no addresses); each tap uses its own
+  property. **Not fixed (not ours):** Embedsport2's helper server failing on iOS. **Test:** `test_sports_jet.Fallback`, `test_sports_merge` (unchanged and still passing).
+
+## Build 563: Sports playback candidates and repeated snapshot work — 2026-11-16
+
+A 36-second scraper run contained upstream DNS failures; Leagues and Upcoming called the provider repeatedly while partial data was available. Snapshot reuse avoids repeated waits and briefly caches the same merged result, invalidating when the snapshot changes. The adapter also abandoned sibling streams after one ResolveURL failure and passed the original embed URL after a successful resolution. It now tries nested candidates and the scraper’s own resolver, passes the resolved address, and combines resolver/extractor headers for Kodi or JetProxy; app-owned failure logs omit exception URLs. The full sports suites pass. Desktop Kodi 21.3 with 300 synthetic games rendered both pages, reused one merge across four provider calls, and played a local video after a failed first mocked resolver and again via a mocked scraper-owned fallback. No live-provider or iPhone acceptance claim. Evidence: reports/sports-563-rig-validation.json.
+
+Rig follow-up: a Python optimized-mode assertion initially skipped a synthetic probe; explicit runtime checks and two independent reruns corrected that harness error. Two orphaned desktop Kodi rig processes also competed for port 8089; only those test processes were stopped, the rig was restarted, and the final probe passed. These were rig issues, not diagnosed phone failures.
+
+
+## Sports provider refusal repeats after refresh — 2026-11-17
+
+- **Seen:** build 566 repeatedly displayed JetExtractors refusal dialogs during Sports refresh; independent listings continued.
+- **Cause:** every collection launched JetExtractors again, and the previous in-memory pause only handled one refusal string for the current Kodi session.
+- **Fix:** explicit ban or authorization refusal pauses JetExtractors for six hours in a profile file and Home-window property; a changed build or expiry permits another attempt. Paused playback skips JetExtractors and allows alternate sources. This does not lift a ban or restore access.
+- **Test:** `test_sports_pause`, `test_sports_independent`, and `test_sports_playback_repair`; phone validation remains pending.
+
+## Independent sports playlist rejected — 2026-11-17
+
+- **Seen:** build 566 phone log and host checks show HTTP 403 on the initial HLS playlist before Kodi requests segments.
+- **Cause:** unknown. Player embed exposes a playlist URL; header, cookie, URL-query and access-decision requirements are not established. Host response passed through an intermediary; no conclusion about the upstream decision is justified.
+- **Fix:** unresolved; no protection bypass or speculative playback change.
+- **Test:** `test_sports_independent` covers header propagation at resolution and safe failure diagnostics, not successful live playback.
+
+
+## Import test batch: intermittent stream accounting assertion — 2026-11-17
+
+- **Seen:** `test_stream_loop.py` reported 0 rather than 100 served bytes once during the 173-command batch; the same suite passed immediately when rerun alone.
+- **Cause:** not established; the failure occurred in the existing asynchronous stream accounting assertion.
+- **Fix:** none made for this unrelated intermittent failure.
+- **Test:** standalone `python3 -B scripts/test_stream_loop.py` passed; retain this observation for future investigation.
+
+Public reference investigation: a plaintext Kodi extractor describes a source-issued access-grant playlist for one embed format; the currently observed embed did not contain that grant marker. A separate Android WebView project names the embed host. Neither establishes the cause of this phone’s 403 or proves a working stream; no third-party code was copied.
+
+
+## FawaNews independent source candidate — implementation pending validation
+
+- Seen: owner Deck shows FawaNews local-proxy playback, while phone StreamsCenter returns 403.
+- Cause: providers differ; FawaNews has no explicit schedule in the extractor, so existing Sports classification drops unknown-time entries.
+- Fix candidate: independent FawaNews parsing matched only to unique live ESPN schedule events; isolated MIT local proxy from the owner Deck bundle, no JetExtractors authorization import; direct ffmpegdirect HLS handoff and existing script lifetime handling.
+- Test: test_sports_fawa, existing Sports tests; real rig proxy playback pending. No phone or real-playback claim.
+
+
+## Local FawaNews HLS resource paths rejected by FFmpeg — candidate fix
+
+- Seen: real Linux Kodi ffmpegdirect 21.3.8 / FFmpeg 9 rejected proxy segment addresses with a query encoded into the pathname.
+- Cause: exposed local URL did not end in an allowed media extension.
+- Fix candidate: new loopback proxy assigns opaque media-suffixed paths and keeps the complete source URLs server-side; shares session and headers for playlists, segments and URI attributes. No token mutation or authorization bypass.
+- Test: test_sports_hls_proxy uses a real controlled HTTP server and verifies master, media, key and segment traversal with headers/cookies and unchanged query. Real playback retest pending.
+
+- Real retest: Linux Kodi with ffmpegdirect 21.3.8 / FFmpeg 9 played an actual FawaNews source through the new proxy; after initialization time advanced 9267.7 -> 9272.7 -> 9277.7 -> 9282.7 in five-second intervals and remained playing. This verifies desktop playback, not stream identity or iPhone behavior. Removed the unused vendored proxy after replacement.
+
+
+## Shared Loop proxy media-path compatibility — rig verified candidate
+
+- Seen: fresh unmodified Loop route reached ffmpegdirect but FFmpeg 9 rejected local resource paths; extension-only patch then produced segment failures.
+- Cause: local proxy embedded query strings in pathname, and variant flattening returned relative media references without retaining their child-playlist base.
+- Fix candidate: version/hash-guarded compatibility patch gives local resource aliases media suffixes and preserves exact original references; variant resolver rebases child media/key references before flattening. Only two readable proxy modules change; authorization and caller identity are untouched.
+- Test: test_sports_loop_proxy_compat, test_sports_loop_routes, actual fresh Loop/FawaNews first-link rig playback. Kodi speed 1, time advanced 1:41:53 -> 1:42:08 across fifteen seconds. No claim that all scrapers or iPhone are verified.
+
+
+## Sports cards lacked normal Loop plugin routes — catalog integration checkpoint
+
+- **Seen:** normal Loop playback worked in the rig, but our cards still used direct JetExtractors discovery under the bootstrap caller.
+- **Cause:** the real plugin listing/route handoff had no catalog adapter.
+- **Fix:** discover native Loop Scraper Zone listings, schedule-match unambiguous team pairs, retain exact plugin routes, and dispatch through normal Loop. Skip replay/account menus. When Loop is installed, avoid direct bootstrap Jet imports and the inferred-live independent StreamsCenter listing.
+- **Test:** test_sports_loop_routes covers discovery, ambiguous matches, exact route/card preservation and no direct Jet import. Real desktop scan discovered 43 eligible routes; Upcoming displayed 61 games. Actual card tap reached Loop; selected source returned HTTP 403. This establishes UI dispatch, not successful playback for that source or all providers. Upcoming initial-error recovery and asynchronous playback fallback still need work.
+
+
+## Sports Upcoming stayed in error after late scan results
+
+- **Seen:** real Loop scan produced its first usable result after the page's bounded initial wait; Upcoming remained in error until Retry.
+- **Cause:** the periodic timer only redrew old page data.
+- **Fix:** timer retries failed/uninitialized data loads through the existing guarded refresh; closing the page prevents retry.
+- **Test:** test_sports_upcoming_states covers late recovery and closed-page suppression; fresh real desktop scan recovered automatically to 57 games without a Retry tap. Later snapshot contained 61 upcoming games and no confirmed live games.
+
+## Different native Loop providers collapsed into one unknown-quality card
+
+- **Seen:** several unrelated Loop providers appeared as one source because each reported blank quality/language; asynchronous native-plugin failures could not reach synchronous fallback.
+- **Cause:** source merge treated identical missing metadata as proof of the same stream.
+- **Fix:** native Loop records retain separate selectable routes with unique source identities; unknown quality is stated plainly and receives no Best claim. Existing synchronous alts behavior is unchanged.
+- **Test:** test_sports_merge verifies separate choices and identities; test_sports_game verifies readable missing-quality copy. Real desktop game page displayed four separate provider buttons without clipped text. Native plugin dispatch is not proof that a source plays; automatic fallback after asynchronous native failure remains unresolved.
+
+
+## Slow native Loop workers outlived the collection lock
+
+- **Seen:** real native Loop discovery needed roughly 113 seconds, while refreshes started another collector after the original 40-second wait; the new collector overlapped older workers.
+- **Cause:** run_script released its process lock and marked the snapshot complete after a bounded wait even though provider workers were still active.
+- **Fix:** retain scan ownership until completion, update the heartbeat while waiting, and honor Kodi shutdown. Page waits remain bounded. Upcoming and game timers reread incremental snapshots without forcing a new scan.
+- **Test:** test_sports_playback_repair checks lock ownership throughout late completion and release afterward; test_sports_upcoming_states/test_sports_game cover incremental results without another forced refresh. Real rig retest pending.
+
+
+## Background native channel catalogs interrupt Sports pages
+
+- **Seen:** native Loop Foxxy listing displayed a modal progress dialog over another Sports page.
+- **Cause:** source discovery included standalone channel catalogs and several replay menus that cannot yield schedule-matched game cards.
+- **Fix:** omit Foxxy/CDNLiveTV channel catalogs and explicit legacy Video replay menus from automatic game discovery; their original add-ons remain available normally. No third-party dialog or authorization code modified.
+- **Test:** test_sports_loop_routes checks replay/account/channel menu exclusion. Fresh rig candidate scan/visual retest pending; retain the observed failure rather than claiming every native catalog is quiet.
+
+
+## Native Sports opening acknowledged before fallback could observe failure
+
+- **Seen:** a card dispatched Loop but downstream 403/404 occurred asynchronously, after the old synchronous fallback returned success. Distinct buttons helped manual selection but not automatic routing.
+- **Cause:** Player.play acceptance is not AV startup.
+- **Fix candidate:** Play best available ranks reported quality and provider priority, puts native Loop routes into Kodi's video playlist, and lets native playback skip unplayable routes. The observer only reports playing after AV startup/video state, then clears remaining entries so the game does not replay from another provider. Non-native alternatives retain the existing resolver door; user Stop prevents another fallback. Manual provider choices remain available. Native nested-link choosers can still require selection.
+- **Test:** test_sports_loop_router, test_sports_game and import-review registration. Real Kodi controlled plugin test: failed route skipped, next fixture video played (1.0 -> 2.03 -> 3.03 seconds), remaining playlist empty without stopping video. Test-only validator accepted a separately named fixture addon, with no identity/auth changes. This is not a live-provider success claim. Real card/queue retest pending.
+
+## Kodi playlist timeout carried into a later Sports request
+
+- **Seen:** controlled all-failed queue followed later by a failed-first/good-second queue aborted before the good entry.
+- **Cause:** upstream Kodi 21.3 PlayListPlayer.cpp leaves the consecutive-failure timestamp/counter after the no-playable-items branch; the default elapsed-time threshold can abort a subsequent queue at its first failure. Verified in source and rig.
+- **Fix candidate:** packaged system advancedsettings sets playlisttimeout to 0, keeping Kodi's retry-count cap and profile overrides. App queue monitoring still has its own opening timeout, but cannot interrupt a blocking native Player.play call. This changes the system default for playlists, not authorization or provider rules.
+- **Test:** test_customized_ipa checks the installed setting and receipt hash; repeated controlled native routing succeeds in the restarted rig using that packaged default. Native/iPhone behavior remains unproven.
+
+## Rig process exited during simultaneous native plugin initialization
+
+- **Seen:** third stress scan ended the private Kodi process as eight Loop Python interpreters initialized together; cgroup reported no OOM kills.
+- **Cause:** unproven; no usable native crash backtrace captured.
+- **Mitigation candidate:** limit native Loop discovery to two concurrent starts and prioritize providers already seen returning matched games. Direct extractor concurrency is unchanged.
+- **Test:** test_sports_loop_routes checks peak native concurrency of two. Fresh real scan underway; this is not a proven native crash fix.
+
+
+## Automatic queue's real Loop opening still stalls — unresolved
+
+- **Seen:** Play best available from a real game card logs seven native choices, then shows Kodi busy opening; controlled separately named plugin fallback succeeds.
+- **Cause:** unknown; native Loop initialization/GUI calls, observer callbacks and overlapping listing are candidates, not diagnoses.
+- **Fix:** unresolved. Async payload now preserves the queue and UUID ownership; old requests cannot clear a replacement queue.
+- **Test:** test_sports_loop_router covers payload roundtrip and cancellation/replacement; controlled Kodi fixture proves native skip/AV cleanup, not Loop success. Real provider opening remains blocked. No IPA or completion claim.
+
+
+## Direct Loop playback missed the shared proxy repair
+
+- **Seen:** owner requested a phone test by opening The Loop directly, outside our Sports pages.
+- **Cause:** hash-guarded proxy preparation only ran from our playback handoff, so direct addon playback could still import the original proxy files.
+- **Fix:** startup worker prepares the same two recognized readable proxy modules after a short abort-aware delay, without listing menus or touching authorization/configuration. Legacy menu discovery is disabled because the on-demand native catalog supersedes it. Native dispatch/collection no longer enters the bootstrap bare-Addon replacement context.
+- **Test:** test_sports_loop_routes covers startup preparation, shutdown and secret-safe failure; test_sports_loop covers disabled default/explicit diagnostic mode; test_sports_loop_router covers native context and staged handoff. Phone direct-addon playback remains to be tested.
+
+## Resolved media HTTP errors did not advance the native source queue
+
+- **Seen:** a plugin can resolve successfully, then its media HTTP request fails; native resolver skipping alone did not advance that case.
+- **Cause:** this real Kodi build delivered Started/Stopped before AV startup without the expected Error callback.
+- **Fix candidate:** pre-AV media failure advances an explicit candidate cursor, reconstructs a cleared playlist when necessary, and preserves current request ownership across independent alternatives. Stale requests are discarded. Playback dispatch is staged until the Sports modal stack closes.
+- **Test:** controlled actual HTTP 404 -> fixture video succeeded and advanced 1 -> 2 -> 3 seconds with no remaining queue; test_sports_loop_router/test_sports_game cover failure, ownership and deferred dispatch. Actual Loop/card dialog wait remains unresolved; debugger captured the provider waiting in Dialog.select/CGUIDialog.Open, not an established network wait. No universal source or iPhone success claim.
+
+
+## ISSUE-367 — Sports needs ESPN games with Crew playback (2026-11-17)
+
+Seen: owner phone report confirms Crew plays; build 567 log opens live HLS with inputstream.adaptive, H.264/AAC decoding and fullscreen about 2.2s after OpenFile. The log does not independently attribute the opener; Loop's analytics observer runs globally. Loop still refuses its recorded repository origin. Owner chooses Crew and American ESPN leagues only, filters/motorsport/boxing later.
+
+Cause: existing catalog discovers Loop routes and creates games only when a source lists a matching pair. It has no Crew adapter, and source absence prevents scheduled games appearing. Native unknown-quality Crew routes would also collapse behind one source.
+
+Fix candidate: read Crew's normal plugin directories, retain exact native playback routes, publish authoritative selected ESPN schedule before source discovery, overlay uniquely matching sources while retaining ESPN ids/scores/status, and keep native choices distinct. Crew-only playback does not initialize Loop/JetExtractors. Reuse existing Live/Upcoming/Leagues/game UI; no category/filter redesign.
+
+Test: new test_sports_crew_routes.py (registered in import-review) covers matching, dates/league separation, native identity/route validation, Crew priority, no Loop calls, source-free/empty schedule snapshots and American league selection. Full workflow suite and serial rig retest pending. Parallel rig source scan exited the process after the first 75-game schedule published; source matching and live playback are not yet proven. Do not mark device integration fixed from listing success.
+
+
+ISSUE-367 validation follow-up: 179 import-review commands passed; all 23 affected Sports suites reran with no failures and the final Crew regression suite has 23 passing cases. check_project passes. Selected ESPN schedule published 75 upcoming games in 1.25s (zero live). Exact routes include Crew's content=addons selector; stripping it would incorrectly select movie scraping (observed in an initially incorrect private fixture, corrected before accepting the result). Actual Upcoming → game card → Crew source → native Crew sports player → VideoPlayer played owned fixture media at speed 1, time 0 → 0.602 → 1.604s. No real broadcast/source match was verified in that schedule; phone acceptance is pending.
+
+Discovery/playback resource handling: serial bounded Crew traversal skips search/replay/account menus and yields to new play ownership or active video; a per-listing Home marker clears in finally and playback waits up to 10s for the outstanding listing. Tests cover preemption, marker cleanup, wait, complete query retention, aliases/ambiguity/date/league, missing Crew and failed source discovery retaining the ESPN schedule. Crew-only real pages and collector do not call Loop, direct Jet or the independent adapters.
+
+Failure retained: both broad parallel and serial native scans exited the desktop rig; GDB captured SIGSEGV in Python 3.14 PyThreadState_Swap called from CPythonInvoker::onExecutionDone. Another startup stopped in PyEval_RestoreThread. No OOM was recorded. This is a host-runtime failure, not proof of equivalent failure or success on the iPhone's Python 3.11. Final controlled UI check used private background-addon isolation/minimal Home, with Crew files unchanged. No production Python/Kodi binary patch, authorisation change, IPA or merge. See reports/sports-crew-validation.json.
+
+## Build 568 Sports repeated discovery and refresh — 2026-11-17
+
+- **Seen:** owner log captured three complete Crew scans lasting 150, 146 and 177 seconds, each with zero matched streams, followed by another. It also shows ignored taps during dialog closing; no causal link to discovery is established. The owner reports Crew works, but this log contains no video-start event.
+- **Cause:** Crew discovery included leagues with only upcoming ESPN games, and opening Upcoming, Leagues or a game forced a new scan despite a fresh snapshot.
+- **Fix:** use ESPN for both upcoming and live games, but start Crew discovery only for live games and their leagues; no live games means no Crew root listing. Reuse fresh snapshots on page entry, keep explicit refresh, and recheck stale snapshots after 45 seconds. A long scan can still delay reflecting an ESPN state change until it finishes.
+- **Retest:** regressions cover zero live games, mixed live/upcoming leagues, cached snapshot expiry and no forced page-entry refresh. A real ESPN host check returned 75 upcoming, zero live, and made zero Crew calls. First test run failed because older window tests blocked forced refresh; updated them to block the actual background reads and reran. iPhone smoothness, real live source matching and cancellation during startup remain open.
+
+## Sports stop while a native source is opening — 2026-11-17
+
+- **Cause:** Kodi can emit the same pre-AV stopped callback for a user stop and a failed media open. Treating it as a failure could start the next source after cancellation; an ambiguous timeout or empty queue could also trigger an independent alternative.
+- **Fix:** cancel on ambiguous Stop, timeout, unclassified empty queue or generic dialog; only a definite playback-error callback advances the native queue. Some real failed opens that Kodi reports only as Stop now require manual retry.
+- **Retest and limitation:** focused regressions cover stop, timeout, dialog, definite error and replaced request. A desktop Kodi 21.2 slow HTTP fixture initially reached a RuntimeError after the stop and could have triggered another adapter; after fixing the timeout, it returned InterruptedError and did not invoke the second source. Kodi took about 21 seconds to unwind, so immediate stop and iPhone behavior remain unproven.
+- **Diagnostics:** ESPN scheduling and Crew source traversal now log elapsed times and aggregate counts without URLs or headers. The test IPA workflow now preserves older test releases instead of deleting them.
+## ISSUE-368 — Crew live title decorations prevent ESPN matching (2026-11-17)
+
+- **Seen:** a desktop Kodi rig showed an ESPN-live college basketball game in three Crew provider listings, but the collector matched no sources for the observed decorated titles.
+- **Cause:** provider-added live text, a half clock or an Eastern broadcast time became part of a team name or was parsed as a team separator.
+- **Fix:** remove only the observed decorations before comparing both teams against ESPN names and aliases; reject ambiguous games and different teams.
+- **Retest:** with Crew active, a rig collector matched three native routes for the real game. Regression tests cover the observed titles, distinct and ambiguous games, and source collection through direct and nested routes. This does not establish video playback or iPhone behavior. Automatic Crew activation beneath Sports remains open.
+
+## ISSUE-369 — Crew listing needs its Kodi container beneath Sports (2026-11-17)
+
+- **Seen:** outside Crew, real provider folders returned no results; when Crew was active, listings included a live ESPN game. Kodi refused to activate Crew after the Sports modal was already displayed. Crew also opened a non-cancelable busy dialog during some background listing requests, blocking Sports interaction.
+- **Fix candidate:** open Crew's normal Kodi container before the Sports dialog, bound the startup wait, and tie discovery to a session token. Close the Sports-owned scan on exit and restore the preceding container if this session opened Crew. During a Sports-owned listing only, dismiss Crew's blocking busy dialog; stop doing so for playback ownership. Playback requests cancel the scan before the native handoff.
+- **Rig retest:** actual Sports dialog over Crew found three routes for one live game. Back during an active listing closed Sports and returned to Home; another test restored the previous video folder, and a pre-existing Crew folder remained open. Quick exit/reopen started a fresh scan. A controlled immediate playback handoff retained Crew and ownership while the Sports script closed. The current in-flight request can finish after exit. A separate existing Kodi modal can prevent activation; a desktop rig cannot establish iPhone responsiveness or video playback. Visual review in the custom portrait skin and device testing remain pending.
+
+## ISSUE-370 — Live source handoff and unresolved Crew list expressions (2026-11-18)
+
+- **Seen:** a real Live Now source tap reached Kodi VideoPlayer but no video started; its input was an unresolved `$doregex[makelist2]` expression. All 24 sampled Crew source choices had the same structural form. A private attempt to resolve one through Crew's native directory action returned a listing error.
+- **Cause:** the Live Now page previously dispatched native playback before dismissing its Sports modal stack. This ordering could block the native picker. The separate reason Crew exposes unresolved list expressions as playable entries remains undiagnosed.
+- **Fix candidate:** stage native dispatch until Live Now and its modal stack close, matching the existing game-page handoff. Preserve normal direct-source behavior and report dispatch failures without private data.
+- **Retest:** the actual Live Now tap closed the page and reached Kodi VideoPlayer, but the unresolved expression did not play. Focused tests cover modal/dispatch ordering, direct playback and failure notification. Full real-provider playback, safe fallback, portrait review and iPhone validation remain open.
+
+## ISSUE-371 — Crew resolver cache is invalidated between Sports league scans (2026-11-18)
+
+- **Seen:** an ESPN-live source selected from Sports reached Kodi with Crew's unresolved `$doregex[makelist2]` expression. The same source plays when opened through Crew after its normal parent menus are reopened.
+- **Cause:** Crew clears its whole regex resolver table when each league root opens. Sports collects more than one league, so a saved route from an earlier league can outlive its resolver entry.
+- **Fix:** retain the genuine Crew menu ancestry and ESPN team match with each native choice. Immediately before play, reopen the ordinary Crew path and accept only a uniquely matching fresh route. The automatic queue stages one refreshed candidate at a time, because refreshing a later league can invalidate an earlier candidate. Unknown, ambiguous, replaced, stopped or timed-out handoffs cancel safely.
+- **Test:** `test_sports_crew_routes.py` covers stale-route renewal, ancestry validation, ambiguity and ownership replacement; `test_sports_loop_router.py` covers one-at-a-time staging and confirmed-error progression. In the portrait desktop rig, actual Sports Live Now → NHL → Buffalo–Philadelphia → Crew feed played H.264/AAC at 1080p with time advancing past 49 seconds. A second real Ottawa–Winnipeg route reached Crew's normal feed picker, but its selected feed did not produce video in this run; it is retained as an availability result, not treated as a routing success. iPhone playback, cancellation and source failure behavior remain to be tested.

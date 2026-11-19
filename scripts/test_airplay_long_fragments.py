@@ -11,7 +11,8 @@ class LongFragments(unittest.TestCase):
  def test_long_fragments_take_the_segmented_route_for_any_receiver(self):
   limit=float(re.search(r'#define PREPARED_MAX_FRAGMENT_SECONDS ([0-9.]+)',SRC).group(1))
   self.assertLessEqual(limit,10)
-  self.assertIn('prepared_playlists(2)==0 && prepared_longest>limit',SRC)
+  self.assertIn('int indexed=S.prepared_size>0 && prepared_playlists(2)==0;',SRC)
+  self.assertIn('if(indexed && prepared_longest>limit) {',SRC)
   self.assertIn('segmented=1;',SRC)
   # Roku's codec limits stay Roku's: an Apple TV keeps a 4K H.264 picture.
   self.assertIn('if(roku && !compat && selected>=0)',SRC)

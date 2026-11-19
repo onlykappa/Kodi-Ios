@@ -20,6 +20,7 @@ TOP, TOP_SEG = 330, 446    # where the list starts without and with the segmente
 ROW, ROW2, POSTER_ROW = 150, 196, 236
 HEADER, NOTE, BUTTON, LINK, GAP, STATS = 84, 140, 170, 130, 30, 220
 CELL_W, CELL_H = 324, 660
+BADGE_W = 240   # ISSUE-338: fits "Most likely" in p_tab bold (rig-checked)
 
 
 def _kind(name):
@@ -236,13 +237,12 @@ def _cell(p, focused):
     out += p.image(5, 5, CELL_W - 22, CELL_H - 26, M + 'round_s.png', p.SURFACE, '<visible>%s</visible>' % _has('best'), border=20)
     out += p.image(6, 6, pw, ph, M + 'white.png', p.SURFACE2, diffuse=M + 'poster_mask.png')
     out += p.image(6, 6, pw, ph, '$INFO[ListItem.Art(poster)]', p.WHITE, '', '>scale', M + 'poster_mask.png', background=True)
-    # ISSUE-325 (rig render): "Most likely" ran past a 190-unit pill: the pill fits the text (a button sized by its label).
-    out += ('<control type="button"><left>18</left><top>18</top><width min="120" max="%d">auto</width><height>54</height>'
-            '<label>[B]$INFO[ListItem.Property(best)][/B]</label><font>p_tab</font><textoffsetx>20</textoffsetx>'
-            '<textcolor>%s</textcolor><disabledcolor>%s</disabledcolor><align>center</align><aligny>center</aligny><enable>false</enable>'
-            '<texturenofocus border="27" colordiffuse="FF0A84FF">%spill_56.png</texturenofocus>'
-            '<texturefocus border="27" colordiffuse="FF0A84FF">%spill_56.png</texturefocus><visible>%s</visible></control>') % (
-        CELL_W - 48, p.WHITE, p.WHITE, M, M, _has('best'))
+    # ISSUE-325 (rig render): "Most likely" ran past a 190-unit pill. ISSUE-338 (owner log a42d17d7: "Trying to add
+    # unsupported control type 7"): a list cell takes no buttons, so the auto-width button pill was dropped on the phone.
+    # A fixed pill wide enough for "Most likely" / "Best match", with a centred label.
+    out += p.image(18, 18, BADGE_W, 54, M + 'pill_56.png', 'FF0A84FF', '<visible>%s</visible>' % _has('best'), border=27)
+    out += p.label(18, 18, BADGE_W, 54, '[B]$INFO[ListItem.Property(best)][/B]', 'p_tab', p.WHITE, 'center',
+                   '<visible>%s</visible><scroll>false</scroll>' % _has('best'))
     out += p.textbox(14, ph + 16, CELL_W - 40, 84, '[B]$INFO[ListItem.Label][/B]', 'p_cap', p.WHITE)
     out += p.textbox(14, ph + 100, CELL_W - 40, 80, '$INFO[ListItem.Label2]', 'p_tab', p.GREY)
     if focused:

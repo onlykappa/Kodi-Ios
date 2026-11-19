@@ -490,7 +490,8 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
         if (!address || !root) return;
         [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback mode:AVAudioSessionModeMoviePlayback options:0 error:nil];
         [[AVAudioSession sharedInstance] setActive:YES error:nil];
-        AVPlayer *player = [AVPlayer playerWithURL:address];
+        // ISSUE-337: __block so a restart can hand every watcher below a new player when this one has failed for good.
+        __block AVPlayer *player = [AVPlayer playerWithURL:address];
         if (@available(iOS 15.0, *)) player.audiovisualBackgroundPlaybackPolicy=AVPlayerAudiovisualBackgroundPlaybackPolicyContinuesIfPossible;
         const double startAt = atomic_exchange(&pendingStart, 0.0);
         __block BOOL initialSeekAllowed = YES;
@@ -550,6 +551,9 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
             const BOOL preparedLink = [link hasSuffix:@"/prepared.mp4"] || [link hasSuffix:@"/prepared.m3u8"];   // r38: HLS over the prepared file
             __block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO, everExternal = NO, slowNoted = NO;
             __block double resumeAt = -1;
+            // ISSUE-336: position watch for recovery after a source stall.
+            __block double lastPos = -1;
+            __block int stuckTicks = 0, stuckSince = 0, recoveries = 0, lastErrorTick = -1000;
             // r7: once per stream: restart with the picture converted to H.264 at the same position. NO when it cannot
             // (already tried, or no source to restart).
             BOOL (^restartCompat)(BOOL) = ^BOOL(BOOL hevc) {
@@ -600,6 +604,21 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                             return;
                         }
                         AVPlayerItem *next = [AVPlayerItem playerItemWithURL:address];
+                        // ISSUE-337 (owner log d8524f8d): the player had failed for good (AVPlayerStatusFailed, -11819)
+                        // before the converted stream was ready; given the new stream it still reported the failure and
+                        // the app said "could not open the stream". A failed AVPlayer cannot be used again: a new one
+                        // with the same settings takes the converted stream.
+                        if (player.status == AVPlayerStatusFailed) {
+                            playerNote(@"the player itself had failed (%@): a new one takes the converted stream",
+                                       player.error.localizedDescription ?: @"");
+                            AVPlayer *fresh = [[AVPlayer alloc] init];
+                            if (@available(iOS 15.0, *)) fresh.audiovisualBackgroundPlaybackPolicy=AVPlayerAudiovisualBackgroundPlaybackPolicyContinuesIfPossible;
+                            fresh.allowsExternalPlayback = YES;
+                            fresh.usesExternalPlaybackWhileExternalScreenIsActive = YES;
+                            [player pause];
+                            player = fresh;
+                            airplayController.player = fresh;
+                        }
                         watchPlayback(player,next,generation);
                         [player replaceCurrentItemWithPlayerItem:next];
                         airplayHolder.ticket=restartTicket;
@@ -627,6 +646,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 }
                 // r6: Apple's player error log (segment / decoder failures it recovered from or not), once each.
                 NSArray<AVPlayerItemErrorLogEvent *> *errors = item.errorLog.events;
+                if (errors.count > errorsSeen) lastErrorTick = ticks;
                 for (NSUInteger i = errorsSeen; i < errors.count; i++)
                     playerNote(@"error log: %ld %@ %@ (%@)", (long)errors[i].errorStatusCode, errors[i].errorDomain,
                                errors[i].errorComment ?: @"", errors[i].URI.lastPathComponent ?: @"");
@@ -711,6 +731,32 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                     const char *m = kr_remux_message();
                     showProblem(m && *m ? @(m) : (player.currentItem.error.localizedDescription ?: @"The TV could not play the converted stream."));
                     [timer invalidate]; return;
+                }
+                // ISSUE-336 (owner log 53a92f39, build 502): after a source stall ("No response for media file in 10.4 s
+                // (seg1.m4s)", then -15628) the TV paused at 7.4 s and stayed there for 7 minutes, rate 0, although every
+                // later segment was ready. A TV that stopped moving within 15 s of such an error, with no video segment
+                // still owed, is asked to play again; if it still does not move, the stream is reloaded at that point
+                // (at most three times). A pause long after any error is the viewer's and is left alone.
+                double here = CMTimeGetSeconds(player.currentTime);
+                if (isfinite(here) && fabs(here - lastPos) > 0.25) { lastPos = here; stuckTicks = 0; stuckSince = ticks; }
+                else stuckTicks++;
+                if (external && stuckTicks >= 6 && recoveries < 3 && lastErrorTick >= stuckSince - 15 &&
+                    kr_remux_video_waiting() == 0 && item.status != AVPlayerItemStatusFailed) {
+                    recoveries++; stuckTicks = 0;
+                    if (recoveries == 1) {
+                        playerNote(@"stuck at %.1f s after a source stall (rate %.1f): playing again", here, player.rate);
+                        [player play];
+                    } else {
+                        NSURL *url = [item.asset isKindOfClass:AVURLAsset.class] ? ((AVURLAsset *)item.asset).URL : nil;
+                        if (url) {
+                            playerNote(@"still stuck at %.1f s after a source stall: reloading the stream there", here);
+                            AVPlayerItem *next = [AVPlayerItem playerItemWithURL:url];
+                            watchPlayback(player, next, generation);
+                            [player replaceCurrentItemWithPlayerItem:next];
+                            [player play];
+                            resumeAt = isfinite(here) && here > 0 ? here : 0; errorsSeen = 0;
+                        }
+                    }
                 }
                 waiting = player.timeControlStatus == AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate ? waiting + 1 : 0;
                 const char *m = kr_remux_message();
@@ -1376,13 +1422,18 @@ done
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -O2 -fobjc-arc -fmodules \
   -I"$FF/include" -I"$REMUX/src" -c "$REMUX/src/kr_upscale.m" -o "$WORK/kr_upscale.o"
 OBJS+=("$WORK/kr_upscale.o")
+# ISSUE-347: Apple's speech recognition (on the phone only) for the subtitle speech check (Objective-C, ARC).
+xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -O2 -fobjc-arc -fmodules \
+  -I"$FF/include" -I"$REMUX/src" -c "$REMUX/src/kr_speech.m" -o "$WORK/kr_speech_objc.o"   # not kr_speech.o: that is kr_speech.c's
+OBJS+=("$WORK/kr_speech_objc.o")
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
 printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_keep_dvd_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n_kodi_airplay_serve_segmented\n' > "$WORK/exports"
 printf '_kodi_http_copy_max\n_kodi_http_copy_streams\n_kodi_http_copy\n_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
 printf '_kodi_airplay_prepare_upscale\n_kodi_airplay_upscale_support\n_kodi_airplay_upscale_model\n_kodi_device_state\n' >> "$WORK/exports"   # r48
+printf '_kodi_speech_words\n_kodi_speech_authorize\n_kodi_speech_state\n' >> "$WORK/exports"   # ISSUE-347 (r62)
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
-  -framework VideoToolbox -framework CoreVideo -framework CoreText -framework Metal \
+  -framework VideoToolbox -framework CoreVideo -framework CoreText -framework Metal -framework Speech \
   -I"$REMUX/src" -Wl,-exported_symbols_list,"$WORK/exports" \
   -o "$FW/KodiAirPlay" "$WORK/KodiAirPlay.m" "${OBJS[@]}" \
   "$ASS/lib/libass.a" "$ASS/lib/libharfbuzz.a" "$ASS/lib/libfribidi.a" "$ASS/lib/libfreetype.a" -lc++ \
@@ -1426,6 +1477,10 @@ nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(prepare_upscale|upscale_sup
 nm -m "$FW/KodiAirPlay" | grep -E '_OBJC_CLASS_\$_VT(LowLatency)?SuperResolutionScaler(Configuration|Parameters)'
 [[ "$(nm -m "$FW/KodiAirPlay" | grep -E 'weak external _OBJC_CLASS_\$_VT(SuperResolutionScalerConfiguration|SuperResolutionScalerParameters|LowLatencySuperResolutionScalerConfiguration|LowLatencySuperResolutionScalerParameters|FrameProcessor|FrameProcessorFrame)' | wc -l | tr -d ' ')" -ge 6 ]] || { echo 'r48 super resolution classes not weak-linked' >&2; exit 1; }
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(kr_upscale_open|kr_upscale_frame|kr_video_set_upscale)$')" == 3 ]] || { echo 'r48 upscaler not linked' >&2; exit 1; }
+# ISSUE-347 (r62): the speech check's entry points are exported and its sound reader is linked (private).
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_speech_(words|authorize|state)$'
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_speech_(words|authorize|state)$')" == 3 ]] || { echo 'speech check exports missing' >&2; exit 1; }
+[[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _kr_speech_pcm$')" == 1 ]] || { echo 'speech sound reader not linked' >&2; exit 1; }
 # r7: the picture bridge needs Apple's hardware H.264 encoder in this FFmpeg.
 grep -q -- '--enable-encoder=h264_videotoolbox' "$FF/FFMPEG-CONFIG.txt" || { echo 'FFmpeg built without h264_videotoolbox' >&2; exit 1; }
 lipo -info "$FW/KodiAirPlay"

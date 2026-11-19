@@ -1,5 +1,15 @@
 # Kodi-iOS master roadmap
 
+Sports testing-build follow-up (2026-11-17): ambiguous native startup stops/timeouts cancel rather than launch another source; definite errors can advance. Timing diagnostics added. Slow-opening Kodi 21.2 fixture did not open another source but took about 21 seconds to unwind; phone behavior and live acceptance remain pending. Owner authorized one testing IPA. Preserve prior releases. See docs/SPORTS-HANDOFF.md.
+
+Current Sports follow-up (2026-11-17): ESPN supplies live and upcoming games; Crew discovery is limited to ESPN-live games and their leagues, with fresh snapshot reuse. Owner reports Crew works, but the latest phone logs show menu navigation and repeated scans, not live video; iPhone acceptance and stop-during-opening behavior remain pending. See docs/SPORTS-HANDOFF.md. No IPA/merge.
+
+
+Current Sports candidate (2026-11-17): ESPN American schedule + Crew native sources, existing UI. Controlled card-to-Crew-player rig test passes; real live broadcast matching/phone acceptance and host Python3.14 cleanup failure remain pending. See docs/SPORTS-HANDOFF.md and reports/sports-crew-validation.json. No new IPA/merge.
+
+Sports follow-up (2026-11-16): build 563 stream-candidate handoff and repeated snapshot merging repaired in the sports draft; 189 sports tests and synthetic desktop Kodi rig pass. Live-provider and phone acceptance pending; see [progress](docs/SPORTS-PLAYBACK-PROGRESS.md).
+
+Current repair: sports playback/import/refresh fixes host-validated; PR #44 merged with owner approval. AirPlay r65 and combined testing IPA build 561 are published and artifact-verified; phone acceptance pending. See [sports progress](docs/SPORTS-PLAYBACK-PROGRESS.md).
 Maintenance checkpoint (2026-11-16): downloaded Drive startup and audio-only AirPlay source
 repairs ready for draft review. 265 Python tests, 375 native host checks, independent sparse
 conversion regression and desktop Kodi 21.2 proxy flows pass. Native pins unchanged; actual
@@ -10,6 +20,12 @@ iPhone/TV, 21.3 portrait rig and future approved native integration remain pendi
 Maintenance checkpoint: PR #32 source-provider fallback is ready for draft review; host and desktop Kodi fixture validation recorded in reports/provider-fallback-validation.json. No IPA or merge.
 
 Current maintenance checkpoint (2026-11-14): ISSUE-303 repairs build-473 Umbrella cache admission and cancellation; testing IPA approved, phone result pending. See [progress](docs/UMBRELLA-473-PROGRESS.md). Historical phase counts below are unchanged.
+
+Sports checkpoint (2026-11-15): Upcoming boards 10–11, the game's page (12–13), and Upcoming's empty/error states
+(14–15) are implemented on `codex/sports-upcoming-leagues` and checked in the desktop Kodi rig. iPhone evidence and
+real-provider/playback wiring remain pending. See [progress](docs/PROGRESS.md). Next: owner review;
+See Leagues opens the implemented Leagues list (boards 16–17 and 20), also checked in desktop Kodi. Individual
+league pages (18–19) remain separately owned; their routes are logged until installed and registered.
 
 Status: BLOCKED. Current phase: Phase 4 — diagnostic launch owner-confirmed; fully bundled IPA approved; Touch-r1 startup failure recorded; Touch-r2 device evidence pending. Phase 3 approved; Phase 5 unauthorized.
 Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
@@ -567,3 +583,8 @@ Authorized scope: Python backend only, stacked on claude/build442-feedback; no m
 4. Notification/season data: backend helpers and progressive coverage (ISSUE-294), UI binding remains separate.
 5. Terminal retry classification and legacy phone failures: backend implemented (ISSUE-295), host validation complete
    before final commit; device retest and the target branch documentation integration remain separate.
+## Sports live matching checkpoint (2026-11-17)
+
+ISSUE-368 fixes observed Crew title decorations blocking uniquely matched ESPN live games; rig discovery found three routes for one real live game. ISSUE-369 adds Crew context ownership, cooperative scan exit, navigation restoration and a controlled handoff, tested in the desktop rig. Next: real-stream playback and full source-picker testing, portrait visual review, then an owner-authorized iPhone test. Route discovery alone does not prove video playback.
+
+Step 3 checkpoint (ISSUE-370): Live Now's native dispatch is now staged after modal dismissal; a real tap reached Kodi but attempted to open an unresolved Crew list expression and did not play. Investigate usable child routes, actual playback/fallback, and proper portrait-rig screenshots before any iPhone test build.

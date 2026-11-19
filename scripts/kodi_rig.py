@@ -287,8 +287,13 @@ def start(_args):
     if not (BUILD / 'kodi-x11').exists():
         raise SystemExit('no Kodi build: run kodi_rig.py setup first')
     env = dict(os.environ, DISPLAY=DISPLAY, HOME=str(HOME), KODI_HOME=str(BUILD), LIBGL_ALWAYS_SOFTWARE='1')
-    for k in ('HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy'):
-        env.pop(k, None)
+    if os.environ.get('KODI_RIG_NETWORK'):
+        # Opt in (sports add-on checks): add-ons reach the internet through the sandbox proxy, trusting its CA bundle.
+        bundle = os.environ.get('SSL_CERT_FILE') or '/root/.ccr/ca-bundle.crt'
+        env.update(SSL_CERT_FILE=bundle, REQUESTS_CA_BUNDLE=bundle, CURL_CA_BUNDLE=bundle)
+    else:
+        for k in ('HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy'):
+            env.pop(k, None)
     subprocess.Popen(['Xvfb', DISPLAY, '-screen', '0', SIZE + 'x24', '-nolisten', 'tcp'],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     wait(1.5)

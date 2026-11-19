@@ -21,9 +21,9 @@ ROW_H = 176
 SWITCH_ROOM = 110   # ISSUE-307: the extra width a switch takes over a chevron
 # Owner (2026-11-14): no text is cut off with "…". A row whose title or detail does not fit on one line wraps: the title on
 # up to three lines, the detail on two, the row as tall as its lines (TITLE_LINE per title line, DETAIL_LINE per detail line).
-# Characters per line (rig render 2026-11-14, Inter on the 1080-unit canvas): a title beside a tile 30, minus 5 for a chip,
+# Characters per line (rig renders 2026-11-14 and 2026-11-15, Inter on the 1080-unit canvas): a title beside a tile 24, minus 5 for a chip,
 # plus 5 without a tile; a detail beside a tile 42, plus 6 without.
-FIT_TITLE, FIT_DETAIL = 30, 42
+FIT_TITLE, FIT_DETAIL = 24, 42   # ISSUE-348: a 27-letter bold title ("Pause uploads and try again") was cut at 24
 TITLE_LINE, DETAIL_LINE = 62, 46
 
 

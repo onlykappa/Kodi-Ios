@@ -219,7 +219,7 @@ class Skin(unittest.TestCase):
 
     def test_library_has_a_favourites_row(self):
         names = [n for n, icon, action in self.p.LIBRARY]
-        self.assertEqual(names, ['Movies', 'TV Shows', 'Favourites'])
+        self.assertEqual(names, ['Movies', 'TV Shows', 'Sports', 'Favourites'])   # DEC-054: Sports sits between TV Shows and Favourites
 
     def test_season_sheet_has_only_two_choices(self):
         source = (ROOT / 'migration/bundled-bootstrap/download.py').read_text()

@@ -1,5 +1,5 @@
 """Fetch and package pinned, Python-only movie/TV fallback engines. Never reads accounts or builds an IPA."""
-import argparse,hashlib,io,json,re,shutil,sqlite3,stat,tempfile,urllib.request,zipfile
+import argparse,time,hashlib,io,json,re,shutil,sqlite3,stat,tempfile,urllib.request,zipfile
 from pathlib import Path,PurePosixPath
 import xml.etree.ElementTree as ET
 
@@ -9,8 +9,18 @@ NATIVE=('.so','.dll','.dylib','.exe','.pyd','.a','.framework')
 
 def digest(data):return hashlib.sha256(data).hexdigest()
 
+# The Loop's repository only answers Kodi's own client (anything else gets a search-engine page). The owner approved fetching it as Kodi does (2026-11-15).
+KODI_CLIENT='Kodi/21.3 (Linux; Android 11) App_Bitness/64 Version/21.3'
+KODI_ONLY=('https://loopaddon.uk/',)
+
 def fetch(url):
- with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'Kodi-iOS-provider-build'}),timeout=120) as response:return response.read()
+ agent=KODI_CLIENT if url.startswith(KODI_ONLY) else 'Kodi-iOS-provider-build'
+ for attempt in range(4):   # a download can fail on a passing network or proxy error; the digest check still decides what is accepted
+  try:
+   with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':agent}),timeout=120) as response:return response.read()
+  except OSError:
+   if attempt==3:raise
+   time.sleep(2*(attempt+1))
 
 def verified(path,spec):
  data=Path(path).read_bytes()

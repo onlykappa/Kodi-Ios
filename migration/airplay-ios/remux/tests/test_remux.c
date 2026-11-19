@@ -12,6 +12,7 @@
 #include "../src/kr_audio.h"
 #include "../src/kr_source.h"
 #include "../src/kr_mp4.h"
+#include "../src/kr_speech.h"
 #include "../src/kr_video.h"
 #include "../src/kr_color.h"
 #include "../src/kr_dovi.h"
@@ -306,6 +307,12 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
         reply vtt = http_get(port, path, NULL);
         CHECK(vtt.status == 200 && !strncmp(vtt.body, "WEBVTT", 6), "%s: WebVTT segment", fx->file);
         CHECK(strstr(vtt.body, fx->sub_text) != NULL && !strchr(vtt.body, '{'), "%s: cue text %s (tags stripped) in\n%s", fx->file, fx->sub_text, vtt.body);
+        // ISSUE-343: cue times are media times (the segments keep absolute times), and a line is shown once even when
+        // the file draws it on several layers.
+        CHECK(strstr(vtt.body, "X-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000") != NULL, "%s: WebVTT time map is media time 0:\n%s", fx->file, vtt.body);
+        int copies = 0;
+        for (const char *q = vtt.body; (q = strstr(q, fx->sub_text)); q++) copies++;
+        CHECK(copies == 1, "%s: %s appears %d times in\n%s", fx->file, fx->sub_text, copies, vtt.body);
         // r9: cues of later segments (owner build-138: every segment after a seek was the bare header). The SRT's
         // second cue (6.5-7.5 s) sits in the segment whose window holds 6.5 s, fetched out of order (last first).
         if (strstr(fx->sub_text, "SRT")) {
@@ -1674,8 +1681,9 @@ static char *resume_record(resume_sink *r,int chosen) {
     size_t cap=1<<20,len=0;char *out=malloc(cap);if(!out)return NULL;out[0]=0;
     const char *m=r->marks[chosen];
     for(const char *line=m;line && *line;) {const char *end=strchr(line,'\n');size_t n=end?(size_t)(end-line+1):strlen(line);
-        if(strncmp(line,"tfra ",5)){if(len+n+1>cap)break;memcpy(out+len,line,n);len+=n;out[len]=0;}line=end?end+1:NULL;}
-    for(int i=0;i<=chosen;i++)for(const char *line=strstr(r->marks[i],"\ntfra ");line;line=strstr(line+1,"\ntfra ")) {
+        if(strncmp(line,"tfra ",5) && strncmp(line,"kf ",3)){if(len+n+1>cap)break;memcpy(out+len,line,n);len+=n;out[len]=0;}line=end?end+1:NULL;}
+    for(int i=0;i<=chosen;i++)for(const char *line=strchr(r->marks[i],'\n');line;line=strchr(line+1,'\n')) {
+        if(strncmp(line+1,"tfra ",5) && strncmp(line+1,"kf ",3))continue;   // ISSUE-346: the picture's keyframes too
         const char *end=strchr(line+1,'\n');size_t n=end?(size_t)(end-line):strlen(line);
         if(len+n+2>cap){cap*=2;char *g=realloc(out,cap);if(!g){free(out);return NULL;}out=g;}
         memcpy(out+len,line+1,n);len+=n;if(!end){out[len++]='\n';}out[len]=0;
@@ -1741,6 +1749,37 @@ static void test_preparation_parallel(const char *http_base) {
         CHECK(runs[i].calls>0 && !runs[i].bad,"F2: progress reported and bounded for %s (%d calls, %d bad)",files[i],runs[i].calls,runs[i].bad);
     }
 }
+// ISSUE-346 (owner: "do the keyframe during prep"): the keyframes the preparation saved for a finished file, under the
+// key a cast computes for it. 1: saved and identical to a fresh scan of the file; 0: none saved; -1: saved but different.
+static int prepared_scan_matches(const char *path,char *why,size_t whylen) {
+    AVFormatContext *f=NULL;int result=-1;*why=0;
+    if(avformat_open_input(&f,path,NULL,NULL)<0){snprintf(why,whylen,"cannot open");return -1;}
+    int v=av_find_best_stream(f,AVMEDIA_TYPE_VIDEO,-1,-1,NULL,0);
+    FILE *in=fopen(path,"rb");uint8_t *m=NULL;kr_mp4_fragment *fr=NULL;int n=0;kr_mp4_keys saved={0};
+    char url[1200],err[128];snprintf(url,sizeof url,"file:%s",path);kr_source *source=kr_source_open(url,5,err,sizeof err);
+    if(v<0 || !in || !source){snprintf(why,whylen,"no video, file or source");goto end;}
+    AVStream *st=f->streams[v];double tb=av_q2d(st->time_base);
+    fseek(in,0,SEEK_END);long size=ftell(in);uint8_t tail[16];
+    if(fseek(in,size-16,SEEK_SET) || fread(tail,1,16,in)!=16 || memcmp(tail+4,"mfro",4)){snprintf(why,whylen,"no mfro");goto end;}
+    uint32_t ms=AV_RB32(tail+12);m=malloc(ms);
+    if(!m || fseek(in,size-(long)ms,SEEK_SET) || fread(m,1,ms,in)!=ms){snprintf(why,whylen,"no mfra");goto end;}
+    for(uint32_t at=8;at+24<=ms;) {
+        uint32_t len=AV_RB32(m+at);if(len<8 || at+len>ms)break;
+        if(!memcmp(m+at+4,"tfra",4) && (int)AV_RB32(m+at+12)==st->id)
+            for(uint32_t i=0,c=AV_RB32(m+at+20);i<c;i++){fr=realloc(fr,sizeof *fr*(size_t)(n+1));fr[n++]=(kr_mp4_fragment){(int64_t)AV_RB64(m+at+24+19*i),(int64_t)AV_RB64(m+at+32+19*i)};}
+        at+=len;
+    }
+    int origin=-1;
+    if(kr_mp4_cache_load(kr_mp4_cache_key(m,ms,size,st->id),&saved,&origin)){result=0;snprintf(why,whylen,"none saved");goto end;}
+    double *a=NULL,*b=NULL;int na=0,nb=0;
+    if(origin==1 && kr_mp4_keys_times(&saved,tb,0,&a,&na)==0 && kr_mp4_keyframes(source,fr,n,st->id,tb,0,NULL,NULL,&b,&nb)==0 &&
+       na==nb && !memcmp(a,b,sizeof *a*(size_t)na))result=1;
+    snprintf(why,whylen,"origin %d, %d saved and %d scanned keyframes in %d fragments",origin,na,nb,n);
+    free(a);free(b);
+end:
+    kr_mp4_keys_free(&saved);free(m);free(fr);if(in)fclose(in);if(source)kr_source_close(source);avformat_close_input(&f);
+    return result;
+}
 static void test_preparation_resume(const char *work,const char *http_base) {
     struct {const char *file;int same;} cases[]={{"long_seek.mkv",1},{"long_pgs.mkv",1},{"h264_ac3_dts_srt.mkv",0},{"resume_av1_hdr.mkv",0}};
     kodi_airplay_prepare_keep_image_subs(1);kr_video_set_encoder("mpeg4");kodi_airplay_prepare_marks(1);
@@ -1769,17 +1808,32 @@ static void test_preparation_resume(const char *work,const char *http_base) {
         snprintf(path,sizeof path,"%s/resume-full-%u.mp4",fixture_dir,c);snprintf(remote,sizeof remote,"%s/resume-full-%u.mp4",http_base,c);
         if(r || !full.nmarks || save_bytes(path,full.data[0],full.len[0],NULL,0)){resume_free(&full);continue;}
         CHECK(kodi_airplay_verify(input,remote,err,sizeof err)==0,"resume %s: the straight run with its own index validates: %s",cases[c].file,err);
+        {char why[200];CHECK(prepared_scan_matches(path,why,sizeof why)==1,"resume %s: the straight run saved the cast's keyframe scan (%s)",cases[c].file,why);
+         CHECK(strstr(full.marks[0],"\nkfirst ") && strstr(full.marks[0],"\nkcount "),"resume %s: marks carry the keyframes so far",cases[c].file);}
         {long long read=bytes_to_open(path);
          CHECK(read>0 && (!strcmp(cases[c].file,"long_seek.mkv")?read*10<(long long)full.len[0]:1),"resume %s: opening reads %lld of %zu bytes (by its index)",cases[c].file,read,full.len[0]);}
         int chosen=full.nmarks/2;long long at=mark_value(full.marks[chosen],"offset");
         CHECK(at>0 && at<(long long)full.len[0],"resume %s: mark %d at byte %lld of %zu",cases[c].file,chosen,at,full.len[0]);
         char *record=resume_record(&full,chosen);
+        if(record && !cases[c].same) {   // ISSUE-346: a record that lost earlier keyframe lines resumes but saves nothing
+            char *stripped=strdup(record),*w=stripped;resume_sink part={0};
+            for(const char *line=record;line && *line;){const char *e=strchr(line,'\n');size_t k=e?(size_t)(e-line+1):strlen(line);
+                if(strncmp(line,"kf ",3) || line==strstr(record,"\nkf ")+1){memcpy(w,line,k);w+=k;}line=e?e+1:NULL;}
+            *w=0;
+            char gap[1300],why[200];snprintf(gap,sizeof gap,"%s/resume-gap-%u.mp4",fixture_dir,c);
+            CHECK(kodi_airplay_prepare_resume(input,stripped,resume_write,&part,preparation_progress,&calls,err,sizeof err)==0,"resume %s: a record missing keyframe lines still resumes: %s",cases[c].file,err);
+            int as_straight=(size_t)at+part.len[0]==full.len[0] && !memcmp(full.data[0]+at,part.data[0],part.len[0]);   // its key was saved by the straight run
+            if(!as_straight && !save_bytes(gap,full.data[0],(size_t)at,part.data[0],part.len[0]))
+                CHECK(prepared_scan_matches(gap,why,sizeof why)==0,"resume %s: an incomplete keyframe list is not saved (%s)",cases[c].file,why);
+            free(stripped);resume_free(&part);
+        }
         r=record?kodi_airplay_prepare_resume(input,record,resume_write,&more,preparation_progress,&calls,err,sizeof err):-1;
         CHECK(r==0,"resume %s: carrying on from mark %d: %s",cases[c].file,chosen,err);
         if(!r) {
             snprintf(path,sizeof path,"%s/resume-joined-%u.mp4",fixture_dir,c);snprintf(remote,sizeof remote,"%s/resume-joined-%u.mp4",http_base,c);
             save_bytes(path,full.data[0],(size_t)at,more.data[0],more.len[0]);
             CHECK(kodi_airplay_verify(input,remote,err,sizeof err)==0,"resume %s: the joined movie validates: %s",cases[c].file,err);
+            {char why[200];CHECK(prepared_scan_matches(path,why,sizeof why)==1,"resume %s: the resumed run saved the joined movie's keyframe scan (%s)",cases[c].file,why);}
             {long long read=bytes_to_open(path);size_t total=(size_t)at+more.len[0];
              CHECK(read>0 && (!strcmp(cases[c].file,"long_seek.mkv")?read*10<(long long)total:1),"resume %s: the joined movie opens by its index too (%lld of %zu bytes)",cases[c].file,read,total);}
             size_t joined=(size_t)at+more.len[0];
@@ -2156,6 +2210,29 @@ static void observe_init(void *ctx,const uint8_t *data,int len) {
 // ISSUE-326 (owner's log ebc9c063): a prepared movie whose storage fragments run 30 s is served to any receiver as
 // six-second keyframe segments with the picture copied; resuming, a cue file behind the resume point is answered
 // empty at once instead of after an 8-s wait past Apple's 6-s timeout.
+// ISSUE-347: the speech subtitle check hears a stretch of the chosen sound track as 16 kHz mono (the iPhone's speech
+// recognizer gets these samples; the fixtures' sound is a 440 Hz tone, 20 s long, stereo or 5.1).
+static void test_speech_sound(const char *http_base) {
+    const char *files[]={"h264_aac_srt.mkv","hevc_ac3_ass.mkv"};
+    for(int i=0;i<2;i++) {
+        char path[1100],err[256]="";snprintf(path,sizeof path,"%s/%s",fixture_dir,files[i]);
+        int16_t *pcm=NULL;int n=0;double first=-1;
+        int r=kr_speech_pcm(path,-1,5.0,3.0,0,&pcm,&n,&first,err,sizeof err);
+        double energy=0;int crossings=0;for(int k=1;k<n;k++){energy+=(double)pcm[k]*pcm[k];crossings+=(pcm[k-1]<0)!=(pcm[k]<0);}
+        CHECK(r==0 && n==3*KR_SPEECH_RATE && fabs(first-5.0)<.1,"speech sound %s: 3 s from 5 s (%d, %d samples, first %.3f): %s",files[i],r,n,first,err);
+        CHECK(n && sqrt(energy/n)>500 && fabs(crossings/2.0/((double)n/KR_SPEECH_RATE)-440)<20,
+              "speech sound %s: the tone is heard after the downmix (rms %.0f, %.0f Hz)",files[i],n?sqrt(energy/n):0,n?crossings/2.0/((double)n/KR_SPEECH_RATE):0);
+        free(pcm);pcm=NULL;
+        r=kr_speech_pcm(path,-1,18.5,10.0,0,&pcm,&n,&first,err,sizeof err);
+        CHECK(r==0 && n>=KR_SPEECH_RATE && n<=(int)(1.6*KR_SPEECH_RATE),"speech sound %s: a stretch past the end gives what there is (%d samples)",files[i],n);free(pcm);pcm=NULL;
+        CHECK(kr_speech_pcm(path,3,0,2,0,&pcm,&n,&first,err,sizeof err)<0 && !pcm && strstr(err,"no such audio track"),"speech sound %s: a missing track is refused: %s",files[i],err);
+        CHECK(kr_speech_pcm(path,-1,0,2,4096,&pcm,&n,&first,err,sizeof err)<0 && !pcm,"speech sound %s: the byte budget stops the read: %s",files[i],err);
+    }
+    if(http_base) {
+        char url[1100],err[256]="";int16_t *pcm=NULL;int n=0;double first=-1;snprintf(url,sizeof url,"%s/h264_aac_srt.mkv",http_base);
+        CHECK(kr_speech_pcm(url,0,10.0,2.0,0,&pcm,&n,&first,err,sizeof err)==0 && n==2*KR_SPEECH_RATE,"speech sound over HTTP (%d samples): %s",n,err);free(pcm);
+    }
+}
 static void test_long_fragments(void) {
     char url[1024],list[512],log[16384];
     unsetenv("KR_PREPARED_MAX_FRAGMENT_S");kr_remux_set_prefetch(0);kr_remux_set_subtitles(0,NULL,"eng");
@@ -2181,9 +2258,80 @@ static void test_long_fragments(void) {
     CHECK(cue.status==200 && cue.body && strstr(cue.body,"Hello from SRT"),"after the player reached the resume point, seeking back gets real captions: %.200s",cue.body?cue.body:"");free(cue.body);
     kr_remux_log(log,sizeof log);
     CHECK(strstr(log,"serving six-second segments") && strstr(log,"before the resume position; empty cue file"),"log names the route and the empty cue file");
+    kr_remux_stop();
+    // ISSUE-335 fix 2: the same file again uses the keyframe scan saved by the first cast.
+    {char drain[16384];while(kr_remux_log(drain,sizeof drain)>0){}}
+    ticket=kr_remux_begin(0);st=kr_remux_start_for(ticket,url,0,0,list,sizeof list);
+    kr_remux_log(log,sizeof log);
+    CHECK(st==KR_READY && strstr(log,"from this phone's saved scan"),"second cast uses the saved keyframe scan: %.300s",log);
+    if(st==KR_READY){port=kr_remux_port();snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
+        end=strstr(prefix_path,"/master.m3u8");if(end)*end=0;
+        reply again=http_get(port,"/video/index.m3u8",NULL);double t2,m2;int g2;
+        CHECK(again.body && playlist_segments(again.body,&t2,&m2,&g2)==n,"the saved scan gives the same segments");free(again.body);}
     kr_remux_stop();kr_remux_set_prefetch(1);kr_remux_set_subtitles(-1,NULL,NULL);setenv("KR_PREPARED_MAX_FRAGMENT_S","1e9",1);
 }
 
+// ISSUE-335 fix 1 (owner log 65cca4ce: one Drive read sent nothing and the TV waited 31.7 s): a connection that goes
+// quiet is dropped after a few seconds and the bytes come from a fresh one, intact.
+// ISSUE-337 (owner log d8524f8d): a prepared file whose index has an entry out of order (a resumed preparation) or no
+// index at all was given to the TV as the MP4 itself; it is served in six-second segments instead.
+static int write_variant(const char *from,const char *to,int mode) {
+    FILE *f=fopen(from,"rb");if(!f)return -1;
+    fseek(f,0,SEEK_END);long n=ftell(f);rewind(f);uint8_t *b=malloc((size_t)n);
+    if(!b || fread(b,1,(size_t)n,f)!=(size_t)n){fclose(f);free(b);return -1;}fclose(f);
+    if(n<16 || memcmp(b+n-12,"mfro",4)){free(b);return -1;}
+    uint32_t mfra=AV_RB32(b+n-4);long at=n-(long)mfra;
+    if(mode==1) {   // the first entry of the first tfra claims a later time than the second (out of order)
+        for(long k=at+8;k+8<n;) {
+            uint32_t size=AV_RB32(b+k);if(size<8)break;
+            if(!memcmp(b+k+4,"tfra",4)) {
+                int version=b[k+8];uint32_t lengths=AV_RB32(b+k+16),count=AV_RB32(b+k+20);
+                int entry=(version==1?16:8)+(int)(((lengths>>4)&3)+((lengths>>2)&3)+(lengths&3)+3);
+                if(count<2){free(b);return -1;}
+                uint8_t *e0=b+k+24,*e1=b+k+24+entry;
+                if(version==1)AV_WB64(e0,AV_RB64(e1)+1);else AV_WB32(e0,AV_RB32(e1)+1);
+                break;
+            }
+            k+=size;
+        }
+    } else n=at;     // mode 2: no index (the mfra and mfro cut off)
+    FILE *o=fopen(to,"wb");int ok=o && fwrite(b,1,(size_t)n,o)==(size_t)n;if(o)fclose(o);free(b);return ok?0:-1;
+}
+static void test_prepared_index_repairs(void) {
+    char from[1024],to[1024],url[1100],list[512],log[16384];
+    snprintf(from,sizeof from,"%s/coalesced.mp4",fixture_dir);
+    unsetenv("KR_PREPARED_MAX_FRAGMENT_S");kr_remux_set_prefetch(0);
+    for(int mode=1;mode<=2;mode++) {
+        snprintf(to,sizeof to,"%s/index-variant-%d.mp4",fixture_dir,mode);
+        CHECK(write_variant(from,to,mode)==0,"variant %d written",mode);
+        {char drain[16384];while(kr_remux_log(drain,sizeof drain)>0){}}
+        snprintf(url,sizeof url,"file:%s",to);
+        int st=start_session(url,0,list,sizeof list);
+        kr_remux_log(log,sizeof log);
+        CHECK(st==KR_READY && strstr(list,"/master.m3u8") && !strstr(list,"/prepared."),
+              "index variant %d is served in segments, never as the MP4 itself: %s",mode,list);
+        CHECK(mode==1 ? strstr(log,"entries out of order dropped")!=NULL : strstr(log,"serving six-second segments instead of the MP4 itself")!=NULL,
+              "variant %d logs why: %.400s",mode,log);
+        if(st==KR_READY){reply pl=http_get(kr_remux_port(),"/video/index.m3u8",NULL);double t,m;int g;
+            CHECK(pl.body && playlist_segments(pl.body,&t,&m,&g)>=4 && fabs(t-32)<.5,"variant %d covers the whole film",mode);free(pl.body);}
+        kr_remux_stop();
+    }
+    kr_remux_set_prefetch(1);setenv("KR_PREPARED_MAX_FRAGMENT_S","1e9",1);
+}
+static void test_quiet_connection(const char *base) {
+    char url[1024],local[1024],err[256]="";
+    snprintf(url,sizeof url,"%s/quiet/coalesced.mp4",base);snprintf(local,sizeof local,"%s/coalesced.mp4",fixture_dir);
+    FILE *f=fopen(local,"rb");if(!f){CHECK(0,"fixture coalesced.mp4");return;}
+    fseek(f,0,SEEK_END);long n=ftell(f);rewind(f);uint8_t *want=malloc((size_t)n),*got=malloc((size_t)n);
+    CHECK(want && got && fread(want,1,(size_t)n,f)==(size_t)n,"read fixture");fclose(f);
+    double at=mono_ms();kr_source *s=kr_source_open(url,30,err,sizeof err);CHECK(s!=NULL,"quiet source opens: %s",err);
+    long have=0;
+    while(s && have<n){int r=kr_source_read(s,have,got+have,65536);if(r<=0)break;have+=r;}
+    double spent=mono_ms()-at;
+    CHECK(have==n && !memcmp(want,got,(size_t)n),"every byte arrives after the quiet connection (%ld of %ld)",have,n);
+    CHECK(spent<15000,"a quiet connection costs seconds, not the 30-s budget (%.0f ms)",spent);
+    kr_source_close(s);free(want);free(got);
+}
 static void test_subtitle_retention(const char *base) {
     char source[1024],list[512],log[8192];int origin=0;
     sscanf(base,"http://127.0.0.1:%d",&origin);kr_remux_set_prefetch(0);kr_remux_set_subtitles(-1,NULL,NULL);
@@ -2275,6 +2423,8 @@ int main(int argc, char **argv) {
     // ISSUE-326: prepared movies with long fragments go the segmented way; the byte-range checks use short fixtures
     // whose one fragment is the whole film, so they raise the limit (test_long_fragments lowers it again).
     setenv("KR_PREPARED_MAX_FRAGMENT_S", "1e9", 1);
+    {static char kf[1100];snprintf(kf,sizeof kf,"%s/keyframe-cache",fixture_dir);setenv("KR_KEYFRAME_CACHE",kf,1);
+     char cmd[1200];snprintf(cmd,sizeof cmd,"rm -rf '%s'",kf);if(system(cmd)){}}   // ISSUE-335: a fresh saved-scan folder
     // r10: the copy/compat checks below run without burned subtitles (the files' default SRT would be picked).
     kr_remux_set_subtitles(-1, NULL, NULL);
     kr_subs_set_font_file(getenv("KR_TEST_FONT"));
@@ -2307,7 +2457,7 @@ int main(int argc, char **argv) {
     if(argc>3 && !strcmp(argv[3],"--subtitles-only")) {
         test_subtitle_retention(argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
-    test_kind();test_network_evidence();
+    test_kind();test_network_evidence();test_speech_sound(argc>2?argv[2]:NULL);
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
     if(argc>3 && !strcmp(argv[3],"--recommendations-only")) {
@@ -2347,6 +2497,7 @@ int main(int argc, char **argv) {
     fixture fx[] = {
         { "h264_aac_srt.mkv", "avc1.42C0", "mp4a.40.2", 1, 1, 0, 0, "Hello from SRT" },
         { "hevc_ac3_ass.mkv", "hvc1.2.4.L", "ac-3", 1, 1, 1, 0, "Hello from ASS" },
+        { "h264_aac_layers.mkv", "avc1.", "mp4a.40.2", 1, 1, 0, 0, "Hello from layers" },   // ISSUE-343
         { "h264_dts.mkv", "avc1.", "mp4a.40.2", 1, 0, 0, 1, NULL },
         { "h264_truehd.mkv", "avc1.", "mp4a.40.2", 1, 0, 0, 1, NULL },
         { "h264_ac3_dts_srt.mkv", "avc1.", "ac-3,mp4a.40.2", 2, 1, 0, 1, "Hello from SRT" },
@@ -2421,11 +2572,11 @@ int main(int argc, char **argv) {
         test_range_source(argv[2]);
         test_source_transport(argv[2]);test_shared_source(argv[2]);test_metadata_init(argv[2]);
         char url[1024]; snprintf(url, sizeof url, "%s/h264_ac3_dts_srt.mkv", argv[2]);
-        test_file(url, &fx[4], work);
+        test_file(url, &fx[5], work);   // h264_ac3_dts_srt.mkv (ISSUE-343 added a row above)
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_stream_recommendations(argv[2],work);
+        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }

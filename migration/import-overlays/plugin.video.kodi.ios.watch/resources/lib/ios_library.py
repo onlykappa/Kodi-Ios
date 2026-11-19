@@ -84,6 +84,16 @@ def warm_copy(path,xbmcvfs=None,ask=None):
   return bool(ask(int(port),file_id))
  except Exception:return False
 
+def live_proxy_port(xbmc,xbmcgui,xbmcvfs):
+ """The app's Drive proxy port as a string, or '' when it does not answer (ISSUE-355)."""
+ window=xbmcgui.Window(10000)
+ try:
+  boot_path(xbmcvfs);import drive_proxy
+  port=drive_proxy.live_port(lambda:window.getProperty('KodiIOS.DriveProxy'),lambda p:window.setProperty(drive_proxy.DEAD,str(p)),lambda s:xbmc.sleep(int(s*1000)))
+  if port is None and window.getProperty('KodiIOS.DriveProxy'):xbmc.log('Kodi iOS Library: the app proxy did not answer; using the Drive add-on stream',xbmc.LOGWARNING)
+  return str(port) if port else ''
+ except Exception:return window.getProperty('KodiIOS.DriveProxy')   # the check itself failed: use the published port as before
+
 def movie_warm_target(rows):
  """The Drive movie most likely to be played next from the Movies list: the first one with a resume point."""
  for route,_,_,info,folder in rows:
@@ -486,7 +496,9 @@ def play_downloaded(handle,params):
    # DEC-039/040: AI Upscale on for this show (or video) and its copy ready: the copy plays, here and on AirPlay.
    path=upscaled_path(path,params,xbmcvfs.translatePath('special://profile/'),xbmc)
    li.setPath(path)
-   ours=xbmcgui.Window(10000).getProperty('KodiIOS.DriveProxy')   # roadmap 1A.1: the app's own Drive proxy
+   # roadmap 1A.1: the app's own Drive proxy. ISSUE-355: checked first; a dead one (iOS closes sockets in the background) is restarted by the
+   # service and its new port read, else the Drive add-on's stream below plays the copy.
+   ours=live_proxy_port(xbmc,xbmcgui,xbmcvfs)
    fast=lib.direct_url(path,state,ours,ours=True) if ours else None
    via='app proxy' if fast else 'Drive add-on stream'
    fast=fast or lib.direct_url(path,state,xbmcaddon.Addon('plugin.googledrive').getSetting('download.service.port'))

@@ -1,5 +1,276 @@
 # Persistent progress
 
+## Owner-authorized testing IPA 575 — 2026-11-18
+
+Published build 575 from `63b4434013d947e6e45973b4f17908331329e4a4` after successful full import-review workflow 44220815857. Downloaded the 588,958,897-byte IPA and verified ZIP CRC, embedded build/commit identity, and six exact Sports UI/native routing source files. SHA256: `bb0927b28faabd51753b1b8f493e5a2304ed9900094b873239bfc98d9c463d18`. Release: https://github.com/onlykappa/Kodi-Ios/releases/tag/build-575. PR #43 remains draft and unmerged. Phone acceptance pending: open Library > Sports > Live Now, tap a live game's Crew source, select any native feed, and export kodi.log including `Kodi iOS Sports:` events. Test another source if the first fails and cancel an opening to check it does not restart unexpectedly. Real automatic best-pick/cancellation/fallback coverage remains incomplete; one real Sports-selected broadcast played in the desktop rig.
+
+## Step 3 resumed from 8806189 — 2026-11-18 (real UI playback proven; validation ongoing)
+
+Remote PR head verified before work; stale local build-568 documentation preserved in a stash. Missing documented rig recreated in a separate preserved profile/container using Kodi 21.2/Python3.13. Forced portrait skin canvas 1080×2090 at 603×1167, with portrait/Font.xml confirmed. Rig-only Home isolation and managed CA trust repair; Crew authorization and source code unchanged. The iPhone remains Kodi21.3/Python3.11 with native rotation/bar; those are not reproduced by this Linux renderer.
+
+Root cause established: Crew create_list clears its entire regex table at every league root. A multi-league scan therefore invalidates earlier saved routes; all three saved choices for one game had missing cache keys. Refreshing Crew's ordinary parent menus restored them and native Crew played 1080p H.264/AAC. Candidate fix stores each route's native menu ancestry and ESPN match, refreshes that chain immediately before playback, and uses only the fresh returned route. Native queues now stage one refreshed candidate at a time; preparing all at once would repeat the invalidation. Unknown/cancelled preparation aborts conservatively.
+
+Real acceptance checkpoint: actual Live Now NHL-filter/source control selected the ESPN-live Buffalo–Philadelphia game; its rebuilt Crew feed opened real 1080p H.264/AAC, speed1, with time advancing through 49s. This follows the actual app controls, not a media fixture or injected game. A second actual Sports route, Ottawa–Winnipeg, reached Crew's normal two-feed picker but its selected feed did not begin video in this run; source availability is not claimed. Portrait Sports/Live Now screenshots captured privately. iPhone cancellation, confirmed-error fallback and playback remain unproven. No IPA, merge or iPhone acceptance claim.
+
+## Sports opening cancellation and testing build — 2026-11-17
+
+Kodi reports failed opens and user stops with the same pre-AV Stop callback. Ambiguous stops, timeouts and unclassified empty queues now cancel, avoiding an alternate after a user stop; explicit errors can still advance. The tradeoff is that some true failed opens require manual retry. A slow HTTP fixture in desktop Kodi 21.2 opened no second source after Stop, but took about 21 seconds to unwind. ESPN and Crew timing logs use aggregate counts and no source URLs. The owner authorized one testing IPA; build and phone acceptance pending. Prior test releases are preserved.
+
+## Sports: ESPN live-first Crew discovery — 2026-11-17
+
+Owner requests ESPN for live and upcoming games, with Crew scanned only when ESPN marks games live. Crew discovery now skips entirely with no live games and limits league traversal to live games; normal page entry reuses fresh results, with explicit refresh retained and a 45-second cache. A real ESPN check returned 75 upcoming, zero live and zero Crew calls. The owner reports Crew works; build 568 logs show repeated scans and menu taps, not video playback. Existing stop-before-AV ambiguity, actual live matching, iPhone smoothness and long-scan schedule staleness remain open. No IPA built.
+
+
+## Crew provider + American ESPN schedule — 2026-11-17 (candidate validated; phone acceptance pending)
+
+Owner chooses The Crew instead of The Loop. ESPN controls event ids, teams, live/upcoming status, scores and clock; Crew supplies uniquely matched native playback routes. Defaults: NFL/NBA/WNBA/MLB/NHL/NCAAF/NCAAB/MLS, including Canadian teams within those leagues. Filters, Formula 1 and boxing are deferred. Broad Crew category browsing was prototyped and removed after clarification; existing Live/Upcoming/Leagues/game pages remain the interface.
+
+Candidate implemented: selected schedule publishes before source scanning, source-free games remain visible, exact Crew routes/query parameters survive serialization, independent native choices remain distinct, Crew-only real provider never discovers Loop/direct Jet/independent sources. Discovery is serial, bounded and yields to requested/active playback. An active listing has a bounded wait before playback. ESPN aliases are used only for unique paired-team matches; wrong league/date and ambiguous matches are rejected.
+
+Validation: 179 workflow commands passed, then all 23 affected Sports suites reran successfully; latest Crew regression suite has 23 passing cases. check_project passes. Desktop rig loaded 75 U.S. games (none live) in 1.25s. Controlled Upcoming card → game → Crew source → actual Crew sports player → Kodi VideoPlayer passed, speed 1 and time 0 → 0.602 → 1.604s. Uses an owned local video, not a broadcast. Real source matching/availability during a live U.S. event and iPhone acceptance remain unproven. No new IPA or merge.
+
+Failure retained: broad scans exit this desktop Kodi in Python 3.14 interpreter cleanup (GDB: PyThreadState_Swap / CPythonInvoker::onExecutionDone); reducing concurrency did not establish a fix. Phone uses Python 3.11, so applicability is unknown. Final UI check isolated unrelated rig background addons/Home; Crew sources were unchanged. Initial private fixture omitted content=addons and selected movie scraping; corrected fixture passed. Evidence: reports/sports-crew-validation.json; ISSUE-367; DEC-062.
+
+## Owner-authorized native Loop test IPA — 2026-11-17
+
+Preparing one new test build from claude/sports-jet so the owner can open The Loop directly and export a phone log. Startup applies the same recognized-source proxy repair without opening menus; legacy discovery is off and normal Sports catalog remains on demand. Controlled HTTP-error fallback is verified; actual automatic-picker dialog waiting remains unresolved. No merge. Build source and release will be recorded after checks.
+
+## Sports automatic routing candidate — 2026-11-17
+
+Play best available, native failure skipping, AV-start cleanup, request ownership and playlist timer default are implemented. All 178 workflow commands passed plus final affected retests. Controlled native routing skipped a failed route and played video; actual seven-source Loop queue from a game card currently stalls. This is an unresolved candidate, not a live-provider/device fix. Continuing diagnosis; no IPA. [Current checkpoint](SPORTS-HANDOFF.md).
+
+## Sports native Loop cards checkpoint — 2026-11-17
+
+Native Loop catalog discovery now feeds schedule-matched cards; real rig found 43 eligible provider routes and 61 upcoming games. Exact routes dispatch via normal Loop without direct bootstrap Jet import. Failed initial Upcoming loads retry automatically, and distinct native source choices remain selectable when quality is unknown. All 177 workflow commands, affected final reruns and project/UI checks pass. A tapped provider returned HTTP 403; this checkpoint does not claim every provider plays. See [sports progress](SPORTS-PLAYBACK-PROGRESS.md). No IPA generated; continuing rig investigation.
+
+## Sports playback and opening rig follow-up — 2026-11-16
+
+Build 563: an incomplete source scan repeatedly delayed Leagues/Upcoming; an already available snapshot is now reused and identical merges cached briefly. The playback adapter tries remaining nested candidates and the scraper’s own resolver after resolution failure, and hands Kodi the resolved address, including resolver and extractor headers. All 14 sports suites (189 tests) pass. Desktop Kodi 21.3 displayed both pages with a 300-game synthetic partial snapshot and played a local video after a mocked first resolver failed; four provider calls took 0.281 s versus 0.939 s for four uncached merges. This is synthetic rig evidence; real providers and iPhone behavior need testing. Details and retained failures: [sports progress](SPORTS-PLAYBACK-PROGRESS.md) and [validation](../reports/sports-563-rig-validation.json).
+
+## Build 561 published and verified — 2026-11-16
+
+PR #44 merged as 9b276e7. Testing [build 561](https://github.com/onlykappa/Kodi-Ios/releases/tag/build-561), source a16a3ef, includes the sports playback/resolver/refresh repairs and the merged Drive/AirPlay fixes in newly compiled **AirPlay r65**. PR #43 remains open for testing. Final import CI run 43913240719 passed all tests, bundle apply/restore smoke checks and IPA validation. Downloaded the 588,860,520-byte IPA: release SHA **d60999a057fbb21ca6397fda1b2bf17aca3daa9945c282fe99eb0be928a815cb**, full ZIP CRC, eight exact repaired source files, exact r65 binary and exact unsigned r33 executable all pass. Glass bar r6 preserved.
+
+The raw r33 executable has an embedded signature; the first private verifier incorrectly compared the unsigned IPA against that signed digest. After verifying the original pinned r33 archive/binary and applying the existing packer's unsign operation, the packaged executable matches byte for byte (one signature command removed). This was a verifier assumption, not an app change. No extra IPA was built. Optional first-frame renderer logging from #44 remains deferred with the r33 executable; the functional Drive and AirPlay fixes ship. Phone acceptance remains pending: Sports play/scroll, completed Drive movie/show cold and warm opens, AirPlay picture/audio/captions and forward/back seek.
+
+Evidence: [sports validation](../reports/sports-playback-validation.json). Native compile 43911296606 / host evidence 43907784636; immutable r65 publisher 43912960249. Local/CI validation includes 170 Python suites (2,483 tests with targeted final retests), five real Foundation tests, native conversion/seek/cancel/caption checks, six matching converted A/V segments, 768 frames and exact copied picture packets. Desktop portrait scrolling/live-provider behavior was not established; no phone performance or universal provider availability claim.
+
+## Sports playback repair and combined build — 2026-11-16
+
+Owner build 557 log confirms an asynchronous Jet play request returned True and Live Now passed it to Player.play; ResolveURL was installed but absent from the script import path; failed extractor resolution could pass a webpage to Kodi. Load ResolveURL's declared dependency graph, accept only actual playback strings at the page boundary, and reject unresolved links. Forced refresh now joins an active collection, with a process-wide file lock preventing simultaneous interpreter scans. Keep existing results during refresh and avoid rewriting unchanged page properties. Provider outages in the log remain upstream failures; these changes cannot guarantee their availability or phone frame rate.
+
+All 14 sports suites pass (179 tests). Seven focused regression cases cover dependency loading, the asynchronous acknowledgement, refresh joining and failed/successful link resolution. Existing mock window failures exposed the need to cache previous properties within each page; corrected and all suites rerun. Owner also approved review/merge of PR #44 and one combined testing IPA. PR #44 merged as 9b276e7 after its 265 Python tests and project check passed. Next: integrate newer sports/subtitle source with main, run native candidate CI, verify/pin its framework, then package and verify the IPA. Actual iPhone playback/scrolling/AirPlay checks remain pending.
+
+## Build 544 log (owner, 2026-11-16): sports discovery skipped, AirPlay slow starts, banner bar — 2026-11-16
+
+Sports showed "Can't load" as expected (no adapter yet) and the discovery walk did not run: build 538's empty result blocked it for 12 hours (ISSUE-352, fixed:
+retry after 10 minutes). AirPlay played everything. Starts took 5.5 s (Naruto, on the phone), 10.5 s (Phony 1080p), 25.5 s and 28.5 s (4K HEVC from Drive):
+the cost is the keyframe scan of a prepared file with no saved scan (12-14 s, saved after the first cast) plus cold Drive reads of the first segments (7-9 s).
+The banner's bar now moves the whole time (ISSUE-353). Not done: scanning the existing prepared library in the background (needs a native AirPlay change
+and a new framework tag) and faster first-segment reads from Drive (native). Phone results pending.
+
+## Sports: ChatGPT's Upcoming, game page and Leagues merged with the stack; league page added — 2026-11-16
+
+Branch `claude/sports-full` = the sports stack + The Loop/Crew bundling (DEC-058) + ChatGPT's pages (`codex/sports-upcoming-leagues`). Conflicts were only
+list unions (PAGES, portrait loads/files, workflow, docs). Review: the pages follow the contract and the sample provider; all sports suites pass;
+Upcoming and Leagues were rendered in the desktop Kodi rig (sample data) and match boards 10 and 16. A league's page (`sports_league.py`) opens Live Now
+on the league's chip when it has a live game, else Upcoming on it (both pages already filter). Phone results pending.
+
+## Sports: Loop family and The Crew bundled; PR #32 merged; build 538 checked — 2026-11-15
+
+Build 538 (commit 4961d11, pre-release) showed on the phone that The Loop add-ons were not installed (`Unable to find plugin`, ISSUE-350 notes the
+10-minute build limit that also hit it; now 25 minutes). PR #32 (movie/TV backup providers) was merged by the owner's instruction after review. It
+contained a syntax error in `service.py` (ISSUE-351, PR #42 fixes it, not merged). DEC-058: The Loop family and The Crew are the sports providers; the
+Loop packages are pinned in the provider source lock (fetched as Kodi, owner allowed). Host checks only. The Loop's tree could not be read in the
+desktop rig because the sandbox network does not reach its servers; `KODI_RIG_NETWORK=1 kodi_rig.py start` keeps the proxy for such checks. Phone
+results pending: next IPA build (owner's OK needed) will log The Loop's and The Crew's menus for the adapter.
+
+## Sports: merging and The Loop discovery — 2026-11-15
+
+`sports_merge.py` combines several add-ons' answers into the contract's games (DEC-055: one game, one line per distinct stream with "Also on …",
+Best / Also good). `sports_loop.py` is The Loop's provider, step 1: it has no adapter yet (its code is not in this project and its listings are not
+guessed), so every page shows its can't-load state, and it lists the Loop add-ons' menu folders once every 12 hours (folders only, bounded) into
+`sports-discovery.json` and `kodi.log` for the adapter to be written from. Status and next step: [design/sports-loop-integration.md](design/sports-loop-integration.md).
+
+## Sports page 2 coded: Live Now — 2026-11-15
+
+`Library › Sports › Live Now` opens `IOSSportsLive.xml` (`sports_live_page.py`, filled by `sports_live.py`), approved boards 6-9 (option B): league chips,
+then one card per live game (closest to its end first) with the league label, the clock, both teams and scores, and the game's sources under it
+(best first, "Also on …", Best / Also good), a tap on a source plays it at once; nothing-live and can't-load pages. Checked in the **desktop Kodi rig**
+against the boards (the list, the NBA chip, a tap on a source, nothing live, can't load); not yet on the iPhone. Capacity: 12 cards and 4 sources
+a card (the rest is behind the chips and a "N more games not shown" line); chips wrap to up to three rows. `sports_provider.play` hands a real source's
+`play` path to Kodi's player; the sample provider only logs.
+
+## Sports page 1 coded: Library › Sports and the landing page — 2026-11-15
+
+`Library › Sports` (between TV Shows and Favourites) opens `IOSSports.xml` (`sports_page.py`, filled by `sports.py`): back, refresh, "Sports" with
+"Updated just now", the Live Now / Upcoming / Leagues tiles and the Finished today row, plus the updating, nothing-live and can't-load states, as
+approved board 2 of [sports-approved-pages.html](design/sports-approved-pages.html). Checked in the **desktop Kodi rig** against the board (live,
+nothing live, can't load, the Library row, a tile tap and refresh); not yet on the iPhone. The tiles open Live Now, Upcoming and Leagues only once
+those pages exist (an unknown RunScript name would run the recovery script, so the tile says it is coming). Sample data is opt-in
+(`KODI_IOS_SPORTS=sample` in the rig); with no setting the page says it can't load until The Loop's provider lands.
+
+## Sports › Leagues: boards 16–17 and 20 — 2026-11-15
+
+Implemented the Leagues list, scrolled view and unavailable-provider state. `order_leagues` and `league_detail`
+supply ordering and wording; live fragments are red, empty leagues say Nothing coming up, and long names wrap.
+The sample therefore places live UCL before EPL, following the contract rather than the static mockup order.
+See Leagues now opens this page with the same provider/clock. League rows log their destination and call the
+separately owned league route only when its file and route registration both exist. Boards 18–19 remain separate.
+
+Evidence: approved HTML rendered in Chromium and compared with desktop Kodi 21.3 at 603 × 1167. Checked top and
+scrolled list, complete UEFA name and an extended long-name fixture, the error layout, repeated failure and retry
+recovery and Upcoming → See Leagues → Back navigation. The final Motorsport row clears the fixed fallback tab bar. Screenshots remain outside Git. No iPhone,
+native-bar, real-provider or playback result is claimed. Reused existing fonts, badge textures and state art.
+Twelve new cases in `scripts/test_sports_leagues.py` are listed in import-review; the Upcoming state test now
+checks its live Leagues callback. All 139 listed scripts pass against the combined PR/base tree; project and UI guidance checks pass before commit.
+
+## Sports › Upcoming: empty and error states, boards 14–15 — 2026-11-15
+
+Built the approved calendar empty state with Updated just now, No games coming up, Nothing is scheduled yet and
+See Leagues; the warning state has Not updated, Can’t load games right now, the approved two-line explanation and
+Try again. Empty results hide all chips and stale rows. Errors survive timer redraws and retries; a successful
+refresh restores the list, and cached data remains visible when a refresh fails (ISSUE-335). See Leagues currently
+logs the pending route; the Leagues page and its navigation are the next separate piece of work.
+
+The 20 pt state headline uses the existing Inter Bold asset at 54 units: the adjacent existing sizes are 17 and
+22 pt. Runtime-generated outline calendar/warning masks reproduce the approved symbols; Fuse's available versions
+are filled. Body and buttons reuse the existing fonts, surfaces and primary-pill helper. No artwork is committed.
+The rig pass corrected translucent circle scaling and explicit description-line spacing (ISSUE-336).
+
+Evidence: Chromium mockups compared with desktop Kodi 21.3 at 603 × 1167. Checked both layouts; the error screen
+using the updated base's normal, unavailable provider door (no implicit sample data); a 31-second timer advance;
+repeated failed retry; successful retry with an explicitly injected test provider; empty → refresh → six games;
+Back; visible button focus; and the pending See Leagues log. Screenshots stay outside Git. The rig uses the fallback
+tab bar; iPhone, native-bar and real-provider/playback results remain unverified.
+
+Validation: thirteen cases in `scripts/test_sports_upcoming_states.py`, listed in import-review, plus the existing
+Upcoming/game suites. All 138 listed scripts pass against the current combined PR/base tree; the affected suites
+also pass after the final visual adjustments. Project and UI guidance checks pass in both checkouts.
+
+## Sports: updated provider snapshot contract — 2026-11-15
+
+The base branch advanced after the local checks: sample data is now opt-in, and Sample hands out independent
+copies. GitHub caught one test fixture that had assumed mutable provider records (ISSUE-334). The fixture now
+supplies the next snapshot explicitly. All 137 listed scripts pass against the PR's combined tree with the
+updated base, and the feature checkout's game-page tests pass. The UI continues to use the same public provider
+door. GitHub's review check passed after the fixture correction. No sample fallback is added to the application.
+
+## Sports › A game's page: boards 12–13 implemented — 2026-11-15
+
+Upcoming rows now open `IOSSportsGame.xml` with the same game, provider and clock. The card shows the league code,
+start status, time/day and both teams. Crests use the provider's runtime image, with code-in-circle fallbacks for
+the sample's empty crests. Sources are ranked Best, Also good, then the remaining provider order; tapping any part
+of a source row calls `sports_provider.play` with the original source and opaque play value. Board 13 keeps the
+same card and shows the approved no-sources message. Fetching and refresh run behind the cached card; errors go
+to the log with plain recovery wording on screen when no game is available. Back keeps the Upcoming league filter
+and focus (ISSUE-331); long source descriptions grow their rows (ISSUE-332), and two-digit start hours fit in full
+between the crests (ISSUE-333).
+
+Evidence: compared the approved HTML in Chromium with both actual windows in desktop Kodi 21.3 at 603 × 1167,
+using sample data and a fixed sample clock. Checked board 12, board 13, refresh, both sample source taps through
+the play door, Upcoming → NBA game → Back, and long team/source wrapping. Borussia Mönchengladbach, Brighton &
+Hove Albion, Golden State Warriors and the long source fixture display completely. The game's board uses UCL,
+not the full league name; UEFA Champions League belongs to the later Leagues page. No new artwork is committed.
+The rig isolates Sports windows from background add-on services and uses the Kodi fallback tab bar. Screenshots
+remain outside Git; this is not iPhone, native-bar, live-provider, real-crest or actual-stream playback evidence.
+The sample play door only logs, as specified in the brief. Boards 14–15 and the Leagues pages remain pending.
+
+Validation: thirteen new cases in `scripts/test_sports_game.py` (listed in import-review), two new shared-rule cases
+in `test_sports_model.py`, and a returning-window check in `test_sports_upcoming.py`. All 137 listed scripts and the
+project/UI guidance checks pass before commit. The preceding board-11 commit also passed all 136 scripts then listed.
+
+## Sports › Upcoming: board 11 scrolled view — 2026-11-15
+
+Verified the remaining day groups in desktop Kodi 21.3 against approved board 11. The list now leaves enough room
+below the final day to reach the board's scrolled position (ISSUE-330). Tomorrow's two games and the last day's
+Manchester City / Brighton & Hove Albion row remain complete and clear of the fixed fallback tab bar. The header
+and the owner's six wrapped league chips scroll with the list. Checked wheel scrolling and the list's Last Page
+action using the same fixed sample clock as board 10. Screenshots remain outside Git; iPhone scrolling is pending.
+The shared Upcoming fixture and XML checks in `test_sports_upcoming.py` still cover all six games and three days.
+The game's page follows in its own commit.
+
+## Sports › Upcoming: board 10 implemented — 2026-11-15
+
+`RunScript(service.kodi.ios.bootstrap,sports_upcoming)` opens the Upcoming list with the shared Sports provider and
+model helpers: day groups, start times, countdowns, sources, league filters and background refresh. The owner's
+clarification keeps `league_codes` order (All, EPL, LIGA, NBA, NFL, NHL for the sample), wrapping onto a second row.
+Rows grow for long team names. Game taps currently log the stable game ID; the game's page is the next separate
+commit after the owner's board-10 review. See Leagues is also a temporary logged action until that page is built.
+
+Evidence: compared the approved HTML in Chromium with the actual window in a desktop Kodi 21.3 rig at 603 × 1167,
+using the provider's sample data and a fixed sample clock. Checked the six wrapped chips, NBA filtering, refresh,
+game-row tap logging, Back, and full wrapping of Borussia Mönchengladbach, Brighton & Hove Albion and Golden State
+Warriors. Upcoming displays the contract's short league code (UCL), rather than the full UEFA Champions League
+name. The header, cards, spacing and text follow board 10; the extra chip row is the owner's approved difference.
+Screenshots remain outside Git. The rig uses Kodi's fallback tab bar and has no iPhone safe-area/status-bar proof.
+No iPhone result is claimed. Board 11's scrolled view and boards 14–15's empty/error layouts remain for review;
+their initial state projections are covered by tests, not a visual approval. No real sports add-on was called.
+
+Validation: `scripts/test_sports_upcoming.py` covers seven projection, XML and asynchronous-controller cases and is
+listed in import-review. Project and UI guidance checks pass; all 136 listed scripts pass after correcting the
+stop-aware timer regression recorded in ISSUE-329 and rerunning its affected checks.
+
+## Sports: every page approved; the work is split (DEC-057) — 2026-11-15
+
+The owner approved Leagues option A, live-first order and the empty league page: all pages of the section are approved
+([docs/design/sports-approved-pages.html](design/sports-approved-pages.html)). Claude wrote the data contract (`sports_model.py`,
+`sports_provider.py`, `scripts/test_sports_model.py`) and codes The Loop provider, the landing, Live Now and a league's page; ChatGPT codes
+Upcoming, a game's page and Leagues from [design/sports-chatgpt-brief.md](design/sports-chatgpt-brief.md), and Claude reviews and fixes
+them. Each page is checked in the desktop Kodi rig, then on the iPhone.
+
+## Sports › Upcoming: option A approved — 2026-11-15
+
+The owner chose option A (a compact list by day, soonest first) and that a tap opens the game's page (DEC-056). The approved boards are
+in [docs/design/sports-approved-pages.html](design/sports-approved-pages.html); the options are in
+[sports-upcoming-mockups.html](design/sports-upcoming-mockups.html). Mockups only; no app code.
+
+## Sports › Live Now: option B approved — 2026-11-15
+
+The owner chose option B ("I like B"): one card per live game with its sources under it, the game closest to its end first,
+a tap on a source plays it at once; all four add-ons feed it and duplicate streams are merged (DEC-055). The approved boards are
+in [docs/design/sports-approved-pages.html](design/sports-approved-pages.html); the options are in
+[sports-live-now-mockups.html](design/sports-live-now-mockups.html). Mockups only; no app code. Next: Upcoming, then Leagues.
+
+## Sports: landing page approved (option A) — 2026-11-15
+
+The owner approved option A (tiles) and its can't-load state after viewing the mockups on the iPhone ("these are money").
+Recorded as DEC-054 and in [docs/design/sports-approved-pages.html](design/sports-approved-pages.html), which gains one
+page per round (next: Live Now, Upcoming, Leagues, a league, a game). Still mockups only; no app code. PR #33 holds the
+round-1 options.
+Owner: all sports add-ons will feed Sports eventually; ChatGPT codes the foundation. What the landing page needs from it:
+[design/sports-landing-data.md](design/sports-landing-data.md).
+
+## Sports: landing page mockups, round 1 — 2026-11-15
+
+Mockups only, nothing built: [docs/design/sports-landing-mockups.html](design/sports-landing-mockups.html) (evidence class:
+mockup). Library gets a **Sports** row between TV Shows and Favourites; it opens a landing page with three tags (Live Now,
+Upcoming, Leagues). Three options for the landing page (A tiles, B grouped rows, C previews), the states of A (nothing
+live, updating, can't load) and a map of every page the section needs. The owner's pick and four questions (finished-today
+row, which add-ons feed it, tag order) come before the tag pages are designed. Separate PR from #31.
+
+## Build 528: AirPlay r62 + Play on TV banner, speech subtitle check, Roku banner — 2026-11-15
+
+[Testing IPA 528](https://github.com/onlykappa/Kodi-Ios/releases/download/build-528/Kodi-iOS-Customized-Touch-r10.ipa)
+(commit 4b98b12, PR #31 unmerged; IPA sha256 07f2c97d…0a5b). AirPlay r62 (ISSUE-343 TV subtitles in sync and single,
+ISSUE-346 keyframe scan saved while preparing, ISSUE-347 on-device speech check; host tests green; the framework in
+the IPA is byte-identical to the pinned r62), ISSUE-341, 342, 344, 345, 348, 349. All workflow Python suites passed;
+banner, problem sheet and Roku banner checked in the desktop Kodi rig. Phone results pending.
+
+## Build 513: AirPlay r61 + subtitle, Umbrella, Favourites and show-page fixes — 2026-11-15
+
+[Testing IPA 513](https://github.com/onlykappa/Kodi-Ios/releases/download/build-513/Kodi-iOS-Customized-Touch-r10.ipa)
+(commit e9634c2, PR #31 unmerged; IPA sha256 7993d7b0…5f01). AirPlay r61 (ISSUE-335, 336, 337; host tests green),
+ISSUE-333, 334, 338, 339, 340. 136 Python suites passed; season row and Favourites picker checked in the desktop
+Kodi rig. Phone results pending. Next steps and rules: [HANDOFF-PR31.md](HANDOFF-PR31.md).
+
+## Subtitles drawer + hold menu coded, not pushed — 2026-11-16
+
+Branch `claude/subtitles-drawer` (local only, owner asked not to push yet). `pages.track_menu` draws the subtitles drawer (own list 9312, Timing 9405/9406,
+hold menu 9601/9602, removal question 9611/9612); `tracks.py` runs Find another (searches the held track's language) and Remove; `track_menu.py` has the
+rows and wording. Tests: `test_subtitle_hold.py` (15, real controller on a fake Kodi), `test_track_menu.py`. Rendered in the desktop Kodi rig at 2340x1080
+(tracks, hold, remove question, More, results): evidence class desktop Kodi rig, not device. The rig has no player, so the flows were not run against real
+playback. Release names in results are shortened to fit two lines (DEC-050).
 ## Drive startup and audio-only AirPlay — source fixes, device retest pending (2026-11-16)
 
 Build 554/r64 identified from the supplied log; latest published IPA at inspection was 557.
@@ -713,3 +984,19 @@ PR #21 merged (build-314: Kodi r31, AirPlay r50). The owner approved the Library
 buttons) and asked for the work to be planned before coding: ROADMAP.md "Mockup roadmap" (L1-L8 Library, V1-V3
 Picture menu, Saturation, AI Upscale show page). No code yet; the owner says when to start. Owner logs from
 build-314 (Build Season, copy speed, AI Upscale tiles) are awaited.
+
+## Integration checkpoint — 2026-11-16
+
+Combined source 38dad1e is pushed on PR #43. Native candidate run 43907784636 tests and builds that source, including r64 subtitle changes and PR #44's separate six-second converted timeline. No IPA has been built yet. The ordinary import CI caught a portrait patch digest mismatch: PR #44 adds an optional first-frame logging marker, but the approved r33 executable was built without that marker. The testing branch now retains the exact r33 patch and pin together; the marker remains in main for a future Kodi executable build. This does not remove the Drive admission or native AirPlay playback fixes; first-picture timing remains explicitly unmeasured. test_smooth_pages passes after restoring that consistency.
+
+Native candidate pending; after it passes, verify the archive, publish/pin r65, run the full IPA workflow once. A redundant old-tag AirPlay build was canceled; the candidate build remains running. New playback regressions are now added to import CI. Desktop Kodi 21.3 rig initially crashed while starting many third-party Python services; services were isolated in the private rig, not in shipped code. Rig playback/scroll validation remains in progress and is not a phone result.
+
+Follow-up evidence: combined-source loopback index benchmark cold median 0.4022 → 0.2019 s, warm 0.00110 → 0.00110 s (five trials, synthetic 200-ms metadata; not device measurements). Sports regressions include actual process-lock contention and release after collection failure. The Loop installer exits when its installed dependencies are present; this change does not reinstall JetExtractors or overwrite the owner's whitelist patch. Desktop rig startup recovered after isolating private third-party services, but a skin reload closed the sports window and subsequent skeleton/first-run dialogs prevented a useful scrolling measurement. No desktop frame-rate or live-provider playback claim. Full import-suite rerun continues; stale local provider fixtures were replaced with the current lock's verified archives.
+
+Full local import/packaging validation: 170 suites, 2482 tests run; every suite passes. Native host job 133441177291 in candidate run 43907784636 passes. Apple framework compilation remains queued. Evidence: reports/sports-playback-validation.json.
+
+Native infrastructure failure retained: candidate run 43907784636 passed host tests but GitHub canceled its unassigned macos-15 ARM64 compile after 15 minutes: "The job was not acquired by Runner of type hosted even after multiple attempts"; annotations report ARM64 capacity constraints. Retry compilation on the documented macos-15-intel image (Xcode 26 available). A manual reuse_host_run option verifies the earlier host job succeeded and the entire migration/airplay-ios Git tree is identical before allowing the compile; default PR runs still execute the full host suite. This reuses evidence, not an older binary.
+
+Native compile checkpoint: candidate **43911296606** succeeds on Intel, including five real Foundation transport fault tests. Xcode 26.3 / iPhoneOS SDK 26.2 produced r65 archive SHA **05ef394f931b321dda54e0c8378e6420c912d4cf525602bb70529d8c864acf7a**, read from its successful compiler log. The workspace cannot download the Actions artifact's Azure URL (Forbidden); the existing verified-candidate publisher will validate SHA/ZIP/exports inside GitHub before immutable publication. Local public-release download and binary/CRC inspection are required before the IPA workflow. r65 pin prepared; publication and IPA pending.
+
+Ready-to-package checkpoint: **AirPlay r65 published** by verified-candidate run **43912960249**. The public 4,083,768-byte ZIP was downloaded locally: SHA **05ef394f…acf7a**, ZIP CRC, thin arm64 Mach-O, required exported API and six-second converted-timeline/shared-wait markers pass. Binary SHA **7b2f4692aa8fc56a711156180d69908fc911461f5af23ae89ad6f3971888053c** retained for IPA comparison. Owner-approved manual import-review/IPA build is next, with r33 Kodi and r6 bar pins preserved. PR #44 is merged; PR #43 remains open. Actual phone playback/scrolling/AirPlay results pending.

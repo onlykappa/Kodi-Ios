@@ -38,8 +38,9 @@ PORTRAIT_FILES = {'.github/workflows/kodi-ios-portrait.yml','migration/ios-portr
                   'docs/design/poster-cards-mockups.html','docs/design/activity-indicator-mockups.html','docs/design/activity-mockups-r4.html',
                   'docs/design/library-status-mockup.html','docs/design/library-tools-mockups.html',
                   'docs/design/transfers-simple-mockup.html','docs/design/library-status-mockups-r1.html',
-                  'docs/design/player-subtitles-audio-mockups.html',
-                  'docs/design/settings-pages-mockups.html','docs/design/favourites-manager-mockups.html',
+                  'docs/design/sports-landing-mockups.html','docs/design/sports-approved-pages.html','docs/design/sports-live-now-mockups.html','docs/design/sports-upcoming-mockups.html','docs/design/sports-leagues-mockups.html',
+                  'docs/design/player-subtitles-audio-mockups.html','docs/design/subtitles-menu-mockups.html','docs/design/subtitles-manage-mockups.html',
+                  'docs/design/settings-pages-mockups.html','docs/design/favourites-manager-mockups.html','docs/design/play-on-tv-connecting-mockups.html',
                   'docs/design/fuse-windows-mockups.html','docs/design/ai-upscale-library-mockups.html','docs/design/queue-favourites-mockups.html','docs/design/notification-detail-mockups.html','docs/design/library-show-mockups.html','docs/design/quality-choice-mockups.html','docs/design/unified-status-mockups.html','docs/design/stream-opening-mockups.html','docs/design/build442-mockups.html','docs/design/favourites-import-bell-mockups.html'}   # owner mockups (self-contained pages, no images)
 
 # AirPlay MKV remuxer (migration/airplay-ios/remux): C sources, build and test scripts, licence files, its CI.
@@ -49,6 +50,9 @@ REMUX_FILES = {'migration/airplay-ios/remux/THIRD-PARTY-NOTICES',
                'migration/airplay-ios/remux/src/kr_upscale.h',
                'migration/airplay-ios/remux/src/kr_upscale.m',
                'migration/airplay-ios/remux/src/kr_upscale_stub.c',
+               'migration/airplay-ios/remux/src/kr_speech.c',
+               'migration/airplay-ios/remux/src/kr_speech.h',
+               'migration/airplay-ios/remux/src/kr_speech.m',
                'migration/airplay-ios/build-dav1d.sh',
                'migration/airplay-ios/ffmpeg-mov-pts.patch',
                'migration/airplay-ios/ffmpeg-mov-trun-cts.patch',

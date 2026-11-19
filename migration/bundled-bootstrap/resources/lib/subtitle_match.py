@@ -7,6 +7,8 @@ speech intervals (or an offset with its confidence) when available. No network/m
 import bisect
 import json
 import re
+import os
+import threading
 
 LANGUAGES = {'eng': 'en', 'english': 'en', 'spa': 'es', 'spanish': 'es', 'fre': 'fr', 'fra': 'fr', 'french': 'fr',
              'ger': 'de', 'deu': 'de', 'german': 'de', 'ita': 'it', 'italian': 'it', 'por': 'pt', 'portuguese': 'pt',
@@ -139,6 +141,27 @@ def _file_language(filename):
     return ''
 
 
+# ISSUE-339 (owner, Naruto Shippuden 1x01 in English: "the subtitles … were near but not exactly what they say"): a
+# subtitle written from the original-language script is a translation, not the English dub's words. Captions made from
+# the English audio are marked CC / SDH / dub (or hearing impaired). When the video is dubbed (dubbed()), those come
+# first and an unmarked track in the audio's language comes after them.
+DUB_MARK = re.compile(r'(?i)(?:\b(?:dub|dubbed|dubtitles?|cc|sdh|closed[ ._-]?captions?|hearing[ ._-]?impaired)\b|\[cc\]|\(cc\))')
+
+
+def dubbed(audio_streams, current_audio, subtitle_language):
+    """True when the file carries audio in more than one language and the one playing is the subtitle language: the
+    usual dual-audio anime or foreign release with its English dub on."""
+    langs = {language(a.get('language')) for a in (audio_streams or []) if language(a.get('language'))}
+    playing = language((current_audio or {}).get('language'))
+    wanted = language(subtitle_language)
+    return bool(wanted and playing == wanted and len(langs) > 1)
+
+
+def dub_marked(track):
+    text = ' '.join(str(t or '') for t in [track.get('name'), track.get('filename')] + list(track.get('releases') or []))
+    return bool(track.get('isimpaired') or track.get('impaired') or DUB_MARK.search(text))
+
+
 def assess(track, video):
     """Return score/rejected/reason/timing_checked/cue_count/offset_s for one track.
 
@@ -181,6 +204,8 @@ def assess(track, video):
         return refuse('Different language')
     if wanted_language and (tagged or declared) == wanted_language:
         score += 10
+    if video.get('dubbed'):   # ISSUE-339: the dub's own captions before a translation of the original script
+        score += 12 if dub_marked(track) else -8
     forced = bool(track.get('isforced') or track.get('forced') or re.search(r'(?i)\bforced\b', name))
     duration = max(0.0, float(video.get('duration') or 0))
     if checked and not cues:
@@ -263,6 +288,13 @@ def choose_download(results, fetch, video, limit=5):
             if tested['match_rejected']:
                 last_error = Mismatch(tested['match_reason'])
                 continue
+            if video.get('heard'):   # ISSUE-347: the words spoken in the video, when the phone could listen
+                import speech_check
+                data, why = speech_check.apply(original, tested, data, name, video['heard'])
+                if why:
+                    original.update(match_rejected=True, match_reason=why)
+                    last_error = Mismatch(why)
+                    continue
             if best is None or tested['match_score'] > best[0]['match_score']:
                 best = (original, name, data)
             if tested['match_score'] >= 85:
@@ -280,10 +312,12 @@ class PlaybackMatcher:
     """One check per opened video; allow time for Kodi to publish its streams, preserve later manual choices."""
     def __init__(self):
         self.file, self.done, self.tries = '', False, 0
+        self.state, self.dub_started = None, False   # ISSUE-342: what the check saw; a dub caption asked for once per video
 
     def step(self, playing_file, snapshot, select, publish=lambda value: None):
         if playing_file != self.file:
             self.file, self.done, self.tries = playing_file, False, 0
+            self.state, self.dub_started = None, False
             publish('[]')
         if not playing_file or self.done:
             return
@@ -291,7 +325,7 @@ class PlaybackMatcher:
         if self.tries > 10:
             self.done = True
             return
-        state = snapshot()
+        state = self.state = snapshot()
         streams, video = state.get('streams') or [], state.get('video') or {}
         if not streams or not video.get('duration'):
             if self.tries >= 10:
@@ -329,14 +363,18 @@ def run(xbmc, xbmcgui, monitor):
             def snapshot():
                 player_id[0] = next(p['playerid'] for p in rpc('Player.GetActivePlayers') if p.get('type') == 'video')
                 props = rpc('Player.GetProperties', {'playerid': player_id[0],
-                                                    'properties': ['subtitles', 'currentsubtitle', 'subtitleenabled']}) or {}
+                                                    'properties': ['subtitles', 'currentsubtitle', 'subtitleenabled',
+                                                                   'audiostreams', 'currentaudiostream']}) or {}
                 item = (rpc('Player.GetItem', {'playerid': player_id[0],
-                                              'properties': ['file', 'title', 'season', 'episode']}) or {}).get('item') or {}
+                                              'properties': ['file', 'title', 'season', 'episode', 'showtitle', 'year',
+                                                             'uniqueid']}) or {}).get('item') or {}
                 preference = (rpc('Settings.GetSettingValue', {'setting': 'locale.subtitlelanguage'}) or {}).get('value')
                 identity = episode_identity(item.get('file')) or episode_identity(item.get('title'))
                 return {'streams': props.get('subtitles'), 'current': (props.get('currentsubtitle') or {}).get('index'),
-                        'enabled': props.get('subtitleenabled'),
+                        'enabled': props.get('subtitleenabled'), 'item': item,
                         'video': {'duration': xbmc.Player().getTotalTime(), 'language': language(preference),
+                                  'filename': os.path.basename(str(item.get('file') or '').split('?')[0].split('|')[0]),
+                                  'dubbed': dubbed(props.get('audiostreams'), props.get('currentaudiostream'), preference),
                                   'season': item.get('season') if item.get('season') is not None and item['season'] >= 0 else identity[0] if identity else None,
                                   'episode': item.get('episode') if item.get('episode') is not None and item['episode'] > 0 else identity[1] if identity else None}}
 
@@ -344,6 +382,22 @@ def run(xbmc, xbmcgui, monitor):
                 rpc('Player.SetSubtitle', {'playerid': player_id[0], 'subtitle': index if index is not None else 'off',
                                            'enable': index is not None})
             matcher.step(playing, snapshot, select, lambda value: home.setProperty('KodiIOS.SubtitleMatches', value))
+            # ISSUE-342: a dubbed video with no caption made from the dub gets one downloaded and turned on, once.
+            if matcher.done and matcher.state and not matcher.dub_started:
+                matcher.dub_started = True
+                state = matcher.state
+                try:
+                    import dub_captions
+                    import subtitle_sources
+                    import xbmcvfs
+                    keys = subtitle_sources.load_keys(xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/'))
+                    if dub_captions.wanted(state.get('video'), state.get('streams'), state.get('enabled'), keys):
+                        log = lambda m: xbmc.log('Kodi iOS ' + m, xbmc.LOGINFO)
+                        log('dub captions: dubbed video with no CC / SDH / dub track; looking for one')
+                        threading.Thread(target=dub_captions.start, args=(xbmc, xbmcvfs, state.get('item'), state.get('video'),
+                                                                          playing, log), daemon=True).start()
+                except Exception as error:
+                    xbmc.log('Kodi iOS dub captions: not started (%s)' % type(error).__name__, xbmc.LOGWARNING)
         except Exception as error:
             if matcher.tries <= 1:
                 xbmc.log('Kodi iOS subtitle match: metadata unavailable (%s)' % type(error).__name__, xbmc.LOGWARNING)

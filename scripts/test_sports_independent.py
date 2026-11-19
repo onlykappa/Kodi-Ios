@@ -1,0 +1,86 @@
+import json,sys,unittest
+from pathlib import Path
+from types import SimpleNamespace as NS
+from unittest.mock import patch
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'))
+import sports_independent as si
+import sports_jet as sj
+
+class Independent(unittest.TestCase):
+ def test_listings_and_no_jet(self):
+  body='<article class="game-card-row"><h3 aria-label="A vs B"></h3><a href="/watch/match-1">watch</a><p class="game-card-league">NBA</p><time dateTime="2026-11-17T01:15:00Z"></time></article>'
+  item=si.StreamsCenter(get=lambda url:(url,body)).get_items()[0]
+  self.assertEqual((item.title,item.league,item.links[0].address),('A vs B','NBA','https://streamcenter.st/watch/match-1'))
+  with patch.object(sj,'import_jet',return_value=(None,'missing')):
+   sources,kind=sj.JetProvider()._extractors()
+  self.assertEqual((sources[0].name,kind),(si.NAME,'independent'))
+ def test_resolves_only_verified_hls_after_embed(self):
+  uid='12345678-1234-1234-1234-123456789abc';calls=[]
+  def get(url,referer=si.BASE+'/'):
+   calls.append(url)
+   if '/watch/' in url:return url,'{"id":"%s","provider":"one"}'%uid
+   if '/api/' in url:return 'https://embed.invalid/a','<iframe src="https://embed.invalid/b"></iframe>'
+   if url.endswith('/b'):return url,'<script>"https://video.invalid/live.m3u8"</script>'
+   return url,'#EXTM3U\n#EXT-X-VERSION:3\n'
+  address,headers=si.resolve(si.BASE+'/watch/test',get)
+  self.assertEqual(address,'https://video.invalid/live.m3u8');self.assertEqual(headers['Referer'],'https://embed.invalid/b');self.assertEqual(headers['Origin'],'https://embed.invalid')
+  with self.assertRaises(RuntimeError):si.resolve(si.BASE+'/watch/test',lambda *a:(a[0],'<html>not a video</html>'))
+ def test_default_resolver_reuses_one_cookie_session(self):
+  uid='12345678-1234-1234-1234-123456789abc';openers=[]
+  def fake_fetch(url,referer=si.BASE+'/',timeout=6,opener=None):
+   openers.append(opener)
+   if '/watch/' in url:return url,'{"id":"%s","provider":"one"}'%uid
+   if '/api/' in url:return 'https://embed.invalid/a','https://video.invalid/live.m3u8'
+   return url,'#EXTM3U\n'
+  with patch.object(si,'fetch',side_effect=fake_fetch):
+   si.resolve(si.BASE+'/watch/test')
+  self.assertEqual(len(openers),3)
+  self.assertTrue(all(x is openers[0] for x in openers))
+ def test_logs_playlist_status_without_url_or_token(self):
+  from urllib.error import HTTPError
+  uid='12345678-1234-1234-1234-123456789abc';notes=[]
+  def get(url,referer=si.BASE+'/'):
+   if '/watch/' in url:return url,'{"id":"%s","provider":"one"}'%uid
+   if '/api/' in url:return 'https://embed.invalid/a','https://video.invalid/live.m3u8?secret=private'
+   raise HTTPError(url,403,'Forbidden',None,None)
+  with self.assertRaises(RuntimeError):si.resolve(si.BASE+'/watch/test',get,notes.append)
+  self.assertIn('independent: playlist request failed (HTTP 403)',notes)
+  self.assertNotIn('private',' '.join(notes));self.assertNotIn('video.invalid',' '.join(notes))
+ def test_rejects_local_and_bad_game_urls(self):
+  for address in ['http://127.0.0.1/x','http://localhost/x','http://[::1]/x','file:///x']:
+   self.assertFalse(si.public_url(address))
+  with self.assertRaises(ValueError):si.resolve('https://attacker.invalid/watch/one')
+ def test_independent_listing_does_not_wait_for_jet_initialization(self):
+  import threading,datetime
+  release=threading.Event();published=[]
+  item=NS(title='A vs B',links=[si.Link(si.BASE+'/watch/test')],starttime=datetime.datetime.now(),status='LIVE',league='NBA')
+  def blocked():
+   release.wait(3)
+   return None,'blocked'
+  with patch.object(si.StreamsCenter,'get_items',return_value=[item]),patch.object(sj,'import_jet',side_effect=blocked):
+   provider=sj.JetProvider(publish=lambda data:published.append(data))
+   done=provider._start()
+   for _ in range(100):
+    if any(x.get('records') for x in published):break
+    threading.Event().wait(.01)
+   self.assertTrue(any(x.get('records') for x in published))
+   self.assertFalse(done.is_set())
+   release.set();self.assertTrue(done.wait(2))
+ def test_banned_jet_is_not_retried_during_same_kodi_session(self):
+  class Window:
+   def __init__(self):self.values={}
+   def getProperty(self,key):return self.values.get(key,'')
+   def setProperty(self,key,value):self.values[key]=value
+  home=Window();calls=[]
+  def blocked(module):calls.append(1);raise Exception('User is banned')
+  with patch.object(si.StreamsCenter,'get_items',return_value=[]),patch.object(sj,'import_jet',return_value=(object(),None)),patch.object(sj,'load_extractors',side_effect=blocked):
+   self.assertTrue(sj.JetProvider(window=home)._start().wait(2))
+   self.assertTrue(home.getProperty('KodiIOS.SportsJetPause'))
+   self.assertTrue(sj.JetProvider(window=home)._start().wait(2))
+  self.assertEqual(len(calls),1)
+ def test_play_request_routes_independent_without_jet_import(self):
+  calls=[]
+  with patch.object(si,'resolve',return_value=('https://video.invalid/live.m3u8',{})),patch.object(sj,'import_jet',side_effect=AssertionError('Jet called')),patch.dict(sys.modules,{'xbmc':NS(Player=lambda:NS(play=lambda path:calls.append(path))),'xbmcgui':NS()}):
+   self.assertTrue(sj.play_one(json.dumps({'e':si.NAME,'l':{'address':si.BASE+'/watch/test'}}),lambda s:None))
+  self.assertTrue(calls[0].startswith(sj.JETPROXY))
+if __name__=='__main__':unittest.main()

@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "logs": [
+    "sports: opening native Loop queue (3 choices)",
+    "jet: a source failed (native open failed, choice 1)",
+    "sports: playing (native Loop queue)"
+  ],
+  "video_seconds": [
+    1.0,
+    2.03,
+    3.03
+  ],
+  "remaining_playlist": 0,
+  "provider_playback_proven": false,
+  "evidence_class": "desktop Kodi rig",
+  "test": "production queue with separately named controlled plugin and test-only route validation",
+  "phone_verified": false
+}

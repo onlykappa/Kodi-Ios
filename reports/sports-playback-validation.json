@@ -1,0 +1,945 @@
+{
+  "date_utc": "2026-11-16",
+  "source_native_candidate": "38dad1eee1309a281c5aacf027fcd91a39ebf142",
+  "python_suite_count": 170,
+  "python_test_count": 2483,
+  "python_all_passed": true,
+  "suites": [
+    {
+      "suite": "scripts/test_startup_sequence.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "suite": "scripts/test_ios_navigation.py",
+      "passed": true,
+      "tests": 30
+    },
+    {
+      "suite": "scripts/test_native_startup.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "scripts/test_native_ui.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "scripts/test_polling_loops.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "scripts/test_skin_textures.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "scripts/test_updates_calibration.py",
+      "passed": true,
+      "tests": 43
+    },
+    {
+      "suite": "scripts/test_drive_upload.py",
+      "passed": true,
+      "tests": 23
+    },
+    {
+      "suite": "scripts/test_service_scoping.py",
+      "passed": true,
+      "tests": 1
+    },
+    {
+      "suite": "scripts/test_interpreter_probe.py",
+      "passed": true,
+      "tests": 2
+    },
+    {
+      "suite": "scripts/test_doh_fetch.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "suite": "scripts/test_subtitle_sources.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "suite": "scripts/test_kodi_patch_ios.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "scripts/test_open_timing.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "suite": "scripts/test_cast_ready.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "scripts/test_drive_proxy.py",
+      "passed": true,
+      "tests": 25
+    },
+    {
+      "suite": "scripts/test_drive_index.py",
+      "passed": true,
+      "tests": 25
+    },
+    {
+      "suite": "scripts/test_settings_search.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "scripts/test_deck_picker.py",
+      "passed": true,
+      "tests": 32
+    },
+    {
+      "suite": "scripts/test_auto_season.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "suite": "scripts/test_season_sheet.py",
+      "passed": true,
+      "tests": 16
+    },
+    {
+      "suite": "scripts/test_picture.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "suite": "scripts/test_picture_menu.py",
+      "passed": true,
+      "tests": 12
+    },
+    {
+      "suite": "scripts/test_upscale_measure.py",
+      "passed": true,
+      "tests": 12
+    },
+    {
+      "suite": "scripts/test_upscale_queue.py",
+      "passed": true,
+      "tests": 17
+    },
+    {
+      "suite": "scripts/test_library_files.py",
+      "passed": true,
+      "tests": 39
+    },
+    {
+      "suite": "scripts/test_sports_model.py",
+      "passed": true,
+      "tests": 18
+    },
+    {
+      "suite": "scripts/test_sports_landing.py",
+      "passed": true,
+      "tests": 16
+    },
+    {
+      "suite": "scripts/test_sports_live.py",
+      "passed": true,
+      "tests": 18
+    },
+    {
+      "suite": "scripts/test_sports_merge.py",
+      "passed": true,
+      "tests": 15
+    },
+    {
+      "suite": "scripts/test_sports_loop.py",
+      "passed": true,
+      "tests": 24
+    },
+    {
+      "suite": "scripts/test_workflow_limits.py",
+      "passed": true,
+      "tests": 2
+    },
+    {
+      "suite": "scripts/test_sports_upcoming.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "scripts/test_sports_upcoming_states.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "suite": "scripts/test_sports_leagues.py",
+      "passed": true,
+      "tests": 12
+    },
+    {
+      "suite": "scripts/test_sports_game.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "suite": "scripts/test_sports_league.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "scripts/test_sports_espn.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "suite": "scripts/test_sports_jet.py",
+      "passed": true,
+      "tests": 16
+    },
+    {
+      "suite": "scripts/test_sports_playback_repair.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "scripts/test_sports_dialogs.py",
+      "passed": true,
+      "tests": 2
+    },
+    {
+      "suite": "scripts/test_work_state.py",
+      "passed": true,
+      "tests": 42
+    },
+    {
+      "suite": "scripts/test_repack_lanes.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "scripts/test_debrid_ready.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "suite": "scripts/test_watch_next.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "scripts/test_saturation.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "scripts/test_download_e2e.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "suite": "scripts/test_upscale_e2e.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "suite": "scripts/test_upscale_cloud.py",
+      "passed": true,
+      "tests": 19
+    },
+    {
+      "suite": "scripts/test_upscale_cancel.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "scripts/test_season_quality.py",
+      "passed": true,
+      "tests": 18
+    },
+    {
+      "suite": "scripts/test_quality_choice.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "suite": "scripts/test_undefined_names.py",
+      "passed": true,
+      "tests": 1
+    },
+    {
+      "suite": "scripts/test_stream_fallback.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "scripts/test_provider_fallback.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "suite": "scripts/test_provider_probe.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "scripts/test_provider_queue_bridge.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "scripts/test_provider_worker.py",
+      "passed": true,
+      "tests": 10
+    },
+    {
+      "suite": "scripts/test_provider_addons.py",
+      "passed": true,
+      "tests": 25
+    },
+    {
+      "suite": "scripts/test_provider_direct_queue.py",
+      "passed": true,
+      "tests": 17
+    },
+    {
+      "suite": "scripts/test_provider_adapters_primary.py",
+      "passed": true,
+      "tests": 15
+    },
+    {
+      "suite": "scripts/test_provider_adapters_secondary.py",
+      "passed": true,
+      "tests": 26
+    },
+    {
+      "suite": "scripts/test_provider_fallback_hooks.py",
+      "passed": true,
+      "tests": 17
+    },
+    {
+      "suite": "scripts/test_bundle_syntax.py",
+      "passed": true,
+      "tests": 2
+    },
+    {
+      "suite": "scripts/test_build442_logs.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "scripts/test_library_remove.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "scripts/test_upscale_from_index.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "scripts/test_routine_notices.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "scripts/test_notification_centre_c1.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "scripts/test_row_title_grid.py",
+      "passed": true,
+      "tests": 2
+    },
+    {
+      "suite": "scripts/test_slim_status.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "scripts/test_stream_slow_link.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "scripts/test_stream_loop.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "scripts/test_opening_hold.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "scripts/test_stream_race.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "scripts/test_stream_reads.py",
+      "passed": true,
+      "tests": 12
+    },
+    {
+      "suite": "scripts/test_smooth_pages.py",
+      "passed": true,
+      "tests": 2
+    },
+    {
+      "suite": "scripts/test_quiet_hangups.py",
+      "passed": true,
+      "tests": 2
+    },
+    {
+      "suite": "scripts/test_favourites_manager.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "suite": "scripts/test_favourites_menu.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "scripts/test_stream_opening_fallback.py",
+      "passed": true,
+      "tests": 12
+    },
+    {
+      "suite": "scripts/test_stream_integrity.py",
+      "passed": true,
+      "tests": 10
+    },
+    {
+      "suite": "scripts/test_native_http.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "suite": "scripts/test_pinned_addons.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "scripts/test_netwatch.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "scripts/test_copy_status.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "scripts/test_library_show_menu.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "suite": "scripts/test_library_index.py",
+      "passed": true,
+      "tests": 16
+    },
+    {
+      "suite": "scripts/test_queue_index.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "scripts/test_upload_speed.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "scripts/test_subtitle_match.py",
+      "passed": true,
+      "tests": 25
+    },
+    {
+      "suite": "scripts/test_next_episode.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "suite": "scripts/test_airplay_subtitle_sync.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "scripts/test_tv_banner.py",
+      "passed": true,
+      "tests": 16
+    },
+    {
+      "suite": "scripts/test_prepared_keyframes.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "scripts/test_speech_check.py",
+      "passed": true,
+      "tests": 18
+    },
+    {
+      "suite": "scripts/test_airplay_exports.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "scripts/test_track_menu.py",
+      "passed": true,
+      "tests": 15
+    },
+    {
+      "suite": "scripts/test_subtitle_hold.py",
+      "passed": true,
+      "tests": 15
+    },
+    {
+      "suite": "scripts/test_drive_proxy_alive.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "suite": "scripts/test_notice_season_data.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "scripts/test_build442_sheets.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "suite": "scripts/test_terminal_copy_errors.py",
+      "passed": true,
+      "tests": 27
+    },
+    {
+      "suite": "scripts/test_upscale_page.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "scripts/test_ios_remove.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "scripts/test_source_match.py",
+      "passed": true,
+      "tests": 44
+    },
+    {
+      "suite": "scripts/test_bundled_bootstrap.py",
+      "passed": true,
+      "tests": 16
+    },
+    {
+      "suite": "scripts/test_portrait.py",
+      "passed": true,
+      "tests": 55
+    },
+    {
+      "suite": "scripts/test_glassbar.py",
+      "passed": true,
+      "tests": 28
+    },
+    {
+      "suite": "scripts/test_seek_release.py",
+      "passed": true,
+      "tests": null
+    },
+    {
+      "suite": "scripts/test_background_queue.py",
+      "passed": true,
+      "tests": 10
+    },
+    {
+      "suite": "scripts/test_compatibility_filter.py",
+      "passed": true,
+      "tests": 40
+    },
+    {
+      "suite": "scripts/test_episode_watch.py",
+      "passed": true,
+      "tests": 30
+    },
+    {
+      "suite": "scripts/test_favourites_import.py",
+      "passed": true,
+      "tests": 29
+    },
+    {
+      "suite": "scripts/test_anticipated_bell.py",
+      "passed": true,
+      "tests": 22
+    },
+    {
+      "suite": "scripts/test_favourites_flow.py",
+      "passed": true,
+      "tests": 15
+    },
+    {
+      "suite": "scripts/test_season_sources.py",
+      "passed": true,
+      "tests": 34
+    },
+    {
+      "suite": "scripts/test_airplay_diagnostics.py",
+      "passed": true,
+      "tests": 15
+    },
+    {
+      "suite": "scripts/test_playback_retention.py",
+      "passed": true,
+      "tests": 17
+    },
+    {
+      "suite": "scripts/test_fast_open.py",
+      "passed": true,
+      "tests": 10
+    },
+    {
+      "suite": "scripts/test_remote_media.py",
+      "passed": true,
+      "tests": 55
+    },
+    {
+      "suite": "scripts/test_transfer_efficiency.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "suite": "scripts/test_umbrella_recovery.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "suite": "scripts/test_notices.py",
+      "passed": true,
+      "tests": 22
+    },
+    {
+      "suite": "scripts/test_notice_log.py",
+      "passed": true,
+      "tests": 19
+    },
+    {
+      "suite": "scripts/test_pages.py",
+      "passed": true,
+      "tests": 24
+    },
+    {
+      "suite": "scripts/test_airplay_remux.py",
+      "passed": true,
+      "tests": 33
+    },
+    {
+      "suite": "scripts/test_airplay_long_fragments.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "scripts/test_airplay_source_stall.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "scripts/test_umbrella_early_exit.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "scripts/test_airplay_flow.py",
+      "passed": true,
+      "tests": 10
+    },
+    {
+      "suite": "scripts/test_airplay_room.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "scripts/test_play_on_tv_start.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "suite": "scripts/test_play_on_tv_network.py",
+      "passed": true,
+      "tests": 76
+    },
+    {
+      "suite": "scripts/test_prepare_downloads.py",
+      "passed": true,
+      "tests": 61
+    },
+    {
+      "suite": "scripts/test_debrid_drive.py",
+      "passed": true,
+      "tests": 72
+    },
+    {
+      "suite": "scripts/test_elementum_cloud.py",
+      "passed": true,
+      "tests": 18
+    },
+    {
+      "suite": "scripts/test_speed_fixes.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "suite": "scripts/test_drive_prepare.py",
+      "passed": true,
+      "tests": 48
+    },
+    {
+      "suite": "scripts/test_image_subtitles.py",
+      "passed": true,
+      "tests": 12
+    },
+    {
+      "suite": "scripts/test_preparation_runtime.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "scripts/test_transfer_artwork.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "scripts/test_diagnostics.py",
+      "passed": true,
+      "tests": 15
+    },
+    {
+      "suite": "scripts/test_library_status.py",
+      "passed": true,
+      "tests": 59
+    },
+    {
+      "suite": "scripts/test_downloaded_play.py",
+      "passed": true,
+      "tests": 12
+    },
+    {
+      "suite": "scripts/test_choose_source.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "scripts/test_signin_server.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "scripts/test_library_scan.py",
+      "passed": true,
+      "tests": 33
+    },
+    {
+      "suite": "scripts/test_library_refresh.py",
+      "passed": true,
+      "tests": 17
+    },
+    {
+      "suite": "scripts/test_library_artwork.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "suite": "scripts/test_library_pages.py",
+      "passed": true,
+      "tests": 17
+    },
+    {
+      "suite": "scripts/test_downloaded_show.py",
+      "passed": true,
+      "tests": 20
+    },
+    {
+      "suite": "scripts/test_show_scrolling.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "scripts/test_show_parent_navigation.py",
+      "passed": true,
+      "tests": 1
+    },
+    {
+      "suite": "scripts/test_settings_page.py",
+      "passed": true,
+      "tests": 24
+    },
+    {
+      "suite": "scripts/test_genre_photos.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "scripts/test_search_categories.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "scripts/test_performance_budget.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "suite": "scripts/test_customized_ipa.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "suite": "scripts/test_import_builder.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "suite": "scripts/test_import_profile.py",
+      "passed": true,
+      "tests": 19
+    },
+    {
+      "suite": "scripts/test_watch_routes.py",
+      "passed": true,
+      "tests": 10
+    },
+    {
+      "suite": "scripts/test_watch_dialog.py",
+      "passed": true,
+      "tests": 15
+    },
+    {
+      "suite": "scripts/test_watch_continue.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "suite": "scripts/test_continue_downloads.py",
+      "passed": true,
+      "tests": 20
+    },
+    {
+      "suite": "scripts/test_drive_library.py",
+      "passed": true,
+      "tests": 23
+    },
+    {
+      "suite": "scripts/test_listing_cache.py",
+      "passed": true,
+      "tests": 30
+    },
+    {
+      "suite": "scripts/test_activation.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "scripts/test_ios.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "suite": "scripts/test_review_low_items.py",
+      "passed": true,
+      "tests": 2
+    }
+  ],
+  "native_candidate_run": 43907784636,
+  "native_host_job": {
+    "id": 133441177291,
+    "conclusion": "success"
+  },
+  "native_framework_job": "success",
+  "drive_fixture_cold_median_before_s": 0.4021710020001592,
+  "drive_fixture_cold_median_after_s": 0.2019263989996034,
+  "drive_fixture_limit": "Synthetic loopback, 200 ms metadata delay; not phone timing.",
+  "desktop_rig": "Startup service crash and first-run/skin-reload interference; scrolling and real-provider playback not verified.",
+  "device_acceptance": "pending",
+  "private_data_included": false,
+  "native_compile_candidate_run": 43911296606,
+  "native_compile_source": "7e6249fa2460549bd9388a4a52cd0a499b4220e4",
+  "native_host_reuse_identity_check": "passed in candidate run 43911296606",
+  "native_sparse_regression": {
+    "audio_segments": 6,
+    "burned_caption_frames_observed": true,
+    "converted_frames": 768,
+    "converted_max_s": 6.0,
+    "converted_segments": 6,
+    "copy_max_s": 32.02303,
+    "copy_packet_digest_equal": true,
+    "sequence_elapsed_s": 0.791
+  },
+  "followup_regression": "Game refresh still clears a prior playback error while unchanged properties are cached; 14 game tests and seven playback repair tests passed.",
+  "native_framework": {
+    "tag": "kodi-airplay-r65",
+    "sha256": "05ef394f931b321dda54e0c8378e6420c912d4cf525602bb70529d8c864acf7a",
+    "source_commit": "7e6249fa2460549bd9388a4a52cd0a499b4220e4",
+    "foundation_tests_passed": 5,
+    "xcode": "26.3",
+    "iphone_sdk": "26.2",
+    "publication": "published and downloaded",
+    "local_archive_inspection": "SHA, ZIP CRC, thin arm64 Mach-O and required exports/new conversion markers passed",
+    "archive_bytes": 4083768,
+    "binary_sha256": "7b2f4692aa8fc56a711156180d69908fc911461f5af23ae89ad6f3971888053c",
+    "zip_crc_passed": true,
+    "architecture": "arm64 Mach-O",
+    "conversion_markers_present": true,
+    "publisher_run": 43912960249,
+    "candidate_run": 43911296606,
+    "device_result": "pending",
+    "macho_platform": "iPhoneOS (2)"
+  },
+  "ipa": {
+    "build": 561,
+    "commit": "a16a3efef1b12262e0382fcc2ec9865f289dc687",
+    "workflow_run": 43913240719,
+    "release_url": "https://github.com/onlykappa/Kodi-Ios/releases/tag/build-561",
+    "download_url": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-561/Kodi-iOS-Customized-Touch-r10.ipa",
+    "ipa_sha256": "d60999a057fbb21ca6397fda1b2bf17aca3daa9945c282fe99eb0be928a815cb",
+    "archive_bytes": 588860520,
+    "zip_crc_passed": true,
+    "frameworks": {
+      "airplay": {
+        "sha256": "05ef394f931b321dda54e0c8378e6420c912d4cf525602bb70529d8c864acf7a",
+        "tag": "kodi-airplay-r65"
+      },
+      "glassbar": {
+        "sha256": "ecc883d2fe159e9aa08653a3130efe4003c3d40c4882222494dbb82f960bf16e",
+        "tag": "kodi-glassbar-r6"
+      },
+      "ios-portrait": {
+        "sha256": "091eb4a4ef75ad1475f5aa0d5d014f5eddb0ff3eb398e6d23b5a5e64a4671435",
+        "tag": "kodi-ios-portrait-r33"
+      }
+    },
+    "airplay_binary_sha256": "7b2f4692aa8fc56a711156180d69908fc911461f5af23ae89ad6f3971888053c",
+    "portrait_binary_sha256": "fa717e3222ca004eb15d076d122e637bca1e807cdfba2bcd8f038d8e4099de75",
+    "portrait_source_sha256": "091eb4a4ef75ad1475f5aa0d5d014f5eddb0ff3eb398e6d23b5a5e64a4671435",
+    "portrait_signature_commands_removed": 1,
+    "portrait_exact_unsigned_match": true,
+    "packaged_source_verified": [
+      "sports_live.py",
+      "sports_game.py",
+      "sports_upcoming.py",
+      "resources/lib/sports_jet.py",
+      "resources/lib/drive_index.py",
+      "resources/lib/drive_proxy.py",
+      "resources/lib/cast.py",
+      "resources/lib/open_timing.py"
+    ],
+    "phone_verified": false,
+    "status": "published and downloaded; artifact verification passed; phone testing pending"
+  }
+}

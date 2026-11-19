@@ -980,9 +980,8 @@ int gm_stream_subtitle_segment(gm_stream *s, int src, int i, gm_buf *out, char *
     double seg_end = (i + 1 < s->n_seg) ? s->seg_starts[i + 1] : s->duration;
 
     out->len = 0;
-    // Fixed header matching Apple's mediasubtitlesegmenter (MPEGTS:900000 = 10s @ 90kHz,
-    // LOCAL 0 -> WebVTT cue times ARE absolute media times).
-    vtt_append(out, "WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:900000,LOCAL:00:00:00.000\n\n", -1);
+    // Cue times ARE absolute media times (GM_VTT_HEADER: MPEGTS:0 <-> LOCAL 0, ISSUE-343).
+    vtt_append(out, GM_VTT_HEADER, -1);
 
     AVCodecContext *dec = open_sub_decoder(s, src);
     if (!dec) { set_err(err, errlen, "open sub decoder", 0); return -1; }
@@ -1004,12 +1003,29 @@ int gm_stream_subtitle_segment(gm_stream *s, int src, int i, gm_buf *out, char *
     AVPacket *pkt = av_packet_alloc();
     AVSubtitle sub;
     int got = 0, ncues = 0, guard = 0, rr = 0;
+    // ISSUE-343 (owner: subtitles "doubled up" on the TV): anime subtitle files draw one line several times on stacked
+    // layers (outline, fill, a sign's copies). Kodi's renderer stacks them into one line; as WebVTT each was its own cue
+    // and the TV showed the line twice. A cue with the same text as one already written here, overlapping it in time,
+    // is skipped (its window is merged into the first).
+    enum { SEEN_MAX = 256, CUE_MAX = 512 };
+    typedef struct { double start, end; uint32_t hash; int len; } vtt_seen;
+    vtt_seen seen[SEEN_MAX];
+    int nseen = 0;
+    // Owner photo (build 549, 2026-11-16): four cue lines stacked on the TV, because each cue stayed up past the start of the next
+    // (a 5 s fallback when a sample has no duration, or a file whose end times overrun). The cues are kept here until the
+    // segment is read; each one then ends where the next one starts, so a new line replaces the old one instead of stacking
+    // above it. `later` is the first cue after this segment (read and not used), so the last cue is clamped the same way
+    // the next segment will clamp its first.
+    typedef struct { double start, end; char *text; int len; } vtt_cue;
+    vtt_cue cues[CUE_MAX];
+    int nstored = 0;
+    double later = -1;
     while (guard++ < 100000 && (rr = av_read_frame(s->in, pkt)) >= 0) {
         if (pkt->stream_index != src) { av_packet_unref(pkt); continue; }
         double pts = (pkt->pts != AV_NOPTS_VALUE ? pkt->pts : pkt->dts) * av_q2d(ist->time_base);
         double dur = pkt->duration > 0 ? pkt->duration * av_q2d(ist->time_base) : 0.0;
         // Past this segment (account for cues that may carry their own display window).
-        if (pts >= seg_end) { av_packet_unref(pkt); break; }
+        if (pts >= seg_end) { later = pts; av_packet_unref(pkt); break; }
 
         memset(&sub, 0, sizeof(sub));
         int ok = avcodec_decode_subtitle2(dec, &sub, &got, pkt);
@@ -1036,14 +1052,28 @@ int gm_stream_subtitle_segment(gm_stream *s, int src, int i, gm_buf *out, char *
             // Trim trailing whitespace/newlines.
             while (text.len > 0 && (text.data[text.len - 1] == '\n' || text.data[text.len - 1] == ' '))
                 text.len--;
-            if (text.len > 0) {
-                vtt_time(out, cstart);
-                vtt_append(out, " --> ", 5);
-                vtt_time(out, cend);
-                vtt_append(out, "\n", 1);
-                vtt_append(out, (const char *)text.data, text.len);
-                vtt_append(out, "\n\n", 2);
-                ncues++;
+            uint32_t hash = 2166136261u;
+            for (int c = 0; c < text.len; c++) { hash ^= (uint8_t)text.data[c]; hash *= 16777619u; }
+            int dup = 0;
+            for (int k = 0; k < nseen && !dup; k++)
+                dup = seen[k].hash == hash && seen[k].len == text.len && cstart < seen[k].end + 0.05 && cend > seen[k].start - 0.05;
+            if (text.len > 0 && !dup && nseen < SEEN_MAX) seen[nseen++] = (vtt_seen){cstart, cend, hash, text.len};
+            if (text.len > 0 && !dup) {
+                if (nstored < CUE_MAX && (cues[nstored].text = malloc((size_t)text.len))) {
+                    memcpy(cues[nstored].text, text.data, (size_t)text.len);
+                    cues[nstored].len = text.len;
+                    cues[nstored].start = cstart;
+                    cues[nstored].end = cend;
+                    nstored++;
+                } else {   // no room (a very busy segment): written as it is
+                    vtt_time(out, cstart);
+                    vtt_append(out, " --> ", 5);
+                    vtt_time(out, cend);
+                    vtt_append(out, "\n", 1);
+                    vtt_append(out, (const char *)text.data, text.len);
+                    vtt_append(out, "\n\n", 2);
+                    ncues++;
+                }
             }
             free(text.data);
         }
@@ -1051,7 +1081,22 @@ int gm_stream_subtitle_segment(gm_stream *s, int src, int i, gm_buf *out, char *
     }
     av_packet_free(&pkt);
     avcodec_free_context(&dec);
-    (void)ncues;
+    for (int k = 0; k < nstored; k++) {
+        double lim = -1;   // the nearest later start (cues that begin together stay together)
+        for (int m = 0; m < nstored; m++)
+            if (cues[m].start > cues[k].start + 0.05 && (lim < 0 || cues[m].start < lim)) lim = cues[m].start;
+        if (later > cues[k].start + 0.05 && (lim < 0 || later < lim)) lim = later;
+        double end = cues[k].end;
+        if (lim > 0 && lim < end) end = lim;
+        vtt_time(out, cues[k].start);
+        vtt_append(out, " --> ", 5);
+        vtt_time(out, end);
+        vtt_append(out, "\n", 1);
+        vtt_append(out, cues[k].text, cues[k].len);
+        vtt_append(out, "\n\n", 2);
+        ncues++;
+        free(cues[k].text);
+    }
     // Kodi iOS r9: a read error is an error, not an empty segment (the caller tries its other demuxer).
     if (rr < 0 && rr != AVERROR_EOF && ncues == 0) { set_err(err, errlen, "subtitle read", rr); return -1; }
     return 0;

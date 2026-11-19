@@ -79,10 +79,15 @@ def run():
 
     class Pick(xbmcgui.WindowXMLDialog):
         """K7 / K8: returns the tapped poster's index, 'other' (Search Another Name), 'search' (the field), 'skip' or None."""
-        def setup(self, spec):
-            self.spec, self.answer = spec, None
+        def setup(self, spec, refresh=None, extra=None):
+            # ISSUE-338 (owner log a42d17d7: the search "nearly kicks me out"): with refresh, the search field asks for
+            # the name over this page and refills it in place (refresh(query) -> (spec, extra)) instead of closing it.
+            self.spec, self.answer, self.refresh, self.extra = spec, None, refresh, extra
 
         def onInit(self):
+            self.fill()
+
+        def fill(self):
             for k in ('back', 'title', 'sub', 'search', 'query', 'other'):
                 self.setProperty(k, str(self.spec.get(k) or ''))
             items = []
@@ -108,6 +113,17 @@ def run():
                 self.answer = self.getControl(control).getSelectedPosition()
             elif control == page.OTHER:
                 self.answer = 'other'
+            elif control == page.SEARCH and self.refresh:
+                current = str(self.spec.get('query') or '')
+                query = (dialog.input('Search for a title', defaultt=current, type=xbmcgui.INPUT_ALPHANUM) or '').strip()
+                if query and query != current:
+                    self.setProperty('query', query + ' …')
+                    try:
+                        self.spec, self.extra = self.refresh(query)
+                    except Exception as error:
+                        xbmc.log('Kodi iOS favourites: search failed (%s)' % type(error).__name__, xbmc.LOGWARNING)
+                    self.fill()
+                return
             elif control == page.SEARCH:
                 self.answer = 'search'
             elif control == page.SKIP:
@@ -120,13 +136,14 @@ def run():
             if action.getId() in BACK_ACTIONS:
                 self.close()
 
-    def show_pick(spec):
+    def show_pick(spec, refresh=None, extra=None):
+        """The answer; with refresh, (answer, the extra of the last search shown)."""
         window = Pick(page.PICK, HERE, 'Default', '1080i')
-        window.setup(spec)
+        window.setup(spec, refresh, extra)
         window.doModal()
-        answer = window.answer
+        answer, extra = window.answer, window.extra
         del window
-        return answer
+        return (answer, extra) if refresh else answer
 
     def add_choice(choice, entry, report):
         new, _ = fi.add(profile, [dict(choice, rank=entry.get('rank') or 0, watched=entry.get('watched', 0))], report.get('list') or '')
@@ -137,8 +154,7 @@ def run():
         search, key = lookup()
         if not search:
             return False
-        query = name
-        while True:
+        def build(query):
             try:
                 found = [r for r in search(query) if r.get('media_type') in ('tv', 'movie')][:9]
             except Exception:
@@ -147,14 +163,13 @@ def run():
             for c, r in zip(choices, found):
                 c.update(genre_ids=r.get('genre_ids') or [], origin_country=r.get('origin_country') or [],
                          original_language=r.get('original_language') or '')
-            answer = show_pick(model.picker(name, line, choices, details(key, choices), search=query, mode='search'))
-            if isinstance(answer, int) and 0 <= answer < len(choices):
-                add_choice(choices[answer], entry, report)
-                return True
-            if answer == 'search':
-                query = (dialog.input('Search for “%s”' % name, defaultt=query, type=xbmcgui.INPUT_ALPHANUM) or '').strip() or query
-                continue
-            return answer == 'skip' and None
+            return model.picker(name, line, choices, details(key, choices), search=query, mode='search'), choices
+        spec, choices = build(name)
+        answer, choices = show_pick(spec, refresh=build, extra=choices)
+        if isinstance(answer, int) and 0 <= answer < len(choices or []):
+            add_choice(choices[answer], entry, report)
+            return True
+        return answer == 'skip' and None
 
     def answer_question(n, report):
         """K7 for one question. Returns 'done' (picked or skipped: it leaves the report), or None (Back: it stays)."""

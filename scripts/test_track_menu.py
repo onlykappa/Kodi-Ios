@@ -65,7 +65,7 @@ class Window(unittest.TestCase):
   xml=pages.track_menu();root=ET.fromstring(xml.split('\n',2)[2])
   all_ids=[c.get('id') for c in root.iter('control') if c.get('id')];ids=set(all_ids)
   self.assertEqual(len(all_ids),len(ids))                               # one copy of each control (the script reads them by id)
-  for i in ('9500','9501','9510','9310','9401','9402','9403','9404','9099'):self.assertIn(i,ids)
+  for i in ('9500','9501','9510','9310','9312','9401','9402','9403','9404','9405','9406','9099','9601','9602','9690','9611','9612'):self.assertIn(i,ids)
   self.assertIn('Kodi-iOS player controls',xml)                         # navigation.patch_skin leaves it alone
   self.assertIn('pill_112.png',xml);self.assertIn('FF4FA8FF',xml)        # existing capsule texture; blue text token
  def test_wired_into_the_video_controls_and_skin(self):
@@ -105,7 +105,7 @@ class Speed(unittest.TestCase):
         xml = pages.track_menu()
         ET.fromstring(xml.split('\n', 1)[1] if xml.startswith('<?xml') else xml)
         self.assertIn("String.IsEqual(Window().Property(mode),speed)", xml)
-        self.assertIn('<visible>!String.IsEqual(Window().Property(mode),speed)</visible>', xml)
+        self.assertIn('<visible>!String.IsEqual(Window().Property(mode),speed) + ', xml)
 
 
 class More(unittest.TestCase):
@@ -117,7 +117,7 @@ class More(unittest.TestCase):
         self.assertEqual((rows[0]['tag'], rows[2]['tag']), ('3 FOUND', 'OFF'))
         found = tm.result_rows([{'id': '7', 'releases': ['Phony.S01E01.WEB'], 'impaired': True}, {'id': '9', 'releases': [], 'impaired': False}])
         self.assertEqual([(r['label'], r['tag'], r['index']) for r in found],
-                         [('Phony.S01E01.WEB', 'SDH', 0), ('Subtitle 9', '', 1)])
+                         [('Phony S01E01 WEB', 'SDH', 0), ('Subtitle 9', '', 1)])
         xml = __import__('pages').track_menu()
         self.assertIn('id="9502"', xml)
         self.assertIn('Window().Property(back)', xml)
