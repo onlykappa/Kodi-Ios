@@ -26,7 +26,6 @@ class Opening:
         class Surface(xbmcgui.WindowXMLDialog):
             def onInit(self):
                 self.setProperty('matchup',matchup(parent.source))
-                self.setProperty('stage','Opening your game')
                 self.setProperty('detail','Connecting to the selected source.')
                 parent.ready.set()
             def onClick(self,control):

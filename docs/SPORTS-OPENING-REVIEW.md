@@ -167,3 +167,55 @@ been played end-to-end through this loader in this review pass; no native
 Crew chooser interaction with a live provider has been exercised; no
 before/after timing measurement has been taken. None of this is claimed as
 done. This candidate remains not ready for IPA retest.
+
+## Owner direct report (2026-11-19) and card redesign
+
+The owner reports direct device use: every Crew link and game they have
+tried has actually played; their complaint is specifically that opening is
+**slow and the loading card looks bad**, not that it fails to work. This is
+first-hand phone evidence and supersedes the more cautious "unproven"
+framing above for the question of whether Crew streams play at all; the
+open questions below are about speed and appearance, not correctness of
+playback itself.
+
+Redesigned `sports_opening_page.py` to match the revised mockup
+(`docs/design/sports-opening-mockup.html`): one compact centered card
+(720 units wide, reusing `round_s.png`/`SURFACE`, the same shape as the
+existing `pages.busy_dialog` opening card) instead of the previous
+full-screen layout. Fixes two real defects found in the old layout:
+
+- The static page title and the card's live "stage" line both said
+  "Opening your game", duplicated on screen. Removed the dead `stage`
+  window property entirely (`Opening.stage()` has only ever written to
+  `detail`, never `stage`, so the old property was inert) and kept one
+  title.
+- A large empty gap between the matchup text and the card, from
+  positioning the card near the bottom of a full 2090-unit canvas.
+
+Verified on the desktop Kodi rig (controlled fixture, not device) by
+driving the real `sports_opening.Opening` class directly (not a
+stand-in): normal short names render identically to the mockup; an
+intentionally extreme two-team name case
+("Southeastern Oklahoma State University Savage Storm" vs "University of
+Louisiana at Lafayette Ragin Cajuns") first clipped the second team's name
+entirely off the bottom of a fixed 96-unit matchup box — a real DEC-050
+violation, not a theoretical one. Fixed by computing the card's rows (and
+overall height) from a declared row-height table instead of magic
+offsets, with the matchup row sized for the worst case of both team names
+wrapping to two lines each. Re-verified: both extreme names now wrap and
+stay fully visible, nothing clipped. The accepted trade-off is some empty
+space in the card for the common short-name case, which is unavoidable
+with Kodi's static skin XML (the window can't grow at runtime from live
+text length) and is preferable to ever clipping. Also re-verified the
+10-second slow-wait text ("This source is taking longer than usual. You
+can cancel.") renders correctly in the new card and does not overlap or
+get cut off. `scripts/test_sports_opening.py` (9), `test_sports_jet.py`
+(23), `test_sports_crew_routes.py` (53), `test_sports_loop_router.py`
+(17), `check_project.py` and `check_ui_guidance.py` all pass.
+
+Speed (the owner's other complaint) has not been addressed by this
+redesign; it is a separate, still-open item (see the dispatch-to-AV-start
+log line added in the prior checkpoint, and the per-folder Crew menu-walk
+timing already logged in `sports_crew_routes.refresh_link`). Real device
+timing from an actual slow open is the next thing needed to make progress
+on it honestly.
