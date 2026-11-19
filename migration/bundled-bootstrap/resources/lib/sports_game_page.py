@@ -6,7 +6,10 @@ BACK, REFRESH, LIST, RETRY = 9001, 9002, 9300, 9003
 SEARCH_RETRY = 9004
 AUTO = 9005
 REMIND, REMIND_ON = 9006, 9008      # Remind me / Reminder on (two buttons, one visible at a time) (board C of docs/design/sports-game-mockups.html)
+STANDINGS_SWITCH, STANDINGS_SWITCH_BACK = 9009, 9010      # Divisional / Wild Card (one visible at a time)
 SOURCE, SLOTS = 50000, 24
+ST_ROWS = 8
+DOTS = 5
 FORMS = tuple((title, detail) for title in range(1, 5) for detail in range(1, 10))
 TEAM_FORMS = range(1, 7)
 TITLE_LINE, DETAIL_LINE = 55, 51
@@ -77,6 +80,67 @@ def _sources(p):
     return out
 
 
+def _info(p):
+    """Board D3 / D4: one scrolling Info section under the sources: when and where, recent form, the standings table."""
+    out = u.group(p, 50, '', u.has('info.kickoff'))
+    card_x, card_w = p.SIDE, 972
+    # Kickoff (and Venue, when ESPN has one) in one grouped card.
+    for with_venue in (False, True):
+        h = 290 if with_venue else 130
+        body = u.card(p, card_x, 0, card_w, h)
+        body += u.text(p, 92, 0, 300, 130, 'Kickoff', 'p_sub', p.GREY)
+        body += u.text(p, 400, 0, 588, 130, u.P('info.kickoff'), 'p_pill', align='right')
+        if with_venue:
+            body += p.image(92, 130, 896, 3, p.MEDIA + 'white.png', '1FEBEBF5')
+            body += u.text(p, 92, 133, 250, 157, 'Venue', 'p_sub', p.GREY)
+            body += p.textbox(330, 148, 658, 51 * 2, u.P('info.venue'), 'p_pill').replace('<autoscroll>', '<align>right</align><autoscroll>')
+            body += u.text(p, 330, 232, 658, 51, u.P('info.place'), 'p_foot', p.GREY, 'right')
+        cond = u.has('info.kickoff') + (' + ' + u.has('info.venue') if with_venue else ' + String.IsEmpty(Window().Property(info.venue))')
+        out += u.group(p, h + 40, body, cond)
+    # Recent form: a grouped card, one row per team, five W / L / D dots.
+    out += u.group(p, 118, u.text(p, p.SIDE + 10, 30, 700, 60, 'Recent form', 'p_foot_b', p.GREY), u.has('form.0.name'))
+    rows = ''
+    for n in range(2):
+        key = 'form.%d.' % n
+        y = n * 190
+        rows += p.textbox(92, y + 14, 500, 102, u.P(key + 'name'), 'p_pill')
+        rows += u.text(p, 92, y + 116, 560, 54, u.P(key + 'line'), 'p_foot', p.GREY)
+        for d in range(DOTS):
+            x = 988 - (DOTS - d) * 68 + 12
+            for letter, tint in (('W', p.GREEN), ('L', 'FFFF453A'), ('D', '66EBEBF5')):
+                cond = 'String.IsEqual(Window().Property(%sd%d),%s)' % (key, d, letter)
+                dot = p.image(x, y + 62, 56, 56, p.MEDIA + 'r27.png', tint, border=27)
+                dot += u.text(p, x, y + 62, 56, 56, letter, 'p_foot_b', 'FF000000', 'center')
+                rows += '<control type="group"><visible>%s</visible>%s</control>' % (cond, dot)
+        if n == 0:
+            rows += p.image(92, 190, 896, 3, p.MEDIA + 'white.png', '1FEBEBF5')
+    out += u.group(p, 420, u.card(p, card_x, 0, card_w, 380) + rows, u.has('form.0.name'))
+    # Standings: header, up to ST_ROWS rows (the game's two teams tinted), the Divisional / Wild Card switch.
+    out += u.group(p, 118, u.text(p, p.SIDE + 10, 30, 960, 60, u.P('st.title'), 'p_foot_b', p.GREY), u.has('st.title'))
+    head = p.image(card_x, 0, card_w, 100, p.MEDIA + 'row_first.png', p.SURFACE, border=43)
+    cols = ((560, 90), (655, 90), (750, 90), (858, 130))
+    for i, (x, w) in enumerate(cols):
+        head += u.text(p, x, 0, w, 100, u.P('st.h%d' % i), 'p_foot', p.GREY, 'right')
+    head += u.text(p, 92, 0, 120, 100, '#', 'p_foot', p.GREY) + u.text(p, 250, 0, 300, 100, 'Team', 'p_foot', p.GREY)
+    out += u.group(p, 100, head, u.has('st.title'))
+    for n in range(ST_ROWS):
+        key = 'st.%d.' % n
+        h = 134
+        b = u.row_back(p, key, card_w, h)
+        b += p.image(card_x + 14, 8, card_w - 28, h - 16, p.MEDIA + 'r21.png', '330A84FF', '<visible>' + u.has(key + 'me') + '</visible>', border=21)
+        b += u.text(p, 92, 0, 80, h, u.P(key + 'rank'), 'p_foot', p.GREY)
+        b += p.image(172, (h - 72) // 2, 72, 72, u.P(key + 'crest'), extra='<visible>' + u.has(key + 'crest') + '</visible>', aspect='>keep', background=True)
+        b += u.text(p, 262, 0, 290, h, u.P(key + 'team'), 'p_foot')
+        for i, (x, w) in enumerate(cols):
+            b += u.text(p, x, 0, w, h, u.P(key + 'c%d' % i), 'p_foot', align='right')
+        out += u.group(p, h, b, u.has(key + 'team'))
+    for ident, cond in ((STANDINGS_SWITCH, 'String.IsEqual(Window().Property(st.switch),wild)'),
+                        (STANDINGS_SWITCH_BACK, 'String.IsEqual(Window().Property(st.switch),div)')):
+        label = 'Wild Card' if ident == STANDINGS_SWITCH else 'Divisional'
+        out += u.group(p, 190, p.pill_button(ident, p.SIDE, 40, 972, 128, label, [('', 'noop')], 'glass'), cond)
+    return out
+
+
 def page(p):
     header = p.nav_button(BACK,32,5,'chevron-left.png','noop')
     header += p.nav_button(REFRESH,940,5,p.MEDIA+'hdr_refresh.png','noop',glyph_size=60).replace(p.WHITE,p.ACCENT)
@@ -110,6 +174,7 @@ def page(p):
     error += p.pill_button(RETRY,270,320,540,134,'Try again',[('','noop')],'primary',extra='<visible>String.IsEqual(Window().Property(state),error)</visible>')
     content += u.group(p,520,error,u.has('error.title'))
     content += u.group(p,160,p.textbox(92,21,896,120,u.P('play.error'),'p_sub',p.GREY),u.has('play.error'))
+    content += _info(p)
     content += u.group(p,260,'')
     body = p.backdrop()
     body += ('<control type="grouplist" id="%d"><top>0</top><width>1080</width><bottom>0</bottom>'

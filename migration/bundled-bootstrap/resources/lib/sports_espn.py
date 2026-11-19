@@ -113,6 +113,20 @@ def _clock(league, status, cfg):
     return '%s · %s' % (mark, shown) if shown else mark
 
 
+def path_of(code):
+    return next((row[3] for row in LEAGUES if row[0] == code), '')
+
+
+def _venue(v):
+    """('NRG Stadium', 'Houston, TX') from a scoreboard venue, or ('', '')."""
+    try:
+        a = v.get('address') or {}
+        place = ', '.join(x for x in (a.get('city'), a.get('state') or a.get('country')) if x)
+        return (v.get('fullName') or '', place)
+    except AttributeError:
+        return ('', '')
+
+
 def parse(code, name, sport, joiner, cfg, body, now):
     """(live games, upcoming games, finished count) from one league's scoreboard answer."""
     live, upcoming, finished = [], [], 0
@@ -131,7 +145,10 @@ def parse(code, name, sport, joiner, cfg, body, now):
 
             def team(c):
                 t = c.get('team') or {}
-                out = {'code': (t.get('abbreviation') or t.get('shortDisplayName') or '???')[:4].upper(),
+                rec = next((r.get('summary') for r in c.get('records') or [] if r.get('type') == 'total' or r.get('name') == 'overall'), '')
+                split = next((r.get('summary') for r in c.get('records') or [] if r.get('type') == ('home' if c.get('homeAway') == 'home' else 'road')), '')
+                out = {'id': str(t.get('id') or ''), 'record': rec or '', 'split': split or '',
+                       'code': (t.get('abbreviation') or t.get('shortDisplayName') or '???')[:4].upper(),
                        'name': t.get('displayName') or t.get('name') or 'Team', 'score': None, 'crest': t.get('logo') or '',
                        'aliases': list(dict.fromkeys(value for key in ('displayName', 'shortDisplayName', 'name', 'abbreviation') if (value := t.get(key))))}
                 if state == 'in':
@@ -142,7 +159,8 @@ def parse(code, name, sport, joiner, cfg, body, now):
                 return out
             game = {'id': 'espn:%s:%s' % (code, event.get('id')), 'league': code, 'league_name': name, 'sport': sport,
                     'state': 'live' if state == 'in' else 'upcoming', 'away': team(teams['away']), 'home': team(teams['home']),
-                    'joiner': joiner, 'start': start, 'sources': []}
+                    'joiner': joiner, 'start': start, 'sources': [], 'path': path_of(code),
+                    'venue': _venue(comp.get('venue'))}
             if state == 'in':
                 game['clock'] = _clock(code, status, cfg)
                 game['left'] = _left(cfg, status.get('period'), status.get('displayClock'))

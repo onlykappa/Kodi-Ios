@@ -5990,4 +5990,16 @@ Failure retained: both broad parallel and serial native scans exited the desktop
   - Game page: no sources → white "Remind me" capsule; reminder set → "Reminder on" capsule plus a note of what we'll notify; sources → "Play" with "Best source: …" under it.
 - **Tests:** test_sports_reminders (13), RemindThenPlay in test_sports_game (the old "sports_game is not in default.py" assertion was inverted on purpose: a notification opens a game by id).
 - **Desktop Kodi rig (sample data):** Remind me → sheet (no cut-off text) → "Reminder on" with its note. Not seen on a phone yet.
-- **Not done yet:** Info section and standings (board D); team crests on the game page.
+- **Not done yet:** see ISSUE-384 (Info and standings).
+
+## ISSUE-384 — Sports game page: Info, recent form and standings (owner request, 2026-11-19)
+
+- **Owner:** approved board D (one scrolling Info page), minus the "Watch on" row ("this is literally the player").
+- **Done:**
+  - `sports_game_info.py`: venue (from the scoreboard), each team's record and home/away split, the last five results (ESPN team schedule, W / L / D) and the standings (ESPN standings, `level=3`). The table shown is the smallest one holding a game team (division, or a league table for soccer); sports with divisions also get a "Wild Card" view (the conference by playoff seed). A game team below the 8-row cut replaces the last row. A feed that fails leaves only its own part out; answers are reused for 10 minutes.
+  - `sports_espn.parse` now keeps team id, record, split, venue and the league path on each game.
+  - Game page: Kickoff / Venue card, "Recent form" card with W / L / D dots, "Standings · AFC South" with crests, the two game teams tinted, and a Divisional / Wild Card switch. A part with no data is not drawn.
+  - `KODI_IOS_SPORTS=sample` shows board D's Colts at Texans fixture in the desktop rig (never used in the app).
+- **Tests:** test_sports_game_info (15), listed in import-review.yml.
+- **Desktop Kodi rig (sample data):** Info card, recent form, standings (tint, header, rows) and the switch to Wild Card and back, no cut-off text. Checked live ESPN answers for NFL, NBA and EPL with a script.
+- **Not built:** the "Full standings" link (the app's choice sheet holds 8 rows, so a 32-team table does not fit it; needs its own page). Not seen on a phone yet.
