@@ -41,6 +41,8 @@ def model(games, updated, now, offset, league='All', state='ready', logos=None):
                       'chip.%d.line' % n: str(chipline) if code else '',
                       'chip.%d.fill' % n: 'FFFFFFFF' if on else 'FF1C1C1E',
                       'chip.%d.textcolor' % n: 'FF000000' if on else 'FFFFFFFF'})
+    for n in range(page.CHIP_LINES): props['chipline.%d' % n] = ''   # no chip row: the Edit filter already chooses leagues for every page (owner, 2026-11-19)
+    if league != 'All' and props['subtitle'] != 'Updating': props['subtitle'] = league + ' · ' + props['subtitle']   # a league's own list says which
     rows = []
     for day, entries in sm.group_by_day(shown, now, offset):
         for n, game in enumerate(entries):

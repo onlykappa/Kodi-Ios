@@ -34,13 +34,12 @@ class Projection(unittest.TestCase):
         self.assertEqual(rows[1]['sources'],'No sources yet')
         self.assertEqual(codes,sm.league_codes(self.games))
         self.assertEqual(selected,'All')
-        self.assertEqual(props['chipline.0'],'true')   # every chip is on the one row that scrolls sideways (no stranded second line)
-        self.assertEqual({props['chip.%d.line' % n] for n in range(len(codes))},{'0'})
+        self.assertEqual(props['chipline.0'],'')   # no chip row: the Edit filter chooses leagues
 
     def test_filter_keeps_available_chips_and_uses_same_game_identity(self):
         props,rows,codes,selected=self.view(league='NBA')
         self.assertEqual([r['game']['id'] for r in rows],['nba-2'])
-        self.assertEqual(props['subtitle'],'1 game coming up · updated just now')
+        self.assertEqual(props['subtitle'],'NBA · 1 game coming up · updated just now')
         self.assertEqual(codes,sm.league_codes(self.games))
         self.assertEqual(selected,'NBA')
 
@@ -109,7 +108,7 @@ class Controller(unittest.TestCase):
                 assert self.props['state']=='ready'
                 index=self.codes.index('NBA')
                 self.onClick(page.CHIP+index*7+1)
-                assert self.props['subtitle'].startswith('1 game coming up')
+                assert self.props['subtitle'].startswith('NBA · 1 game coming up')
                 stop=self.stop
                 self.onInit()  # Returning from a child window must keep the filter and timer.
                 assert self.stop is stop
