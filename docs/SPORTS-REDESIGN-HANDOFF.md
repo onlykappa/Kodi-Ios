@@ -29,3 +29,4 @@
 - Owner's words: "Follow should ask to send a reminder to your phone, then when the link is available it will replace the remind with the play button
   providing you with best source". Open question: name the button Follow or Remind me. Betting odds are left out; standings are optional.
 - The data is in `sports_game_page.py` / `sports_game.py` (window `IOSSportsGame.xml`); sources already carry quality, language and a best/good tag.
+- **Info and Standings tabs (board D, same file):** a two-tab switch under the action button. Info: kickoff, venue, broadcaster, recent form (last five) with each team's record; a row is left out when ESPN has no data for it. Standings: the division table with team crests (the game's two teams tinted) and a Divisional / Wild Card switch; leagues without a table hide the tab. Betting odds are not included.

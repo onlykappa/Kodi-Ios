@@ -34,6 +34,7 @@ h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
 .team{text-align:center}
 .crest{width:74px;height:74px;margin:0 auto 8px;display:grid;place-items:center}
 .crest img{width:74px;height:74px;object-fit:contain}
+.crest[style] img{width:100%;height:100%}
 .crest:empty::after{content:"";width:46px;height:46px;border-radius:50%;border:3px solid #5a5a5f}
 .team b{display:block;font-size:16px;font-weight:700}.team span{color:var(--grey);font-size:13px}
 .mid{text-align:center}.mid b{display:block;font-size:20px;font-weight:800}.mid span{color:var(--grey);font-size:12px}
@@ -69,6 +70,18 @@ h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
 .banner{position:absolute;left:10px;right:10px;top:40px;background:rgba(44,44,46,.96);border-radius:20px;padding:11px 13px;display:flex;gap:11px;align-items:center;box-shadow:0 8px 30px rgba(0,0,0,.5)}
 .banner .ic{width:36px;height:36px;border-radius:9px;background:var(--blue);flex:none;display:grid;place-items:center;font-size:18px}
 .banner b{display:block;font-size:13.5px}.banner span{color:var(--grey);font-size:12.5px;line-height:1.3}
+
+.tabs{display:flex;background:rgba(120,120,128,.24);border-radius:12px;padding:3px;margin:18px 0 0}
+.tabs div{flex:1;text-align:center;padding:8px 0;border-radius:10px;font-size:14px;font-weight:600;color:var(--grey)}.tabs div.on{background:rgba(120,120,128,.55);color:#fff}
+.kv{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.kv b{font-weight:600;font-size:14px}.kv span{color:var(--grey);font-size:13px;text-align:right}
+.form{display:flex;gap:5px}.form i{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10.5px;font-weight:800;color:#000}
+.form .w{background:var(--green)}.form .l{background:var(--red);color:#fff}
+.sh{display:grid;grid-template-columns:22px 26px 1fr 26px 26px 26px 44px;align-items:center;gap:4px;padding:9px 12px;font-size:13.5px;min-height:44px;position:relative}
+.sh+.sh::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.sh.h{color:var(--grey);font-size:12px;min-height:34px}.sh .c{width:24px;height:24px;display:grid;place-items:center}
+.sh .c img{width:24px;height:24px;object-fit:contain}.sh .c:empty::after{content:"";width:15px;height:15px;border-radius:50%;border:2px solid #5a5a5f}
+.sh b{font-weight:600}.sh .num{text-align:center}.sh.me{background:rgba(10,132,255,.16)}
 .notes{margin-top:30px;color:#b4b4ba;font-size:14px;line-height:1.55}.notes h3{color:#fff;font-size:16px;margin:16px 0 6px}.notes li{margin:3px 0 3px 18px}
 </style></head><body>
 <svg width="0" height="0" style="position:absolute"><defs>
@@ -161,12 +174,52 @@ Once on, the button says <b>Reminder on</b>. When a source is found, the phone s
 
 </div></div>
 
+<div class="board"><div class="n">BOARD D · THE INFO AND STANDINGS TABS</div><h2>Under the action button: Info, then Standings</h2>
+<p>A two-tab switch sits under the Play / Remind me area, like the reference. <b>Info</b> holds what ESPN gives for the game (when and where, who broadcasts it, how each
+team has played lately). <b>Standings</b> is the division table with team crests, the game's two teams highlighted. Both work before, during and after a game.</p>
+<div class="shots">
+
+<div class="slot"><div class="pframe"><div class="ps"><div class="glow"></div><div class="in">
+<div class="top"><span class="back">‹</span></div>
+<div class="teams" style="margin-top:6px"><div class="team"><div class="crest" data-t="ind" style="width:52px;height:52px;margin-bottom:4px"></div><b>Colts</b></div>
+ <div class="mid"><b>5:15 PM</b><span>Today</span></div>
+ <div class="team"><div class="crest" data-t="hou" style="width:52px;height:52px;margin-bottom:4px"></div><b>Texans</b></div></div>
+<div class="act" style="margin-top:12px"><span class="cta p"><svg><use href="#bell"/></svg>Remind me</span></div>
+<div class="tabs"><div class="on">Info</div><div>Standings</div></div>
+<div class="sec" style="margin-top:14px"><div class="card">
+ <div class="row kv"><b>Kickoff</b><span>Today · 5:15 PM</span></div>
+ <div class="row kv"><b>Venue</b><span>NRG Stadium<br>Houston, TX</span></div>
+ <div class="row kv"><b>Watch on</b><span>Amazon Prime Video</span></div>
+ </div></div>
+<div class="sec"><h4>Recent form</h4><div class="card">
+ <div class="row kv"><b>Colts<br><span>3-7 · Away 1-4</span></b><span class="form"><i class="l">L</i><i class="l">L</i><i class="w">W</i><i class="l">L</i><i class="l">L</i></span></div>
+ <div class="row kv"><b>Texans<br><span>3-6 · Home 2-2</span></b><span class="form"><i class="w">W</i><i class="l">L</i><i class="w">W</i><i class="w">W</i><i class="l">L</i></span></div></div></div>
+</div></div></div><p class="cap"><b>D1 · Info.</b> Plain facts in a grouped card; a line is simply left out when ESPN has nothing for it (no empty rows). Last-five form and each team's record use the app's green and red dots.</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps"><div class="glow"></div><div class="in">
+<div class="top"><span class="back">‹</span></div>
+<div class="teams" style="margin-top:6px"><div class="team"><div class="crest" data-t="ind" style="width:52px;height:52px;margin-bottom:4px"></div><b>Colts</b></div>
+ <div class="mid"><b>5:15 PM</b><span>Today</span></div>
+ <div class="team"><div class="crest" data-t="hou" style="width:52px;height:52px;margin-bottom:4px"></div><b>Texans</b></div></div>
+<div class="act" style="margin-top:12px"><span class="cta p"><svg><use href="#bell"/></svg>Remind me</span></div>
+<div class="tabs"><div>Info</div><div class="on">Standings</div></div>
+<div class="sec" style="margin-top:14px"><h4>AFC South</h4><div class="card">
+ <div class="sh h"><span></span><span></span><span>Team</span><span class="num">W</span><span class="num">L</span><span class="num">T</span><span class="num">PCT</span></div>
+ <div class="sh me"><span class="num">1</span><span class="c" data-t="hou"></span><b>Texans</b><span class="num">6</span><span class="num">3</span><span class="num">0</span><span class="num">.667</span></div>
+ <div class="sh"><span class="num">2</span><span class="c" data-t="jax"></span><b>Jaguars</b><span class="num">5</span><span class="num">4</span><span class="num">0</span><span class="num">.556</span></div>
+ <div class="sh"><span class="num">3</span><span class="c" data-t="ten"></span><b>Titans</b><span class="num">3</span><span class="num">6</span><span class="num">0</span><span class="num">.333</span></div>
+ <div class="sh me"><span class="num">4</span><span class="c" data-t="ind"></span><b>Colts</b><span class="num">3</span><span class="num">7</span><span class="num">0</span><span class="num">.300</span></div></div></div>
+<div class="sec"><div class="tabs" style="margin:0"><div class="on">Divisional</div><div>Wild Card</div></div></div>
+</div></div></div><p class="cap"><b>D2 · Standings.</b> The division table with real crests; the two teams in this game are tinted. A Divisional / Wild Card switch sits under it, as in the reference. Leagues without a table (a single match) hide this tab.</p></div>
+
+</div></div>
+
 <div class="notes"><h3>What is reused</h3><ul>
 <li>The app's white primary capsule, the grey secondary capsule, the grouped rows, the green switches, the choice-sheet look and the BEST / GOOD source chips (the Sports sources already carry a quality, a language and a best/good tag). No new colour, font size or control.</li>
 <li>The team crests and league logos come from ESPN's image host at runtime and stay on the phone, never in Git (UI policy §5.4). A team without a crest shows a plain ring.</li></ul>
 <h3>Decisions for you</h3><ul>
 <li><b>Name the button "Follow" or "Remind me"?</b> Your note says Follow; "Remind me" says what it does. The mockup uses Remind me.</li>
-<li><b>Betting odds and standings</b> from the reference are left out. Say if you want standings (a "Standings" card under Sources).</li>
+<li><b>Betting odds</b> from the reference are left out. <b>Info</b> and <b>Standings</b> are in board D: say which facts you want or do not want (venue, broadcaster, recent form, records).</li>
 <li><b>The reminder</b> is a notification on this phone while the app is closed; iOS can delay it, so it works best with notifications allowed for Kodi.</li></ul>
 <h3>After approval</h3><ul>
 <li>Code the page and the reminder sheet, store reminders, check for new sources on a schedule and send the notification, add tests, check each board in the desktop Kodi rig next to this file, then the phone.</li></ul></div>
