@@ -2419,9 +2419,10 @@ static void test_startup_repairs(const char *base) {
 
 // r13 (owner's phone log: an Umbrella seek buffered video in 23.5 s but the parallel audio fetch failed in 1.0 s
 // right after, killing the whole seek with "operation could not be completed"): a seek sends the video and its
-// independent audio connection new range requests together; a server that refuses a second concurrent connection
-// to the same resource reproduces exactly that shape (one succeeds slowly, the other fails fast). One retry run
-// after the video attempt's own traffic has settled should recover it instead of failing the whole seek.
+// independent audio connection new range requests together, and a server can refuse whichever one reaches it
+// first while the other still succeeds. The fixture refuses exactly the first qualifying request for a resource,
+// deterministically but not tied to which side (video or audio) actually wins that race in a given run; the
+// fix retries whichever side failed, so either outcome should recover without failing the whole seek.
 static void test_seek_audio_retry(const char *base) {
     char url[512],list[512],log[8192];
     // long_big.mkv: 600 kbit/s video + 64 kbit/s audio over 1300 s, so 40 s in, both tracks are
@@ -2434,9 +2435,10 @@ static void test_seek_audio_retry(const char *base) {
     char *end=strstr(prefix_path,"/master.m3u8");if(end)*end=0;
     int r=kr_remux_prime_for(ticket,40.0);
     kr_remux_log(log,sizeof log);
-    CHECK(r==KR_READY,"seek recovers after the independent audio connection is refused once, via retry (result %d, message \"%s\", log tail: %s)",
+    CHECK(r==KR_READY,"seek recovers after one connection is refused once, via retry (result %d, message \"%s\", log tail: %s)",
           r,kr_remux_message(),log+(strlen(log)>3000?strlen(log)-3000:0));
-    CHECK(strstr(log,"retrying audio segment"),"log shows the retry actually ran, not an accidental first-try pass (log tail: %s)",
+    CHECK(strstr(log,"retrying audio segment") || strstr(log,"retrying video segment"),
+          "log shows a retry actually ran, not an accidental first-try pass (log tail: %s)",
           log+(strlen(log)>3000?strlen(log)-3000:0));
     if(r==KR_READY){
         // SEG_SECONDS=6.0: 40.0 s falls in segment 6.

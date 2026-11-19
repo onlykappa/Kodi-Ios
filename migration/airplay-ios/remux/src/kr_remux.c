@@ -2011,6 +2011,14 @@ int kr_remux_prime_for(unsigned ticket,double seconds) {
     prime_part sound={.rendition=R_AUDIO+audio,.segment=seg,.result=-1,.error=""};pthread_t thread;
     int parallel=audio>=0 && pthread_create(&thread,NULL,prime_audio,&sound)==0;
     int made=get_part(video,seg,&part,err,sizeof err);
+    if(made<0 && !atomic_load(&S.stopping) && !source_interrupted((void *)(uintptr_t)ticket) && now_ms()<S.startup_end_ms) {
+        // r13: the same lone-fast-failure shape a seek can hit on the audio side (below) can in principle
+        // hit the video side instead; one immediate retry, still on this thread, before any decision to
+        // abort the parallel audio attempt, covers it the same way without touching that existing safety net.
+        log_line("startup: retrying video segment %d after \"%s\"",seg,err);
+        free(part.data);part=(gm_buf){0};
+        made=get_part(video,seg,&part,err,sizeof err);
+    }
     log_line("startup: video segment %d buffered in %.0f ms result=%d",seg,now_ms()-began,made);
     if(made<0 && parallel)abort_sources();
     if(parallel) {
