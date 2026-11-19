@@ -6003,3 +6003,11 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 - **Tests:** test_sports_game_info (15), listed in import-review.yml.
 - **Desktop Kodi rig (sample data):** Info card, recent form, standings (tint, header, rows) and the switch to Wild Card and back, no cut-off text. Checked live ESPN answers for NFL, NBA and EPL with a script.
 - **Not built:** the "Full standings" link (the app's choice sheet holds 8 rows, so a 32-team table does not fit it; needs its own page). Not seen on a phone yet.
+
+## ISSUE-385 — Sports pages rebuilt to the owner's mockups, one page at a time (2026-11-19)
+
+- **Owner:** eight mockup screens (hub, Upcoming, Leagues, Edit sheet x2, game page, Remind sheet, Game info) — "this is ideally how I want it", "one at a time … show me the rig match".
+- **Page 1, the hub (mockup A1):** compact Live Now card (grey "Nothing live right now · Next game starts at …", or the red gradient with the "4 live" capsule), "Up next" (the next three games in the Upcoming page's own rows, with See all) and two short Upcoming / Leagues tiles ("59 games · 2 more today"). The "Finished today" placeholder row is gone (it only said "coming in an update"). The page scrolls as one list.
+- **Time style (A1 and A2):** the time is "4:30" large and blue with "PM" under it, and "in 44 min" under that when the game is close; Upcoming uses the same rows (`sports_upcoming_page.game_row`, now shared).
+- **Tests:** test_sports_landing updated to the new properties plus a test for the Up next rows.
+- **Desktop Kodi rig (sample data):** live state and idle state (filter hides the live leagues) checked against the mockup. Not seen on a phone yet.

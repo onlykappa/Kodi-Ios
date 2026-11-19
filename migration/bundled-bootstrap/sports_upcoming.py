@@ -51,13 +51,13 @@ def model(games, updated, now, offset, league='All', state='ready', logos=None):
             rows.append({'game': game, 'day': day if n == 0 else '',
                          'day.count': sm.count_text(len(entries), 'game') if n == 0 else '',
                          'firstday': 'true' if not rows else '',
-                         'clock': sm.clock_text(game['start'], offset), 'soon': sm.soon_text(game['start'], now),
+                         'clock': sm.clock_text(game['start'], offset), 'clock.main': sm.clock_text(game['start'], offset).rsplit(' ', 1)[0], 'clock.ampm': (sm.clock_text(game['start'], offset).rsplit(' ', 1) + [''])[1], 'soon': sm.soon_text(game['start'], now),
                          'title': title, 'league': game['league'], 'logo': (logos or {}).get(game['league'], ''), 'sources': sm.sources_text(len(game['sources'])),
                          'lines': str(min(4, lines)),
                          'pos': 'only' if len(entries) == 1 else 'first' if n == 0 else 'last' if n == len(entries)-1 else 'mid'})
     for n in range(page.SLOTS):
         row = rows[n] if n < len(rows) else {}
-        for key in ('day', 'day.count', 'firstday', 'clock', 'soon', 'title', 'league', 'logo', 'sources', 'lines', 'pos'):
+        for key in ('day', 'day.count', 'firstday', 'clock', 'clock.main', 'clock.ampm', 'soon', 'title', 'league', 'logo', 'sources', 'lines', 'pos'):
             props['row.%d.%s' % (n,key)] = row.get(key, '')
     if state == 'loading' and not rows:
         # Preserve the list's shape while the first result is pending.

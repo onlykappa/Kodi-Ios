@@ -72,6 +72,38 @@ def _chips(p):
     return rows
 
 
+def game_row(p, key, ident, lines, width):
+    """One game row (time, title, league logo and the small line, chevron) at the height its title lines need; the hub's Up next reuses it."""
+    h = row_height(lines)
+    title_h = lines*TITLE_LINE
+    main_h = title_h+13+DETAIL_H
+    top = (h-main_h)//2
+    b = u.row_back(p,key,width,h)
+    b += u.tap(p,ident,p.SIDE,0,width,h)
+    # The time as the mockups show it: "4:30" large and blue, "PM" under it in grey, and "in 44 min" under that when the game is close.
+    for with_soon in (True,False):
+        visible=u.has(key+'soon') if with_soon else u.neg(u.has(key+'soon'))
+        y0 = (h-(136 if with_soon else 96))//2
+        t = p.label(p.SIDE+38,y0,232,56,u.P(key+'clock.main'),'p_h3',p.ACCENT,extra=u.NOS)
+        t += u.text(p,p.SIDE+38,y0+56,232,40,u.P(key+'clock.ampm'),'p_foot',p.GREY)
+        if with_soon:
+            t += u.text(p,p.SIDE+38,y0+96,232,40,u.P(key+'soon'),'p_foot',p.GREY)
+        b += '<control type="group"><visible>%s</visible>%s</control>' % (visible,t)
+    b += p.textbox(355,top,570,title_h,u.P(key+'title'),'p_h3')
+    # A label-only horizontal group gives the league badge its natural width without clipping.
+    # The league's real logo on a small light tile (owner: logos, not letters); a neutral ring when it has none.
+    badge = ('<control type="group"><width>56</width><height>56</height>%s%s%s</control>') % (
+        p.image(0,0,56,56,p.MEDIA+'r21.png','FFF2F2F7',border=21),
+        p.image(7,7,42,42,u.P(key+'logo'),p.WHITE,'<aspectratio>keep</aspectratio><visible>%s</visible>'%u.has(key+'logo')),
+        p.image(16,16,24,24,p.MEDIA+'ring_20.png','FF8E8E93','<visible>!%s</visible>'%u.has(key+'logo')))
+    badge += ('<control type="label"><width>430</width><height>56</height><label>%s</label><font>p_foot</font>'
+              '<textcolor>%s</textcolor><aligny>center</aligny></control>') % (u.P(key+'sources'),p.GREY)
+    b += ('<control type="grouplist"><left>355</left><top>%d</top><width>570</width><height>56</height>'
+          '<orientation>horizontal</orientation><itemgap>21</itemgap><usecontrolcoords>true</usecontrolcoords>%s</control>') % (top+title_h+13,badge)
+    b += u.glyph(p,960,(h-32)//2,32,'chevron-right.png',p.GREY)
+    return b
+
+
 def _rows(p):
     out = ''
     width = p.WIDTH - 2*p.SIDE
@@ -83,28 +115,7 @@ def _rows(p):
         out += u.group(p,134,heading,u.has(key+'day')+' + !String.IsEqual(Window().Property(%sfirstday),true)' % key)
         for lines in FORMS:
             h = row_height(lines)
-            title_h = lines*TITLE_LINE
-            main_h = title_h+13+DETAIL_H
-            top = (h-main_h)//2
-            b = u.row_back(p,key,width,h)
-            b += u.tap(p,ROW+n*len(FORMS)+lines-1,p.SIDE,0,width,h)
-            for with_soon in (True,False):
-                visible=u.has(key+'soon') if with_soon else u.neg(u.has(key+'soon'))
-                b += p.label(p.SIDE+38,(h-(96 if with_soon else 56))//2,232,56,u.P(key+'clock'),'p_h3',p.ACCENT,extra=u.NOS+'<visible>'+visible+'</visible>')
-            b += u.text(p,p.SIDE+38,(h-96)//2+56,232,40,u.P(key+'soon'),'p_foot',p.GREY)
-            b += p.textbox(355,top,570,title_h,u.P(key+'title'),'p_h3')
-            # A label-only horizontal group gives the league badge its natural width without clipping.
-            # The league's real logo on a small light tile (owner: logos, not letters); a neutral ring when it has none.
-            badge = ('<control type="group"><width>56</width><height>56</height>%s%s%s</control>') % (
-                p.image(0,0,56,56,p.MEDIA+'r21.png','FFF2F2F7',border=21),
-                p.image(7,7,42,42,u.P(key+'logo'),p.WHITE,'<aspectratio>keep</aspectratio><visible>%s</visible>'%u.has(key+'logo')),
-                p.image(16,16,24,24,p.MEDIA+'ring_20.png','FF8E8E93','<visible>!%s</visible>'%u.has(key+'logo')))
-            badge += ('<control type="label"><width>430</width><height>56</height><label>%s</label><font>p_foot</font>'
-                      '<textcolor>%s</textcolor><aligny>center</aligny></control>') % (u.P(key+'sources'),p.GREY)
-            b += ('<control type="grouplist"><left>355</left><top>%d</top><width>570</width><height>56</height>'
-                  '<orientation>horizontal</orientation><itemgap>21</itemgap><usecontrolcoords>true</usecontrolcoords>%s</control>') % (top+title_h+13,badge)
-            b += u.glyph(p,960,(h-32)//2,32,'chevron-right.png',p.GREY)
-            out += u.group(p,h,b,'String.IsEqual(Window().Property(%slines),%d)' % (key,lines))
+            out += u.group(p,h,game_row(p,key,ROW+n*len(FORMS)+lines-1,lines,width),'String.IsEqual(Window().Property(%slines),%d)' % (key,lines))
     return out
 
 
