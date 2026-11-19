@@ -181,3 +181,68 @@ def wrap(provider):
 def unwrap(provider):
     """The real provider behind a wrapper (tests that check which provider the pages get)."""
     return getattr(provider, '_base', provider)
+
+
+# --- the Edit sheet (the app's choice sheet: rows with switches that flip in place) -----------------------------------------
+SPORT_ORDER = ('American football', 'Basketball', 'Baseball', 'Hockey', 'Soccer', 'Golf', 'Combat sports', 'Motorsport')
+
+
+def sports_of(rows):
+    """[(sport, [league rows])] in a steady order (the Edit sheet does not jump around while leagues go live)."""
+    by = {}
+    for r in rows:
+        by.setdefault(r.get('sport') or 'Other', []).append(r)
+    order = lambda s: (SPORT_ORDER.index(s) if s in SPORT_ORDER else len(SPORT_ORDER), s)
+    return [(s, sorted(by[s], key=lambda r: (r.get('name') or r['code']).lower())) for s in sorted(by, key=order)]
+
+
+SPORT_ICONS = {'American football': 'football-american.png', 'Basketball': 'basketball.png', 'Baseball': 'baseball.png',
+               'Hockey': 'hockey-puck.png', 'Soccer': 'futbol.png', 'Golf': 'golf-ball-tee.png', 'Combat sports': 'hand-fist.png',
+               'Motorsport': 'flag-checkered.png'}   # existing skin icons (special://skin/extras/icons/); others get the medal
+
+
+def sports_spec(rows, off):
+    """Step 1: one row per sport ('3 of 7 leagues on'), "Turn every league on" as the link row."""
+    out = []
+    for sport, entries in sports_of(rows):
+        on = len([r for r in entries if r['code'] not in off])
+        out.append({'label': sport, 'detail': '%d of %d league%s on' % (on, len(entries), '' if len(entries) == 1 else 's'),
+                    'tag': '' if on == len(entries) else ('Off' if not on else 'Some'), 'tint': 'FF0A84FF',
+                    'glyph': SPORT_ICONS.get(sport, 'medal.png')})
+    summ = summary(off, known(rows))
+    return {'heading': 'Leagues', 'sub': summ or 'Every league is on. Choose a sport to switch leagues off.',
+            'rows': out[:8], 'link': 'Turn every league on' if off else '', 'button': 'Done',
+            'foot': 'The choice applies to the hub, Upcoming and Leagues.'}
+
+
+def _detail(row, now, offset):
+    import sports_model as sm
+    live, nxt = sm.league_detail(row, now, offset)
+    return ' · '.join(x for x in (live, nxt) if x) or 'Nothing coming up'
+
+
+def leagues_spec(rows, off, sport, logos=None, now=None):
+    """Step 2: a switch per league of one sport, each with its real logo on a light tile (a neutral tile when it has none)."""
+    import time
+    import sports_model as sm
+    entries = dict(sports_of(rows)).get(sport, [])[:8]
+    logos = logos or {}
+    now = int(time.time()) if now is None else now
+    offset = sm.device_offset(now)
+    return {'heading': sport, 'sub': 'Switch leagues on or off', 'button': 'Back',
+            'rows': [{'label': r.get('name') or r['code'], 'detail': _detail(r, now, offset), 'switch': r['code'] not in off, 'tint': 'FFF2F2F7',
+                      'glyph': logos.get(r['code'], '')} for r in entries]}, [r['code'] for r in entries]
+
+
+def edit_state(provider):
+    """The Edit button's window properties and the hub's "Showing …" line, from the provider (a plain one: no filter, no badge)."""
+    plain = {'edit.label': 'Edit', 'edit.on': '', 'edit.summary': ''}
+    try:
+        off = set(provider.off())
+        rows = known(provider.all_leagues())
+    except Exception:
+        return plain
+    codes = [c for _, c, _ in rows]
+    if not active(off, codes):
+        return plain
+    return {'edit.label': 'Edit · %d' % count_on(off, codes), 'edit.on': 'true', 'edit.summary': summary(off, rows)}

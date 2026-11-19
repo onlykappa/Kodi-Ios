@@ -6,6 +6,7 @@ sports.py fills it from sports_model / sports_provider and sets every property b
 (2.687 per pt); existing tokens and helpers only. The tile colours are the board's: red live, blue later, purple leagues, grey idle.
 """
 import status_ui as u
+import sports_edit_button as edit_button
 
 WINDOW = 'IOSSports.xml'
 BACK, REFRESH, LIVE, UPCOMING, LEAGUES, FINISHED, RETRY = 9001, 9002, 9101, 9102, 9103, 9104, 9105
@@ -110,6 +111,7 @@ def page(p):
              '<texturefocus /><texturenofocus /><animation effect="fade" start="100" end="65" time="0" condition="Control.HasFocus(%d)">Conditional</animation></control>'
              % (REFRESH, W - S - 150, 150, REFRESH))
     head += p.icon(W - S - 84, 57, 84, 'arrows-rotate.png', p.ACCENT)
+    head += edit_button.xml(p, W - S - 150 - 20 - edit_button.W, 52)
     head += u.text(p, S, 160, w, 110, 'Sports', 'p_large') + u.text(p, S, 268, w, 56, P('sub'), 'p_sub', p.GREY)
     live = _tile_xml(p, LIVE, 'live', 0, 0, w, (('live', 'String.IsEqual(Window().Property(live.mode),live)'),
                                               ('idle', 'String.IsEqual(Window().Property(live.mode),idle)')), 'tower-broadcast.png', True, 'sports_big_mask.png')

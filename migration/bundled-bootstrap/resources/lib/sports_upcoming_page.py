@@ -1,4 +1,5 @@
 """Upcoming, approved board 10: portrait Kodi XML using the shared page controls."""
+import sports_edit_button as edit_button
 import status_ui as u
 import math
 
@@ -93,11 +94,11 @@ def _rows(p):
             b += u.text(p,p.SIDE+38,(h-96)//2+56,232,40,u.P(key+'soon'),'p_foot',p.GREY)
             b += p.textbox(355,top,570,title_h,u.P(key+'title'),'p_h3')
             # A label-only horizontal group gives the league badge its natural width without clipping.
-            badge = ('<control type="button"><width min="102">auto</width><height>56</height><label>%s</label>'
-                     '<font>p_foot_b</font><textoffsetx>24</textoffsetx><textcolor>%s</textcolor>'
-                     '<disabledcolor>%s</disabledcolor><enable>false</enable>'
-                     '<texturefocus /><texturenofocus border="21" colordiffuse="%s">%sr21.png</texturenofocus></control>') % (
-                         u.P(key+'league'),p.WHITE,p.WHITE,p.SURFACE2,p.MEDIA)
+            # The league's real logo on a small light tile (owner: logos, not letters); a neutral ring when it has none.
+            badge = ('<control type="group"><width>56</width><height>56</height>%s%s%s</control>') % (
+                p.image(0,0,56,56,p.MEDIA+'r21.png','FFF2F2F7',border=21),
+                p.image(7,7,42,42,u.P(key+'logo'),p.WHITE,'<aspectratio>keep</aspectratio><visible>%s</visible>'%u.has(key+'logo')),
+                p.image(16,16,24,24,p.MEDIA+'ring_20.png','FF8E8E93','<visible>!%s</visible>'%u.has(key+'logo')))
             badge += ('<control type="label"><width>430</width><height>56</height><label>%s</label><font>p_foot</font>'
                       '<textcolor>%s</textcolor><aligny>center</aligny></control>') % (u.P(key+'sources'),p.GREY)
             b += ('<control type="grouplist"><left>355</left><top>%d</top><width>570</width><height>56</height>'
@@ -110,6 +111,7 @@ def _rows(p):
 def page(p):
     header = p.nav_button(BACK,32,5,'chevron-left.png','noop')
     header += p.nav_button(REFRESH,940,5,p.MEDIA+'hdr_refresh.png','noop',glyph_size=60).replace(p.WHITE,p.ACCENT)
+    header += edit_button.xml(p,940-20-edit_button.W,22)
     header += u.text(p,p.SIDE,124,972,110,'Upcoming','p_large')
     header += u.text(p,p.SIDE,239,972,51,u.P('subtitle'),'p_sub',p.GREY)
     content = u.group(p,315,header) + _chips(p) + _rows(p)

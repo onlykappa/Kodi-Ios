@@ -11,12 +11,13 @@ import page_wait
 import sports_model as sm
 import sports_provider
 import sports_upcoming_page as page
+import sports_filter as sf
 
 _CACHE = None
 BACK_KEYS = (9, 10, 92, 110)
 
 
-def model(games, updated, now, offset, league='All', state='ready'):
+def model(games, updated, now, offset, league='All', state='ready', logos=None):
     """Pure window projection. All wording/grouping/filter choices come from the Sports contract."""
     future = [g for g in games if g['state'] == 'upcoming' and g['start'] >= now]
     codes = sm.league_codes(future)
@@ -51,12 +52,12 @@ def model(games, updated, now, offset, league='All', state='ready'):
                          'day.count': sm.count_text(len(entries), 'game') if n == 0 else '',
                          'firstday': 'true' if not rows else '',
                          'clock': sm.clock_text(game['start'], offset), 'soon': sm.soon_text(game['start'], now),
-                         'title': title, 'league': game['league'], 'sources': sm.sources_text(len(game['sources'])),
+                         'title': title, 'league': game['league'], 'logo': (logos or {}).get(game['league'], ''), 'sources': sm.sources_text(len(game['sources'])),
                          'lines': str(min(4, lines)),
                          'pos': 'only' if len(entries) == 1 else 'first' if n == 0 else 'last' if n == len(entries)-1 else 'mid'})
     for n in range(page.SLOTS):
         row = rows[n] if n < len(rows) else {}
-        for key in ('day', 'day.count', 'firstday', 'clock', 'soon', 'title', 'league', 'sources', 'lines', 'pos'):
+        for key in ('day', 'day.count', 'firstday', 'clock', 'soon', 'title', 'league', 'logo', 'sources', 'lines', 'pos'):
             props['row.%d.%s' % (n,key)] = row.get(key, '')
     if state == 'loading' and not rows:
         # Preserve the list's shape while the first result is pending.
@@ -125,7 +126,8 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
             if error is not None:self.failed=error
             games, updated = self.data if self.data is not None else ([], 0)
             props, self.rows, self.codes, self.league = model(games,updated,clock(),sm.device_offset(clock()),self.league,
-                'error' if self.failed and not self.data else 'ready' if self.data is not None else 'loading')
+                'error' if self.failed and not self.data else 'ready' if self.data is not None else 'loading', logos=getattr(self,'logos',{}))
+            props.update(sf.edit_state(provider))
             for key,value in props.items():
                 if getattr(self,'_shown',{}).get(key)!=value:self.setProperty(key,value)
             self._shown = props.copy()
@@ -143,6 +145,16 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
                         if self.stop.is_set(): return
                         self.data = _CACHE = data
                         self.draw(error=False)
+                    # Real league logos: fetched once, kept on the phone; the rows draw first and gain them a moment later.
+                    try:
+                        import sports_logos,xbmcvfs
+                        found = sports_logos.paths(xbmcvfs.translatePath('special://profile/'),sorted({g['league'] for g in data[0]}))
+                        with self.lock:
+                            if not self.stop.is_set():
+                                self.logos = found
+                                self.draw()
+                    except Exception as error:
+                        log('sports: upcoming logos: %s' % type(error).__name__)
                 except Exception as error:
                     import diagnostics
                     log('sports: upcoming refresh: %s: %s' % (type(error).__name__,diagnostics.error_text(error)))
@@ -155,6 +167,9 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
         def onClick(self, ident):
             if ident == page.BACK: self.finish()
             elif ident in (page.REFRESH,page.RETRY): self.refresh()
+            elif ident == page.edit_button.ID:
+                import sports_edit
+                if sports_edit.run(): self.refresh(reload=False)
             elif page.CHIP <= ident < page.CHIP+page.CHIP_LINES*page.CHIPS*7:
                 n = ((ident-page.CHIP) % (page.CHIPS*7))//7
                 with self.lock:

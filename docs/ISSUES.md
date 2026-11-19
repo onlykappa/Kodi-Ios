@@ -5968,4 +5968,15 @@ Failure retained: both broad parallel and serial native scans exited the desktop
   - `all_leagues()` lists every league for the Edit sheet, filtered or not.
   - `summary()` gives "Showing NFL and NBA", "Showing 4 leagues" or "No leagues selected".
 - **Tests:** test_sports_filter (12). test_sports_espn, test_sports_loop and test_sports_model now look through the wrapper (`sports_filter.unwrap`).
-- **Next:** the Edit button and sheet, the real league logos (fetched at runtime, never committed), and the cleaner page layouts.
+- **Done in the app (desktop Kodi rig, sample data; screenshots kept out of Git):**
+  - **Edit button** on the hub, Upcoming and Leagues (`sports_edit_button.py`): blue "Edit", white "Edit · 11" while a filter is on.
+  - **Edit sheet** (`sports_edit.py`, on the app's choice sheet): step 1 lists the sports with "3 of 4 leagues on" and an icon each, plus "Turn every league on"; step 2 shows one green switch per league with its logo. Every flip is saved at once and the pages follow (Bundesliga off: the Leagues page showed 11 leagues).
+  - **Real league logos** (`sports_logos.py`) on the Leagues rows, the Edit sheet and each Upcoming game, replacing the letters. Fetched from ESPN's image host on first use and kept on the phone; never committed. A league with none (boxing) gets a neutral ring.
+  - A test had written logo files beside the code (a stand-in for Kodi's path translation, with network access). `sports_logos.fetch` now writes nothing unless the profile path is a real folder (test added). The commit that shipped it contained no images.
+- **Tests:** test_sports_filter (20), test_sports_logos (4), test_sports_leagues (RealLogos).
+- **Not done yet:**
+  - The cleaner page layouts of board A (the hub keeps its approved gradient tiles; Upcoming and Leagues keep their rows).
+  - "Only" per sport and "All off" shortcuts in the sheet.
+  - The hub's "Showing NFL and NBA" line is coded but not seen in the rig with a filter on.
+  - Logos on the Live Now page and the game page.
+  - The phone check.

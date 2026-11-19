@@ -1,5 +1,6 @@
 """Leagues grouped by sport: approved boards 16–17 and the board 20 provider failure."""
 import status_ui as u
+import sports_edit_button as edit_button
 
 WINDOW = 'IOSSportsLeagues.xml'
 BACK, REFRESH, RETRY, LIST = 9001, 9002, 9003, 9300
@@ -60,6 +61,7 @@ def _error(p):
 def page(p):
     header = p.nav_button(BACK,32,5,'chevron-left.png','noop')
     header += p.nav_button(REFRESH,940,5,p.MEDIA+'hdr_refresh.png','noop',glyph_size=60).replace(p.WHITE,p.ACCENT)
+    header += edit_button.xml(p,940-20-edit_button.W,22)
     header += u.text(p,p.SIDE,124,972,110,'Leagues','p_large')
     header += u.text(p,p.SIDE,239,972,51,u.P('subtitle'),'p_sub',p.GREY)
     empty = u.group(p,118,u.text(p,p.SIDE,30,972,60,u.P('empty.text'),'p_sub',p.GREY,'center'),u.has('empty.text'))

@@ -14,6 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, 'resources', 'lib'))
 import sports_model as sm  # noqa: E402
 import sports_page as sp  # noqa: E402
+import sports_filter as sf  # noqa: E402
 from sports_routes import available  # noqa: E402,F401  (the page tests and the tiles use it)
 
 ROUTES = {sp.LIVE: 'sports_live', sp.UPCOMING: 'sports_upcoming', sp.LEAGUES: 'sports_leagues'}
@@ -50,7 +51,8 @@ def _next_game(start, now, offset):
 def props_for(overview, now, offset):
     """Every window property of a loaded page, from the provider's overview."""
     props = {'state': 'ok', 'sub': sm.updated_text(overview['updated'], now, offset),
-             'live.title': 'Live Now', 'up.title': 'Upcoming', 'lg.title': 'Leagues'}
+             'live.title': 'Live Now', 'up.title': 'Upcoming', 'lg.title': 'Leagues',
+             'edit.label': 'Edit', 'edit.on': ''}   # the Edit button's plain state; the page's thread sets the filtered one
     if overview.get('live'):
         props['live.mode'] = 'live'
         props['live.badge'] = '%d live' % overview['live']
@@ -136,6 +138,9 @@ def run(args=()):
             def work():
                 try:
                     props = load(sports_provider.get(), refresh=refresh)
+                    props.update(sf.edit_state(sports_provider.get()))
+                    if props.get('state') == 'ok' and props.get('edit.summary'):   # "Showing NFL and NBA · Updated just now"
+                        props['sub'] = '%s · %s' % (props['edit.summary'], props.get('sub', ''))
                 except Exception as error:   # the page must never stay on "Updating"
                     log('could not load (%s)' % type(error).__name__)
                     props = dict(ERROR)
@@ -156,6 +161,10 @@ def run(args=()):
                 self.finish()
             elif control in (sp.REFRESH, sp.RETRY):
                 self.fetch(True)
+            elif control == sp.edit_button.ID:
+                import sports_edit
+                if sports_edit.run():
+                    self.fetch(False)
             elif control in ROUTES:
                 route = ROUTES[control]
                 if available(route):

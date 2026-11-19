@@ -11,7 +11,7 @@ refreshes the rows from the owner's widget lists and reloads the skin when the p
 import sys
 import hashlib,json,os,re,struct,zlib,xml.etree.ElementTree as ET
 import importlib.util as _iu
-for _name in ('status_ui','notifications_skin'):
+for _name in ('status_ui','notifications_skin','sports_edit_button'):   # sports_edit_button: the Edit capsule on the three Sports pages
  _shared=_iu.spec_from_file_location(_name,os.path.join(os.path.dirname(os.path.abspath(__file__)),_name+'.py'))
  _module=_iu.module_from_spec(_shared);sys.modules[_name]=_module;_shared.loader.exec_module(_module)
 _spec=_iu.spec_from_file_location('player_osd',os.path.join(os.path.dirname(os.path.abspath(__file__)),'player_osd.py'))

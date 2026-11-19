@@ -12,6 +12,7 @@ import page_wait
 import sports_model as sm
 import sports_provider
 import sports_leagues_page as page
+import sports_filter as sf
 
 _CACHE = None
 BACK_KEYS = (9,10,92,110)
@@ -107,6 +108,7 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
             props,self.rows = model(leagues,updated,clock(),sm.device_offset(clock()),
                                    'error' if self.failed and self.data is None else 'ready' if self.data is not None else 'loading',
                                    logos=self.logos)
+            props.update(sf.edit_state(provider))
             for key,value in props.items():self.setProperty(key,value)
 
         def refresh(self, reload=True):
@@ -143,6 +145,9 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
         def onClick(self,ident):
             if ident==page.BACK:self.finish()
             elif ident in (page.REFRESH,page.RETRY):self.refresh()
+            elif ident==page.edit_button.ID:
+                import sports_edit
+                if sports_edit.run():self.refresh(reload=False)
             elif page.ROW<=ident<page.ROW+page.SLOTS*len(page.FORMS):
                 n=(ident-page.ROW)//len(page.FORMS)
                 with self.lock:league=self.rows[n]['league'] if n<len(self.rows) else None
