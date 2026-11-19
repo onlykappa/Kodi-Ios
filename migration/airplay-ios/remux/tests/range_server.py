@@ -64,6 +64,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
    return f
   a=int(m.group(1));b=int(m.group(2)) if m.group(2) else size-1
   if a>=size:self.send_error(416);f.close();return None
+  if self.fault=='busy':
+   import sys;print('BUSY-DEBUG a=%d b=%s path=%s'%(a,m.group(2) or '-',path),file=sys.stderr,flush=True)
   if a>262144 and self.fault=='busy':
    with RECOVER_LOCK:
     if path not in BUSY:BUSY.add(path);f.close();self.send_error(503,'too many connections to this resource');return None
