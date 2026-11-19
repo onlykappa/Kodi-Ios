@@ -2433,9 +2433,11 @@ static void test_seek_audio_retry(const char *base) {
     snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
     char *end=strstr(prefix_path,"/master.m3u8");if(end)*end=0;
     int r=kr_remux_prime_for(ticket,40.0);
-    CHECK(r==KR_READY,"seek recovers after the independent audio connection is refused once, via retry (result %d)",r);
     kr_remux_log(log,sizeof log);
-    CHECK(strstr(log,"retrying audio segment"),"log shows the retry actually ran, not an accidental first-try pass");
+    CHECK(r==KR_READY,"seek recovers after the independent audio connection is refused once, via retry (result %d, message \"%s\", log tail: %s)",
+          r,kr_remux_message(),log+(strlen(log)>3000?strlen(log)-3000:0));
+    CHECK(strstr(log,"retrying audio segment"),"log shows the retry actually ran, not an accidental first-try pass (log tail: %s)",
+          log+(strlen(log)>3000?strlen(log)-3000:0));
     if(r==KR_READY){
         // SEG_SECONDS=6.0: 40.0 s falls in segment 6.
         double v=get_ms(kr_remux_port(),"/video/seg6.m4s"),a=get_ms(kr_remux_port(),"/audio/1/seg6.m4s");
