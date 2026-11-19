@@ -8,6 +8,9 @@ SLOW_LATENCY=0.1
 SLOW_RATE=2*1024*1024
 RECOVERED=set()
 QUIETED=set()   # ISSUE-335: /quiet/ goes silent once per file mid-body
+BUSY=set()      # r13: /busy/ refuses the first request past the threshold for a path once, then always succeeds
+                # (deterministic: a real per-resource connection limit is timing-dependent, but the test only needs
+                # one fetch to fail once and the next to succeed, not to reproduce real concurrency timing)
 RECOVER_LOCK=threading.Lock()
 STATS={'requests':0,'bytes':0}
 STATS_LOCK=threading.Lock()
@@ -45,7 +48,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
   if self.path.startswith('/open-stall/'):
    self.path=self.path[len('/open-stall'):];time.sleep(8)
   self.fault=None
-  for mode in ('bounded','recover','stall','quiet'):
+  for mode in ('bounded','recover','stall','quiet','busy'):
    if self.path.startswith('/'+mode+'/'):
     self.fault=mode;self.path=self.path[len(mode)+1:];break
   self.slow=self.path.startswith('/slow/')
@@ -61,6 +64,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
    return f
   a=int(m.group(1));b=int(m.group(2)) if m.group(2) else size-1
   if a>=size:self.send_error(416);f.close();return None
+  # 256 KiB-10 MiB excludes both the first chunk (<=256 KiB) and a format/index probe near the end of
+  # the file (observed: a request near byte 108.6M on a ~108M fixture) so the fault targets an actual
+  # later segment fetch, not file-open probing that would otherwise consume the one-shot refusal first.
+  # An immediate 503 or a dropped connection both turned out to be silently retried by a lower transport
+  # layer before ever reaching kr_remux.c's own retry - so this fault instead never responds at all for
+  # the first qualifying request, forcing a real client-side read timeout (the same shape as the observed
+  # phone failure: read_ms=1008 with zero packets, not an instant error).
+  if 262144<a<10*1024*1024 and self.fault=='busy':
+   with RECOVER_LOCK:
+    if path not in BUSY:
+     BUSY.add(path);time.sleep(35);f.close();return None
   b=min(b,size-1);f.seek(a)
   self.send_response(206);self.send_header('Content-Range','bytes %d-%d/%d'%(a,b,size))
   self.send_header('Content-Length',str(b-a+1));self.send_header('Accept-Ranges','bytes');self.end_headers()

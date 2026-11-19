@@ -1,16 +1,16 @@
 {
   "framework_release": {
+    "tag": "kodi-airplay-r67",
+    "asset": "KodiAirPlay.framework.zip",
+    "sha256": "d7bb7cc432771bf4aa54244670e1396369df65e4bf03d75555f17f460d48f552"
+  },
+  "previous": {
     "tag": "kodi-airplay-r66",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "bab8cbcf6549eff5c1c57e18327a08aaa696b6c82d1d4445895d560184ed16e8"
   },
-  "previous": {
-    "tag": "kodi-airplay-r65",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "05ef394f931b321dda54e0c8378e6420c912d4cf525602bb70529d8c864acf7a"
-  },
-  "source_commit": "4b72d9c35da51b51bae6127ec1979607dcdffa51",
-  "pin_note": "r66 diagnostic: readiness and owned seek before stall/compat recovery play, bounded deadline and transition diagnostics. Candidate 44399079914 passed native host tests and iPhoneOS compilation; independent inspection 44403574416 verified ZIP integrity, IOS platform (minimum14.0 SDK26.2), binary SHA256 9e6bc5dc4e0b2c6dd1100285cd8f660bae91d7aee92f6429a77568391e3dbc8d and all45 exports. Owner authorized framework publication/pin and one diagnostic IPA. User-pause intent, empty audio and real receiver acceptance remain unproven.",
-  "verified_run": 44399079914,
-  "verified_host_run": 44399079914
+  "source_commit": "2fde08240858c4d80f2f282c3e2cd9bf4dbfdbef",
+  "pin_note": "r67: bounded retry after failed seek video/audio fetch (ISSUE-391). Candidate 44612304285 passed native host tests and iPhone framework compilation for2fde082. Inspection44617321795 verified archive, IOS14.0/SDK26.2 and required exports; binary SHA256c874d74a315f42a067bd02e6e50439baf269fb87429780c203d971f088571cbd. Published exact candidate via44617373885. Owner authorized one testing IPA; phone acceptance and user-pause intent remain unproven.",
+  "verified_run": 44612304285,
+  "verified_host_run": 44612304285
 }
