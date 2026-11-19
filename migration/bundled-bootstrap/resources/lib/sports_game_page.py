@@ -136,12 +136,12 @@ def _info(p):
             b += u.text(p, x, 0, w, h, u.P(key + 'c%d' % i), 'p_foot', align='right')
         out += u.group(p, h, b, u.has(key + 'team'))
     # The Divisional / Wild Card switch: two halves, the shown one lifted (board D4).
-    seg = u.card(p, card_x, 0, card_w, 112)
+    seg = u.card(p, card_x, 0, card_w, 138)
     for ident, x, label, shown in ((STANDINGS_SWITCH_BACK, card_x + 10, 'Divisional', 'wild'), (STANDINGS_SWITCH, card_x + 486, 'Wild Card', 'div')):
-        seg += p.image(x, 10, 476, 92, p.MEDIA + 'r27.png', '33EBEBF5', '<visible>String.IsEqual(Window().Property(st.switch),%s)</visible>' % shown, border=27)
-        seg += u.tap(p, ident, x, 10, 476, 92, label, p.WHITE)
+        seg += p.image(x, 10, 476, 118, p.MEDIA + 'r27.png', '33EBEBF5', '<visible>String.IsEqual(Window().Property(st.switch),%s)</visible>' % shown, border=27)
+        seg += u.tap(p, ident, x, 10, 476, 118, label, p.WHITE)
     out += u.group(p, 40, '', u.has('st.switch'))
-    out += u.group(p, 150, u.group(p, 112, seg), u.has('st.switch'))
+    out += u.group(p, 180, u.group(p, 138, seg), u.has('st.switch'))
     return out
 
 
