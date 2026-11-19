@@ -207,6 +207,18 @@ class NewLeagues(unittest.TestCase):
         game = upcoming[0]
         self.assertEqual((game['home']['short'], game['home']['color'], game['away']['short'], game['away']['color'], game['week']), ('Texans', '03202f', 'Colts', '', 11))
 
+    def test_a_live_countdown_game_carries_its_clock_seconds(self):
+        body = {'events': [{'id': '1', 'date': '2026-11-20T18:00Z', 'competitions': [{
+            'status': {'period': 3, 'clock': 521.0, 'displayClock': '8:41', 'type': {'state': 'in', 'name': 'STATUS_IN_PROGRESS'}},
+            'competitors': [{'homeAway': 'home', 'score': '91', 'team': {'id': '1', 'displayName': 'A', 'abbreviation': 'A'}},
+                            {'homeAway': 'away', 'score': '88', 'team': {'id': '2', 'displayName': 'B', 'abbreviation': 'B'}}]}]}]}
+        import sports_espn as espn
+        live, _, _ = espn.parse('NBA', 'NBA', 'Basketball', 'at', (4, 12), body, 0)
+        self.assertEqual((live[0]['clock'], live[0]['clock_secs'], live[0]['clock_mark'], live[0]['clock_state']), ('Q3 · 8:41', 521.0, 'Q3', 'STATUS_IN_PROGRESS'))
+        soccer_body = {'events': [dict(body['events'][0])]}
+        live, _, _ = espn.parse('EPL', 'EPL', 'Soccer', 'vs', (2, 45), soccer_body, 0)
+        self.assertNotIn('clock_secs', live[0])   # soccer counts up in minutes: ESPN's own text is shown
+
     def test_finished_and_odd_events_are_skipped(self):
         body = {'events': [{'id': '1', 'name': 'Done', 'date': '2023-11-10T05:00Z', 'status': {'type': {'state': 'post'}}, 'competitions': [{}]},
                            {'id': '2', 'date': 'not a date', 'status': {'type': {'state': 'pre'}}}, {}, None]}

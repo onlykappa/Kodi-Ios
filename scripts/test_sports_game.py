@@ -156,6 +156,23 @@ class Hero(unittest.TestCase):
         game['away']['score']=None
         self.assertEqual(game_page.model(game,NOW,0)[0]['clock'],'Q3 · 4:12')   # no score (golf, F1): just the clock
 
+    def test_the_live_clock_counts_down_between_espn_answers(self):
+        game={'state':'live','clock':'Q3 · 8:41','clock_secs':521.0,'clock_at':NOW,'clock_mark':'Q3','clock_running':True}
+        self.assertEqual(sm.live_clock(game,NOW),'Q3 · 8:41')
+        self.assertEqual(sm.live_clock(game,NOW+1),'Q3 · 8:40')
+        self.assertEqual(sm.live_clock(game,NOW+61),'Q3 · 7:40')
+        self.assertEqual(sm.live_clock(game,NOW+500),'Q3 · 7:11')            # never more than 90 s without a fresh answer
+        stopped=dict(game,clock_running=False)
+        self.assertEqual(sm.live_clock(stopped,NOW+30),'Q3 · 8:41')            # a stopped clock (timeout) is not counted
+        self.assertEqual(sm.live_clock(dict(game,clock_secs=None),NOW+30),'Q3 · 8:41')   # soccer, baseball: ESPN's own text
+        self.assertEqual(sm.live_clock(dict(game,clock_secs=3.0),NOW+10),'Q3 · 8:41')    # ran out: wait for ESPN's answer (end of period)
+        self.assertEqual(sm.live_clock(dict(game,state='upcoming'),NOW+5),'Q3 · 8:41')
+
+    def test_the_game_page_shows_the_ticking_clock(self):
+        game=self.game(state='live',clock='Q3 · 4:12',clock_secs=252.0,clock_at=NOW,clock_mark='Q3',clock_running=True);game['away']['score']=88;game['home']['score']=91
+        self.assertEqual(game_page.model(game,NOW,0)[0]['when'],'Q3 · 4:12')
+        self.assertEqual(game_page.model(game,NOW+12,0)[0]['when'],'Q3 · 4:00')
+
     def test_until_text(self):
         self.assertEqual([sm.until_text(NOW+s,NOW) for s in (45*60,3600,7800,-5,24*3600)],['in 45 min','in 1 h','in 2 h 10 min','',''])
 

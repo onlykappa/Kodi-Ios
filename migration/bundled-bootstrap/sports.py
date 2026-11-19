@@ -19,6 +19,7 @@ from sports_routes import available  # noqa: E402,F401  (the page tests and the 
 
 ROUTES = {sp.LIVE: 'sports_live', sp.UPCOMING: 'sports_upcoming', sp.LEAGUES: 'sports_leagues', sp.SEE_ALL: 'sports_upcoming'}
 BACK_KEYS = (9, 10, 92, 110)
+REFRESH_EVERY = 15   # seconds between the hub's own refreshes while it is open
 ERROR = {'state': 'error', 'sub': 'Not updated', 'err.title': 'Can’t load sports right now',
          'err.text': 'The sports add-ons didn’t answer. Check the connection, then try again.', 'err.button': 'Try again'}
 
@@ -158,6 +159,15 @@ def run(args=()):
                         return
             threading.Thread(target=watch_handoff, daemon=True).start()
             self.fetch(True)
+            def refresh_loop():   # the hub keeps itself current: live count, next game, up next (owner: times must be live)
+                import page_wait
+                monitor = xbmc.Monitor()
+                last = time.monotonic()
+                while not page_wait.idle(self.stop, monitor, 1):
+                    if time.monotonic() - last >= REFRESH_EVERY:
+                        last = time.monotonic()
+                        self.fetch(False)
+            threading.Thread(target=refresh_loop, daemon=True).start()
 
         def show(self, props):
             for key, value in props.items():

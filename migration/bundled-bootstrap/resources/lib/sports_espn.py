@@ -216,6 +216,11 @@ def parse(code, name, sport, joiner, cfg, body, now):
             if state == 'in':
                 game['clock'] = _clock(code, status, cfg)
                 game['left'] = _left(cfg, status.get('period'), status.get('displayClock'))
+                seconds = status.get('clock')
+                if cfg[0] != 'innings' and cfg[1] != 45 and isinstance(seconds, (int, float)) and (status.get('period') or 0) > 0:
+                    # a countdown clock (basketball, football, hockey): the seconds left, so the page can tick them between fetches (sm.live_clock)
+                    game.update({'clock_secs': float(seconds), 'clock_mark': _mark(code, cfg, status.get('period') or 0),
+                                 'clock_state': (status.get('type') or {}).get('name') or ''})
                 live.append(game)
             elif start >= now - 600:   # a game that should have started a few minutes ago still shows as upcoming
                 upcoming.append(game)

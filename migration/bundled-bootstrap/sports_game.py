@@ -14,6 +14,7 @@ import sports_game_page as page
 import sports_reminders as sr
 
 BACK_KEYS = (9,10,92,110)
+LIVE_EVERY = 5   # seconds between score refreshes while a game is live
 
 
 def _lines(text, width):
@@ -75,8 +76,9 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
                       'empty.text':'No sources available yet. Try again.' if game.get('state')=='live' else 'Check back closer to the start. Refresh looks again.'})
         if game.get('state')=='live':   # "● LIVE", the score, the clock (owner mockup C5); no score (golf, F1): just the clock
             scores = (game['away'].get('score'),game['home'].get('score'))
-            if None not in scores:props.update({'clock':'%s – %s' % scores,'when':game.get('clock') or ''})
-            else:props.update({'clock':game.get('clock') or '','when':''})
+            live_clock = sm.live_clock(game,now)   # counted down second by second between ESPN answers
+            if None not in scores:props.update({'clock':'%s – %s' % scores,'when':live_clock})
+            else:props.update({'clock':live_clock,'when':''})
     elif state=='error':props['error.title']="Can't load this game right now"
     elif state=='loading':props.update({'hero.lines':'1'})
     else:props.update(state='gone',**{'error.title':'This game is no longer listed'})
@@ -150,10 +152,13 @@ def run(game, provider=None, clock=time.time, search=False):
                             except Exception:self.search_failed = True
                             self.search_token = None
                         self.refresh(reload=False)
-                    if clock()-last>=30:
-                        with self.lock:
-                            if self.stop.is_set():return
-                            self.draw()
+                    # Every second: the clock and "in 1 h 14 min" are worked out again (only what changed is written). A live game asks for fresh
+                    # scores every 5 s, any other every 30 s (owner: scores and times must be live).
+                    with self.lock:
+                        if self.stop.is_set():return
+                        live=(self.data or {}).get('state')=='live'
+                        self.draw()
+                    if clock()-last>=(LIVE_EVERY if live else 30):
                         self.refresh(reload=False)
                         last=clock()
             threading.Thread(target=tick,daemon=True).start()

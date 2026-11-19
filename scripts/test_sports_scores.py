@@ -47,6 +47,6 @@ class Scores(unittest.TestCase):
   env={'xbmc':types.SimpleNamespace(Monitor=lambda:object()),'sports_provider':types.SimpleNamespace(get=lambda:types.SimpleNamespace(score_revision=lambda:next(revisions))),'time':types.SimpleNamespace(monotonic=lambda:0),'EVERY':30}
   with patch.dict(sys.modules,{'page_wait':types.SimpleNamespace(idle=lambda *args:next(states))}):
    exec(compile(ast.Module(body=[node],type_ignores=[]),'sports-loop','exec'),env)
-   env['loop'](types.SimpleNamespace(stop=object(),fetch=lambda *args,**kwargs:calls.append((args,kwargs))))
+   env['loop'](types.SimpleNamespace(stop=object(),fetch=lambda *args,**kwargs:calls.append((args,kwargs)),tick_clocks=lambda:None))
   self.assertEqual(calls,[((False,),{'quiet':True})])
 if __name__=='__main__':unittest.main()
