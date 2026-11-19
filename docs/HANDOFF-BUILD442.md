@@ -235,3 +235,17 @@ kodi-build, ~15 s). Kodi conditions use `![…]`, never `!(…)`. Screenshots ne
 - Owner logs 181477d9 and a30fb0aa (build 486): Umbrella opens in 8.6-9.1 s (open 2.1 s). The stutter just after the
   start, Favourites long press, import lookups and the settle hold are ISSUE-321 to 323. ISSUE-301 is resolved.
   The r33 native build (smooth scrolling, ISSUE-316) was approved and is running (run 43676069805); the IPA follows it.
+
+## Sports pages remake (owner-approved mockups, 2026-11-19) — not started
+
+**Mockups:** `docs/design/sports-mockups.html` (board A: hub, Upcoming, Leagues; board B: the Edit league filter). Owner: "I love it"; league logos are real, not letters; "as long as we got UFC I don't care for boxing".
+
+**Finding:** the Sports pages are not in this repo. `migration/ios/addon-plan.json` pulls in the third-party `script.loop.sportshub` (and `repository.gsports`), and `adaptations.json` lists "Sports" and "Live Sports" entries. Nothing in `migration/` draws them, so the mockups cannot be applied by editing our code. Patching that add-on's skin after install is fragile (its code is not here, like Umbrella); do not.
+
+**Plan (owner's decision pending: confirm option 1):** build the Sports pages in the app, in the same style as Library status (Python-generated skin XML, `pages.py` / `portrait.py` helpers, DEC-050: no cut-off text).
+- **Data (tested 2026-11-19, no key):** `https://site.api.espn.com/apis/site/v2/sports/<sport>/<league>/scoreboard` gives games, times and `leagues[0].logos[0].href`. Verified for football/nfl, football/college-football, basketball/nba, basketball/mens-college-basketball, baseball/mlb, hockey/nhl, soccer/usa.1 (MLS), soccer/eng.1, golf/pga, mma/ufc, racing/f1.
+- **League logos:** `https://a.espncdn.com/i/teamlogos/leagues/500/<key>.png` works for nfl, nba, mlb, nhl, mls, lpga, ufc, f1, wwe. Others come from the scoreboard's `logos` href (ncaaf, ncaab, pga, EPL, La Liga, Champions League). Boxing has none. Fetch at runtime, cache on the phone (like posters), never commit images (`check_project` rejects them; policy §5.4). When no logo exists, show a neutral sport icon from the existing `special://skin/extras/icons/` set on the same light tile, never letters.
+- **Filter:** store the chosen leagues (default all on); one choice for the hub, Upcoming and Leagues; the Edit button shows a count badge while a filter is on; "Only" per sport; empty state "No leagues are on". Backend filter in a pure module so it is host-tested.
+- **Open question for the owner:** the add-on's "No sources yet" stream links (where a game's sources come from). Either hook them up or leave them out of the first version.
+- **Optional:** team crests beside each game (the owner has not asked).
+- **Tests and checks:** every fix an ISSUE entry plus a test in import-review.yml; render each board in the desktop Kodi rig next to the mockup; then the phone.
