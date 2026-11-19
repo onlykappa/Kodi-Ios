@@ -67,6 +67,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
   # 256 KiB-10 MiB excludes both the first chunk (<=256 KiB) and a format/index probe near the end of
   # the file (observed: a request near byte 108.6M on a ~108M fixture) so the fault targets an actual
   # later segment fetch, not file-open probing that would otherwise consume the one-shot refusal first.
+  if self.fault=='busy':
+   import sys;print('BUSY-DEBUG2 a=%d b=%s inrange=%s'%(a,m.group(2) or '-',262144<a<10*1024*1024),file=sys.stderr,flush=True)
   if 262144<a<10*1024*1024 and self.fault=='busy':
    with RECOVER_LOCK:
     if path not in BUSY:BUSY.add(path);f.close();self.send_error(503,'too many connections to this resource');return None
