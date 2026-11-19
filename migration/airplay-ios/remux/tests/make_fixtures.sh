@@ -97,6 +97,12 @@ python3 -B "$(dirname "$0")/make_dovi.py" "$OUT/dovi.mkv"
   -c:v:0 copy -c:a copy -c:v:1 libx264 -preset ultrafast -g 48 -pix_fmt yuv420p "$OUT/h264_second_video.mkv"
 "${F[@]}" -i "$OUT/h264_aac_srt.mkv" -f lavfi -i testsrc2=size=640x360:rate=24:duration=20 -map 0:v -map 0:a -map 1:v \
   -c:v:0 copy -c:a copy -c:v:1 libx264 -preset ultrafast -g 48 -pix_fmt yuv420p "$OUT/h264_bigger_second_video.mkv"
+# Known missing initial audio window: proves diagnostics distinguish a valid
+# seek landing after the window from network/read failure. Not the owner's file.
+"${F[@]}" -f lavfi -i testsrc2=size=160x90:rate=12:duration=30 \
+  -itsoffset 18 -f lavfi -i sine=frequency=440:sample_rate=48000:duration=12 \
+  -map 0:v -map 1:a -c:v libx264 -preset ultrafast -g 24 -pix_fmt yuv420p \
+  -c:a aac -movflags +faststart "$OUT/audio_window_gap.mp4"
 ls -l "$OUT"
 # Offline HDR preparation matrix: codecs/chroma/bit depths that require HEVC Main10 output.
 for spec in 'av1_hdr10 libaom-av1 yuv420p10le smpte2084' 'av1_hlg libaom-av1 yuv420p10le arib-std-b67' 'h264_hdr10 libx264 yuv420p10le smpte2084' 'hevc_12_hdr libx265 yuv420p12le smpte2084' 'hevc_422_hdr libx265 yuv422p10le smpte2084'; do

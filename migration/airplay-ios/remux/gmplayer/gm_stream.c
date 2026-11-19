@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 
 #include <libavformat/avformat.h>
 #include <libavformat/avio.h>
@@ -53,6 +54,7 @@ struct gm_stream {
     double last_actual_end;           ///< video closing-keyframe pts from the last produce_sel
     double last_seek_ms,last_scan_ms;
     long last_packets;
+    char last_window[1024]; /* Bounded numeric diagnostics; never packet data or URLs. */
     int    out_index[GM_MAX_STREAMS]; ///< input stream index -> output stream index (-1 = not muxed)
     int    n_seg;
     double target_seg_sec;
@@ -328,6 +330,7 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
                        double ts_offset_sec, gm_sel sel,
                        gm_buf *buf, int *moov_end, char *err, int errlen) {
     buf->len = 0;s->last_seek_ms=s->last_scan_ms=0;s->last_packets=0;
+    snprintf(s->last_window,sizeof s->last_window,"phase=output window_start=%.6f window_end=%.6f",seg_start,seg_end);
     AVFormatContext *oc = NULL; AVIOContext *avio = NULL; out_ctx *octx = NULL;
     int vout, aout;
     int ret = open_output(s, buf, ts_offset_sec, sel, &oc, &avio, &octx, &vout, &aout, err, errlen);
@@ -357,6 +360,7 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
     int64_t seek_ts = (int64_t)(seg_start / av_q2d(sst->time_base) + 0.5);
     int64_t seek_began=av_gettime_relative();
     ret = av_seek_frame(s->in, seek_stream, seek_ts, AVSEEK_FLAG_BACKWARD);
+    snprintf(s->last_window,sizeof s->last_window,"phase=seek window_start=%.6f window_end=%.6f stream=%d tb=%d/%d seek_ts=%lld seek_result=%d",seg_start,seg_end,seek_stream,sst->time_base.num,sst->time_base.den,(long long)seek_ts,ret);
     s->last_seek_ms=(av_gettime_relative()-seek_began)/1000.0;
     if (ret < 0) { set_err(err, errlen, "seek input", ret); close_output(oc, avio, octx); return ret; }
 
@@ -378,16 +382,23 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
 
     AVPacket *pkt = av_packet_alloc();
     int wrote_any = 0;
+    long wrong_stream=0,before_window=0,after_window=0,written=0,selected=0;
+    double first_pts=NAN,first_dts=NAN,last_pts=NAN,last_dts=NAN;
+    const char *scan_exit="read_end";
     int64_t scan_began=av_gettime_relative();
     while ((ret = av_read_frame(s->in, pkt)) >= 0) {
         s->last_packets++;
         int si = pkt->stream_index;
         // Route via the input->output map (handles >1 audio stream in all_audio mode).
         int oidx = (si >= 0 && si < (int)s->in->nb_streams) ? s->out_index[si] : -1;
-        if (oidx < 0) { av_packet_unref(pkt); continue; }
+        if (oidx < 0) { wrong_stream++;av_packet_unref(pkt); continue; }
 
         AVStream *ist = s->in->streams[si];
         AVStream *ost = oc->streams[oidx];
+        double diag_pts=pkt->pts==AV_NOPTS_VALUE?NAN:pkt->pts*av_q2d(ist->time_base);
+        double diag_dts=pkt->dts==AV_NOPTS_VALUE?NAN:pkt->dts*av_q2d(ist->time_base);
+        if(!selected){first_pts=diag_pts;first_dts=diag_dts;}
+        selected++;last_pts=diag_pts;last_dts=diag_dts;
         int64_t raw = (pkt->pts != AV_NOPTS_VALUE) ? pkt->pts
                     : (pkt->dts != AV_NOPTS_VALUE ? pkt->dts : 0);
         double t = raw * av_q2d(ist->time_base);
@@ -407,12 +418,13 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
             // each), so audio fell progressively behind video. HLS hid it by resyncing
             // both tracks per segment; the single-file resource accumulated the gaps
             // into seconds of A/V desync. (Bug #akm19m.)
-            if (t < seg_start - 1e-6) { av_packet_unref(pkt); continue; } // prior segment
+            if (t < seg_start - 1e-6) { before_window++;av_packet_unref(pkt); continue; } // prior segment
             if (t >= seg_end - 1e-6) {
+                after_window++;
                 // Belongs to the next segment. With video present, keep reading so the
                 // video can reach its closing keyframe; without video, we're done.
                 av_packet_unref(pkt);
-                if (!have_video) break;
+                if (!have_video) {scan_exit="window_end";break;}
                 continue;
             }
             // else: in-window audio -> write below.
@@ -445,8 +457,12 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
         ret = av_interleaved_write_frame(oc, pkt);
         if (ret < 0) { set_err(err, errlen, "write_frame", ret); break; }
         wrote_any = 1;
+        written++;
     }
     s->last_scan_ms=(av_gettime_relative()-scan_began)/1000.0;
+    if(ret==AVERROR_EOF)scan_exit="eof";
+    else if(ret<0)scan_exit="read_or_mux_error";
+    snprintf(s->last_window,sizeof s->last_window,"phase=scan window_start=%.6f window_end=%.6f seek_stream=%d audio_stream=%d tb=%d/%d seek_ts=%lld scanned=%ld selected=%ld wrong_stream=%ld before=%ld after=%ld written=%ld first_pts=%.6f first_dts=%.6f last_pts=%.6f last_dts=%.6f exit=%s result=%d",seg_start,seg_end,seek_stream,sel.aud_src,sst->time_base.num,sst->time_base.den,(long long)seek_ts,s->last_packets,selected,wrong_stream,before_window,after_window,written,first_pts,first_dts,last_pts,last_dts,scan_exit,ret);
     av_packet_free(&pkt);
     // Report the VIDEO segment's real end (the closing keyframe pts) so EXTINF can match
     // the actual muxed span. Audio (no video) ends at its own frame boundary == seg_end.
@@ -1208,6 +1224,7 @@ int gm_stream_track_init(gm_stream *s,int src,gm_buf *out,char *err,int errlen) 
     close_output(oc,io,ctx);return r<0?r:0;
 }
 
+const char *gm_stream_last_window(const gm_stream *s) { return s?s->last_window:"reader_unavailable"; }
 void gm_stream_last_timings(const gm_stream *s,double *seek_ms,double *scan_ms,long *packets) {
     if(seek_ms)*seek_ms=s?s->last_seek_ms:0;
     if(scan_ms)*scan_ms=s?s->last_scan_ms:0;

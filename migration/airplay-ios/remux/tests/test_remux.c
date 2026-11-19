@@ -431,6 +431,24 @@ static void test_metadata_init(const char *base) {
         gm_stream_close(gm);
     }
     kr_source_close(source);
+    snprintf(url,sizeof url,"%s/audio_window_gap.mp4",base);
+    source=kr_source_open(url,5,err,sizeof err);
+    CHECK(source!=NULL,"audio diagnostic source opens");if(!source)return;
+    gm=gm_stream_open(kr_source_gm(source),6,err,sizeof err);
+    CHECK(gm!=NULL,"audio diagnostic demux opens");
+    if(gm){
+        int audio=gm_stream_selected_audio(gm);gm_buf unit={0};
+        int result=gm_stream_track_unit(gm,audio,0,&unit,err,sizeof err);
+        const char *diag=gm_stream_last_window(gm);
+        CHECK(result<0 && strstr(err,"empty segment"),"known absent audio window fails explicitly: %s",err);
+        CHECK(strstr(diag,"written=0") && strstr(diag,"window_start=0.000000") && strstr(diag,"exit=window_end"),"diagnostics identify a window with no muxed packets: %s",diag);
+        free(unit.data);unit=(gm_buf){0};
+        result=gm_stream_track_unit(gm,audio,3,&unit,err,sizeof err);
+        CHECK(result==0 && unit.len>0,"same reader reaches actual delayed audio: %s",err);
+        CHECK(strstr(gm_stream_last_window(gm),"written=0 ")==NULL,"valid audio reports written packets");
+        free(unit.data);gm_stream_close(gm);
+    }
+    kr_source_close(source);
 }
 
 static void test_source_transport(const char *http_base) {

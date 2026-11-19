@@ -625,6 +625,7 @@ static int produce_unit(int rend, int seg,int ahead, gm_buf *out, char *err, int
             double seek_ms=0,scan_ms=0;long packets=0;gm_stream_last_timings(g,&seek_ms,&scan_ms,&packets);
             log_line("audio: copy segment=%d read_ms=%.0f seek_ms=%.0f scan_ms=%.0f source_io_ms=%.0f packets=%ld result=%d",seg,
                      now_ms()-read,seek_ms,scan_ms,kr_source_io_ms(source)-io,packets,r);
+            if(r<0 || now_ms()-read>1000)log_line("audio: window segment=%d %s",seg,gm_stream_last_window(g));
             return r;
         }
         if(rend>=R_CAUDIO){snprintf(err,(size_t)errlen,"independent converted audio reader unavailable");return -1;}
