@@ -44,7 +44,9 @@ h3{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:6px 0 2px}
 .row .t{flex:1;min-width:0}
 .row .t b{display:block;font-size:14.5px;font-weight:600;line-height:1.25}
 .row .t span{display:flex;gap:6px;align-items:center;color:var(--grey);font-size:12px;margin-top:3px;flex-wrap:wrap}
-.tag{font-size:10.5px;font-weight:800;background:var(--s2);color:#fff;border-radius:6px;padding:2px 6px;letter-spacing:.02em}
+.tag{width:20px;height:20px;border-radius:6px;background:#f2f2f7;display:inline-grid;place-items:center;flex:none;overflow:hidden}
+.tag img{width:15px;height:15px;object-fit:contain}
+.tag:empty::after{content:"";width:8px;height:8px;border-radius:50%;border:1.5px solid #8e8e93}
 .go{color:var(--dim);font-size:17px;font-weight:600;flex:none}
 .live{display:inline-flex;align-items:center;gap:5px;color:var(--red);font-size:11px;font-weight:800;letter-spacing:.05em}
 .live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--red)}
@@ -59,7 +61,9 @@ h3{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:6px 0 2px}
 .lg{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .lc{background:var(--s1);border-radius:14px;padding:10px 12px;min-width:92px}
 .lc b{display:block;font-size:14px;font-weight:700}.lc span{color:var(--grey);font-size:11.5px}
-.ico{width:34px;height:34px;border-radius:50%;background:var(--s2);display:grid;place-items:center;font-size:10px;font-weight:800;flex:none}
+.ico{width:38px;height:38px;border-radius:10px;background:#f2f2f7;display:grid;place-items:center;flex:none;overflow:hidden}
+.ico img{width:29px;height:29px;object-fit:contain}
+.ico:empty::after{content:"";width:16px;height:16px;border-radius:50%;border:2px solid #8e8e93}
 .empty{text-align:center;color:var(--grey);padding:46px 18px;line-height:1.45}
 .empty b{display:block;color:#fff;font-size:17px;margin:10px 0 4px}
 .empty .big{font-size:34px}
@@ -77,7 +81,7 @@ h3{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:6px 0 2px}
 .sg{color:var(--grey);font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:10px 4px 5px;display:flex;justify-content:space-between}
 .sg i{font-style:normal;color:var(--blue-text);text-transform:none;letter-spacing:0;font-weight:600}
 .lr{display:flex;align-items:center;gap:11px;padding:9px 12px;min-height:50px;background:var(--bg);position:relative}
-.lr+.lr::before{content:"";position:absolute;top:0;left:56px;right:0;height:1px;background:var(--sep)}
+.lr+.lr::before{content:"";position:absolute;top:0;left:62px;right:0;height:1px;background:var(--sep)}
 .lr .t{flex:1;min-width:0}.lr .t b{display:block;font-size:14.5px;font-weight:600}.lr .t span{color:var(--grey);font-size:11.5px}
 .sgrp{border-radius:13px;overflow:hidden}
 .sw{flex:none;width:46px;height:28px;border-radius:14px;background:#39393d;position:relative}
@@ -107,9 +111,9 @@ The refresh icon stays, and Edit joins it.</p>
 <div class="card"><div class="k">Live now</div><b>Nothing live right now</b><p>Next game starts at 4:30 PM.</p></div>
 <div class="sh"><b>Up next</b><span>See all</span></div>
 <div class="grp">
- <div class="row"><div class="time">4:30<small>PM</small></div><div class="t"><b>FC Cincinnati vs Orlando City SC</b><span><i class="tag">MLS</i>Today</span></div><span class="go">›</span></div>
- <div class="row"><div class="time">5:15<small>PM</small></div><div class="t"><b>Indianapolis Colts at Houston Texans</b><span><i class="tag">NFL</i>Today</span></div><span class="go">›</span></div>
- <div class="row"><div class="time">7:00<small>PM</small></div><div class="t"><b>Real Salt Lake vs Seattle Sounders FC</b><span><i class="tag">MLS</i>Today</span></div><span class="go">›</span></div>
+ <div class="row"><div class="time">4:30<small>PM</small></div><div class="t"><b>FC Cincinnati vs Orlando City SC</b><span><i class="tag" data-l="mls"></i>Today</span></div><span class="go">›</span></div>
+ <div class="row"><div class="time">5:15<small>PM</small></div><div class="t"><b>Indianapolis Colts at Houston Texans</b><span><i class="tag" data-l="nfl"></i>Today</span></div><span class="go">›</span></div>
+ <div class="row"><div class="time">7:00<small>PM</small></div><div class="t"><b>Real Salt Lake vs Seattle Sounders FC</b><span><i class="tag" data-l="mls"></i>Today</span></div><span class="go">›</span></div>
 </div>
 <div class="two"><div class="mini blue"><b>Upcoming</b><span>59 games · 2 more today</span></div><div class="mini purple"><b>Leagues</b><span>5 leagues</span></div></div>
 </div></div><p class="cap"><b>A1 · Hub.</b> Live now is one slim card. Up next lists the first three games so the page is useful at a glance. Upcoming and Leagues stay one tap away.</p></div>
@@ -120,13 +124,13 @@ The refresh icon stays, and Edit joins it.</p>
 <div class="chips"><span class="chip on">All</span><span class="chip">NCAAF</span><span class="chip">NFL</span><span class="chip">NBA</span><span class="chip">NCAAB</span><span class="chip">MLS</span></div>
 <div class="sh"><b>Today</b><span>3 games</span></div>
 <div class="grp">
- <div class="row"><div class="time">4:30<small>PM</small></div><div class="t"><b>FC Cincinnati vs Orlando City SC</b><span><i class="tag">MLS</i>No sources yet</span></div><span class="go">›</span></div>
- <div class="row"><div class="time">5:15<small>PM</small></div><div class="t"><b>Indianapolis Colts at Houston Texans</b><span><i class="tag">NFL</i>No sources yet</span></div><span class="go">›</span></div>
- <div class="row"><div class="time">7:00<small>PM</small></div><div class="t"><b>Real Salt Lake vs Seattle Sounders FC</b><span><i class="tag">MLS</i>No sources yet</span></div><span class="go">›</span></div>
+ <div class="row"><div class="time">4:30<small>PM</small></div><div class="t"><b>FC Cincinnati vs Orlando City SC</b><span><i class="tag" data-l="mls"></i>No sources yet</span></div><span class="go">›</span></div>
+ <div class="row"><div class="time">5:15<small>PM</small></div><div class="t"><b>Indianapolis Colts at Houston Texans</b><span><i class="tag" data-l="nfl"></i>No sources yet</span></div><span class="go">›</span></div>
+ <div class="row"><div class="time">7:00<small>PM</small></div><div class="t"><b>Real Salt Lake vs Seattle Sounders FC</b><span><i class="tag" data-l="mls"></i>No sources yet</span></div><span class="go">›</span></div>
 </div>
 <div class="sh"><b>Tomorrow</b><span>21 games</span></div>
 <div class="grp">
- <div class="row"><div class="time">2:00<small>PM</small></div><div class="t"><b>Manhattan Jaspers at Miami Hurricanes</b><span><i class="tag">NCAAB</i>No sources yet</span></div><span class="go">›</span></div>
+ <div class="row"><div class="time">2:00<small>PM</small></div><div class="t"><b>Manhattan Jaspers at Miami Hurricanes</b><span><i class="tag" data-l="ncaab"></i>No sources yet</span></div><span class="go">›</span></div>
 </div>
 </div></div><p class="cap"><b>A2 · Upcoming.</b> The time column keeps its width, the title wraps to two lines and is never cut off, and the league tag sits beside the source state. The chips are quick filters inside whatever the Edit sheet allows.</p></div>
 
@@ -134,16 +138,16 @@ The refresh icon stays, and Edit joins it.</p>
 <div class="top"><span class="back">‹</span><span class="act"><span class="pillbtn">Edit</span><span class="refresh">↻</span></span></div>
 <h3>Leagues</h3><div class="sub">5 leagues · updated just now</div>
 <div class="sh"><b>Soccer</b><span>1 league</span></div>
-<div class="grp"><div class="row"><span class="ico">MLS</span><div class="t"><b>MLS</b><span>Next today 4:30 PM</span></div><span class="go">›</span></div></div>
+<div class="grp"><div class="row"><span class="ico" data-l="mls"></span><div class="t"><b>MLS</b><span>Next today 4:30 PM</span></div><span class="go">›</span></div></div>
 <div class="sh"><b>Basketball</b><span>2 leagues</span></div>
 <div class="grp">
- <div class="row"><span class="ico">NCAAB</span><div class="t"><b>College Basketball</b><span>Next tomorrow 2:00 PM</span></div><span class="go">›</span></div>
- <div class="row"><span class="ico">NBA</span><div class="t"><b>NBA</b><span>Next tomorrow 4:00 PM</span></div><span class="go">›</span></div>
+ <div class="row"><span class="ico" data-l="ncaab"></span><div class="t"><b>College Basketball</b><span>Next tomorrow 2:00 PM</span></div><span class="go">›</span></div>
+ <div class="row"><span class="ico" data-l="nba"></span><div class="t"><b>NBA</b><span>Next tomorrow 4:00 PM</span></div><span class="go">›</span></div>
 </div>
 <div class="sh"><b>American football</b><span>2 leagues</span></div>
 <div class="grp">
- <div class="row"><span class="ico">NFL</span><div class="t"><b>NFL</b><span>Next today 5:15 PM</span></div><span class="go">›</span></div>
- <div class="row"><span class="ico">NCAAF</span><div class="t"><b>College Football</b><span>Next tomorrow 3:00 PM</span></div><span class="go">›</span></div>
+ <div class="row"><span class="ico" data-l="nfl"></span><div class="t"><b>NFL</b><span>Next today 5:15 PM</span></div><span class="go">›</span></div>
+ <div class="row"><span class="ico" data-l="ncaaf"></span><div class="t"><b>College Football</b><span>Next tomorrow 3:00 PM</span></div><span class="go">›</span></div>
 </div>
 </div></div><p class="cap"><b>A3 · Leagues.</b> Same grouping by sport, with a steadier row height. A league with nothing coming up says "No games coming up" instead of disappearing.</p></div>
 
@@ -159,7 +163,7 @@ sport's own "Only" shortcut turns that sport on and the rest off. Done saves it.
 <h3>Sports</h3><div class="sub">Showing NFL and NBA · Updated just now</div>
 <div class="card"><div class="k">Live now</div><b>Nothing live right now</b><p>Next game starts at 5:15 PM.</p></div>
 <div class="sh"><b>Up next</b><span>See all</span></div>
-<div class="grp"><div class="row"><div class="time">5:15<small>PM</small></div><div class="t"><b>Indianapolis Colts at Houston Texans</b><span><i class="tag">NFL</i>Today</span></div><span class="go">›</span></div></div>
+<div class="grp"><div class="row"><div class="time">5:15<small>PM</small></div><div class="t"><b>Indianapolis Colts at Houston Texans</b><span><i class="tag" data-l="nfl"></i>Today</span></div><span class="go">›</span></div></div>
 <div class="dim"></div>
 <div class="sheet"><div class="grab"></div>
  <div class="hd"><b>Leagues</b><span class="done">Done</span></div>
@@ -167,13 +171,13 @@ sport's own "Only" shortcut turns that sport on and the rest off. Done saves it.
  <div class="quick"><span class="chip">All on</span><span class="chip">All off</span><span class="chip on">Only what I picked · 2</span></div>
  <div class="sl">
   <div class="sg">American football<i>Only</i></div>
-  <div class="sgrp"><div class="lr"><span class="ico">NFL</span><div class="t"><b>NFL</b><span>Next today 5:15 PM</span></div><span class="sw on"></span></div>
-   <div class="lr"><span class="ico">NCAAF</span><div class="t"><b>College Football</b><span>Next tomorrow 3:00 PM</span></div><span class="sw"></span></div></div>
+  <div class="sgrp"><div class="lr"><span class="ico" data-l="nfl"></span><div class="t"><b>NFL</b><span>Next today 5:15 PM</span></div><span class="sw on"></span></div>
+   <div class="lr"><span class="ico" data-l="ncaaf"></span><div class="t"><b>College Football</b><span>Next tomorrow 3:00 PM</span></div><span class="sw"></span></div></div>
   <div class="sg">Basketball<i>Only</i></div>
-  <div class="sgrp"><div class="lr"><span class="ico">NBA</span><div class="t"><b>NBA</b><span>Next tomorrow 4:00 PM</span></div><span class="sw on"></span></div>
-   <div class="lr"><span class="ico">NCAAB</span><div class="t"><b>College Basketball</b><span>Next tomorrow 2:00 PM</span></div><span class="sw"></span></div></div>
+  <div class="sgrp"><div class="lr"><span class="ico" data-l="nba"></span><div class="t"><b>NBA</b><span>Next tomorrow 4:00 PM</span></div><span class="sw on"></span></div>
+   <div class="lr"><span class="ico" data-l="ncaab"></span><div class="t"><b>College Basketball</b><span>Next tomorrow 2:00 PM</span></div><span class="sw"></span></div></div>
   <div class="sg">Soccer<i>Only</i></div>
-  <div class="sgrp"><div class="lr"><span class="ico">MLS</span><div class="t"><b>MLS</b><span>Next today 4:30 PM</span></div><span class="sw"></span></div></div>
+  <div class="sgrp"><div class="lr"><span class="ico" data-l="mls"></span><div class="t"><b>MLS</b><span>Next today 4:30 PM</span></div><span class="sw"></span></div></div>
  </div>
 </div></div></div><p class="cap"><b>B1 · The Edit sheet.</b> The Edit button turns white with a count badge while a filter is on. The hub says "Showing NFL and NBA" under its title. Switches are the same green iOS switches the app uses elsewhere.</p></div>
 
@@ -187,16 +191,16 @@ sport's own "Only" shortcut turns that sport on and the rest off. Done saves it.
  <div class="quick"><span class="chip">All on</span><span class="chip">All off</span><span class="chip on">Only what I picked · 4</span></div>
  <div class="sl">
   <div class="sg">Golf<i>Only</i></div>
-  <div class="sgrp"><div class="lr"><span class="ico">PGA</span><div class="t"><b>PGA Tour</b><span>Next Thursday 8:00 AM</span></div><span class="sw on"></span></div>
-   <div class="lr"><span class="ico">LPGA</span><div class="t"><b>LPGA Tour</b><span>Next Friday 9:30 AM</span></div><span class="sw"></span></div></div>
+  <div class="sgrp"><div class="lr"><span class="ico" data-l="pga"></span><div class="t"><b>PGA Tour</b><span>Next Thursday 8:00 AM</span></div><span class="sw on"></span></div>
+   <div class="lr"><span class="ico" data-l="lpga"></span><div class="t"><b>LPGA Tour</b><span>Next Friday 9:30 AM</span></div><span class="sw"></span></div></div>
   <div class="sg">Combat sports<i>Only</i></div>
-  <div class="sgrp"><div class="lr"><span class="ico">BOX</span><div class="t"><b>Boxing</b><span>Next Saturday 9:00 PM</span></div><span class="sw on"></span></div>
-   <div class="lr"><span class="ico">UFC</span><div class="t"><b>UFC</b><span>Next Saturday 6:00 PM</span></div><span class="sw on"></span></div></div>
+  <div class="sgrp"><div class="lr"><span class="ico" data-l="boxing"></span><div class="t"><b>Boxing</b><span>Next Saturday 9:00 PM</span></div><span class="sw on"></span></div>
+   <div class="lr"><span class="ico" data-l="ufc"></span><div class="t"><b>UFC</b><span>Next Saturday 6:00 PM</span></div><span class="sw on"></span></div></div>
   <div class="sg">Motorsport<i>Only</i></div>
-  <div class="sgrp"><div class="lr"><span class="ico">F1</span><div class="t"><b>Formula 1</b><span>Next Sunday 8:00 AM</span></div><span class="sw on"></span></div></div>
+  <div class="sgrp"><div class="lr"><span class="ico" data-l="f1"></span><div class="t"><b>Formula 1</b><span>Next Sunday 8:00 AM</span></div><span class="sw on"></span></div></div>
   <div class="sg">Baseball and hockey<i>Only</i></div>
-  <div class="sgrp"><div class="lr"><span class="ico">MLB</span><div class="t"><b>MLB</b><span>Off season</span></div><span class="sw"></span></div>
-   <div class="lr"><span class="ico">NHL</span><div class="t"><b>NHL</b><span>Next today 7:00 PM</span></div><span class="sw"></span></div></div>
+  <div class="sgrp"><div class="lr"><span class="ico" data-l="mlb"></span><div class="t"><b>MLB</b><span>Off season</span></div><span class="sw"></span></div>
+   <div class="lr"><span class="ico" data-l="nhl"></span><div class="t"><b>NHL</b><span>Next today 7:00 PM</span></div><span class="sw"></span></div></div>
  </div>
 </div></div></div><p class="cap"><b>B2 · More leagues.</b> The list scrolls and covers every league the app finds games for (golf, boxing, UFC, F1, MLB, NHL, the soccer leagues). A league with no games coming up says so and can still be switched on.</p></div>
 
@@ -205,11 +209,11 @@ sport's own "Only" shortcut turns that sport on and the rest off. Done saves it.
 <h3>Upcoming</h3><div class="sub">8 NFL games coming up · updated just now</div>
 <div class="chips"><span class="chip on">NFL</span></div>
 <div class="sh"><b>Today</b><span>1 game</span></div>
-<div class="grp"><div class="row"><div class="time">5:15<small>PM</small></div><div class="t"><b>Indianapolis Colts at Houston Texans</b><span><i class="tag">NFL</i>No sources yet</span></div><span class="go">›</span></div></div>
+<div class="grp"><div class="row"><div class="time">5:15<small>PM</small></div><div class="t"><b>Indianapolis Colts at Houston Texans</b><span><i class="tag" data-l="nfl"></i>No sources yet</span></div><span class="go">›</span></div></div>
 <div class="sh"><b>Sunday</b><span>7 games</span></div>
 <div class="grp">
- <div class="row"><div class="time">1:00<small>PM</small></div><div class="t"><b>Chicago Bears at Detroit Lions</b><span><i class="tag">NFL</i>No sources yet</span></div><span class="go">›</span></div>
- <div class="row"><div class="time">1:00<small>PM</small></div><div class="t"><b>New York Giants at Dallas Cowboys</b><span><i class="tag">NFL</i>No sources yet</span></div><span class="go">›</span></div>
+ <div class="row"><div class="time">1:00<small>PM</small></div><div class="t"><b>Chicago Bears at Detroit Lions</b><span><i class="tag" data-l="nfl"></i>No sources yet</span></div><span class="go">›</span></div>
+ <div class="row"><div class="time">1:00<small>PM</small></div><div class="t"><b>New York Giants at Dallas Cowboys</b><span><i class="tag" data-l="nfl"></i>No sources yet</span></div><span class="go">›</span></div>
 </div>
 </div></div><p class="cap"><b>B3 · Only NFL.</b> With only NFL on, Upcoming lists just NFL games and says how many. The league chips row shows only the leagues that are on. This is the "I only want NFL" case.</p></div>
 
@@ -223,12 +227,14 @@ sport's own "Only" shortcut turns that sport on and the rest off. Done saves it.
 
 <div class="notes"><h3>What is reused</h3><ul>
 <li>The app's grouped rows, section headers, chips, glass-style sheet, green switches and the white capsule button (portrait.py: <code>row</code>, <code>pill_button</code>, <code>page_header</code>, the choice sheet). No new colour, font size or control.</li>
-<li>The league tag and time column are plain text in the existing small and body fonts.</li></ul>
+<li>The time column is plain text in the existing small and body fonts.</li>
+<li><b>Real league logos, never committed.</b> The app fetches each league's logo from the sports source when it first shows it and keeps it on the phone, like posters (UI policy §5.4: artwork comes from providers at runtime, not from Git). A league with no logo (boxing has none) shows a neutral ring until one exists. This file shows neutral tiles; the preview the owner was sent has the real logos.</li></ul>
 <h3>Decisions for you</h3><ul>
 <li><b>Edit button:</b> a text capsule at the top right beside refresh. It turns white with a number while a filter is on. OK, or would you rather have a filter icon?</li>
 <li><b>One filter for all three pages:</b> the same choice applies to the hub, Upcoming and Leagues. Say if Upcoming should have its own.</li>
 <li><b>Default:</b> every league on, as today, until you pick.</li>
 <li><b>"Only" shortcut</b> next to each sport turns that sport on and the others off.</li></ul>
 <h3>After approval</h3><ul>
+<li>Optional: team crests beside each game as well as league logos. Say if you want them.</li>
 <li>Code the three pages and the Edit sheet, store the choice, filter the game lists in the backend, add tests, check each board in the desktop Kodi rig next to this file, then the phone.</li></ul></div>
 </body></html>
