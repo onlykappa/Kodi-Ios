@@ -66,6 +66,31 @@ go through get_part/HTTP serving. Test those actual call paths separately.
 
 ## Ordered roadmap and acceptance
 
+### Source trace: why conversion does not repair this audio failure
+
+The MP4 log explicitly enables subtitle burning from source stream2, despite
+its video being compatible8-bit H.264. Only the picture takes that conversion
+path. `kr_remux.c` selects `KR_AUDIO_COPY` for the compatible audio track;
+`audio_demuxer()` opens/reuses `S.agm`/`S.asrc`, adopts the segment plan, and
+`gm_stream_track_unit()` reaches `produce_single()`/`produce_sel()` in
+`gm_stream.c`. It seeks the selected stream backwards, scans packets, drops
+packets before the window and stops audio-only production at the first packet
+at/after its end. Zero written packets produce the literal `empty segment`.
+The HTTP handler reports500, even if converted video succeeds independently.
+Thus the confirmed failure mechanism is the copied-audio window producing no
+muxed packets; the causal reason those two scanned packets do not fill the
+window is still unknown. Native logs do not report their stream indices,
+PTS/DTS or which loop exit occurred. Do not call this an encoder failure or
+claim a particular seek-index/timestamp defect without reproducing it.
+
+Next discriminating evidence: requested start/end, selected stream/time base,
+seek return, bounded first/last packet stream+PTS/DTS, counts skipped before
+the window/wrong stream, count written, and EOF versus end-window break. These
+values should distinguish reader/seek position, timestamp alignment and actual
+audio absence. Use synthetic fixtures first; keep any original media/packet
+dump private. A repeated HTTP retry already occurs in the phone log and fails
+the same way, so more blind retries are not a demonstrated solution.
+
 1. **Reproduce MP4 audio178 first.** Use an authorized synthetic fragmented MP4
    with compatible H.264 and matching audio layout/time bases; reproduce the
   0→9→132→171→178 request sequence and out-of-order audio1 versus178. Trace
