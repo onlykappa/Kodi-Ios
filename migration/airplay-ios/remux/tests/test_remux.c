@@ -437,13 +437,13 @@ static void test_metadata_init(const char *base) {
     gm=gm_stream_open(kr_source_gm(source),6,err,sizeof err);
     CHECK(gm!=NULL,"audio diagnostic demux opens");
     if(gm){
-        int audio=gm_stream_selected_audio(gm);gm_buf unit={0};
-        int result=gm_stream_track_unit(gm,audio,0,&unit,err,sizeof err);
+        int audio=gm_stream_selected_audio(gm),split=0;gm_buf unit={0};
+        int result=gm_stream_track_unit(gm,audio,0,&unit,&split,err,sizeof err);
         const char *diag=gm_stream_last_window(gm);
         CHECK(result<0 && strstr(err,"empty segment"),"known absent audio window fails explicitly: %s",err);
         CHECK(strstr(diag,"written=0") && strstr(diag,"window_start=0.000000") && strstr(diag,"exit=window_end"),"diagnostics identify a window with no muxed packets: %s",diag);
         free(unit.data);unit=(gm_buf){0};
-        result=gm_stream_track_unit(gm,audio,3,&unit,err,sizeof err);
+        result=gm_stream_track_unit(gm,audio,3,&unit,&split,err,sizeof err);
         CHECK(result==0 && unit.len>0,"same reader reaches actual delayed audio: %s",err);
         CHECK(strstr(gm_stream_last_window(gm),"written=0 ")==NULL,"valid audio reports written packets");
         free(unit.data);gm_stream_close(gm);
