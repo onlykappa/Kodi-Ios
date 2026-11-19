@@ -138,7 +138,7 @@ static void set_message(const char *m) { snprintf(S.message, sizeof S.message, "
 
 // -- r6 log: what the receiver asked for and how it went, for kodi.log (kr_remux_log) --
 #define LOG_LINES 128
-#define LOG_WIDTH 240
+#define LOG_WIDTH 1024 /* Bounded packet-window diagnostics must not lose the exit reason. */
 static struct {
     pthread_mutex_t lock;
     char lines[LOG_LINES][LOG_WIDTH];
