@@ -48,6 +48,8 @@ def download(url, timeout=8):
 
 def fetch(profile, code, get=download):
     """The league's logo file (downloaded once), or '' when there is none or it cannot be fetched now."""
+    if not os.path.isabs(str(profile)):   # an untranslated 'special://…' path (tests, a missing Kodi): never write beside the code
+        return ''
     have = cached(profile, code)
     if have:
         return have

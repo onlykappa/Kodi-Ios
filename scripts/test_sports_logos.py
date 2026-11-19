@@ -33,6 +33,12 @@ class Logos(unittest.TestCase):
             self.assertEqual(len(calls), 1)
             self.assertEqual(sl.cached(profile, 'NFL'), first)
 
+    def test_an_untranslated_profile_path_writes_nothing(self):
+        # The first version of the page code fetched logos during the Leagues test and wrote PNGs into the repo.
+        calls = []
+        self.assertEqual(sl.fetch('special://profile/', 'NFL', lambda u: calls.append(u) or PNG), '')
+        self.assertEqual(calls, [])
+
     def test_nothing_bad_is_kept(self):
         with tempfile.TemporaryDirectory() as profile:
             self.assertEqual(sl.fetch(profile, 'BOX', lambda u: PNG), '')                  # no address
