@@ -137,7 +137,7 @@ int kr_remux_burn_track(void) { return S.burn_index >= 0 ? S.burn_index : S.burn
 static void set_message(const char *m) { snprintf(S.message, sizeof S.message, "%s", m ? m : ""); }
 
 // -- r6 log: what the receiver asked for and how it went, for kodi.log (kr_remux_log) --
-#define LOG_LINES 128
+#define LOG_LINES 512 /* Bounded 512 KiB history for correlated request/window diagnostics. */
 #define LOG_WIDTH 1024 /* Bounded packet-window diagnostics must not lose the exit reason. */
 static struct {
     pthread_mutex_t lock;

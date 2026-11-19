@@ -229,7 +229,7 @@ static void test_prepared_indexed_open(const char *http_base,const char *work) {
 static void test_file(const char *url, const fixture *fx, const char *work) {
     start_offset = fx->offset;
     char m3u8[256];
-    static char log[1 << 16];
+    static char log[1 << 20]; /* Drain the bounded expanded diagnostic history in this retention test. */
     while (kr_remux_log(log, sizeof log) > 0) {}  // earlier sessions' lines
     int st = kr_remux_start(url, fx->lan, 0, m3u8, sizeof m3u8);
     kr_remux_log(log, sizeof log);
