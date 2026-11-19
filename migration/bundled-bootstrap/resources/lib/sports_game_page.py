@@ -83,27 +83,28 @@ def _sources(p):
 def _info(p):
     """Board D3 / D4: one scrolling Info section under the sources: when and where, recent form, the standings table."""
     out = u.group(p, 50, '', u.has('info.kickoff'))
+    out += u.group(p, 118, u.text(p, p.SIDE + 10, 30, 700, 70, 'Info', 'p_h3'), u.has('info.kickoff'))
     card_x, card_w = p.SIDE, 972
     # Kickoff (and Venue, when ESPN has one) in one grouped card.
     for with_venue in (False, True):
         h = 290 if with_venue else 130
         body = u.card(p, card_x, 0, card_w, h)
-        body += u.text(p, 92, 0, 300, 130, 'Kickoff', 'p_sub', p.GREY)
-        body += u.text(p, 400, 0, 588, 130, u.P('info.kickoff'), 'p_pill', align='right')
+        body += u.text(p, 92, 0, 300, 130, 'Kickoff', 'p_foot_b')
+        body += u.text(p, 400, 0, 588, 130, u.P('info.kickoff'), 'p_foot', p.GREY, 'right')
         if with_venue:
             body += p.image(92, 130, 896, 3, p.MEDIA + 'white.png', '1FEBEBF5')
-            body += u.text(p, 92, 133, 250, 157, 'Venue', 'p_sub', p.GREY)
-            body += p.textbox(330, 148, 658, 51 * 2, u.P('info.venue'), 'p_pill').replace('<autoscroll>', '<align>right</align><autoscroll>')
+            body += u.text(p, 92, 133, 250, 157, 'Venue', 'p_foot_b')
+            body += p.textbox(330, 148, 658, 51 * 2, u.P('info.venue'), 'p_foot', p.GREY).replace('<autoscroll>', '<align>right</align><autoscroll>')
             body += u.text(p, 330, 232, 658, 51, u.P('info.place'), 'p_foot', p.GREY, 'right')
         cond = u.has('info.kickoff') + (' + ' + u.has('info.venue') if with_venue else ' + String.IsEmpty(Window().Property(info.venue))')
         out += u.group(p, h + 40, body, cond)
     # Recent form: a grouped card, one row per team, five W / L / D dots.
-    out += u.group(p, 118, u.text(p, p.SIDE + 10, 30, 700, 60, 'Recent form', 'p_foot_b', p.GREY), u.has('form.0.name'))
+    out += u.group(p, 118, u.text(p, p.SIDE + 10, 30, 700, 70, 'Recent form', 'p_h3'), u.has('form.0.name'))
     rows = ''
     for n in range(2):
         key = 'form.%d.' % n
         y = n * 190
-        rows += p.textbox(92, y + 14, 500, 102, u.P(key + 'name'), 'p_pill')
+        rows += p.textbox(92, y + 14, 500, 102, u.P(key + 'name'), 'p_foot_b')
         rows += u.text(p, 92, y + 116, 560, 54, u.P(key + 'line'), 'p_foot', p.GREY)
         for d in range(DOTS):
             x = 988 - (DOTS - d) * 68 + 12
@@ -116,7 +117,7 @@ def _info(p):
             rows += p.image(92, 190, 896, 3, p.MEDIA + 'white.png', '1FEBEBF5')
     out += u.group(p, 420, u.card(p, card_x, 0, card_w, 380) + rows, u.has('form.0.name'))
     # Standings: header, up to ST_ROWS rows (the game's two teams tinted), the Divisional / Wild Card switch.
-    out += u.group(p, 118, u.text(p, p.SIDE + 10, 30, 960, 60, u.P('st.title'), 'p_foot_b', p.GREY), u.has('st.title'))
+    out += u.group(p, 118, u.text(p, p.SIDE + 10, 30, 960, 70, u.P('st.title'), 'p_h3'), u.has('st.title'))
     head = p.image(card_x, 0, card_w, 100, p.MEDIA + 'row_first.png', p.SURFACE, border=43)
     cols = ((560, 90), (655, 90), (750, 90), (858, 130))
     for i, (x, w) in enumerate(cols):
@@ -134,10 +135,13 @@ def _info(p):
         for i, (x, w) in enumerate(cols):
             b += u.text(p, x, 0, w, h, u.P(key + 'c%d' % i), 'p_foot', align='right')
         out += u.group(p, h, b, u.has(key + 'team'))
-    for ident, cond in ((STANDINGS_SWITCH, 'String.IsEqual(Window().Property(st.switch),wild)'),
-                        (STANDINGS_SWITCH_BACK, 'String.IsEqual(Window().Property(st.switch),div)')):
-        label = 'Wild Card' if ident == STANDINGS_SWITCH else 'Divisional'
-        out += u.group(p, 190, p.pill_button(ident, p.SIDE, 40, 972, 128, label, [('', 'noop')], 'glass'), cond)
+    # The Divisional / Wild Card switch: two halves, the shown one lifted (board D4).
+    seg = u.card(p, card_x, 0, card_w, 112)
+    for ident, x, label, shown in ((STANDINGS_SWITCH_BACK, card_x + 10, 'Divisional', 'wild'), (STANDINGS_SWITCH, card_x + 486, 'Wild Card', 'div')):
+        seg += p.image(x, 10, 476, 92, p.MEDIA + 'r27.png', '33EBEBF5', '<visible>String.IsEqual(Window().Property(st.switch),%s)</visible>' % shown, border=27)
+        seg += u.tap(p, ident, x, 10, 476, 92, label, p.WHITE)
+    out += u.group(p, 40, '', u.has('st.switch'))
+    out += u.group(p, 150, u.group(p, 112, seg), u.has('st.switch'))
     return out
 
 
