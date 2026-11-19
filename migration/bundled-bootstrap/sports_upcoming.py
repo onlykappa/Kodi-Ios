@@ -26,9 +26,23 @@ def model(games, updated, now, offset, league='All', state='ready', logos=None):
     props = {'state': state, 'subtitle': '%s coming up · %s' % (sm.count_text(len(shown), 'game'),
              sm.updated_text(updated, now, offset).lower()) if updated else 'Updating',
              'empty.title': '', 'empty.text': '', 'empty.text.0':'', 'empty.text.1':''}
-    shown_label = league if league != 'All' else 'All'
-    props.update({'league.label': shown_label if future else '', 'league.size': str(min(7, max(3, len(shown_label))))})   # mockup A: the capsule says which league
-
+    chipline, chipwidth = 0, 0
+    for n in range(page.CHIP_LINES): props['chipline.%d' % n] = ''
+    for n in range(page.CHIPS):
+        code = codes[n] if n < len(codes) and future else ''
+        on = code == league
+        size = 2 if code == 'All' else max(2,len(code))
+        width = 126+(size-2)*24
+        if code:
+            props['chipline.%d' % chipline] = 'true'
+            chipwidth += width+(21 if chipwidth else 0)
+        props.update({'chip.%d.label' % n: code, 'chip.%d.on' % n: 'true' if on else '',
+                      'chip.%d.size' % n: str(size) if code else '',
+                      'chip.%d.line' % n: str(chipline) if code else '',
+                      'chip.%d.fill' % n: 'FFFFFFFF' if on else 'FF1C1C1E',
+                      'chip.%d.textcolor' % n: 'FF000000' if on else 'FFFFFFFF'})
+    for n in range(page.CHIP_LINES): props['chipline.%d' % n] = ''   # no chip row: the Edit filter already chooses leagues for every page (owner, 2026-11-19)
+    if league != 'All' and props['subtitle'] != 'Updating': props['subtitle'] = league + ' · ' + props['subtitle']   # a league's own list says which
     rows = []
     for day, entries in sm.group_by_day(shown, now, offset):
         for n, game in enumerate(entries):
@@ -60,23 +74,6 @@ def model(games, updated, now, offset, league='All', state='ready', logos=None):
                      **{'empty.title': 'No games coming up','empty.text': 'Nothing is scheduled yet.',
                         'empty.text.0':'Nothing is scheduled yet.'})
     return props, rows, codes, league
-
-
-def league_spec(games, current, now, logos=None):
-    """The choice sheet behind the capsule: "All leagues" and the leagues that have a game (most games first), at most eight rows.
-    Returns (spec, codes) with codes[i] the league of row i ('All' for the first)."""
-    future = [g for g in games if g['state'] == 'upcoming' and g['start'] >= now]
-    codes = sm.league_codes(future)[:8]
-    names = {g['league']: g.get('league_name') or g['league'] for g in future}
-    rows = [{'label': 'All leagues', 'detail': sm.count_text(len(future), 'game') + ' coming up', 'tag': 'Showing' if current == 'All' else '',
-             'tint': 'FF0A84FF', 'glyph': 'medal.png'}]
-    for code in codes[1:]:
-        count = len([g for g in future if g['league'] == code])
-        rows.append({'label': names[code], 'detail': sm.count_text(count, 'game'), 'tag': 'Showing' if current == code else '',
-                     'tint': 'FFF2F2F7', 'glyph': (logos or {}).get(code, '')})
-    more = len(sm.league_codes(future)) - len(codes)
-    return {'heading': 'Show games from', 'sub': 'For this visit only. Edit chooses what the app shows.', 'rows': rows, 'button': 'Cancel',
-            'foot': '%d more league%s: use Edit to see %s.' % (more, '' if more == 1 else 's', 'it' if more == 1 else 'them') if more > 0 else ''}, codes
 
 
 def open_game(game, log, provider=None, clock=time.time):
@@ -173,15 +170,11 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
             elif ident == page.edit_button.ID:
                 import sports_edit
                 if sports_edit.run(): self.refresh(reload=False)
-            elif ident in page.PICK_IDS:
+            elif page.CHIP <= ident < page.CHIP+page.CHIP_LINES*page.CHIPS*7:
+                n = ((ident-page.CHIP) % (page.CHIPS*7))//7
                 with self.lock:
-                    games = self.data[0] if self.data is not None else []
-                    league,logos = self.league,getattr(self,'logos',{})
-                spec,codes = league_spec(games,league,clock(),logos)
-                answer = choice_sheet.choose(spec)
-                with self.lock:
-                    if 0 <= answer < len(codes):
-                        self.league = codes[answer]
+                    if n < len(self.codes):
+                        self.league = self.codes[n]
                         self.draw()
             elif page.ROW <= ident < page.ROW+page.SLOTS*len(page.FORMS):
                 n = (ident-page.ROW)//len(page.FORMS)

@@ -34,27 +34,14 @@ class Projection(unittest.TestCase):
         self.assertEqual(rows[1]['sources'],'No sources yet')
         self.assertEqual(codes,sm.league_codes(self.games))
         self.assertEqual(selected,'All')
-        self.assertEqual((props['league.label'],props['league.size']),('All','3'))   # mockup A: the capsule under the subtitle
+        self.assertEqual(props['chipline.0'],'')   # no chip row: the Edit filter chooses leagues
 
-    def test_league_pick_keeps_available_leagues_and_uses_same_game_identity(self):
+    def test_filter_keeps_available_chips_and_uses_same_game_identity(self):
         props,rows,codes,selected=self.view(league='NBA')
         self.assertEqual([r['game']['id'] for r in rows],['nba-2'])
-        self.assertEqual((props['subtitle'],props['league.label']),('1 game coming up · updated just now','NBA'))
+        self.assertEqual(props['subtitle'],'NBA · 1 game coming up · updated just now')
         self.assertEqual(codes,sm.league_codes(self.games))
         self.assertEqual(selected,'NBA')
-
-    def test_the_capsule_sheet_lists_all_leagues_then_each_league_with_games(self):
-        spec,codes=upcoming.league_spec(self.games,'NBA',self.provider.now,{'NBA':'/logo/NBA.png'})
-        self.assertEqual(codes,sm.league_codes([g for g in self.games if g['state']=='upcoming' and g['start']>=self.provider.now])[:8])
-        self.assertEqual(spec['rows'][0]['label'],'All leagues')
-        self.assertEqual(len(spec['rows']),len(codes))
-        nba=spec['rows'][codes.index('NBA')]
-        self.assertEqual((nba['tag'],nba['glyph'],nba['detail']),('Showing','/logo/NBA.png','1 game'))
-        self.assertEqual(spec['rows'][0]['tag'],'')
-        many=[dict(self.games[0],league='L%d'%n,league_name='League %d'%n,id='x%d'%n) for n in range(11)]
-        spec,codes=upcoming.league_spec(many,'All',self.provider.now)
-        self.assertEqual(len(spec['rows']),8)   # the sheet holds eight rows; the rest are Edit's
-        self.assertIn('more',spec['foot'])
 
     def test_started_games_leave_upcoming_and_stale_slots_are_cleared(self):
         props,rows,_,_=upcoming.model(self.games,self.provider.now,self.games[0]['start']+1,0)
@@ -119,8 +106,9 @@ class Controller(unittest.TestCase):
                 until=time.monotonic()+2
                 while self.props.get('state')!='ready' and time.monotonic()<until:time.sleep(.01)
                 assert self.props['state']=='ready'
-                self.onClick(page.PICK_IDS[0])   # the sheet is patched below to answer with the NBA row
-                assert self.props['subtitle'].startswith('1 game coming up') and self.props['league.label']=='NBA'
+                index=self.codes.index('NBA')
+                self.onClick(page.CHIP+index*7+1)
+                assert self.props['subtitle'].startswith('NBA · 1 game coming up')
                 stop=self.stop
                 self.onInit()  # Returning from a child window must keep the filter and timer.
                 assert self.stop is stop
@@ -131,7 +119,7 @@ class Controller(unittest.TestCase):
             Monitor=lambda:types.SimpleNamespace(abortRequested=lambda:True))
         gui=types.SimpleNamespace(WindowXMLDialog=Window)
         vfs=types.SimpleNamespace(translatePath=lambda x:x,listdir=lambda x:None)
-        with patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':gui,'xbmcvfs':vfs}),patch.object(upcoming,'_CACHE',None),patch.object(upcoming.choice_sheet,'choose',lambda spec:[r['label'] for r in spec['rows']].index('NBA')):
+        with patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':gui,'xbmcvfs':vfs}),patch.object(upcoming,'_CACHE',None):
             upcoming.run(provider=provider,clock=lambda:provider.now,on_game=lambda game,log:selected.append(game['id']))
         self.assertEqual(opened,['loading'])
         self.assertEqual(selected,['nba-2'])
