@@ -4,9 +4,10 @@ import status_ui as u
 import math
 
 WINDOW = 'IOSSportsUpcoming.xml'
-BACK, REFRESH, LIST, RETRY, LEAGUES = 9001, 9002, 9300, 9003, 9004
-CHIP, CHIPS, ROW, SLOTS = 40000, 16, 45000, 120
-CHIP_LINES = 1   # one row that scrolls sideways (owner: no stranded second line)
+BACK, REFRESH, LIST, RETRY, LEAGUES, LEAGUE_PICK = 9001, 9002, 9300, 9003, 9004, 9006
+ROW, SLOTS = 45000, 120
+PICK_SIZES = range(3, 8)
+PICK_IDS = [LEAGUE_PICK + 10 * (size - 3) for size in PICK_SIZES]   # one control id per width form   # the capsule's width follows the league's label length (All, NFL, NCAAB ...)
 SCROLL_CLEAR = 720  # Board 11 leaves room below the final day as the header scrolls away.
 TITLE_LINE, DETAIL_H, PAD, MIN_ROW = 57, 56, 32, 194
 FORMS = range(1, 5)
@@ -51,25 +52,21 @@ def row_height(lines):
     return max(MIN_ROW, PAD * 2 + TITLE_LINE * lines + 13 + DETAIL_H + 4)
 
 
-def _chips(p):
-    rows = ''
-    for line in range(CHIP_LINES):
-        out = ''
-        for n in range(CHIPS):
-            key = 'chip.%d.' % n
-            for size in range(2, 9):
-                width = 126 + (size-2)*24
-                ident = CHIP+line*CHIPS*7+n*7+size-2
-                inside = p.image(0,13,width,92,p.MEDIA+'pill_96.png',u.P(key+'fill'),border=46)
-                inside += u.tap(p,ident,0,0,width,118)
-                inside += u.text(p,0,13,width,92,u.P(key+'label'),'p_pill',u.P(key+'textcolor'),'center')
-                out += ('<control type="group"><width>%d</width><height>118</height>'
-                        '<visible>String.IsEqual(Window().Property(%ssize),%d) + String.IsEqual(Window().Property(%sline),%d)</visible>'
-                        '<animation effect="fade" start="100" end="70" time="0" condition="Control.HasFocus(%d)">Conditional</animation>%s</control>') % (width,key,size,key,line,ident,inside)
-        rows += ('<control type="grouplist"><left>%d</left><width>%d</width><height>118</height>'
-                 '<orientation>horizontal</orientation><itemgap>21</itemgap><usecontrolcoords>true</usecontrolcoords>'
-                 '<visible>String.IsEqual(Window().Property(chipline.%d),true)</visible>%s</control>') % (p.SIDE,p.WIDTH-p.SIDE,line,out)   # runs to the screen edge: the chips that do not fit are cut by the edge and scroll in
-    return rows
+def _picker(p):
+    """Mockup A: one capsule "League  All ⌄" under the subtitle; it opens the app's choice sheet of the leagues that have games."""
+    out = ''
+    for size in PICK_SIZES:
+        ident = LEAGUE_PICK + 10 * (size - 3)
+        width = 196 + 27 * size + 24 + 52
+        inside = p.image(0, 13, width, 92, p.MEDIA + 'pill_96.png', p.SURFACE2, border=46)
+        inside += u.tap(p, ident, 0, 0, width, 118)
+        inside += u.text(p, 34, 13, 170, 92, 'League', 'p_pill')
+        inside += u.text(p, 190, 13, 27 * size + 30, 92, u.P('league.label'), 'p_pill', p.ACCENT)
+        inside += p.icon(width - 24 - 36, 13 + 28, 36, 'chevron-down.png', p.ACCENT)
+        out += ('<control type="group"><left>%d</left><width>%d</width><height>118</height>'
+                '<visible>String.IsEqual(Window().Property(league.size),%d)</visible>'
+                '<animation effect="fade" start="100" end="70" time="0" condition="Control.HasFocus(%d)">Conditional</animation>%s</control>') % (p.SIDE, width, size, ident, inside)
+    return u.group(p, 140, out, u.has('league.label'))
 
 
 def game_row(p, key, ident, lines, width):
@@ -125,7 +122,7 @@ def page(p):
     header += edit_button.xml(p,940-20-edit_button.W,22)
     header += u.text(p,p.SIDE,124,972,110,'Upcoming','p_large')
     header += u.text(p,p.SIDE,239,972,51,u.P('subtitle'),'p_sub',p.GREY)
-    content = u.group(p,315,header) + _chips(p) + _rows(p)
+    content = u.group(p,315,header) + _picker(p) + _rows(p)
     content += _states(p)
     body = p.backdrop()
     body += ('<control type="grouplist" id="%d"><top>0</top><width>1080</width><bottom>0</bottom>'
