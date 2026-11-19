@@ -46,6 +46,8 @@
 #define MAX_TRACKS 64
 // r8: renditions (cache keys and production lanes): the copied video, the converted video, audio by source index.
 enum { R_VCOPY = 0, R_VCOMPAT = 1, R_AUDIO = 2, R_CAUDIO = R_AUDIO + MAX_TRACKS, NREND = R_CAUDIO + MAX_TRACKS };
+static atomic_uint diagnostic_next_request;
+static _Thread_local unsigned diagnostic_request;
 #define PF_DEPTH_VIDEO 3  // r11: video segments made ahead after one is served
 #define PF_DEPTH_AUDIO 6  // r11: audio is cheap (a copy or one AAC encode): kept well ahead so it never waits
 #define PF_DEPTH(rend) ((rend) >= R_AUDIO ? PF_DEPTH_AUDIO : PF_DEPTH_VIDEO)
@@ -616,6 +618,7 @@ static int produce_unit(int rend, int seg,int ahead, gm_buf *out, char *err, int
     if (route == KR_AUDIO_COPY) {
         double began=now_ms();
         if(!S.agm)log_line("audio: opening independent reader for stream=%d segment=%d",idx,seg);
+        int reader_reused=S.agm!=NULL;
         gm_stream *g = audio_demuxer();
         log_line("audio: copy stream=%d segment=%d reader_open_ms=%.0f independent=%d",idx,seg,now_ms()-began,g!=NULL);
         kr_source *source=g?S.asrc:S.src;double io=kr_source_io_ms(source),read=now_ms();
@@ -625,7 +628,7 @@ static int produce_unit(int rend, int seg,int ahead, gm_buf *out, char *err, int
             double seek_ms=0,scan_ms=0;long packets=0;gm_stream_last_timings(g,&seek_ms,&scan_ms,&packets);
             log_line("audio: copy segment=%d read_ms=%.0f seek_ms=%.0f scan_ms=%.0f source_io_ms=%.0f packets=%ld result=%d",seg,
                      now_ms()-read,seek_ms,scan_ms,kr_source_io_ms(source)-io,packets,r);
-            if(r<0 || now_ms()-read>1000)log_line("audio: window segment=%d %s",seg,gm_stream_last_window(g));
+            if(r<0 || now_ms()-read>1000)log_line("audio: window segment=%d request=%u generation=%u reader_reused=%d %s",seg,diagnostic_request,atomic_load(&S.ticket),reader_reused,gm_stream_last_window(g));
             return r;
         }
         if(rend>=R_CAUDIO){snprintf(err,(size_t)errlen,"independent converted audio reader unavailable");return -1;}
@@ -1036,9 +1039,13 @@ static void prefetch_stop(void) {
 // A media segment (seg >= 0) or init (seg -1) for a request: the cache, else made now (waiting for the lane: a
 // background job making the same segment finishes first and the request takes its result).
 static int get_part(int rend, int seg, gm_buf *out, char *err, int errlen) {
+    diagnostic_request=atomic_fetch_add(&diagnostic_next_request,1)+1;
+    unsigned request=diagnostic_request,generation=atomic_load(&S.ticket);
+    double request_began=now_ms();
+    log_line("request: trace id=%u generation=%u rendition=%d segment=%d phase=begin",request,generation,rend,seg);
     if (seg < -1 || seg >= gm_stream_segment_count(rend_plan(rend))) { snprintf(err, (size_t)errlen, "bad segment index"); return -1; }
     if(seg>=0)prefetch_focus(rend,seg);
-    if (cache_take(rend, seg, out)) return 0;
+    if (cache_take(rend, seg, out)) {log_line("request: trace id=%u phase=complete cache=hit total_ms=%.0f bytes=%d result=0",request,now_ms()-request_began,(int)out->len);return 0;}
     pthread_mutex_t *l = lane(rend);
     if (!l) { snprintf(err, (size_t)errlen, "no such track"); return -1; }
     atomic_fetch_add(&demand[rend], 1);
@@ -1052,10 +1059,12 @@ static int get_part(int rend, int seg, gm_buf *out, char *err, int errlen) {
         usleep(10000);
     }
     double began = now_ms();
-    int r = cache_take(rend, seg, out) ? 0 : make_part(rend, seg < 0 ? 0 : seg, 0, seg < 0, out, err, errlen);
+    int cached_after_wait=cache_take(rend,seg,out);
+    int r = cached_after_wait ? 0 : make_part(rend, seg < 0 ? 0 : seg, 0, seg < 0, out, err, errlen);
     pthread_mutex_unlock(l);
     atomic_fetch_sub(&demand[rend], 1);
     double ended = now_ms();
+    log_line("request: trace id=%u phase=complete cache=%s wait_ms=%.0f production_ms=%.0f total_ms=%.0f bytes=%d result=%d",request,cached_after_wait?"hit_after_wait":"miss",began-queued,ended-began,ended-request_began,(int)out->len,r);
     if (began - queued > 250 || ended - began > 1000)
         log_line("request: %s segment %d waited %.0f ms, production %.0f ms, result %d",
                  rend == R_VCOPY ? "video" : rend == R_VCOMPAT ? "converted video" : "audio", seg,
