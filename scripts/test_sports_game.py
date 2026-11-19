@@ -131,7 +131,8 @@ class Structure(unittest.TestCase):
         text=(BOOT/'resources/lib/portrait.py').read_text()
         self.assertIn('sports_game_page.files(ns)',text)
         self.assertIn('Path(sports_game_page.__file__)',text)
-        self.assertNotIn("'sports_game'",(BOOT/'default.py').read_text())
+        # A reminder's notification opens a game by id (RunScript ... sports_game,<id>), so it is a page now (board C of the game page).
+        self.assertIn("'sports_game'",(BOOT/'default.py').read_text())
 
 
 class Controller(unittest.TestCase):
@@ -303,6 +304,36 @@ class Controller(unittest.TestCase):
             until(lambda:not window.fetching)
             self.assertEqual(window.props['play.error'],'')
         self.exercise(sm.Sample(now=NOW),scenario,play=[RuntimeError('fixture play failure')])
+
+class RemindThenPlay(unittest.TestCase):
+    """Owner-approved board C: Remind me before a source exists, Reminder on once asked, Play with the best source when one is found."""
+    def game(self,sources=True):
+        g=copy.deepcopy(sm.Sample(now=NOW,offset=0).upcoming[0])
+        if not sources:g['sources']=[]
+        return g
+
+    def test_no_source_offers_a_reminder_then_says_it_is_on(self):
+        import sports_reminders as sr
+        props,_=game_page.model(self.game(False),NOW,0)
+        self.assertEqual((props['state'],props['remind.on'],props['remind.note'],props['play.best']),('empty','','',''))
+        record={'on_source':True,'before':True}
+        props,_=game_page.model(self.game(False),NOW,0,reminder=record)
+        self.assertEqual(props['remind.on'],'true')
+        self.assertEqual(props['remind.note'],sr.summary(record))
+
+    def test_a_source_names_the_best_one_under_play(self):
+        props,_=game_page.model(self.game(True),NOW,0)
+        self.assertTrue(props['play.best'].startswith('Best source: '))
+        self.assertIn('1080p',props['play.best'])
+
+    def test_the_page_has_both_buttons_and_the_script_runs_the_sheet(self):
+        import portrait
+        xml=page.files(portrait)['portrait/'+page.WINDOW].decode()
+        ET.fromstring(xml)
+        for ident in (page.REMIND,page.REMIND_ON):self.assertIn('id="%d"'%ident,xml)
+        self.assertIn('Window().Property(remind.note)',xml);self.assertIn('Window().Property(play.best)',xml)
+        src=(BOOT/'sports_game.py').read_text()
+        self.assertIn('ident in (page.REMIND,page.REMIND_ON)',src);self.assertIn('sports_remind.ask(',src)
 
 
 if __name__=='__main__':unittest.main()

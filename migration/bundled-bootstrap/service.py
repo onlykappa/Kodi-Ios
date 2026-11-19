@@ -249,6 +249,16 @@ def run():
   sports_loop_routes.warmup_proxy(monitor.waitForAbort,lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO))
   sports_loop.serve(xbmc,xbmcvfs,xbmcgui,monitor.waitForAbort,lambda text:xbmc.log('Kodi iOS Sports '+text,xbmc.LOGINFO))
  threading.Thread(target=sports_discovery_loop,daemon=True).start()
+ # Sports reminders (board C of the game page): a notification when a source appears for a game the owner asked about, and 15 minutes before it starts.
+ def sports_reminder_loop():
+  import sports_provider,sports_reminders
+  def notify(title,text,action):
+   notices.add(profile,'general',title,text,action=action)
+   try:xbmcgui.Dialog().notification(title,text,xbmcgui.NOTIFICATION_INFO,6000)
+   except Exception:pass
+  sports_reminders.watch(xbmcvfs.translatePath('special://profile/'),sports_provider.get,notify,monitor.waitForAbort,
+                         log=lambda text:xbmc.log('Kodi iOS Sports '+text,xbmc.LOGINFO))
+ threading.Thread(target=sports_reminder_loop,daemon=True).start()
  # Roadmap 1C.1: "open timing" log line per video (tap to picture).
  import open_timing
  import cache_tune   # roadmap 1B.3: Kodi's cache read factor follows Wi-Fi / cellular, set as a video is about to open

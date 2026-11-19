@@ -11,6 +11,7 @@ import page_wait
 import sports_model as sm
 import sports_provider
 import sports_game_page as page
+import sports_reminders as sr
 
 BACK_KEYS = (9,10,92,110)
 
@@ -21,10 +22,11 @@ def _lines(text, width):
     return choice_sheet.lines(words,width)
 
 
-def model(game, now, offset, state='ready', searching=False):
+def model(game, now, offset, state='ready', searching=False, reminder=None):
     """Project the contract without losing source identities or opaque play values."""
     props = {'state':state,'hero.lines':'','league':'','starts':'','clock':'','day':'',
-             'sources.count':'','error.title':'','play.error':'','empty.text':'','game.live':''}
+             'sources.count':'','error.title':'','play.error':'','empty.text':'','game.live':'',
+             'play.best':'','remind.on':'true' if reminder else '','remind.note':sr.summary(reminder)}
     sources = sm.order_sources(game['sources']) if game else []
     for side in ('away','home'):
         for key in ('code','name','crest'):props[side+'.'+key] = game[side].get(key,'') if game else ''
@@ -39,6 +41,13 @@ def model(game, now, offset, state='ready', searching=False):
     elif state=='error':props['error.title']="Can't load this game right now"
     elif state=='loading':props.update({'hero.lines':'1'})
     else:props.update(state='gone',**{'error.title':'This game is no longer listed'})
+    if sources:   # the best source, named under Play (the same choice the Play button makes)
+        try:
+            import sports_loop_router
+            best = sports_loop_router.automatic_source(sources)
+            props['play.best'] = 'Best source: ' + ' · '.join(v for v in (best.get('addon'),best.get('quality'),best.get('language')) if v)
+        except Exception:
+            props['play.best'] = ''
     for n in range(page.SLOTS):
         values = {}
         if n < len(sources):
@@ -106,7 +115,8 @@ def run(game, provider=None, clock=time.time, search=False):
 
         def draw(self,error=False):
             searching = bool(self.search_token and getattr(provider,'searching_game',lambda *args:False)(game_id,self.search_token))
-            props,self.sources = model(self.data,clock(),sm.device_offset(clock()),'error' if error else 'ready',searching)
+            props,self.sources = model(self.data,clock(),sm.device_offset(clock()),'error' if error else 'ready',searching,
+                                       sr.get(xbmcvfs.translatePath('special://profile/'),game_id))
             if self.search_failed and not self.sources:
                 props['state']='error';props['error.title']="Can't search for sources right now"
             for key,value in props.items():
@@ -143,6 +153,12 @@ def run(game, provider=None, clock=time.time, search=False):
             elif ident==page.SEARCH_RETRY:
                 self.find_sources()
                 self.draw()
+            elif ident in (page.REMIND,page.REMIND_ON):
+                import sports_remind
+                with self.lock: current=self.data
+                if current is not None:
+                    sports_remind.ask(current,xbmcvfs.translatePath('special://profile/'))
+                    with self.lock: self.draw()
             elif ident==page.AUTO:
                 with self.lock: sources=list(self.sources)
                 if sources:
@@ -206,3 +222,20 @@ def run(game, provider=None, clock=time.time, search=False):
     window.doModal()
     if hasattr(window,'stop'):window.stop.set()
     del window
+
+
+def main(args):
+    """RunScript(service.kodi.ios.bootstrap,sports_game,<URL-quoted game id>): the page a reminder's notification opens."""
+    from urllib.parse import unquote
+    provider = sports_provider.get()
+    found = None
+    try:
+        found = provider.game(unquote(args[0])) if args else None
+    except Exception:
+        found = None
+    if found is not None:
+        run(found, provider=provider)
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])

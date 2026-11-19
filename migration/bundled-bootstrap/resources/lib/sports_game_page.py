@@ -5,6 +5,7 @@ WINDOW = 'IOSSportsGame.xml'
 BACK, REFRESH, LIST, RETRY = 9001, 9002, 9300, 9003
 SEARCH_RETRY = 9004
 AUTO = 9005
+REMIND, REMIND_ON = 9006, 9008      # Remind me / Reminder on (two buttons, one visible at a time) (board C of docs/design/sports-game-mockups.html)
 SOURCE, SLOTS = 50000, 24
 FORMS = tuple((title, detail) for title in range(1, 5) for detail in range(1, 10))
 TEAM_FORMS = range(1, 7)
@@ -80,8 +81,18 @@ def page(p):
     header = p.nav_button(BACK,32,5,'chevron-left.png','noop')
     header += p.nav_button(REFRESH,940,5,p.MEDIA+'hdr_refresh.png','noop',glyph_size=60).replace(p.WHITE,p.ACCENT)
     content = u.group(p,134,header) + _hero(p)
-    auto = p.pill_button(AUTO,p.SIDE,27,972,128,'Play best available',[('','noop')],'primary')
+    auto = p.pill_button(AUTO,p.SIDE,27,972,128,'Play',[('','noop')],'primary','play.png',inline=True)
     content += u.group(p,182,auto,u.has('sources.count'))
+    # "Best source: The Loop · 1080p · English", under Play (owner: "providing you with best source").
+    content += u.group(p,70,u.text(p,p.SIDE,0,972,60,u.P('play.best'),'p_sub',p.GREY,'center'),u.has('play.best'))
+    # No source yet and the game has not started: Remind me (white) or Reminder on (frosted, with what it will do).
+    no_source = 'String.IsEqual(Window().Property(state),empty) + String.IsEmpty(Window().Property(game.live))'
+    remind = p.pill_button(REMIND,p.SIDE,27,972,128,'Remind me',[('','noop')],'primary','bell.png',inline=True)
+    content += u.group(p,182,remind,no_source+' + String.IsEmpty(Window().Property(remind.on))')
+    on = p.pill_button(REMIND_ON,p.SIDE,27,972,128,'Reminder on',[('','noop')],'glass','check.png',inline=True)
+    content += u.group(p,182,on,no_source+' + !String.IsEmpty(Window().Property(remind.on))')
+    content += u.group(p,134,p.textbox(92,0,896,120,u.P('remind.note'),'p_sub',p.GREY).replace('<autoscroll>','<align>center</align><autoscroll>'),
+                       no_source+' + !String.IsEmpty(Window().Property(remind.on))')
     heading = u.text(p,p.SIDE,43,700,70,'Sources','p_h2')
     heading += u.text(p,800,43,226,70,u.P('sources.count'),'p_sub',p.GREY,'right')
     content += u.group(p,134,heading,u.has('hero.lines')) + _sources(p)

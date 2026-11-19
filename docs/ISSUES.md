@@ -5980,3 +5980,14 @@ Failure retained: both broad parallel and serial native scans exited the desktop
   - The hub's "Showing NFL and NBA" line is coded but not seen in the rig with a filter on.
   - Logos on the Live Now page and the game page.
   - The phone check.
+
+## ISSUE-383 — Sports game page: Remind me, then Play with the best source (owner request, 2026-11-19)
+
+- **Owner:** "follow should ask to send a reminder to your phone, then when the link is available it will replace the remind with the play button providing you with best source" (approved board C, docs/design/sports-game-mockups.html). Kodi can notify, so the reminder is real.
+- **Done:**
+  - `sports_reminders.py` keeps `sports-reminders.json` (one record per game, two switches: "when a source is ready", "15 minutes before it starts"), decides what is due, and `watch()` runs in the service (`sports_reminder_loop`), searching for sources about every 10 minutes for reminded games. Each notice is sent once, pruned 6 hours after the game, and opens the game on tap (`RunScript(...,sports_game,<id>)`).
+  - `sports_remind.py` is the reminder sheet on the app's choice sheet. A new reminder is saved only by "Turn on reminder"; an existing one saves each flip at once and can be turned off.
+  - Game page: no sources → white "Remind me" capsule; reminder set → "Reminder on" capsule plus a note of what we'll notify; sources → "Play" with "Best source: …" under it.
+- **Tests:** test_sports_reminders (13), RemindThenPlay in test_sports_game (the old "sports_game is not in default.py" assertion was inverted on purpose: a notification opens a game by id).
+- **Desktop Kodi rig (sample data):** Remind me → sheet (no cut-off text) → "Reminder on" with its note. Not seen on a phone yet.
+- **Not done yet:** Info section and standings (board D); team crests on the game page.
