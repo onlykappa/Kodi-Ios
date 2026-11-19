@@ -29,7 +29,7 @@ def hero(p):
         card += p.image(380, -40, 1000, height + 80, p.MEDIA + 'sports_glow.png', u.P('home.tint'), aspect='>stretch')
         card += u.text(p, p.SIDE, 134, 972, 56, u.P('league'), 'p_foot_b', p.GREY, 'center')
         for side, x in (('away', 90), ('home', 760)):
-            side_xml = p.image(x, 200, CREST, CREST, p.MEDIA + 'avatar_s.png', p.SURFACE2)
+            side_xml = p.image(x, 200, CREST, CREST, p.MEDIA + 'avatar_s.png', p.SURFACE2, '<visible>' + u.neg(u.has(side + '.crest')) + '</visible>')
             side_xml += p.image(x, 200, CREST, CREST, u.P(side + '.crest'), extra='<visible>' + u.has(side + '.crest') + '</visible>', aspect='>keep', background=True)
             side_xml += u.text(p, x, 200, CREST, CREST, u.P(side + '.code'), 'p_pill', align='center').replace(
                 '</control>', '<visible>' + u.neg(u.has(side + '.crest')) + '</visible></control>')

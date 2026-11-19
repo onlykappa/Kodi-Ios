@@ -22,7 +22,7 @@ def _lines(text, width):
     return choice_sheet.lines(words,width)
 
 
-WHITE_B = '[COLOR FFFFFFFF][B]%s[/B][/COLOR]'   # bold and white inside a grey line (owner: "We'll tell you" should stand out)
+WHITE_B = '[COLOR FFFFFFFF][B]%s[/B][/COLOR]'   # "Best source:" is bold white inside its grey line (the owner's live mockup)
 NEUTRAL,TINT = '445F6B7A','B8'   # a team without a colour gets a soft grey glow; ESPN's colours are 6 hex digits
 
 
@@ -41,15 +41,18 @@ def checked_text(checked, now):
     return 'Checked %d hour%s ago' % (hours,'' if hours==1 else 's')
 
 
-def model(game, now, offset, state='ready', searching=False, reminder=None, checked=None):
+def model(game, now, offset, state='ready', searching=False, reminder=None, checked=None, crests=None):
     """Project the contract without losing source identities or opaque play values."""
     props = {'state':state,'hero.lines':'','league':'','starts':'','clock':'','day':'',
              'sources.count':'','error.title':'','play.error':'','empty.text':'','game.live':'',
-             'play.best':'','remind.on':'true' if reminder else '','remind.note':sr.summary(reminder),
+             'play.best':'','remind.on':'true' if reminder else '','remind.note':'Reminders are set for this game.' if reminder else '',
              'other.text':'','when':'','checked':'','info.title':'','info.sub':'','away.record':'','home.record':'','away.tint':NEUTRAL,'home.tint':NEUTRAL}
     sources = sm.order_sources(game['sources']) if game else []
     for side in ('away','home'):
-        for key in ('code','crest'):props[side+'.'+key] = game[side].get(key,'') if game else ''
+        props[side+'.code'] = game[side].get('code','') if game else ''
+        crest = game[side].get('crest','') if game else ''
+        # The team's real crest from the phone's own copy (sports_logos.crests); until it is there the code shows on a ring. No `crests` at all: the address as is.
+        props[side+'.crest'] = crest if crests is None else crests.get(crest,'')
         if game:   # the short name on the hero ("Colts"), the record under it, the team's colour behind it
             props[side+'.name'] = game[side].get('short') or game[side].get('name','')
             props[side+'.record'] = game[side].get('record','')
@@ -78,7 +81,7 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
     elif state=='loading':props.update({'hero.lines':'1'})
     else:props.update(state='gone',**{'error.title':'This game is no longer listed'})
     if game and not sources and state != 'error' and not reminder and not game.get('state')=='live':
-        props['remind.note'] = "No source yet. %s when one is ready." % WHITE_B % "We'll tell you"
+        props['remind.note'] = "No source yet. Tap Remind me for a notification when one is ready."
     if sources:   # the best source, named under Play (the same choice the Play button makes)
         try:
             import sports_loop_router
@@ -126,6 +129,8 @@ def run(game, provider=None, clock=time.time, search=False):
             self.search_token = None
             self.search_failed = False
             self.checked = clock()   # when the sources were last looked for (the Sources card says so)
+            self.crests = {}
+            threading.Thread(target=self.load_crests,daemon=True).start()
             if search:
                 self.find_sources()
             self.draw()
@@ -156,13 +161,26 @@ def run(game, provider=None, clock=time.time, search=False):
         def draw(self,error=False):
             searching = bool(self.search_token and getattr(provider,'searching_game',lambda *args:False)(game_id,self.search_token))
             props,self.sources = model(self.data,clock(),sm.device_offset(clock()),'error' if error else 'ready',searching,
-                                       sr.get(xbmcvfs.translatePath('special://profile/'),game_id),self.checked)
+                                       sr.get(xbmcvfs.translatePath('special://profile/'),game_id),self.checked,self.crests)
             if self.search_failed and not self.sources:
                 props['state']='error';props['error.title']="Can't search for sources right now"
             for key,value in props.items():
                 # The tap handler also writes play.error; a refresh must still clear it.
                 if key=='play.error' or getattr(self,'_shown',{}).get(key)!=value:self.setProperty(key,value)
             self._shown = props.copy()
+
+        def load_crests(self):
+            """The teams' real crests, downloaded once and kept on the phone; the page draws first (a ring with the code) and gains them a moment later."""
+            try:
+                import sports_logos
+                with self.lock:current=self.data
+                urls = [current[side].get('crest','') for side in ('away','home')] if current else []
+                found = sports_logos.crests(xbmcvfs.translatePath('special://profile/'),urls)
+                with self.lock:
+                    if found and not self.stop.is_set():
+                        self.crests = found
+                        self.draw()
+            except Exception as error:log('sports: crests: %s' % type(error).__name__)
 
         def refresh(self, reload=True):
             with self.lock:

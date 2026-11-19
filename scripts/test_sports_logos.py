@@ -51,5 +51,41 @@ class Logos(unittest.TestCase):
             self.assertEqual(sl.paths(profile, ['MLB', 'BOX'], lambda u: PNG)['BOX'], '')
 
 
+class Crests(unittest.TestCase):
+    PNG = b'\x89PNG' + b'0' * 200
+    URL = 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png'
+
+    def test_a_crest_is_downloaded_once_and_kept(self):
+        import tempfile
+        calls = []
+        def get(url):
+            calls.append(url)
+            return self.PNG
+        with tempfile.TemporaryDirectory() as profile:
+            first = sl.crest(profile, self.URL, get)
+            self.assertTrue(first.endswith('.png') and Path(first).is_file())
+            self.assertEqual(sl.crest(profile, self.URL, get), first)
+            self.assertEqual(len(calls), 1)
+
+    def test_only_espns_image_host_and_real_pngs_are_kept(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as profile:
+            self.assertEqual(sl.crest(profile, 'https://example.com/x.png', lambda u: self.PNG), '')
+            self.assertEqual(sl.crest(profile, self.URL, lambda u: b'not a png' * 30), '')
+            self.assertEqual(sl.crest(profile, self.URL, lambda u: self.PNG + b'0' * 500000), '')   # too big
+            self.assertEqual(sl.crest(profile, '', lambda u: self.PNG), '')
+            def down(u):
+                raise OSError('offline')
+            self.assertEqual(sl.crest(profile, self.URL, down), '')
+        self.assertEqual(sl.crest('special://profile/', self.URL, lambda u: self.PNG), '')   # never writes beside the code
+
+    def test_several_crests_at_once(self):
+        import tempfile
+        other = 'https://a.espncdn.com/i/teamlogos/nfl/500/hou.png'
+        with tempfile.TemporaryDirectory() as profile:
+            found = sl.crests(profile, [self.URL, other, self.URL, '', 'https://example.com/y.png'], lambda u: self.PNG)
+            self.assertEqual(sorted(found), sorted([self.URL, other]))
+
+
 if __name__ == '__main__':
     unittest.main()

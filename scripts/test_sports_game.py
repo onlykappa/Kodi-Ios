@@ -127,6 +127,12 @@ class Hero(unittest.TestCase):
         self.assertEqual((props['info.title'],props['info.sub']),('NFL · Week 11','Today at 8:55 PM'))
         self.assertEqual(game_page.model(self.game(),NOW,0)[0]['info.title'],'NFL')   # no week, no "· Week"
 
+    def test_crests_come_from_the_phones_own_copies(self):
+        game=self.game();game['away']['crest']='https://a.espncdn.com/i/teamlogos/nfl/500/ind.png'
+        self.assertEqual(game_page.model(game,NOW,0)[0]['away.crest'],game['away']['crest'])   # no mapping given: the address as it is
+        self.assertEqual(game_page.model(game,NOW,0,crests={})[0]['away.crest'],'')             # not downloaded yet: the ring with the code shows
+        self.assertEqual(game_page.model(game,NOW,0,crests={game['away']['crest']:'/p/c.png'})[0]['away.crest'],'/p/c.png')
+
     def test_a_colour_that_is_not_hex_is_ignored(self):
         game=self.game();game['away']['color']='not-hex'
         self.assertEqual(game_page.model(game,NOW,0)[0]['away.tint'],game_page.NEUTRAL)
@@ -368,11 +374,11 @@ class RemindThenPlay(unittest.TestCase):
     def test_no_source_offers_a_reminder_then_says_it_is_on(self):
         import sports_reminders as sr
         props,_=game_page.model(self.game(False),NOW,0)
-        self.assertEqual((props['state'],props['remind.on'],props['remind.note'],props['play.best']),('empty','',"No source yet. [COLOR FFFFFFFF][B]We'll tell you[/B][/COLOR] when one is ready.",''))
+        self.assertEqual((props['state'],props['remind.on'],props['remind.note'],props['play.best']),('empty','',"No source yet. Tap Remind me for a notification when one is ready.",''))
         record={'on_source':True,'before':True}
         props,_=game_page.model(self.game(False),NOW,0,reminder=record)
         self.assertEqual(props['remind.on'],'true')
-        self.assertEqual(props['remind.note'],sr.summary(record))
+        self.assertEqual(props['remind.note'],'Reminders are set for this game.')   # plain words, no bold (owner)
 
     def test_a_source_names_the_best_one_under_play(self):
         props,found=game_page.model(self.game(True),NOW,0)

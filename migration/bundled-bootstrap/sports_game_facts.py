@@ -17,7 +17,7 @@ import sports_reminders as sr
 BACK_KEYS = (9,10,92,110)
 
 
-def info_props(game, info, view, now, offset, tab='info'):
+def info_props(game, info, view, now, offset, tab='info', crests=None):
     """The Info section's properties (board D3 / D4): empty strings hide a part."""
     props = {'info.kickoff':'','info.venue':'','info.place':'','st.title':'','st.switch':'','st.n':'','matchup':sm.versus(game) if game else ''}
     for n in range(2):
@@ -44,7 +44,7 @@ def info_props(game, info, view, now, offset, tab='info'):
         for i,label in enumerate(shown['cols']):props['st.h%d' % i] = label
         rows = shown['rows'][:page.ST_ROWS]
         for n,row in enumerate(rows):
-            props.update({'st.%d.rank' % n:row['rank'],'st.%d.team' % n:row['team'],'st.%d.crest' % n:row['crest'],
+            props.update({'st.%d.rank' % n:row['rank'],'st.%d.team' % n:row['team'],'st.%d.crest' % n:row['crest'] if crests is None else crests.get(row['crest'],''),
                           'st.%d.me' % n:'true' if row['me'] else '',
                           'st.%d.pos' % n:'last' if n==len(rows)-1 else 'mid'})
             for i,value in enumerate(row['cols']):props['st.%d.c%d' % (n,i)] = value
@@ -70,15 +70,31 @@ def run(game, clock=time.time):
             self.info = None
             self.view = 0
             self.tab = 'info'
+            self.crests = {}
             self.draw()
             threading.Thread(target=self.load,daemon=True).start()
+            threading.Thread(target=self.load_crests,daemon=True).start()
 
         def draw(self):
             now = clock()
             offset = sm.device_offset(now)
-            props,_ = game_page.model(game,now,offset,'ready',False,sr.get(profile,game['id']),now)
-            props.update(info_props(game,self.info,self.view,now,offset,self.tab))
+            props,_ = game_page.model(game,now,offset,'ready',False,sr.get(profile,game['id']),now,self.crests)
+            props.update(info_props(game,self.info,self.view,now,offset,self.tab,self.crests))
             for key,value in props.items():self.setProperty(key,value)
+
+        def load_crests(self,table=True):
+            """Real crests for the hero (now) and the standings rows (once the table is known): downloaded once, kept on the phone."""
+            try:
+                import sports_logos
+                urls = [game[side].get('crest','') for side in ('away','home')]
+                if table and self.info and self.info.get('standings'):
+                    urls += [r['crest'] for v in self.info['standings']['views'] for r in v['rows']]
+                found = sports_logos.crests(profile,urls)
+                with self.lock:
+                    if found and not self.stop.is_set():
+                        self.crests.update(found)
+                        self.draw()
+            except Exception as error:log('sports: crests: %s' % type(error).__name__)
 
         def load(self):
             try:facts = info_mod.build(game)
@@ -89,6 +105,7 @@ def run(game, clock=time.time):
                 if self.stop.is_set():return
                 self.info = facts
                 self.draw()
+            self.load_crests()
 
         def onClick(self,ident):
             if ident==page.BACK:self.finish()

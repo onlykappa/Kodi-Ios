@@ -74,3 +74,46 @@ def fetch(profile, code, get=download):
 def paths(profile, codes, get=download):
     """{code: file or ''} for several leagues."""
     return {c: fetch(profile, c, get) for c in codes}
+
+
+# --- team crests (the game page's hero and the standings): the same rule as the league logos, one file per address -----------------
+CREST_HOST = 'https://a.espncdn.com/'
+
+
+def crest_file(profile, url):
+    """Where a team crest from `url` is kept."""
+    import hashlib
+    return os.path.join(folder(profile), 'crests', hashlib.sha1(str(url).encode()).hexdigest()[:20] + '.png')
+
+
+def crest(profile, url, get=download):
+    """The crest's file (downloaded once), or '' for no address, a host other than ESPN's image host, or a failed download."""
+    url = str(url or '')
+    if not os.path.isabs(str(profile)) or not url.startswith(CREST_HOST):
+        return ''
+    target = crest_file(profile, url)
+    if os.path.isfile(target) and os.path.getsize(target) > 100:
+        return target
+    try:
+        data = get(url)
+    except Exception:
+        return ''
+    if not data or len(data) > MAX_BYTES or not data.startswith(b'\x89PNG'):
+        return ''
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    tmp = target + '.tmp'
+    with open(tmp, 'wb') as handle:
+        handle.write(data)
+    os.replace(tmp, target)
+    return target
+
+
+def crests(profile, urls, get=download):
+    """{url: file} for the crests that could be had (several at once, so a table does not wait on them one by one)."""
+    from concurrent.futures import ThreadPoolExecutor
+    urls = [u for u in dict.fromkeys(urls) if u]
+    if not urls:
+        return {}
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        found = list(pool.map(lambda u: crest(profile, u, get), urls))
+    return {u: f for u, f in zip(urls, found) if f}

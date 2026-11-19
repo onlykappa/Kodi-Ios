@@ -179,8 +179,15 @@ def league_codes(games):
 
 
 # --- sample data (the approved boards) ---------------------------------------------------------------------------------
+_ESPN = 'https://a.espncdn.com/i/teamlogos/%s.png'
+SAMPLE_CRESTS = {   # real ESPN crest addresses for the sample teams, so the desktop rig shows logos (the app takes the address from the feed)
+    'ARS': _ESPN % 'soccer/500/359', 'CHE': _ESPN % 'soccer/500/363', 'RS': _ESPN % 'soccer/500/89', 'AC': _ESPN % 'soccer/500/93',
+    'BOS': _ESPN % 'nba/500/bos', 'DEN': _ESPN % 'nba/500/den', 'LAL': _ESPN % 'nba/500/lal', 'GSW': _ESPN % 'nba/500/gs',
+    'TOR': _ESPN % 'nhl/500/tor', 'MTL': _ESPN % 'nhl/500/mtl', 'KC': _ESPN % 'nfl/500/kc', 'BUF': _ESPN % 'nfl/500/buf'}
+
+
 def _team(code, name, score=None, color=''):
-    team = {'code': code, 'name': name, 'score': score, 'crest': ''}
+    team = {'code': code, 'name': name, 'score': score, 'crest': SAMPLE_CRESTS.get(code, '')}
     if color:   # a few sample teams carry the colour ESPN gives, so the game page's glow can be looked at in the rig
         team['color'] = color
     return team

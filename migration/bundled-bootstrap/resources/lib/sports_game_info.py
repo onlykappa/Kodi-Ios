@@ -142,8 +142,9 @@ def standings(body, team_ids):
 
 def sample():
     """The approved board D (Colts at Texans) for the desktop Kodi rig, with KODI_IOS_SPORTS=sample; never used in the app."""
+    crest = lambda abbr: 'https://a.espncdn.com/i/teamlogos/nfl/500/%s.png' % abbr
     def row(n, team, w, l, pct, me=False):
-        return {'rank': str(n), 'team': team, 'crest': '', 'cols': (w, l, '', pct), 'me': me, 'soccer': False}
+        return {'rank': str(n), 'team': team, 'crest': crest({'Texans': 'hou', 'Jaguars': 'jax', 'Titans': 'ten', 'Colts': 'ind', 'Bills': 'buf', 'Chiefs': 'kc'}.get(team, '')), 'cols': (w, l, '', pct), 'me': me, 'soccer': False}
     div = [row(1, 'Texans', '6', '3', '.667', True), row(2, 'Jaguars', '5', '4', '.556'), row(3, 'Titans', '3', '6', '.333'), row(4, 'Colts', '3', '7', '.300', True)]
     wild = [row(1, 'Bills', '8', '1', '.889'), row(2, 'Chiefs', '7', '2', '.778'), row(3, 'Texans', '6', '3', '.667', True), row(4, 'Jaguars', '5', '4', '.556')]
     return {'venue': 'NRG Stadium', 'place': 'Houston, TX',
