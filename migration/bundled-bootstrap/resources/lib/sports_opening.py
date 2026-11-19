@@ -36,6 +36,8 @@ class Opening:
         class Observer(xbmc.Player):
             def onAVStarted(self):
                 if parent.owner and parent.home.getProperty(OWNER)!=parent.owner:return
+                import sports_jet
+                sports_jet.log('sports: opening surface observed AV start %.3fs after dispatch'%(time.monotonic()-parent.began))
                 parent.started.set()
         self.observer=Observer()
         here=os.path.dirname(os.path.dirname(os.path.dirname(xbmcvfs.translatePath(__file__))))
