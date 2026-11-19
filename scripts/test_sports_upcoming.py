@@ -34,8 +34,8 @@ class Projection(unittest.TestCase):
         self.assertEqual(rows[1]['sources'],'No sources yet')
         self.assertEqual(codes,sm.league_codes(self.games))
         self.assertEqual(selected,'All')
-        self.assertEqual(props['chipline.1'],'true')
-        self.assertEqual(props['chip.5.line'],'1')
+        self.assertEqual(props['chipline.0'],'true')   # every chip is on the one row that scrolls sideways (no stranded second line)
+        self.assertEqual({props['chip.%d.line' % n] for n in range(len(codes))},{'0'})
 
     def test_filter_keeps_available_chips_and_uses_same_game_identity(self):
         props,rows,codes,selected=self.view(league='NBA')

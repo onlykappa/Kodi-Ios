@@ -6011,3 +6011,4 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 - **Time style (A1 and A2):** the time is "4:30" large and blue with "PM" under it, and "in 44 min" under that when the game is close; Upcoming uses the same rows (`sports_upcoming_page.game_row`, now shared).
 - **Tests:** test_sports_landing updated to the new properties plus a test for the Up next rows.
 - **Desktop Kodi rig (sample data):** live state and idle state (filter hides the live leagues) checked against the mockup. Not seen on a phone yet.
+- **Page 2 follow-up (owner):** the Upcoming league chips wrapped and left one chip alone on a second line. They are now one row that scrolls sideways (the screen edge cuts what does not fit), `CHIP_LINES = 1`; test_sports_upcoming updated. The Live Now page's chip grid is not in the owner's mockups and is unchanged.

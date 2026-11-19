@@ -6,7 +6,7 @@ import math
 WINDOW = 'IOSSportsUpcoming.xml'
 BACK, REFRESH, LIST, RETRY, LEAGUES = 9001, 9002, 9300, 9003, 9004
 CHIP, CHIPS, ROW, SLOTS = 40000, 16, 45000, 120
-CHIP_LINES = 4
+CHIP_LINES = 1   # one row that scrolls sideways (owner: no stranded second line)
 SCROLL_CLEAR = 720  # Board 11 leaves room below the final day as the header scrolls away.
 TITLE_LINE, DETAIL_H, PAD, MIN_ROW = 57, 56, 32, 194
 FORMS = range(1, 5)
@@ -68,7 +68,7 @@ def _chips(p):
                         '<animation effect="fade" start="100" end="70" time="0" condition="Control.HasFocus(%d)">Conditional</animation>%s</control>') % (width,key,size,key,line,ident,inside)
         rows += ('<control type="grouplist"><left>%d</left><width>%d</width><height>118</height>'
                  '<orientation>horizontal</orientation><itemgap>21</itemgap><usecontrolcoords>true</usecontrolcoords>'
-                 '<visible>String.IsEqual(Window().Property(chipline.%d),true)</visible>%s</control>') % (p.SIDE,p.WIDTH-2*p.SIDE,line,out)
+                 '<visible>String.IsEqual(Window().Property(chipline.%d),true)</visible>%s</control>') % (p.SIDE,p.WIDTH-p.SIDE,line,out)   # runs to the screen edge: the chips that do not fit are cut by the edge and scroll in
     return rows
 
 

@@ -33,8 +33,6 @@ def model(games, updated, now, offset, league='All', state='ready', logos=None):
         on = code == league
         size = 2 if code == 'All' else max(2,len(code))
         width = 126+(size-2)*24
-        if chipwidth and chipwidth+21+width > 972:
-            chipline,chipwidth = chipline+1,0
         if code:
             props['chipline.%d' % chipline] = 'true'
             chipwidth += width+(21 if chipwidth else 0)
