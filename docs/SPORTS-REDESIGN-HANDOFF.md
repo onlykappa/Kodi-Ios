@@ -18,3 +18,14 @@
 **Filter:** store the chosen leagues (default all on) in one small JSON in the add-on's data folder; one pure module (host-tested) turns the games and leagues lists into the filtered ones; all three pages and their counts read it. Chips on Upcoming show only the leagues that are on.
 
 **Rules:** read AGENTS.md, CLAUDE.md and `docs/design/APPLE-UI-POLICY.md`; every fix gets an ISSUE entry and a test in import-review.yml; run `check_project.py` and every test before each commit; check each board in the desktop rig (`scripts/kodi_rig.py`) next to the mockup with no cut-off text (DEC-050); keep rig screenshots out of Git; use one agent at a time; never merge a PR or publish an IPA without the owner's OK.
+
+## Game page and reminders (mockups made 2026-11-19, awaiting owner approval)
+
+`docs/design/sports-game-mockups.html` (board C): the page that opens when a game is tapped, from the owner's Apple Sports reference.
+- Both team crests (fetched at runtime from ESPN's image host, cached, never committed), the start time or the live score, one action:
+  **Remind me** (before a source exists) -> a sheet with two switches (when a source is ready; 15 minutes before it starts) ->
+  **Reminder on** -> when a source is found the phone sends a notification and the button becomes **Play** with "Best source: The Loop · 1080p · English"
+  and "Other sources (n)". Live games show the score and Play at once.
+- Owner's words: "Follow should ask to send a reminder to your phone, then when the link is available it will replace the remind with the play button
+  providing you with best source". Open question: name the button Follow or Remind me. Betting odds are left out; standings are optional.
+- The data is in `sports_game_page.py` / `sports_game.py` (window `IOSSportsGame.xml`); sources already carry quality, language and a best/good tag.

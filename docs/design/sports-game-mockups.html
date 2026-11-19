@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sports game page mockups</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt, tokens from
+     portrait.py / pages.py (§4.3), the style of sports-redesign-mockups.html. Owner's request (2026-11-19): remake the game page that opens
+     when you tap a game, from an Apple Sports reference. Follow asks to send a reminder to the phone; when a link is available the
+     reminder is replaced by Play with the best source. Team crests are fetched at runtime and never committed (this file shows neutral
+     ring tiles; the preview sent to the owner has the real crests). Sample teams, times and sources are made up. -->
+<style>
+:root{--bg:#000;--s1:#1c1c1e;--s2:#2c2c2e;--grey:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);--sep:rgba(235,235,245,.16);
+ --blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro,.board,.notes{max-width:1240px;margin:0 auto}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:900px;margin-bottom:8px}
+.board{margin-top:30px;padding-top:16px;border-top:1px solid #26272b}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board>p{color:var(--grey);font-size:14px;line-height:1.5;max-width:900px;margin-bottom:16px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.4;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:46px 14px 16px;font-size:14px}
+.glow{position:absolute;inset:0;background:radial-gradient(70% 38% at 18% 22%,rgba(26,60,140,.55),transparent 70%),radial-gradient(70% 38% at 84% 22%,rgba(150,30,40,.45),transparent 70%)}
+.glow.live{background:radial-gradient(70% 38% at 18% 22%,rgba(255,200,40,.28),transparent 70%),radial-gradient(70% 38% at 84% 22%,rgba(80,40,20,.5),transparent 70%)}
+.in{position:relative}
+.top{display:flex;justify-content:space-between;align-items:center;height:34px}
+.back{color:var(--blue-text);font-size:26px;line-height:1;width:34px}
+.lg{color:var(--grey);font-size:12px;font-weight:800;letter-spacing:.08em;text-align:center;margin-top:4px}
+.teams{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin-top:18px;gap:6px}
+.team{text-align:center}
+.crest{width:74px;height:74px;margin:0 auto 8px;display:grid;place-items:center}
+.crest img{width:74px;height:74px;object-fit:contain}
+.crest:empty::after{content:"";width:46px;height:46px;border-radius:50%;border:3px solid #5a5a5f}
+.team b{display:block;font-size:16px;font-weight:700}.team span{color:var(--grey);font-size:13px}
+.mid{text-align:center}.mid b{display:block;font-size:20px;font-weight:800}.mid span{color:var(--grey);font-size:12px}
+.mid.score b{font-size:30px;letter-spacing:.02em}.mid .livetag{display:inline-flex;gap:5px;align-items:center;color:var(--red);font-weight:800;font-size:11px;letter-spacing:.05em;margin-bottom:4px}
+.mid .livetag::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--red)}
+.act{margin:22px 0 0;display:flex;flex-direction:column;align-items:center;gap:9px}
+.cta{height:50px;min-width:210px;padding:0 26px;border-radius:25px;display:inline-flex;align-items:center;justify-content:center;gap:9px;font-weight:700;font-size:16px}
+.cta.p{background:#fff;color:#000}.cta.g{background:rgba(120,120,128,.36);color:#fff}
+.cta svg{width:18px;height:18px;fill:currentColor}
+.note{color:var(--grey);font-size:12.5px;text-align:center;line-height:1.4;max-width:270px}
+.note b{color:#fff;font-weight:600}
+.link{color:var(--blue-text);font-size:13.5px;font-weight:600}
+.sec{margin-top:20px}
+.sec h4{font-size:15px;font-weight:700;margin:0 4px 7px}
+.card{background:rgba(44,44,46,.82);border-radius:16px;overflow:hidden}
+.row{position:relative;display:flex;align-items:center;gap:11px;padding:11px 13px;min-height:50px}
+.row+.row::before{content:"";position:absolute;top:0;left:13px;right:0;height:1px;background:var(--sep)}
+.row .t{flex:1;min-width:0}.row .t b{display:block;font-size:14px;font-weight:600}.row .t span{color:var(--grey);font-size:12px}
+.row .v{color:var(--grey);font-size:13px;white-space:nowrap}
+.chip{font-size:10.5px;font-weight:800;border-radius:6px;padding:2px 6px;white-space:nowrap}
+.chip.best{background:rgba(48,209,88,.2);color:var(--green)}.chip.good{background:rgba(10,132,255,.2);color:var(--blue-text)}.chip.n{background:var(--s2);color:#fff}
+.go{color:var(--dim);font-size:17px;font-weight:600}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--s1);border-radius:26px 26px 0 0;padding:10px 14px 18px}
+.grab{width:38px;height:5px;border-radius:3px;background:#5a5a5f;margin:0 auto 10px}
+.sheet h5{font-size:19px;font-weight:800;text-align:center}
+.sheet .sub{color:var(--grey);font-size:12.5px;text-align:center;margin:3px 0 10px;line-height:1.35}
+.sw{flex:none;width:46px;height:28px;border-radius:14px;background:#39393d;position:relative}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:#fff}
+.sw.on{background:var(--green)}.sw.on::after{left:20px}
+.sheet .cta{width:100%;margin-top:12px}
+.cancel{text-align:center;color:var(--blue-text);font-weight:600;font-size:15px;margin-top:11px}
+.banner{position:absolute;left:10px;right:10px;top:40px;background:rgba(44,44,46,.96);border-radius:20px;padding:11px 13px;display:flex;gap:11px;align-items:center;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.banner .ic{width:36px;height:36px;border-radius:9px;background:var(--blue);flex:none;display:grid;place-items:center;font-size:18px}
+.banner b{display:block;font-size:13.5px}.banner span{color:var(--grey);font-size:12.5px;line-height:1.3}
+.notes{margin-top:30px;color:#b4b4ba;font-size:14px;line-height:1.55}.notes h3{color:#fff;font-size:16px;margin:16px 0 6px}.notes li{margin:3px 0 3px 18px}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="bell" viewBox="0 0 24 24"><path d="M12 2a6 6 0 0 0-6 6v3.6c0 .7-.2 1.4-.6 2L4 15.8c-.4.7.1 1.7 1 1.7h14c.9 0 1.4-1 1-1.7l-1.4-2.2a3.7 3.7 0 0 1-.6-2V8a6 6 0 0 0-6-6Zm-2.2 17a2.3 2.3 0 0 0 4.4 0H9.8Z"/></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="M7 4.6v14.8c0 .8.9 1.3 1.6.8l11-7.4a1 1 0 0 0 0-1.6l-11-7.4c-.7-.5-1.6 0-1.6.8Z"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><path d="M9.5 17.3 4.7 12.5l1.4-1.4 3.4 3.4 8.4-8.4 1.4 1.4-9.8 9.8Z"/></symbol>
+</defs></svg>
+<div class="intro"><span class="mk">MOCKUP · not a Kodi render</span>
+<h1>Sports: the game page</h1>
+<p>Owner request: when you tap a game, show a page like Apple Sports (both team crests, the time or score, one clear action), and make
+<b>Follow</b> useful: it asks to send a reminder to this phone, and when a link is available the reminder is replaced by a
+<b>Play</b> button that uses the best source.</p>
+<p>Real team crests are fetched on the phone and never committed; this file shows neutral rings, and the preview sent to the owner has
+the real crests. Sample teams, times and sources are made up. Betting odds from the reference are not included.</p></div>
+
+<div class="board"><div class="n">BOARD C · THE GAME PAGE, FROM "NO SOURCE" TO PLAY</div><h2>Remind me, then Play</h2>
+<p>One page, four states on one button. Before a source exists the button is <b>Remind me</b>. Tapping it asks what to be reminded about.
+Once on, the button says <b>Reminder on</b>. When a source is found, the phone sends a notification and the button becomes
+<b>Play</b> with the best source named under it.</p>
+<div class="shots">
+
+<div class="slot"><div class="pframe"><div class="ps"><div class="glow"></div><div class="in">
+<div class="top"><span class="back">‹</span></div>
+<div class="lg">NFL</div>
+<div class="teams"><div class="team"><div class="crest" data-t="ind"></div><b>Colts</b><span>3-7</span></div>
+ <div class="mid"><b>5:15 PM</b><span>Today · in 2 h 10 min</span></div>
+ <div class="team"><div class="crest" data-t="hou"></div><b>Texans</b><span>3-6</span></div></div>
+<div class="act"><span class="cta p"><svg><use href="#bell"/></svg>Remind me</span>
+ <div class="note">No source yet. <b>We'll tell you</b> when one is ready.</div></div>
+<div class="sec"><h4>Sources</h4><div class="card"><div class="row"><div class="t"><b>None yet</b><span>Checked 2 minutes ago</span></div><span class="link">Check now</span></div></div></div>
+<div class="sec"><h4>Game info</h4><div class="card"><div class="row"><div class="t"><b>NFL · Week 11</b><span>Today at 5:15 PM</span></div></div></div></div>
+</div></div></div><p class="cap"><b>C1 · Before a source exists.</b> A white primary capsule, as the app uses for the one main action. The line under it says what happens next.</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps"><div class="glow"></div><div class="in">
+<div class="top"><span class="back">‹</span></div>
+<div class="lg">NFL</div>
+<div class="teams"><div class="team"><div class="crest" data-t="ind"></div><b>Colts</b><span>3-7</span></div>
+ <div class="mid"><b>5:15 PM</b><span>Today · in 2 h 10 min</span></div>
+ <div class="team"><div class="crest" data-t="hou"></div><b>Texans</b><span>3-6</span></div></div>
+<div class="act"><span class="cta p"><svg><use href="#bell"/></svg>Remind me</span></div></div>
+<div class="dim"></div>
+<div class="sheet"><div class="grab"></div><h5>Remind me about Colts at Texans</h5>
+ <div class="sub">A notification on this phone. It opens this game.</div>
+ <div class="card"><div class="row"><div class="t"><b>When a source is ready</b><span>Then Play appears here</span></div><span class="sw on"></span></div>
+  <div class="row"><div class="t"><b>15 minutes before it starts</b><span>Today at 5:00 PM</span></div><span class="sw on"></span></div></div>
+ <span class="cta p"><svg><use href="#bell"/></svg>Turn on reminder</span><div class="cancel">Cancel</div></div>
+</div></div><p class="cap"><b>C2 · Remind me asks first.</b> Two switches, both on to start. The sheet says where the reminder goes and what it opens.</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps"><div class="glow"></div><div class="in">
+<div class="top"><span class="back">‹</span></div>
+<div class="lg">NFL</div>
+<div class="teams"><div class="team"><div class="crest" data-t="ind"></div><b>Colts</b><span>3-7</span></div>
+ <div class="mid"><b>5:15 PM</b><span>Today · in 2 h 10 min</span></div>
+ <div class="team"><div class="crest" data-t="hou"></div><b>Texans</b><span>3-6</span></div></div>
+<div class="act"><span class="cta g"><svg><use href="#check"/></svg>Reminder on</span>
+ <div class="note">We'll notify you when a source is ready, and 15 minutes before it starts.</div>
+ <span class="link">Change reminder</span></div>
+<div class="sec"><h4>Sources</h4><div class="card"><div class="row"><div class="t"><b>None yet</b><span>Checked just now</span></div><span class="link">Check now</span></div></div></div></div>
+</div></div><p class="cap"><b>C3 · Reminder is on.</b> The button turns into a quiet, grey capsule with a check, and it can be changed. Tapping it again opens the same sheet.</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps"><div class="glow"></div><div class="in">
+<div class="banner"><div class="ic">▶</div><div><b>Colts at Texans</b><span>A source is ready. Tap to play.</span></div></div>
+<div class="top"><span class="back">‹</span></div>
+<div class="lg">NFL</div>
+<div class="teams"><div class="team"><div class="crest" data-t="ind"></div><b>Colts</b><span>3-7</span></div>
+ <div class="mid"><b>5:15 PM</b><span>Today · in 14 min</span></div>
+ <div class="team"><div class="crest" data-t="hou"></div><b>Texans</b><span>3-6</span></div></div>
+<div class="act"><span class="cta p"><svg><use href="#play"/></svg>Play</span>
+ <div class="note"><b>Best source:</b> The Loop · 1080p · English</div>
+ <span class="link">Other sources (3)</span></div>
+<div class="sec"><h4>Sources</h4><div class="card">
+ <div class="row"><div class="t"><b>The Loop</b><span>1080p · English</span></div><span class="chip best">BEST</span></div>
+ <div class="row"><div class="t"><b>Loop Guide</b><span>720p · English</span></div><span class="chip good">GOOD</span></div></div></div></div>
+</div></div><p class="cap"><b>C4 · A source is found.</b> The phone sends the notification; the reminder is replaced by <b>Play</b>, with the best source named and the others one tap away. Tap Play and the game opens at once.</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps"><div class="glow live"></div><div class="in">
+<div class="top"><span class="back">‹</span></div>
+<div class="lg">NFL</div>
+<div class="teams"><div class="team"><div class="crest" data-t="pit"></div><b>Steelers</b><span>6-3</span></div>
+ <div class="mid score"><span class="livetag">LIVE</span><b>17 – 14</b><span>Q3 · 8:41</span></div>
+ <div class="team"><div class="crest" data-t="cle"></div><b>Browns</b><span>4-5</span></div></div>
+<div class="act"><span class="cta p"><svg><use href="#play"/></svg>Play</span>
+ <div class="note"><b>Best source:</b> The Loop · 1080p · English</div>
+ <span class="link">Other sources (3)</span></div>
+<div class="sec"><h4>Sources</h4><div class="card">
+ <div class="row"><div class="t"><b>The Loop</b><span>1080p · English</span></div><span class="chip best">BEST</span></div>
+ <div class="row"><div class="t"><b>Loop Guide</b><span>720p · English</span></div><span class="chip good">GOOD</span></div>
+ <div class="row"><div class="t"><b>Sports Hub</b><span>720p · Spanish</span></div><span class="chip n">ES</span></div></div></div></div>
+</div></div><p class="cap"><b>C5 · A live game.</b> The score and clock replace the start time. The button is Play straight away, with the same best-source line.</p></div>
+
+</div></div>
+
+<div class="notes"><h3>What is reused</h3><ul>
+<li>The app's white primary capsule, the grey secondary capsule, the grouped rows, the green switches, the choice-sheet look and the BEST / GOOD source chips (the Sports sources already carry a quality, a language and a best/good tag). No new colour, font size or control.</li>
+<li>The team crests and league logos come from ESPN's image host at runtime and stay on the phone, never in Git (UI policy §5.4). A team without a crest shows a plain ring.</li></ul>
+<h3>Decisions for you</h3><ul>
+<li><b>Name the button "Follow" or "Remind me"?</b> Your note says Follow; "Remind me" says what it does. The mockup uses Remind me.</li>
+<li><b>Betting odds and standings</b> from the reference are left out. Say if you want standings (a "Standings" card under Sources).</li>
+<li><b>The reminder</b> is a notification on this phone while the app is closed; iOS can delay it, so it works best with notifications allowed for Kodi.</li></ul>
+<h3>After approval</h3><ul>
+<li>Code the page and the reminder sheet, store reminders, check for new sources on a schedule and send the notification, add tests, check each board in the desktop Kodi rig next to this file, then the phone.</li></ul></div>
+</body></html>
