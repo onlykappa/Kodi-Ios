@@ -1086,3 +1086,5 @@ Sports source checking and ranking (owner 2026-11-20, ISSUE-407/408, branch clau
 Build 617 log fixes (owner 2026-11-20, ISSUE-409/410, branch claude/library-playback-fixes, no IPA yet): a downloaded subtitle stays on when the menu reopens and is offered for English (embedded empty tracks are hidden); the playback cache follows several stretches of the file so seeking back and forth stops thrashing. ISSUE-411 (screen turning on exit) needs a native Kodi build: proposal recorded, not applied.
 
 Scroll smoothness (owner 2026-11-20, ISSUE-412, branch claude/library-playback-fixes, no IPA yet): Upcoming opens a 30-row window unless the list is longer, Leagues has 36 slots instead of 80, and a scroll probe logs the frame rate per window while touched. Favourites as a native grid is the next step once the phone numbers are in.
+
+Umbrella open speed (owner 2026-11-20, ISSUE-413, branch claude/library-playback-fixes): the version page lists sources that opened fast on this phone first and remembers which never opened; the stream-opening log says whether the origin answered. Home staying loaded behind a video was checked and left alone.

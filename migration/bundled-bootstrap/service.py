@@ -309,6 +309,14 @@ def run():
  threading.Thread(target=loop_quiet_loop,daemon=True).start()
  # Roadmap 1C.1: "open timing" log line per video (tap to picture).
  import open_timing
+ # Owner, 2026-11-20 (a stream took 20 s to open): remember how fast each Umbrella source opened, so the version page lists the fast ones first.
+ import source_speed
+ _speed=source_speed.open_store()
+ def _credit(ok,via):
+  if via!='umbrella':return
+  done=source_speed.settle(xbmcgui.Window(10000),_speed,ok)
+  if done:xbmc.log('Kodi iOS Umbrella source %s: %s'%(done[0],'opened in %.1f s from the choice to the streams being ready'%done[1] if done[1] is not None else 'did not open'),xbmc.LOGINFO)
+ open_timing.LISTENERS.append(_credit)
  import cache_tune   # roadmap 1B.3: Kodi's cache read factor follows Wi-Fi / cellular, set as a video is about to open
  threading.Thread(target=open_timing.watch,args=(xbmcgui.Window(10000),lambda:xbmc.getCondVisibility('Player.HasVideo + Player.Playing'),
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),

@@ -122,6 +122,10 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
   except (ImportError,RuntimeError,OSError,ValueError):pass
  if not playable_items:
   return None if verify_list(results,exp,sm,ask) else (None,'')
+ try:   # the sources that opened fast on this phone before come first inside their quality; unknown ones keep Umbrella's order
+  import source_speed
+  playable_items=source_speed.open_store().order(playable_items,lambda item:'CACHED' in str(item.get('source') or '').upper())
+ except Exception:pass
  deck=deck or load()
  share(meta)
  title=(meta or {}).get('tvshowtitle') or (meta or {}).get('title') or ''
@@ -134,6 +138,10 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
   return None if verify_list(results,exp,sm,ask) else (None,'')
  if choice<0:return (None,'')
  item=playable_items[choice][1]
+ try:
+  import source_speed,xbmcgui as _g
+  source_speed.picked(_g.Window(10000),item)
+ except Exception:pass
  if make_item is None:
   import xbmcgui
   make_item=xbmcgui.ListItem
