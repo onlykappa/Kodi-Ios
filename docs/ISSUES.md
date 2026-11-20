@@ -5961,6 +5961,8 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 
 ## ISSUE-392 — Build600 receiver seek repeats an empty MP4 audio window (2026-11-19)
 
+- **Diagnostic candidate:** bounded packet-window summaries now record selected audio stream/timebase, requested window, packet timestamps, filter/write counts and scan exit, correlated with request/session IDs, cache state, lane wait and reader reuse. No URLs, headers or packet payloads are added. A deliberately absent-audio fixture verifies empty-window reporting followed by successful later audio on the same reader; this is not reproduction of the owner's source. Native run44640470233 is the final validation gate. Earlier run44639179231 passed3810/3811 checks; its retry-log assertion used an8192-byte partial drain, now enlarged without weakening the assertion. Owner authorized diagnostic framework/IPA publication; phone root cause remains unresolved.
+
 - **Seen:** owner reports downloaded short/long seek failures. MP4 attempt requests video178 successfully, but audio178 repeatedly returns HTTP500/empty segment,2scanned packets,0ms source I/O, without cancellation/deadline expiry; receiver/app eventually fail.
 - **Cause:** unresolved; inspect independent audio reader reuse, seek/window timestamps and out-of-order requests. Do not equate packets scanned with packets muxed or infer corrupt media. Container/order align with the downloaded report but do not independently prove origin.
 - **Fix:** none yet. Prioritize deterministic reproduction of0→9→132→171→178 including audio1 contention; see docs/AIRPLAY-BUILD600-ROADMAP.md.

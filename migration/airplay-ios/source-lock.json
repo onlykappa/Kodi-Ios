@@ -1,16 +1,16 @@
 {
   "framework_release": {
+    "tag": "kodi-airplay-r68",
+    "asset": "KodiAirPlay.framework.zip",
+    "sha256": "afd7ef59f739d80aad0db793f3601907cf271af03d8179f550a8b36abe05d6c1"
+  },
+  "previous": {
     "tag": "kodi-airplay-r67",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "d7bb7cc432771bf4aa54244670e1396369df65e4bf03d75555f17f460d48f552"
   },
-  "previous": {
-    "tag": "kodi-airplay-r66",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "bab8cbcf6549eff5c1c57e18327a08aaa696b6c82d1d4445895d560184ed16e8"
-  },
-  "source_commit": "2fde08240858c4d80f2f282c3e2cd9bf4dbfdbef",
-  "pin_note": "r67: bounded retry after failed seek video/audio fetch (ISSUE-391). Candidate 44612304285 passed native host tests and iPhone framework compilation for2fde082. Inspection44617321795 verified archive, IOS14.0/SDK26.2 and required exports; binary SHA256c874d74a315f42a067bd02e6e50439baf269fb87429780c203d971f088571cbd. Published exact candidate via44617373885. Owner authorized one testing IPA; phone acceptance and user-pause intent remain unproven.",
-  "verified_run": 44612304285,
-  "verified_host_run": 44612304285
+  "source_commit": "9e65561f98b1c89589735f8a81babd43e2027ed8",
+  "pin_note": "r68 diagnostic candidate for ISSUE-392/393: correlated request timing, cache state and audio packet-window/reader diagnostics. Native host and end-to-end tests plus iPhone compilation passed44640470233. Inspection44642746618 verified IOS14.0/SDK26.2 and required exports; binary SHA2564656acbb04c1702798d0ac9b254220613fb8c7b65ec4a4e5d109e1c8b84ea883. Owner authorized diagnostic framework and testing IPA. This adds evidence, not a proven fix for the phone's empty-audio/slow-seek failure.",
+  "verified_run": 44640470233,
+  "verified_host_run": 44640470233
 }
