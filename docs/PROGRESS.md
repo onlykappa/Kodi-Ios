@@ -1,5 +1,9 @@
 # Persistent progress
 
+## r68 diagnostic publication / IPA602 — 2026-11-20
+
+Native candidate9e65561 passed full host, end-to-end and iPhone framework workflow44640470233. Inspection44642746618 verified IOS14.0/SDK26.2, required exports, archive afd7ef59f739d80aad0db793f3601907cf271af03d8179f550a8b36abe05d6c1 and binary4656acbb04c1702798d0ac9b254220613fb8c7b65ec4a4e5d109e1c8b84ea883. Published exact r68 via44642895770; local release download matches archive hash. Owner-authorized IPA602 workflow44642982544 builds source2896dfd with r68 pinned; completion and packaged binary verification pending. This diagnostic release does not establish a fix for the owner's seek failures. PR50 stays draft.
+
 ## Diagnostic framework validation — 2026-11-19
 
 Native run44639179231 compiled the iPhone framework but passed3810/3811 host checks. The earlier three request-history retention failures are resolved. The remaining retry-evidence assertion reads only8192 bytes from the expanded bounded log and can miss later retry lines. Its drain buffer now matches the full-history test (1MiB); the assertion remains unchanged. Retest is required before framework publication and the owner-authorized diagnostic IPA. This does not fix or prove the phone's seek failure.
