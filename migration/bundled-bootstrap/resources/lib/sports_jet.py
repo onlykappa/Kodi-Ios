@@ -885,7 +885,7 @@ def play_request(source, logger=log, window=None, launch=None):
     import sports_crew_context
     sports_crew_context.cancel_current(home)
     payload = {'play': source.get('play'), 'alts': source.get('alts') or [], 'id': source.get('id'),
-               'native_queue': source.get('native_queue') or [], 'native_owner': key}
+               'native_queue': source.get('native_queue') or [], 'native_owner': key, 'native_pinned': bool(source.get('native_pinned'))}
     home.setProperty(PLAY + key, json.dumps(payload, separators=(',', ':')))
     logger('sports: play %s from %s (%s, %s)' % (source.get('id'), source.get('addon'), source.get('quality'), source.get('language')))
     (launch or _launch)('sports_jet_run', 'play', key)
@@ -964,7 +964,8 @@ def play(source, logger=log):
     if source.get('native_queue'):
         import sports_loop_router
         try:
-            return sports_loop_router.play(source['native_queue'], logger, owner=source.get('native_owner'), keep_owner_on_failure=bool(source.get('alts')))
+            return sports_loop_router.play(source['native_queue'], logger, owner=source.get('native_owner'), keep_owner_on_failure=bool(source.get('alts')),
+                                           pinned=bool(source.get('native_pinned')))
         except InterruptedError:
             return False  # user stop/shutdown must not start a different provider
         except Exception as error:

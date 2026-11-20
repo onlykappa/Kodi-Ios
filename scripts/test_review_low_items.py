@@ -17,8 +17,13 @@ class LowItems(unittest.TestCase):
         self.assertEqual(player_osd.CONTINUE_STAMP, portrait.CONTINUE_STAMP)
         import xml.etree.ElementTree as ET
         root = ET.fromstring(player_osd.window().split('\n', 2)[2])  # a bare & would not parse
-        content = [c.text for c in root.iter('content') if 'ios_osd_continue_path' in (c.text or '')][0]
-        self.assertTrue(content.endswith(portrait.CONTINUE_STAMP))
+        content = [c.text for c in root.iter('content') if 'Portrait_Osd_Continue' in (c.text or '')][0]
+        self.assertEqual(content, '$VAR[Portrait_Osd_Continue]')
+        # build 615 log: the stamp was appended to an empty path, so Kodi asked for the folder "&stamp=" each time the player opened
+        variable = re.search(r'<variable name="Portrait_Osd_Continue">(.*?)</variable>', portrait.VARIABLES).group(1)
+        self.assertIn('condition="!String.IsEmpty(Skin.String(ios_osd_continue_path))"', variable)
+        self.assertIn('stamp=$INFO[Window(Home).Property(KodiIOS.ContinueStamp)]', variable)
+        self.assertTrue(variable.endswith('<value></value>'))
 
     def test_no_pill_strings_or_rig_checks_are_left(self):
         po = (BOOT / 'resources/language/resource.language.en_gb/strings.po').read_text()

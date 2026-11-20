@@ -265,8 +265,11 @@ def run(game, provider=None, clock=time.time, search=False):
                     self.start_play(sports_loop_router.automatic_source(sources))
             elif page.SOURCE<=ident<page.SOURCE+page.SLOTS*len(page.FORMS):
                 n=(ident-page.SOURCE)//len(page.FORMS)
-                with self.lock:source=self.sources[n] if n<len(self.sources) else None
-                if source is not None:self.start_play(source)
+                with self.lock:source=self.sources[n] if n<len(self.sources) else None;every=list(self.sources)
+                if source is not None:
+                    import sports_loop_router
+                    # A tap opens that source and, if it is dead or freezes, goes on to the game's other sources by itself (owner, 2026-11-20).
+                    self.start_play(sports_loop_router.tapped_source(source,every))
 
         def start_play(self,source):
             self.setProperty('play.error','')
