@@ -39,40 +39,39 @@ def also_text(names):
 
 def _empty_game(g):
     props = {}
-    for k in ('id', 'league', 'clock', 'pos', 'n'):
+    for k in ('id', 'league', 'clock', 'score'):
         props['g.%d.%s' % (g, k)] = ''
     for t in 'ah':
-        for k in ('code', 'name', 'score', 'lead', 'crest'):
+        for k in ('name', 'crest'):
             props['g.%d.%s.%s' % (g, t, k)] = ''
-    for s in range(1, lp.SOURCES + 1):
-        for k in ('addon', 'mono', 'detail', 'also', 'tag', 'pos'):
-            props['g.%d.s.%d.%s' % (g, s, k)] = ''
     return props
 
 
 def game_props(g, game):
-    """The properties of card number g (1-based) for a game of the contract."""
+    """The properties of card number g (1-based) for a game of the contract: what the big card draws (option B, owner 2026-11-20)."""
     props = _empty_game(g)
-    sources = (game.get('sources') or [])[:lp.SOURCES]
+    away, home = game['away'], game['home']
     props['g.%d.league' % g] = game.get('league') or ''
     props['g.%d.clock' % g] = sm.live_clock(game, time.time()) if game.get('state') == 'live' else game.get('clock') or ''
     props['g.%d.id' % g] = game.get('id') or ''
-    props['g.%d.pos' % g] = 'first' if sources or game.get('id') else 'only'
-    props['g.%d.n' % g] = str(len(sources))
-    away, home = game['away'], game['home']
     for t, team in (('a', away), ('h', home)):
-        score = team.get('score')
-        props.update({'g.%d.%s.code' % (g, t): team.get('code') or '', 'g.%d.%s.name' % (g, t): team.get('name') or '',
-                      'g.%d.%s.score' % (g, t): '' if score is None else str(score), 'g.%d.%s.crest' % (g, t): team.get('crest') or ''})
+        props.update({'g.%d.%s.name' % (g, t): team.get('name') or '', 'g.%d.%s.crest' % (g, t): team.get('crest') or ''})
     a, h = away.get('score'), home.get('score')
-    if a is not None and h is not None and a != h:
-        props['g.%d.%s.lead' % (g, 'a' if a > h else 'h')] = 'true'
-    for s, src in enumerate(sources, 1):
-        k = 'g.%d.s.%d.' % (g, s)
-        props.update({k + 'addon': src.get('addon') or '', k + 'mono': mono(src.get('addon')),
-                      k + 'detail': ' · '.join(x for x in (src.get('quality'), src.get('language')) if x),
-                      k + 'also': also_text(src.get('also')), k + 'tag': src.get('tag') or '',
-                      k + 'pos': 'last' if s == len(sources) else 'mid'})
+    props['g.%d.score' % g] = '%s – %s' % (a, h) if a is not None and h is not None else ''   # the big score in the middle of the card
+    return props
+
+
+def with_crests(props, profile, get=None):
+    """The cards' team crests as the phone's own copies (sports_logos.crests): a team whose logo cannot be had shows an empty ring, never letters.
+    `get` is the download (tests replace it); outside Kodi, with no profile folder, the crest addresses are dropped (nothing is drawn for them)."""
+    import sports_logos
+    urls = [props.get('g.%d.%s.crest' % (g, t)) or '' for g in range(1, lp.GAMES + 1) for t in 'ah']
+    found = sports_logos.crests(profile, urls, get) if get is not None else sports_logos.crests(profile, urls)
+    for g in range(1, lp.GAMES + 1):
+        for t in 'ah':
+            key = 'g.%d.%s.crest' % (g, t)
+            if key in props:
+                props[key] = found.get(props[key], '')
     return props
 
 
@@ -159,6 +158,8 @@ def control_target(control):
             return ('source', local // 10 + 1, local % 10 + 1)
     if lp.SEARCH0 <= control < lp.SEARCH0 + lp.GAMES:
         return ('search', control - lp.SEARCH0 + 1)
+    if lp.CARD0 <= control < lp.CARD0 + lp.GAMES:   # a tap on a game's team area opens its page (sources are looked for on open)
+        return ('search', control - lp.CARD0 + 1)
     return None
 
 
@@ -255,6 +256,11 @@ def run(args=()):
                 with self.busy:
                     try:
                         props, chosen, slots = load(sports_provider.get(), self.chosen, refresh=refresh)
+                        try:
+                            import xbmcvfs
+                            props = with_crests(props, xbmcvfs.translatePath('special://profile/'))   # real logos, kept on the phone
+                        except Exception as error:
+                            log('live crests (%s)' % type(error).__name__)
                     except Exception as error:   # the page must never stay on "Updating"
                         log('live now could not load (%s)' % type(error).__name__)
                         props, chosen, slots = dict(ERROR), self.chosen, {}

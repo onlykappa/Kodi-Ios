@@ -16,6 +16,9 @@ import sports_game as game_page
 import sports_game_page as page
 import sports_model as sm
 import sports_upcoming
+import http.client  # noqa: F401  loaded before any test patches sys.modules (Python 3.14: a patched-away http leaves portrait's xml import without http.client)
+import urllib.request  # noqa: F401
+import portrait  # noqa: F401
 
 NOW=1794768300
 
@@ -343,7 +346,7 @@ class Controller(unittest.TestCase):
         provider=sm.Sample(now=NOW);game=provider.game('epl-1');clock=lambda:NOW
         with patch.object(game_page,'run') as run:
             sports_upcoming.open_game(game,lambda s:None,provider,clock)
-        run.assert_called_once_with(game,provider=provider,clock=clock)
+        run.assert_called_once_with(game,provider=provider,clock=clock,search=True)   # opening a game looks for its sources
 
     def test_reentering_keeps_the_existing_worker_and_game(self):
         provider=sm.Sample(now=NOW);calls=[]

@@ -280,12 +280,17 @@ class Provider(unittest.TestCase):
         self.assertEqual(started, [1])
 
     def test_pages_get_it_when_nothing_is_forced(self):
-        import sports_jet
+        # Owner, 2026-11-20: ESPN supplies every list, time, score and league; Crew is asked only for one game's sources (sports_hybrid.py).
+        import sports_espn
+        import sports_hybrid
         os.environ.pop('KODI_IOS_SPORTS', None)
         sp.reset()
         try:
-            self.assertIsInstance(__import__('sports_filter').unwrap(sp.get()), sports_jet.JetProvider)   # DEC-061: the real provider is JetExtractors
-            with patch.object(sports_jet, 'import_jet', return_value=(None, 'not installed')):   # no add-on in the tests
+            provider = __import__('sports_filter').unwrap(sp.get())
+            self.assertIsInstance(provider, sports_hybrid.HybridProvider)
+            self.assertIsInstance(provider.espn, sports_espn.EspnProvider)
+            self.assertEqual(provider.espn.ttl, sports_hybrid.TTL)
+            with patch.object(sports_espn, 'fetch_json', side_effect=OSError('offline')):   # no network in the tests
                 with self.assertRaises(sm.SportsUnavailable):
                     sp.get().overview()
         finally:

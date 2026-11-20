@@ -7,11 +7,13 @@ import sports_loop_routes as common
 ADDON = 'plugin.video.thecrew'
 NAME = 'TheCrewRoute'
 # Only sports menus, never movie/TV/replay/account routes during discovery.
-ACTIONS = {'nfl', 'nhl', 'nba', 'mlb', 'ncaa', 'ncaab', 'fifa', 'fullsites'}
+ACTIONS = {'nfl', 'nhl', 'nba', 'mlb', 'ncaa', 'ncaab', 'fifa', 'fullsites',
+           'ufc', 'f1', 'pga'}   # Crew's own UFC, Formula 1 and PGA menus (3.2.2 has them): scanned for sources too (owner, 2026-11-20)
 MAX_FOLDERS = 24
 MAX_DEPTH = 3
 SCAN_BUSY = 'KodiIOS.SportsCrewListing'
 OWNER = 'KodiIOS.SportsNativeOwner'
+ONLY_LEAGUE = 'KodiIOS.SportsCrewOnlyLeague'   # set while one game's page searches: only that league's Crew menu is read (owner, 2026-11-20)
 
 
 def _home():
@@ -196,6 +198,7 @@ class CrewSource:
         began = time.monotonic()
         pending, visited, emitted, items = [(self.route, 0, None, [{'address':self.route, 'label':self.name}])], set(), set(), []
         failures = 0
+        unmatched = [0]   # event-looking titles (two teams) Crew showed that matched no game: counted, never named
         import sports_crew_context
         home = _home()
         def active():
@@ -245,6 +248,7 @@ class CrewSource:
                     continue
                 pair = common.title_pair(title)
                 game = match_game(title, self.games) if pair else parent_game
+                if pair and not game and not entry.get('filetype') == 'directory':unmatched[0] += 1
                 if entry.get('filetype') == 'directory':
                     # Do not walk a different/ambiguous game under an inherited match.
                     if depth < MAX_DEPTH and (not pair or game):
@@ -261,6 +265,7 @@ class CrewSource:
                              starttime=datetime.fromtimestamp(game['start']), links=[CrewLink(address, menu_path, game)]))
             yield list(items)
         import sports_jet
+        sports_jet.log('jet: %s: %d event-looking titles matched no live game' % (self.name, unmatched[0]))
         sports_jet.log('jet: %s: %d folders, %d unavailable, %d matched streams in %.2fs' % (self.name, len(visited), failures, len(items), time.monotonic() - began))
         yield list(items)
 
@@ -271,6 +276,10 @@ def discover(read=listing, schedule=None, session=None):
     # ESPN is authoritative for live status. Keep upcoming games in the
     # schedule, but do not walk Crew menus for events that have not started.
     live = [game for game in schedule if game.get('state') == 'live']
+    home_only = _home()
+    only = home_only.getProperty(ONLY_LEAGUE) if home_only else ''
+    if only:   # a game page asked: read only its own league's Crew menu, not every menu
+        live = [game for game in live if (game.get('league') or game.get('league_name')) == only]
     if not live:
         return []
     if session is not None:
@@ -283,7 +292,8 @@ def discover(read=listing, schedule=None, session=None):
     entries = read('plugin://' + ADDON + '/?action=bluehat')
     sources, seen, cache_state = [], set(), {'owner':None}
     league_codes = {game.get('league') or game.get('league_name') for game in live}
-    league_actions = {'nfl':'NFL', 'nba':'NBA', 'nhl':'NHL', 'mlb':'MLB', 'ncaa':'NCAAF', 'ncaab':'NCAAB', 'fifa':'MLS'}
+    league_actions = {'nfl':'NFL', 'nba':'NBA', 'nhl':'NHL', 'mlb':'MLB', 'ncaa':'NCAAF', 'ncaab':'NCAAB', 'fifa':'MLS',
+                      'ufc':'UFC', 'f1':'F1', 'pga':'PGA'}
     for entry in entries[:64]:
         route = entry.get('file', '')
         if entry.get('filetype') != 'directory' or not valid_route(route) or route in seen:
@@ -292,6 +302,8 @@ def discover(read=listing, schedule=None, session=None):
             continue
         action = parse_qs(urlsplit(route).query).get('action', [''])[0]
         if action != 'fullsites' and league_actions.get(action) not in league_codes:
+            continue
+        if action == 'fullsites' and only:   # one game's search reads only its own league's menu, never the all-sites menu (owner, 2026-11-20)
             continue
         seen.add(route)
         games = live if action == 'fullsites' else [game for game in live if (game.get('league') or game.get('league_name')) == league_actions[action]]

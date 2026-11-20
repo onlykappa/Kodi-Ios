@@ -20,6 +20,7 @@ GAMES, SOURCES = 12, 4                 # cards on a page and sources shown under
 CHIPS, CHIPS_PER_ROW = 15, 5
 CHIP0, PLAY0, LIST = 9200, 9300, 9099
 SEARCH0 = 9700
+CARD0 = 9720                              # the team area of each card: a tap opens that game's page (owner, 2026-11-20)
 ALSO_IDS, CHIP_IDS = 200, 20          # the row variants with an "Also on" line, and the ids one chip-row variant spans
 TOP = 370
 CHIP_W, CHIP_H, CHIP_GAP, CHIP_ROW = 160, 91, 21, 118
@@ -44,26 +45,26 @@ def _bg(p, key, w, h, x, poses):
     return out
 
 
-def _team(p, key, w, y):
-    """One team row: the crest circle (a picture when the add-on has one), the name, the score (white for the leader)."""
-    P = u.P
-    out = p.image(PAD, y + 3, 86, 86, p.MEDIA + 'pill_96.png', u.TRACK)   # a plain circle: no 9-slice border
-    out += p.image(PAD, y + 3, 86, 86, P(key + 'crest'), p.WHITE, '<visible>%s</visible>' % u.has(key + 'crest'), '>scale')
-    out += u.text(p, PAD, y + 3, 86, 86, P(key + 'code'), 'p_cap', p.WHITE, 'center').replace(
-        '<scroll>false</scroll>', '<scroll>false</scroll><visible>%s</visible>' % u.neg(u.has(key + 'crest')), 1)
-    out += _wrap(p, PAD + 118, y, w - 2 * PAD - 118 - 150, 92, P(key + 'name'), 'p_body', p.WHITE)
-    lead = 'String.IsEqual(Window().Property(%slead),true)' % key
-    out += u.text(p, w - PAD - 140, y, 140, 92, P(key + 'score'), 'p_h2', p.WHITE, 'right').replace(
-        '<scroll>false</scroll>', '<scroll>false</scroll><visible>%s</visible>' % lead, 1)
-    out += u.text(p, w - PAD - 140, y, 140, 92, P(key + 'score'), 'p_h2', p.GREY, 'right').replace(
-        '<scroll>false</scroll>', '<scroll>false</scroll><visible>%s</visible>' % u.neg(lead), 1)
+CREST, CREST_Y, NAME_Y = 230, 118, 366     # option B (owner, 2026-11-20): big crests, the names under them
+CARD_H = 500                              # one live game: league and clock, crests with names, the score (a tap opens the game)
+
+
+def _crest(p, key, x):
+    """A team's crest in a light circle; a team without a crest shows an empty ring, never letters (owner, 2026-11-20)."""
+    out = p.image(x, CREST_Y, CREST, CREST, p.MEDIA + 'pill_170.png', u.SURF2, border=80)
+    out += p.image(x + 16, CREST_Y + 16, CREST - 32, CREST - 32, u.P(key + 'crest'), p.WHITE,
+                   '<visible>%s</visible>' % u.has(key + 'crest'), '>keep')
+    out += p.image(x + 74, CREST_Y + 74, CREST - 148, CREST - 148, p.MEDIA + 'ring_20.png', 'FF8E8E93',
+                   '<visible>%s</visible>' % u.neg(u.has(key + 'crest')))
+    out += _wrap(p, x - 20, NAME_Y, CREST + 40, 118, u.P(key + 'name'), 'p_foot', p.WHITE, 'center')
     return out
 
 
 def head_row(p, g):
+    """One live game as a big card: the league and the clock, the two crests with their names, and the score in the middle."""
     S, w = p.SIDE, p.WIDTH - 2 * p.SIDE
     P, key = u.P, 'g.%d.' % g
-    body = _bg(p, key, w, HEAD_H, S, (('first', 'row_first.png'), ('only', 'row_only.png')))
+    body = p.image(S, 0, w, CARD_H, p.MEDIA + 'row_only.png', p.SURFACE, border=43)
     body += p.image(S + PAD, PAD, 190, 64, p.MEDIA + 'pill_56.png', u.SURF2, border=28)
     body += u.text(p, S + PAD, PAD, 190, 64, P(key + 'league'), 'p_foot_b', p.WHITE, 'center')
     body += ('<control type="grouplist"><left>%d</left><top>%d</top><width>420</width><height>64</height><orientation>horizontal</orientation>'
@@ -71,50 +72,13 @@ def head_row(p, g):
              '<control type="image"><width>22</width><height>22</height><top>21</top><texture colordiffuse="FFFF453A">%sdot.png</texture></control>'
              '<control type="label"><width>auto</width><height>64</height><font>p_sub</font><textcolor>FFFF453A</textcolor><aligny>center</aligny>'
              '<scroll>false</scroll><label>%s</label></control></control>' % (S + w - PAD - 420, PAD, p.MEDIA, P(key + 'clock')))
-    shifted = '<control type="group"><left>%d</left><top>0</top><width>%d</width><height>%d</height>%s</control>'
-    body += shifted % (S, w, HEAD_H, _team(p, key + 'a.', w, 128) + _team(p, key + 'h.', w, 228))
-    return u.group(p, HEAD_H, body, u.has(key + 'a.name'))
-
-
-def src_row(p, g, s, also):
-    S, w = p.SIDE, p.WIDTH - 2 * p.SIDE
-    P, key = u.P, 'g.%d.s.%d.' % (g, s)
-    h = SRC_ALSO_H if also else SRC_H
-    present = u.has(key + 'addon')
-    cond = present + (' + ' + u.has(key + 'also') if also else ' + ' + u.neg(u.has(key + 'also')))
-    body = _bg(p, key, w, h, S, (('mid', 'white.png'), ('last', 'row_last.png')))
-    body += p.image(S + PAD, 0, w - 2 * PAD, 3, p.MEDIA + 'white.png', '1FEBEBF5')
-    body += p.image(S + PAD, (h - 108) // 2, 108, 108, p.MEDIA + 'r27.png', u.SURF2)
-    body += u.text(p, S + PAD, (h - 108) // 2, 108, 108, P(key + 'mono'), 'p_foot_b', p.WHITE, 'center')
-    x, tw = S + PAD + 140, w - 2 * PAD - 140 - 96 - 32 - 214 - 24
-    top = 22 if also else 24
-    body += u.text(p, x, top, tw + 214, 56, P(key + 'addon'), 'p_h3', p.WHITE)
-    body += u.text(p, x, top + 55, tw + 214, 50, P(key + 'detail'), 'p_sub', p.GREY)
-    if also:
-        body += u.text(p, x, top + 105, w - 2 * PAD - 140 - 96 - 32, 50, P(key + 'also'), 'p_sub', p.GREY)
-    for tag, label, fill, color in (('best', 'Best', '330A84FF', p.ACCENT), ('good', 'Also good', '24EBEBF5', p.GREY)):
-        cx = S + w - PAD - 96 - 24 - TAG_W[tag]
-        on = 'String.IsEqual(Window().Property(%stag),%s)' % (key, tag)
-        body += '<control type="group"><visible>%s</visible>%s%s</control>' % (
-            on, p.image(cx, (h - 62) // 2, TAG_W[tag], 62, p.MEDIA + 'pill_56.png', fill, border=28),
-            u.text(p, cx, (h - 62) // 2, TAG_W[tag], 62, label, 'p_foot_b', color, 'center'))
-    play = S + w - PAD - 96
-    body += p.image(play, (h - 96) // 2, 96, 96, p.MEDIA + 'pill_96.png', p.WHITE, border=48)
-    body += p.image(play + 33, (h - 96) // 2 + 28, 40, 40, p.MEDIA + 'play.png', 'FF000000', '', '>keep')   # the solid triangle
-    ident = PLAY0 + (g - 1) * 10 + (s - 1) + (ALSO_IDS if also else 0)   # unique per variant; sports_live.py maps both ranges back
+    body += _crest(p, key + 'a.', S + 40)
+    body += _crest(p, key + 'h.', S + w - 40 - CREST)
+    body += u.text(p, S + 300, CREST_Y + 4, w - 600, 50, 'LIVE', 'p_foot_b', 'FFFF453A', 'center')
+    body += u.text(p, S + 300, CREST_Y + 64, w - 600, 110, P(key + 'score'), 'p_h2', p.WHITE, 'center')
     body += ('<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><label></label>'
-             '<texturefocus colordiffuse="22FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>' % (ident, S, w, h, p.MEDIA))
-    return u.group(p, h, body, cond)
-
-
-def search_row(p, g):
-    """A source-free live game can request a focused search."""
-    S, w, key = p.SIDE, p.WIDTH - 2 * p.SIDE, 'g.%d.' % g
-    body = p.image(S, 0, w, SRC_H, p.MEDIA + 'row_last.png', p.SURFACE, border=43)
-    body += p.pill_button(SEARCH0 + g - 1, S + (w - 440) // 2, 16, 440, 128,
-                          'Find sources', [('', 'noop')], 'primary')
-    cond = u.has(key + 'id') + ' + String.IsEqual(Window().Property(%sn),0)' % key
-    return u.group(p, SRC_H, body, cond)
+             '<texturefocus colordiffuse="18FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>') % (CARD0 + g - 1, S, w, CARD_H, p.MEDIA)
+    return u.group(p, CARD_H + GAP, body, u.has(key + 'a.name'))
 
 
 def chip_id(rows, n):
@@ -154,14 +118,9 @@ def page(p):
              % (REFRESH, W - S - 150, REFRESH))
     head += p.icon(W - S - 84, 57, 84, 'arrows-rotate.png', p.ACCENT)
     head += u.text(p, S, 160, w, 110, 'Live Now', 'p_large') + u.text(p, S, 268, w, 56, P('sub'), 'p_sub', p.GREY)
-    rows = ''.join(u.group(p, r * CHIP_ROW + 21, chips_block(p, r), 'String.IsEqual(Window().Property(chips.rows),%d)' % r) for r in (1, 2, 3))
-    items = rows
+    items = ''   # no league chips on Live Now (owner, 2026-11-20): the cards start under the subtitle
     for g in range(1, GAMES + 1):
         items += head_row(p, g)
-        items += search_row(p, g)
-        for s in range(1, SOURCES + 1):
-            items += src_row(p, g, s, False) + src_row(p, g, s, True)
-        items += u.group(p, GAP, '', u.has('g.%d.a.name' % g))
     items += u.group(p, 150, u.text(p, S, 0, w, 150, P('more'), 'p_sub', p.GREY, 'center'), u.has('more'))
     items += u.group(p, 360, '', 'true')
     listing = ('<control type="grouplist" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
