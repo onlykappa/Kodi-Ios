@@ -1,5 +1,14 @@
 # AirPlay build 600 phone findings and next work
 
+Post-IPA602 controlled checkpoint: native run44648845367 passed84 audio replay
+checks for finite-duration indexed/fragmented MP4s over HTTP. Reused readers
+match fresh-reader media fragments across0→9→132→171→178 and backward/repeated
+windows. This does not reproduce the phone's empty-audio window. Compare the
+owner's r68 packet/window diagnostics next; exact source timing and concurrent
+receiver ordering remain untested. Full run44647499269 also exposed a separate
+retry-fixture assumption failure (transport recovery succeeded without the app
+retry); do not describe the focused pass as a full regression pass.
+
 Owner requested PR49 merge and a separate AirPlay follow-up. PR49 merged as
 26291848d879989f78cb308ff761adec59d74bcf. This investigation preserves its bounded
 priming retry; it does not claim that change solves all receiver-driven seeks.
