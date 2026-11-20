@@ -54,11 +54,22 @@ def crew_sources(game):
     import sports_jet
     import sports_merge
     jet = sports_jet.JetProvider(remote=True, crew_only=True)
-    jet.refresh()
-    for other in list(jet.live_games()) + list(jet.upcoming_games()):
-        if sports_merge.same_game(game, other):
-            return other.get('sources') or []
-    return []
+    home = None
+    try:
+        import xbmcgui
+        home = xbmcgui.Window(10000)
+        home.setProperty('KodiIOS.SportsCrewOnlyLeague', str(game.get('league') or ''))   # read only this game's league menu in Crew
+    except Exception:
+        home = None
+    try:
+        jet.refresh()
+        for other in list(jet.live_games()) + list(jet.upcoming_games()):
+            if sports_merge.same_game(game, other):
+                return other.get('sources') or []
+        return []
+    finally:
+        if home is not None:
+            home.clearProperty('KodiIOS.SportsCrewOnlyLeague')
 
 
 def reset():
