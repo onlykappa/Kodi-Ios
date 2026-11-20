@@ -90,6 +90,14 @@ if [[ ! -f "$WORK/fixtures/long_big.mkv" ]]; then
     -c:v libx264 -preset ultrafast -g 20 -b:v 600k -c:a aac -b:a 64k "$WORK/fixtures/long_big.mkv"
 fi
 # A cue seek far into a large movie must obey the whole-request subtitle deadline.
+for layout in indexed fragmented; do
+  if [[ ! -f "$WORK/fixtures/audio_replay_$layout.mp4" ]]; then
+    flags=+faststart
+    [[ "$layout" == fragmented ]] && flags=empty_moov+default_base_moof+frag_keyframe
+    ffmpeg -hide_banner -loglevel error -y -i "$WORK/fixtures/long_big.mkv" \
+      -map 0:v -map 0:a -c copy -movflags "$flags" "$WORK/fixtures/audio_replay_$layout.mp4"
+  fi
+done
 if [[ ! -f "$WORK/fixtures/long_sub.mkv" ]]; then
   ffmpeg -hide_banner -loglevel error -y -i "$WORK/fixtures/long_big.mkv" -i "$WORK/fixtures/subs.srt" \
     -map 0:v -map 0:a -map 1:s -c copy "$WORK/fixtures/long_sub.mkv"

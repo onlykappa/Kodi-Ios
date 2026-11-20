@@ -1,5 +1,9 @@
 # Persistent progress
 
+## While awaiting IPA602 phone logs — 2026-11-20
+
+Added ISSUE-392 controlled audio-reader replay matrix: indexed/fragmented MP4, the observed long-seek windows plus backwards/repeated windows, reused versus independently opened reader media-fragment comparison over HTTP. Native CI execution pending. No playback implementation, released framework or IPA602 baseline changed. Actual receiver concurrency and original media remain separate gaps.
+
 ## r68 diagnostic publication / IPA602 — 2026-11-20
 
 Completion: import workflow44642982544 passed and published IPA602 from2896dfdabdcf543c68f792d2fa0dbf9d2ef33717. Downloaded589,160,451-byte IPA passes ZIP CRC, embedded build/source/r68 identity and exact framework binary hash verification. IPA SHA2564f9843f181b3683ef66fb2a8f195009e5bb46cb098a8d30db9bc49ac83769fa1. Phone test: AirPlay downloaded and streamed titles separately, short seek then>10minute seek, export kodi.log promptly on failure. Diagnostics are shipped; phone root cause and fix remain unproven.

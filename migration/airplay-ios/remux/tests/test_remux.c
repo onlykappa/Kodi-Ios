@@ -451,6 +451,42 @@ static void test_metadata_init(const char *base) {
     kr_source_close(source);
 }
 
+// ISSUE-392: compare reused audio cursors with fresh readers at the owner's observed
+// window indices, then backwards/repeated requests. Synthetic continuous audio must
+// never become an empty window merely because a previous request moved the cursor.
+static void test_audio_seek_replay(const char *base) {
+    const char *layouts[]={"indexed","fragmented"};
+    const int sequence[]={0,9,132,171,178,1,178,178,9,0};
+    for(int layout=0;layout<2;layout++) {
+        char url[1024],err[256]="";
+        snprintf(url,sizeof url,"%s/audio_replay_%s.mp4",base,layouts[layout]);
+        kr_source *source=kr_source_open(url,5,err,sizeof err);
+        CHECK(source!=NULL,"audio replay %s source opens: %s",layouts[layout],err);
+        if(!source)continue;
+        gm_stream *reused=gm_stream_open(kr_source_gm(source),6,err,sizeof err);
+        CHECK(reused!=NULL,"audio replay %s reader opens: %s",layouts[layout],err);
+        if(reused)for(unsigned i=0;i<sizeof sequence/sizeof sequence[0];i++) {
+            gm_buf a={0},b={0};int split_a=0,split_b=0;
+            int result=gm_stream_track_unit(reused,gm_stream_selected_audio(reused),sequence[i],&a,&split_a,err,sizeof err);
+            CHECK(result==0 && a.len>split_a && split_a>0,
+                  "%s reused audio window %d is nonempty: %s; %s",layouts[layout],sequence[i],err,gm_stream_last_window(reused));
+            kr_source *fresh_source=kr_source_open(url,5,err,sizeof err);
+            gm_stream *fresh=fresh_source?gm_stream_open(kr_source_gm(fresh_source),6,err,sizeof err):NULL;
+            CHECK(fresh!=NULL,"fresh audio reference opens: %s",err);
+            if(fresh){
+                int reference=gm_stream_track_unit(fresh,gm_stream_selected_audio(fresh),sequence[i],&b,&split_b,err,sizeof err);
+                CHECK(reference==0 && b.len>split_b && split_b>0,"fresh audio reference window %d succeeds: %s",sequence[i],err);
+                // Compare media fragments, excluding independently generated init metadata.
+                CHECK(result==0 && reference==0 && a.len-split_a==b.len-split_b &&
+                      !memcmp(a.data+split_a,b.data+split_b,(size_t)(a.len-split_a)),
+                      "%s reused audio window %d matches fresh-reader fragment",layouts[layout],sequence[i]);
+            }
+            free(a.data);free(b.data);gm_stream_close(fresh);kr_source_close(fresh_source);
+        }
+        gm_stream_close(reused);kr_source_close(source);
+    }
+}
+
 static void test_source_transport(const char *http_base) {
     char url[512], path[512], err[256] = "";
     extern const char *fixture_dir;
@@ -2480,7 +2516,7 @@ int main(int argc, char **argv) {
     kr_remux_set_subtitles(-1, NULL, NULL);
     kr_subs_set_font_file(getenv("KR_TEST_FONT"));
     if (argc > 3 && !strcmp(argv[3], "--source-only")) {
-        test_source_transport(argv[2]);test_shared_source(argv[2]);test_metadata_init(argv[2]);
+        test_source_transport(argv[2]);test_shared_source(argv[2]);test_metadata_init(argv[2]);test_audio_seek_replay(argv[2]);
         printf("%d checks, %d failed\n", checks, failures);
         return failures ? 1 : 0;
     }
@@ -2621,7 +2657,7 @@ int main(int argc, char **argv) {
     if (argc > 2) {
         printf("-- over HTTP (%s)\n", argv[2]);
         test_range_source(argv[2]);
-        test_source_transport(argv[2]);test_shared_source(argv[2]);test_metadata_init(argv[2]);
+        test_source_transport(argv[2]);test_shared_source(argv[2]);test_metadata_init(argv[2]);test_audio_seek_replay(argv[2]);
         char url[1024]; snprintf(url, sizeof url, "%s/h264_ac3_dts_srt.mkv", argv[2]);
         test_file(url, &fx[5], work);   // h264_ac3_dts_srt.mkv (ISSUE-343 added a row above)
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);

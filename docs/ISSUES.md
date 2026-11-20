@@ -5961,6 +5961,8 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 
 ## ISSUE-392 — Build600 receiver seek repeats an empty MP4 audio window (2026-11-19)
 
+- **Post-IPA602 investigation:** added continuous-audio indexed and fragmented MP4 fixtures and replay of windows0,9,132,171,178,1,178,178,9,0 over HTTP. Each reused-reader fragment must be nonempty and byte-match an independently opened fresh-reader fragment (excluding init metadata). This distinguishes request-history corruption from content/window differences in controlled media. Native execution pending; no playback behavior or r68 pin changed. It does not simulate the phone's exact source, receiver timing or lane contention.
+
 - **Diagnostic candidate:** bounded packet-window summaries now record selected audio stream/timebase, requested window, packet timestamps, filter/write counts and scan exit, correlated with request/session IDs, cache state, lane wait and reader reuse. No URLs, headers or packet payloads are added. A deliberately absent-audio fixture verifies empty-window reporting followed by successful later audio on the same reader; this is not reproduction of the owner's source. Native run44640470233 is the final validation gate. Earlier run44639179231 passed3810/3811 checks; its retry-log assertion used an8192-byte partial drain, now enlarged without weakening the assertion. Owner authorized diagnostic framework/IPA publication; phone root cause remains unresolved.
 
 - **Seen:** owner reports downloaded short/long seek failures. MP4 attempt requests video178 successfully, but audio178 repeatedly returns HTTP500/empty segment,2scanned packets,0ms source I/O, without cancellation/deadline expiry; receiver/app eventually fail.
