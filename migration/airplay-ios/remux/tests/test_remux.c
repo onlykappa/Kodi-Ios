@@ -2751,13 +2751,20 @@ static void test_seek_audio_retry(const char *base) {
     CHECK(opening==KR_READY,"busy-fault session opens: %s",kr_remux_message());if(opening!=KR_READY)return;
     snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
     char *end=strstr(prefix_path,"/master.m3u8");if(end)*end=0;
+    double primed_at=mono_ms();
     int r=kr_remux_prime_for(ticket,40.0);
+    double primed_ms=mono_ms()-primed_at;
     kr_remux_log(log,sizeof log);
     CHECK(r==KR_READY,"seek recovers after one connection is refused once, via retry (result %d, message \"%s\", log tail: %s)",
           r,kr_remux_message(),log+(strlen(log)>3000?strlen(log)-3000:0));
-    CHECK(strstr(log,"retrying audio segment") || strstr(log,"retrying video segment"),
-          "log shows a retry actually ran, not an accidental first-try pass (log tail: %s)",
-          log+(strlen(log)>3000?strlen(log)-3000:0));
+    // The fixture's fault never answers the first qualifying request for 35 s. Which layer then recovers depends on which of the two lanes meets
+    // it first and on its read timeout: the application's own retry ("retrying ... segment") or the byte source's fresh-connection retry below it
+    // (full run 44647499269 and run 44685089607 both showed the second, with the whole prime taking the 35 s stall). Both are real recoveries;
+    // what must never pass is a run where the fault did not fire at all. So: either the application retry is logged, or the prime visibly lasted
+    // as long as the stall (>= 25 s) and still succeeded. (Owner approved this wording of the check, 2026-11-20.)
+    CHECK((strstr(log,"retrying audio segment") || strstr(log,"retrying video segment")) || primed_ms>=25000,
+          "the fault fired and was recovered, at the application layer (retry logged) or below it (prime lasted %.0f ms) - not an accidental first-try pass (log tail: %s)",
+          primed_ms,log+(strlen(log)>3000?strlen(log)-3000:0));
     if(r==KR_READY){
         // SEG_SECONDS=6.0: 40.0 s falls in segment 6.
         double v=get_ms(kr_remux_port(),"/video/seg6.m4s"),a=get_ms(kr_remux_port(),"/audio/1/seg6.m4s");
