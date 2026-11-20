@@ -245,6 +245,7 @@ class EspnProvider:
 
     def __init__(self, fetch=None, clock=time.time, leagues=None):
         self.fetch, self.clock = fetch, clock   # None: fetch_json, looked up at each call
+        self.ttl = TTL   # the phone's provider lowers it (sports_hybrid.TTL) so scores stay live
         self.league_defs = tuple(entry for entry in LEAGUES if leagues is None or entry[0] in leagues)
         self.lock = threading.Lock()
         self.snapshot = None   # {'at', 'live', 'upcoming', 'leagues', 'finished'}
@@ -261,7 +262,7 @@ class EspnProvider:
     def _load(self, force=False):
         with self.lock:
             now = int(self.clock())
-            if not force and self.snapshot and now - self.snapshot['at'] < TTL:
+            if not force and self.snapshot and now - self.snapshot['at'] < self.ttl:
                 return self.snapshot
             days = [_date(now + d * 86400) for d in EXTRA_DAYS]
             jobs = [(entry, [BASE % entry[3]] + ['%s?dates=%s' % (BASE % entry[3], day) for day in days]) for entry in self.league_defs]

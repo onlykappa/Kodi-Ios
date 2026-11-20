@@ -80,7 +80,7 @@ def open_game(game, log, provider=None, clock=time.time):
     """Keep the same provider and game identity when opening boards 12–13."""
     log('sports: game %s' % game['id'])
     import sports_game
-    sports_game.run(game,provider=provider,clock=clock)
+    sports_game.run(game,provider=provider,clock=clock,search=True)   # opening a game looks for its sources (Crew, for this game only)
 
 
 def run(args=(), provider=None, clock=time.time, on_game=None):

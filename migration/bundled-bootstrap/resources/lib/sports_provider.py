@@ -34,17 +34,31 @@ def _get():
 
 
 def real():
-    """The phone uses Crew's native menus when installed, through the shared collector. ESPN's schedule feed stays
-    in the app and is used with KODI_IOS_SPORTS=espn."""
+    """The phone's provider (owner, 2026-11-20): ESPN for every game, league, time and score; Crew only for the sources of the game whose page is
+    open (sports_hybrid.py). KODI_IOS_SPORTS=espn is the same provider without Crew at all."""
     if _real[0] is None:
+        import sports_espn
+        espn = sports_espn.EspnProvider()
         if os.environ.get('KODI_IOS_SPORTS', '') == 'espn':
-            import sports_espn
-            _real[0] = sports_espn.EspnProvider()
+            _real[0] = espn
         else:
-            import sports_jet
-            import sports_scores
-            _real[0] = sports_jet.JetProvider(remote=True, crew_only=True, score_loader=sports_scores.fetch_live)   # a page's thread cannot call JetExtractors: its script does (ISSUE-365)
+            import sports_hybrid
+            espn.ttl = sports_hybrid.TTL
+            _real[0] = sports_hybrid.HybridProvider(espn, crew_sources)
     return _real[0]
+
+
+def crew_sources(game):
+    """The sources Crew has for this one game (its page asked). Crew's collector runs only now; a list never starts it. Matching is by league,
+    start and team names (sports_merge.same_game). No match is an empty list, not an error."""
+    import sports_jet
+    import sports_merge
+    jet = sports_jet.JetProvider(remote=True, crew_only=True)
+    jet.refresh()
+    for other in list(jet.live_games()) + list(jet.upcoming_games()):
+        if sports_merge.same_game(game, other):
+            return other.get('sources') or []
+    return []
 
 
 def reset():

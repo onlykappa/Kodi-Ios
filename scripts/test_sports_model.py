@@ -213,6 +213,12 @@ class KodiClock(unittest.TestCase):
             self.assertEqual(sm.kodi_offset(now), 2 * 3600)     # seconds apart between the two clocks round to the quarter hour
         with self.fake('nonsense'):
             self.assertIsNone(sm.kodi_offset(now))
+        with self.fake('01:45:00 PM'):   # a 12-hour phone in New York: 1:45 PM local is 18:45 UTC (this was the bug: it fell back to UTC and showed 4:00 AM)
+            self.assertEqual(sm.kodi_offset(now), -5 * 3600)
+        with self.fake('12:15:00 AM'):   # 18:45 UTC is 00:15 the next day in India
+            self.assertEqual(sm.kodi_offset(now), 5 * 3600 + 30 * 60)
+        self.assertEqual([sm.parse_clock(x) for x in ('16:05:09', '16:05', '4:05 PM', '12:00 AM', '12:30 PM', '04:05:09 AM', 'x', '25:00', '13:00 PM')],
+                         [57909, 57900, 57900, 0, 45000, 14709, None, None, None])
 
     def test_the_device_offset_prefers_kodi_for_now_and_python_for_other_moments(self):
         import time
