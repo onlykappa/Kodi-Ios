@@ -292,6 +292,32 @@ class Flows(unittest.TestCase):
             self.assertEqual((menu.lang, menu.lang_name), ('en', 'English'))
         drive(scenario, self.fake)
 
+    def test_the_words_check_runs_after_the_subtitle_is_on_and_only_then_swaps_or_shifts(self):
+        # Build 616 log: Download and apply took 58 s listening to the video before anything was applied, and the check made no claim (9 words).
+        import speech_check
+        def scenario(menu):
+            applied=[];shown=[]
+            menu.apply=lambda result,got=None:applied.append((result['id'],got[1] if got else None))
+            menu.fetch_result=lambda r:('%s.en.srt'%r['id'],b'1\n00:00:01,000 --> 00:00:02,000\nhello\n')
+            first={'id':'a','source':'x'};second={'id':'b','source':'x'}
+            data=b'orig'
+            heard=[(1.0,'hello')]
+            # too few words: nothing happens
+            menu.checked_video=lambda:{'heard':[]}
+            menu.check_by_speech(first,'a.en.srt',data,[first,second],'English');self.assertEqual(applied,[])
+            # a shift: the corrected file is applied again
+            menu.checked_video=lambda:{'heard':heard}
+            with patch.object(speech_check,'apply',return_value=(b'shifted',None)):
+                menu.check_by_speech(first,'a.en.srt',data,[first,second],'English')
+            self.assertEqual(applied,[('a',b'shifted')])
+            # a clear mismatch: the next candidate replaces it
+            applied.clear()
+            with patch.object(speech_check,'apply',side_effect=[(data,'Words do not match the speech'),(b'ok',None)]), \
+                 patch('subtitle_match.choose_download',return_value=(second,'b.en.srt',b'second')):
+                menu.check_by_speech(first,'a.en.srt',data,[first,second],'English')
+            self.assertEqual([a[0] for a in applied],['b'])
+        drive(scenario, self.fake)
+
     def test_a_tap_outside_ends_the_menu(self):
         def scenario(menu):
             self.hold(menu, 2)

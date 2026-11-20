@@ -168,6 +168,7 @@ jobs:
           python3 -B scripts/test_sports_sources_prefetch.py
           python3 -B scripts/test_loop_quiet.py
           python3 -B scripts/test_busy_watchdog.py
+          python3 -B scripts/test_mp4_tracks.py
           python3 -B scripts/test_sports_crew_patch.py
           python3 -B scripts/test_sports_landing.py
           python3 -B scripts/test_sports_live.py

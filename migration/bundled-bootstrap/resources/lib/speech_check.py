@@ -22,8 +22,8 @@ ALIGNED = .30           # at least this share: the subtitle matches, and its bes
 SHIFT_FROM = .4         # seconds; smaller shifts are left alone
 SEARCH = 120            # seconds either way
 SLACK = .6              # a word may be heard this long before or after its cue
-STRETCH = 45            # seconds of sound per sample (the recognizer takes up to a minute)
-BYTE_BUDGET = 48 * 1024 * 1024   # per sample: a 4K stream is not read for long
+STRETCH = 30            # seconds of sound per sample (build 616 log: 45 s over Drive took 20-38 s and heard 7 and 2 words; the recognizer needs far less)
+BYTE_BUDGET = 24 * 1024 * 1024   # per sample: a 4K stream is not read for long (was 48 MB: two samples read 96 MB of a 4K file)
 LOCALES = {'en': 'en-US', 'es': 'es-ES', 'fr': 'fr-FR', 'de': 'de-DE', 'it': 'it-IT', 'pt': 'pt-BR', 'ja': 'ja-JP',
            'ko': 'ko-KR', 'zh': 'zh-CN', 'nl': 'nl-NL', 'ru': 'ru-RU', 'ar': 'ar-SA', 'sv': 'sv-SE', 'da': 'da-DK',
            'no': 'nb-NO', 'fi': 'fi-FI', 'pl': 'pl-PL', 'tr': 'tr-TR', 'el': 'el-GR', 'he': 'he-IL', 'hi': 'hi-IN',
