@@ -87,6 +87,36 @@ class Structure(unittest.TestCase):
         self.assertIn('sports_upcoming_page.files(ns)',p.__file__ and Path(p.__file__).read_text())
 
 
+class WindowSizes(unittest.TestCase):
+    """Owner, build 617 log: the Upcoming flick was choppy. The usual list now gets a short window (30 rows); only a longer list opens the long one."""
+    def test_the_window_has_room_for_the_games_it_is_given(self):
+        self.assertEqual(page.window_for(0),page.WINDOW);self.assertEqual(page.window_for(page.SLOTS_SHORT),page.WINDOW)
+        self.assertEqual(page.window_for(page.SLOTS_SHORT+1),page.WINDOW_LONG)
+        self.assertGreaterEqual(page.SLOTS,page.SLOTS_SHORT*2)
+
+    def test_both_windows_are_written_and_the_short_one_is_much_smaller_with_the_same_ids(self):
+        spec=importlib.util.spec_from_file_location('portrait_sports',BOOT/'resources/lib/portrait.py')
+        ns=importlib.util.module_from_spec(spec);spec.loader.exec_module(ns)
+        short,long_=page.page(ns,page.SLOTS_SHORT),page.page(ns,page.SLOTS)
+        self.assertLess(len(short),len(long_)//2)
+        self.assertIn('id="%d"'%page.ROW,short);self.assertIn('id="%d"'%page.ROW,long_)       # the first game's tap is the same control in both
+        self.assertNotIn('id="%d"'%(page.ROW+page.SLOTS_SHORT*len(page.FORMS)),short)         # and the short one stops where it says
+        self.assertIn('id="%d"'%(page.ROW+page.SLOTS_SHORT*len(page.FORMS)),long_)
+        names=page.files(ns)
+        self.assertTrue(any(k.endswith('/'+page.WINDOW) for k in names));self.assertTrue(any(k.endswith('/'+page.WINDOW_LONG) for k in names))
+
+    def test_the_projection_fills_only_the_slots_the_window_has(self):
+        provider=sm.Sample(now=1794768300,offset=0)
+        props,rows,*_=upcoming.model(provider.upcoming_games(),provider.now,provider.now,0,slots=page.SLOTS_SHORT)
+        self.assertIn('row.%d.lines'%(page.SLOTS_SHORT-1),props);self.assertNotIn('row.%d.lines'%page.SLOTS_SHORT,props)
+        props,*_=upcoming.model(provider.upcoming_games(),provider.now,provider.now,0)
+        self.assertIn('row.%d.lines'%(page.SLOTS-1),props)
+
+    def test_leagues_has_a_slot_for_every_league_and_not_four_times_as_many(self):
+        import sports_espn,sports_leagues_page as lp
+        self.assertGreaterEqual(lp.SLOTS,len(sports_espn.LEAGUES)+8);self.assertLessEqual(lp.SLOTS,48)
+
+
 class Controller(unittest.TestCase):
     def test_opens_before_fetch_completes_filters_and_logs_game_tap(self):
         provider=sm.Sample(now=1794768300)

@@ -333,6 +333,12 @@ def run():
  threading.Thread(target=perf_summary.watch,args=(xbmcgui.Window(10000),open_timing.take,
                   lambda:drive_proxy.CURRENT[0].stats.take() if drive_proxy.CURRENT else {},
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),daemon=True).start()
+ # Owner, 2026-11-20 (Sports Upcoming and Favourites flick choppily): the frame rate while a finger is on the screen, per window, one line a minute.
+ import scroll_probe
+ _probe=scroll_probe.Probe(lambda:xbmc.getInfoLabel('System.FPS'),lambda:not xbmc.getCondVisibility('System.IdleTime(1)'),
+                           lambda:(xbmcgui.getCurrentWindowId(),xbmc.getInfoLabel('System.CurrentWindow')),lambda text:xbmc.log(text,xbmc.LOGINFO),
+                           lambda:xbmc.getCondVisibility('Player.HasVideo'))
+ threading.Thread(target=scroll_probe.watch,args=(_probe,monitor.waitForAbort),daemon=True).start()
  # Build 193: one status model for every page and the bell (work_state.py), every 2 s, with the reason stored.
  import work_state,slowdown
  # ISSUE-228 (owner: "cancel all upscaling isn't working"): the page's cancel / cancel all / order requests were applied only

@@ -18,7 +18,7 @@ _CACHE = None
 BACK_KEYS = (9, 10, 92, 110)
 
 
-def model(games, updated, now, offset, league='All', state='ready', logos=None):
+def model(games, updated, now, offset, league='All', state='ready', logos=None, slots=None):
     """Pure window projection. All wording/grouping/filter choices come from the Sports contract."""
     future = [g for g in games if g['state'] == 'upcoming' and g['start'] >= now]
     codes = sm.league_codes(future)
@@ -52,7 +52,7 @@ def model(games, updated, now, offset, league='All', state='ready', logos=None):
             row.update({'game': game, 'day': day if n == 0 else '', 'day.count': sm.count_text(len(entries), 'game') if n == 0 else '',
                         'firstday': 'true' if not rows else ''})
             rows.append(row)
-    for n in range(page.SLOTS):
+    for n in range(page.SLOTS if slots is None else slots):
         row = rows[n] if n < len(rows) else {}
         for key in ('day', 'day.count', 'firstday') + sports_rows.KEYS:
             props['row.%d.%s' % (n,key)] = row.get(key, '')
@@ -97,6 +97,7 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
             self.lock = threading.Lock()
             self.fetching = False
             self.failed = False
+            self.slots, self.bigger = slots, False
             self.league = args[0] if args else 'All'   # a league page starts on its chip (an unknown code shows All)
             self.data = _CACHE
             self.draw()
@@ -123,7 +124,11 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
             if error is not None:self.failed=error
             games, updated = self.data if self.data is not None else ([], 0)
             props, self.rows, self.codes, self.league = model(games,updated,clock(),sm.device_offset(clock()),self.league,
-                'error' if self.failed and not self.data else 'ready' if self.data is not None else 'loading', logos=getattr(self,'logos',{}))
+                'error' if self.failed and not self.data else 'ready' if self.data is not None else 'loading', logos=getattr(self,'logos',{}),slots=self.slots)
+            if len(self.rows) > self.slots and self.slots < page.SLOTS and not self.bigger:
+                # More games than the short window has rows for (first open with nothing remembered): reopen into the long one, once.
+                self.bigger = True
+                threading.Thread(target=self.finish,daemon=True).start()
             props.update(sf.edit_state(provider))
             for key,value in props.items():
                 if getattr(self,'_shown',{}).get(key)!=value:self.setProperty(key,value)
@@ -191,14 +196,28 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
                 self.stop.set()
                 self.close()
 
-    try:
-        window = Upcoming(page.WINDOW,HERE,'Default','1080i')
-    except RuntimeError:
-        xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'portrait')+'/')
-        window = Upcoming(page.WINDOW,HERE,'Default','1080i')
-    window.doModal()
-    if hasattr(window,'stop'): window.stop.set()
-    del window
+    # The window with room for the games already known (remembered from the last open); a bigger list reopens into the long one.
+    slots = page.SLOTS_SHORT
+    if _CACHE is not None:
+        try:
+            now = clock()
+            slots = page.SLOTS_SHORT if len(model(_CACHE[0],_CACHE[1],now,sm.device_offset(now),args[0] if args else 'All')[1]) <= page.SLOTS_SHORT else page.SLOTS
+        except Exception:
+            slots = page.SLOTS_SHORT
+    while True:
+        name = page.WINDOW if slots <= page.SLOTS_SHORT else page.WINDOW_LONG
+        try:
+            window = Upcoming(name,HERE,'Default','1080i')
+        except RuntimeError:
+            xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'portrait')+'/')
+            window = Upcoming(name,HERE,'Default','1080i')
+        window.doModal()
+        if hasattr(window,'stop'): window.stop.set()
+        again = getattr(window,'bigger',False) and slots < page.SLOTS
+        del window
+        if not again:
+            break
+        slots = page.SLOTS
 
 
 if __name__ == '__main__':
