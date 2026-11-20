@@ -55,10 +55,10 @@ class Properties(unittest.TestCase):
         props = ctl.props_for(overview(), NOW, 0)
         self.assertEqual((props['state'], props['sub']), ('ok', 'Updated just now'))
         self.assertEqual((props['live.mode'], props['live.badge'], props['live.title'], props['live.detail']), ('live', '4 live', 'Live right now', 'Soccer, Basketball and 2 more'))
-        self.assertEqual((props['up.d1'], props['up.d2'], props['up.lines']), ('Next at 7:30 PM', '2 more today', '2'))
+        self.assertEqual((props['up.d1'], props['up.d2'], props['up.lines']), ('Next at 7:30 PM', '', '1'))
         self.assertEqual((props['lg.d1'], props['lg.lines']), ('13 leagues', '1'))
         counted = ctl.props_for(dict(overview(), upcoming=59), NOW, 0)   # mockup A1: "59 games · 2 more today"
-        self.assertEqual((counted['up.d1'], counted['up.d2']), ('59 games · 2 more', 'today'))
+        self.assertEqual((counted['up.d1'], counted['up.d2']), ('59 games', ''))
         self.assertNotIn('fin', props)   # the Finished today row is not in the mockup
 
     def test_nothing_live_goes_grey_and_says_when_the_next_game_starts(self):
@@ -69,13 +69,13 @@ class Properties(unittest.TestCase):
         self.assertIn('starts tomorrow at 6:45 PM.', tomorrow['live.detail'])
         none = ctl.props_for(overview(live=0, live_sports=[], next=None), NOW, 0)
         self.assertEqual((none['live.title'], none['live.detail']), ('Nothing live right now', ''))
-        self.assertEqual((none['up.d1'], none['up.d2'], none['up.lines']), ('No games', 'coming up', '2'))   # never "No games coming" / "up"
+        self.assertEqual((none['up.d1'], none['up.d2'], none['up.lines']), ('No games coming up', '', '1'))   # one line on the slim tile
 
     def test_the_upcoming_tile_when_the_next_game_is_not_today(self):
         props = ctl.props_for(overview(next=NOW + 24 * 3600 + 3600, more_today=0), NOW, 0)
-        self.assertEqual((props['up.d1'], props['up.d2']), ('Next tomorrow', '7:45 PM'))
+        self.assertEqual((props['up.d1'], props['up.d2']), ('Next tomorrow', ''))
         far = ctl.props_for(overview(next=calendar.timegm((2026, 11, 21, 12, 30, 0))), NOW, 0)
-        self.assertEqual((far['up.d1'], far['up.d2']), ('Next Sat, Nov 21', '12:30 PM'))
+        self.assertEqual((far['up.d1'], far['up.d2']), ('Next Sat, Nov 21', ''))
         one = ctl.props_for(overview(more_today=0), NOW, 0)
         self.assertEqual((one['up.d2'], one['up.lines']), ('', '1'))
 
@@ -100,7 +100,7 @@ class Properties(unittest.TestCase):
         props = ctl.props_updating(last)
         self.assertEqual((props['sub'], props['live.badge'], props['live.mode']), ('Updating', '', 'live'))
         self.assertEqual(props['live.title'], 'Live right now')   # the card keeps what it showed while the answer is on its way
-        self.assertEqual((props['up.d1'], props['up.d2'], props['up.lines']), ('Checking today’s', 'games', '2'))
+        self.assertEqual((props['up.d1'], props['up.d2'], props['up.lines']), ('Checking games', '', '1'))
         self.assertEqual(props['lg.d1'], 'Checking leagues')
         self.assertEqual(ctl.props_updating()['live.title'], 'Checking what is on')
 

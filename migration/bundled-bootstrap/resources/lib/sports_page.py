@@ -13,7 +13,7 @@ WINDOW = 'IOSSports.xml'
 BACK, REFRESH, LIVE, UPCOMING, LEAGUES, FINISHED, RETRY = 9001, 9002, 9101, 9102, 9103, 9104, 9105
 SEE_ALL, LIST, NEXT, NEXT_ROWS = 9106, 9300, 9120, 4     # See all, the scrolling list, the four Up next rows' ids (NEXT + 4 * row + form - 1)
 TOP = 370                       # the list starts 14 pt under the subtitle
-TILE_H = 310                    # 115 pt (mockup A1)
+TILE_H = 124                    # 46 pt: a slim tile, title and one line (owner, 2026-11-20: the old 115 pt tiles were bulky and the page must fit without scrolling)
 LIVE_H = 314                    # the compact Live Now card
 GAP = 32                        # 12 pt
 PAD = 43                        # 16 pt inside a tile
@@ -25,7 +25,7 @@ FIT_BIG, FIT_HALF = 36, 18
 # (name, top colour, bottom colour) of each tile's gradient, from the board's CSS (150 deg: mostly top to bottom)
 TILES = {'live': ((196, 48, 43), (74, 14, 18)), 'idle': ((58, 58, 60), (28, 28, 30)),
          'up': ((47, 111, 224), (14, 37, 99)), 'lg': ((142, 91, 232), (42, 23, 102))}
-BIG, HALF = (486, 264), (235, 264)   # texture sizes: half the tile's units, so the 27-unit corners stretch to the board's 54
+BIG, HALF = (486, 264), (470, TILE_H)   # the live card's texture is half size (27-unit corners stretch to 54); the slim tiles' textures are drawn at their own size so the corners stay round
 
 
 def _tile(p, w, h, top, bottom, radius):
@@ -40,9 +40,9 @@ def textures(p):
     out = {}
     for name, (top, bottom) in TILES.items():
         size = BIG if name in ('live', 'idle') else HALF
-        out['sports_%s.png' % name] = _tile(p, size[0], size[1], top, bottom, 27)
+        out['sports_%s.png' % name] = _tile(p, size[0], size[1], top, bottom, 27 if name in ('live', 'idle') else 54)
     out['sports_big_mask.png'] = p.rounded(BIG[0], BIG[1], 27)
-    out['sports_half_mask.png'] = p.rounded(HALF[0], HALF[1], 27)
+    out['sports_half_mask.png'] = p.rounded(HALF[0], HALF[1], 54)
     return out
 
 
@@ -62,20 +62,11 @@ def split_lines(text, limit):
 
 
 def _text_block(p, w, h, key, big):
-    """The tile's title and detail lines, bottom-anchored: one variant for a one-line detail, one for two lines."""
+    """The tile's title (15 pt bold) over one detail line (13 pt), left-aligned, with a chevron at the right."""
     P = u.P
-    out = ''
-    for n in (1, 2):
-        cond = 'String.IsEqual(Window().Property(%s.lines),%d)' % (key, n)
-        y2 = h - PAD - LINE
-        y1 = y2 - LINE if n == 2 else y2
-        body = u.text(p, PAD, y1 - 78, w - 2 * PAD, 80, P(key + '.title'), 'p_h2')
-        if n == 2:
-            body += u.text(p, PAD, y1, w - 2 * PAD, LINE, P(key + '.d1'), 'p_sub', 'EBFFFFFF')
-            body += u.text(p, PAD, y2, w - 2 * PAD, LINE, P(key + '.d2'), 'p_sub', 'EBFFFFFF')
-        else:
-            body += u.text(p, PAD, y2, w - 2 * PAD, LINE, P(key + '.d1'), 'p_sub', 'EBFFFFFF')
-        out += '<control type="group"><visible>%s</visible>%s</control>' % (cond, body)
+    out = u.text(p, PAD, 18, w - 2 * PAD - 40, 50, P(key + '.title'), 'p_tile')
+    out += u.text(p, PAD, 68, w - 2 * PAD - 40, 40, P(key + '.d1'), 'p_foot', 'EBFFFFFF')
+    out += u.glyph(p, w - PAD - 8, h // 2, 32, 'chevron-right.png', 'EBFFFFFF')
     return out
 
 
@@ -84,7 +75,7 @@ def _tile_xml(p, ident, key, x, w, texture, mask):
     out = p.image(0, 0, w, TILE_H, p.MEDIA + 'sports_%s.png' % texture, p.WHITE, aspect='>stretch')
     out += _text_block(p, w, TILE_H, key, False)
     out += ('<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
-            '<texturefocus colordiffuse="30FFFFFF" border="27">%s%s</texturefocus><texturenofocus /></control>' % (ident, w, TILE_H, p.MEDIA, mask))
+            '<texturefocus colordiffuse="30FFFFFF" border="%d">%s%s</texturefocus><texturenofocus /></control>' % (ident, w, TILE_H, 54 if texture in ('up', 'lg') else 27, p.MEDIA, mask))
     return '<control type="group"><left>%d</left><top>0</top><width>%d</width><height>%d</height>%s</control>' % (x, w, TILE_H, out)
 
 
@@ -124,8 +115,11 @@ def page(p):
     head += p.icon(W - S - 84, 57, 84, 'arrows-rotate.png', p.ACCENT)
     head += edit_button.xml(p, W - S - 150 - 20 - edit_button.W, 52)
     head += u.text(p, S, 160, w, 110, 'Sports', 'p_large') + u.text(p, S, 268, w, 56, P('sub'), 'p_sub', p.GREY)
-    # Everything under the title scrolls as one list: the live card, Up next, the two tiles.
+    # Everything under the title scrolls as one list: the live card, the two tiles, Up next.
     items = u.group(p, LIVE_H + GAP, _live_card(p, w) + _badge(p))
+    # The Upcoming and Leagues tiles sit right under Live now so they are never cut off by the floating tab bar (owner, 2026-11-20); the four games scroll below them.
+    tiles = _tile_xml(p, UPCOMING, 'up', S, half, 'up', 'sports_half_mask.png') + _tile_xml(p, LEAGUES, 'lg', S + half + GAP, half, 'lg', 'sports_half_mask.png')
+    items += u.group(p, TILE_H + GAP, tiles)
     see_all = ('<control type="button" id="%d"><left>%d</left><top>0</top><width>260</width><height>118</height><label>See all</label><font>p_sub</font>'
                '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny><textoffsetx>0</textoffsetx><scroll>false</scroll>'
                '<texturefocus /><texturenofocus /></control>' % (SEE_ALL, W - S - 260, p.GREY, p.GREY))
@@ -135,9 +129,7 @@ def page(p):
         for lines in upcoming_page.FORMS:
             items += u.group(p, upcoming_page.row_height(lines), upcoming_page.game_row(p, key, NEXT + 4 * n + lines - 1, lines, w),
                              'String.IsEqual(Window().Property(%slines),%d)' % (key, lines))
-    items += u.group(p, GAP + 30, '', u.has('next.0.lines'))
-    tiles = _tile_xml(p, UPCOMING, 'up', S, half, 'up', 'sports_half_mask.png') + _tile_xml(p, LEAGUES, 'lg', S + half + GAP, half, 'lg', 'sports_half_mask.png')
-    items += u.group(p, TILE_H, tiles) + u.group(p, 260, '')
+    items += u.group(p, 320, '')   # the last row scrolls fully above the floating tab bar (portrait.TAB_CLEAR)
     tiles = ('<control type="grouplist" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
              '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords><visible>%s</visible><scrolltime tween="cubic" easing="out">220</scrolltime>%s</control>'
              % (LIST, TOP, W, ok, items))

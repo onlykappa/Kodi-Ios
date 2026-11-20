@@ -34,11 +34,11 @@ def sports_line(names):
     return '%s, %s\nand %d more' % (names[0], names[1], len(names) - 2)   # explicit break: "1 / more" must not be split
 
 
-def _lines(props, key, text, limit):
-    lines = sp.split_lines(text, limit) or ['']
-    props[key + '.d1'] = lines[0]
-    props[key + '.d2'] = lines[1] if len(lines) > 1 else ''
-    props[key + '.lines'] = str(len(lines))
+def _lines(props, key, text, limit=0):
+    """The tile's one detail line (the slim tiles of the owner's 2026-11-20 request have room for one; d2 stays empty)."""
+    props[key + '.d1'] = str(text).replace('\n', ' ')
+    props[key + '.d2'] = ''
+    props[key + '.lines'] = '1'
 
 
 def _next_game(start, now, offset):
@@ -70,19 +70,17 @@ def props_for(overview, now, offset):
             text = 'Next game starts%s at %s.' % (when, sm.clock_text(overview['next'], offset))
         props['live.detail'] = text
     if overview.get('next') is None:
-        props['up.d1'], props['up.d2'], props['up.lines'] = 'No games', 'coming up', '2'   # not "No games coming / up"
+        _lines(props, 'up', 'No games coming up')
     else:
         total = overview.get('upcoming')
         if total:   # "59 games · 2 more today" (mockup A1)
-            text = sm.count_text(total, 'game') + (' · %d more today' % overview['more_today'] if overview.get('more_today') else '')
-            _lines(props, 'up', text, sp.FIT_HALF)
+            _lines(props, 'up', sm.count_text(total, 'game'))   # "157 games"; the day's count is on the page itself
         else:
             first, second = _next_game(overview['next'], now, offset)
             if not second and overview.get('more_today'):
                 second = '%d more today' % overview['more_today']
-            props['up.d1'], props['up.d2'] = first, second
-            props['up.lines'] = '2' if second else '1'
-    _lines(props, 'lg', sm.count_text(overview.get('leagues') or 0, 'league'), sp.FIT_HALF)
+            _lines(props, 'up', first)   # one short line; the Live now card already says when the next game starts
+    _lines(props, 'lg', sm.count_text(overview.get('leagues') or 0, 'league'))
     return props
 
 
@@ -106,8 +104,8 @@ def props_updating(last=None):
     props.update({'state': 'ok', 'sub': 'Updating', 'live.title': 'Live Now', 'up.title': 'Upcoming', 'lg.title': 'Leagues',
                   'live.mode': props.get('live.mode') or 'idle', 'live.badge': '',
                   'live.title': props.get('live.title') or 'Checking what is on', 'live.detail': props.get('live.detail', '')})
-    _lines(props, 'up', 'Checking today’s games', sp.FIT_HALF)
-    _lines(props, 'lg', 'Checking leagues', sp.FIT_HALF)
+    _lines(props, 'up', 'Checking games')
+    _lines(props, 'lg', 'Checking leagues')
     return props
 
 
