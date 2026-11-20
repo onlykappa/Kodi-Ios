@@ -104,6 +104,23 @@ class Filler(unittest.TestCase):
         filler.want('F',len(DATA),0);filler.want('F',len(DATA),12*B)
         self.assertTrue(wait(filler.done.is_set));self.assertTrue(all(store.has('F',len(DATA),n) for n in range(16)))
 
+    def test_two_stretches_of_the_file_are_both_followed_and_neither_abandons_the_other(self):
+        # Build 617 log: an MP4 keeps video and audio in separate stretches, Kodi reads both, and the one position the filler followed flipped between
+        # them on every request, abandoning each fetch it began (and dropping the connection). Each stretch keeps its own position now.
+        old=dc.NEAR_BLOCKS;dc.NEAR_BLOCKS=3;self.addCleanup(setattr,dc,'NEAR_BLOCKS',old)
+        job={'at':0,'cursors':[0]}
+        dc.Filler._follow(job,12);self.assertEqual(job['cursors'],[0,12])
+        dc.Filler._follow(job,1);self.assertEqual(job['cursors'],[12,1])           # the first stretch moved on: replaced, not added
+        self.assertFalse(dc.Filler._moved_away(job,12));self.assertFalse(dc.Filler._moved_away(job,0))
+        for at in (60,90,120,150):dc.Filler._follow(job,at)
+        self.assertEqual(len(job['cursors']),dc.CURSORS);self.assertEqual(job["cursors"][-1],150)   # the oldest positions fall away
+        self.assertTrue(dc.Filler._moved_away(job,12))                                                 # a pass begun there is abandoned only now
+    def test_alternating_reads_in_two_stretches_still_fill_everything_without_dropping_connections(self):
+        old=dc.NEAR_BLOCKS;dc.NEAR_BLOCKS=3;self.addCleanup(setattr,dc,'NEAR_BLOCKS',old)
+        store,filler=self.make()
+        for position in (0,12,1,13,2,14):filler.want('F',len(DATA),position*B)
+        self.assertTrue(wait(filler.done.is_set));self.assertTrue(all(store.has('F',len(DATA),n) for n in range(16)))
+
 
 class Prefetch(unittest.TestCase):
     """The next episode / a Continue Watching item is kept ready past the current video's stop (owner, 2026-11-20: autoplay and Home starts at once)."""

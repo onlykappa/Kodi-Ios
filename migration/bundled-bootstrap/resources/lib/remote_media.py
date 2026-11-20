@@ -648,7 +648,7 @@ def opening_log(route,elapsed,stats,reason=''):
    route,max(0,int(elapsed*1000)),bool(stats.get('opening_ready')),int(stats.get('opening_complete') or 0),
    int(stats.get('opening_blocks') or 0),int(stats.get('pending_blocks') or 0),int(stats.get('read_bytes') or 0),
    int(stats.get('http_requests') or 0),int(stats.get('http_errors') or 0),int(stats.get('last_status') or 0))
-   +(' served=%d'%int(stats.get('served') or 0))+((' reason=%s'%reason) if reason else ''),xbmc.LOGINFO)
+   +(' served=%d'%int(stats.get('served') or 0))+((' reason=%s'%reason) if reason else '')+(' origin_answered=%s'%('yes' if int(stats.get('size') or 0)>0 else 'no')),xbmc.LOGINFO)   # origin_answered=no: the debrid server had not even said the file size, so the wait was its slow start, not ours
  except Exception:pass
 
 

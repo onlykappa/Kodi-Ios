@@ -1130,3 +1130,9 @@ Playback cache (owner decision 2026-11-20): `drive_cache.py`, wired in `service.
 Subtitle fix (ISSUE-406, branch claude/library-playback-fixes, no IPA yet): Download and apply now applies at once and verifies by speech in the background; added stream and file-track diagnostics for the unexplained "CC on, nothing shown" case.
 
 Sports source checking and ranking (owner 2026-11-20, ISSUE-407/408, branch claude/library-playback-fixes, no IPA yet): a tapped source now joins a queue of the game's other sources, is verified by what is really playing, falls through to the next when dead or frozen, and sources are ordered by what worked before (`sports_stream_health.py`). Also no more empty `&stamp=` / empty TMDb id folder requests.
+
+Build 617 log fixes (owner 2026-11-20, ISSUE-409/410, branch claude/library-playback-fixes, no IPA yet): a downloaded subtitle stays on when the menu reopens and is offered for English (embedded empty tracks are hidden); the playback cache follows several stretches of the file so seeking back and forth stops thrashing. ISSUE-411 (screen turning on exit) needs a native Kodi build: proposal recorded, not applied.
+
+Scroll smoothness (owner 2026-11-20, ISSUE-412, branch claude/library-playback-fixes, no IPA yet): Upcoming opens a 30-row window unless the list is longer, Leagues has 36 slots instead of 80, and a scroll probe logs the frame rate per window while touched. Favourites as a native grid is the next step once the phone numbers are in.
+
+Umbrella open speed (owner 2026-11-20, ISSUE-413, branch claude/library-playback-fixes): the version page lists sources that opened fast on this phone first and remembers which never opened; the stream-opening log says whether the origin answered. Home staying loaded behind a video was checked and left alone.

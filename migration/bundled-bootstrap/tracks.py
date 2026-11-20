@@ -33,6 +33,21 @@ FIELDS = ['subtitles', 'currentsubtitle', 'subtitleenabled', 'audiostreams', 'cu
 UA = 'KodiIOS/1.0'
 
 
+def external(stream):
+    """True for a subtitle file Kodi was handed (its stream name ends '(External)'): a download or a file the viewer added."""
+    return str(stream.get('name') or '').rstrip().endswith('(External)')
+
+
+def external_file(folder, name):
+    """The file this app downloaded for Kodi's '<crc> (External)' stream (the file is '<crc>.<lang>.<ext>'), or None."""
+    import glob
+    stem = str(name or '').replace('(External)', '').strip()
+    if not stem.isdigit():
+        return None
+    found = sorted(glob.glob(os.path.join(folder, stem + '.*')))
+    return found[0] if found else None
+
+
 def rpc(xbmc, method, params=None):
     answer = json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params or {}})))
     return answer.get('result')
@@ -150,6 +165,7 @@ def run(mode):
             self.rows, self.results, self.added = [], [], set()
             self.track_evidence, self.auto_chosen = {}, False
             self.hidden, self.paths, self.held = set(), {}, None   # removed tracks, files this menu downloaded, the row held
+            self.file_tracks, self.names = [], {}   # the subtitle tracks the MP4 itself holds (log_file_tracks), stream names by index
             self.lang, self.lang_name, self.from_hold = lang, lang_name, False
             self.page = 'tracks'
             self.setProperty('mode', mode)
@@ -196,6 +212,8 @@ def run(mode):
                 if not self.auto_chosen:
                     self.auto_chosen = True
                     chosen = sm.preferred(tm.pick(subs, video), cur, p.get('subtitleenabled'), video)   # only the streams the menu shows
+                    if any(s.get('index') == cur and s.get('downloaded') for s in subs):
+                        chosen = cur   # a subtitle the viewer downloaded is never swapped for an embedded one by opening the menu
                     if p.get('subtitleenabled') and chosen != cur:
                         rpc(xbmc, 'Player.SetSubtitle', {'playerid': pid, 'subtitle': chosen if chosen is not None else 'off',
                                                        'enable': chosen is not None})
@@ -311,9 +329,26 @@ def run(mode):
 
         def with_evidence(self, streams):
             # A track this menu downloaded or added from a file can be removed; one inside the video file cannot.
-            return [dict(s, downloaded=s.get('index') in self.added, removable=s.get('index') in self.added or s.get('index') in self.track_evidence,
-                         **self.track_evidence.get(s.get('index'), {}))
-                    for s in streams if s.get('index') not in self.hidden]
+            # Owner, 2026-11-20 (build 617 log): a downloaded subtitle was forgotten the moment the menu closed (this object is new on every open), so the
+            # next open saw it as an ordinary English track, ranked the embedded CC above it and switched Kodi to that, turning the download off. Kodi names
+            # every file it was handed "<file> (External)": those are the viewer's, wherever this menu instance learned of them.
+            gone = set(filter(None, xbmcgui.Window(10000).getProperty('KodiIOS.SubsRemoved').split('|')))
+            embedded = [s for s in streams if not external(s)]
+            sized = {}
+            if self.file_tracks and len(self.file_tracks) == len(embedded):   # the file's tracks come in the order Kodi numbers its own
+                for stream, track in zip(sorted(embedded, key=lambda s: s.get('index') or 0), self.file_tracks):
+                    if track.get('samples') is not None:
+                        sized[stream.get('index')] = track['samples']
+            out = []
+            for s in streams:
+                index, mine = s.get('index'), external(s)
+                self.names[index] = s.get('name') or ''
+                if index in self.hidden or (mine and s.get('name') in gone):
+                    continue
+                extra = {} if index not in sized else {'sample_count': sized[index]}
+                out.append(dict(s, downloaded=index in self.added or mine, removable=index in self.added or index in self.track_evidence or mine,
+                                **extra, **self.track_evidence.get(index, {})))
+            return out
 
         def search(self):
             it = self.item()
@@ -409,7 +444,10 @@ def run(mode):
                 request = urllib.request.Request(url, headers={'Range': 'bytes=0-1048575'})
                 with urllib.request.urlopen(request, timeout=3) as response:
                     head = response.read(1048576)
-                log('file subtitle tracks: %s' % mp4_tracks.describe(mp4_tracks.subtitle_tracks(head)))
+                self.file_tracks = mp4_tracks.subtitle_tracks(head)
+                log('file subtitle tracks: %s' % mp4_tracks.describe(self.file_tracks))
+                if any(t.get('samples') is not None and t['samples'] <= 1 for t in self.file_tracks) and not self.closed:
+                    self.fill(focus_on=False)   # an empty embedded track is now known: the list drops it
             except Exception as error:
                 log('file subtitle tracks: not read (%s)' % type(error).__name__)
 
@@ -663,7 +701,9 @@ def run(mode):
             if row.get('on'):
                 rpc(xbmc, 'Player.SetSubtitle', {'playerid': pid, 'subtitle': 'off'})
             self.hidden.add(index)
-            path = self.paths.pop(index, None)
+            home_window = xbmcgui.Window(10000)
+            home_window.setProperty('KodiIOS.SubsRemoved', '|'.join(filter(None, [home_window.getProperty('KodiIOS.SubsRemoved'), self.names.get(index, '')])))
+            path = self.paths.pop(index, None) or external_file(folder, self.names.get(index, ''))
             if path and os.path.dirname(path) == os.path.dirname(os.path.join(folder, 'x')):   # only a file this menu downloaded
                 try:
                     os.remove(path)

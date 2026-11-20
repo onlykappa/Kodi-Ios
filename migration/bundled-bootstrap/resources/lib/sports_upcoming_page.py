@@ -4,8 +4,15 @@ import status_ui as u
 import math
 
 WINDOW = 'IOSSportsUpcoming.xml'
+WINDOW_LONG = 'IOSSportsUpcomingLong.xml'
 BACK, REFRESH, LIST, RETRY, LEAGUES = 9001, 9002, 9300, 9003, 9004
 CHIP, CHIPS, ROW, SLOTS = 40000, 16, 45000, 120
+SLOTS_SHORT = 30   # the usual page: 120 slots made the window 4,400 controls and the flick choppy even with six games (rig: 64 fps against 95 at 24 slots)
+
+
+def window_for(rows):
+    """The window file with room for `rows` games: the short one for an ordinary list, the long one beyond SLOTS_SHORT."""
+    return WINDOW if rows <= SLOTS_SHORT else WINDOW_LONG
 CHIP_LINES = 1   # one row that scrolls sideways (owner: no stranded second line)
 SCROLL_CLEAR = 720  # Board 11 leaves room below the final day as the header scrolls away.
 TITLE_LINE, DETAIL_H, PAD, MIN_ROW = 57, 56, 32, 194
@@ -102,10 +109,10 @@ def game_row(p, key, ident, form, width):
     return b
 
 
-def _rows(p):
+def _rows(p, slots):
     out = ''
     width = p.WIDTH - 2*p.SIDE
-    for n in range(SLOTS):
+    for n in range(slots):
         key = 'row.%d.' % n
         heading = (u.text(p,p.SIDE,43,width-250,70,u.P(key+'day'),'p_h2') +
                    u.text(p,p.WIDTH-p.SIDE-240,43,240,70,u.P(key+'day.count'),'p_sub',p.GREY,'right'))
@@ -117,13 +124,13 @@ def _rows(p):
     return out
 
 
-def page(p):
+def page(p, slots=SLOTS):
     header = p.nav_button(BACK,32,5,'chevron-left.png','noop')
     header += p.nav_button(REFRESH,940,5,p.MEDIA+'hdr_refresh.png','noop',glyph_size=60).replace(p.WHITE,p.ACCENT)
     header += edit_button.xml(p,940-20-edit_button.W,22)
     header += u.text(p,p.SIDE,124,972,110,'Upcoming','p_large')
     header += u.text(p,p.SIDE,239,972,51,u.P('subtitle'),'p_sub',p.GREY)
-    content = u.group(p,315,header) + _chips(p) + _rows(p)
+    content = u.group(p,315,header) + _chips(p) + _rows(p, slots)
     content += _states(p)
     body = p.backdrop()
     body += ('<control type="grouplist" id="%d"><top>0</top><width>1080</width><bottom>0</bottom>'
@@ -138,6 +145,6 @@ def page(p):
 def files(p):
     if not _STATE_ART:
         _STATE_ART.update({'sports_calendar.png':p.shape(96,_calendar),'sports_warning.png':p.shape(96,_warning)})
-    files={p.FOLDER+'/'+WINDOW:page(p).encode()}
+    files={p.FOLDER+'/'+WINDOW:page(p,SLOTS_SHORT).encode(), p.FOLDER+'/'+WINDOW_LONG:page(p,SLOTS).encode()}
     files.update({'extras/portrait/'+name:data for name,data in _STATE_ART.items()})
     return files

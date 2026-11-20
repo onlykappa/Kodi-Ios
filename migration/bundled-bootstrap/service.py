@@ -309,6 +309,14 @@ def run():
  threading.Thread(target=loop_quiet_loop,daemon=True).start()
  # Roadmap 1C.1: "open timing" log line per video (tap to picture).
  import open_timing
+ # Owner, 2026-11-20 (a stream took 20 s to open): remember how fast each Umbrella source opened, so the version page lists the fast ones first.
+ import source_speed
+ _speed=source_speed.open_store()
+ def _credit(ok,via):
+  if via!='umbrella':return
+  done=source_speed.settle(xbmcgui.Window(10000),_speed,ok)
+  if done:xbmc.log('Kodi iOS Umbrella source %s: %s'%(done[0],'opened in %.1f s from the choice to the streams being ready'%done[1] if done[1] is not None else 'did not open'),xbmc.LOGINFO)
+ open_timing.LISTENERS.append(_credit)
  import cache_tune   # roadmap 1B.3: Kodi's cache read factor follows Wi-Fi / cellular, set as a video is about to open
  threading.Thread(target=open_timing.watch,args=(xbmcgui.Window(10000),lambda:xbmc.getCondVisibility('Player.HasVideo + Player.Playing'),
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),
@@ -333,6 +341,12 @@ def run():
  threading.Thread(target=perf_summary.watch,args=(xbmcgui.Window(10000),open_timing.take,
                   lambda:drive_proxy.CURRENT[0].stats.take() if drive_proxy.CURRENT else {},
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),daemon=True).start()
+ # Owner, 2026-11-20 (Sports Upcoming and Favourites flick choppily): the frame rate while a finger is on the screen, per window, one line a minute.
+ import scroll_probe
+ _probe=scroll_probe.Probe(lambda:xbmc.getInfoLabel('System.FPS'),lambda:not xbmc.getCondVisibility('System.IdleTime(1)'),
+                           lambda:(xbmcgui.getCurrentWindowId(),xbmc.getInfoLabel('System.CurrentWindow')),lambda text:xbmc.log(text,xbmc.LOGINFO),
+                           lambda:xbmc.getCondVisibility('Player.HasVideo'))
+ threading.Thread(target=scroll_probe.watch,args=(_probe,monitor.waitForAbort),daemon=True).start()
  # Build 193: one status model for every page and the bell (work_state.py), every 2 s, with the reason stored.
  import work_state,slowdown
  # ISSUE-228 (owner: "cancel all upscaling isn't working"): the page's cancel / cancel all / order requests were applied only

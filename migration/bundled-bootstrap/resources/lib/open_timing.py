@@ -15,6 +15,7 @@ NAMES = (('resolved', 'resolve'), ('media', 'handoff'), ('video', 'open'))
 _seen = {}      # mark time -> {'armed': {flag: True}, 'at': {flag: time}}
 WAITING = {}    # mark time -> (when streams were ready, route): videos whose playback clock has not moved yet (first picture)
 MOVING_GIVE_UP = 30.0
+LISTENERS = []  # fn(ok, via): told once per open that finished (streams ready) or gave up; source_speed credits the Umbrella source just chosen
 RECENT = []     # roadmap 3.5: (seconds, route, stages text) of the opens since perf_summary last asked
 
 
@@ -89,12 +90,14 @@ def check(home, playing, log, now=None, probe=None):
         log('Kodi iOS open timing: %.1f s via %s%s' % (took, m.get('via') or '?', ' (%s)' % stages if stages else '') + ' [streams ready; first picture not measured]')
         RECENT.append((took, m.get('via') or '?', stages))
         del RECENT[:-20]
+        _tell(True, m.get('via'))
         WAITING[started] = (now, m.get('via') or '?')
         _finish(home, started)
         return True
     if took > GIVE_UP:
         seen = ', '.join('%s at %.1f s' % (key, at - started) for key, at in sorted(stamps.items(), key=lambda i: i[1]))
         log('Kodi iOS open timing: no picture after %d s via %s%s' % (int(took), m.get('via') or '?', ' (%s)' % seen if seen else ''))
+        _tell(False, m.get('via'))
         _finish(home, started)
         return True
     return False
@@ -121,6 +124,14 @@ def check_moving(log, moving, now=None):
             del WAITING[started]
             done = True
     return done
+
+
+def _tell(ok, via):
+    for listener in list(LISTENERS):
+        try:
+            listener(ok, via)
+        except Exception:
+            pass
 
 
 def _finish(home, started):

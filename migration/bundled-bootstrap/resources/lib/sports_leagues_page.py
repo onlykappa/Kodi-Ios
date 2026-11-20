@@ -4,7 +4,7 @@ import sports_edit_button as edit_button
 
 WINDOW = 'IOSSportsLeagues.xml'
 BACK, REFRESH, RETRY, LIST = 9001, 9002, 9003, 9300
-ROW, SLOTS = 50000, 80
+ROW, SLOTS = 50000, 36   # one slot per league (sports_espn has 18; Crew's menus add a few): was 80, which made this window 17,000 controls and a slow flick (rig 41 fps)
 TITLE_LINE, DETAIL_LINE, PAD, MIN_ROW = 57, 52, 27, 183
 FORMS = tuple((title, detail) for title in range(1, 5) for detail in range(1, 5))
 SCROLL_CLEAR = 720
