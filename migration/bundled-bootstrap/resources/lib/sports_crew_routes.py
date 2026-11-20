@@ -303,6 +303,8 @@ def discover(read=listing, schedule=None, session=None):
         action = parse_qs(urlsplit(route).query).get('action', [''])[0]
         if action != 'fullsites' and league_actions.get(action) not in league_codes:
             continue
+        if action == 'fullsites' and only:   # one game's search reads only its own league's menu, never the all-sites menu (owner, 2026-11-20)
+            continue
         seen.add(route)
         games = live if action == 'fullsites' else [game for game in live if (game.get('league') or game.get('league_name')) == league_actions[action]]
         sources.append(CrewSource(entry.get('label') or 'Sports', route, games, read, session, cache_state))

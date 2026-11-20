@@ -63,7 +63,10 @@ class HybridProvider:
             raise sm.SportsUnavailable('this game is no longer listed')
         token = uuid.uuid4().hex
         with self.lock:
-            self.searches[token] = {'game': game_id, 'state': 'searching'}
+            known = bool(self.found.get(game_id))
+            self.searches[token] = {'game': game_id, 'state': 'done' if known else 'searching'}   # sources already found for it: nothing to look for
+        if known:
+            return token
 
         def work():
             state = 'error'

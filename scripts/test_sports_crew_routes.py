@@ -162,7 +162,7 @@ class Tests(unittest.TestCase):
   entries=[entry('NBA','?action=nba'),entry('NHL','?action=nhl'),entry('Live sites','?action=fullsites')]
   with patch.object(crew,'_home',lambda:Home('NHL')):
    found=crew.discover(lambda route:entries,schedule=[nba,nhl])
-  self.assertEqual([x.name for x in found],['Crew NHL','Crew Live sites'])   # not the NBA menu
+  self.assertEqual([x.name for x in found],['Crew NHL'])   # not the NBA menu, and not the all-sites menu (owner: only that league's folders)
   with patch.object(crew,'_home',lambda:Home('')):
    found=crew.discover(lambda route:entries,schedule=[nba,nhl])
   self.assertEqual([x.name for x in found],['Crew NBA','Crew NHL','Crew Live sites'])   # no filter: as before

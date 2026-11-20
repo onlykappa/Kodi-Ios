@@ -6107,3 +6107,10 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 - **Fix:** `kodi_offset` also asks `System.Time(xx)` for the marker when the text has none. Test: `test_sports_model` KodiClock (marker-less 12-hour phone).
 - **Not fixed, still open:** why Crew's menus gave no match (not provable from this log; the scan is slow and found nothing). `CrewSource` now logs how many event-looking titles matched no live game (a count, never the names) so the next log shows whether titles were seen at all.
 - **Retest:** host tests only; needs the owner's phone.
+
+### ISSUE-395: a game's Crew source search read once and gave up; it also walked every site menu (build 608 phone log)
+
+- **Evidence:** build 608 logs. The search finished within seconds as "None yet" while Crew's collector kept walking for about 110 s and its late results were never read; the walk covered the league menu and the 24-folder all-sites menu.
+- **Root cause:** `crew_sources` called `jet.refresh()` once, which returns as soon as the collector has published the ESPN schedule, and matched against that snapshot.
+- **Fix:** `crew_sources` keeps reading what the collector publishes until the game matches with a source, the collector finishes, or 150 s pass (one fresh pass if the answer predates the request). A game's search no longer reads the all-sites menu (owner: only that league's folders). A game whose sources are already known is not searched again.
+- **Retest:** host tests only (`test_sports_hybrid` SourceSearchKeepsReading, `test_sports_crew_routes`); the phone is the proof. Not built or merged.
