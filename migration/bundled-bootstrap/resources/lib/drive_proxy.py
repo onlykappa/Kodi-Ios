@@ -31,7 +31,10 @@ WARM_FILES = 2                    # at most this many titles are kept warm (abou
 WARM_MAX_AGE = 600                # seconds a warmed title stays usable
 SPARE_MAX_AGE = 45                # seconds a pre-opened connection is trusted (Drive closes idle ones)
 HOLD_MAX = 10                     # roadmap 1G.3: longest one wait is (below Kodi's 20 s low-speed limit), seconds
-READ_AHEAD = 16                  # roadmap 1A.5: pieces (4 MB) the proxy reads ahead of Kodi after a seek
+READ_AHEAD = 96                  # pieces (24 MB) the proxy reads ahead of Kodi after a seek (roadmap 1A.5 had 4 MB; build 615's log: seeks landed 0.6-3.5 s later and
+                                 # then stuttered, every request being a new Drive read at 0.3-0.7 s to the first byte)
+BLOCK = 1024 * 1024              # the memory cache's block
+BLOCK_CAP = 96                   # blocks kept (96 MB); memory only: the Drive index design keeps no movie payload on disk
 
 
 def media_path(file_id):
@@ -143,6 +146,64 @@ class Stats(object):
             out = {'requests': self.requests, 'warm_hits': self.warm_hits, 'seeks': list(self.seeks)}
         self.reset()
         return out
+
+
+class Blocks(object):
+    """The last BLOCK_CAP blocks of movie that went through the proxy, kept in memory only. A seek back to what was just played, or a
+    request that starts inside it, is answered without a Drive round trip. Each block is whole and aligned; the cache is keyed by the
+    file and its size, so a replaced file (a new size) never serves an old block."""
+
+    def __init__(self, cap=None):
+        self.cap = cap or BLOCK_CAP
+        self.lock = threading.Lock()
+        self.data = collections.OrderedDict()   # (file_id, size, index) -> bytes, least recently used first
+        self.size = {}                          # file_id -> the size those blocks belong to
+
+    def put(self, file_id, size, index, block):
+        with self.lock:
+            if self.size.get(file_id) != size:
+                for key in [k for k in self.data if k[0] == file_id]:
+                    del self.data[key]
+                self.size[file_id] = size
+            self.data[(file_id, size, index)] = block
+            self.data.move_to_end((file_id, size, index))
+            while len(self.data) > self.cap:
+                self.data.popitem(last=False)
+
+    def get(self, file_id, size, index):
+        with self.lock:
+            block = self.data.get((file_id, size, index))
+            if block is not None:
+                self.data.move_to_end((file_id, size, index))
+            return block
+
+    def known_size(self, file_id):
+        with self.lock:
+            return self.size.get(file_id)
+
+
+class Tee(object):
+    """Collects the pieces of one upstream response into whole aligned blocks for Blocks (a start inside a block waits for the next boundary)."""
+
+    def __init__(self, blocks, file_id, size, start):
+        self.blocks, self.file_id, self.size, self.pos, self.buf = blocks, file_id, size, start, bytearray()
+
+    def feed(self, piece):
+        if not self.blocks or not piece:
+            return
+        if not self.buf and self.pos % BLOCK:   # not at a boundary yet: skip to the next one
+            skip = min(len(piece), BLOCK - self.pos % BLOCK)
+            self.pos += skip
+            piece = piece[skip:]
+        self.buf += piece
+        self.pos += len(piece)
+        while len(self.buf) >= BLOCK:
+            index = (self.pos - len(self.buf)) // BLOCK
+            self.blocks.put(self.file_id, self.size, index, bytes(self.buf[:BLOCK]))
+            del self.buf[:BLOCK]
+        if self.pos >= self.size and self.buf and (self.pos - len(self.buf)) % BLOCK == 0:
+            self.blocks.put(self.file_id, self.size, (self.pos - len(self.buf)) // BLOCK, bytes(self.buf))   # the file's short last block
+            self.buf = bytearray()
 
 
 class Upstream(object):
@@ -273,6 +334,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     stats = None
     hold = None
     indices = None
+    blocks = None
 
     def log_message(self, *args):
         pass
@@ -430,6 +492,55 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.close_connection = True
         return True
 
+    def _from_blocks(self, file_id, rng, started):
+        """Answer a ranged request from the memory cache: whole blocks from the start of the range, then (if the range goes on) the rest from
+        Drive. False when the first byte is not cached (or the file's size is not known), so the ordinary path runs."""
+        size = self.blocks.known_size(file_id) if self.blocks else None
+        span = self._range(rng, size) if size else None
+        if not span:
+            return False
+        first, last = span
+        pieces, pos = [], first
+        while pos <= last:
+            block = self.blocks.get(file_id, size, pos // BLOCK)
+            if block is None:
+                break
+            part = block[pos - (pos // BLOCK) * BLOCK:][:last - pos + 1]
+            pieces.append(part)
+            pos += len(part)
+        if not pieces:
+            return False
+        rest = None
+        if pos <= last:
+            try:
+                rest = self.upstream.get(file_id, 'bytes=%d-%d' % (pos, last))
+            except Exception:
+                return False
+            if rest.status != 206:
+                rest.read()
+                return False
+        self.send_response(206)
+        self.send_header('Content-Length', str(last - first + 1))
+        self.send_header('Content-Range', 'bytes %d-%d/%d' % (first, last, size))
+        self.send_header('Accept-Ranges', 'bytes')
+        self.send_header('Content-Type', self._type(self.path, (self.sizes.get(file_id) or (0, ''))[1]))
+        self.end_headers()
+        self.upstream.log('Kodi iOS Drive range: start=%d cached=%d%s' % (first, pos - first, ' then Drive' if rest is not None else ''))
+        if self.stats:
+            self.stats.add(seek=(time.time() - started) if first else None, warm=True)
+        try:
+            for part in pieces:
+                self.wfile.write(part)
+            if rest is not None:
+                tee = Tee(self.blocks, file_id, size, pos)
+                for piece in self._stream(rest):
+                    tee.feed(piece)
+                    self.wfile.write(piece)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            self.upstream.drop()
+            self.close_connection = True
+        return True
+
     def _warm_request(self):
         """GET /warm/<file id>/<name>: the page of this title opened; read its start and end now (roadmap 1A.4)."""
         parts = urllib.parse.urlsplit(self.path).path.split('/')
@@ -450,6 +561,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         rng = self.headers.get('Range')
         if rng and self._from_warm(file_id, rng, started):
+            return
+        if rng and self.blocks and self._from_blocks(file_id, rng, started):
             return
         try:
             if self.indices:
@@ -479,8 +592,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.stats:
             begins = re.match(r'bytes=(\d+)-', rng or '')
             self.stats.add(seek=(time.time() - started) if begins and int(begins.group(1)) else None)
+        tee = None
+        total = re.fullmatch(r'bytes (\d+)-\d+/(\d+)', resp.getheader('Content-Range') or '')
+        if self.blocks and total:
+            tee = Tee(self.blocks, file_id, int(total.group(2)), int(total.group(1)))
+        elif self.blocks and resp.status == 200 and (resp.getheader('Content-Length') or '').isdigit():
+            tee = Tee(self.blocks, file_id, int(resp.getheader('Content-Length')), 0)
+        self.upstream.log('Kodi iOS Drive range: start=%s cached=0' % (re.match(r'bytes=(\d+)-', rng or '') or [0, 0])[1])
         try:
             for piece in self._stream(resp):
+                if tee:
+                    tee.feed(piece)
                 self.wfile.write(piece)
         except (BrokenPipeError, ConnectionResetError, OSError):
             # Kodi closed the request (a seek): the upstream response is half read, so its connection is not reused.
@@ -510,7 +632,7 @@ def start(token, connect=None, port=0, hold=None, state_dir=None, log=lambda tex
         import drive_index
         indices = drive_index.Cache(state_dir, log, background=True)
     handler = type('DriveProxyHandler', (Handler,), {'upstream': Upstream(token, connect, spare=connect is None, log=log), 'sizes': {},
-                                                     'warm': Warm(), 'stats': stats, 'hold': staticmethod(hold) if hold else None,
+                                                     'warm': Warm(), 'blocks': Blocks(), 'stats': stats, 'hold': staticmethod(hold) if hold else None,
                                                      'indices': indices})
     server = Server(('127.0.0.1', port), handler)
     server.stats = stats
