@@ -195,7 +195,7 @@ def run(mode):
                 video = self.video()
                 if not self.auto_chosen:
                     self.auto_chosen = True
-                    chosen = sm.preferred(subs, cur, p.get('subtitleenabled'), video)
+                    chosen = sm.preferred(tm.pick(subs, video), cur, p.get('subtitleenabled'), video)   # only the streams the menu shows
                     if p.get('subtitleenabled') and chosen != cur:
                         rpc(xbmc, 'Player.SetSubtitle', {'playerid': pid, 'subtitle': chosen if chosen is not None else 'off',
                                                        'enable': chosen is not None})

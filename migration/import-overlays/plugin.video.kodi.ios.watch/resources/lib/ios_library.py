@@ -84,6 +84,22 @@ def warm_copy(path,xbmcvfs=None,ask=None):
   return bool(ask(int(port),file_id))
  except Exception:return False
 
+def prefetch_copy(path,xbmcvfs=None,ask=None):
+ """A copy that may play next (the next episode, the movie most likely to be resumed, a Continue Watching item): the app's Drive proxy keeps its first
+ 24 MB and last 4 MB on the phone until it plays (Wi-Fi only, kept past the current video's stop), so it opens and autoplays without a Drive wait.
+ Asked on a thread: a page never waits for it. Quiet when it cannot."""
+ try:
+  file_id=drive_file_id(path)
+  if not file_id:return False
+  import xbmcgui,threading
+  port=xbmcgui.Window(10000).getProperty('KodiIOS.DriveProxy')
+  if not port.isdigit():return False
+  if ask is None:
+   boot_path(xbmcvfs);import drive_proxy;ask=drive_proxy.ask_prefetch
+  threading.Thread(target=ask,args=(int(port),file_id),daemon=True).start()
+  return True
+ except Exception:return False
+
 def live_proxy_port(xbmc,xbmcgui,xbmcvfs):
  """The app's Drive proxy port as a string, or '' when it does not answer (ISSUE-355)."""
  window=xbmcgui.Window(10000)
@@ -587,13 +603,21 @@ def _directory(handle,params):
    rows=[row for row in rows if str(row[3].get('season') or '0')==params['season']]
   props=play_properties(rows)
   target=play_target(rows)
-  if target:warm_copy(target[0],xbmcvfs)   # roadmap 1A.4
+  if target:
+   warm_copy(target[0],xbmcvfs)   # roadmap 1A.4
+   prefetch_copy(target[0],xbmcvfs)
+   place=rows.index(target) if target in rows else -1   # and the episode after it, so autoplay is instant
+   if 0<=place<len(rows)-1 and rows[place+1][3].get('mediatype')=='episode':prefetch_copy(rows[place+1][0],xbmcvfs)
   search=lib.artwork('tv',show,'',key,art_cache,None,cached_only=True)
   details=dict(search,**lib.show_details(search.get('tmdb_id'),key,art_cache,None,cached_only=True))
   props.update({'KodiIOS.ShowPlot':details.get('plot',''),'KodiIOS.ShowYear':str(details.get('year') or year),
                 'KodiIOS.ShowRating':str(details.get('rating') or ''),'KodiIOS.ShowGenres':' / '.join(details.get('genres') or [])})
   if params.get('season') is None:rows=season_rows(rows,params,lib,art_cache,key)
-  else:rows=[(play_route(row),row[1],row[2],dict(row[3],properties=play_properties([row])),row[4]) for row in rows]
+  else:
+   # A season's episodes carry where the show's season list is, so the page can draw the season row above them (owner 2026-11-20:
+   # "scroll up I can't select a different season without backing out"; the row was only there for TMDb Helper shows).
+   seasons=page_url({k:v for k,v in params.items() if k in ('type','folder','show','year','local','loose','merge')})
+   rows=[(play_route(row),row[1],row[2],dict(row[3],properties=dict(play_properties([row]),**{'KodiIOS.SeasonsPath':seasons})),row[4]) for row in rows]
   if not rows:rows=[empty_show_row(details)]
  else:
   props={key:'' for key in ('KodiIOS.DownloadedShow','KodiIOS.PlayLabel','KodiIOS.PlayPath','KodiIOS.PlayResume',
@@ -621,6 +645,7 @@ def _directory(handle,params):
   except (OSError,ValueError,AttributeError):history={}
   rows=movie_resume_rows(rows,rpc,history)
   warm_copy(movie_warm_target(rows),xbmcvfs)   # roadmap 1A.4: the movie most likely to be resumed
+  prefetch_copy(movie_warm_target(rows),xbmcvfs)
  seen=set()
  for name,value in props.items():xbmcplugin.setProperty(handle,name,value)
  for path,label,art,info,is_folder in rows:

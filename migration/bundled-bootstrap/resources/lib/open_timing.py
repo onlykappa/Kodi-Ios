@@ -13,6 +13,8 @@ RESOLVED = 'KodiIOS.OpenResolved'
 GIVE_UP = 120.0
 NAMES = (('resolved', 'resolve'), ('media', 'handoff'), ('video', 'open'))
 _seen = {}      # mark time -> {'armed': {flag: True}, 'at': {flag: time}}
+WAITING = {}    # mark time -> (when streams were ready, route): videos whose playback clock has not moved yet (first picture)
+MOVING_GIVE_UP = 30.0
 RECENT = []     # roadmap 3.5: (seconds, route, stages text) of the opens since perf_summary last asked
 
 
@@ -87,6 +89,7 @@ def check(home, playing, log, now=None, probe=None):
         log('Kodi iOS open timing: %.1f s via %s%s' % (took, m.get('via') or '?', ' (%s)' % stages if stages else '') + ' [streams ready; first picture not measured]')
         RECENT.append((took, m.get('via') or '?', stages))
         del RECENT[:-20]
+        WAITING[started] = (now, m.get('via') or '?')
         _finish(home, started)
         return True
     if took > GIVE_UP:
@@ -97,13 +100,36 @@ def check(home, playing, log, now=None, probe=None):
     return False
 
 
+def check_moving(log, moving, now=None):
+    """Once a video that was logged as 'streams ready' has its playback clock moving, log the tap-to-picture time (owner, 2026-11-20: the open took about
+    4.4 s from tap to first picture in build 615 while the line said 1.3 s). Returns True when something was logged."""
+    if not WAITING:
+        return False
+    now = time.time() if now is None else now
+    try:
+        running = bool(moving())
+    except Exception:
+        running = False
+    done = False
+    for started, (ready, via) in list(WAITING.items()):
+        if running:
+            log('Kodi iOS open timing: first picture (playback clock moving) %.1f s after the tap via %s, %.1f s after streams ready' % (now - started, via, now - ready))
+            del WAITING[started]
+            done = True
+        elif now - started > MOVING_GIVE_UP:
+            log('Kodi iOS open timing: playback clock still not moving %d s after the tap via %s' % (int(now - started), via))
+            del WAITING[started]
+            done = True
+    return done
+
+
 def _finish(home, started):
     _seen.pop(started, None)
     home.clearProperty(PROPERTY)
     home.clearProperty(RESOLVED)
 
 
-def watch(home, playing, log, wait, on_open=None, probe=None):
+def watch(home, playing, log, wait, on_open=None, probe=None, moving=None):
     """Service thread: 0.2 s checks while a mark is set, 1 s otherwise. on_open() runs once per new mark, before Kodi
     opens the file (roadmap 1B.3 sets the cache read factor for the current connection there)."""
     seen = None
@@ -118,5 +144,7 @@ def watch(home, playing, log, wait, on_open=None, probe=None):
                 pass
         if busy:
             check(home, playing, log, probe=probe)
-        if wait(0.2 if busy else 1.0):
+        if WAITING and moving:
+            check_moving(log, moving)
+        if wait(0.2 if busy or WAITING else 1.0):
             return

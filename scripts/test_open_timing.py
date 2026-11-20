@@ -17,6 +17,19 @@ class OpenTiming(unittest.TestCase):
         self.assertTrue(ot.check(home,lambda:True,lines.append,now=105.8))
         self.assertEqual(lines,['Kodi iOS open timing: 5.8 s via library [streams ready; first picture not measured]'])
         self.assertFalse(ot.check(home,lambda:True,lines.append,now=106.0))
+    def test_the_first_picture_is_logged_when_the_playback_clock_moves(self):
+        home,lines=Home(),[];ot.WAITING.clear()
+        ot.mark(home,'library',now=100.0)
+        ot.check(home,lambda:True,lines.append,now=101.3)
+        self.assertFalse(ot.check_moving(lines.append,lambda:False,now=103.0))
+        self.assertTrue(ot.check_moving(lines.append,lambda:True,now=104.4))
+        self.assertIn('first picture (playback clock moving) 4.4 s after the tap via library, 3.1 s after streams ready',lines[-1])
+        self.assertFalse(ot.check_moving(lines.append,lambda:True,now=105.0))   # logged once
+    def test_a_clock_that_never_moves_is_reported_then_forgotten(self):
+        home,lines=Home(),[];ot.WAITING.clear()
+        ot.mark(home,'library',now=100.0);ot.check(home,lambda:True,lines.append,now=101.0)
+        self.assertTrue(ot.check_moving(lines.append,lambda:False,now=131.0))
+        self.assertIn('playback clock still not moving 31 s after the tap',lines[-1]);self.assertEqual(ot.WAITING,{})
     def test_a_stale_mark_is_dropped(self):
         home,lines=Home(),[]
         ot.mark(home,'drive copy',now=0.0)

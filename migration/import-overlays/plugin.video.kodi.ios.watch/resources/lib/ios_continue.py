@@ -288,8 +288,13 @@ def directory(handle,kind):
   except ValueError:return {}
  data=load(read) if xbmcvfs.exists(STORE) else {'items':{}}
  fill=filler(xbmcvfs)
+ warmed=0
  for entry in entries(data,kind,library_items(rpc)):
   entry=fill(entry)
+  if warmed<2 and entry.get('download_path'):   # the first two Continue Watching items start without a Drive wait (Drive copies only; Wi-Fi)
+   try:
+    import ios_library;ios_library.prefetch_copy(entry['download_path'],xbmcvfs);warmed+=1
+   except Exception:pass
   episode=entry.get('kind')=='episode'
   # ISSUE-328 (rig: KeyError 'tvshowtitle' emptied the whole Continue Watching row): an entry missing a name still shows,
   # under whatever name it has, instead of stopping the row.
