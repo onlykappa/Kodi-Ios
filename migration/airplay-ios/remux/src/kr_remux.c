@@ -400,6 +400,11 @@ static bridge *find_bridge(int index) {
 static gm_stream *rend_plan(int rend) {
     return S.cplan && (rend==R_VCOMPAT || rend>=R_CAUDIO)?S.cplan:S.gm;
 }
+#ifdef KR_REMUX_TEST
+int kr_remux_test_video_segment(int converted,double seconds) {
+    return gm_stream_time_to_segment(rend_plan(converted?R_VCOMPAT:R_VCOPY),seconds);
+}
+#endif
 static int rendition_track(int rend) { return (rend-R_AUDIO)%MAX_TRACKS; }
 
 static int track_route(int index) { return index >= 0 && index < MAX_TRACKS ? S.routes[index] : KR_AUDIO_NONE; }
@@ -692,6 +697,11 @@ static int cache_has(int rend, int seg) {
     pthread_mutex_unlock(&C.lock);
     return has;
 }
+#ifdef KR_REMUX_TEST
+int kr_remux_test_cached_video(int converted,int segment) {
+    return cache_has(converted?R_VCOMPAT:R_VCOPY,segment);
+}
+#endif
 
 static void cache_drop(int i) {
     C.bytes -= (size_t)C.e[i].len;

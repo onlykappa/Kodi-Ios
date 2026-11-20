@@ -1,5 +1,9 @@
 # Persistent progress
 
+## TV handoff step1 reproduction candidate — 2026-11-20
+
+Added real native HTTP/cache/converter host reproduction for copy→MFi converted handoff at20s in prepared and long-GOP MP4 fixtures, including different copy/conversion segment grids. Read-only test observers are excluded from shipped frameworks. Focused CI must pass observation checks and demonstrate exactly four expected RED desired-contract failures (cold converted target and obsolete segment0, two fixtures). Execution pending. No runtime behavior/release changes; actual iPhone/TV remains untested.
+
 ## New phone log is build608/r67 — 2026-11-20
 
 Reviewed four native AirPlay starts; see [build608 findings](AIRPLAY-BUILD608-FINDINGS.md). Exact installed build/source lock is608/main/f50f1a6/r67, not diagnostic602/r68; no r68 packet-window/request-correlation lines.1080p first handoff has no direct TV HTTP requests; retry and4K reach TV but deliver no successful TV video media. Copied video/audio prime precedes late receiver-selected converted rendition, and resumed conversion starts obsolete0 before target184/16. High10 MKV remains in preparation until aborted67.5s. No empty-audio-window reproduction here; later HTTP500/canceled records follow shutdown. Prioritize actual TV rendition/resume-window readiness and duplicate-lane contention, retaining source/receiver uncertainty. No runtime code or release changed.

@@ -2477,6 +2477,47 @@ static void test_startup_repairs(const char *base) {
 // first while the other still succeeds. The fixture refuses exactly the first qualifying request for a resource,
 // deterministically but not tied to which side (video or audio) actually wins that race in a given run; the
 // fix retries whichever side failed, so either outcome should recover without failing the whole seek.
+// Build608: a real HTTP handoff from the phone's copy to an MFi receiver at resume.
+// The observation mode must reproduce both defects; contract mode must reject them.
+// Neither executes AVPlayer or demonstrates an iPhone/TV result.
+static void test_receiver_resume_handoff(const char *base,int contract) {
+    const char *files[]={"coalesced.mp4","long-gop.mp4"};
+    for(int f=0;f<2;f++) {
+        char url[1024],sub[1024],list[512];
+        snprintf(url,sizeof url,"%s/%s",base,files[f]);
+        snprintf(sub,sizeof sub,"%s/subs.srt",fixture_dir);
+        kr_remux_set_prefetch(0);kr_remux_set_subtitles(-2,sub,"eng");kr_video_set_encoder("mpeg4");
+        unsigned ticket=kr_remux_begin(0);
+        int opened=kr_remux_start_for(ticket,url,0,KR_COMPAT_SEGMENTED,list,sizeof list);
+        CHECK(opened==KR_READY && kr_remux_compat()==0,"handoff %s opens in copy mode: %s",files[f],kr_remux_message());
+        if(opened!=KR_READY){kr_remux_stop();continue;}
+        snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
+        char *tail=strstr(prefix_path,"/master.m3u8");if(tail)*tail=0;
+        int copied=kr_remux_test_video_segment(0,20.0),converted=kr_remux_test_video_segment(1,20.0);
+        CHECK(converted>0,"handoff resume is away from converted segment zero");
+        if(f==1)CHECK(copied!=converted,"long-GOP handoff uses different copy/conversion grids (%d/%d)",copied,converted);
+        CHECK(kr_remux_prime_for(ticket,20.0)==KR_READY,"handoff copy prime succeeds");
+        CHECK(kr_remux_test_cached_video(0,copied),"handoff copied resume window is cached");
+        int warm=kr_remux_test_cached_video(1,converted);
+        CHECK(contract?warm:!warm,"HANDOFF_NOT_READY %s: converted resume cached=%d",files[f],warm);
+        reply phone=get_as(UA_PHONE,kr_remux_port(),"/master.m3u8");
+        CHECK(phone.status==200 && strstr(phone.body,"/video/index.m3u8") && !strstr(phone.body,"/cvideo/"),"phone selects copied rendition");free(phone.body);
+        kr_remux_set_prefetch(1);
+        reply tv=get_as(UA_TV,kr_remux_port(),"/master.m3u8");
+        CHECK(tv.status==200 && strstr(tv.body,"/cvideo/index.m3u8"),"MFi receiver selects different converted rendition");free(tv.body);
+        double until=mono_ms()+10000;
+        while(!kr_remux_test_cached_video(1,0) && mono_ms()<until)usleep(10000);
+        int zero=kr_remux_test_cached_video(1,0);
+        CHECK(contract?!zero:zero,"OBSOLETE_ZERO %s: converted zero cached=%d at resume20",files[f],zero);
+        kr_remux_set_prefetch(0);
+        char path[96];snprintf(path,sizeof path,"/cvideo/seg%d.m4s",converted);
+        reply video=get_as(UA_TV,kr_remux_port(),path);
+        CHECK(video.status==200 && video.len>8,"host converter eventually serves requested resume window");free(video.body);
+        kr_remux_stop();
+    }
+    kr_remux_set_prefetch(1);kr_remux_set_subtitles(-1,NULL,NULL);
+}
+
 static void test_seek_audio_retry(const char *base) {
     char url[512],list[512];
     static char log[1 << 20]; // Drain the expanded bounded diagnostic history, including retry evidence.
@@ -2524,6 +2565,11 @@ int main(int argc, char **argv) {
         test_audio_seek_replay(argv[2]);
         printf("%d audio replay checks, %d failed\n", checks, failures);
         return failures ? 1 : 0;
+    }
+    if(argc>3 && (!strcmp(argv[3],"--receiver-handoff-repro") || !strcmp(argv[3],"--receiver-handoff-contract"))) {
+        test_receiver_resume_handoff(argv[2],!strcmp(argv[3],"--receiver-handoff-contract"));
+        printf("%d receiver handoff checks, %d failed\n",checks,failures);
+        return failures?1:0;
     }
     if (argc > 3 && !strcmp(argv[3], "--bitmap-only")) {
         char work[1024], path[1024];

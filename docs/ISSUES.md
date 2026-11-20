@@ -5976,6 +5976,8 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 
 ## ISSUE-393 — Build600 MKV AirPlay preparation/delivery remains slow (2026-11-19)
 
+- **Build608 step1 reproduction candidate:** native host test `test_receiver_resume_handoff` exercises phone copy master/prime followed by an MFi receiver master at20s, with subtitle-burn routing. Indexed prepared MP4 and long-GOP MP4 cover same/different copy/conversion grids. Read-only cache/plan observers are compiled only under KR_REMUX_TEST and absent from frameworks. Observation mode must show cached copy, cold converted target and background conversion of0; desired-contract mode must fail exactly the four readiness/obsolete-zero checks, with other requests succeeding. Registered via import workflow shell validation and focused native workflow receiver_handoff_only; execution pending. No playback behavior, framework pin or IPA changed. This does not reproduce AVPlayer/receiver failure or prove all latency comes from these defects.
+
 - **Seen:** likely streamed MKV attempts prime video/audio in31.6–41.6s; High10 video is converted with subtitles, some6s video windows take7–16s production. One attempt fails, another advances before close. Owner reports long-seek TV response timeouts.
 - **Cause:** not isolated. Source I/O, shared waits and conversion overlap; summing them would be wrong. The log does not independently isolate a>10minute user seek in these MKV sessions. Canceled requests following receiver failure are not automatically the initiating cause.
 - **Fix/test:** none yet; reproduce constrained source+conversion workload and separate timings before changing retries or timeouts. Preserve codec compatibility. Roadmap and phone acceptance remain open.

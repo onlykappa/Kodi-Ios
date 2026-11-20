@@ -91,6 +91,11 @@ int kr_remux_subtitle_answer_now(int seg);
 void kr_remux_set_subtitles(int ordinal, const char *file, const char *lang);
 // r10: the running session's burned subtitles: source stream index, -2 an external file, -1 none.
 int kr_remux_burn_track(void);
+#ifdef KR_REMUX_TEST
+// Read-only observation for host regression tests; absent from shipped frameworks.
+int kr_remux_test_cached_video(int converted, int segment);
+int kr_remux_test_video_segment(int converted, double seconds);
+#endif
 #ifdef __cplusplus
 }
 #endif
