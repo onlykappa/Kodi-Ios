@@ -177,5 +177,14 @@ class Routes(unittest.TestCase):
         self.assertEqual(set(ctl.ROUTES.values()), {'sports_live', 'sports_upcoming', 'sports_leagues'})
 
 
+class NoCrewWindow(unittest.TestCase):
+    """Owner, 2026-11-20: "no more Crew UI". The hub no longer opens Crew's own menu window under itself."""
+    def test_the_hub_does_not_open_crews_container(self):
+        text = (BOOT / 'sports.py').read_text()
+        self.assertNotIn('sports_crew_context', text)
+        self.assertNotIn('crew_context', text)
+        self.assertNotIn('plugin.video.thecrew', text)
+
+
 if __name__ == '__main__':
     unittest.main()

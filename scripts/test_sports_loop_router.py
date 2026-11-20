@@ -138,4 +138,9 @@ class Tests(unittest.TestCase):
  def test_nested_source_selection_does_not_consume_server_timeout(self):
   result,state,_=self.exercise(select=True)
   self.assertIsInstance(result,InterruptedError);self.assertGreater(state['now'],.6)
+ def test_a_crew_link_chooser_is_answered_with_its_first_entry_once(self):
+  # Owner, 2026-11-20: no Crew UI; the chooser Crew shows while it resolves is answered for the person.
+  result,state,logs=self.exercise(select=True)
+  self.assertEqual(state['error_dialog_closed'],'Action(Select)')   # the fake backend keeps the last builtin it was given
+  self.assertEqual(len([l for l in logs if 'picked the first link' in l]),1)   # one answer for one appearance of the chooser
 if __name__=='__main__':unittest.main()

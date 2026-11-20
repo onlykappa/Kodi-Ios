@@ -152,6 +152,31 @@ class Tests(unittest.TestCase):
   entries=[entry('NBA','?action=nba'),entry('Replay','?action=sreplays'),entry('Movies','?action=movies'),entry('Live sites','?action=fullsites'),entry('NBA duplicate','?action=nba')]
   found=crew.discover(lambda route:entries,schedule=[GAME])
   self.assertEqual([x.name for x in found],['Crew NBA','Crew Live sites'])
+ def test_a_game_page_reads_only_its_own_leagues_crew_menu(self):
+  # Owner, 2026-11-20: only what is needed from Crew. While a game's page searches, only that league's menu is read.
+  from unittest.mock import patch
+  class Home:
+   def __init__(self,league):self.league=league
+   def getProperty(self,key):return self.league if key==crew.ONLY_LEAGUE else ''
+  nba=dict(GAME,league='NBA',state='live');nhl=dict(GAME,league='NHL',league_name='NHL',state='live')
+  entries=[entry('NBA','?action=nba'),entry('NHL','?action=nhl'),entry('Live sites','?action=fullsites')]
+  with patch.object(crew,'_home',lambda:Home('NHL')):
+   found=crew.discover(lambda route:entries,schedule=[nba,nhl])
+  self.assertEqual([x.name for x in found],['Crew NHL','Crew Live sites'])   # not the NBA menu
+  with patch.object(crew,'_home',lambda:Home('')):
+   found=crew.discover(lambda route:entries,schedule=[nba,nhl])
+  self.assertEqual([x.name for x in found],['Crew NBA','Crew NHL','Crew Live sites'])   # no filter: as before
+  with patch.object(crew,'_home',lambda:Home('MLB')):
+   self.assertEqual(crew.discover(lambda route:self.fail('no MLB game is live'),schedule=[nba,nhl]),[])
+ def test_crews_ufc_f1_and_pga_menus_are_scanned_for_their_leagues(self):
+  from unittest.mock import patch
+  class Home:
+   def getProperty(self,key):return ''
+  games=[dict(GAME,league=code,league_name=code,state='live') for code in ('UFC','F1','PGA')]
+  entries=[entry('UFC','?action=ufc'),entry('F1','?action=f1'),entry('PGA','?action=pga'),entry('NASCAR','?action=nascar')]
+  with patch.object(crew,'_home',lambda:Home()):
+   found=crew.discover(lambda route:entries,schedule=games)
+  self.assertEqual([x.name for x in found],['Crew UFC','Crew F1','Crew PGA'])   # nascar is not one of ours
  def test_upcoming_only_does_not_open_crew(self):
   upcoming=dict(GAME,state='upcoming')
   self.assertEqual(crew.discover(lambda route:self.fail('Crew should not be scanned'),schedule=[upcoming]),[])

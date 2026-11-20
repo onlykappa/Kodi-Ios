@@ -7,11 +7,13 @@ import sports_loop_routes as common
 ADDON = 'plugin.video.thecrew'
 NAME = 'TheCrewRoute'
 # Only sports menus, never movie/TV/replay/account routes during discovery.
-ACTIONS = {'nfl', 'nhl', 'nba', 'mlb', 'ncaa', 'ncaab', 'fifa', 'fullsites'}
+ACTIONS = {'nfl', 'nhl', 'nba', 'mlb', 'ncaa', 'ncaab', 'fifa', 'fullsites',
+           'ufc', 'f1', 'pga'}   # Crew's own UFC, Formula 1 and PGA menus (3.2.2 has them): scanned for sources too (owner, 2026-11-20)
 MAX_FOLDERS = 24
 MAX_DEPTH = 3
 SCAN_BUSY = 'KodiIOS.SportsCrewListing'
 OWNER = 'KodiIOS.SportsNativeOwner'
+ONLY_LEAGUE = 'KodiIOS.SportsCrewOnlyLeague'   # set while one game's page searches: only that league's Crew menu is read (owner, 2026-11-20)
 
 
 def _home():
@@ -271,6 +273,10 @@ def discover(read=listing, schedule=None, session=None):
     # ESPN is authoritative for live status. Keep upcoming games in the
     # schedule, but do not walk Crew menus for events that have not started.
     live = [game for game in schedule if game.get('state') == 'live']
+    home_only = _home()
+    only = home_only.getProperty(ONLY_LEAGUE) if home_only else ''
+    if only:   # a game page asked: read only its own league's Crew menu, not every menu
+        live = [game for game in live if (game.get('league') or game.get('league_name')) == only]
     if not live:
         return []
     if session is not None:
@@ -283,7 +289,8 @@ def discover(read=listing, schedule=None, session=None):
     entries = read('plugin://' + ADDON + '/?action=bluehat')
     sources, seen, cache_state = [], set(), {'owner':None}
     league_codes = {game.get('league') or game.get('league_name') for game in live}
-    league_actions = {'nfl':'NFL', 'nba':'NBA', 'nhl':'NHL', 'mlb':'MLB', 'ncaa':'NCAAF', 'ncaab':'NCAAB', 'fifa':'MLS'}
+    league_actions = {'nfl':'NFL', 'nba':'NBA', 'nhl':'NHL', 'mlb':'MLB', 'ncaa':'NCAAF', 'ncaab':'NCAAB', 'fifa':'MLS',
+                      'ufc':'UFC', 'f1':'F1', 'pga':'PGA'}
     for entry in entries[:64]:
         route = entry.get('file', '')
         if entry.get('filetype') != 'directory' or not valid_route(route) or route in seen:

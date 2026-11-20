@@ -32,7 +32,7 @@ def automatic_source(sources):
     return result
 
 
-def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=None, keep_owner_on_failure=False):
+def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=None, keep_owner_on_failure=False, auto_pick=True):
     if backend is None:
         import xbmc as backend
     choices, seen = [], set()
@@ -99,6 +99,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
     began, previous, failed_through = clock(), clock(), -1
     first_video_time = None
     current_index = 0
+    select_seen, picked = None, False   # when a Crew chooser appeared, and whether it has been answered
     try:
         stage(0)
         player.play(playlist)
@@ -110,6 +111,17 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             # A person choosing a nested link is not a slow or failed server.
             if backend.getCondVisibility('Window.IsActive(selectdialog)'):
                 began += now - previous
+                # Owner, 2026-11-20: no Crew UI. A link chooser Crew puts up while it resolves is answered with its first (best) entry, once per
+                # appearance, after a moment for the list to build. Kodi's own select action: nothing of Crew's code is called.
+                if auto_pick:
+                    if select_seen is None:
+                        select_seen = now
+                    elif not picked and now - select_seen >= .4:
+                        backend.executebuiltin('Action(Select)')
+                        logger('sports: picked the first link in Crew\'s chooser')
+                        picked = True
+            else:
+                select_seen, picked = None, False
             previous = now
             if not player.ready and now - began >= timeout:
                 raise InterruptedError('native sports opening timed out')
