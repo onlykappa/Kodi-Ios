@@ -605,3 +605,10 @@ Owner confirms ESPN supplies both live and upcoming games; search Crew for sourc
 ## DEC-064: Preserve Crew's supported Kodi service (2026-11-18)
 
 The owner requested investigation and repair of Crew's missing segment proxy using its supported behavior. This is a narrow exception to DEC-058's general removal of new add-on services: retain Crew's pinned upstream `service.py` declaration and launcher. For a reused Crew add-on, restore the declaration only when the exact pinned version and launcher bytes match; otherwise fail packaging instead of changing an unknown installation. The upstream service also runs Crew background workers and can fetch its proxy module from Crew's remote source; this is upstream behavior and is not proof of phone compatibility. Other provider services remain disabled by the existing policy. In the isolated Kodi rig, Kodi started the genuine declared service and its local proxy accepted connections. No IPA or merge is authorized.
+
+## DEC-065: ESPN for every Sports list, time and score; Crew only for a game's sources (owner, 2026-11-20)
+
+- **Owner:** "pull only what's needed from the Crew to watch the games and shows, not the UI … Crew is only used for sources, like Movies and TV use it for backup sources. It speeds things up; the lists overlapped our loader."
+- **Decision:** the phone's Sports provider is `sports_hybrid.HybridProvider`: ESPN supplies the games, leagues (including UFC, F1 and golf), start times, live scores and clocks. Crew's collector (`sports_jet_run`) is started only when a game's page asks for its sources (`sports_provider.crew_sources`), never by a list. Sources found for a game stay for the session; none found is "None yet".
+- **Supersedes:** DEC-061 (the real provider is JetExtractors) and DEC-063 (Crew discovery for live games). `KODI_IOS_SPORTS=espn` runs the same ESPN provider without Crew.
+- **Consequence:** list rows show "No sources yet" until a game is opened; a reminder finds sources on its own schedule (sports_reminders, every 10 minutes for games within 3 hours).

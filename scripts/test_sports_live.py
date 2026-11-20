@@ -67,19 +67,15 @@ class Properties(unittest.TestCase):
         self.assertEqual((p['chip.0.on'], p['chip.1.on'], p['chips.rows']), ('true', '', '1'))
         # closest to the end first: the soccer game, then basketball
         self.assertEqual((p['g.1.league'], p['g.1.clock'], p['g.1.a.name'], p['g.1.h.name']), ('UCL', '67′', 'Borussia Mönchengladbach', 'Brighton & Hove Albion'))
-        self.assertEqual((p['g.1.a.score'], p['g.1.h.score'], p['g.1.a.lead'], p['g.1.h.lead']), ('2', '1', 'true', ''))
-        self.assertEqual((p['g.2.league'], p['g.2.clock'], p['g.2.h.lead']), ('NBA', 'Q3 · 4:12', 'true'))
-        self.assertEqual((p['g.1.n'], p['g.1.pos'], p['g.1.s.1.pos'], p['g.1.s.3.pos']), ('3', 'first', 'mid', 'last'))
-        self.assertEqual((p['g.1.s.1.addon'], p['g.1.s.1.mono'], p['g.1.s.1.detail'], p['g.1.s.1.tag']), ('Loop TV', 'LT', '1080p · English', 'best'))
-        self.assertEqual((p['g.1.s.3.also'], p['g.1.s.3.tag']), ('Also on Loop Guide', 'good'))
-        self.assertEqual((p['g.2.s.1.also'], p['g.2.s.2.also']), ('Also on Loop Guide', ''))
+        self.assertEqual(p['g.1.score'], '2 – 1')   # the big score in the middle of the card (option B)
+        self.assertEqual((p['g.2.league'], p['g.2.clock'], p['g.2.score']), ('NBA', 'Q3 · 4:12', '88 – 91'))
 
     def test_unused_slots_are_cleared_so_nothing_stale_stays(self):
         p, _ = props()
         for g in (5, 12):
             self.assertEqual([v for k, v in p.items() if k.startswith('g.%d.' % g) and v], [])
-        self.assertEqual(p['g.4.s.2.addon'], '')   # the NHL game has one source
-        self.assertEqual(p['g.4.pos'], 'first')
+        self.assertEqual(p['g.4.score'], '1 – 1')   # the NHL card: a score, cleared when the slot is empty
+        self.assertEqual(p['g.4.a.name'], 'Toronto Maple Leafs')   # away and home alike: the card's two names (sample NHL game)
 
     def test_a_tie_has_no_leader_and_a_game_without_sources_can_be_searched(self):
         games = SAMPLE.live_games()
@@ -87,16 +83,14 @@ class Properties(unittest.TestCase):
         nhl['sources'] = []
         p, _ = props(games)
         row = next(g for g in range(1, 5) if p['g.%d.league' % g] == 'NHL')
-        self.assertEqual((p['g.%d.a.lead' % row], p['g.%d.h.lead' % row]), ('', ''))
-        self.assertEqual((p['g.%d.pos' % row], p['g.%d.n' % row]), ('first', '0'))
-        self.assertTrue(p['g.%d.id' % row])
+        self.assertTrue(p['g.%d.id' % row])   # a tap on the card opens the game page, where the sources are looked for
 
-    def test_only_the_best_four_sources_are_shown(self):
+    def test_no_source_rows_on_the_live_page_any_more(self):
+        # Owner, 2026-11-20: the Live Now cards carry no sources and no buttons; a tap opens the game page, where Play is.
         game = SAMPLE.live_games()[0]
-        game['sources'] = [dict(game['sources'][0], id='s%d' % i, tag='best' if i == 0 else '') for i in range(7)]
+        game['sources'] = [dict(game['sources'][0], id='s%d' % i) for i in range(7)]
         p, _ = props([game])
-        self.assertEqual((p['g.1.n'], p['g.1.s.4.pos'], p['g.1.s.4.addon']), ('4', 'last', 'Loop TV'))
-        self.assertEqual(len(ctl.slots_for([game], 'All')), 4)
+        self.assertFalse([k for k in p if '.s.' in k])
 
     def test_a_league_chip_filters_and_a_stale_choice_falls_back_to_all(self):
         p, chosen = props(chosen='NBA')
@@ -188,19 +182,8 @@ class Taps(unittest.TestCase):
         self.assertEqual(ctl.control_target(lp.chip_id(1, 3)), ('chip', 3))
         self.assertEqual(ctl.control_target(lp.chip_id(2, 7)), ('chip', 7))
         self.assertEqual(ctl.control_target(lp.chip_id(3, 14)), ('chip', 14))
-        self.assertEqual(ctl.control_target(lp.PLAY0), ('source', 1, 1))
-        self.assertEqual(ctl.control_target(lp.PLAY0 + 23), ('source', 3, 4))
-        self.assertEqual(ctl.control_target(lp.PLAY0 + lp.ALSO_IDS + 23), ('source', 3, 4))   # the variant with an "Also on" line
-        self.assertEqual(ctl.control_target(lp.PLAY0 + 7 * 10 + 5), None)                     # no fifth source
         self.assertIsNone(ctl.control_target(lp.BACK))
-        self.assertEqual(ctl.control_target(lp.SEARCH0), ('search', 1))
-        seen = set()
-        for g in range(1, lp.GAMES + 1):
-            for s in range(1, lp.SOURCES + 1):
-                for extra in (0, lp.ALSO_IDS):
-                    self.assertEqual(ctl.control_target(lp.PLAY0 + (g - 1) * 10 + (s - 1) + extra), ('source', g, s))
-                    seen.add(lp.PLAY0 + (g - 1) * 10 + (s - 1) + extra)
-        self.assertEqual(len(seen), lp.GAMES * lp.SOURCES * 2)
+        self.assertEqual(ctl.control_target(lp.SEARCH0), ('search', 1))   # the cards are big tap targets now; sources play on the game page
 
     def test_a_tap_finds_the_source_on_screen(self):
         slots = ctl.slots_for(SAMPLE.live_games(), 'All')
@@ -218,14 +201,14 @@ class Page(unittest.TestCase):
     def test_ids_are_unique_and_the_buttons_are_there(self):
         ids = [c.get('id') for c in self.root.iter('control') if c.get('id')]
         self.assertEqual(len(ids), len(set(ids)))
-        for ident in (lp.BACK, lp.REFRESH, lp.RETRY, lp.SEE_UPCOMING, lp.PLAY0, lp.PLAY0 + lp.ALSO_IDS, lp.chip_id(1, 0), lp.chip_id(3, 14)):
+        for ident in (lp.BACK, lp.REFRESH, lp.RETRY, lp.SEE_UPCOMING, lp.CARD0):   # no league chips any more (owner, 2026-11-20)
             self.assertIn(str(ident), ids)
 
     def test_every_property_the_page_reads_is_set_by_the_controller(self):
         read = set(re.findall(r'Window\(\)\.Property\(([\w.]+)\)', self.xml))
         given = set(props()[0]) | set(props([])[0]) | set(ctl.ERROR)
         self.assertEqual(sorted(read - given), [])
-        self.assertEqual(sorted(k for k in given if k.startswith('g.') and k not in read and not k.endswith('.n')), [])   # nothing is set that is never drawn
+        self.assertEqual(sorted(k for k in given if k.startswith('g.') and k not in read and not k.endswith('.id')), [])   # the card's id is what a tap reads   # nothing is set that is never drawn
 
     def test_kodi_condition_rules(self):
         for cond in re.findall(r'<visible[^>]*>(.*?)</visible>', self.xml):
@@ -252,6 +235,37 @@ class Page(unittest.TestCase):
         self.assertIn('IOSSportsLive.xml', portrait.sports_live_page.WINDOW)
         import sports_routes
         self.assertTrue(sports_routes.available('sports_live'))
+
+
+class CardTap(unittest.TestCase):
+    """Owner, 2026-11-20: tapping a live game's team area opens its game page (Play once a source is found)."""
+    def test_a_card_tap_routes_to_the_game_page_and_ids_do_not_collide(self):
+        import sports_live_page as lp
+        self.assertEqual(ctl.control_target(lp.CARD0), ('search', 1))
+        self.assertEqual(ctl.control_target(lp.CARD0 + lp.GAMES - 1), ('search', lp.GAMES))
+        self.assertEqual(ctl.control_target(lp.SEARCH0), ('search', 1))
+        ranges = [(lp.CARD0, lp.CARD0 + lp.GAMES), (lp.SEARCH0, lp.SEARCH0 + lp.GAMES), (lp.CHIP0, lp.CHIP0 + 3 * lp.CHIP_IDS), (lp.PLAY0, lp.PLAY0 + 2 * lp.ALSO_IDS)]
+        for i, (a, b) in enumerate(ranges):
+            for c, d in ranges[i + 1:]:
+                self.assertTrue(b <= c or d <= a, (a, b, c, d))
+
+
+class Crests(unittest.TestCase):
+    """Owner, 2026-11-20: real logos on the cards, never letters; a team without one shows an empty ring."""
+    def test_crests_become_the_phones_copies_and_missing_ones_are_empty(self):
+        nba = next(g for g in SAMPLE.live_games() if g['league'] == 'NBA')   # the sample basketball teams carry ESPN crest addresses
+        p = ctl.game_props(1, nba)
+        self.assertTrue(p['g.1.a.crest'].startswith('https://a.espncdn.com/'))
+        import tempfile
+        profile = tempfile.mkdtemp()   # a real folder: nothing is written beside the code or at the root
+        got = ctl.with_crests(dict(p), profile, get=lambda url: b'\x89PNG' + b'0' * 200)
+        for k in got:
+            if k.endswith('.crest') and p[k]:
+                self.assertTrue(got[k].endswith('.png'), k)
+        def offline(url):
+            raise OSError('offline')
+        none = ctl.with_crests(dict(p), tempfile.mkdtemp(), get=offline)   # a fresh folder: nothing saved before
+        self.assertTrue(all(none[k] == '' for k in none if k.endswith('.crest')))   # a failed download is an empty ring
 
 
 if __name__ == '__main__':

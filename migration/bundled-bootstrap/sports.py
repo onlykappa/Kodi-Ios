@@ -229,7 +229,7 @@ def run(args=()):
                 coming = sorted((g for g in getattr(self, 'games', []) if g.get('state') == 'upcoming' and g['start'] >= time.time()), key=lambda g: g['start'])
                 if n < len(coming):
                     import sports_game
-                    sports_game.run(coming[n], provider=sports_provider.get())
+                    sports_game.run(coming[n], provider=sports_provider.get(), search=True)
 
         def finish(self):
             self.stop.set()

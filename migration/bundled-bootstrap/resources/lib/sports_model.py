@@ -30,17 +30,34 @@ class SportsUnavailable(Exception):
     """No add-on answered: the page shows "Can't load ... right now" with one Try again button."""
 
 
+def parse_clock(text):
+    """Seconds since midnight from Kodi's clock text: '16:05:09', '16:05', '4:05 PM', '04:05:09 AM' (12-hour phones). None when it is not a clock."""
+    import re
+    match = re.match(r'^\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?\s*$', str(text or ''))
+    if not match:
+        return None
+    hours, minutes, seconds, half = int(match.group(1)), int(match.group(2)), int(match.group(3) or 0), (match.group(4) or '').upper()
+    if half:
+        if not 1 <= hours <= 12:
+            return None
+        hours = hours % 12 + (12 if half == 'PM' else 0)
+    if hours > 23 or minutes > 59 or seconds > 59:
+        return None
+    return hours * 3600 + minutes * 60 + seconds
+
+
 def kodi_offset(utc_now=None):
-    """Seconds east of UTC by Kodi's own clock (System.Time is the phone's local time), or None outside Kodi. Python's idea of the time zone can be
-    UTC inside an iOS app, which would show every game at the wrong hour; Kodi's clock is what the phone shows."""
+    """Seconds east of UTC by Kodi's own clock (System.Time is the phone's local time, 12- or 24-hour), or None outside Kodi. Python's idea of
+    the time zone can be UTC inside an iOS app, which would show every game at the wrong hour; Kodi's clock is what the phone shows."""
     try:
         import xbmc
-        shown = xbmc.getInfoLabel('System.Time(hh:mm:ss)')
-        hours, minutes, seconds = (int(part) for part in (shown.split(':') + ['0', '0'])[:3])
+        local = parse_clock(xbmc.getInfoLabel('System.Time(hh:mm:ss)'))
     except Exception:
         return None
+    if local is None:
+        return None
     utc_now = time.time() if utc_now is None else utc_now
-    delta = (hours * 3600 + minutes * 60 + seconds) - int(utc_now) % 86400
+    delta = local - int(utc_now) % 86400
     delta = (delta + 12 * 3600) % 86400 - 12 * 3600      # into -12 h .. +12 h
     return int(round(delta / 900.0)) * 900                  # time zones are whole quarter hours
 

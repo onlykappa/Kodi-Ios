@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live Now options</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt.
+     Three ways to draw the Live Now page without the "Find sources" buttons (owner, 2026-11-20: "ugly … mock up some examples"). -->
+<style>
+:root{--grey:rgba(235,235,245,.6);--card:#1c1c1e;--red:#ff453a;--green:#30d158;--blue:#4fa8ff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro,.board{max-width:1180px;margin:0 auto}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:30px;font-weight:800;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:860px;margin-bottom:8px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;margin-top:26px}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.45;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:52px 16px 0}
+h2{font-size:30px;font-weight:800;letter-spacing:-.02em}
+.sub{color:var(--grey);font-size:12.5px;margin:4px 0 14px}
+.logo{width:30px;height:30px;border-radius:50%;background:#f2f2f7;color:#111;font-size:8px;font-weight:800;display:inline-grid;place-items:center;flex:none}
+.live{color:var(--red);font-weight:700;font-size:12px;display:inline-flex;align-items:center;gap:5px}
+.live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--red)}
+.tag{font-size:11px;font-weight:700;color:var(--grey);background:#2c2c2e;border-radius:10px;padding:3px 9px}
+/* A: clean rows */
+.grp{background:var(--card);border-radius:16px;overflow:hidden}
+.row{padding:13px 14px;border-top:1px solid #2c2c2e}.row:first-child{border-top:0}
+.row .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
+.team{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;height:30px}
+.team b{margin-left:auto;font-size:17px;font-weight:700}
+.chev{color:var(--grey);font-size:18px;margin-left:6px}
+.found{color:var(--green);font-size:11.5px;font-weight:600;margin-top:8px}
+/* B: hero cards */
+.hero{background:linear-gradient(160deg,#2a1210,#0e0e10 60%);border-radius:22px;padding:14px;margin-bottom:12px}
+.hero .meta{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--grey)}
+.score{display:flex;justify-content:space-between;align-items:center;margin:14px 4px 6px}
+.side{display:flex;flex-direction:column;align-items:center;gap:6px;width:92px;flex:none}
+.side .logo{width:52px;height:52px;font-size:11px}
+.side span{font-size:13px;font-weight:600}
+.mid{font-size:28px;font-weight:800;letter-spacing:-.02em;white-space:nowrap;flex:none}
+.mid small{display:block;font-size:12px;font-weight:600;color:var(--red);text-align:center;margin-bottom:2px}
+/* C: sport groups, a green dot where a source exists */
+.sect{font-size:12px;font-weight:700;color:var(--grey);text-transform:uppercase;letter-spacing:.06em;margin:14px 2px 6px}
+.line{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--card);border-radius:14px;margin-bottom:8px}
+.line .names{flex:1;font-size:14px;font-weight:600;line-height:1.35}
+.line .names small{display:block;color:var(--red);font-size:11.5px;font-weight:700;margin-top:2px}
+.line .sc{font-size:17px;font-weight:800;text-align:right;line-height:1.35}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--green);margin-left:4px}
+.dot.off{background:#3a3a3c}
+.cap-line{color:var(--grey);font-size:11px;margin-top:6px;text-align:center}
+</style></head><body>
+<div class="intro"><span class="mk">MOCKUP · not a Kodi render</span>
+<h1>Live Now: three options</h1>
+<p>The buttons under each game are gone in all three. A tap anywhere on a game opens its page; the page is where Play is, once a source is found.
+Team crests and league logos come from ESPN at run time (grey tiles here).</p>
+<p>Pick A, B or C, or describe what you want changed.</p></div>
+
+<div class="board"><div class="shots">
+
+<div class="slot"><div class="pframe"><div class="ps">
+<h2>Live Now</h2><p class="sub">6 games on now · updated just now</p>
+<div class="grp">
+<div class="row"><div class="top"><span class="tag">NHL</span><span class="live">P1 · 11:48</span></div>
+<div class="team"><span class="logo">STL</span>St. Louis Blues<b>0</b></div>
+<div class="team" style="margin-top:6px"><span class="logo">PIT</span>Pittsburgh Penguins<b>1</b></div></div>
+<div class="row"><div class="top"><span class="tag">NHL</span><span class="live">P1 · 12:41</span></div>
+<div class="team"><span class="logo">MTL</span>Montreal Canadiens<b>0</b></div>
+<div class="team" style="margin-top:6px"><span class="logo">CAR</span>Carolina Hurricanes<b>0</b></div></div>
+<div class="row"><div class="top"><span class="tag">NHL</span><span class="live">P1 · 13:43</span></div>
+<div class="team"><span class="logo">LAK</span>Los Angeles Kings<b>0</b></div>
+<div class="team" style="margin-top:6px"><span class="logo">TOR</span>Toronto Maple Leafs<b>0</b></div></div>
+</div></div></div>
+<p class="cap"><b>A · Clean rows.</b> The current look without the buttons: one row per game, the score and the clock on it. A green line
+appears under a game only once a source has been found. Tap the row to open the game.</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps">
+<h2>Live Now</h2><p class="sub">6 games on now · updated just now</p>
+<div class="hero">
+<div class="meta"><span class="tag">NHL</span><span class="live">P1 · 11:48</span></div>
+<div class="score"><div class="side"><span class="logo">STL</span><span>Blues</span></div>
+<div class="mid"><small>LIVE</small>0 – 1</div>
+<div class="side"><span class="logo">PIT</span><span>Penguins</span></div></div></div>
+<div class="hero" style="opacity:.9">
+<div class="meta"><span class="tag">NHL</span><span class="live">P1 · 12:41</span></div>
+<div class="score"><div class="side"><span class="logo">MTL</span><span>Canadiens</span></div>
+<div class="mid"><small>LIVE</small>0 – 0</div>
+<div class="side"><span class="logo">CAR</span><span>Hurricanes</span></div></div></div>
+<div class="hero" style="opacity:.8">
+<div class="meta"><span class="tag">NHL</span><span class="live">P1 · 13:43</span></div>
+<div class="score"><div class="side"><span class="logo">LAK</span><span>Kings</span></div>
+<div class="mid"><small>LIVE</small>0 – 0</div>
+<div class="side"><span class="logo">TOR</span><span>Leafs</span></div></div></div>
+</div></div></div>
+<p class="cap"><b>B · Big cards.</b> Each live game is a card with the crests large and the score in the middle, like the game page's hero. The
+whole card opens the game. Shows fewer games on screen at once.</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps">
+<h2>Live Now</h2><p class="sub">6 games on now · updated just now</p>
+<div class="sect">NHL · 3 games</div>
+<div class="line"><div class="names">St. Louis Blues<br>Pittsburgh Penguins<small>P1 · 11:48</small></div><div class="sc">0<br>1</div><span class="dot"></span></div>
+<div class="line"><div class="names">Montreal Canadiens<br>Carolina Hurricanes<small>P1 · 12:41</small></div><div class="sc">0<br>0</div><span class="dot off"></span></div>
+<div class="line"><div class="names">Los Angeles Kings<br>Toronto Maple Leafs<small>P1 · 13:43</small></div><div class="sc">0<br>0</div><span class="dot off"></span></div>
+<p class="cap-line">● green = a source is ready · grey = still looking</p>
+</div></div></div>
+<p class="cap"><b>C · Dense list.</b> The most games on one screen: names, score and clock in one line each, grouped by sport. A dot shows
+whether a source is ready (green) or not yet (grey). Tap a line to open the game.</p></div>
+
+</div></div></body></html>

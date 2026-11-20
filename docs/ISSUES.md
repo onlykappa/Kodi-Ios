@@ -6071,3 +6071,20 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 - **Policy note:** APPLE-UI-POLICY §5.5 says to match the existing glyph size; the ring and the 40-unit glyphs are the owner's call (Kodi cannot blur, so the faint shadow is what keeps a bare glyph legible on bright artwork).
 - **Tests:** test_header_icons (new, registered). `test_header_buttons.py` is not in import-review.yml and four of its tests (list URLs, row hashes, favourites route) already failed before this change; its one header assertion was updated.
 - **Desktop Kodi rig:** Home before and after. Not seen on a phone yet.
+
+## ISSUE-391 — Sports on the phone: wrong AM/PM, no UFC/F1/golf, sources not found, Crew overlapping the lists (owner screenshots, 2026-11-20)
+
+- **Owner:** game times read "4:00 AM" where they should be PM; only basketball, soccer and football showed (no UFC, F1 or golf); opening a game said "Can't search for sources right now"; Crew ran behind the lists and overlapped the loader.
+- **Times (root cause, found in `sports_model.kodi_offset`):** Kodi's clock text on a 12-hour phone ("04:00:00 PM") did not parse, so the offset fell back to Python's zone, which is UTC inside the iOS app, and every game showed in UTC. `parse_clock` now reads 24-hour and 12-hour text. Tests: `test_sports_model` (KodiClock: 12-hour text, New York and India cases).
+- **Leagues and scores (root cause):** the phone's provider was JetExtractors, which only lists what Crew's add-ons carry, and it started Crew's collector each time a list loaded. Now `sports_hybrid.HybridProvider` takes every game, league and score from ESPN (lists refresh every 8 s, so scores and clocks are live), and Crew is asked only for one game's sources.
+- **Sources:** `request_game` runs `sports_provider.crew_sources(game)` on a thread and matches Crew's games by league, start and team names (`sports_merge.same_game`). Opening a game (from Upcoming, the hub or Live Now) now searches on open. A search that Crew cannot answer shows "Can't search for sources right now" with Try again; one that finds nothing shows "None yet".
+- **Tests:** test_sports_hybrid (new, registered): lists from ESPN including UFC, no Crew start on a list, sources only for a page that asks, failure vs "none yet", the one-game match, the eight-second refresh. test_sports_loop and test_sports_game updated to the new provider and the open-on-search call.
+- **Not verified:** Crew's sources on a real phone (the owner's device); the rig runs sample data only. Whether Crew finds the streams for a given ESPN game is what the next phone check decides.
+
+## ISSUE-392 — Live Now rebuilt as option B (owner picked B, 2026-11-20): big cards, real logos, no league tabs
+
+- **Owner:** "I would like B now, code it all and ensure it matches with the rig and logos instead of circles of letters"; then "clean that up and remove the tabs at top".
+- **Done (`sports_live_page.py`, `sports_live.py`):** each live game is one big card: the league and the clock on top, both crests (230 units, in a light circle) with the names under them, and the score in the middle with a red LIVE above it. A tap anywhere on the card opens the game page (where Play is). Source rows and "Find sources" buttons are gone from this page. Team crests are downloaded once and kept on the phone (`sports_live.with_crests`, through `sports_logos.crests`); a team with no crest shows an empty ring, never letters. The league chip row (All, NBA, NFL…) is removed.
+- **Fixes found in the rig:** a score that wrapped into "88 – …" (the centre column is now wider); a team name that broke mid-word (names use the smaller font).
+- **Tests:** test_sports_live (24, updated to the card model; the crest tests use temporary folders).
+- **Desktop Kodi rig (sample data):** the card layout with real NBA crests; empty rings for teams without a crest. Not seen on a phone yet.
