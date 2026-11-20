@@ -69,4 +69,4 @@ it publishes no framework and builds no IPA.
 
 Native HTTP host fixture with the existing MPEG-4 test encoder, not iPhone VideoToolbox, AVPlayer or a real TV. It shows the
 preparation and scheduling are for the right window; it does not reproduce the owner's timeout, topology, codecs or quality, and
-does not prove playback. Result of the first native run of this gate is recorded in ISSUE-393.
+does not prove playback. Native results (run 44667223229: 40 checks, 0 failed on 5a60990) are recorded in ISSUE-393, with the later edge-case tests (`test_receiver_handoff_edges`: subtitles off, backward seek, rewind to zero, stop during preparation).

@@ -2567,6 +2567,71 @@ static void test_receiver_resume_handoff(const char *base) {
     kr_remux_set_prefetch(1);kr_remux_set_subtitles(-1,NULL,NULL);
 }
 
+// Build608 handoff, the edges around the main gate: subtitles off, a backward seek and a deliberate rewind to zero after the receiver is ready,
+// and a stop while the receiver's preparation is still running (nothing of it may reach the next session).
+static int open_handoff_session(const char *base,const char *file,int burn,unsigned *ticket_out) {
+    char url[1024],sub[1024],list[512];
+    snprintf(url,sizeof url,"%s/%s",base,file);snprintf(sub,sizeof sub,"%s/subs.srt",fixture_dir);
+    kr_remux_set_subtitles(burn?-2:-1,burn?sub:NULL,burn?"eng":NULL);kr_video_set_encoder("mpeg4");
+    unsigned ticket=kr_remux_begin(0);*ticket_out=ticket;
+    int opened=kr_remux_start_for(ticket,url,0,KR_COMPAT_SEGMENTED,list,sizeof list);
+    if(opened==KR_READY) {
+        snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
+        char *tail=strstr(prefix_path,"/master.m3u8");if(tail)*tail=0;
+    }
+    return opened;
+}
+static void test_receiver_handoff_edges(const char *base) {
+    unsigned ticket=0;
+    // Subtitles off: whichever rendition the receiver is given, it is prepared at the resume window and never at zero.
+    kr_remux_set_prefetch(1);
+    int opened=open_handoff_session(base,"long-gop.mp4",0,&ticket);
+    CHECK(opened==KR_READY,"no-subtitle handoff opens: %s",kr_remux_message());
+    if(opened==KR_READY) {
+        int converted=kr_remux_test_video_segment(1,20.0);
+        CHECK(kr_remux_prime_for(ticket,20.0)==KR_READY,"no-subtitle copy prime succeeds");
+        reply tv=get_as(UA_TV,kr_remux_port(),"/master.m3u8");
+        int converted_route=tv.body && strstr(tv.body,"/cvideo/index.m3u8")!=NULL;free(tv.body);
+        if(converted_route)CHECK(wait_cached(1,1,converted,15000),"no-subtitle converted route prepares its resume window %d",converted);
+        usleep(400000);
+        CHECK(!kr_remux_test_cached_video(1,0),"no-subtitle handoff never makes converted segment zero");
+    }
+    kr_remux_stop();
+    // Backward seek and rewind to zero after the receiver is ready.
+    opened=open_handoff_session(base,"long-gop.mp4",1,&ticket);
+    CHECK(opened==KR_READY,"seek handoff opens: %s",kr_remux_message());
+    if(opened==KR_READY) {
+        int converted=kr_remux_test_video_segment(1,20.0);
+        CHECK(kr_remux_prime_for(ticket,20.0)==KR_READY,"seek handoff copy prime succeeds");
+        reply tv=get_as(UA_TV,kr_remux_port(),"/master.m3u8");free(tv.body);
+        CHECK(wait_cached(1,1,converted,15000),"seek handoff resume window is prepared");
+        reply back=get_as(UA_TV,kr_remux_port(),"/cvideo/seg1.m4s");
+        CHECK(back.status==200 && back.len>8,"a backward seek to an earlier converted window is served (%d)",back.status);free(back.body);
+        CHECK(kr_remux_prime_for(ticket,0)==KR_READY,"a deliberate rewind to zero primes again");
+        reply again=get_as(UA_TV,kr_remux_port(),"/master.m3u8");free(again.body);
+        CHECK(wait_cached(1,1,0,15000),"after a rewind to zero the receiver's first window is segment zero");
+    }
+    kr_remux_stop();
+    // A stop while the receiver's preparation runs ends promptly and nothing of it reaches the next session.
+    opened=open_handoff_session(base,"long-gop.mp4",1,&ticket);
+    CHECK(opened==KR_READY,"cancellation handoff opens: %s",kr_remux_message());
+    if(opened==KR_READY) {
+        CHECK(kr_remux_prime_for(ticket,20.0)==KR_READY,"cancellation handoff copy prime succeeds");
+        reply tv=get_as(UA_TV,kr_remux_port(),"/master.m3u8");free(tv.body);
+        double at=mono_ms();kr_remux_stop();
+        CHECK(mono_ms()-at<5000,"stopping during the receiver's preparation is prompt (%.0f ms)",mono_ms()-at);
+    }
+    opened=open_handoff_session(base,"coalesced.mp4",1,&ticket);
+    CHECK(opened==KR_READY,"the next session opens after a cancelled preparation: %s",kr_remux_message());
+    if(opened==KR_READY) {
+        CHECK(kr_remux_prime_for(ticket,0)==KR_READY,"the next session primes at zero");
+        usleep(400000);
+        CHECK(!kr_remux_test_cached_video(1,0) && !kr_remux_test_cached_video(1,kr_remux_test_video_segment(1,20.0)),"the cancelled session's converted work is not in the next session");
+    }
+    kr_remux_stop();
+    kr_remux_set_prefetch(1);kr_remux_set_subtitles(-1,NULL,NULL);
+}
+
 static void test_seek_audio_retry(const char *base) {
     char url[512],list[512];
     static char log[1 << 20]; // Drain the expanded bounded diagnostic history, including retry evidence.
@@ -2616,7 +2681,7 @@ int main(int argc, char **argv) {
         return failures ? 1 : 0;
     }
     if(argc>3 && !strcmp(argv[3],"--receiver-handoff")) {
-        test_receiver_resume_handoff(argv[2]);
+        test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);
         printf("%d receiver handoff checks, %d failed\n",checks,failures);
         return failures?1:0;
     }
@@ -2763,7 +2828,7 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_receiver_resume_handoff(argv[2]);test_seek_audio_retry(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
+        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);test_seek_audio_retry(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }
