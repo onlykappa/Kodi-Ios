@@ -2493,6 +2493,7 @@ static int wait_cached(int converted,int video,int segment,double ms) {
 static void test_receiver_resume_handoff(const char *base) {
     static char log[1 << 20];
     const char *files[]={"coalesced.mp4","long-gop.mp4"};
+    {char out[1024];snprintf(out,sizeof out,"%s/out",fixture_dir);mkdir(out,0755);}   // the focused run does not pass through the tests that make it
     for(int f=0;f<2;f++) {
         char url[1024],sub[1024],list[512];
         snprintf(url,sizeof url,"%s/%s",base,files[f]);
@@ -2538,7 +2539,7 @@ static void test_receiver_resume_handoff(const char *base) {
         CHECK(video.status==200 && video.len>8,"requested resume window is served");
         char output[1024];snprintf(output,sizeof output,"%s/out/handoff-%d.mp4",fixture_dir,f);
         FILE *joined=fopen(output,"wb");if(joined && vinit.body && video.body){fwrite(vinit.body,1,vinit.len,joined);fwrite(video.body,1,video.len,joined);}if(joined)fclose(joined);
-        int keys=0;CHECK(joined && decode_count(output,&keys)>20,"converted init and resume window decode real video frames");
+        int keys=0;{int frames=joined?decode_count(output,&keys):-1;CHECK(frames>20,"converted init and resume window decode real video frames (%d)",frames);}
         free(vinit.body);free(video.body);
         kr_remux_log(log,sizeof log);
         char want[96];snprintf(want,sizeof want,"compat: preparing converted video segment %d",converted);
