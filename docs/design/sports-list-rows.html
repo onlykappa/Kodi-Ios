@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sports lists: one-line rows</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt.
+     Owner request 2026-11-20: cleaner game lists, not two text lines per row, using the Apple Sports "Today" list as the reference.
+     Existing tokens only. Team crests are drawn as plain tiles here; the app fetches the real ones from ESPN at runtime.
+     Names are ESPN's short names (Celtics, City), so nothing is cut off. -->
+<style>
+:root{--grey:rgba(235,235,245,.6);--blue:#0a84ff;--blue-text:#4fa8ff;--card:#1c1c1e;--green:#30d158;--red:#ff453a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro,.board{max-width:1180px;margin:0 auto}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:30px;font-weight:800;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:860px;margin-bottom:8px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;margin-top:26px}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.45;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:48px 14px 0}
+.top{position:absolute;left:14px;right:14px;top:16px;display:flex;justify-content:space-between;align-items:center;color:var(--blue-text);font-size:15px}
+.edit{background:#06223a;border-radius:14px;padding:5px 14px;font-weight:600}
+h2{font-size:30px;font-weight:800;letter-spacing:-.02em;margin-top:6px}
+.sub{color:var(--grey);font-size:12.5px;margin:3px 0 10px}
+.seg{display:flex;background:#1c1c1e;border-radius:12px;padding:3px;margin-bottom:6px}.seg span{flex:1;text-align:center;font-size:12.5px;font-weight:600;padding:7px 0;border-radius:9px;color:var(--grey)}.seg .on{background:#3a3a3c;color:#fff}
+.lh{display:flex;align-items:center;gap:8px;margin:16px 2px 8px;font-weight:800;font-size:17px}.lh span{color:var(--grey);font-weight:500;font-size:12px}.lh i{margin-left:auto;font-style:normal;color:var(--grey);font-size:15px}
+.grp{background:var(--card);border-radius:16px;overflow:hidden}
+.cr{width:26px;height:26px;border-radius:50%;background:#f2f2f7;color:#111;font-size:8px;font-weight:800;display:grid;place-items:center;flex:none}
+/* A: Apple Sports style */
+.g{display:grid;grid-template-columns:1fr 74px 1fr;align-items:center;gap:6px;padding:11px 12px;border-top:1px solid #2c2c2e;min-height:54px}.g:first-child{border-top:0}
+.g .tm{display:flex;align-items:center;gap:8px;min-width:0}.g .tm.r{justify-content:flex-end}
+.g .tm b{white-space:nowrap;font-size:13px;font-weight:700;line-height:1.1}.g .tm small{display:block;color:var(--grey);font-size:10.5px;font-weight:500;margin-top:2px}
+.g .mid{white-space:nowrap;text-align:center;font-weight:700;font-size:13px;line-height:1.1}.g .mid i{display:block;font-style:normal;color:var(--grey);font-size:10px;font-weight:500;margin-top:2px}
+.g .mid.live{color:var(--red)}
+.src{color:var(--green);font-size:9px;display:block;margin-top:2px}
+/* B: compact one line */
+.c{display:flex;align-items:center;gap:10px;padding:0 12px;height:48px;border-top:1px solid #2c2c2e;font-size:14px;font-weight:600}.c:first-child{border-top:0}
+.c .t{width:62px;white-space:nowrap;color:var(--blue-text);font-weight:700;font-size:13px;flex:none}
+.c .m{white-space:nowrap;font-size:13px;display:flex;align-items:center;gap:6px;flex:1}.c .m .cr{width:22px;height:22px;font-size:7px}.c .at{color:var(--grey);font-weight:500;font-size:12px;margin:0 2px}
+.c .go{color:var(--green);font-size:13px}
+/* up next cards */
+.card{background:var(--card);border-radius:16px;padding:12px 14px;margin-top:8px}
+.card .k{display:flex;justify-content:space-between;color:var(--grey);font-size:11.5px;margin-bottom:8px}.card .k b{color:#fff}
+.card .g{padding:0;border:0;min-height:0}
+.btn{margin-top:10px;background:#fff;color:#000;border-radius:20px;text-align:center;font-weight:700;font-size:14px;padding:9px 0}
+.btn.s{background:#2c2c2e;color:#fff}
+.hl{display:flex;gap:10px;overflow:hidden;margin:8px -14px 0;padding:0 14px}
+.hl .card{margin:0;width:128px;flex:none;padding:10px}
+.hl .tm2{display:flex;align-items:center;gap:7px;font-weight:700;font-size:13px;margin-top:6px}.hl .tm2 .cr{width:22px;height:22px;font-size:7px}
+.hl .tm2 em{margin-left:auto;font-style:normal;color:var(--grey);font-size:11px;font-weight:600}
+</style></head><body>
+<div class="intro"><span class="mk">MOCKUP · not a Kodi render</span>
+<h1>Sports lists: one line per game</h1>
+<p>Today a game is a long title that wraps, plus a second line ("No sources yet", league badge). These options follow the Apple Sports "Today" list:
+team crest and short name on each side, the time in the middle, the league moves to a group header, and "No sources yet" is dropped
+(a small green dot appears only when a source is found). Every option stays a single row of the same height, so the list scans like a scoreboard.</p>
+<p>Pick A, B or C for the list rows, and A or B for the Up next card. The same row is then used on Upcoming, Today, Yesterday and the league pages.</p></div>
+
+<div class="board"><div class="shots">
+
+<div class="slot"><div class="pframe"><div class="ps">
+<div class="top"><span>‹</span><span class="edit">Edit</span></div>
+<h2>Upcoming</h2><p class="sub">59 games coming up · updated just now</p>
+<div class="lh">NBA <span>Today</span><i>›</i></div>
+<div class="grp">
+<div class="g"><div class="tm"><div class="cr">BOS</div><div><b>Celtics</b><small>12-3</small></div></div><div class="mid">7:30 PM<i>ESPN</i></div><div class="tm r"><div><b>Knicks</b><small>9-6</small></div><div class="cr">NYK</div></div></div>
+<div class="g"><div class="tm"><div class="cr">LAL</div><div><b>Lakers</b><small>10-5</small></div></div><div class="mid">10:00 PM<i>TNT</i></div><div class="tm r"><div><b>Warriors</b><small>8-7</small></div><div class="cr">GSW</div></div></div></div>
+<div class="lh">MLS <span>Today</span><i>›</i></div>
+<div class="grp">
+<div class="g"><div class="tm"><div class="cr">CIN</div><div><b>Cincy</b><small>16-9-9</small></div></div><div class="mid">4:30 PM<i class="src">● source</i></div><div class="tm r"><div><b>Orlando</b><small>14-11-9</small></div><div class="cr">ORL</div></div></div>
+<div class="g"><div class="tm"><div class="cr">RSL</div><div><b>RSL</b><small>11-15-8</small></div></div><div class="mid">7:00 PM<i>Apple TV</i></div><div class="tm r"><div><b>Seattle</b><small>15-9-10</small></div><div class="cr">SEA</div></div></div></div>
+<div class="lh">NFL <span>Today</span><i>›</i></div>
+<div class="grp"><div class="g"><div class="tm"><div class="cr">IND</div><div><b>Colts</b><small>5-6</small></div></div><div class="mid">5:15 PM<i>CBS</i></div><div class="tm r"><div><b>Texans</b><small>7-4</small></div><div class="cr">HOU</div></div></div></div>
+</div></div>
+<p class="cap"><b>A · Scoreboard rows.</b> Closest to Apple Sports. Crest, short name and record each side; time in the middle with the broadcaster under it (the one small line left, as in Apple Sports; the green dot replaces "No sources yet"). League is the group header, so no badge per row. Row height is fixed (about 20 pt over today).</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps">
+<div class="top"><span>‹</span><span class="edit">Edit</span></div>
+<h2>Upcoming</h2><p class="sub">59 games coming up · updated just now</p>
+<div class="lh">NBA <span>Today</span><i>›</i></div>
+<div class="grp">
+<div class="c"><div class="t">7:30 PM</div><div class="m"><div class="cr">BOS</div>Celtics<span class="at">at</span><div class="cr">NYK</div>Knicks</div></div>
+<div class="c"><div class="t">10:00 PM</div><div class="m"><div class="cr">LAL</div>Lakers<span class="at">at</span><div class="cr">GSW</div>Warriors</div></div></div>
+<div class="lh">MLS <span>Today</span><i>›</i></div>
+<div class="grp">
+<div class="c"><div class="t">4:30 PM</div><div class="m"><div class="cr">CIN</div>Cincy<span class="at">vs</span><div class="cr">ORL</div>Orlando</div><span class="go">●</span></div>
+<div class="c"><div class="t">7:00 PM</div><div class="m"><div class="cr">RSL</div>RSL<span class="at">vs</span><div class="cr">SEA</div>Seattle</div></div></div>
+<div class="lh">NFL <span>Today</span><i>›</i></div>
+<div class="grp"><div class="c"><div class="t">5:15 PM</div><div class="m"><div class="cr">IND</div>Colts<span class="at">at</span><div class="cr">HOU</div>Texans</div></div></div>
+<div class="lh">Tomorrow</div>
+<div class="grp"><div class="c"><div class="t">1:00 PM</div><div class="m"><div class="cr">MCI</div>City<span class="at">vs</span><div class="cr">LIV</div>Liverpool</div></div></div>
+</div></div>
+<p class="cap"><b>B · Compact line.</b> Strictly one line, 48 units shorter than today's rows, so about eight games fit per screen instead of five. Time on the left in blue, both teams with crests, a green dot only when a source exists. No records or broadcaster. Best for busy days.</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps">
+<div class="top"><span>‹</span><span class="edit">Edit</span></div>
+<h2>Sports</h2><p class="sub">Updated just now</p>
+<div class="seg"><span>Yesterday</span><span class="on">Today</span><span>Upcoming</span></div>
+<div class="lh">Up next <span>starts in 12 min</span></div>
+<div class="card"><div class="k"><b>NBA · Celtics at Knicks</b><span>7:30 PM</span></div>
+<div class="g"><div class="tm"><div class="cr">BOS</div><div><b>Celtics</b><small>12-3</small></div></div><div class="mid">7:30 PM<i>ESPN</i></div><div class="tm r"><div><b>Knicks</b><small>9-6</small></div><div class="cr">NYK</div></div></div>
+<div class="btn">Find sources</div></div>
+<div class="lh">Live now <span>2 games</span></div>
+<div class="grp">
+<div class="g"><div class="tm"><div class="cr">MIA</div><div><b>Heat</b><small>101</small></div></div><div class="mid live">Q4 2:41<i>● live</i></div><div class="tm r"><div><b>Bulls</b><small>98</small></div><div class="cr">CHI</div></div></div>
+<div class="g"><div class="tm"><div class="cr">ARS</div><div><b>Arsenal</b><small>1</small></div></div><div class="mid live">67'<i>● live</i></div><div class="tm r"><div><b>Spurs</b><small>1</small></div><div class="cr">TOT</div></div></div></div>
+<div class="lh">Later today <span>3 games</span></div>
+<div class="grp"><div class="g"><div class="tm"><div class="cr">LAL</div><div><b>Lakers</b><small>10-5</small></div></div><div class="mid">10:00 PM<i>TNT</i></div><div class="tm r"><div><b>Warriors</b><small>8-7</small></div><div class="cr">GSW</div></div></div></div>
+</div></div>
+<p class="cap"><b>C · Sports home with the same row.</b> Yesterday / Today / Upcoming tabs as in Apple Sports. "Up next" is one card with the same scoreboard row inside and one action ("Find sources"); live games show the score where the record was and a red live time. This is the Up next / general list on one page, built from option A's row.</p></div>
+
+<div class="slot"><div class="pframe"><div class="ps">
+<div class="top"><span>‹</span><span class="edit">Edit</span></div>
+<h2>Sports</h2><p class="sub">Updated just now</p>
+<div class="seg"><span>Yesterday</span><span class="on">Today</span><span>Upcoming</span></div>
+<div class="lh">Up next <span>4 coming up</span></div>
+<div class="hl">
+<div class="card"><div class="k"><b>NBA</b><span>7:30 PM</span></div><div class="tm2"><div class="cr">BOS</div>Celtics</div><div class="tm2"><div class="cr">NYK</div>Knicks</div></div>
+<div class="card"><div class="k"><b>MLS</b><span>4:30 PM</span></div><div class="tm2"><div class="cr">CIN</div>Cincy</div><div class="tm2"><div class="cr">ORL</div>Orlando</div></div>
+<div class="card"><div class="k"><b>NFL</b><span>5:15 PM</span></div><div class="tm2"><div class="cr">IND</div>Colts</div><div class="tm2"><div class="cr">HOU</div>Texans</div></div>
+</div>
+<div class="lh">Today <span>8 games</span></div>
+<div class="grp">
+<div class="c"><div class="t">4:30 PM</div><div class="m"><div class="cr">CIN</div>Cincy<span class="at">vs</span><div class="cr">ORL</div>Orlando</div><span class="go">●</span></div>
+<div class="c"><div class="t">5:15 PM</div><div class="m"><div class="cr">IND</div>Colts<span class="at">at</span><div class="cr">HOU</div>Texans</div></div>
+<div class="c"><div class="t">7:30 PM</div><div class="m"><div class="cr">BOS</div>Celtics<span class="at">at</span><div class="cr">NYK</div>Knicks</div></div></div>
+</div></div>
+<p class="cap"><b>D · Up next as a shelf.</b> Up next becomes a row of small cards (time, two crests and names) that you swipe sideways, with option B's compact line for the full list underneath. Best if you want several upcoming games visible without opening the list.</p></div>
+
+</div></div></body></html>
