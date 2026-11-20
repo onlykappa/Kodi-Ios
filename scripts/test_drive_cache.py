@@ -104,4 +104,43 @@ class Filler(unittest.TestCase):
         filler.want('F',len(DATA),0);filler.want('F',len(DATA),12*B)
         self.assertTrue(wait(filler.done.is_set));self.assertTrue(all(store.has('F',len(DATA),n) for n in range(16)))
 
+
+class Prefetch(unittest.TestCase):
+    """The next episode / a Continue Watching item is kept ready past the current video's stop (owner, 2026-11-20: autoplay and Home starts at once)."""
+    def setUp(self):
+        self.small=(dp.BLOCK,dc.HEAD_BLOCKS,dc.TAIL_BLOCKS);dp.BLOCK=B;dc.HEAD_BLOCKS=4;dc.TAIL_BLOCKS=2
+        self.addCleanup(lambda:(setattr(dp,'BLOCK',self.small[0]),setattr(dc,'HEAD_BLOCKS',self.small[1]),setattr(dc,'TAIL_BLOCKS',self.small[2])))
+        self.tmp=tempfile.TemporaryDirectory(ignore_cleanup_errors=True);self.addCleanup(self.tmp.cleanup);base.FakeConn.log=[];base.FakeConn.expired=set()
+        self.store=dc.DiskBlocks(os.path.join(self.tmp.name,'c'),B)
+        self.filler=dc.Filler(self.store,dp.Upstream(lambda force:'old',base.FakeConn),B,dp.Tee,free=lambda:10**12)
+    def test_prefetch_fetches_the_start_and_the_end_only(self):
+        self.assertTrue(self.filler.prefetch('N',len(DATA)));self.assertTrue(wait(self.filler.done.is_set))
+        self.assertEqual([n for n in range(16) if self.store.has('N',len(DATA),n)],[0,1,2,3,14,15])
+        self.assertEqual(self.store.get('N',len(DATA),14),DATA[14*B:15*B])
+    def test_a_prefetched_video_survives_the_stop_of_the_one_playing_and_the_playing_one_does_not(self):
+        self.store.put('PLAY',100,0,b'x'*10);self.filler.prefetch('N',len(DATA));wait(self.filler.done.is_set)
+        self.store.clear(keep_pins=True)
+        self.assertTrue(self.store.has('N',len(DATA),0));self.assertFalse(self.store.has('PLAY',100,0))
+        self.filler.want('N',len(DATA),0)            # it plays now: no longer kept
+        self.store.clear(keep_pins=True);self.assertFalse(self.store.has('N',len(DATA),0))
+    def test_a_pin_ends(self):
+        self.filler.prefetch('N',len(DATA),now=1000.0);wait(self.filler.done.is_set)
+        self.store.clear(keep_pins=True,now=1000.0+dc.PIN_SECONDS+1);self.assertFalse(self.store.has('N',len(DATA),0))
+    def test_no_prefetch_on_cellular_or_without_room(self):
+        filler=dc.Filler(self.store,dp.Upstream(lambda force:'old',base.FakeConn),B,dp.Tee,allowed=lambda:False,free=lambda:10**12)
+        self.assertFalse(filler.prefetch('N',len(DATA)))
+        filler=dc.Filler(self.store,dp.Upstream(lambda force:'old',base.FakeConn),B,dp.Tee,free=lambda:0)
+        self.assertFalse(filler.prefetch('N',len(DATA)));self.assertEqual(base.FakeConn.log,[])
+
+class PrefetchEndpoint(Cached):
+    def test_the_proxy_prefetches_on_request(self):
+        dc.HEAD_BLOCKS,dc.TAIL_BLOCKS=4,2
+        try:
+            self.assertTrue(dp.ask_prefetch(self.port,'F1','Next.mp4'))
+            self.assertTrue(wait(lambda:self.handler.blocks.has('F1',len(DATA),0) and self.handler.blocks.has('F1',len(DATA),15)))
+            dp.clear_cache()                          # the stop of the video that was playing
+            self.assertTrue(self.handler.blocks.has('F1',len(DATA),0))   # the prefetched one is kept
+        finally:
+            dc.HEAD_BLOCKS,dc.TAIL_BLOCKS=24,4
+
 if __name__=='__main__':unittest.main()

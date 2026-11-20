@@ -19,6 +19,9 @@ import time
 
 CAP_BYTES = 3 * 1024 ** 3            # the most the cache keeps on the phone
 FREE_MARGIN = 2 * 1024 ** 3          # the phone must have this much free beyond what the cache may use
+HEAD_BLOCKS = 24                     # a prefetched video: its first 24 MB ...
+TAIL_BLOCKS = 4                      # ... and its last 4 MB (an MP4's fragment index sits there)
+PIN_SECONDS = 3600                   # a prefetched video survives the current video's stop for this long
 CHUNK_BLOCKS = 32                    # blocks asked of Drive in one request (each request costs 0.3-0.7 s before its first byte)
 WINDOW_DIVISOR = 3                   # a file bigger than the cap is cached this fraction of the cap ahead of the position
 
@@ -32,6 +35,7 @@ class DiskBlocks(object):
         self.size = {}                           # file_id -> the size its blocks belong to
         self.pending = {}                        # blocks accepted but not yet on disk
         self.generation = 0                      # bumped by clear(): work begun before it is dropped
+        self.pins = {}                           # file_id -> when its pin ends: a prefetched video that clear() keeps
         self.queue = queue.Queue(128)
         self.wipe()
         threading.Thread(target=self._writer, daemon=True).start()
@@ -121,20 +125,42 @@ class DiskBlocks(object):
         except OSError:
             pass
 
-    def clear(self):
-        """Playback stopped: nothing of any video stays on the phone."""
+    def pin(self, file_id, until):
+        with self.lock:
+            self.pins[file_id] = until
+
+    def unpin(self, file_id):
+        with self.lock:
+            self.pins.pop(file_id, None)
+
+    def clear(self, keep_pins=False, now=None):
+        """Playback stopped: nothing of any video stays on the phone, except (keep_pins) a video prefetched for the next play, until its pin ends."""
+        now = time.time() if now is None else now
         with self.lock:
             self.generation += 1
-            self.order.clear()
-            self.pending.clear()
-            self.size.clear()
+            self.pins = {k: v for k, v in self.pins.items() if v > now} if keep_pins else {}
+            keep = set(self.pins)
+            doomed = [k for k in self.order if k[0] not in keep]
+            for key in doomed:
+                self.order.pop(key, None)
+                self.pending.pop(key, None)
+            for gone in [f for f in self.size if f not in keep]:
+                del self.size[gone]
         while True:
             try:
                 self.queue.get_nowait()
             except queue.Empty:
                 break
-        self.wipe()
-        self.log('Kodi iOS Drive cache: cleared')
+        if not keep:
+            self.wipe()
+        else:
+            for key in doomed:
+                self._unlink(key)
+            for entry in os.listdir(self.folder) if os.path.isdir(self.folder) else []:
+                path = os.path.join(self.folder, entry)
+                if not any(self._dir(k[0], k[1]) == path for k in self.order):
+                    shutil.rmtree(path, ignore_errors=True)
+        self.log('Kodi iOS Drive cache: cleared%s' % (' (kept %d prefetched)' % len(keep) if keep else ''))
 
     def _writer(self):
         while True:
@@ -178,6 +204,7 @@ class Filler(object):
         if not size or not self.allowed():
             return
         at = position // self.block
+        self.store.unpin(file_id)   # it is playing now: the next stop clears it like any other
         with self.lock:
             job = self.jobs.get(file_id)
             if job and job['size'] == size:
@@ -191,6 +218,47 @@ class Filler(object):
             job = {'size': size, 'at': at, 'stop': False, 'generation': self.store.generation}
             self.jobs[file_id] = job
         threading.Thread(target=self._run, args=(file_id, job), daemon=True).start()
+
+    def prefetch(self, file_id, size, now=None):
+        """A video that may play next (the next episode, the top Continue Watching item): its start and its end are fetched once and kept past
+        the current video's stop, so it opens without a Drive wait (owner, 2026-11-20). Wi-Fi only and only with room, like the filler."""
+        if not size or not self.allowed():
+            return False
+        try:
+            if self.free() < min(size, self.cap_bytes) + FREE_MARGIN:
+                return False
+        except OSError:
+            return False
+        total = (size + self.block - 1) // self.block
+        now = time.time() if now is None else now
+        self.store.pin(file_id, now + PIN_SECONDS)
+        wanted = [(0, min(HEAD_BLOCKS, total))]
+        if total > HEAD_BLOCKS:
+            wanted.append((max(HEAD_BLOCKS, total - TAIL_BLOCKS), total - max(HEAD_BLOCKS, total - TAIL_BLOCKS)))
+
+        def run():
+            job = {'at': 0, 'stop': False, 'generation': self.store.generation}
+            try:
+                for first, count in wanted:
+                    last = first + count
+                    while first < last and not job['stop'] and self.allowed():
+                        if self.store.has(file_id, size, first):
+                            first += 1
+                            continue
+                        run_len = 1
+                        while first + run_len < last and run_len < CHUNK_BLOCKS and not self.store.has(file_id, size, first + run_len):
+                            run_len += 1
+                        self._fetch(file_id, size, first, run_len, job, 0)
+                        if not self.store.has(file_id, size, first):
+                            break
+                        first += run_len
+                self.log('Kodi iOS Drive cache: prefetched %s (%d of %d blocks)' % (file_id[:8], sum(1 for n in range(total) if self.store.has(file_id, size, n)), total))
+            except Exception as error:
+                self.log('Kodi iOS Drive cache: prefetch stopped (%s)' % type(error).__name__)
+            finally:
+                self.done.set()
+        threading.Thread(target=run, daemon=True).start()
+        return True
 
     def stop_all(self):
         with self.lock:

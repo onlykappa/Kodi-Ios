@@ -283,12 +283,23 @@ def run():
   busy=lambda:xbmc.Player().isPlayingVideo() or bool(home.getProperty('KodiIOS.SportsCrewOnlyLeague'))
   sports_sources_prefetch.watch(sports_provider.get,busy,monitor.waitForAbort,log=lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO))
  threading.Thread(target=sports_prefetch_loop,daemon=True).start()
+ # The Loop's background work stays off (owner, 2026-11-20; loop_quiet.py): checked at start and every 15 minutes, in case an update switched it on.
+ def loop_quiet_loop():
+  import loop_quiet
+  def rpc(method,params):
+   return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result') or {}
+  if monitor.waitForAbort(30):return
+  while True:
+   try:loop_quiet.apply(xbmcaddon.Addon().getSettingBool('loop_quiet'),rpc,str(profile/'addon_data/service.kodi.ios.bootstrap/loop-quiet.json'),log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+   except Exception as error:xbmc.log('Kodi iOS loop: check failed (%s)'%type(error).__name__,xbmc.LOGWARNING)
+   if monitor.waitForAbort(900):return
+ threading.Thread(target=loop_quiet_loop,daemon=True).start()
  # Roadmap 1C.1: "open timing" log line per video (tap to picture).
  import open_timing
  import cache_tune   # roadmap 1B.3: Kodi's cache read factor follows Wi-Fi / cellular, set as a video is about to open
  threading.Thread(target=open_timing.watch,args=(xbmcgui.Window(10000),lambda:xbmc.getCondVisibility('Player.HasVideo + Player.Playing'),
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),
-                  kwargs={'on_open':lambda:cache_tune.apply(xbmc,str(profile),lambda text:xbmc.log(text,xbmc.LOGINFO)),
+                  kwargs={'moving':lambda:xbmc.getCondVisibility('Player.Playing + !Player.Caching') and xbmc.Player().getTime()>0.4,'on_open':lambda:cache_tune.apply(xbmc,str(profile),lambda text:xbmc.log(text,xbmc.LOGINFO)),
                           'probe':lambda:{'media':xbmc.getCondVisibility('Player.HasMedia'),'video':xbmc.getCondVisibility('Player.HasVideo')}},daemon=True).start()
  # DEC-039 V2: each video starts with its own Saturation (Picture menu: this video, its show, or the default).
  def saturation_loop():
@@ -535,6 +546,7 @@ def drive_uploads(monitor,home,profile):
     notices.note('info','Downloads resumed','Uploads to Google Drive were paused from an earlier build; they are running again.')
   except Exception as error:xbmc.log('Kodi iOS transfers: pause reset skipped: %s'%diagnostics.error_text(error),xbmc.LOGWARNING)
   quiet=[None]
+  elementum_down=[0]
   def nap(seconds):
    # ISSUE-208: a Cancel or Cancel All wakes the copier within a second instead of after its wait (20-300 s).
    end=time.time()+seconds
@@ -563,7 +575,14 @@ def drive_uploads(monitor,home,profile):
     try:
      for tid in debrid_drive.adopt(profile,notices.torrent_list(),xbmc.Player().isPlayingVideo()):
       driveupload.remove_torrent(tid);xbmc.log('Kodi iOS AllDebrid to Drive: took %s from Elementum'%tid,xbmc.LOGINFO)
-    except Exception as error:xbmc.log('Kodi iOS AllDebrid to Drive: Elementum list unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
+     elementum_down[0]=0
+    except Exception as error:
+     # Build 615 log: Elementum's list was asked for every 20 s and failed every time. Ask less and less often while it does not answer
+     # (20 s, 40, 80 ... at most 5 minutes) and log the failure once, then every tenth time.
+     elementum_down[0]+=1
+     delay=min(300,20*2**min(elementum_down[0],4))
+     if elementum_down[0]==1 or elementum_down[0]%10==0:
+      xbmc.log('Kodi iOS AllDebrid to Drive: Elementum list unavailable (%s), asking again in %d s'%(type(error).__name__,delay),xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
    try:
     def ready_to_watch(item_id):return prepare_downloads.playback_ready(profile,prepare_downloads.metadata(drive,item_id))
     item_id=debrid_drive.next_watch(profile,ready_to_watch,xbmc.Player().isPlayingVideo())

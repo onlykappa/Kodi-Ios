@@ -544,6 +544,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.close_connection = True
         return True
 
+    def _prefetch_request(self):
+        """GET /prefetch/<file id>/<name>: this video may play next (the next episode, a Continue Watching item): keep its start and end on the phone
+        past the current video's stop (drive_cache.Filler.prefetch)."""
+        parts = urllib.parse.urlsplit(self.path).path.split('/')
+        file_id = urllib.parse.unquote(parts[2]) if len(parts) >= 3 else ''
+        ok = False
+        try:
+            if file_id and self.filler:
+                info = self._size(file_id)
+                ok = bool(info and self.filler.prefetch(file_id, info[0]))
+        except Exception:
+            ok = False
+        self.send_response(202 if ok else 404)
+        self.send_header('Content-Length', '0')
+        self.end_headers()
+
     def _warm_request(self):
         """GET /warm/<file id>/<name>: the page of this title opened; read its start and end now (roadmap 1A.4)."""
         parts = urllib.parse.urlsplit(self.path).path.split('/')
@@ -557,6 +573,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         started = time.time()
         if self.path.startswith('/warm/'):
             self._warm_request()
+            return
+        if self.path.startswith('/prefetch/'):
+            self._prefetch_request()
             return
         file_id = parse_path(self.path)
         if not file_id:
@@ -636,7 +655,7 @@ def clear_cache():
         if handler.filler:
             handler.filler.stop_all()
         if hasattr(handler.blocks, 'clear'):
-            handler.blocks.clear()
+            handler.blocks.clear(keep_pins=True)   # a prefetched next video stays
         elif handler.blocks:
             handler.blocks.data.clear()
             handler.blocks.size.clear()
@@ -744,6 +763,16 @@ def ask_warm(port, file_id, name='', timeout=0.6):
     """Called from the Library page when a title's page opens: the proxy reads its start and index now (roadmap 1A.4).
     True when the proxy accepted."""
     address = 'http://127.0.0.1:%d/warm/%s/%s' % (int(port), urllib.parse.quote(file_id, safe=''), urllib.parse.quote(name or 'video'))
+    try:
+        with urllib.request.urlopen(address, timeout=timeout) as resp:
+            return resp.status == 202
+    except Exception:
+        return False
+
+
+def ask_prefetch(port, file_id, name='', timeout=1.5):
+    """Ask the proxy to keep a video's start and end ready (the next episode, a Continue Watching item). True when it accepted."""
+    address = 'http://127.0.0.1:%d/prefetch/%s/%s' % (int(port), urllib.parse.quote(file_id, safe=''), urllib.parse.quote(name or 'video'))
     try:
         with urllib.request.urlopen(address, timeout=timeout) as resp:
             return resp.status == 202
