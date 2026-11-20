@@ -1,16 +1,16 @@
 {
  "framework_release": {
+  "tag": "kodi-airplay-r70",
+  "asset": "KodiAirPlay.framework.zip",
+  "sha256": "9a7edb041dca82f17133c4d2a53636be8d33455d80d435bc643830cc0dd74892"
+ },
+ "previous": {
   "tag": "kodi-airplay-r69",
   "asset": "KodiAirPlay.framework.zip",
   "sha256": "abcc6bc16c32c3fc3bb3644002ae42245ce38cd1e38ea6852641ee7d98e2b5e8"
  },
- "previous": {
-  "tag": "kodi-airplay-r68",
-  "asset": "KodiAirPlay.framework.zip",
-  "sha256": "afd7ef59f739d80aad0db793f3601907cf271af03d8179f550a8b36abe05d6c1"
- },
- "source_commit": "82bebbb9b7c81c40a46db80acdbdf77392f5dee1",
- "pin_note": "r69 candidate for ISSUE-392/393 (build611 phone log): receiver-specific converted resume-window preparation at the third-party receiver's master request (receiver_prepare, no obsolete segment 0); a stalled TV is reloaded at the viewer's latest seek (kr_remux_recent_seek_target / kr_remux_set_resume, EXT-X-START) instead of the player's stale clock; one fresh independent audio reader, both attempts logged, for an empty copied-audio window on a reused reader (root cause of the empty window unproven). Native host and end-to-end tests plus iPhone compilation passed full run 44672682972 on 82bebbb; inspection run 44674563427 verified IOS 14.0/SDK 26.2 and required exports; binary SHA256 6efa3c5e0338cee0d07e512e55cc0b780eabc4e99caed67c1932230abd65c785. Host evidence only: no AVPlayer, TV or phone result. Owner authorized the framework publication and one combined testing IPA (2026-11-20).",
- "verified_run": 44672682972,
- "verified_host_run": 44672682972
+ "source_commit": "3b62563bd1ff02b6bc00729d929525ea34476fa6",
+ "pin_note": "r70 candidate for ISSUE-393 (build612 Apple TV log): the one shared copied-audio lane no longer starves the receiver's own track (audio demand counted lane-wide, no audio made ahead before the receiver asks, queued windows of other tracks dropped), on top of r69 (receiver-specific converted resume window, stalled-TV reload at the viewer's seek with EXT-X-START, one fresh audio reader on an empty window). Native host and end-to-end tests plus iPhone compilation passed full run 44680224991 on 3b62563 (including test_audio_lane_follows_the_receiver); inspection run 44681936855 verified IOS 14.0/SDK 26.2 and required exports; binary SHA256 e421f0b5067151ca2702bd7f941348be77a7cfc42fa5a1d5272e295a9d2ba883. Host evidence only: no AVPlayer, TV or phone result; a slow phone-to-TV Wi-Fi path is not addressed. Owner asked for the IPA (2026-11-20), authorizing this publication.",
+ "verified_run": 44680224991,
+ "verified_host_run": 44680224991
 }
