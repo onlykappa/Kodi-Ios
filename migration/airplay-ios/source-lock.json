@@ -1,16 +1,16 @@
 {
-  "framework_release": {
-    "tag": "kodi-airplay-r68",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "afd7ef59f739d80aad0db793f3601907cf271af03d8179f550a8b36abe05d6c1"
-  },
-  "previous": {
-    "tag": "kodi-airplay-r67",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "d7bb7cc432771bf4aa54244670e1396369df65e4bf03d75555f17f460d48f552"
-  },
-  "source_commit": "9e65561f98b1c89589735f8a81babd43e2027ed8",
-  "pin_note": "r68 diagnostic candidate for ISSUE-392/393: correlated request timing, cache state and audio packet-window/reader diagnostics. Native host and end-to-end tests plus iPhone compilation passed44640470233. Inspection44642746618 verified IOS14.0/SDK26.2 and required exports; binary SHA2564656acbb04c1702798d0ac9b254220613fb8c7b65ec4a4e5d109e1c8b84ea883. Owner authorized diagnostic framework and testing IPA. This adds evidence, not a proven fix for the phone's empty-audio/slow-seek failure.",
-  "verified_run": 44640470233,
-  "verified_host_run": 44640470233
+ "framework_release": {
+  "tag": "kodi-airplay-r69",
+  "asset": "KodiAirPlay.framework.zip",
+  "sha256": "abcc6bc16c32c3fc3bb3644002ae42245ce38cd1e38ea6852641ee7d98e2b5e8"
+ },
+ "previous": {
+  "tag": "kodi-airplay-r68",
+  "asset": "KodiAirPlay.framework.zip",
+  "sha256": "afd7ef59f739d80aad0db793f3601907cf271af03d8179f550a8b36abe05d6c1"
+ },
+ "source_commit": "82bebbb9b7c81c40a46db80acdbdf77392f5dee1",
+ "pin_note": "r69 candidate for ISSUE-392/393 (build611 phone log): receiver-specific converted resume-window preparation at the third-party receiver's master request (receiver_prepare, no obsolete segment 0); a stalled TV is reloaded at the viewer's latest seek (kr_remux_recent_seek_target / kr_remux_set_resume, EXT-X-START) instead of the player's stale clock; one fresh independent audio reader, both attempts logged, for an empty copied-audio window on a reused reader (root cause of the empty window unproven). Native host and end-to-end tests plus iPhone compilation passed full run 44672682972 on 82bebbb; inspection run 44674563427 verified IOS 14.0/SDK 26.2 and required exports; binary SHA256 6efa3c5e0338cee0d07e512e55cc0b780eabc4e99caed67c1932230abd65c785. Host evidence only: no AVPlayer, TV or phone result. Owner authorized the framework publication and one combined testing IPA (2026-11-20).",
+ "verified_run": 44672682972,
+ "verified_host_run": 44672682972
 }
