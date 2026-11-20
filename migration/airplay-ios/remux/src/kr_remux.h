@@ -103,7 +103,9 @@ int kr_remux_test_video_segment(int converted, double seconds);
 int kr_remux_test_audio_segment(int converted, double seconds);
 int kr_remux_test_cached_audio(int converted, int segment);
 int kr_remux_test_has_converted_audio(void);
-void kr_remux_test_arm_empty_audio(void);   // the next copied-audio answer on a reused reader is the empty one the phone showed
+void kr_remux_test_arm_empty_audio(void);
+void kr_remux_test_audio_delay(int ms);   // every copied-audio window takes this much longer (a slow source)
+int kr_remux_test_cached_audio_track(int track, int segment);   // the next copied-audio answer on a reused reader is the empty one the phone showed
 #endif
 #ifdef __cplusplus
 }

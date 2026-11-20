@@ -2684,6 +2684,43 @@ static void test_seek_target_and_empty_window(const char *base) {
     kr_remux_set_prefetch(1);
 }
 
+// Build612 phone log (Apple TV): priming chose audio track 1, the TV picked track 2, and background windows of track 1 kept the one shared audio
+// lane busy for 11 s, so the TV's first audio window hit AVPlayer's 6 s limit and AirPlay failed. Priming no longer makes audio ahead for a
+// track nobody asked for, a request for one audio track drops queued windows of the others, and background audio work waits while any audio
+// track has a request waiting.
+static void test_audio_lane_follows_the_receiver(void) {
+    char url[1024],list[512];
+    unsigned ticket=0;
+    kr_remux_set_prefetch(1);kr_remux_set_subtitles(-1,NULL,NULL);kr_video_set_encoder("mpeg4");
+    snprintf(url,sizeof url,"file:%s/two_aac.mkv",fixture_dir);
+    ticket=kr_remux_begin(0);
+    int opened=kr_remux_start_for(ticket,url,0,0,list,sizeof list);
+    CHECK(opened==KR_READY,"two-audio session opens: %s",kr_remux_message());
+    if(opened==KR_READY) {
+        snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
+        char *tail=strstr(prefix_path,"/master.m3u8");if(tail)*tail=0;
+        CHECK(kr_remux_prime_for(ticket,0)==KR_READY,"two-audio session primes");
+        int primed=kr_remux_test_cached_audio_track(1,0)?1:2,other=3-primed;
+        CHECK(kr_remux_test_cached_audio_track(primed,0) && !kr_remux_test_cached_audio_track(other,0),"priming made the first audio window of one track (%d)",primed);
+        usleep(600000);
+        CHECK(!kr_remux_test_cached_audio_track(primed,1) && !kr_remux_test_cached_audio_track(primed,2),"no audio is made ahead of a receiver that has not asked for audio");
+        kr_remux_test_audio_delay(700);   // a slow source keeps the lane busy for each window
+        char path[64];
+        snprintf(path,sizeof path,"/audio/%d/seg0.m4s",primed);
+        reply first=http_get(kr_remux_port(),path,NULL);
+        CHECK(first.status==200 && first.len>100,"the primed track's first window is served");free(first.body);
+        snprintf(path,sizeof path,"/audio/%d/seg0.m4s",other);
+        double at=mono_ms();
+        reply second=http_get(kr_remux_port(),path,NULL);
+        double waited=mono_ms()-at;
+        CHECK(second.status==200 && second.len>100,"the other track's first window is served (%d)",second.status);free(second.body);
+        CHECK(waited<2600,"it waited for at most the window in progress, not for every queued one (%.0f ms)",waited);
+        CHECK(!kr_remux_test_cached_audio_track(primed,2),"background windows of the primed track did not run ahead of the receiver's own track");
+        kr_remux_test_audio_delay(0);
+    }
+    kr_remux_stop();
+}
+
 static void test_seek_audio_retry(const char *base) {
     char url[512],list[512];
     static char log[1 << 20]; // Drain the expanded bounded diagnostic history, including retry evidence.
@@ -2733,7 +2770,7 @@ int main(int argc, char **argv) {
         return failures ? 1 : 0;
     }
     if(argc>3 && !strcmp(argv[3],"--receiver-handoff")) {
-        test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);test_seek_target_and_empty_window(argv[2]);
+        test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);test_seek_target_and_empty_window(argv[2]);test_audio_lane_follows_the_receiver();
         printf("%d receiver handoff checks, %d failed\n",checks,failures);
         return failures?1:0;
     }
@@ -2880,7 +2917,7 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);test_seek_target_and_empty_window(argv[2]);test_seek_audio_retry(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
+        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);test_seek_target_and_empty_window(argv[2]);test_audio_lane_follows_the_receiver();test_seek_audio_retry(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }
