@@ -69,10 +69,15 @@ class Tests(unittest.TestCase):
   selected=router.automatic_source([source(),{'addon':'Independent','play':'independent-value'}])
   with patch.object(router,'play',side_effect=InterruptedError()),patch.object(sports_jet,'play_one') as played:
    self.assertFalse(sports_jet.play(selected,lambda s:None));played.assert_not_called()
- def exercise(self,ready=False,stopped=False,select=False,all_failed=False,replaced=False,http_error=False,frozen=False):
+ def exercise(self,ready=False,stopped=False,select=False,all_failed=False,replaced=False,http_error=False,frozen=False,takeover=False,timeout=.6,slow_play=False):
   state={'now':0,'entries':[],'clears':0,'stops':0,'prepared':[]};logs=[];props={}
   class Player:
-   def play(self,playlist,**kwargs):state['player']=self;state['play_calls']=state.get('play_calls',0)+1;state['advanced']=state['play_calls']>1
+   def play(self,playlist,**kwargs):
+    state['player']=self;state['play_calls']=state.get('play_calls',0)+1;state['advanced']=state['play_calls']>1
+    if slow_play and state['play_calls']==1:   # Kodi does not return from play() until Crew has resolved the link
+     import time
+     for _ in range(5):time.sleep(.2);state['now']+=.2
+     state['picks_while_play_blocked']=sum('picked the first link' in line for line in logs)
    def isPlayingVideo(self):return ready or (http_error and state.get('advanced',False))
    def getTime(self):return 0 if frozen else state['now']
    def stop(self):
@@ -81,7 +86,7 @@ class Tests(unittest.TestCase):
   class Playlist:
    def clear(self):state['clears']+=1;state['entries']=[]
    def add(self,address,item):state['entries'].append(address)
-   def getposition(self):return -1 if all_failed else 0
+   def getposition(self):return -1 if all_failed or takeover else 0
    def size(self):return len(state['entries'])
   def sleep(ms):
    state['now']+=ms/1000
@@ -91,14 +96,14 @@ class Tests(unittest.TestCase):
    if stopped:state['player'].onPlayBackStarted();state['player'].onPlayBackStopped()
    if replaced:props[router.OWNER]='new-request'
   backend=NS(Player=Player,PlayList=lambda _:Playlist(),PLAYLIST_VIDEO=1,sleep=sleep,executebuiltin=lambda value:state.__setitem__("error_dialog_closed",value),
-    Monitor=lambda:NS(abortRequested=lambda:state['now']>2 if select else False),getCondVisibility=lambda cond:(select if "selectdialog" in cond else all_failed))
+    Monitor=lambda:NS(abortRequested=lambda:state['now']>2 if select else False),getCondVisibility=lambda cond:(takeover if 'HasMedia' in cond else select if "selectdialog" in cond else all_failed))
   home=NS(setProperty=lambda k,v:props.__setitem__(k,v),getProperty=lambda k:props.get(k,''),clearProperty=lambda k:props.pop(k,None))
   gui=NS(ListItem=lambda **kw:NS(setProperty=lambda *a:None),Window=lambda ident:home)
   original_prepare=router.routes.prepare_source
   def prepare(candidate):
    state['prepared'].append(candidate['play']);return original_prepare(candidate)
   with patch.dict(sys.modules,{'xbmcgui':gui}),patch.object(router.routes,'prepare_proxy'),patch.object(router.routes,'prepare_source',side_effect=prepare):
-   try:result=router.play([source(path='token-private'),source(path='second'),source(path='second')],logs.append,backend,lambda:state['now'],timeout=.6)
+   try:result=router.play([source(path='token-private'),source(path='second'),source(path='second')],logs.append,backend,lambda:state['now'],timeout=timeout)
    except Exception as error:result=error
   self.assertEqual(state['clears'],1 if replaced else 3 if http_error else 2)
   self.assertNotIn('token-private',' '.join(logs))
@@ -119,6 +124,17 @@ class Tests(unittest.TestCase):
   self.assertEqual(len(state['prepared']),2)
   self.assertTrue(state['advanced']);self.assertEqual(state['error_dialog_closed'],'Dialog.Close(okdialog)')
   self.assertEqual(sum('media open failed' in line for line in logs),1)
+ def test_crew_playing_its_own_stream_is_not_taken_for_an_ended_opening(self):
+  # Build 611: Crew plays the resolved stream itself (the playlist no longer holds our item) while it is still opening; the queue must wait
+  # for it, not stop it as "ended without a confirmed error" (that check used to be held off by Crew's progress box, now silent).
+  result,state,logs=self.exercise(takeover=True,timeout=3)
+  self.assertNotIn('sports: native opening ended without a confirmed error; queue cancelled',logs)
+  self.assertIn('timed out',str(result))
+ def test_the_chooser_is_answered_while_play_is_still_blocked(self):
+  # Build 611 phone log: play() blocked through Crew's chooser, the answering loop had not started, the owner had to tap.
+  result,state,logs=self.exercise(select=True,slow_play=True)
+  self.assertEqual(state['picks_while_play_blocked'],1)
+  self.assertEqual(len([l for l in logs if 'picked the first link' in l]),1)
  def test_timeout_cancels_queue(self):
   result,state,_=self.exercise()
   self.assertIsInstance(result,InterruptedError);self.assertEqual(state['stops'],1);self.assertEqual(len(state['prepared']),1)
