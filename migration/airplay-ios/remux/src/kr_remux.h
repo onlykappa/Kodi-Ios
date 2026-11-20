@@ -91,6 +91,11 @@ int kr_remux_subtitle_answer_now(int seg);
 void kr_remux_set_subtitles(int ordinal, const char *file, const char *lang);
 // r10: the running session's burned subtitles: source stream index, -2 an external file, -1 none.
 int kr_remux_burn_track(void);
+// Build611: the start of the video segment the receiver most recently jumped to (a seek), if that was within max_age_seconds; -1 otherwise.
+// Stall recovery resumes there rather than at the player's stale clock.
+double kr_remux_recent_seek_target(double max_age_seconds);
+// Names the position the next (re)loaded stream starts at: playlists carry it as EXT-X-START and a TV's converted resume window is prepared for it.
+void kr_remux_set_resume(double seconds);
 #ifdef KR_REMUX_TEST
 // Read-only observation for host regression tests; absent from shipped frameworks.
 int kr_remux_test_cached_video(int converted, int segment);
@@ -98,6 +103,7 @@ int kr_remux_test_video_segment(int converted, double seconds);
 int kr_remux_test_audio_segment(int converted, double seconds);
 int kr_remux_test_cached_audio(int converted, int segment);
 int kr_remux_test_has_converted_audio(void);
+void kr_remux_test_arm_empty_audio(void);   // the next copied-audio answer on a reused reader is the empty one the phone showed
 #endif
 #ifdef __cplusplus
 }

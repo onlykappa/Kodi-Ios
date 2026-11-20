@@ -284,7 +284,9 @@ class R9Speed(unittest.TestCase):
   for needle in ('t_err','session stopped','atomic_store(&vc_seg, seg)','pthread_cond_timedwait(&SC.changed',
                  'if (third || S.compat) receiver_prepare(first_receiver);','prefetch_push(R_VCOMPAT, seg);'):
    self.assertIn(needle,code)
-  self.assertNotIn('prefetch_push(R_VCOMPAT, 0)',code)   # build608: a resumed handoff must not queue converted segment 0
+  self.assertNotIn('prefetch_push(R_VCOMPAT, 0)',code)
+  for needle in ('kr_remux_recent_seek_target','note_video_request(rend, seg);','reopening the independent reader once','audio: reopened reader segment'):
+   self.assertIn(needle,code)   # build608: a resumed handoff must not queue converted segment 0
   # Source retry/seek behavior is exercised by compiled fault-injection tests; do not require the old
   # nested HTTP reconnect/AVSEEK_FORCE implementation, which could exceed its timeout repeatedly.
   gm=(src.parent/'gmplayer/gm_stream.c').read_text()

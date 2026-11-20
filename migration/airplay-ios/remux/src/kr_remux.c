@@ -404,10 +404,41 @@ static gm_stream *rend_plan(int rend) {
 // the converted plans can have different windows), so a resume position is mapped through the plan of the rendition that serves it and a
 // segment index is never carried from one rendition to another.
 static atomic_llong resume_ms = ATOMIC_VAR_INIT(0);
+// Build611 (owner phone log, ISSUE-393): a seek on the TV asks for a video segment far from the ones before it. The player's own clock keeps its
+// old position until that segment arrives, so a stall recovery that reloads "where the player is" restarted near the beginning instead of at
+// the place the viewer chose. The latest such jump (the start of the requested segment, in ms) and its time are kept so recovery can resume there.
+static atomic_llong seek_target_ms = ATOMIC_VAR_INIT(-1);
+static atomic_llong seek_target_at = ATOMIC_VAR_INIT(0);
+static atomic_int last_video_seg = ATOMIC_VAR_INIT(-1);
+static void note_video_request(int rend, int seg) {
+    if (seg < 0 || (rend != R_VCOPY && rend != R_VCOMPAT) || !S.gm) return;
+    int before = atomic_exchange(&last_video_seg, seg);
+    if (before >= 0 && (seg > before + 2 || seg < before - 1)) {   // a jump: more than the receiver's own read-ahead, or back
+        double start = gm_stream_segment_start(rend_plan(rend), seg);
+        if (start >= 0) {
+            atomic_store(&seek_target_ms, (long long)(start * 1000.0));
+            atomic_store(&seek_target_at, (long long)now_ms());
+            log_line("seek: the receiver jumped from segment %d to %d (%.1f s)", before, seg, start);
+        }
+    }
+}
+double kr_remux_recent_seek_target(double max_age_seconds) {
+    long long at = atomic_load(&seek_target_at), ms = atomic_load(&seek_target_ms);
+    if (ms < 0 || at <= 0 || now_ms() - (double)at > max_age_seconds * 1000.0) return -1;
+    return (double)ms / 1000.0;
+}
+void kr_remux_set_resume(double seconds) {
+    kr_hls_set_start(seconds);
+    atomic_store(&resume_ms, isfinite(seconds) && seconds > 0 ? (long long)(seconds * 1000.0) : 0);
+}
 static int resume_segment(int rend) {
     double at = (double)atomic_load(&resume_ms) / 1000.0;
     return S.gm && at > 0 ? gm_stream_time_to_segment(rend_plan(rend), at) : 0;
 }
+#ifdef KR_REMUX_TEST
+static atomic_int test_empty_audio = ATOMIC_VAR_INIT(0);
+void kr_remux_test_arm_empty_audio(void) { atomic_store(&test_empty_audio, 1); }
+#endif
 static int selected_audio_track(void) {
     int audio=gm_stream_selected_audio(S.gm);
     if(audio<0 || audio>=MAX_TRACKS || !S.routes[audio]) {
@@ -654,6 +685,33 @@ static int produce_unit(int rend, int seg,int ahead, gm_buf *out, char *err, int
             log_line("audio: copy segment=%d read_ms=%.0f seek_ms=%.0f scan_ms=%.0f source_io_ms=%.0f packets=%ld result=%d",seg,
                      now_ms()-read,seek_ms,scan_ms,kr_source_io_ms(source)-io,packets,r);
             if(r<0 || now_ms()-read>1000)log_line("audio: window segment=%d request=%u generation=%u reader_reused=%d %s",seg,diagnostic_request,atomic_load(&S.ticket),reader_reused,gm_stream_last_window(g));
+#ifdef KR_REMUX_TEST
+            if(atomic_exchange(&test_empty_audio,0) && reader_reused && r==0) {   // fault injection: the empty answer the phone log showed
+                free(out->data);*out=(gm_buf){0};r=-1;snprintf(err,(size_t)errlen,"empty segment");packets=2;scan_ms=0;
+            }
+#endif
+            // Build611 (owner phone log, ISSUE-392): after a jump the shared audio reader answered "empty segment" at once (two packets, no scan,
+            // no source I/O) for a window inside the movie, and kept doing so for later windows, which stopped AirPlay. The source was not
+            // slow or corrupt: this reader's position/index state was. One fresh reader, once per request, with both attempts logged so the
+            // next log shows whether the reset recovers; anything else (stop, cancel, a real error) is returned untouched.
+            if(r<0 && reader_reused && !atomic_load(&S.stopping) && !source_interrupted((void *)(uintptr_t)atomic_load(&S.ticket)) &&
+               strstr(err,"empty segment") && packets<=8 && now_ms()-read<1500 && seg<gm_stream_segment_count(rend_plan(rend))) {
+                log_line("audio: empty window segment=%d (%ld packets, %.0f ms scan, no source I/O): reopening the independent reader once",seg,packets,scan_ms);
+                gm_stream_close(S.agm);S.agm=NULL;
+                kr_source *old=S.asrc;publish_source(&S.asrc,NULL);kr_source_close(old);
+                S.agm_failed=0;
+                free(out->data);*out=(gm_buf){0};err[0]=0;
+                g=audio_demuxer();
+                if(g) {
+                    source=S.asrc;io=kr_source_io_ms(source);read=now_ms();
+                    gm_stream_adopt_plan(g,rend_plan(rend));
+                    r=gm_stream_track_unit(g,idx,seg,out,&split,err,errlen);
+                    gm_stream_last_timings(g,&seek_ms,&scan_ms,&packets);
+                    log_line("audio: reopened reader segment=%d read_ms=%.0f seek_ms=%.0f scan_ms=%.0f source_io_ms=%.0f packets=%ld result=%d",seg,
+                             now_ms()-read,seek_ms,scan_ms,kr_source_io_ms(source)-io,packets,r);
+                    if(r<0)log_line("audio: window segment=%d request=%u reopened=1 %s",seg,diagnostic_request,gm_stream_last_window(g));
+                }
+            }
             return r;
         }
         if(rend>=R_CAUDIO){snprintf(err,(size_t)errlen,"independent converted audio reader unavailable");return -1;}
@@ -1271,6 +1329,7 @@ static void serve(int fd, const char *method, const char *path, const char *rang
     const char *vpart = cvideo ? path + 7 : !strncmp(path, "/video/", 7) ? path + 6 : NULL;  // "/init.mp4", "/seg3.m4s"
     if (vpart && (!strcmp(vpart, "/init.mp4") || sscanf(vpart, "/seg%d.m4s", &seg) == 1)) {
         rend = (S.compat || cvideo || third) ? R_VCOMPAT : R_VCOPY;
+        note_video_request(rend, seg);
         r = get_part(rend, seg, &buf, err, sizeof err);
     } else if (sscanf(path, "/subs/%d/seg%d.vtt", &idx, &seg) == 2) {
         int burned = (S.burn_index >= 0 || S.burn_file[0]) && (S.compat || cvideo || third);
@@ -1524,7 +1583,7 @@ static void teardown_locked(void) {
     kr_video_close(video);
     kr_source_close(vsrc);
     pthread_mutex_unlock(&S.vlock);
-    S.compat = 0; S.vindex = -1; S.compat_ok = 0;S.prepared=0;S.prepared_size=0;atomic_store(&sub_resume_seg,-1);atomic_store(&resume_ms,0);
+    S.compat = 0; S.vindex = -1; S.compat_ok = 0;S.prepared=0;S.prepared_size=0;atomic_store(&sub_resume_seg,-1);atomic_store(&resume_ms,0);atomic_store(&seek_target_ms,-1);atomic_store(&last_video_seg,-1);
     free(S.prepared_master);S.prepared_master=NULL;free(S.prepared_media);S.prepared_media=NULL;
     prepared_cache_clear();   // r29
     atomic_store(&S.vlogged, 0);
@@ -1778,7 +1837,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
     for(int i=0;i<NREND;i++)atomic_store(&part_cost_ms[i],0);
     atomic_store(&S.served_ext_video, 0); atomic_store(&S.served_ext_audio, 0);
     atomic_store(&S.state, KR_STARTING);
-    kr_hls_set_start(0);atomic_store(&resume_ms,0);   // a new session starts from the beginning until priming names its position
+    kr_hls_set_start(0);atomic_store(&resume_ms,0);atomic_store(&seek_target_ms,-1);atomic_store(&last_video_seg,-1);   // a new session starts from the beginning until priming names its position
     set_message("");
     if (out && outlen > 0) *out = 0;
     char err[256] = "";

@@ -769,12 +769,20 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                     } else {
                         NSURL *url = [item.asset isKindOfClass:AVURLAsset.class] ? ((AVURLAsset *)item.asset).URL : nil;
                         if (url) {
-                            playerNote(@"still stuck at %.1f s after a source stall: reloading the stream there", here);
+                            // Build611 (owner phone log): a seek asks the TV for a segment far ahead; until it arrives the player's clock keeps
+                            // its old value, so reloading "where the player is" restarted near the beginning. Resume at the place the viewer
+                            // chose (the latest jump the TV made, if recent) and have the new stream's playlists start there, so the TV does
+                            // not first fetch segment 0.
+                            double jump = kr_remux_recent_seek_target(60);
+                            double target = jump >= 0 ? jump : here;
+                            playerNote(@"still stuck at %.1f s after a source stall: reloading the stream there (resuming at %.1f s%s)", here,
+                                       isfinite(target) && target > 0 ? target : 0.0, jump >= 0 ? ", the seek the viewer made" : "");
+                            kr_remux_set_resume(isfinite(target) && target > 0 ? target : 0);
                             AVPlayerItem *next = [AVPlayerItem playerItemWithURL:url];
                             [player pause];
                             watchPlayback(player, next, generation);
                             [player replaceCurrentItemWithPlayerItem:next];
-                            resumeAt = isfinite(here) && here > 0 ? here : 0; errorsSeen = 0;
+                            resumeAt = isfinite(target) && target > 0 ? target : 0; errorsSeen = 0;
                             initialSeekAllowed = NO;recoveryDeadline = ticks + 30;
                         }
                     }

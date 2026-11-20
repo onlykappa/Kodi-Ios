@@ -2632,6 +2632,56 @@ static void test_receiver_handoff_edges(const char *base) {
     kr_remux_set_prefetch(1);kr_remux_set_subtitles(-1,NULL,NULL);
 }
 
+// Build611 phone log (ISSUE-392/393): a seek jump is remembered so a stall recovery resumes where the viewer chose, a reload's playlists start
+// there, and an empty copied-audio window on a reused reader is answered by one fresh reader instead of stopping AirPlay.
+static void test_seek_target_and_empty_window(const char *base) {
+    static char log[1 << 20];
+    char url[1024],list[512];
+    unsigned ticket=0;
+    kr_remux_set_prefetch(0);
+    int opened=open_handoff_session(base,"long-gop.mp4",0,&ticket);
+    CHECK(opened==KR_READY,"seek-target session opens: %s",kr_remux_message());
+    if(opened==KR_READY) {
+        CHECK(kr_remux_recent_seek_target(60)<0,"no seek target before any request");
+        for(int seg=0;seg<3;seg++){char path[64];snprintf(path,sizeof path,"/video/seg%d.m4s",seg);reply r=get_as(UA_PHONE,kr_remux_port(),path);free(r.body);}
+        CHECK(kr_remux_recent_seek_target(60)<0,"reading the next segments in order is not a seek");
+        int far=kr_remux_test_video_segment(0,20.0);
+        char path[64];snprintf(path,sizeof path,"/video/seg%d.m4s",far);reply jump=get_as(UA_PHONE,kr_remux_port(),path);free(jump.body);
+        double target=kr_remux_recent_seek_target(60);
+        CHECK(target>=0 && kr_remux_test_video_segment(0,target+0.01)==far,"a jump to segment %d is the seek target (%.1f s)",far,target);
+        usleep(30000);
+        CHECK(kr_remux_recent_seek_target(0.001)<0,"an old jump is no longer a target");
+        snprintf(path,sizeof path,"/video/seg1.m4s");reply back=get_as(UA_PHONE,kr_remux_port(),path);free(back.body);
+        double earlier=kr_remux_recent_seek_target(60);
+        CHECK(earlier>=0 && earlier<target,"a jump back is the new target (%.1f s then %.1f s)",target,earlier);
+        kr_remux_set_resume(20.0);
+        reply playlist=get_as(UA_PHONE,kr_remux_port(),"/video/index.m3u8");
+        CHECK(playlist.body && strstr(playlist.body,"#EXT-X-START:TIME-OFFSET=20.000,PRECISE=YES"),"a reload's playlist starts at the resume position");free(playlist.body);
+    }
+    kr_remux_stop();
+    kr_remux_set_prefetch(1);
+    snprintf(url,sizeof url,"file:%s/h264_aac_srt.mkv",fixture_dir);
+    kr_video_set_encoder("mpeg4");kr_remux_set_subtitles(-1,NULL,NULL);ticket=kr_remux_begin(0);
+    opened=kr_remux_start_for(ticket,url,0,0,list,sizeof list);
+    CHECK(opened==KR_READY,"empty-window session opens: %s",kr_remux_message());
+    if(opened==KR_READY) {
+        snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
+        char *tail=strstr(prefix_path,"/master.m3u8");if(tail)*tail=0;
+        CHECK(kr_remux_prime_for(ticket,0)==KR_READY,"empty-window session primes");
+        reply first=http_get(kr_remux_port(),"/audio/1/seg1.m4s",NULL);
+        CHECK(first.status==200 && first.len>100,"audio window opens the shared reader");free(first.body);
+        kr_remux_test_arm_empty_audio();
+        reply later=http_get(kr_remux_port(),"/audio/1/seg2.m4s",NULL);
+        CHECK(later.status==200 && later.len>100,"an empty window on a reused reader is recovered by one fresh reader (%d, %d B)",later.status,later.len);
+        free(later.body);
+        kr_remux_log(log,sizeof log);
+        CHECK(strstr(log,"reopening the independent reader once") && strstr(log,"audio: reopened reader segment=2") && strstr(log,"result=0"),"both attempts are logged");
+        reply after=http_get(kr_remux_port(),"/audio/1/seg3.m4s",NULL);
+        CHECK(after.status==200 && after.len>100,"the next window is served after the reset");free(after.body);
+    }
+    kr_remux_stop();
+}
+
 static void test_seek_audio_retry(const char *base) {
     char url[512],list[512];
     static char log[1 << 20]; // Drain the expanded bounded diagnostic history, including retry evidence.
@@ -2681,7 +2731,7 @@ int main(int argc, char **argv) {
         return failures ? 1 : 0;
     }
     if(argc>3 && !strcmp(argv[3],"--receiver-handoff")) {
-        test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);
+        test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);test_seek_target_and_empty_window(argv[2]);
         printf("%d receiver handoff checks, %d failed\n",checks,failures);
         return failures?1:0;
     }
@@ -2828,7 +2878,7 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);test_seek_audio_retry(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
+        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);test_seek_target_and_empty_window(argv[2]);test_seek_audio_retry(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }
