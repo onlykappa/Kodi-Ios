@@ -88,12 +88,17 @@ class Filler(unittest.TestCase):
         up=dp.Upstream(lambda force:'old',base.FakeConn)
         return store,dc.Filler(store,up,B,dp.Tee,allowed=allowed,cap_bytes=cap or dc.CAP_BYTES,free=free or (lambda:10**12))
     def test_a_file_bigger_than_the_cap_gets_only_a_window_ahead(self):
-        store,filler=self.make(cap=12*B)            # the file is 16 blocks, the cap 12: only a window (one chunk of 8 blocks) from the position
-        filler.want('F',len(DATA),4*B);self.assertTrue(wait(filler.done.is_set))
-        self.assertEqual([n for n in range(16) if store.has('F',len(DATA),n)],list(range(4,12)))
+        store,filler=self.make(cap=12*B)            # the file is 16 blocks, the cap 12: only a window of 12 blocks (the cap) from the position
+        filler.want('F',len(DATA),2*B);self.assertTrue(wait(filler.done.is_set))
+        self.assertEqual([n for n in range(16) if store.has('F',len(DATA),n)],list(range(2,14)))
     def test_no_room_on_the_phone_fetches_nothing(self):
         store,filler=self.make(free=lambda:0)
         filler.want('F',len(DATA),0);time.sleep(0.3);self.assertEqual(base.FakeConn.log,[])
+    def test_playing_from_the_start_the_filler_still_fills_the_whole_file(self):
+        # Found by a simulation (96 MB, Drive at 0.4 s and 12 MB/s): the pass broke off after one block once it was more than a chunk ahead of the playing position.
+        store,filler=self.make()
+        filler.want('F',len(DATA),0);self.assertTrue(wait(filler.done.is_set))
+        self.assertTrue(all(store.has('F',len(DATA),n) for n in range(16)))
     def test_a_seek_moves_the_filler_to_the_new_position(self):
         store,filler=self.make()
         filler.want('F',len(DATA),0);filler.want('F',len(DATA),12*B)

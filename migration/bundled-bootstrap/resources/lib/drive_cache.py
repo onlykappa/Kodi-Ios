@@ -19,7 +19,7 @@ import time
 
 CAP_BYTES = 3 * 1024 ** 3            # the most the cache keeps on the phone
 FREE_MARGIN = 2 * 1024 ** 3          # the phone must have this much free beyond what the cache may use
-CHUNK_BLOCKS = 8                     # blocks asked of Drive in one request
+CHUNK_BLOCKS = 32                    # blocks asked of Drive in one request (each request costs 0.3-0.7 s before its first byte)
 WINDOW_DIVISOR = 3                   # a file bigger than the cap is cached this fraction of the cap ahead of the position
 
 
@@ -209,7 +209,7 @@ class Filler(object):
                 if run is None:
                     break
                 first, count = run
-                self._fetch(file_id, size, first, count, job)
+                self._fetch(file_id, size, first, count, job, start)
                 if not self.store.has(file_id, size, first) and not job['stop']:
                     break   # the fetch stored nothing (or the block was evicted at once): never spin on it
         except Exception as error:
@@ -232,7 +232,7 @@ class Filler(object):
                 return index, count
         return None
 
-    def _fetch(self, file_id, size, first, count, job):
+    def _fetch(self, file_id, size, first, count, job, started_at):
         a = first * self.block
         b = min(size, (first + count) * self.block) - 1
         response = self.upstream.get(file_id, 'bytes=%d-%d' % (a, b))
@@ -249,8 +249,8 @@ class Filler(object):
                     break
                 tee.feed(piece)
                 got += len(piece)
-                if job['at'] != first and abs(job['at'] - (first + got // self.block)) > CHUNK_BLOCKS:
-                    break   # the viewer seeked away: go there
+                if abs(job['at'] - started_at) > CHUNK_BLOCKS:
+                    break   # the viewer seeked away from where this pass began: scan again from the new position
         finally:
             try:
                 response.close()
