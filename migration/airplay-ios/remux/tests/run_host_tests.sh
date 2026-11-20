@@ -35,6 +35,13 @@ if [[ ! -f "$WORK/fixtures/coalesced.mp4" ]]; then
     -c:a aac -b:a 64k -c:s mov_text -metadata kodi_airplay_prepared=1 \
     -movflags empty_moov+default_base_moof+frag_keyframe+use_metadata_tags -min_frag_duration 30000000 "$WORK/fixtures/coalesced.mp4"
 fi
+if [[ ! -f "$WORK/fixtures/two_aac.mkv" ]]; then
+  # Two copied AAC tracks (one shared audio lane in the remuxer): the TV can pick the track that priming did not.
+  ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=128x72:rate=24:duration=40' \
+    -f lavfi -i 'sine=frequency=440:duration=40' -f lavfi -i 'sine=frequency=660:duration=40' \
+    -map 0:v -map 1:a -map 2:a -c:v libx264 -preset ultrafast -g 48 -sc_threshold 0 -c:a aac -b:a 64k \
+    -metadata:s:a:0 language=eng -metadata:s:a:1 language=spa "$WORK/fixtures/two_aac.mkv"
+fi
 if [[ ! -f "$WORK/fixtures/coalesced-b.mp4" ]]; then
   ffmpeg -hide_banner -loglevel error -y -i "$WORK/fixtures/coalesced.mp4" -map 0 \
     -c:v libx264 -preset veryfast -g 48 -bf 3 -sc_threshold 0 -fps_mode passthrough -c:a copy -c:s copy \

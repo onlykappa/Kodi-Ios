@@ -436,6 +436,8 @@ static int resume_segment(int rend) {
     return S.gm && at > 0 ? gm_stream_time_to_segment(rend_plan(rend), at) : 0;
 }
 #ifdef KR_REMUX_TEST
+static atomic_int test_audio_delay_ms = ATOMIC_VAR_INIT(0);
+void kr_remux_test_audio_delay(int ms) { atomic_store(&test_audio_delay_ms, ms); }
 static atomic_int test_empty_audio = ATOMIC_VAR_INIT(0);
 void kr_remux_test_arm_empty_audio(void) { atomic_store(&test_empty_audio, 1); }
 #endif
@@ -680,6 +682,9 @@ static int produce_unit(int rend, int seg,int ahead, gm_buf *out, char *err, int
         kr_source *source=g?S.asrc:S.src;double io=kr_source_io_ms(source),read=now_ms();
         if (g) {
             gm_stream_adopt_plan(g,rend_plan(rend));
+#ifdef KR_REMUX_TEST
+            if(atomic_load(&test_audio_delay_ms))usleep((useconds_t)atomic_load(&test_audio_delay_ms)*1000);   // a slow source: the lane stays busy
+#endif
             r=gm_stream_track_unit(g,idx,seg,out,&split,err,errlen);
             double seek_ms=0,scan_ms=0;long packets=0;gm_stream_last_timings(g,&seek_ms,&scan_ms,&packets);
             log_line("audio: copy segment=%d read_ms=%.0f seek_ms=%.0f scan_ms=%.0f source_io_ms=%.0f packets=%ld result=%d",seg,
@@ -779,6 +784,7 @@ static int cache_has(int rend, int seg) {
 int kr_remux_test_cached_video(int converted,int segment) {
     return cache_has(converted?R_VCOMPAT:R_VCOPY,segment);
 }
+int kr_remux_test_cached_audio_track(int track, int segment) { return cache_has(R_AUDIO + track, segment); }
 int kr_remux_test_cached_audio(int converted,int segment) {
     int a=selected_audio_track();
     return a>=0 && cache_has((converted?R_CAUDIO:R_AUDIO)+a,segment);
@@ -1006,6 +1012,18 @@ static atomic_int demand[NREND];
 // r52 (owner's build-319 log, an Umbrella stream at ~5 Mbit/s for a 28 Mbit/s movie): video requests still being made
 // (waiting for the lane or for the source). The player's "sound only" check must not take a slow source for a TV that
 // cannot decode the picture.
+// Build612 (owner phone log, Apple TV): every copied audio track shares ONE lane (one independent reader), but a request counted as demand only
+// for its own track. The TV asked for audio track 2 while the lane was busy with background windows of track 1 (the one priming had
+// chosen, a track the TV did not pick); the background worker went on starting track 1's next window because nothing "demanded" track 1,
+// so the TV's audio waited 11 s, hit AVPlayer's 6 s limit and the stream failed. Demand now counts for the whole lane.
+static int in_group(int rend, int lo, int count) { return rend >= lo && rend < lo + count; }
+static int lane_demand(int rend) {
+    int lo = in_group(rend, R_AUDIO, MAX_TRACKS) ? R_AUDIO : in_group(rend, R_CAUDIO, MAX_TRACKS) ? R_CAUDIO : -1;
+    if (lo < 0) return atomic_load(&demand[rend]);
+    int total = 0;
+    for (int i = 0; i < MAX_TRACKS; i++) total += atomic_load(&demand[lo + i]);
+    return total;
+}
 int kr_remux_video_waiting(void) { return atomic_load(&demand[R_VCOPY]) + atomic_load(&demand[R_VCOMPAT]); }
 static int near(int rend, int seg, int at) { return seg >= at && seg <= at + PF_DEPTH(rend); }
 
@@ -1070,7 +1088,7 @@ static void *prefetch_worker(void *arg) {
         int pick = -1;
         pthread_mutex_t *l = NULL;
         for (int i = 0; i < P.n && pick < 0; i++) {  // the oldest job whose lane is free (no waiting on a busy lane)
-            if (atomic_load(&demand[P.q[i].rend])) continue;
+            if (lane_demand(P.q[i].rend)) continue;
             pthread_mutex_t *c = lane(P.q[i].rend);
             if (!c) { P.q[i] = P.q[--P.n]; i--; continue; }
             if (pthread_mutex_trylock(c) == 0) { pick = i; l = c; }
@@ -1089,7 +1107,7 @@ static void *prefetch_worker(void *arg) {
         memmove(P.q + pick, P.q + pick + 1, sizeof P.q[0] * (size_t)(P.n - pick - 1)); P.n--;
         P.busy_rend[me] = rend; P.busy_seg[me] = seg;
         pthread_mutex_unlock(&P.lock);
-        if (!atomic_load(&S.stopping) && !atomic_load(&demand[rend]) && !cache_has(rend, seg) && cache_room(rend)) {
+        if (!atomic_load(&S.stopping) && !lane_demand(rend) && !cache_has(rend, seg) && cache_room(rend)) {
             char err[256] = "";
             int r = make_part(rend, seg, 1, 0, NULL, err, sizeof err);
             if (r == 0) atomic_fetch_add(&S.prefetched, 1);
@@ -1141,6 +1159,15 @@ static int get_part(int rend, int seg, gm_buf *out, char *err, int errlen) {
     pthread_mutex_t *l = lane(rend);
     if (!l) { snprintf(err, (size_t)errlen, "no such track"); return -1; }
     atomic_fetch_add(&demand[rend], 1);
+    if (in_group(rend, R_AUDIO, MAX_TRACKS) || in_group(rend, R_CAUDIO, MAX_TRACKS)) {   // the receiver wants this audio track: queued windows of the others are dropped
+        int lo = in_group(rend, R_AUDIO, MAX_TRACKS) ? R_AUDIO : R_CAUDIO;
+        pthread_mutex_lock(&P.lock);
+        for (int i = 0; i < P.n;) {
+            if (in_group(P.q[i].rend, lo, MAX_TRACKS) && P.q[i].rend != rend) { P.q[i] = P.q[--P.n]; continue; }
+            i++;
+        }
+        pthread_mutex_unlock(&P.lock);
+    }
     // Cancel only a background job identified under P.lock. Concurrent foreground requests (including
     // retries/init reads by the phone and TV) must not cancel each other and turn a seek into HTTP 500.
     double queued = now_ms();
@@ -2165,7 +2192,7 @@ int kr_remux_prime_for(unsigned ticket,double seconds) {
         pthread_mutex_lock(&C.lock);
         for(int i=0;i<C.n;i++)if(C.e[i].seg==seg && (C.e[i].rend==video || C.e[i].rend==R_AUDIO+audio))C.e[i].fresh=1;
         pthread_mutex_unlock(&C.lock);
-        prefetch_after(video,seg);if(audio>=0)prefetch_after(R_AUDIO+audio,seg);
+        prefetch_after(video,seg);   // audio ahead is made after the receiver's first audio request (it may pick another track than priming did)
         subtitle_warm(seg);
         r=KR_READY;phase_for(ticket,"ready");
         log_line("startup: buffered video and audio at %.1f s (segment %d) in %.0f ms",seconds,seg,now_ms()-began);
