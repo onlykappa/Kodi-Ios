@@ -1,16 +1,16 @@
 {
  "framework_release": {
+  "tag": "kodi-airplay-r71",
+  "asset": "KodiAirPlay.framework.zip",
+  "sha256": "71fdd0feacaf09d4338566436cd57beda0b3090f340df6c35f1d25bef6173e64"
+ },
+ "previous": {
   "tag": "kodi-airplay-r70",
   "asset": "KodiAirPlay.framework.zip",
   "sha256": "9a7edb041dca82f17133c4d2a53636be8d33455d80d435bc643830cc0dd74892"
  },
- "previous": {
-  "tag": "kodi-airplay-r69",
-  "asset": "KodiAirPlay.framework.zip",
-  "sha256": "abcc6bc16c32c3fc3bb3644002ae42245ce38cd1e38ea6852641ee7d98e2b5e8"
- },
- "source_commit": "3b62563bd1ff02b6bc00729d929525ea34476fa6",
- "pin_note": "r70 candidate for ISSUE-393 (build612 Apple TV log): the one shared copied-audio lane no longer starves the receiver's own track (audio demand counted lane-wide, no audio made ahead before the receiver asks, queued windows of other tracks dropped), on top of r69 (receiver-specific converted resume window, stalled-TV reload at the viewer's seek with EXT-X-START, one fresh audio reader on an empty window). Native host and end-to-end tests plus iPhone compilation passed full run 44680224991 on 3b62563 (including test_audio_lane_follows_the_receiver); inspection run 44681936855 verified IOS 14.0/SDK 26.2 and required exports; binary SHA256 e421f0b5067151ca2702bd7f941348be77a7cfc42fa5a1d5272e295a9d2ba883. Host evidence only: no AVPlayer, TV or phone result; a slow phone-to-TV Wi-Fi path is not addressed. Owner asked for the IPA (2026-11-20), authorizing this publication.",
- "verified_run": 44680224991,
- "verified_host_run": 44680224991
+ "source_commit": "bdc7185e50fc6bdf47ab2d6b2b8b7878c96f7e0e",
+ "pin_note": "r71 candidate for ISSUE-393 (build612 downloaded-show log): a longer read-ahead lead for a Drive-bound source (video 5 windows / 24-30 s, audio 18 s; 56% of video and about 60% of audio windows were not made when the TV asked), on top of r70's audio lane fix and r69's receiver handoff, seek resume and audio reader reset. Native host and end-to-end tests plus iPhone compilation passed full run 44762248382 on bdc7185 (including test_video_lead_is_long_enough and the retry-evidence check that now accepts the source-layer recovery but still requires proof the fault fired, owner approved); inspection run 44765342540 verified IOS 14.0/SDK 26.2 and required exports; binary SHA256 9450dea08a99068be733bb7dad6e71d91654be1336c50ece09d6acf023958bd7. Host evidence only: no AVPlayer, TV or phone result. Owner approved the change and asked for the IPA (2026-11-20).",
+ "verified_run": 44762248382,
+ "verified_host_run": 44762248382
 }

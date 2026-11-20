@@ -48,7 +48,7 @@
 enum { R_VCOPY = 0, R_VCOMPAT = 1, R_AUDIO = 2, R_CAUDIO = R_AUDIO + MAX_TRACKS, NREND = R_CAUDIO + MAX_TRACKS };
 static atomic_uint diagnostic_next_request;
 static _Thread_local unsigned diagnostic_request;
-#define PF_DEPTH_VIDEO 3  // r11: video segments made ahead after one is served
+#define PF_DEPTH_VIDEO 5  // r11: video segments made ahead after one is served (build612: 3 -> 5, see prefetch_after)
 #define PF_DEPTH_AUDIO 6  // r11: audio is cheap (a copy or one AAC encode): kept well ahead so it never waits
 #define PF_DEPTH(rend) ((rend) >= R_AUDIO ? PF_DEPTH_AUDIO : PF_DEPTH_VIDEO)
 #define PF_WORKERS 3    // background producers (r11: video, audio and a spare, so audio never queues behind video)
@@ -1072,7 +1072,12 @@ static void prefetch_after(int rend, int seg) {
         int depth=0;double covered=0;
         double duration=S.gm?gm_stream_segment_duration(rend_plan(rend),seg):SEG_SECONDS;
         double cost=atomic_load(&part_cost_ms[rend])/1000.0;
-        double horizon=rend>=R_AUDIO?12:(duration>0 && cost/duration>.7?18:12);
+        // Build612 phone log (downloaded show streamed from Drive): 56% of the video windows and 60% of the audio windows were not made when
+        // the TV asked, 16 of 71 video and 25 of 74 audio requests still waited over 2 s in steady state, while a cached window reached
+        // the TV at a median 36 Mbit/s (the Wi-Fi was not the limit). The TV's buffer hid most of it, but the lead was only 12-18 s. A
+        // window costs about 60% of its playing time to make, so a longer lead can be built and kept: 24 s (30 s when a window costs
+        // over 70% of its time) for video, 18 s for audio.
+        double horizon=rend>=R_AUDIO?18:(duration>0 && cost/duration>.7?30:24);
         while(depth<PF_DEPTH(rend) && covered<horizon){depth++;covered+=S.gm?gm_stream_segment_duration(rend_plan(rend),seg+depth):SEG_SECONDS;if(covered<=0)break;}
         if(S.gm && gm_stream_segment_duration(rend_plan(rend),seg)>SEG_SECONDS*2)depth=1;
         for (int k = 1; k <= depth; k++) push_locked(rend, seg + k);
