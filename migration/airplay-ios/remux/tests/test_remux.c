@@ -2721,6 +2721,24 @@ static void test_audio_lane_follows_the_receiver(void) {
     kr_remux_stop();
 }
 
+// Build612 phone log: the lead made ahead of the receiver was 12-18 s, too short for a Drive-bound source. After one served window the next
+// four video windows (24 s) are made in the background.
+static void test_video_lead_is_long_enough(const char *base) {
+    unsigned ticket=0;
+    kr_remux_set_prefetch(1);
+    int opened=open_handoff_session(base,"coalesced.mp4",0,&ticket);
+    CHECK(opened==KR_READY,"lead session opens: %s",kr_remux_message());
+    if(opened==KR_READY) {
+        CHECK(kr_remux_prime_for(ticket,0)==KR_READY,"lead session primes");
+        reply first=get_as(UA_PHONE,kr_remux_port(),"/video/seg0.m4s");
+        CHECK(first.status==200 && first.len>8,"the first window is served");free(first.body);
+        int ahead=0;double until=mono_ms()+10000;
+        while(mono_ms()<until){ahead=0;for(int seg=1;seg<=4;seg++)if(kr_remux_test_cached_video(0,seg))ahead++;if(ahead==4)break;usleep(20000);}
+        CHECK(ahead==4,"the next four video windows are made ahead (%d of 4)",ahead);
+    }
+    kr_remux_stop();
+}
+
 static void test_seek_audio_retry(const char *base) {
     char url[512],list[512];
     static char log[1 << 20]; // Drain the expanded bounded diagnostic history, including retry evidence.
@@ -2770,7 +2788,7 @@ int main(int argc, char **argv) {
         return failures ? 1 : 0;
     }
     if(argc>3 && !strcmp(argv[3],"--receiver-handoff")) {
-        test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);test_seek_target_and_empty_window(argv[2]);test_audio_lane_follows_the_receiver();
+        test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);test_seek_target_and_empty_window(argv[2]);test_audio_lane_follows_the_receiver();test_video_lead_is_long_enough(argv[2]);
         printf("%d receiver handoff checks, %d failed\n",checks,failures);
         return failures?1:0;
     }
@@ -2917,7 +2935,7 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);test_seek_target_and_empty_window(argv[2]);test_audio_lane_follows_the_receiver();test_seek_audio_retry(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
+        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_receiver_resume_handoff(argv[2]);test_receiver_handoff_edges(argv[2]);test_seek_target_and_empty_window(argv[2]);test_audio_lane_follows_the_receiver();test_video_lead_is_long_enough(argv[2]);test_seek_audio_retry(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }
