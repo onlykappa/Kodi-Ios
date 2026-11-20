@@ -2639,13 +2639,14 @@ static void test_seek_target_and_empty_window(const char *base) {
     char url[1024],list[512];
     unsigned ticket=0;
     kr_remux_set_prefetch(0);
-    int opened=open_handoff_session(base,"long-gop.mp4",0,&ticket);
+    int opened=open_handoff_session(base,"coalesced.mp4",0,&ticket);   // six-second windows: enough segments to jump between
     CHECK(opened==KR_READY,"seek-target session opens: %s",kr_remux_message());
     if(opened==KR_READY) {
         CHECK(kr_remux_recent_seek_target(60)<0,"no seek target before any request");
-        for(int seg=0;seg<3;seg++){char path[64];snprintf(path,sizeof path,"/video/seg%d.m4s",seg);reply r=get_as(UA_PHONE,kr_remux_port(),path);free(r.body);}
+        for(int seg=0;seg<2;seg++){char path[64];snprintf(path,sizeof path,"/video/seg%d.m4s",seg);reply r=get_as(UA_PHONE,kr_remux_port(),path);CHECK(r.status==200,"in-order segment %d is served (%d)",seg,r.status);free(r.body);}
         CHECK(kr_remux_recent_seek_target(60)<0,"reading the next segments in order is not a seek");
-        int far=kr_remux_test_video_segment(0,20.0);
+        int far=kr_remux_test_video_segment(0,30.0);
+        CHECK(far>=4,"the far segment is a real jump from segment 1 (%d)",far);
         char path[64];snprintf(path,sizeof path,"/video/seg%d.m4s",far);reply jump=get_as(UA_PHONE,kr_remux_port(),path);free(jump.body);
         double target=kr_remux_recent_seek_target(60);
         CHECK(target>=0 && kr_remux_test_video_segment(0,target+0.01)==far,"a jump to segment %d is the seek target (%.1f s)",far,target);
