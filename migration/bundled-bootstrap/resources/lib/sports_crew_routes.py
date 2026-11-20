@@ -292,8 +292,6 @@ def discover(read=listing, schedule=None, session=None):
     entries = read('plugin://' + ADDON + '/?action=bluehat')
     sources, seen, cache_state = [], set(), {'owner':None}
     league_codes = {game.get('league') or game.get('league_name') for game in live}
-    league_actions = {'nfl':'NFL', 'nba':'NBA', 'nhl':'NHL', 'mlb':'MLB', 'ncaa':'NCAAF', 'ncaab':'NCAAB', 'fifa':'MLS',
-                      'ufc':'UFC', 'f1':'F1', 'pga':'PGA'}
     for entry in entries[:64]:
         route = entry.get('file', '')
         if entry.get('filetype') != 'directory' or not valid_route(route) or route in seen:
@@ -301,20 +299,28 @@ def discover(read=listing, schedule=None, session=None):
         if parse_qs(urlsplit(route).query).get('action', [''])[0] not in ACTIONS:
             continue
         action = parse_qs(urlsplit(route).query).get('action', [''])[0]
-        if action != 'fullsites' and league_actions.get(action) not in league_codes:
+        if action != 'fullsites' and not (CREW_LEAGUES.get(action, frozenset()) & league_codes):
             continue
-        if action == 'fullsites' and only:   # one game's search reads only its own league's menu, never the all-sites menu (owner, 2026-11-20)
-            continue
+        if action == 'fullsites' and only and any(only in codes for codes in CREW_LEAGUES.values()):
+            continue   # one game's search reads only its own league's menu, never the all-sites menu (owner, 2026-11-20) ... unless Crew has no menu for that league (see below)
         seen.add(route)
-        games = live if action == 'fullsites' else [game for game in live if (game.get('league') or game.get('league_name')) == league_actions[action]]
+        games = live if action == 'fullsites' else [game for game in live if (game.get('league') or game.get('league_name')) in CREW_LEAGUES[action]]
         sources.append(CrewSource(entry.get('label') or 'Sports', route, games, read, session, cache_state))
     return sorted(sources, key=lambda source: parse_qs(urlsplit(source.route).query).get('action') == ['fullsites'])
 
 AMERICAN_LEAGUES = frozenset(('NFL', 'NBA', 'WNBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'MLS'))
+SOCCER = frozenset(('MLS', 'EPL', 'LIGA', 'BUN', 'SERA', 'LIG1', 'UCL'))
+# The leagues each Crew menu (its `action`) lists. Crew's soccer menu (fifa) is soccer of every league; build 615's log: a Bundesliga game that had
+# been on for 25 minutes found no source because the schedule Crew was asked about held only American leagues, so nothing was "live" for it.
+CREW_LEAGUES = {'nfl': frozenset(('NFL',)), 'nba': frozenset(('NBA', 'WNBA')), 'nhl': frozenset(('NHL',)), 'mlb': frozenset(('MLB',)),
+                'ncaa': frozenset(('NCAAF',)), 'ncaab': frozenset(('NCAAB',)), 'fifa': SOCCER, 'ufc': frozenset(('UFC',)),
+                'f1': frozenset(('F1',)), 'pga': frozenset(('PGA',))}
 
 
-def schedule():
+def schedule(only=None):
+    """ESPN's games for Crew's search: every league (or just the one game's league, which is faster). It was American leagues only, so a live soccer
+    match, UFC fight or race was never "live" here and its sources were never looked for."""
     import sports_espn
-    provider = sports_espn.EspnProvider(fetch=lambda url: sports_espn.fetch_json(url, timeout=3), leagues=AMERICAN_LEAGUES)
+    provider = sports_espn.EspnProvider(fetch=lambda url: sports_espn.fetch_json(url, timeout=3), leagues={only} if only else None)
     snapshot = provider._load()
     return snapshot['live'] + snapshot['upcoming']

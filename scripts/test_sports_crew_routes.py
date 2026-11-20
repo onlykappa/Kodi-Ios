@@ -168,6 +168,33 @@ class Tests(unittest.TestCase):
   self.assertEqual([x.name for x in found],['Crew NBA','Crew NHL','Crew Live sites'])   # no filter: as before
   with patch.object(crew,'_home',lambda:Home('MLB')):
    self.assertEqual(crew.discover(lambda route:self.fail('no MLB game is live'),schedule=[nba,nhl]),[])
+ def test_soccer_and_leagues_without_a_crew_menu_still_get_a_search(self):
+  # Build 615 log: a Bundesliga game on for 25 minutes found no sources: the schedule given to Crew held only American leagues ("0 live"), so
+  # nothing was looked for. Soccer of every league uses Crew's soccer menu; a league with no menu of its own uses the all-sites menu.
+  from unittest.mock import patch
+  class Home:
+   def __init__(self,league):self.league=league
+   def getProperty(self,key):return self.league if key==crew.ONLY_LEAGUE else ''
+  entries=[entry('Soccer','?action=fifa'),entry('NBA','?action=nba'),entry('Live sites','?action=fullsites')]
+  for code in ('BUN','EPL','UCL','LIG1','MLS'):
+   game=dict(GAME,league=code,league_name=code,state='live')
+   with patch.object(crew,'_home',lambda c=code:Home(c)):
+    found=crew.discover(lambda route:entries,schedule=[game])
+   self.assertEqual([x.name for x in found],['Crew Soccer'],code)   # its own league menu, not the all-sites menu
+  lpga=dict(GAME,league='LPGA',league_name='LPGA',state='live')
+  with patch.object(crew,'_home',lambda:Home('LPGA')):
+   found=crew.discover(lambda route:entries,schedule=[lpga])
+  self.assertEqual([x.name for x in found],['Crew Live sites'])   # no menu of its own: the all-sites menu is the only way to find it
+ def test_the_schedule_for_crew_covers_every_league_or_just_the_games(self):
+  from unittest.mock import patch
+  import sports_espn
+  seen=[]
+  class Fake:
+   def __init__(self,fetch=None,leagues=None):seen.append(leagues)
+   def _load(self):return {'live':[],'upcoming':[]}
+  with patch.object(sports_espn,'EspnProvider',Fake):
+   crew.schedule();crew.schedule('BUN')
+  self.assertEqual(seen,[None,{'BUN'}])
  def test_crews_ufc_f1_and_pga_menus_are_scanned_for_their_leagues(self):
   from unittest.mock import patch
   class Home:

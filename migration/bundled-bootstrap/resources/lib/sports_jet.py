@@ -432,7 +432,11 @@ class JetProvider:
                     if _folder('plugin.video.thecrew'):
                         import sports_crew_routes
                         schedule_began = time.monotonic()
-                        schedule = sports_crew_routes.schedule()
+                        try:
+                            only_league = str(self._home().getProperty(sports_crew_routes.ONLY_LEAGUE) or '')
+                        except Exception:   # outside Kodi (tests): every league
+                            only_league = ''
+                        schedule = sports_crew_routes.schedule(only_league) if only_league else sports_crew_routes.schedule()
                         log('jet: ESPN schedule ready in %.2fs (%d live, %d upcoming)' % (
                             time.monotonic() - schedule_began,
                             sum(g.get('state') == 'live' for g in schedule),
@@ -441,7 +445,8 @@ class JetProvider:
                             self.schedule = schedule
                         self._publish(False)
                         others = sports_crew_routes.discover(schedule=schedule, session=self.crew_session)
-                        log('jet: %d Crew source routes discovered' % len(others))
+                        log('jet: %d Crew source routes discovered (live in the schedule: %s)' % (
+                            len(others), ', '.join(sorted({str(g.get('league')) for g in schedule if g.get('state') == 'live'})) or 'none'))
                     elif self.crew_only:
                         import sports_crew_routes
                         with self.lock:

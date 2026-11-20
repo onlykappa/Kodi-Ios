@@ -276,6 +276,13 @@ def run():
   sports_reminders.watch(xbmcvfs.translatePath('special://profile/'),sports_provider.get,notify,monitor.waitForAbort,
                          log=lambda text:xbmc.log('Kodi iOS Sports '+text,xbmc.LOGINFO))
  threading.Thread(target=sports_reminder_loop,daemon=True).start()
+ # Sources for live games are looked for ahead of time (owner, 2026-11-20), one search at a time, never while a video plays or a game page searches.
+ def sports_prefetch_loop():
+  import sports_provider,sports_sources_prefetch
+  home=xbmcgui.Window(10000)
+  busy=lambda:xbmc.Player().isPlayingVideo() or bool(home.getProperty('KodiIOS.SportsCrewOnlyLeague'))
+  sports_sources_prefetch.watch(sports_provider.get,busy,monitor.waitForAbort,log=lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO))
+ threading.Thread(target=sports_prefetch_loop,daemon=True).start()
  # Roadmap 1C.1: "open timing" log line per video (tap to picture).
  import open_timing
  import cache_tune   # roadmap 1B.3: Kodi's cache read factor follows Wi-Fi / cellular, set as a video is about to open
