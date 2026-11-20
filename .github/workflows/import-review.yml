@@ -276,6 +276,10 @@ jobs:
           python3 -B scripts/test_notice_log.py
           python3 -B scripts/test_pages.py
           python3 -B scripts/test_airplay_remux.py
+          # Native receiver resume regression gate (also part of the full native run):
+          # airplay-remux.yml receiver_handoff_only=true -> run_host_tests.sh --receiver-handoff.
+          # Executes test_receiver_resume_handoff against real HTTP/cache/converter; no device claim.
+          bash -n migration/airplay-ios/remux/tests/run_host_tests.sh
           python3 -B scripts/test_airplay_long_fragments.py
           python3 -B scripts/test_airplay_source_stall.py
           python3 -B scripts/test_umbrella_early_exit.py

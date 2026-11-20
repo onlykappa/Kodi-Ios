@@ -20,6 +20,14 @@ on:
         description: Inspect existing artifact without rebuilding
         type: boolean
         default: false
+      audio_replay_only:
+        description: Run only the controlled audio replay investigation; creates no framework candidate
+        type: boolean
+        default: false
+      receiver_handoff_only:
+        description: Reproduce resume handoff and verify the desired contract is red; creates no framework
+        type: boolean
+        default: false
       reuse_host_run:
         description: Reuse a successful host-tests job only when its complete AirPlay source tree matches
         type: string
@@ -28,7 +36,7 @@ permissions:
   contents: read
 jobs:
   inspect-existing-candidate:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.audio_replay_only != true && inputs.receiver_handoff_only != true
     runs-on: macos-15
     permissions:
       actions: read
@@ -43,7 +51,7 @@ jobs:
       - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
         with:
           name: KodiAirPlay-source-candidate
-          run-id: 44612304285
+          run-id: 44762248382
           github-token: ${{ github.token }}
           path: candidate
       - name: Inspect existing candidate without publication
@@ -62,8 +70,8 @@ jobs:
           import hashlib,json,os,subprocess
           from pathlib import Path
           def gh(*args): return subprocess.check_output(['gh','api',*args],text=True)
-          run=json.loads(gh('repos/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/44612304285'))
-          assert run['head_sha']=='2fde08240858c4d80f2f282c3e2cd9bf4dbfdbef' and run['conclusion']=='success'
+          run=json.loads(gh('repos/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/44762248382'))
+          assert run['head_sha']=='bdc7185e50fc6bdf47ab2d6b2b8b7878c96f7e0e' and run['conclusion']=='success'
           binary=Path('KodiAirPlay.framework/KodiAirPlay')
           platform=subprocess.check_output(['xcrun','vtool','-show-build',str(binary)],text=True)
           assert 'platform IOS' in platform
@@ -113,10 +121,18 @@ jobs:
         run: |
           [ -f "$RUNNER_TEMP/ass-host/lib/libass.a" ] || bash migration/airplay-ios/build-libass.sh host "$RUNNER_TEMP/ass-host"
       - name: Host tests (fixtures from files and over HTTP with Range)
-        run: KR_HDR_TESTS=1 bash migration/airplay-ios/remux/tests/run_host_tests.sh "$RUNNER_TEMP/ff-host" "$RUNNER_TEMP/remux-tests" "$RUNNER_TEMP/ass-host"
+        env:
+          AUDIO_REPLAY_ONLY: ${{ inputs.audio_replay_only }}
+          RECEIVER_HANDOFF_ONLY: ${{ inputs.receiver_handoff_only }}
+        run: |
+          mode=''
+          if [ "$AUDIO_REPLAY_ONLY" = true ]; then mode=--audio-replay-only; fi
+          if [ "$RECEIVER_HANDOFF_ONLY" = true ]; then mode=--receiver-handoff; fi
+          KR_HDR_TESTS=1 bash migration/airplay-ios/remux/tests/run_host_tests.sh "$RUNNER_TEMP/ff-host" "$RUNNER_TEMP/remux-tests" "$RUNNER_TEMP/ass-host" "$mode"
       # Build 190 (owner: "do a full rundown audit and tests on this conversion"): the real converter and the add-on's
       # queue end to end against a local Drive stand-in: interrupted runs, killed uploads, slow lines, the read-back check.
       - name: End-to-end conversion (converter + add-on queue + Drive stand-in)
+        if: inputs.audio_replay_only != true && inputs.receiver_handoff_only != true
         run: |
           sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -yq libass-dev
           FF="$RUNNER_TEMP/ff-host";R=migration/airplay-ios/remux
@@ -173,7 +189,7 @@ jobs:
           PY
   framework:
     needs: host-evidence
-    if: ${{ inputs.inspect_only != true && !cancelled() && (needs.host-evidence.result == 'success' || needs.host-evidence.result == 'skipped') }}
+    if: ${{ inputs.inspect_only != true && inputs.audio_replay_only != true && inputs.receiver_handoff_only != true && !cancelled() && (needs.host-evidence.result == 'success' || needs.host-evidence.result == 'skipped') }}
     # macos-15 selects ARM64; capacity exhaustion canceled the candidate before it got a runner.
     # The Intel image also has Xcode 26; the framework remains cross-compiled for iPhone arm64.
     runs-on: macos-15-intel
