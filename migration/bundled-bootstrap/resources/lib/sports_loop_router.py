@@ -71,6 +71,12 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             raise InterruptedError('a newer play request replaced this queue')
         owner = owner or uuid.uuid4().hex
         home.setProperty(OWNER, owner)
+        try:
+            import sports_crew_patch
+            sports_crew_patch.ensure(logger)
+            sports_crew_patch.mark(home, timeout + 60)   # Crew's resolver then draws no "Finding Your Event" box
+        except Exception:
+            pass
     def owns_queue():
         return home is None or home.getProperty(OWNER) == owner
     # Drain the previous attempt's Stop before registering this observer.

@@ -82,7 +82,7 @@ def crew_sources(game, sleep=time.sleep, clock=time.monotonic):
         home = xbmcgui.Window(10000)
         home.setProperty('KodiIOS.SportsCrewOnlyLeague', str(game.get('league') or ''))   # read only this game's league menu in Crew
         _scans[0] += 1
-        home.setProperty(sports_crew_patch.SCAN, '1')   # Crew's own menus then see their add-on as the container (no Crew window)
+        sports_crew_patch.mark(home, SEARCH_SECONDS + 30)   # Crew's own menus then see their add-on as the container, and draw no dialog
     except Exception:
         home = None
     try:
@@ -110,7 +110,6 @@ def crew_sources(game, sleep=time.sleep, clock=time.monotonic):
             _scans[0] -= 1
             if _scans[0] <= 0:   # another game's search may still be reading
                 home.clearProperty('KodiIOS.SportsCrewOnlyLeague')
-                home.clearProperty('KodiIOS.SportsCrewScan')
 
 
 def sm_unavailable():

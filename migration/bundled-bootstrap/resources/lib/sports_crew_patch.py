@@ -1,10 +1,13 @@
-"""Let Crew's sports menus list their events without Crew's own window open (owner, 2026-11-20: no Crew UI at all).
+"""Let Crew's sports menus work without any Crew window or dialog (owner, 2026-11-20: no Crew UI at all).
 
-Crew's sports menus build their event lists with code the menu file carries, and that code starts with a check: `Container.PluginName` must be
-`plugin.video.thecrew`, else it returns nothing. With Crew's window no longer opened under Sports the check failed and every event list came back
-empty (ISSUE-396). While a game's source search runs, the Home property SCAN is set, and this one-line change to the pinned Crew module makes
-that label read as Crew. Nothing else of Crew changes, and the change is made only to the exact pinned file (version and line both checked);
-any other version or file is left alone.
+Two things in Crew get in the way, and both come from code the sports menu files carry (downloaded at run time from github.com/posadka/xmls2,
+sports/<league>/<league>.xml), not from the add-on itself:
+ 1. Event lists start with `if not Container.PluginName == 'plugin.video.thecrew': return`. With Crew's window no longer opened under Sports the
+    lists came back empty (ISSUE-396).
+ 2. Opening an event's link (a play) shows Crew's own progress dialog, "THE CREW SPORTS / The Crew Is Finding Your Event..." (ISSUE-397).
+While the Home property SCAN holds a time in the future (a game's source search sets it, and so does a Sports play), one change to the pinned Crew
+module makes the label read as Crew and replaces Crew's progress dialog with a silent stand-in. At any other time Crew behaves as it always did.
+The change is made only to the exact pinned file (version and line both checked); any other version or file is left alone.
 """
 import os
 
@@ -14,14 +17,44 @@ VERSION = '3.2.29'
 RELATIVE = os.path.join('lib', 'resources', 'lib', 'modules', 'control.py')
 ORIGINAL = 'infoLabel = xbmc.getInfoLabel\n'
 MARK = '# Kodi iOS Sports scan'
-PATCHED = '''def infoLabel(label):  # Kodi iOS Sports scan: while a game's source search runs, Crew's menus see their own add-on as the container
-    if label == 'Container.PluginName':
-        try:
-            import xbmcgui
-            if xbmcgui.Window(10000).getProperty('%s'):
-                return 'plugin.video.thecrew'
-        except Exception:
-            pass
+PATCHED = '''def _kodi_ios_sports_scan():  # Kodi iOS Sports scan: true while a Sports source search or play is running (SCAN holds a time in the future)
+    try:
+        import time
+        import xbmcgui
+        return float(xbmcgui.Window(10000).getProperty('%s') or 0) > time.time()
+    except Exception:
+        return False
+
+
+class _KodiIosSilentProgress:  # stands in for xbmcgui.DialogProgress: Crew's "Finding Your Event" box is never drawn
+    def create(self, *args, **kwargs):
+        pass
+
+    def update(self, *args, **kwargs):
+        pass
+
+    def close(self, *args, **kwargs):
+        pass
+
+    def iscanceled(self):
+        return False
+
+    def isFinished(self):
+        return False
+
+
+if _kodi_ios_sports_scan():
+    try:
+        import xbmcgui as _kodi_ios_gui
+        _kodi_ios_gui.DialogProgress = _KodiIosSilentProgress
+        _kodi_ios_gui.DialogProgressBG = _KodiIosSilentProgress   # Crew's own control.py makes both boxes next, so those are silent too
+    except Exception:
+        pass
+
+
+def infoLabel(label):
+    if label == 'Container.PluginName' and _kodi_ios_sports_scan():
+        return 'plugin.video.thecrew'
     return xbmc.getInfoLabel(label)
 ''' % SCAN
 
@@ -84,3 +117,12 @@ def ensure(log=lambda text: None):
     elif result == 'patched':
         log('crew: scan patch applied')
     return result
+
+
+def mark(home, seconds):
+    """Say that a Sports search or play is running for the next `seconds` seconds (a time, so a crash can never leave it on)."""
+    import time
+    try:
+        home.setProperty(SCAN, str(time.time() + seconds))
+    except Exception:
+        pass
