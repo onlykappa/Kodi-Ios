@@ -39,7 +39,7 @@ def _language(code):
 
 
 def subtitle_tracks(data):
-    """[{'id', 'handler', 'codec', 'language'}] for each subtitle-like track in the moov of `data`; [] when there is none or it is not in `data`."""
+    """[{'id', 'handler', 'codec', 'language', 'samples'}] for each subtitle-like track in the moov of `data`; [] when there is none or it is not in `data`."""
     out = []
     data = bytes(data)
     moov = _find(data, 0, len(data), b'moov')
@@ -49,7 +49,7 @@ def subtitle_tracks(data):
         if kind != b'trak':
             continue
         try:
-            info = {'id': 0, 'handler': '', 'codec': '', 'language': ''}
+            info = {'id': 0, 'handler': '', 'codec': '', 'language': '', 'samples': None}
             tkhd = _find(data, a, b, b'tkhd')
             if tkhd:
                 version = data[tkhd[0]]
@@ -71,6 +71,9 @@ def subtitle_tracks(data):
             stsd = _find(data, stbl[0], stbl[1], b'stsd') if stbl else None
             if stsd:
                 info['codec'] = bytes(data[stsd[0] + 12:stsd[0] + 16]).decode('ascii', 'replace')
+            stsz = _find(data, stbl[0], stbl[1], b'stsz') if stbl else None
+            if stsz and stsz[0] + 12 <= stsz[1]:   # how many subtitle samples the track holds: 0 or 1 is an empty track that draws nothing
+                info['samples'] = struct.unpack_from('>I', data, stsz[0] + 8)[0]
             out.append(info)
         except (struct.error, IndexError):
             continue
@@ -81,4 +84,5 @@ def describe(tracks):
     """One log line: 'tracks in file: #3 eng tx3g (sbtl); #4 eng c608 (clcp)'."""
     if not tracks:
         return 'no subtitle track in the first bytes of the file'
-    return '; '.join('#%s %s %s (%s)' % (t['id'], t['language'], t['codec'] or '?', t['handler']) for t in tracks)
+    return '; '.join('#%s %s %s (%s)%s' % (t['id'], t['language'], t['codec'] or '?', t['handler'],
+                                           '' if t.get('samples') is None else ', %d samples' % t['samples']) for t in tracks)

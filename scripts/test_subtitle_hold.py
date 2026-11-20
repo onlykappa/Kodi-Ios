@@ -45,6 +45,14 @@ class Rows(unittest.TestCase):
         xml = pages.track_menu()
         self.assertGreaterEqual(xml.count('<wrapmultiline>true</wrapmultiline>'), 4)   # every track label may take a second line
 
+    def test_a_track_the_file_holds_no_subtitles_for_is_refused_unless_forced(self):
+        import subtitle_match as sm
+        ranked = sm.rank([{'index': 0, 'language': 'eng', 'name': '', 'sample_count': 0}, {'index': 1, 'language': 'eng', 'name': '', 'sample_count': 900},
+                          {'index': 2, 'language': 'eng', 'name': '', 'sample_count': 1, 'isforced': True}], {'duration': 3000})
+        by = {t['index']: t for t in ranked}
+        self.assertTrue(by[0]['match_rejected']);self.assertEqual(by[0]['match_reason'], 'Empty subtitle track')
+        self.assertFalse(by[1]['match_rejected']);self.assertFalse(by[2]['match_rejected'])
+
     def test_remove_is_red(self):
         self.assertTrue(tm.more_rows(0, False, '', 'English', True)[2]['danger'])
         self.assertIn('FFFF453A', pages.track_menu())
@@ -237,6 +245,45 @@ class Flows(unittest.TestCase):
         self.assertFalse(os.path.exists(path))
         self.assertEqual(notes, ['English removed'])
         self.assertIn(('Player.SetSubtitle', {'playerid': 1, 'subtitle': 'off'}), self.fake.calls)   # it was on
+
+    def test_a_downloaded_subtitle_survives_closing_and_reopening_the_menu(self):
+        # Build 617 log: the downloaded track ("<crc> (External)") was forgotten on the next open, the embedded CC outranked it and the menu
+        # switched Kodi to the CC (turning the download off). A fresh menu must keep it on and offer it for English.
+        self.fake.subs = [{'index': 0, 'language': 'eng', 'name': ''}, {'index': 1, 'language': 'eng', 'name': '', 'isimpaired': True},
+                          {'index': 3, 'language': 'eng', 'name': '4168484231 (External)'}]
+        self.fake.current = 3
+
+        def scenario(menu):
+            english = [r for r in menu.rows if r['label'].startswith('English')]
+            self.assertEqual([r['index'] for r in english], [3])
+            self.assertTrue(english[0]['on'])
+        drive(scenario, self.fake)
+        self.assertEqual([c for c in self.fake.calls if c[0] == 'Player.SetSubtitle'], [])   # opening the menu changed nothing
+        self.assertEqual(self.fake.current, 3)
+
+    def test_turning_it_off_and_on_again_selects_the_download_not_the_embedded_cc(self):
+        self.fake.subs = [{'index': 0, 'language': 'eng', 'name': ''}, {'index': 1, 'language': 'eng', 'name': '', 'isimpaired': True},
+                          {'index': 3, 'language': 'eng', 'name': '4168484231 (External)'}]
+        self.fake.current = 3
+
+        def scenario(menu):
+            menu.pick(0)            # Off
+            self.assertFalse(self.fake.enabled)
+            menu.fill()
+            menu.pick(next(n for n, r in enumerate(menu.rows) if r['label'].startswith('English')))
+        drive(scenario, self.fake)
+        self.assertTrue(self.fake.enabled)
+        self.assertEqual(self.fake.current, 3)
+
+    def test_an_embedded_track_with_no_subtitles_in_it_is_not_offered(self):
+        self.fake.subs = [{'index': 0, 'language': 'eng', 'name': ''}, {'index': 1, 'language': 'spa', 'name': ''}]
+        self.fake.current = 1
+
+        def scenario(menu):
+            menu.file_tracks = [{'samples': 0}, {'samples': 800}]
+            menu.fill()
+            self.assertEqual([r['label'] for r in menu.rows], ['Off', 'Spanish'])
+        drive(scenario, self.fake)
 
     def test_cancel_removes_nothing(self):
         def scenario(menu):

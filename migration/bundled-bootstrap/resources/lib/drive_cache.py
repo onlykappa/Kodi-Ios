@@ -23,6 +23,8 @@ HEAD_BLOCKS = 24                     # a prefetched video: its first 24 MB ...
 TAIL_BLOCKS = 4                      # ... and its last 4 MB (an MP4's fragment index sits there)
 PIN_SECONDS = 3600                   # a prefetched video survives the current video's stop for this long
 CHUNK_BLOCKS = 32                    # blocks asked of Drive in one request (each request costs 0.3-0.7 s before its first byte)
+CURSORS = 4                          # read positions the filler follows at once (see Filler._follow)
+NEAR_BLOCKS = 2 * CHUNK_BLOCKS       # two reads this close are the same stretch of the file
 WINDOW_DIVISOR = 3                   # a file bigger than the cap is cached this fraction of the cap ahead of the position
 
 
@@ -209,16 +211,36 @@ class Filler(object):
         with self.lock:
             job = self.jobs.get(file_id)
             if job and job['size'] == size:
-                job['at'] = at   # a seek: the worker moves to the new position
+                self._follow(job, at)   # a seek (or another track's stretch): the worker follows this position too
                 return
             try:
                 if self.free() < min(size, self.cap_bytes) + FREE_MARGIN:
                     return
             except OSError:
                 return
-            job = {'size': size, 'at': at, 'stop': False, 'generation': self.store.generation}
+            job = {'size': size, 'at': at, 'cursors': [at], 'turn': 0, 'stop': False, 'generation': self.store.generation}
             self.jobs[file_id] = job
         threading.Thread(target=self._run, args=(file_id, job), daemon=True).start()
+
+    @staticmethod
+    def _follow(job, at):
+        """Keep up to CURSORS read positions. An MP4 stores its video and each audio/subtitle track in separate stretches of the file, so Kodi reads
+        two or three places at once and every request tells us only one of them. With a single position the filler jumped between them on each
+        request and, by the seek rule below, abandoned every fetch it had begun (build 617 log: all of a seek's Drive requests were cold, the
+        connection was dropped each time); each stretch now keeps its own position and they are filled in turn."""
+        cursors = job['cursors']
+        for n, known in enumerate(cursors):
+            if abs(known - at) <= NEAR_BLOCKS:
+                del cursors[n]   # the same stretch moved on (or back a little): this position replaces it
+                break
+        cursors.append(at)
+        del cursors[:-CURSORS]
+        job['at'] = at
+
+    @staticmethod
+    def _moved_away(job, started_at):
+        """True when no followed position is still near where this pass began: the viewer seeked away from it."""
+        return not any(abs(known - started_at) <= CHUNK_BLOCKS for known in job.get('cursors') or [job['at']])
 
     def prefetch(self, file_id, size, now=None):
         """A video that may play next (the next episode, the top Continue Watching item): its start and its end are fetched once and kept past
@@ -279,8 +301,14 @@ class Filler(object):
         window = total if size <= self.cap_bytes else min(self.cap_bytes // block, max(CHUNK_BLOCKS, self.cap_bytes // block // WINDOW_DIVISOR))
         try:
             while not job['stop'] and job['generation'] == self.store.generation and self.allowed():
-                start = job['at']
-                run = self._next_run(file_id, size, start, total, window)
+                cursors = list(job['cursors'])
+                run = start = None
+                for step in range(len(cursors)):   # the positions take turns; one with nothing left to fill is skipped
+                    start = cursors[(job['turn'] + step) % len(cursors)]
+                    run = self._next_run(file_id, size, start, total, window)
+                    if run is not None:
+                        job['turn'] = (job['turn'] + step + 1) % len(cursors)
+                        break
                 if run is None:
                     break
                 first, count = run
@@ -324,7 +352,7 @@ class Filler(object):
                     break
                 tee.feed(piece)
                 got += len(piece)
-                if abs(job['at'] - started_at) > CHUNK_BLOCKS:
+                if self._moved_away(job, started_at):
                     break   # the viewer seeked away from where this pass began: scan again from the new position
         finally:
             try:
