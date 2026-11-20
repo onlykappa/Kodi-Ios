@@ -400,10 +400,30 @@ static bridge *find_bridge(int index) {
 static gm_stream *rend_plan(int rend) {
     return S.cplan && (rend==R_VCOMPAT || rend>=R_CAUDIO)?S.cplan:S.gm;
 }
+// Build608 (TV handoff): the position the player resumes at, named by priming. A segment number belongs to one rendition's plan (the copy and
+// the converted plans can have different windows), so a resume position is mapped through the plan of the rendition that serves it and a
+// segment index is never carried from one rendition to another.
+static atomic_llong resume_ms = ATOMIC_VAR_INIT(0);
+static int resume_segment(int rend) {
+    double at = (double)atomic_load(&resume_ms) / 1000.0;
+    return S.gm && at > 0 ? gm_stream_time_to_segment(rend_plan(rend), at) : 0;
+}
+static int selected_audio_track(void) {
+    int audio=gm_stream_selected_audio(S.gm);
+    if(audio<0 || audio>=MAX_TRACKS || !S.routes[audio]) {
+        audio=-1;for(int i=0;i<MAX_TRACKS;i++)if(S.routes[i]){audio=i;break;}
+    }
+    return audio;
+}
 #ifdef KR_REMUX_TEST
 int kr_remux_test_video_segment(int converted,double seconds) {
     return gm_stream_time_to_segment(rend_plan(converted?R_VCOMPAT:R_VCOPY),seconds);
 }
+int kr_remux_test_audio_segment(int converted,double seconds) {
+    int a=selected_audio_track();
+    return a<0?-1:gm_stream_time_to_segment(rend_plan((converted?R_CAUDIO:R_AUDIO)+a),seconds);
+}
+int kr_remux_test_has_converted_audio(void) { return S.cplan!=NULL && selected_audio_track()>=0; }
 #endif
 static int rendition_track(int rend) { return (rend-R_AUDIO)%MAX_TRACKS; }
 
@@ -700,6 +720,10 @@ static int cache_has(int rend, int seg) {
 #ifdef KR_REMUX_TEST
 int kr_remux_test_cached_video(int converted,int segment) {
     return cache_has(converted?R_VCOMPAT:R_VCOPY,segment);
+}
+int kr_remux_test_cached_audio(int converted,int segment) {
+    int a=selected_audio_track();
+    return a>=0 && cache_has((converted?R_CAUDIO:R_AUDIO)+a,segment);
 }
 #endif
 
@@ -1188,6 +1212,21 @@ static void serve_prepared(int fd,int head,const char *range,const char *agent) 
     }
 }
 
+// A third-party receiver (an MFi AirPlay TV) has just read the master playlist and will take the converted picture, and the converted audio when
+// there is a converted plan. Only now is its rendition known (the phone's copy was primed before the receiver said who it was), so prepare the
+// windows it will ask for first: the init and the unit that holds the resume position, through the converted plan's own grid. A resumed start
+// used to queue converted segment 0 here, work for a place nobody plays; queueing the same unit again is harmless (a queued or cached unit
+// is skipped), so repeated master requests are safe.
+static void receiver_prepare(int announce) {
+    int seg = resume_segment(R_VCOMPAT), audio = selected_audio_track();
+    prefetch_push(R_VCOMPAT, seg);
+    int caudio = S.cplan && audio >= 0;
+    if (caudio) prefetch_push(R_CAUDIO + audio, resume_segment(R_CAUDIO + audio));
+    if (announce)
+        log_line("compat: preparing converted video segment %d%s at resume %.1f s", seg, caudio ? " and converted audio" : "",
+                 (double)atomic_load(&resume_ms) / 1000.0);
+}
+
 static void serve(int fd, const char *method, const char *path, const char *range, const char *agent) {
     int head = !strcmp(method, "HEAD");
     if(S.prepared) {
@@ -1209,14 +1248,16 @@ static void serve(int fd, const char *method, const char *path, const char *rang
     if (cvideo && !S.compat && !S.compat_ok) { fail(fd, 404, "Not Found"); return; }
     if (!strcmp(path, "/master.m3u8")) {
         const char *m = third ? S.master_compat : S.master_copy;
+        int first_receiver = 0;
         if (third && atomic_fetch_add(&S.compat_clients, 1) == 0) {
             char v[256]; variant_line(m, v, sizeof v);
             log_line("compat: %.80s gets the picture as H.264: %.150s", agent, v);
+            first_receiver = 1;
         }
         if (m) text = strdup(m);
         // r9: a TV that gets the converted picture asks for its init and first segment next: start converting now,
         // while it reads the playlists (build-138: the first init/seg0 took ~4 s and the TV's player gave up).
-        if (third || S.compat) prefetch_push(R_VCOMPAT, 0);
+        if (third || S.compat) receiver_prepare(first_receiver);
     } else if (!strcmp(path, "/video/index.m3u8") || !strcmp(path, "/cvideo/index.m3u8")) {
         char prefix[96]; snprintf(prefix, sizeof prefix, "%s/%s", S.base, cvideo ? "cvideo" : "video");
         text = kr_hls_media(cvideo?rend_plan(R_VCOMPAT):S.gm, prefix, "m4s", 1);  // the plan only (fixed after open): no lock
@@ -1256,7 +1297,7 @@ static void serve(int fd, const char *method, const char *path, const char *rang
 
     if (r == 0) {
         respond_body(fd,head,range,"video/mp4",buf.data,(size_t)buf.len,seg>=0,vpart!=NULL,agent);
-        if (rend >= 0 && !head) prefetch_after(rend, seg < 0 ? 0 : seg);
+        if (rend >= 0 && !head) prefetch_after(rend, seg < 0 ? resume_segment(rend) : seg);   // after an init: the units after the resume position, not after 0
     }
     else {
         if (!atomic_load(&S.stopping)) {
@@ -1483,7 +1524,7 @@ static void teardown_locked(void) {
     kr_video_close(video);
     kr_source_close(vsrc);
     pthread_mutex_unlock(&S.vlock);
-    S.compat = 0; S.vindex = -1; S.compat_ok = 0;S.prepared=0;S.prepared_size=0;atomic_store(&sub_resume_seg,-1);
+    S.compat = 0; S.vindex = -1; S.compat_ok = 0;S.prepared=0;S.prepared_size=0;atomic_store(&sub_resume_seg,-1);atomic_store(&resume_ms,0);
     free(S.prepared_master);S.prepared_master=NULL;free(S.prepared_media);S.prepared_media=NULL;
     prepared_cache_clear();   // r29
     atomic_store(&S.vlogged, 0);
@@ -1737,7 +1778,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
     for(int i=0;i<NREND;i++)atomic_store(&part_cost_ms[i],0);
     atomic_store(&S.served_ext_video, 0); atomic_store(&S.served_ext_audio, 0);
     atomic_store(&S.state, KR_STARTING);
-    kr_hls_set_start(0);   // a new session starts from the beginning until priming names its position
+    kr_hls_set_start(0);atomic_store(&resume_ms,0);   // a new session starts from the beginning until priming names its position
     set_message("");
     if (out && outlen > 0) *out = 0;
     char err[256] = "";
@@ -2021,11 +2062,8 @@ int kr_remux_prime_for(unsigned ticket,double seconds) {
     int seg=gm_stream_time_to_segment(S.gm,isfinite(seconds) && seconds>0?seconds:0);
     gm_buf part={0};char err[256]="";
     int video=S.compat?R_VCOMPAT:R_VCOPY;
-    int audio=gm_stream_selected_audio(S.gm);
-    if(audio<0 || audio>=MAX_TRACKS || !S.routes[audio]) {
-        audio=-1;for(int i=0;i<MAX_TRACKS;i++)if(S.routes[i]){audio=i;break;}
-    }
-    kr_hls_set_start(seconds);
+    int audio=selected_audio_track();
+    kr_hls_set_start(seconds);atomic_store(&resume_ms,isfinite(seconds) && seconds>0?(long long)(seconds*1000.0):0);
     log_line("startup: priming position=%.3f segment=%d remaining_ms=%.0f parallel_audio=%d",seconds,seg,
              fmax(0,S.startup_end_ms-began),audio>=0);
     prime_part sound={.rendition=R_AUDIO+audio,.segment=seg,.result=-1,.error=""};pthread_t thread;

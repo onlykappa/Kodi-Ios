@@ -149,17 +149,3 @@ python3 -B "$HERE/range_server.py" "$WORK/fixtures" > "$WORK/port" & SERVER=$!
 trap 'kill $SERVER 2>/dev/null || true' EXIT
 for _ in $(seq 50); do [[ -s "$WORK/port" ]] && break; sleep 0.1; done
 "$WORK/test_remux" "$WORK/fixtures" "http://127.0.0.1:$(cat "$WORK/port")" "${4:-}"
-if [[ "${4:-}" == --receiver-handoff-repro ]]; then
-  result=0
-  "$WORK/test_remux" "$WORK/fixtures" "http://127.0.0.1:$(cat "$WORK/port")" --receiver-handoff-contract > "$WORK/handoff-contract.log" 2>&1 || result=$?
-  python3 -B - "$WORK/handoff-contract.log" "$result" <<'PY'
-import sys
-from pathlib import Path
-lines=Path(sys.argv[1]).read_text().splitlines()
-failures=[s for s in lines if s.startswith('FAIL ')]
-assert sys.argv[2]=='1' and len(failures)==4, 'expected exactly four readiness/obsolete-window contract failures'
-assert sum('HANDOFF_NOT_READY' in s for s in failures)==2
-assert sum('OBSOLETE_ZERO' in s for s in failures)==2
-print('Desired handoff contract is RED as expected: two cold target renditions and two obsolete-zero conversions; no other failures.')
-PY
-fi

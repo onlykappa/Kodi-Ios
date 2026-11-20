@@ -2477,10 +2477,21 @@ static void test_startup_repairs(const char *base) {
 // first while the other still succeeds. The fixture refuses exactly the first qualifying request for a resource,
 // deterministically but not tied to which side (video or audio) actually wins that race in a given run; the
 // fix retries whichever side failed, so either outcome should recover without failing the whole seek.
-// Build608: a real HTTP handoff from the phone's copy to an MFi receiver at resume.
-// The observation mode must reproduce both defects; contract mode must reject them.
-// Neither executes AVPlayer or demonstrates an iPhone/TV result.
-static void test_receiver_resume_handoff(const char *base,int contract) {
+// Build608: a real HTTP handoff from the phone's copy to an MFi receiver at resume (regression gate; it began as the expected-red reproduction
+// of commit 5ccd958 and became this gate when the preparation was repaired). Receiver-specific readiness: the phone's copy is primed first, the
+// converted rendition stays cold for the phone and Apple players, and the moment a third-party receiver names itself (its master request) the
+// converted init and the unit holding the resume position (video, and converted audio when the plan has it) are prepared - through the
+// converted plan's own grid - without producing the obsolete segment 0. Neither executes AVPlayer nor demonstrates an iPhone/TV result.
+static int wait_cached(int converted,int video,int segment,double ms) {
+    double until=mono_ms()+ms;
+    while(mono_ms()<until) {
+        if(video?kr_remux_test_cached_video(converted,segment):kr_remux_test_cached_audio(converted,segment))return 1;
+        usleep(10000);
+    }
+    return video?kr_remux_test_cached_video(converted,segment):kr_remux_test_cached_audio(converted,segment);
+}
+static void test_receiver_resume_handoff(const char *base) {
+    static char log[1 << 20];
     const char *files[]={"coalesced.mp4","long-gop.mp4"};
     for(int f=0;f<2;f++) {
         char url[1024],sub[1024],list[512];
@@ -2494,25 +2505,62 @@ static void test_receiver_resume_handoff(const char *base,int contract) {
         snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
         char *tail=strstr(prefix_path,"/master.m3u8");if(tail)*tail=0;
         int copied=kr_remux_test_video_segment(0,20.0),converted=kr_remux_test_video_segment(1,20.0);
+        int copied_audio=kr_remux_test_audio_segment(0,20.0),converted_audio=kr_remux_test_audio_segment(1,20.0);
+        int has_converted_audio=kr_remux_test_has_converted_audio();
         CHECK(converted>0,"handoff resume is away from converted segment zero");
         if(f==1)CHECK(copied!=converted,"long-GOP handoff uses different copy/conversion grids (%d/%d)",copied,converted);
         CHECK(kr_remux_prime_for(ticket,20.0)==KR_READY,"handoff copy prime succeeds");
-        CHECK(kr_remux_test_cached_video(0,copied),"handoff copied resume window is cached");
-        int warm=kr_remux_test_cached_video(1,converted);
-        CHECK(contract?warm:!warm,"HANDOFF_NOT_READY %s: converted resume cached=%d",files[f],warm);
+        CHECK(kr_remux_test_cached_video(0,copied) && kr_remux_test_cached_audio(0,copied_audio),"handoff copied video and audio resume windows are cached");
+        CHECK(!kr_remux_test_cached_video(1,converted),"priming does not convert for a receiver that has not said who it is");
+        // The phone and Apple players keep the copy: they must not cause any conversion.
+        kr_remux_set_prefetch(1);
         reply phone=get_as(UA_PHONE,kr_remux_port(),"/master.m3u8");
         CHECK(phone.status==200 && strstr(phone.body,"/video/index.m3u8") && !strstr(phone.body,"/cvideo/"),"phone selects copied rendition");free(phone.body);
-        kr_remux_set_prefetch(1);
+        usleep(600000);
+        CHECK(!kr_remux_test_cached_video(1,converted) && !kr_remux_test_cached_video(1,0),"the phone's master converts nothing (target %d, zero)",converted);
+        // The receiver names itself: its rendition's init and resume window are prepared, at its own grid.
         reply tv=get_as(UA_TV,kr_remux_port(),"/master.m3u8");
         CHECK(tv.status==200 && strstr(tv.body,"/cvideo/index.m3u8"),"MFi receiver selects different converted rendition");free(tv.body);
-        double until=mono_ms()+10000;
-        while(!kr_remux_test_cached_video(1,0) && mono_ms()<until)usleep(10000);
-        int zero=kr_remux_test_cached_video(1,0);
-        CHECK(contract?!zero:zero,"OBSOLETE_ZERO %s: converted zero cached=%d at resume20",files[f],zero);
-        kr_remux_set_prefetch(0);
+        int ready=wait_cached(1,1,converted,15000);
+        CHECK(ready,"HANDOFF_READY %s: converted video resume window %d is prepared after the receiver's master",files[f],converted);
+        if(has_converted_audio) {
+            CHECK(wait_cached(1,0,converted_audio,15000),"converted audio resume window %d is prepared at its own grid",converted_audio);
+        }
+        CHECK(!kr_remux_test_cached_video(1,0),"OBSOLETE_ZERO %s: converted segment zero is not made for a resume at 20 s",files[f]);
+        // Repeated master requests (a retrying receiver) are safe and still make no obsolete work.
+        for(int again=0;again<2;again++){reply twice=get_as(UA_TV,kr_remux_port(),"/master.m3u8");CHECK(twice.status==200,"repeat master request answers");free(twice.body);}
+        reply vinit=get_as(UA_TV,kr_remux_port(),"/cvideo/init.mp4");
+        CHECK(vinit.status==200 && vinit.len>16,"converted init is served");
+        usleep(400000);
+        CHECK(!kr_remux_test_cached_video(1,0),"asking for the init does not start the units after segment zero");
         char path[96];snprintf(path,sizeof path,"/cvideo/seg%d.m4s",converted);
         reply video=get_as(UA_TV,kr_remux_port(),path);
-        CHECK(video.status==200 && video.len>8,"host converter eventually serves requested resume window");free(video.body);
+        CHECK(video.status==200 && video.len>8,"requested resume window is served");
+        char output[1024];snprintf(output,sizeof output,"%s/out/handoff-%d.mp4",fixture_dir,f);
+        FILE *joined=fopen(output,"wb");if(joined && vinit.body && video.body){fwrite(vinit.body,1,vinit.len,joined);fwrite(video.body,1,video.len,joined);}if(joined)fclose(joined);
+        int keys=0;CHECK(joined && decode_count(output,&keys)>20,"converted init and resume window decode real video frames");
+        free(vinit.body);free(video.body);
+        kr_remux_log(log,sizeof log);
+        char want[96];snprintf(want,sizeof want,"compat: preparing converted video segment %d",converted);
+        CHECK(strstr(log,want),"log names the converted resume segment the receiver is prepared for");
+        kr_remux_stop();
+    }
+    // A start from the beginning keeps working: the receiver's first window is segment zero.
+    {
+        char url[1024],sub[1024],list[512];
+        snprintf(url,sizeof url,"%s/coalesced.mp4",base);snprintf(sub,sizeof sub,"%s/subs.srt",fixture_dir);
+        kr_remux_set_prefetch(1);kr_remux_set_subtitles(-2,sub,"eng");kr_video_set_encoder("mpeg4");
+        unsigned ticket=kr_remux_begin(0);
+        int opened=kr_remux_start_for(ticket,url,0,KR_COMPAT_SEGMENTED,list,sizeof list);
+        CHECK(opened==KR_READY,"zero-start handoff opens: %s",kr_remux_message());
+        if(opened==KR_READY) {
+            snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
+            char *tail=strstr(prefix_path,"/master.m3u8");if(tail)*tail=0;
+            CHECK(kr_remux_prime_for(ticket,0)==KR_READY,"zero-start copy prime succeeds");
+            reply tv=get_as(UA_TV,kr_remux_port(),"/master.m3u8");
+            CHECK(tv.status==200 && strstr(tv.body,"/cvideo/index.m3u8"),"zero-start receiver selects the converted rendition");free(tv.body);
+            CHECK(wait_cached(1,1,0,15000),"a start from the beginning prepares converted segment zero");
+        }
         kr_remux_stop();
     }
     kr_remux_set_prefetch(1);kr_remux_set_subtitles(-1,NULL,NULL);
@@ -2566,8 +2614,8 @@ int main(int argc, char **argv) {
         printf("%d audio replay checks, %d failed\n", checks, failures);
         return failures ? 1 : 0;
     }
-    if(argc>3 && (!strcmp(argv[3],"--receiver-handoff-repro") || !strcmp(argv[3],"--receiver-handoff-contract"))) {
-        test_receiver_resume_handoff(argv[2],!strcmp(argv[3],"--receiver-handoff-contract"));
+    if(argc>3 && !strcmp(argv[3],"--receiver-handoff")) {
+        test_receiver_resume_handoff(argv[2]);
         printf("%d receiver handoff checks, %d failed\n",checks,failures);
         return failures?1:0;
     }
@@ -2714,7 +2762,7 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_seek_audio_retry(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
+        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_receiver_resume_handoff(argv[2]);test_seek_audio_retry(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_long_fragments();test_prepared_index_repairs();test_quiet_connection(argv[2]);test_stream_recommendations(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }

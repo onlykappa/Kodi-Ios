@@ -95,6 +95,9 @@ int kr_remux_burn_track(void);
 // Read-only observation for host regression tests; absent from shipped frameworks.
 int kr_remux_test_cached_video(int converted, int segment);
 int kr_remux_test_video_segment(int converted, double seconds);
+int kr_remux_test_audio_segment(int converted, double seconds);
+int kr_remux_test_cached_audio(int converted, int segment);
+int kr_remux_test_has_converted_audio(void);
 #endif
 #ifdef __cplusplus
 }

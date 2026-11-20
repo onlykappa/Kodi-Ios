@@ -1,4 +1,4 @@
-# TV resume handoff reproduction — step1
+# TV resume handoff — step1 reproduction, step2 repair
 
 ## Result
 
@@ -33,27 +33,40 @@ The host uses the existing MPEG-4 test encoder, not iPhone VideoToolbox. A synth
 MFi User-Agent exercises normal routing; it does not authenticate as another app
 or defeat an authorization check.
 
-## Execution and regression contract
+## Step2 — the repair (source change, native result pending)
 
-Dispatch `airplay-remux.yml` on the draft branch with `receiver_handoff_only=true`.
-This runs `run_host_tests.sh` with `--receiver-handoff-repro`, followed by
-`--receiver-handoff-contract` against the same synthetic HTTP server. It publishes
-no framework, builds no IPA and does not execute the full regression suite.
-Import-review registers the native invocation and validates the host runner's
-shell syntax alongside the existing AirPlay Python suite.
+Chosen strategy: **receiver-specific readiness at the moment the receiver names itself.** The receiver's identity is known only from
+its master-playlist request's User-Agent (nothing earlier in the Python/native handoff carries it), after the phone's copy was
+primed. So the copy prime stays as it is (Apple players and the phone keep the copy and nothing is converted for them), and the
+master handler for a third-party receiver now calls `receiver_prepare()`:
 
-For step2, make the desired contract pass: when this TV handoff is declared ready,
-the target converted window must already be available, and the resumed master
-must not cause obsolete segment0 work. Change the expected-red wrapper into a
-normal passing regression gate when the implementation is repaired. Keep source
-and receiver-specific route selection; do not globally force unnecessary video
-conversion merely to satisfy a test.
+- it names the converted init and the converted unit that holds the resume position, mapped through the **converted plan's own
+  grid** (`resume_segment(R_VCOMPAT)`), instead of queueing converted segment 0;
+- with a converted plan and a selected audio track it does the same for converted audio (`R_CAUDIO`, the same plan);
+- a repeated master request queues nothing new (queued or cached units are skipped), so retries are safe;
+- after an init request the "units after it" are those after the resume segment of that rendition, not after 0;
+- a start from the beginning still gets segment 0 (resume position 0 maps to segment 0).
+
+The resume position is stored by `kr_remux_prime_for` (`resume_ms`) and reset with each session. A segment number is never carried from one
+rendition to another: each is mapped through `rend_plan(rend)`.
+
+Tradeoffs: no global forced conversion and no extra delay or longer timeout. The converted window is still produced after the receiver's
+master, not before, so the receiver may wait for conversion exactly as before; what changes is that the work is for the window it will
+ask for, started at the master request, and no longer for a place nobody plays. Preparing before the receiver names itself would need
+the sender to pass the receiver model down, which is not available in this path; it is a possible later change.
+
+## Regression gate
+
+`test_receiver_resume_handoff` (also run in the full native suite) is now a normal passing gate, no longer an expected-red wrapper.
+For `coalesced.mp4` and `long-gop.mp4` (different copy/conversion grids) it checks: copy video/audio cached by priming; converted
+cold after priming and after the phone's master (no unnecessary conversion); after the MFi master the converted resume window (and
+converted audio when the plan has one) becomes cached; converted segment 0 is never made; repeated masters answer; the init does not
+start the units after 0; the served init plus resume window decode real frames; the log names the resume segment. A zero start
+prepares segment 0. Dispatch `airplay-remux.yml` with `receiver_handoff_only=true` (runs `run_host_tests.sh --receiver-handoff`);
+it publishes no framework and builds no IPA.
 
 ## Evidence limits
 
-This is a native HTTP host fixture, not a desktop Kodi screenshot, AVPlayer test,
-or real TV. It establishes the preparation mismatch and obsolete work independently
-of receiver timing. It does not reproduce the owner's timeout, network topology,
-exact codecs/quality, or prove either issue is sufficient to cause every failure.
-The first build608 attempt's absent direct TV requests, slow High10 MKV preparation,
-and earlier empty-audio failure remain separate investigation targets.
+Native HTTP host fixture with the existing MPEG-4 test encoder, not iPhone VideoToolbox, AVPlayer or a real TV. It shows the
+preparation and scheduling are for the right window; it does not reproduce the owner's timeout, topology, codecs or quality, and
+does not prove playback. Result of the first native run of this gate is recorded in ISSUE-393.
