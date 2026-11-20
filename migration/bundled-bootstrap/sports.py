@@ -84,11 +84,18 @@ def props_for(overview, now, offset):
     return props
 
 
+def up_next(games, now, offset, count=sp.NEXT_ROWS):
+    """The games for the hub's Up next: today's games that have not started, soonest first (owner, 2026-11-20: today's only, not every game)."""
+    return sorted((g for g in games if g.get('state') == 'upcoming' and g['start'] >= now and sm.day_label(g['start'], now, offset) == 'Today'),
+                  key=lambda g: g['start'])[:count]
+
+
 def next_props(games, now, offset, crests=None, count=sp.NEXT_ROWS):
-    """The Up next rows: the next `count` games not yet started, in the Upcoming page's row shape (sports_rows: logos, short names, records, league tag, time)."""
+    """The Up next rows (sports_rows: logos, short names, records, league tag, time) for today's games still to come. With none left today the
+    section says so in one line (next.empty) instead of vanishing."""
     import sports_rows
-    coming = sorted((g for g in games if g.get('state') == 'upcoming' and g['start'] >= now), key=lambda g: g['start'])[:count]
-    props = {}
+    coming = up_next(games, now, offset, count)
+    props = {'next.empty': '' if coming else 'No more games today'}
     for n in range(count):
         game = coming[n] if n < len(coming) else None
         pos = ('only' if len(coming) == 1 else 'first' if n == 0 else 'last' if n == len(coming) - 1 else 'mid') if game else ''
@@ -188,7 +195,7 @@ def run(args=()):
                         try:
                             import sports_logos
                             import sports_rows
-                            coming = sorted((g for g in self.games if g.get('state') == 'upcoming' and g['start'] >= time.time()), key=lambda g: g['start'])[:sp.NEXT_ROWS]
+                            coming = up_next(self.games, time.time(), sm.device_offset(time.time()))
                             found = sports_logos.crests(xbmcvfs.translatePath('special://profile/'), sports_rows.crest_urls(coming))
                             if found and not self.stop.is_set():
                                 self.logos = found
@@ -221,7 +228,7 @@ def run(args=()):
                     xbmcgui.Dialog().notification('Sports', 'That page is coming in an update.', xbmcgui.NOTIFICATION_INFO, 3000, False)
             elif sp.NEXT <= control < sp.NEXT + 4 * sp.NEXT_ROWS:   # an Up next row opens that game
                 n = (control - sp.NEXT) // 4
-                coming = sorted((g for g in getattr(self, 'games', []) if g.get('state') == 'upcoming' and g['start'] >= time.time()), key=lambda g: g['start'])
+                coming = up_next(getattr(self, 'games', []), time.time(), sm.device_offset(time.time()))
                 if n < len(coming):
                     import sports_game
                     sports_game.run(coming[n], provider=sports_provider.get(), search=True)

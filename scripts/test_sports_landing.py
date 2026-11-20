@@ -80,14 +80,17 @@ class Properties(unittest.TestCase):
         self.assertEqual((one['up.d2'], one['up.lines']), ('', '1'))
 
     def test_up_next_rows_are_the_next_four_games_in_the_upcoming_rows_shape(self):
-        games = [{'state': 'upcoming', 'league': 'NFL', 'start': NOW + n * 3600, 'joiner': 'at', 'away': {'name': 'Away %d' % n},
+        games = [{'state': 'upcoming', 'league': 'NFL', 'start': NOW + n * 600, 'joiner': 'at', 'away': {'name': 'Away %d' % n},
                   'home': {'name': 'Home %d' % n, 'short': 'H%d' % n, 'record': '1-%d' % n}, 'sources': []} for n in (5, 2, 9, 3, 7)]
+        games.append({'state': 'upcoming', 'league': 'NBA', 'start': NOW + 30 * 3600, 'joiner': 'at', 'away': {'name': 'Tomorrow'}, 'home': {'name': 'Game'}, 'sources': []})   # not today: not in Up next
         games.append({'state': 'upcoming', 'league': 'NBA', 'start': NOW - 3600, 'joiner': 'at', 'away': {'name': 'Past'}, 'home': {'name': 'Game'}, 'sources': []})
         props = ctl.next_props(games, NOW, 0)
-        self.assertEqual([props['next.%d.title' % n] for n in range(4)], ['Away 2 at Home 2', 'Away 3 at Home 3', 'Away 5 at Home 5', 'Away 7 at Home 7'])   # soonest first, past games left out
-        self.assertEqual([props['next.%d.pos' % n] for n in range(4)], ['first', 'mid', 'mid', 'last'])
-        self.assertEqual((props['next.0.clock'], props['next.0.tag'], props['next.0.lines']), ('8:45 PM', 'NFL', '1'))
+        self.assertEqual([props['next.%d.title' % n] for n in range(5)], ['Away 2 at Home 2', 'Away 3 at Home 3', 'Away 5 at Home 5', 'Away 7 at Home 7', 'Away 9 at Home 9'])   # soonest first, past games left out
+        self.assertEqual([props['next.%d.pos' % n] for n in range(5)], ['first', 'mid', 'mid', 'mid', 'last'])
+        self.assertEqual((props['next.0.clock'], props['next.0.tag'], props['next.0.lines']), (sm.clock_text(NOW + 1200, 0), 'NFL', '1'))
         self.assertEqual((props['next.0.home.name'], props['next.0.home.rec'], props['next.0.away.name']), ('H2', '1-2', 'Away 2'))   # short name and record under the logo
+        self.assertEqual(ctl.next_props(games[-2:], NOW, 0)['next.empty'], 'No more games today')   # only tomorrow's and a started game: say so
+        self.assertEqual(props['next.empty'], '')
         self.assertEqual(ctl.next_props(games[:1], NOW, 0)['next.1.lines'], '')   # fewer games than rows: the rest stay empty
         self.assertEqual(ctl.next_props(games[:1], NOW, 0)['next.0.pos'], 'only')
 

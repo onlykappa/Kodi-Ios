@@ -11,7 +11,7 @@ import sports_upcoming_page as upcoming_page
 
 WINDOW = 'IOSSports.xml'
 BACK, REFRESH, LIVE, UPCOMING, LEAGUES, FINISHED, RETRY = 9001, 9002, 9101, 9102, 9103, 9104, 9105
-SEE_ALL, LIST, NEXT, NEXT_ROWS = 9106, 9300, 9120, 4     # See all, the scrolling list, the four Up next rows' ids (NEXT + 4 * row + form - 1)
+SEE_ALL, LIST, NEXT, NEXT_ROWS = 9106, 9300, 9120, 12     # See all, the scrolling list, the twelve Up next rows' ids (today's games only) (NEXT + 4 * row + form - 1)
 TOP = 370                       # the list starts 14 pt under the subtitle
 TILE_H = 150                    # 56 pt: a slim tile, title and one line (owner-approved mockup docs/design/sports-home-tiles.html, 2026-11-20: the 115 pt tiles were bulky)
 LIVE_H = 269                    # 100 pt: the Live Now card, still the biggest block on the page (was 117 pt)
@@ -123,13 +123,15 @@ def page(p):
     see_all = ('<control type="button" id="%d"><left>%d</left><top>0</top><width>260</width><height>118</height><label>See all</label><font>p_sub</font>'
                '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny><textoffsetx>0</textoffsetx><scroll>false</scroll>'
                '<texturefocus /><texturenofocus /></control>' % (SEE_ALL, W - S - 260, p.GREY, p.GREY))
-    items += u.group(p, 118, u.text(p, S + 10, 24, 600, 70, 'Up next', 'p_h2') + see_all, u.has('next.0.lines'))
+    items += u.group(p, 118, u.text(p, S + 10, 24, 600, 70, 'Up next', 'p_h2') + see_all, u.has('next.0.lines') + ' | ' + u.has('next.empty'))
     for n in range(NEXT_ROWS):
         key = 'next.%d.' % n
         for lines in upcoming_page.FORMS:
             items += u.group(p, upcoming_page.row_height(lines), upcoming_page.game_row(p, key, NEXT + 4 * n + lines - 1, lines, w),
                              'String.IsEqual(Window().Property(%slines),%d)' % (key, lines))
-    items += u.group(p, 40, '')   # four games end above the floating tab bar, so the home page does not scroll
+    empty = p.image(S, 0, w, 150, p.MEDIA + 'row_only.png', p.SURFACE, border=43) + u.text(p, S + PAD, 0, w - 2 * PAD, 150, u.P('next.empty'), 'p_sub', p.GREY, 'center')
+    items += u.group(p, 150 + GAP, empty, u.has('next.empty'))   # nothing left today: one grey line, See all still opens the full list
+    items += u.group(p, 320, '')   # the last row scrolls fully above the floating tab bar (portrait.TAB_CLEAR)
     tiles = ('<control type="grouplist" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
              '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords><visible>%s</visible><scrolltime tween="cubic" easing="out">220</scrolltime>%s</control>'
              % (LIST, TOP, W, ok, items))
