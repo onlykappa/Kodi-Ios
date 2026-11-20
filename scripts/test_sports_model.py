@@ -220,6 +220,16 @@ class KodiClock(unittest.TestCase):
         self.assertEqual([sm.parse_clock(x) for x in ('16:05:09', '16:05', '4:05 PM', '12:00 AM', '12:30 PM', '04:05:09 AM', 'x', '25:00', '13:00 PM')],
                          [57909, 57900, 57900, 0, 45000, 14709, None, None, None])
 
+    def test_a_12_hour_phone_that_writes_no_marker_is_read_with_its_own_marker(self):
+        import sys, types
+        now = 1_794_768_300   # 18:45 UTC, 1:45 PM in New York
+        def labels(table):
+            return unittest.mock.patch.dict(sys.modules, {'xbmc': types.SimpleNamespace(getInfoLabel=lambda label: table.get(label, ''))})
+        with labels({'System.Time(hh:mm:ss)': '01:45:00', 'System.Time(xx)': 'PM'}):   # the phone's text had no PM: it read as 1:45 AM and showed games 12 hours off
+            self.assertEqual(sm.kodi_offset(now), -5 * 3600)
+        with labels({'System.Time(hh:mm:ss)': '01:45:00', 'System.Time(xx)': ''}):
+            self.assertEqual(sm.kodi_offset(now), -17 * 3600 + 24 * 3600)   # no marker at all: read as written (24-hour)
+
     def test_the_device_offset_prefers_kodi_for_now_and_python_for_other_moments(self):
         import time
         with self.fake('%s' % time.strftime('%H:%M:%S', time.gmtime(time.time() + 9 * 3600))):

@@ -50,8 +50,15 @@ def kodi_offset(utc_now=None):
     """Seconds east of UTC by Kodi's own clock (System.Time is the phone's local time, 12- or 24-hour), or None outside Kodi. Python's idea of
     the time zone can be UTC inside an iOS app, which would show every game at the wrong hour; Kodi's clock is what the phone shows."""
     try:
+        import re
         import xbmc
-        local = parse_clock(xbmc.getInfoLabel('System.Time(hh:mm:ss)'))
+        text = str(xbmc.getInfoLabel('System.Time(hh:mm:ss)') or '')
+        if not re.search(r'[AaPp][Mm]', text):
+            # A 12-hour phone writes '06:15:30' with no marker (on the phone this read as morning and every game showed 12 hours off): ask for the marker.
+            marker = str(xbmc.getInfoLabel('System.Time(xx)') or '').strip()
+            if re.match(r'^[AaPp][Mm]$', marker):
+                text += ' ' + marker
+        local = parse_clock(text)
     except Exception:
         return None
     if local is None:

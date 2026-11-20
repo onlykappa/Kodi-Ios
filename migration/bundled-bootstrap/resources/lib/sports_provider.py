@@ -7,6 +7,7 @@ For building and looking at pages in the desktop Kodi rig and in tests, set KODI
 data), =quiet (nothing live: the grey Live Now tile) or =down (every call fails).
 """
 import os
+import time
 
 import sports_model
 
@@ -48,28 +49,71 @@ def real():
     return _real[0]
 
 
-def crew_sources(game):
+_scans = [0]
+SEARCH_SECONDS = 150   # the longest one game's source search keeps reading what Crew's collector publishes
+
+
+def _scan_state(jet):
+    """(finished, published_at) of the Crew collector's answer. (True, 0) when it cannot be read (outside Kodi): there is then nothing to wait for."""
+    import json
+    import sports_jet
+    try:
+        data = json.loads(jet._home().getProperty(sports_jet.DATA) or 'null')
+    except Exception:
+        return True, 0
+    if not isinstance(data, dict):
+        return False, 0
+    return bool(data.get('done')), data.get('at', 0)
+
+
+def crew_sources(game, sleep=time.sleep, clock=time.monotonic):
     """The sources Crew has for this one game (its page asked). Crew's collector runs only now; a list never starts it. Matching is by league,
-    start and team names (sports_merge.same_game). No match is an empty list, not an error."""
+    start and team names (sports_merge.same_game). The collector publishes as it walks Crew's menus (a minute or two on a phone), so this keeps
+    reading what it has published until the game turns up, the collector finishes or SEARCH_SECONDS pass (it used to read once, so a source found
+    a minute later was never seen). No match is an empty list, not an error."""
     import sports_jet
     import sports_merge
     jet = sports_jet.JetProvider(remote=True, crew_only=True)
     home = None
     try:
+        import sports_crew_patch
         import xbmcgui
+        sports_crew_patch.ensure(sports_jet.log)
         home = xbmcgui.Window(10000)
         home.setProperty('KodiIOS.SportsCrewOnlyLeague', str(game.get('league') or ''))   # read only this game's league menu in Crew
+        _scans[0] += 1
+        sports_crew_patch.mark(home, SEARCH_SECONDS + 30)   # Crew's own menus then see their add-on as the container, and draw no dialog
     except Exception:
         home = None
     try:
-        jet.refresh()
-        for other in list(jet.live_games()) + list(jet.upcoming_games()):
-            if sports_merge.same_game(game, other):
-                return other.get('sources') or []
+        began, asked = clock(), time.time()
+        for attempt in (0, 1):
+            jet.refresh()
+            while True:
+                try:
+                    games = list(jet.live_games()) + list(jet.upcoming_games())
+                except sm_unavailable():
+                    games = []
+                for other in games:
+                    if other.get('sources') and sports_merge.same_game(game, other):
+                        return other['sources']
+                finished, at = _scan_state(jet)
+                if finished or clock() - began > SEARCH_SECONDS:
+                    break
+                sleep(1)
+            if not finished or at >= asked - 1:
+                return []     # the collector walked Crew for this request and the game is not there
+            # The answer was published before this request began: one more pass starts a fresh walk.
         return []
     finally:
         if home is not None:
-            home.clearProperty('KodiIOS.SportsCrewOnlyLeague')
+            _scans[0] -= 1
+            if _scans[0] <= 0:   # another game's search may still be reading
+                home.clearProperty('KodiIOS.SportsCrewOnlyLeague')
+
+
+def sm_unavailable():
+    return sports_model.SportsUnavailable
 
 
 def reset():

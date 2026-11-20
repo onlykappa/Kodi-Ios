@@ -137,6 +137,45 @@ class CrewForOneGame(unittest.TestCase):
         self.assertTrue(sports_merge.same_game(game, crew_game))
 
 
+class SourceSearchKeepsReading(unittest.TestCase):
+    """Crew's collector publishes as it walks (a minute or two on a phone); the search must keep reading, not read once."""
+    def test_a_source_published_later_is_picked_up_and_a_finished_empty_scan_stops(self):
+        import sports_merge
+        game = {'id': 'g', 'league': 'NHL', 'start': NOW, 'away': {'name': 'Los Angeles Kings'}, 'home': {'name': 'Toronto Maple Leafs'}}
+        source = {'addon': 'Crew NHL', 'quality': '', 'language': '', 'play': '{"x":1}'}
+        reads = []
+        class Crew:
+            def __init__(self, **kwargs):
+                pass
+            def refresh(self):
+                pass
+            def live_games(self):
+                reads.append(1)
+                return [dict(game, id='c', sources=[source])] if len(reads) >= 4 else []
+            def upcoming_games(self):
+                return []
+        with patch('sports_jet.JetProvider', Crew), patch.object(sports_provider, '_scan_state', lambda jet: (False, 0)):
+            self.assertEqual(sports_provider.crew_sources(game, sleep=lambda s: None), [source])
+            self.assertEqual(len(reads), 4)     # it read again and again until the game turned up
+        reads[:] = []
+        with patch('sports_jet.JetProvider', Crew), patch.object(sports_provider, '_scan_state', lambda jet: (True, 9e12)):
+            self.assertEqual(sports_provider.crew_sources(dict(game, away={'name': 'Boston Bruins'}), sleep=lambda s: None), [])
+        ticks = iter(range(0, 1000, 40))
+        with patch('sports_jet.JetProvider', Crew), patch.object(sports_provider, '_scan_state', lambda jet: (False, 0)):
+            self.assertEqual(sports_provider.crew_sources(dict(game, away={'name': 'Boston Bruins'}), sleep=lambda s: None, clock=lambda: next(ticks)), [])   # gives up after SEARCH_SECONDS
+        self.assertTrue(sports_merge.same_game(game, dict(game)))
+
+    def test_a_game_whose_sources_are_known_is_not_searched_again(self):
+        calls = []
+        p = provider(lambda game: calls.append(1) or [{'addon': 'x', 'play': '{}'}])
+        gid = p.upcoming_games()[0]['id']
+        token = p.request_game(gid)
+        self.assertTrue(wait_until(lambda: not p.searching_game(gid, token)))
+        token = p.request_game(gid)
+        self.assertFalse(p.searching_game(gid, token))
+        self.assertEqual(len(calls), 1)
+
+
 class Refresh(unittest.TestCase):
     def test_espn_answers_are_reused_for_eight_seconds_so_scores_stay_live(self):
         seen = []
