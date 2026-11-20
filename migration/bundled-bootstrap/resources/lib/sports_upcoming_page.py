@@ -97,8 +97,8 @@ def game_row(p, key, ident, form, width):
     else:
         b += p.textbox(p.SIDE + 43, 36, width - TIME_W - 130, 156, u.P(key + 'title'), 'p_foot_b', p.WHITE)
         tx = p.SIDE + width - TIME_W - 30
-    b += u.text(p, tx, 38, TIME_W, 40, u.P(key + 'tag'), 'p_cap', p.GREY, 'center')
-    b += u.text(p, tx, 80, TIME_W, 56, u.P(key + 'clock'), 'p_pill', p.WHITE, 'center')
+    b += u.text(p, tx, 66, TIME_W, 40, u.P(key + 'tag'), 'p_cap', p.GREY, 'center')   # the league tag and time sit at the row's middle, between the teams
+    b += u.text(p, tx, 108, TIME_W, 56, u.P(key + 'clock'), 'p_pill', p.WHITE, 'center')
     return b
 
 

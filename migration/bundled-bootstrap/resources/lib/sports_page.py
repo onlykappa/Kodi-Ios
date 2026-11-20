@@ -13,8 +13,8 @@ WINDOW = 'IOSSports.xml'
 BACK, REFRESH, LIVE, UPCOMING, LEAGUES, FINISHED, RETRY = 9001, 9002, 9101, 9102, 9103, 9104, 9105
 SEE_ALL, LIST, NEXT, NEXT_ROWS = 9106, 9300, 9120, 4     # See all, the scrolling list, the four Up next rows' ids (NEXT + 4 * row + form - 1)
 TOP = 370                       # the list starts 14 pt under the subtitle
-TILE_H = 124                    # 46 pt: a slim tile, title and one line (owner, 2026-11-20: the old 115 pt tiles were bulky and the page must fit without scrolling)
-LIVE_H = 314                    # the compact Live Now card
+TILE_H = 150                    # 56 pt: a slim tile, title and one line (owner-approved mockup docs/design/sports-home-tiles.html, 2026-11-20: the 115 pt tiles were bulky)
+LIVE_H = 269                    # 100 pt: the Live Now card, still the biggest block on the page (was 117 pt)
 GAP = 32                        # 12 pt
 PAD = 43                        # 16 pt inside a tile
 LINE = 52                       # one line of 15 pt detail text
@@ -25,7 +25,7 @@ FIT_BIG, FIT_HALF = 36, 18
 # (name, top colour, bottom colour) of each tile's gradient, from the board's CSS (150 deg: mostly top to bottom)
 TILES = {'live': ((196, 48, 43), (74, 14, 18)), 'idle': ((58, 58, 60), (28, 28, 30)),
          'up': ((47, 111, 224), (14, 37, 99)), 'lg': ((142, 91, 232), (42, 23, 102))}
-BIG, HALF = (486, 264), (470, TILE_H)   # the live card's texture is half size (27-unit corners stretch to 54); the slim tiles' textures are drawn at their own size so the corners stay round
+BIG, HALF = (972, LIVE_H), (470, TILE_H)   # drawn at their own size, so the 54-unit corners stay round (a stretched texture made them oval)
 
 
 def _tile(p, w, h, top, bottom, radius):
@@ -40,8 +40,8 @@ def textures(p):
     out = {}
     for name, (top, bottom) in TILES.items():
         size = BIG if name in ('live', 'idle') else HALF
-        out['sports_%s.png' % name] = _tile(p, size[0], size[1], top, bottom, 27 if name in ('live', 'idle') else 54)
-    out['sports_big_mask.png'] = p.rounded(BIG[0], BIG[1], 27)
+        out['sports_%s.png' % name] = _tile(p, size[0], size[1], top, bottom, 54)
+    out['sports_big_mask.png'] = p.rounded(BIG[0], BIG[1], 54)
     out['sports_half_mask.png'] = p.rounded(HALF[0], HALF[1], 54)
     return out
 
@@ -62,11 +62,11 @@ def split_lines(text, limit):
 
 
 def _text_block(p, w, h, key, big):
-    """The tile's title (15 pt bold) over one detail line (13 pt), left-aligned, with a chevron at the right."""
+    """The tile's title (17 pt bold) over one detail line (13 pt), left-aligned, with a chevron at the right."""
     P = u.P
-    out = u.text(p, PAD, 18, w - 2 * PAD - 40, 50, P(key + '.title'), 'p_tile')
-    out += u.text(p, PAD, 68, w - 2 * PAD - 40, 40, P(key + '.d1'), 'p_foot', 'EBFFFFFF')
-    out += u.glyph(p, w - PAD - 8, h // 2, 32, 'chevron-right.png', 'EBFFFFFF')
+    out = u.text(p, PAD, 26, w - 2 * PAD - 50, 58, P(key + '.title'), 'p_h3')
+    out += u.text(p, PAD, 86, w - 2 * PAD - 50, 44, P(key + '.d1'), 'p_foot', 'EBFFFFFF')
+    out += u.glyph(p, w - PAD - 8, h // 2, 36, 'chevron-right.png', 'EBFFFFFF')
     return out
 
 
@@ -84,9 +84,9 @@ def _live_card(p, w):
     S = p.SIDE
     out = p.image(S, 0, w, LIVE_H, p.MEDIA + 'row_only.png', p.SURFACE, '<visible>String.IsEqual(Window().Property(live.mode),idle)</visible>', border=43)
     out += p.image(S, 0, w, LIVE_H, p.MEDIA + 'sports_live.png', p.WHITE, '<visible>String.IsEqual(Window().Property(live.mode),live)</visible>', '>stretch')
-    out += u.text(p, S + PAD, 38, 500, 50, 'LIVE NOW', 'p_foot_b', p.GREY)
-    out += u.text(p, S + PAD, 92, w - 2 * PAD, 80, u.P('live.title'), 'p_h2')
-    out += p.textbox(S + PAD, 178, w - 2 * PAD, 104, u.P('live.detail'), 'p_sub', 'EBFFFFFF')
+    out += u.text(p, S + PAD, 30, 500, 48, 'LIVE NOW', 'p_foot_b', p.GREY)
+    out += u.text(p, S + PAD, 86, w - 2 * PAD, 62, u.P('live.title'), 'p_h3')
+    out += p.textbox(S + PAD, 156, w - 2 * PAD, 76, u.P('live.detail'), 'p_foot', 'EBFFFFFF')
     out += ('<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><label></label>'
             '<texturefocus colordiffuse="30FFFFFF" border="43">%srow_only.png</texturefocus><texturenofocus /></control>' % (LIVE, S, w, LIVE_H, p.MEDIA))
     return out
@@ -100,7 +100,7 @@ def _badge(p):
     body += p.image(26, 25, 22, 22, p.MEDIA + 'dot.png', 'FFFF453A')
     body += u.text(p, 62, 0, 170, 72, u.P('live.badge'), 'p_foot_b', 'FF8E1B16')
     return '<control type="group"><left>%d</left><top>%d</top><width>250</width><height>72</height><visible>%s</visible>%s</control>' % (
-        x, 30, u.has('live.badge'), body)
+        x, 22, u.has('live.badge'), body)
 
 
 def page(p):
@@ -119,7 +119,7 @@ def page(p):
     items = u.group(p, LIVE_H + GAP, _live_card(p, w) + _badge(p))
     # The Upcoming and Leagues tiles sit right under Live now so they are never cut off by the floating tab bar (owner, 2026-11-20); the four games scroll below them.
     tiles = _tile_xml(p, UPCOMING, 'up', S, half, 'up', 'sports_half_mask.png') + _tile_xml(p, LEAGUES, 'lg', S + half + GAP, half, 'lg', 'sports_half_mask.png')
-    items += u.group(p, TILE_H + GAP, tiles)
+    items += u.group(p, TILE_H + 8, tiles)
     see_all = ('<control type="button" id="%d"><left>%d</left><top>0</top><width>260</width><height>118</height><label>See all</label><font>p_sub</font>'
                '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny><textoffsetx>0</textoffsetx><scroll>false</scroll>'
                '<texturefocus /><texturenofocus /></control>' % (SEE_ALL, W - S - 260, p.GREY, p.GREY))
@@ -129,7 +129,7 @@ def page(p):
         for lines in upcoming_page.FORMS:
             items += u.group(p, upcoming_page.row_height(lines), upcoming_page.game_row(p, key, NEXT + 4 * n + lines - 1, lines, w),
                              'String.IsEqual(Window().Property(%slines),%d)' % (key, lines))
-    items += u.group(p, 320, '')   # the last row scrolls fully above the floating tab bar (portrait.TAB_CLEAR)
+    items += u.group(p, 40, '')   # four games end above the floating tab bar, so the home page does not scroll
     tiles = ('<control type="grouplist" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
              '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords><visible>%s</visible><scrolltime tween="cubic" easing="out">220</scrolltime>%s</control>'
              % (LIST, TOP, W, ok, items))
