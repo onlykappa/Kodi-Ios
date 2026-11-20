@@ -1,5 +1,6 @@
 """Rank game choices and let Kodi's native playlist skip failed Loop routes."""
 import json
+import threading
 import time
 import uuid
 import sports_native_routes as routes
@@ -105,29 +106,50 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
     began, previous, failed_through = clock(), clock(), -1
     first_video_time = None
     current_index = 0
-    select_seen, picked = None, False   # when a Crew chooser appeared, and whether it has been answered
+    pick = {'seen': None, 'picked': False}   # when a Crew chooser appeared, and whether it has been answered
+    pick_lock = threading.Lock()
+
+    def chooser_up(now):
+        """True while Crew's link chooser is on screen. Owner, 2026-11-20: no Crew UI. The chooser is answered with its first (best) entry, once
+        per appearance, after a moment for the list to build: Kodi's own select action, nothing of Crew's code is called."""
+        with pick_lock:
+            if backend.getCondVisibility('Window.IsActive(selectdialog)'):
+                if auto_pick:
+                    if pick['seen'] is None:
+                        pick['seen'] = now
+                    elif not pick['picked'] and now - pick['seen'] >= .4:
+                        backend.executebuiltin('Action(Select)')
+                        logger('sports: picked the first link in Crew\'s chooser')
+                        pick['picked'] = True
+                return True
+            pick['seen'], pick['picked'] = None, False
+            return False
     try:
         stage(0)
-        player.play(playlist)
+        # Build 611 (phone log): player.play() does not return until Crew has resolved the link, and Crew's chooser appears during that wait, so
+        # nothing answered it (the owner had to tap). A watcher answers it while play() is blocked; the loop below shares its state.
+        watching = threading.Event()
+        def watch():
+            while not watching.is_set():
+                try:
+                    chooser_up(clock())
+                except Exception:
+                    pass
+                time.sleep(.2)
+        threading.Thread(target=watch, daemon=True).start()
+        try:
+            player.play(playlist)
+        finally:
+            watching.set()
+        previous = clock()
         while not monitor.abortRequested():
             backend.sleep(200)  # permits native Player callbacks on the script thread
             if not owns_queue():
                 raise InterruptedError('a newer play request replaced this queue')
             now = clock()
             # A person choosing a nested link is not a slow or failed server.
-            if backend.getCondVisibility('Window.IsActive(selectdialog)'):
+            if chooser_up(now):
                 began += now - previous
-                # Owner, 2026-11-20: no Crew UI. A link chooser Crew puts up while it resolves is answered with its first (best) entry, once per
-                # appearance, after a moment for the list to build. Kodi's own select action: nothing of Crew's code is called.
-                if auto_pick:
-                    if select_seen is None:
-                        select_seen = now
-                    elif not picked and now - select_seen >= .4:
-                        backend.executebuiltin('Action(Select)')
-                        logger('sports: picked the first link in Crew\'s chooser')
-                        picked = True
-            else:
-                select_seen, picked = None, False
             previous = now
             if not player.ready and now - began >= timeout:
                 raise InterruptedError('native sports opening timed out')
@@ -157,7 +179,11 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             if position < 0 and not player.isPlayingVideo():
                 if backend.getCondVisibility('Window.IsActive(okdialog)'):
                     raise InterruptedError('native opening ended with a dialog')
-                if now - began > 1 and not backend.getCondVisibility('Window.IsActive(progressdialog)') and not backend.getCondVisibility('Window.IsActive(selectdialog)'):
+                # Crew often plays its resolved stream itself (the playlist then no longer holds our item, position -1) while the stream is
+                # still opening. Build 611 (Crew's progress box now silent) stopped that playback 0.2 s after Crew opened it, because the
+                # progress box used to be what kept this check from firing. Media that Kodi has begun to open or play is not an ended opening.
+                taking_over = player.started or backend.getCondVisibility('Player.HasMedia')
+                if now - began > 1 and not taking_over and not backend.getCondVisibility('Window.IsActive(progressdialog)') and not backend.getCondVisibility('Window.IsActive(selectdialog)'):
                     logger('sports: native opening ended without a confirmed error; queue cancelled')
                     raise InterruptedError('native opening ended')
             if player.ready and player.isPlayingVideo():
