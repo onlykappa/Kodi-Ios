@@ -7,7 +7,8 @@ import sports_loop_routes as common
 ADDON = 'plugin.video.thecrew'
 NAME = 'TheCrewRoute'
 # Only sports menus, never movie/TV/replay/account routes during discovery.
-ACTIONS = {'nfl', 'nhl', 'nba', 'mlb', 'ncaa', 'ncaab', 'fifa', 'fullsites'}
+ACTIONS = {'nfl', 'nhl', 'nba', 'mlb', 'ncaa', 'ncaab', 'fifa', 'fullsites',
+           'ufc', 'f1', 'pga'}   # Crew's own UFC, Formula 1 and PGA menus (3.2.2 has them): scanned for sources too (owner, 2026-11-20)
 MAX_FOLDERS = 24
 MAX_DEPTH = 3
 SCAN_BUSY = 'KodiIOS.SportsCrewListing'
