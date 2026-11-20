@@ -471,6 +471,23 @@ def upscaled_path(path,params,profile,xbmc=None):
   if xbmc is not None:xbmc.log('Kodi iOS Library: AI Upscale copy not used (%s)'%type(error).__name__,xbmc.LOGWARNING)
   return path
 
+def play_stream(handle,entry,url,position,total):
+ """Resolve a remembered Umbrella link for Continue (ios_watch_dialog.fast_stream): the title, show, season, episode and art come from the Continue record."""
+ import xbmc,xbmcgui,xbmcplugin
+ kind=entry.get('kind') or 'episode'
+ li=xbmcgui.ListItem(label=entry.get('title') or entry.get('tvshowtitle') or '',path=url);li.setProperty('IsPlayable','true')
+ tag=li.getVideoInfoTag();tag.setMediaType('movie' if kind=='movie' else 'episode');tag.setTitle(entry.get('title') or entry.get('tvshowtitle') or '')
+ if kind=='episode':
+  tag.setTvShowTitle(entry.get('tvshowtitle') or '')
+  if str(entry.get('season') or '').isdigit():tag.setSeason(int(entry['season']))
+  if str(entry.get('episode') or '').isdigit():tag.setEpisode(int(entry['episode']))
+ elif str(entry.get('year') or '').isdigit():tag.setYear(int(entry['year']))
+ if entry.get('art'):li.setArt(entry['art'])
+ tag.setResumePoint(position,total);li.setProperty('StartOffset',str(position))
+ mark_open('umbrella')
+ mark_resolved()
+ xbmcplugin.setResolvedUrl(handle,True,li)
+
 def play_downloaded(handle,params):
  """Resolve a completed copy directly and retain progress in the same history used by Continue Watching."""
  import xbmc,xbmcgui,xbmcplugin,xbmcvfs
@@ -522,6 +539,14 @@ def play_downloaded(handle,params):
  except Exception as error:xbmc.log('Kodi iOS Library: playback details unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
  li.getVideoInfoTag().setResumePoint(position,total)
  if position:li.setProperty('StartOffset',str(position))
+ try:   # what this add-on knows about the video, for the subtitle search: Kodi's own item can lack the show, season and episode (owner log 067121ef: "unable to find any")
+  import json,time
+  try:known=dict(info)
+  except NameError:known={}
+  xbmcgui.Window(10000).setProperty('KodiIOS.Playing',json.dumps({'t':time.time(),'kind':params.get('kind') or 'episode','title':known.get('title') or params.get('title',''),
+   'show':known.get('tvshowtitle') or params.get('show',''),'season':known.get('season') or params.get('season',''),'episode':known.get('episode') or params.get('episode',''),
+   'year':known.get('year') or params.get('year',''),'tmdb':params.get('tmdb_id') or known.get('tmdb_id','')}))
+ except Exception:pass
  import ios_continue
  def read(location):
   source=xbmcvfs.File(location)

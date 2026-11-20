@@ -4,9 +4,18 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'))
 import scroll_probe as sp
 
+class Lines(list):
+    """The scroll lines only; the probe's own diagnostics are checked separately."""
+    def __init__(self,raw):self.raw=raw
+    def _only(self):return [l for l in self.raw if 'scroll:' in l]
+    def __eq__(self,other):return self._only()==other
+    def __len__(self):return len(self._only())
+    def __getitem__(self,i):return self._only()[i]
+    def __iter__(self):return iter(self._only())
+
 def make(fps_values,touched=lambda:True,window=lambda:(13005,'Home'),busy=lambda:False):
     logs=[];values=iter(fps_values)
-    return sp.Probe(lambda:next(values),touched,window,logs.append,busy),logs
+    return sp.Probe(lambda:next(values),touched,window,logs.append,busy),Lines(logs)
 
 class Tests(unittest.TestCase):
     def test_the_line_names_the_typical_and_slowest_tenth(self):
@@ -25,8 +34,8 @@ class Tests(unittest.TestCase):
         for _ in range(20):probe.tick()
         self.assertEqual(probe.samples,{})
     def test_a_window_change_reports_the_window_left(self):
-        state={'w':(13002,'Upcoming')};logs=[];values=iter([40]*10+[60]*10)
-        probe=sp.Probe(lambda:next(values),lambda:True,lambda:state['w'],logs.append)
+        state={'w':(13002,'Upcoming')};raw=[];logs=Lines(raw);values=iter([40]*10+[60]*10)
+        probe=sp.Probe(lambda:next(values),lambda:True,lambda:state['w'],raw.append)
         for _ in range(10):probe.tick()
         state['w']=(10000,'Home')
         for _ in range(10):probe.tick()
@@ -34,6 +43,12 @@ class Tests(unittest.TestCase):
         probe.flush();self.assertIn("window 10000 'Home': 60 fps",logs[1])
     def test_a_broken_reader_never_raises(self):
         logs=[];probe=sp.Probe(lambda:'n/a',lambda:True,lambda:(1,''),logs.append);probe.tick();self.assertEqual(probe.samples,{})
+    def test_an_idle_probe_says_what_it_read_once(self):
+        logs=[];probe=sp.Probe(lambda:'59.9',lambda:False,lambda:(1,''),logs.append)
+        for _ in range(400):probe.tick()
+        self.assertEqual(len(logs),1);self.assertIn("System.FPS '59.9'",logs[0])
+    def test_the_first_touched_reading_is_logged_raw(self):
+        probe,lines=make([48]);probe.tick();self.assertTrue(any('first touched reading System.FPS 48' in l for l in lines.raw))
     def test_watch_samples_until_abort_and_flushes_at_the_end(self):
         probe,logs=make([50]*12);calls=[0]
         def wait(step):

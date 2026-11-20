@@ -7,7 +7,7 @@ BACK, REFRESH, RETRY, LIST = 9001, 9002, 9003, 9300
 ROW, SLOTS = 50000, 36   # one slot per league (sports_espn has 18; Crew's menus add a few): was 80, which made this window 17,000 controls and a slow flick (rig 41 fps)
 TITLE_LINE, DETAIL_LINE, PAD, MIN_ROW = 57, 52, 27, 183
 FORMS = tuple((title, detail) for title in range(1, 5) for detail in range(1, 5))
-SCROLL_CLEAR = 720
+SCROLL_CLEAR = 720   # empty room under the list, no image: a 1 px white one drew a bright line down the left edge while the page loaded (owner, build 618)
 LOGO_TILE, LOGO_PAD, LOGO_BG = 118, 14, 'FFF2F2F7'   # a 44 pt light tile; the logo sits 5 pt inside it
 
 
@@ -70,7 +70,7 @@ def page(p):
     body += ('<control type="grouplist" id="%d"><top>0</top><width>1080</width><bottom>0</bottom>'
              '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
              '<scrolltime tween="cubic" easing="out">220</scrolltime>%s%s</control>') % (
-                 LIST,content,u.group(p,SCROLL_CLEAR,p.image(0,0,1,SCROLL_CLEAR,p.MEDIA+'white.png','00000000')))
+                 LIST,content,u.group(p,SCROLL_CLEAR,''))
     body += p.tabbar('library')
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Sports Leagues, approved boards 16, 17 and 20 -->\n'
             '<window><defaultcontrol always="false">9001</defaultcontrol><controls>%s</controls></window>') % body

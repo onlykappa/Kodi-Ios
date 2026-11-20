@@ -91,6 +91,8 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
             self.logos = {}
             self.draw()
             self.refresh(reload=False)
+            import sports_fresh
+            sports_fresh.start(provider,self.stop,lambda:self.refresh(reload=False))
             def tick():
                 monitor=xbmc.Monitor()
                 last=clock()

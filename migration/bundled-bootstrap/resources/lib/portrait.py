@@ -1928,6 +1928,11 @@ def first_feed_publisher(info,log,clock,timeout=60,started=None):
   finished=not pending
  return tick
 
+def playing_link(player):
+  """The address the playing video was opened from ('' when unknown): kept for Umbrella titles (ios_continue.update) so Continue can resume from it."""
+  try:return str(player.getPlayingFile() or '')
+  except Exception:return ''
+
 def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{},log=None):
  """Continue Watching: save the position of what the chooser started, and drop it once finished."""
  state={'playing':False,'saved':float('-inf'),'position':0,'total':0,'started':0,'seed':0,'remote':False,'handoff':False,'remote_file':'','generation':None,'ignored_generation':None}
@@ -1995,7 +2000,7 @@ def progress_tracker(player,continue_module,read,write,clock,every=10,external=l
     # Opening/initial seek can briefly report zero. Do not erase a real resume point during that interval.
     if state['seed']>=10 and position<10 and now-state['started']<20:return
     state.update(position=position,total=total)
-    if now-state['saved']>=every:continue_module.update(read,write,state['position'],state['total']);state['saved']=now
+    if now-state['saved']>=every:continue_module.update(read,write,state['position'],state['total'],stream=playing_link(player));state['saved']=now
    elif state['playing']:
     state['playing']=False;continue_module.update(read,write,state['position'],state['total']);continue_module.stopped(read,write)
   except Exception as error:_quiet('portrait:1179',error)

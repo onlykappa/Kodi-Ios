@@ -350,10 +350,39 @@ def run(mode):
                                 **extra, **self.track_evidence.get(index, {})))
             return out
 
+        def played(self, it):
+            """What the add-on that started this video knew about it (show, season, episode, year, TMDb id of the show), when Kodi's own item lacks it and the
+            title agrees. Owner, build 618 log: a Drive episode searched as 'Trust Fall' with no season or episode, and SubDL found nothing."""
+            try:
+                known = json.loads(xbmcgui.Window(10000).getProperty('KodiIOS.Playing') or '{}')
+                if time.time() - float(known.get('t') or 0) > 6 * 3600:
+                    return {}
+                names = {str(it.get('title') or '').lower(), str(it.get('showtitle') or '').lower(), str(it.get('label') or '').lower()} - {''}
+                if names & {str(known.get('title') or '').lower(), str(known.get('show') or '').lower()}:
+                    return known
+            except Exception:
+                pass
+            return {}
+
         def search(self):
             it = self.item()
             show = it.get('showtitle')
             season, episode = it.get('season'), it.get('episode')
+            extra = self.played(it)
+            show_tmdb = None
+            if extra and extra.get('kind') != 'movie':
+                if not show:
+                    show = extra.get('show') or None
+                try:
+                    if season is None or season < 0:
+                        season = int(extra.get('season')) if str(extra.get('season') or '').isdigit() else season
+                    if episode is None or episode <= 0:
+                        episode = int(extra.get('episode')) if str(extra.get('episode') or '').isdigit() else episode
+                except (TypeError, ValueError):
+                    pass
+                show_tmdb = extra.get('tmdb') or None
+            elif extra and not it.get('year'):
+                it = dict(it, year=extra.get('year') or it.get('year'))
             title = show or it.get('title') or it.get('label') or ''
             name = os.path.basename(str(it.get('file') or '').split('?')[0].split('|')[0])
             # Roadmap B.5 (build 232): a copy played without details searched its file name; read show and episode
@@ -370,7 +399,7 @@ def run(mode):
             import subtitle_sources as ss
             keys = ss.load_keys(keys_folder(xbmcvfs))
             self.episode = ep
-            tmdb = (it.get('uniqueid') or {}).get('tmdb') if not ep[0] else None
+            tmdb = (it.get('uniqueid') or {}).get('tmdb') if not ep[0] else show_tmdb
             log('search %s %r %s S%sE%s via %s' % (self.lang, title, year, ep[0], ep[1], ', '.join(ss.sources(keys))))
             video = self.video()
             return sm.rank(ss.find(http_get, keys, self.lang, title, year, ep[0], ep[1], name, tmdb,

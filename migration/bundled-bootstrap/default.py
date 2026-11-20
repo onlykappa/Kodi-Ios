@@ -27,7 +27,7 @@ if __name__=='__main__':
  diagnostics.event(write,'ui','open',page=page)
  if page.startswith('sports') and page not in ('sports_jet_run','sports_remind'):   # a Sports page was opened: source prefetch may run for a few hours (sports_sources_prefetch)
   try:
-   import xbmcgui;xbmcgui.Window(10000).setProperty('KodiIOS.SportsSeen',str(time.time()))
+   import xbmcgui;xbmcgui.Window(10000).setProperty('KodiIOS.SportsSeen',str(time.time()));xbmcgui.Window(10000).setProperty('KodiIOS.SportsPoke','1')   # and the service looks for sources now
   except Exception:pass
  try:runpy.run_path(path,run_name='__main__')
  except Exception as error:

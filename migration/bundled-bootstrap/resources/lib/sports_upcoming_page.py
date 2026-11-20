@@ -136,7 +136,7 @@ def page(p, slots=SLOTS):
     body += ('<control type="grouplist" id="%d"><top>0</top><width>1080</width><bottom>0</bottom>'
              '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
              '<scrolltime tween="cubic" easing="out">220</scrolltime>%s%s</control>') % (
-                 LIST,content,u.group(p,SCROLL_CLEAR,p.image(0,0,1,SCROLL_CLEAR,p.MEDIA+'white.png','00000000')))
+                 LIST,content,u.group(p,SCROLL_CLEAR,''))
     body += p.tabbar('library')
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Sports Upcoming, approved board 10 -->\n'
             '<window><defaultcontrol always="false">9001</defaultcontrol><controls>%s</controls></window>') % body

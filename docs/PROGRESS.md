@@ -1088,3 +1088,5 @@ Build 617 log fixes (owner 2026-11-20, ISSUE-409/410, branch claude/library-play
 Scroll smoothness (owner 2026-11-20, ISSUE-412, branch claude/library-playback-fixes, no IPA yet): Upcoming opens a 30-row window unless the list is longer, Leagues has 36 slots instead of 80, and a scroll probe logs the frame rate per window while touched. Favourites as a native grid is the next step once the phone numbers are in.
 
 Umbrella open speed (owner 2026-11-20, ISSUE-413, branch claude/library-playback-fixes): the version page lists sources that opened fast on this phone first and remembers which never opened; the stream-opening log says whether the origin answered. Home staying loaded behind a video was checked and left alone.
+
+Build 618 log fixes (ISSUE-414, branch claude/library-playback-fixes, no IPA yet): subtitle search for Drive episodes, shared Sports sources so a live game opens with them, ESPN answer kept on the phone so Sports pages open at once, no white line, no spinner over the opening card, Continue resumes an Umbrella episode from its last link. Seeking and the scroll probe: findings recorded.

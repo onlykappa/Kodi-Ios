@@ -34,12 +34,21 @@ def _get():
     return real()
 
 
+def _snapshot_path():
+    """Where the last ESPN answer is kept on the phone (None outside Kodi): pages draw it at once after a restart while the new answer loads."""
+    try:
+        import xbmcvfs
+        return os.path.join(xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap'), 'sports-snapshot.json')
+    except Exception:
+        return None
+
+
 def real():
     """The phone's provider (owner, 2026-11-20): ESPN for every game, league, time and score; Crew only for the sources of the game whose page is
     open (sports_hybrid.py). KODI_IOS_SPORTS=espn is the same provider without Crew at all."""
     if _real[0] is None:
         import sports_espn
-        espn = sports_espn.EspnProvider()
+        espn = sports_espn.EspnProvider(snapshot_path=_snapshot_path())
         if os.environ.get('KODI_IOS_SPORTS', '') == 'espn':
             _real[0] = espn
         else:

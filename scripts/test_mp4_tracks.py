@@ -8,14 +8,15 @@ import mp4_tracks as mt
 def box(kind,payload=b''):return struct.pack('>I4s',8+len(payload),kind)+payload
 def lang(code):
     a,b,c=[ord(x)-0x60 for x in code];return (a<<10)|(b<<5)|c
-def trak(track_id,handler,fourcc,code='eng'):
+def trak(track_id,handler,fourcc,code='eng',samples=None):
     tkhd=box(b'tkhd',struct.pack('>I',0)+struct.pack('>II',0,0)+struct.pack('>I',track_id)+bytes(60))
     mdhd=box(b'mdhd',struct.pack('>I',0)+struct.pack('>IIII',0,0,1000,0)+struct.pack('>HH',lang(code),0))
     hdlr=box(b'hdlr',struct.pack('>I',0)+struct.pack('>I',0)+handler+bytes(12)+b'x\0')
     entry=struct.pack('>I4s',8+8,fourcc)+bytes(8)
     stsd=box(b'stsd',struct.pack('>II',0,1)+entry)
-    return box(b'trak',tkhd+box(b'mdia',mdhd+hdlr+box(b'minf',box(b'stbl',stsd))))
-def mp4(*traks):return box(b'ftyp',b'isom'+bytes(8))+box(b'moov',b''.join(traks))
+    stsz=box(b'stsz',struct.pack('>III',0,0,samples)) if samples is not None else b''
+    return box(b'trak',tkhd+box(b'mdia',mdhd+hdlr+box(b'minf',box(b'stbl',stsd+stsz))))
+def mp4(*traks,fragmented=False):return box(b'ftyp',b'isom'+bytes(8))+box(b'moov',b''.join(traks)+(box(b'mvex',box(b'trex',bytes(24))) if fragmented else b''))
 
 class Tracks(unittest.TestCase):
     def test_subtitle_tracks_are_listed_with_their_kind_and_video_and_audio_are_not(self):
@@ -33,4 +34,11 @@ class Tracks(unittest.TestCase):
         self.assertEqual([t['id'] for t in mt.subtitle_tracks(cut)][:1],[2])
     def test_garbage_is_not_fatal(self):
         self.assertEqual(mt.subtitle_tracks(b''),[]);self.assertEqual(mt.subtitle_tracks(bytes(range(256))*4),[])
+    def test_the_number_of_subtitle_samples_is_read(self):
+        found=mt.subtitle_tracks(mp4(trak(3,b'sbtl',b'tx3g','eng',samples=812),trak(4,b'sbtl',b'tx3g','eng',samples=0)))
+        self.assertEqual([t['samples'] for t in found],[812,0]);self.assertIn('812 samples',mt.describe(found))
+    def test_a_fragmented_file_does_not_claim_its_tracks_are_empty(self):
+        # Build 618 log: every track of a fragmented Drive copy said "0 samples" (they live in moof boxes) and would have been hidden as empty.
+        found=mt.subtitle_tracks(mp4(trak(3,b'sbtl',b'tx3g','eng',samples=0),fragmented=True))
+        self.assertIsNone(found[0]['samples']);self.assertNotIn('samples',mt.describe(found))
 if __name__=='__main__':unittest.main()
