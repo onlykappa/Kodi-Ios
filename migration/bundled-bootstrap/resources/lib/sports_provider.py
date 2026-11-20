@@ -49,6 +49,7 @@ def real():
     return _real[0]
 
 
+_scans = [0]
 SEARCH_SECONDS = 150   # the longest one game's source search keeps reading what Crew's collector publishes
 
 
@@ -75,9 +76,13 @@ def crew_sources(game, sleep=time.sleep, clock=time.monotonic):
     jet = sports_jet.JetProvider(remote=True, crew_only=True)
     home = None
     try:
+        import sports_crew_patch
         import xbmcgui
+        sports_crew_patch.ensure(sports_jet.log)
         home = xbmcgui.Window(10000)
         home.setProperty('KodiIOS.SportsCrewOnlyLeague', str(game.get('league') or ''))   # read only this game's league menu in Crew
+        _scans[0] += 1
+        home.setProperty(sports_crew_patch.SCAN, '1')   # Crew's own menus then see their add-on as the container (no Crew window)
     except Exception:
         home = None
     try:
@@ -102,7 +107,10 @@ def crew_sources(game, sleep=time.sleep, clock=time.monotonic):
         return []
     finally:
         if home is not None:
-            home.clearProperty('KodiIOS.SportsCrewOnlyLeague')
+            _scans[0] -= 1
+            if _scans[0] <= 0:   # another game's search may still be reading
+                home.clearProperty('KodiIOS.SportsCrewOnlyLeague')
+                home.clearProperty('KodiIOS.SportsCrewScan')
 
 
 def sm_unavailable():
