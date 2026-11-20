@@ -280,15 +280,28 @@ def run():
  def sports_prefetch_loop():
   import sports_provider,sports_sources_prefetch
   home=xbmcgui.Window(10000)
-  busy=lambda:xbmc.Player().isPlayingVideo() or bool(home.getProperty('KodiIOS.SportsCrewOnlyLeague'))
+  def busy():
+   # Not while a video plays or a game page searches, and not until the owner has opened Sports this session (build 616: the search began 30 s after
+   # launch, on the Home screen, and Crew's busy dialog covered it). Then for 3 hours.
+   if xbmc.Player().isPlayingVideo() or home.getProperty('KodiIOS.SportsCrewOnlyLeague'):return True
+   try:return time.time()-float(home.getProperty('KodiIOS.SportsSeen') or 0)>3*3600
+   except ValueError:return True
   sports_sources_prefetch.watch(sports_provider.get,busy,monitor.waitForAbort,log=lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO))
  threading.Thread(target=sports_prefetch_loop,daemon=True).start()
+ # Safety net: a modal busy dialog nobody lowers is closed after 4 s unless a video is opening or playing (busy_watchdog.py).
+ def busy_watchdog_loop():
+  import busy_watchdog
+  busy_watchdog.watch(lambda name:xbmc.getCondVisibility('Window.IsVisible(%s)'%name),
+                      lambda:xbmc.getCondVisibility('Player.HasMedia') or xbmc.getCondVisibility('Player.Caching'),
+                      lambda name:xbmc.executebuiltin('Dialog.Close(%s,true)'%name),monitor.waitForAbort,
+                      log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+ threading.Thread(target=busy_watchdog_loop,daemon=True).start()
  # The Loop's background work stays off (owner, 2026-11-20; loop_quiet.py): checked at start and every 15 minutes, in case an update switched it on.
  def loop_quiet_loop():
   import loop_quiet
   def rpc(method,params):
    return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result') or {}
-  if monitor.waitForAbort(30):return
+  if monitor.waitForAbort(2):return   # before the Loop's own service has imported its scrapers (build 616 log: 45 failing imports at launch)
   while True:
    try:loop_quiet.apply(xbmcaddon.Addon().getSettingBool('loop_quiet'),rpc,str(profile/'addon_data/service.kodi.ios.bootstrap/loop-quiet.json'),log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
    except Exception as error:xbmc.log('Kodi iOS loop: check failed (%s)'%type(error).__name__,xbmc.LOGWARNING)

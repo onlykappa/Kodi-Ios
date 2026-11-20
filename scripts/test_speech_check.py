@@ -189,7 +189,7 @@ class Wiring(unittest.TestCase):
         self.assertIn('int kr_speech_pcm(', (ROOT / 'migration/airplay-ios/remux/src/kr_speech.h').read_text())
         self.assertIn('test_speech_sound(', (ROOT / 'migration/airplay-ios/remux/tests/test_remux.c').read_text())
         tracks = (ROOT / 'migration/bundled-bootstrap/tracks.py').read_text()
-        self.assertEqual(tracks.count('self.checked_video())'), 2)
+        self.assertEqual(tracks.count('self.checked_video()'), 2)   # Choose-another (apply) and the check that now runs after Download and apply has put the subtitle on
         self.assertIn('speech_check.for_playing(', (LIB / 'dub_captions.py').read_text())
         self.assertIn("NSSpeechRecognitionUsageDescription", (ROOT / 'scripts/build_customized_ipa.py').read_text())
 

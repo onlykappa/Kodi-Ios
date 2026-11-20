@@ -201,6 +201,11 @@ def run(mode):
                                                        'enable': chosen is not None})
                         cur = chosen
                         p['subtitleenabled'] = chosen is not None
+                if not getattr(self, 'logged_streams', False):
+                    self.logged_streams = True   # what Kodi offers for this video, so a log shows why a track is or is not there
+                    log('streams: %s' % '; '.join('#%s %s%s%s%s' % (s.get('index'), s.get('language') or '?', ' "%s"' % s['name'] if s.get('name') else '',
+                                                                   ' forced' if s.get('isforced') else '', ' sdh' if s.get('isimpaired') else '') for s in (p.get('subtitles') or [])) + ' | on #%s' % cur)
+                    threading.Thread(target=self.log_file_tracks, daemon=True).start()
                 self.rows = tm.subtitle_rows(subs, cur, p.get('subtitleenabled'), video)
             else:
                 self.rows = tm.audio_rows(p.get('audiostreams'), (p.get('currentaudiostream') or {}).get('index'))
@@ -375,11 +380,16 @@ def run(mode):
                         log('nothing found')
                         return
                 self.state('download')
-                selected, name, data = sm.choose_download(self.results if result is None else [result], self.fetch_result, self.checked_video())
+                # Owner, 2026-11-20 (build 616 log): Download and apply took 58 s, nearly all of it listening to two 45 s stretches of the video's
+                # sound over Drive (96 MB of a 4K file) for a check that heard 9 words and made no claim. The subtitle that fits the video's length and
+                # episode is applied at once; the words check runs afterwards and only then corrects the timing or swaps it.
+                candidates = list(self.results if result is None else [result])
+                selected, name, data = sm.choose_download(candidates, self.fetch_result, self.video())
                 self.apply(selected, (name, data))
                 self.state('done')
                 self.fill()
                 xbmcgui.Dialog().notification('%s subtitles on' % self.lang_name, '', xbmcgui.NOTIFICATION_INFO, 2000, False)
+                threading.Thread(target=self.check_by_speech, args=(selected, name, data, candidates, self.lang_name), daemon=True).start()
             except Exception as error:
                 log('download and apply failed: %s: %s' % (type(error).__name__, error))
                 self.state(self.missing('error'))
@@ -387,6 +397,45 @@ def run(mode):
                     self.setProperty('hint', str(error))
             finally:
                 self.reset_language()
+
+        def log_file_tracks(self):
+            """What kind of subtitle tracks the playing MP4 carries (tx3g text Kodi draws; wvtt, stpp or c608 it may not), read from the first MB of the
+            file through the app's own proxy (the playback cache already holds it). One log line, for diagnosis."""
+            try:
+                url = str(xbmc.Player().getPlayingFile() or '').split('|')[0]
+                if not url.startswith('http://127.0.0.1:'):
+                    return
+                import mp4_tracks
+                request = urllib.request.Request(url, headers={'Range': 'bytes=0-1048575'})
+                with urllib.request.urlopen(request, timeout=3) as response:
+                    head = response.read(1048576)
+                log('file subtitle tracks: %s' % mp4_tracks.describe(mp4_tracks.subtitle_tracks(head)))
+            except Exception as error:
+                log('file subtitle tracks: not read (%s)' % type(error).__name__)
+
+        def check_by_speech(self, selected, name, data, candidates, language):
+            """After the subtitle is already on: listen to the video (slow, off the page's thread). A clear mismatch swaps it for the next candidate; a shift
+            of 0.4 s or more is taken out and the file applied again; too few words to say anything leaves it alone."""
+            try:
+                video = self.checked_video()
+                heard = video.get('heard')
+                if not heard:
+                    log('speech check: nothing to compare, subtitles kept as applied')
+                    return
+                import speech_check
+                tested = sm.annotate(dict(selected, filename=name, data=data), video)
+                fixed, why = speech_check.apply(selected, tested, data, name, heard)
+                if why:
+                    others = [r for r in candidates if r.get('id') != selected.get('id')]
+                    log('speech check: %s; trying %d other subtitle(s)' % (why, len(others)))
+                    selected2, name2, data2 = sm.choose_download(others, self.fetch_result, video)
+                    self.apply(selected2, (name2, data2))
+                    xbmcgui.Dialog().notification('Better-timed %s subtitles on' % language, '', xbmcgui.NOTIFICATION_INFO, 3000, False)
+                elif fixed is not data:
+                    self.apply(selected, (name, fixed))
+                    xbmcgui.Dialog().notification('%s subtitle timing adjusted' % language, '', xbmcgui.NOTIFICATION_INFO, 3000, False)
+            except Exception as error:
+                log('speech check: skipped (%s: %s)' % (type(error).__name__, error))
 
         def always_on(self):
             try:

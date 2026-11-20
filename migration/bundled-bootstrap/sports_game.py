@@ -32,6 +32,28 @@ def lighten(color, amount=.3):
     return ''.join('%02X' % round(int(color[i:i+2],16)+(255-int(color[i:i+2],16))*amount) for i in (0,2,4))
 
 
+MAX_GLOW = .62   # the brightest a glow may be (relative luminance): above it the hero washes out to white
+
+
+def _luminance(rgb):
+    return (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255
+
+
+def glow(color):
+    """The tint of a team's glow behind its crest: its colour, lightened a little, but never bright. Owner, 2026-11-20: "the colors seem to flash white
+    ... then goes to all white": a team whose ESPN colour is white or very light (Cologne's is ffffff) lit the hero up white at 72 % opacity, and two
+    light teams washed the whole hero out. A light colour is pulled down to MAX_GLOW and a colour that is nearly white gets the soft grey of a team with
+    no colour at all."""
+    rgb = [int(color[i:i + 2], 16) for i in (0, 2, 4)]
+    if _luminance(rgb) > .85:
+        return NEUTRAL
+    mixed = [round(c + (255 - c) * .3) for c in rgb]
+    light = _luminance(mixed)
+    if light > MAX_GLOW:
+        mixed = [round(c * MAX_GLOW / light) for c in mixed]
+    return TINT + ''.join('%02X' % c for c in mixed)
+
+
 def checked_text(checked, now):
     """'Checked just now' / 'Checked 2 minutes ago' / 'Checked 1 hour ago' for the Sources card."""
     if checked is None:return ''
@@ -58,7 +80,7 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
             props[side+'.name'] = game[side].get('short') or game[side].get('name','')
             props[side+'.record'] = game[side].get('record','')
             color = str(game[side].get('color') or '')
-            if len(color) == 6 and all(c in '0123456789abcdefABCDEF' for c in color):props[side+'.tint'] = TINT + lighten(color)
+            if len(color) == 6 and all(c in '0123456789abcdefABCDEF' for c in color):props[side+'.tint'] = glow(color)
         else:props[side+'.name'] = ''
     if game:
         until = sm.until_text(game['start'],now)
@@ -243,8 +265,11 @@ def run(game, provider=None, clock=time.time, search=False):
                     self.start_play(sports_loop_router.automatic_source(sources))
             elif page.SOURCE<=ident<page.SOURCE+page.SLOTS*len(page.FORMS):
                 n=(ident-page.SOURCE)//len(page.FORMS)
-                with self.lock:source=self.sources[n] if n<len(self.sources) else None
-                if source is not None:self.start_play(source)
+                with self.lock:source=self.sources[n] if n<len(self.sources) else None;every=list(self.sources)
+                if source is not None:
+                    import sports_loop_router
+                    # A tap opens that source and, if it is dead or freezes, goes on to the game's other sources by itself (owner, 2026-11-20).
+                    self.start_play(sports_loop_router.tapped_source(source,every))
 
         def start_play(self,source):
             self.setProperty('play.error','')

@@ -197,6 +197,7 @@ class Filler(object):
         self.free = free or (lambda: shutil.disk_usage(store.folder).free)
         self.lock = threading.Lock()
         self.jobs = {}   # file_id -> {'size', 'at' (block), 'stop'}
+        self.prefetching = set()   # videos being prefetched now
         self.done = threading.Event()   # set for tests when a worker has finished
 
     def want(self, file_id, size, position):
@@ -235,6 +236,10 @@ class Filler(object):
         wanted = [(0, min(HEAD_BLOCKS, total))]
         if total > HEAD_BLOCKS:
             wanted.append((max(HEAD_BLOCKS, total - TAIL_BLOCKS), total - max(HEAD_BLOCKS, total - TAIL_BLOCKS)))
+        with self.lock:   # a page loads two or three times per open (build 616 log: the same file prefetched twice a moment apart): once is enough
+            if file_id in self.prefetching or all(self.store.has(file_id, size, n) for first, count in wanted for n in range(first, first + count)):
+                return True
+            self.prefetching.add(file_id)
 
         def run():
             job = {'at': 0, 'stop': False, 'generation': self.store.generation}
@@ -256,6 +261,8 @@ class Filler(object):
             except Exception as error:
                 self.log('Kodi iOS Drive cache: prefetch stopped (%s)' % type(error).__name__)
             finally:
+                with self.lock:
+                    self.prefetching.discard(file_id)
                 self.done.set()
         threading.Thread(target=run, daemon=True).start()
         return True

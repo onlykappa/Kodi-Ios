@@ -1126,3 +1126,7 @@ Sports game rows (owner request 2026-11-20, approved mockup `docs/design/sports-
 Library playback fixes from the build 615 log (owner, 2026-11-20; branch claude/library-playback-fixes, no IPA yet): ISSUE-400 season row on a downloaded show's season page (rig-checked with a fake show), ISSUE-401 Subtitles menu shows one row per language with English CC, no UND and no broken tracks, ISSUE-402 Drive proxy memory block cache and 24 MB read-ahead plus a per-request range log. Host tests pass; nothing is proven on the phone. Open: why the subtitle tracks show nothing (needs a log with CC on during dialogue), and whether to keep played video on the phone's disk for instant seeks.
 
 Playback cache (owner decision 2026-11-20): `drive_cache.py`, wired in `service.py` and `drive_proxy.start(cache_dir, wifi_ok)`; see ISSUE-402. Not in an IPA yet.
+
+Subtitle fix (ISSUE-406, branch claude/library-playback-fixes, no IPA yet): Download and apply now applies at once and verifies by speech in the background; added stream and file-track diagnostics for the unexplained "CC on, nothing shown" case.
+
+Sports source checking and ranking (owner 2026-11-20, ISSUE-407/408, branch claude/library-playback-fixes, no IPA yet): a tapped source now joins a queue of the game's other sources, is verified by what is really playing, falls through to the next when dead or frozen, and sources are ordered by what worked before (`sports_stream_health.py`). Also no more empty `&stamp=` / empty TMDb id folder requests.

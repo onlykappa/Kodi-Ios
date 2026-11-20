@@ -208,7 +208,10 @@ class PortraitTests(unittest.TestCase):
   xml=portrait.portrait_files(self.skin,self.profile)['portrait/MyVideoNav.xml'].decode()
   root=ET.fromstring(xml);row=root.find(".//control[@id='48']")
   self.assertIsNotNone(row);self.assertIn('Container.Content(episodes)',row.findtext('visible'))
-  self.assertIn('info=seasons&tmdb_type=tv&tmdb_id=$INFO[Container(52).ListItem.Property(tvshow.tmdb_id)]',row.findtext('content'))
+  self.assertEqual(row.findtext('content'),'$VAR[Portrait_Season_Chips_Path]')
+  variable=re.search(r'<variable name="Portrait_Season_Chips_Path">(.*?)</variable>',portrait.VARIABLES.replace('&amp;','&')).group(1)
+  self.assertIn('info=seasons&tmdb_type=tv&tmdb_id=$INFO[Container(52).ListItem.Property(tvshow.tmdb_id)]',variable)
+  self.assertIn('condition="!String.IsEmpty(Container(52).ListItem.Property(tvshow.tmdb_id))"',variable)   # no id, no request (build 615 log)
   self.assertEqual([c.text for c in row.findall('onclick')],['Action(ParentDir)','Container.Update($INFO[ListItem.FolderPath])'])
   self.assertNotIn('replace',''.join(c.text for c in row.findall('onclick')))   # replace clears the history
   self.assertIsNotNone(root.find(".//control[@id='9900']/control[@id='48']"))   # in the page's own scroll

@@ -1014,7 +1014,13 @@ def search_window(original):
 VARIABLES=('<variable name="Portrait_Hero_Art"><value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value>'
            '<value>$INFO[ListItem.Art(poster)]</value></variable>'
            '<variable name="Portrait_Card_Art"><value condition="!String.IsEmpty(ListItem.Art(landscape))">$INFO[ListItem.Art(landscape)]</value>'
-           '<value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value><value>$INFO[ListItem.Art(thumb)]</value></variable>')
+           '<value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value><value>$INFO[ListItem.Art(thumb)]</value></variable>'
+           # The player panel's Continue Watching list reads its path from a skin string that is empty until the button is tapped; with the stamp
+           # appended it asked Kodi for the folder "&stamp=" every time the player opened (build 615 log: `GetDirectory - Error getting &stamp=`, 6 times).
+           # The season row of a TMDb Helper episodes page asked for `...&tmdb_id=` with no id on a downloaded show's page (build 615 log:
+           # `GetDirectory - Error getting plugin://plugin.video.themoviedb.helper/?info=seasons&tmdb_type=tv&tmdb_id=`): no id, no request.
+           '<variable name="Portrait_Season_Chips_Path"><value condition="!String.IsEmpty(Container(52).ListItem.Property(tvshow.tmdb_id))">plugin://plugin.video.themoviedb.helper/?info=seasons&amp;tmdb_type=tv&amp;tmdb_id=$INFO[Container(52).ListItem.Property(tvshow.tmdb_id)]</value><value></value></variable>'
+           '<variable name="Portrait_Osd_Continue"><value condition="!String.IsEmpty(Skin.String(ios_osd_continue_path))">$INFO[Skin.String(ios_osd_continue_path)]&amp;stamp=$INFO[Window(Home).Property(KodiIOS.ContinueStamp)]</value><value></value></variable>')
 
 # --- show page (seasons as chips, episodes below), episode lists and plain folders ------------------------
 DL_GAP=20;DL_H=108;DL_SHIFT=DL_GAP+DL_H   # the Download button under Play pushes the seasons page down by this
@@ -1099,7 +1105,7 @@ def video_nav(original):
   '<ondown>52</ondown><onup>9001</onup><scrolltime tween="cubic">250</scrolltime><visible>%s</visible>'
   '<onclick>Action(ParentDir)</onclick><onclick>Container.Update($INFO[ListItem.FolderPath])</onclick>'
   '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout>'
-  '<content>plugin://plugin.video.themoviedb.helper/?info=seasons&amp;tmdb_type=tv&amp;tmdb_id=$INFO[Container(52).ListItem.Property(tvshow.tmdb_id)]</content>'
+  '<content>$VAR[Portrait_Season_Chips_Path]</content>'
   '</control>')%(SIDE,WIDTH-SIDE,SEASON_EPISODES,season_chip(False),season_chip(True))
  library_chips=('<control type="list" id="47"><left>%d</left><top>0</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
   '<ondown>52</ondown><onup>9001</onup><scrolltime tween="cubic">250</scrolltime><visible>%s</visible>'

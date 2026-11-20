@@ -456,7 +456,20 @@ class Tests(unittest.TestCase):
    with patch.object(crew,'_home',return_value=home),patch.dict(sys.modules,{'xbmc':xbmc}):
     self.assertEqual(crew.listing(ROOT+'?action=nba',session='open:fixture'),[])
    self.assertEqual(bool(calls),not bool(owner))
-   self.assertTrue(all(x=='Dialog.Close(busydialognocancel)' for x in calls))
+   self.assertTrue(all(x in ('Dialog.Close(busydialognocancel)','Dialog.Close(busydialog)') for x in calls))
+ def test_a_background_search_never_leaves_crews_busy_dialog_up(self):
+  # Build 616 log: the prefetch search listed Crew's menus with no game page open (no valid session), so nothing closed the modal busy dialog.
+  import time
+  props={};calls=[]
+  home=NS(getProperty=lambda k:props.get(k,''),setProperty=lambda k,v:props.__setitem__(k,v),clearProperty=lambda k:props.pop(k,None))
+  def rpc(payload):
+   time.sleep(.3)
+   return json.dumps({'result':{'files':[]}})
+  xbmc=NS(executeJSONRPC=rpc,getCondVisibility=lambda x:'busydialog' in x,executebuiltin=lambda x:calls.append(x),Player=lambda:NS(isPlayingVideo=lambda:False))
+  with patch.object(crew,'_home',return_value=home),patch.dict(sys.modules,{'xbmc':xbmc}):
+   crew.listing(ROOT+'?action=fifa')           # no session at all
+  self.assertTrue(len(calls)>=4)
+  self.assertEqual(set(calls),{'Dialog.Close(busydialognocancel)','Dialog.Close(busydialog)'})
  def test_reopens_native_menu_chain_after_another_league_clears_regex_cache(self):
   old=ROOT+'?action=play&url=%24doregex%5Bmakelist2%5D%7Cregex%3Dold'
   fresh=ROOT+'?action=play&url=%24doregex%5Bmakelist2%5D%7Cregex%3Dfresh&content=0'

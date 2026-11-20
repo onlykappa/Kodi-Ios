@@ -67,18 +67,18 @@ def listing(path, session=None, playback=False):
     if home:
         home.setProperty(SCAN_BUSY, 'true')
     stop = threading.Event()
-    if home and session is not None:
-        import sports_crew_context
+    if home:
+        # Crew shows a modal busy dialog for its dynamic lists. It blocks everything on screen (taps land on the dialog) even though the request
+        # runs in the background; a background source search (build 616) left it up on the Home screen and over the game page (owner, 2026-11-20:
+        # "the loading circle keeps loading and I cant scroll or do anything"). So it is closed within 50 ms, for every listing this module makes,
+        # whether or not a game page is open. Never during a native playback handoff, which has its own dialogs.
         def hide_background_busy():
-            # Crew displays this modal for dynamic lists. It blocks the Sports
-            # dialog even though the request runs in the background. Only hide
-            # it during our own listing, never during native playback handoff.
-            while not stop.wait(.1):
-                if not sports_crew_context.valid(home, session) or home.getProperty(OWNER):
+            while not stop.wait(.05):
+                if home.getProperty(OWNER):
                     return
-                if (xbmc.getCondVisibility('Window.IsVisible(busydialognocancel)')
-                        and sports_crew_context.valid(home, session) and not home.getProperty(OWNER)):
-                    xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
+                for name in ('busydialognocancel', 'busydialog'):
+                    if xbmc.getCondVisibility('Window.IsVisible(%s)' % name):
+                        xbmc.executebuiltin('Dialog.Close(%s)' % name)
         threading.Thread(target=hide_background_busy, daemon=True).start()
     try:
         if not playback and playback_requested():
