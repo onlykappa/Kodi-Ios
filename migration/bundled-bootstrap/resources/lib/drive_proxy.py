@@ -335,6 +335,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     hold = None
     indices = None
     blocks = None
+    filler = None
 
     def log_message(self, *args):
         pass
@@ -519,6 +520,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if rest.status != 206:
                 rest.read()
                 return False
+        if self.filler:
+            self.filler.want(file_id, size, first)
         self.send_response(206)
         self.send_header('Content-Length', str(last - first + 1))
         self.send_header('Content-Range', 'bytes %d-%d/%d' % (first, last, size))
@@ -596,6 +599,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         total = re.fullmatch(r'bytes (\d+)-\d+/(\d+)', resp.getheader('Content-Range') or '')
         if self.blocks and total:
             tee = Tee(self.blocks, file_id, int(total.group(2)), int(total.group(1)))
+            if self.filler:
+                self.filler.want(file_id, int(total.group(2)), int(total.group(1)))
         elif self.blocks and resp.status == 200 and (resp.getheader('Content-Length') or '').isdigit():
             tee = Tee(self.blocks, file_id, int(resp.getheader('Content-Length')), 0)
         self.upstream.log('Kodi iOS Drive range: start=%s cached=0' % (re.match(r'bytes=(\d+)-', rng or '') or [0, 0])[1])
@@ -624,15 +629,34 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
         super().handle_error(request, client_address)
 
 
-def start(token, connect=None, port=0, hold=None, state_dir=None, log=lambda text: None):
+def clear_cache():
+    """Playback stopped: drop the playback cache (the movie blocks on the phone) and stop the fillers."""
+    for server in CURRENT:
+        handler = server.RequestHandlerClass
+        if handler.filler:
+            handler.filler.stop_all()
+        if hasattr(handler.blocks, 'clear'):
+            handler.blocks.clear()
+        elif handler.blocks:
+            handler.blocks.data.clear()
+            handler.blocks.size.clear()
+
+
+def start(token, connect=None, port=0, hold=None, state_dir=None, log=lambda text: None, cache_dir=None, wifi_ok=None):
     """Start the proxy on 127.0.0.1; returns (server, port). token(force) -> bearer token."""
     stats = Stats()
     indices = None
     if state_dir is not None:
         import drive_index
         indices = drive_index.Cache(state_dir, log, background=True)
-    handler = type('DriveProxyHandler', (Handler,), {'upstream': Upstream(token, connect, spare=connect is None, log=log), 'sizes': {},
-                                                     'warm': Warm(), 'blocks': Blocks(), 'stats': stats, 'hold': staticmethod(hold) if hold else None,
+    upstream = Upstream(token, connect, spare=connect is None, log=log)
+    blocks, filler = Blocks(), None
+    if cache_dir:   # the playback cache on the phone's temporary folder (drive_cache): blocks on disk, a Wi-Fi-only filler, wiped when playback stops
+        import drive_cache
+        blocks = drive_cache.DiskBlocks(cache_dir, BLOCK, log=log)
+        filler = drive_cache.Filler(blocks, Upstream(token, connect, log=log), BLOCK, Tee, allowed=wifi_ok or (lambda: True), log=log)
+    handler = type('DriveProxyHandler', (Handler,), {'upstream': upstream, 'sizes': {}, 'filler': filler,
+                                                     'warm': Warm(), 'blocks': blocks, 'stats': stats, 'hold': staticmethod(hold) if hold else None,
                                                      'indices': indices})
     server = Server(('127.0.0.1', port), handler)
     server.stats = stats

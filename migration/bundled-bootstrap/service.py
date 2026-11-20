@@ -235,8 +235,25 @@ def run():
      def publish(port):
       if port:home_window.setProperty(drive_proxy.PROPERTY,str(port))
       else:home_window.clearProperty(drive_proxy.PROPERTY)
+     # Playback cache (owner, 2026-11-20): Drive video blocks on the phone's temporary folder while it plays, filled in the background on Wi-Fi only,
+     # wiped the moment playback stops (and at every start, so a crash leaves nothing).
+     link=[0.0,'other']
+     def wifi_ok():
+      if time.time()-link[0]>15:
+       try:
+        import cache_tune
+        link[:]=[time.time(),cache_tune.link_kind()]
+       except Exception:link[:]=[time.time(),'other']
+      return link[1]!='cellular'
+     class CacheCleaner(xbmc.Monitor):
+      def onNotification(self,sender,method,data):
+       if method=='Player.OnStop':
+        try:drive_proxy.clear_cache()
+        except Exception as error:xbmc.log('Kodi iOS Drive cache: clear failed (%s)'%type(error).__name__,xbmc.LOGWARNING)
+     cleaner=CacheCleaner()   # kept referenced for the life of the service
      drive_proxy.supervise(lambda port:drive_proxy.start(drive.token,port=port,hold=lambda:airplay.starting(home_window),   # roadmap 1G.3
-                                   state_dir=profile/'addon_data/service.kodi.ios.bootstrap',log=lambda text:xbmc.log(text,xbmc.LOGINFO)),   # 1A.3
+                                   state_dir=profile/'addon_data/service.kodi.ios.bootstrap',log=lambda text:xbmc.log(text,xbmc.LOGINFO),   # 1A.3
+                                   cache_dir=str(Path(xbmcvfs.translatePath('special://temp/'))/'drive-playback-cache'),wifi_ok=wifi_ok),
                            monitor.waitForAbort,publish,lambda text:xbmc.log(text,xbmc.LOGINFO),
                            nudge=lambda port:home_window.getProperty(drive_proxy.DEAD)==str(port) and (home_window.clearProperty(drive_proxy.DEAD) or True))
      return
