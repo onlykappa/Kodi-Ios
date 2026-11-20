@@ -10,6 +10,7 @@ import choice_sheet
 import page_wait
 import sports_model as sm
 import sports_provider
+import sports_rows
 import sports_upcoming_page as page
 import sports_filter as sf
 
@@ -46,23 +47,19 @@ def model(games, updated, now, offset, league='All', state='ready', logos=None):
     rows = []
     for day, entries in sm.group_by_day(shown, now, offset):
         for n, game in enumerate(entries):
-            title = sm.versus(game)
-            lines = choice_sheet.lines(title, 24)
-            rows.append({'game': game, 'day': day if n == 0 else '',
-                         'day.count': sm.count_text(len(entries), 'game') if n == 0 else '',
-                         'firstday': 'true' if not rows else '',
-                         'clock': sm.clock_text(game['start'], offset), 'clock.main': sm.clock_text(game['start'], offset).rsplit(' ', 1)[0], 'clock.ampm': (sm.clock_text(game['start'], offset).rsplit(' ', 1) + [''])[1], 'soon': sm.soon_text(game['start'], now),
-                         'title': title, 'league': game['league'], 'logo': (logos or {}).get(game['league'], ''), 'sources': sm.sources_text(len(game['sources'])),
-                         'lines': str(min(4, lines)),
-                         'pos': 'only' if len(entries) == 1 else 'first' if n == 0 else 'last' if n == len(entries)-1 else 'mid'})
+            pos = 'only' if len(entries) == 1 else 'first' if n == 0 else 'last' if n == len(entries)-1 else 'mid'
+            row = sports_rows.row_props(game, now, offset, logos, pos)
+            row.update({'game': game, 'day': day if n == 0 else '', 'day.count': sm.count_text(len(entries), 'game') if n == 0 else '',
+                        'firstday': 'true' if not rows else ''})
+            rows.append(row)
     for n in range(page.SLOTS):
         row = rows[n] if n < len(rows) else {}
-        for key in ('day', 'day.count', 'firstday', 'clock', 'clock.main', 'clock.ampm', 'soon', 'title', 'league', 'logo', 'sources', 'lines', 'pos'):
+        for key in ('day', 'day.count', 'firstday') + sports_rows.KEYS:
             props['row.%d.%s' % (n,key)] = row.get(key, '')
     if state == 'loading' and not rows:
         # Preserve the list's shape while the first result is pending.
         for n in range(3):
-            props['row.%d.lines' % n] = '2'
+            props['row.%d.lines' % n] = '1'
             props['row.%d.pos' % n] = 'only' if n else 'first'
     elif state == 'error':
         props.update(subtitle='Not updated', **{'empty.title': 'Can’t load games right now',
@@ -148,13 +145,13 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
                     # Real league logos: fetched once, kept on the phone; the rows draw first and gain them a moment later.
                     try:
                         import sports_logos,xbmcvfs
-                        found = sports_logos.paths(xbmcvfs.translatePath('special://profile/'),sorted({g['league'] for g in data[0]}))
+                        found = sports_logos.crests(xbmcvfs.translatePath('special://profile/'),sports_rows.crest_urls([g for g in data[0] if g['state'] == 'upcoming'][:60]))
                         with self.lock:
                             if not self.stop.is_set():
                                 self.logos = found
                                 self.draw()
                     except Exception as error:
-                        log('sports: upcoming logos: %s' % type(error).__name__)
+                        log('sports: upcoming crests: %s' % type(error).__name__)
                 except Exception as error:
                     import diagnostics
                     log('sports: upcoming refresh: %s: %s' % (type(error).__name__,diagnostics.error_text(error)))

@@ -30,8 +30,7 @@ class Projection(unittest.TestCase):
         self.assertEqual(props['subtitle'],'6 games coming up · updated just now')
         self.assertEqual([r['day'] for r in rows if r['day']],['Today','Tomorrow','Sat, Nov 21'])
         self.assertEqual([r['day.count'] for r in rows if r['day']],['3 games','2 games','1 game'])
-        self.assertEqual((rows[0]['clock'],rows[0]['soon'],rows[0]['sources']),('7:30 PM','in 45 min','2 sources'))
-        self.assertEqual(rows[1]['sources'],'No sources yet')
+        self.assertEqual((rows[0]['clock'],rows[0]['tag'],rows[0]['lines']),('7:30 PM',rows[0]['game']['league'],'1'))   # the league tag sits over the time (approved mockup)
         self.assertEqual(codes,sm.league_codes(self.games))
         self.assertEqual(selected,'All')
         self.assertEqual(props['chipline.0'],'')   # no chip row: the Edit filter chooses leagues
@@ -48,14 +47,17 @@ class Projection(unittest.TestCase):
         self.assertNotIn('epl-1',[r['game']['id'] for r in rows])
         self.assertEqual(props['row.119.title'],'')
 
-    def test_long_names_wrap_and_keep_every_character(self):
-        game=dict(self.games[0],away={'name':'Borussia Mönchengladbach'},home={'name':'Brighton & Hove Albion'})
+    def test_long_names_fall_back_to_the_code_and_nothing_is_cut(self):
+        game=dict(self.games[0],away={'name':'Borussia Mönchengladbach','short':'Borussia Mönchengladbach','code':'BMG','record':'3-4-5'},home={'name':'Brighton & Hove Albion','short':'Brighton','code':'BHA','record':''})
         props,rows,_,_=upcoming.model([game],self.provider.now,self.provider.now,0)
         self.assertEqual(rows[0]['title'],sm.versus(game))
-        self.assertGreater(int(rows[0]['lines']),1)
-        self.assertNotIn('…',props['row.0.title'])
-        self.assertGreater(page.row_height(int(rows[0]['lines'])),page.row_height(1))
-        self.assertEqual(rows[0]['soon'],'in 45 min')
+        self.assertEqual((props['row.0.away.name'],props['row.0.home.name'],props['row.0.away.rec']),('BMG','Brighton','3-4-5'))   # over 16 characters: the code, not a cut name
+        self.assertNotIn('…',props['row.0.away.name'])
+
+    def test_an_event_without_a_second_side_is_form_two_with_its_title(self):
+        game=dict(self.games[0],away={'name':'Las Vegas Grand Prix','code':'F1'},home={'name':''},title='Las Vegas Grand Prix',league='F1')
+        props,rows,_,_=upcoming.model([game],self.provider.now,self.provider.now,0)
+        self.assertEqual((props['row.0.lines'],props['row.0.title'],props['row.0.tag'],props['row.0.home.name']),('2','Las Vegas Grand Prix','F1',''))
 
     def test_loading_empty_failure_are_distinct(self):
         for state,expected in [('loading','loading'),('ready','empty'),('error','error')]:
@@ -79,7 +81,8 @@ class Structure(unittest.TestCase):
         for c in tree.iter('control'):
             if c.get('type')=='button' and c.findtext('enable')!='false':
                 self.assertGreaterEqual(int(c.findtext('height')),118)
-        self.assertTrue(any(c.get('type')=='textbox' and c.findtext('width')=='570' for c in tree.iter('control')))
+        self.assertTrue(any(c.get('type')=='textbox' for c in tree.iter('control')))   # form 2 wraps an event's title
+        self.assertEqual(page.row_height(1),page.ROW_H)   # every row is one height (85 pt)
         self.assertIn('sports_upcoming', (BOOT/'default.py').read_text())
         self.assertIn('sports_upcoming_page.files(ns)',p.__file__ and Path(p.__file__).read_text())
 

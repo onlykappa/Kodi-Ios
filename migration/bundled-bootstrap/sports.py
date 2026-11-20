@@ -86,22 +86,17 @@ def props_for(overview, now, offset):
     return props
 
 
-def next_props(games, now, offset, logos=None, count=sp.NEXT_ROWS):
-    """The Up next rows: the next `count` games not yet started, in the Upcoming page's row shape (the small line is the day)."""
-    import choice_sheet
+def next_props(games, now, offset, crests=None, count=sp.NEXT_ROWS):
+    """The Up next rows: the next `count` games not yet started, in the Upcoming page's row shape (sports_rows: logos, short names, records, league tag, time)."""
+    import sports_rows
     coming = sorted((g for g in games if g.get('state') == 'upcoming' and g['start'] >= now), key=lambda g: g['start'])[:count]
     props = {}
     for n in range(count):
         game = coming[n] if n < len(coming) else None
-        title = sm.versus(game) if game else ''
-        clock = sm.clock_text(game['start'], offset).rsplit(' ', 1) + [''] if game else ['', '']
-        row = {'clock': ' '.join(clock[:2]).strip(), 'clock.main': clock[0], 'clock.ampm': clock[1], 'soon': sm.soon_text(game['start'], now) if game else '',
-               'title': title, 'logo': (logos or {}).get(game['league'], '') if game else '',
-               'sources': sm.day_label(game['start'], now, offset) if game else '',
-               'lines': str(min(4, choice_sheet.lines(title, 24))) if game else '',
-               'pos': ('only' if len(coming) == 1 else 'first' if n == 0 else 'last' if n == len(coming) - 1 else 'mid') if game else ''}
-        for key, value in row.items():
-            props['next.%d.%s' % (n, key)] = value
+        pos = ('only' if len(coming) == 1 else 'first' if n == 0 else 'last' if n == len(coming) - 1 else 'mid') if game else ''
+        row = sports_rows.row_props(game, now, offset, crests, pos)
+        for key in sports_rows.KEYS:
+            props['next.%d.%s' % (n, key)] = row.get(key, '')
     return props
 
 
@@ -194,12 +189,14 @@ def run(args=()):
                     if props.get('state') == 'ok':   # the leagues' real logos: fetched once, kept on the phone; the rows draw first
                         try:
                             import sports_logos
-                            found = sports_logos.paths(xbmcvfs.translatePath('special://profile/'), sorted({g['league'] for g in self.games[:sp.NEXT_ROWS + 3]}))
+                            import sports_rows
+                            coming = sorted((g for g in self.games if g.get('state') == 'upcoming' and g['start'] >= time.time()), key=lambda g: g['start'])[:sp.NEXT_ROWS]
+                            found = sports_logos.crests(xbmcvfs.translatePath('special://profile/'), sports_rows.crest_urls(coming))
                             if found and not self.stop.is_set():
                                 self.logos = found
                                 self.show(next_props(self.games, time.time(), sm.device_offset(time.time()), found))
                         except Exception as error:
-                            log('logos (%s)' % type(error).__name__)
+                            log('crests (%s)' % type(error).__name__)
             if refresh:
                 self.show(props_updating(self.last))
             threading.Thread(target=work, daemon=True).start()

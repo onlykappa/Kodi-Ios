@@ -1,7 +1,7 @@
 """Sports landing page (DEC-054, DEC-057; approved board 2 of docs/design/sports-approved-pages.html, option A).
 
 Draws IOSSports.xml: back, Edit and refresh (top right), the large title "Sports" with "Updated just now", then (owner's mockup A1, 2026-11-19)
-a compact Live Now card, "Up next" (the next three games, the Upcoming page's own rows, with See all) and the Upcoming and Leagues gradient tiles.
+a compact Live Now card, "Up next" (the next four games, the Upcoming page's own rows, with See all; owner 2026-11-20: four keep the two tiles on screen) and the Upcoming and Leagues gradient tiles.
 sports.py fills it from sports_model / sports_provider and sets every property below. Kodi skin XML, portrait units
 (2.687 per pt); existing tokens and helpers only. The tile colours are the board's: red live, blue later, purple leagues, grey idle.
 """
@@ -11,7 +11,7 @@ import sports_upcoming_page as upcoming_page
 
 WINDOW = 'IOSSports.xml'
 BACK, REFRESH, LIVE, UPCOMING, LEAGUES, FINISHED, RETRY = 9001, 9002, 9101, 9102, 9103, 9104, 9105
-SEE_ALL, LIST, NEXT, NEXT_ROWS = 9106, 9300, 9120, 3     # See all, the scrolling list, the three Up next rows' ids (NEXT + 4 * row + lines - 1)
+SEE_ALL, LIST, NEXT, NEXT_ROWS = 9106, 9300, 9120, 4     # See all, the scrolling list, the four Up next rows' ids (NEXT + 4 * row + form - 1)
 TOP = 370                       # the list starts 14 pt under the subtitle
 TILE_H = 310                    # 115 pt (mockup A1)
 LIVE_H = 314                    # the compact Live Now card

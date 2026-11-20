@@ -9,7 +9,7 @@ CHIP, CHIPS, ROW, SLOTS = 40000, 16, 45000, 120
 CHIP_LINES = 1   # one row that scrolls sideways (owner: no stranded second line)
 SCROLL_CLEAR = 720  # Board 11 leaves room below the final day as the header scrolls away.
 TITLE_LINE, DETAIL_H, PAD, MIN_ROW = 57, 56, 32, 194
-FORMS = range(1, 5)
+FORMS = range(1, 3)   # 1 two teams, 2 an event with a title only (sports_rows.FORMS)
 _STATE_ART = {}
 
 
@@ -47,8 +47,12 @@ def _states(p):
     return out
 
 
-def row_height(lines):
-    return max(MIN_ROW, PAD * 2 + TITLE_LINE * lines + 13 + DETAIL_H + 4)
+ROW_H, TIME_W = 228, 216   # 85 pt (approved mockup); the middle column holds "10:00 PM" at 15 pt
+LOGO = 86                    # 32 pt
+
+
+def row_height(form=1):
+    return ROW_H
 
 
 def _chips(p):
@@ -72,35 +76,29 @@ def _chips(p):
     return rows
 
 
-def game_row(p, key, ident, lines, width):
-    """One game row (time, title, league logo and the small line, chevron) at the height its title lines need; the hub's Up next reuses it."""
-    h = row_height(lines)
-    title_h = lines*TITLE_LINE
-    main_h = title_h+13+DETAIL_H
-    top = (h-main_h)//2
-    b = u.row_back(p,key,width,h)
-    b += u.tap(p,ident,p.SIDE,0,width,h)
-    # The time as the mockups show it: "4:30" large and blue, "PM" under it in grey, and "in 44 min" under that when the game is close.
-    for with_soon in (True,False):
-        visible=u.has(key+'soon') if with_soon else u.neg(u.has(key+'soon'))
-        y0 = (h-(136 if with_soon else 96))//2
-        t = p.label(p.SIDE+38,y0,232,56,u.P(key+'clock.main'),'p_h3',p.ACCENT,extra=u.NOS)
-        t += u.text(p,p.SIDE+38,y0+56,232,40,u.P(key+'clock.ampm'),'p_foot',p.GREY)
-        if with_soon:
-            t += u.text(p,p.SIDE+38,y0+96,232,40,u.P(key+'soon'),'p_foot',p.GREY)
-        b += '<control type="group"><visible>%s</visible>%s</control>' % (visible,t)
-    b += p.textbox(355,top,570,title_h,u.P(key+'title'),'p_h3')
-    # A label-only horizontal group gives the league badge its natural width without clipping.
-    # The league's real logo on a small light tile (owner: logos, not letters); a neutral ring when it has none.
-    badge = ('<control type="group"><width>56</width><height>56</height>%s%s%s</control>') % (
-        p.image(0,0,56,56,p.MEDIA+'r21.png','FFF2F2F7',border=21),
-        p.image(7,7,42,42,u.P(key+'logo'),p.WHITE,'<aspectratio>keep</aspectratio><visible>%s</visible>'%u.has(key+'logo')),
-        p.image(16,16,24,24,p.MEDIA+'ring_20.png','FF8E8E93','<visible>!%s</visible>'%u.has(key+'logo')))
-    badge += ('<control type="label"><width>430</width><height>56</height><label>%s</label><font>p_foot</font>'
-              '<textcolor>%s</textcolor><aligny>center</aligny></control>') % (u.P(key+'sources'),p.GREY)
-    b += ('<control type="grouplist"><left>355</left><top>%d</top><width>570</width><height>56</height>'
-          '<orientation>horizontal</orientation><itemgap>21</itemgap><usecontrolcoords>true</usecontrolcoords>%s</control>') % (top+title_h+13,badge)
-    b += u.glyph(p,960,(h-32)//2,32,'chevron-right.png',p.GREY)
+def game_row(p, key, ident, form, width):
+    """One game row, the approved Apple Sports layout (docs/design/sports-list-rows.html): form 1 is two teams (logo, short name, record under it)
+    with the league tag over the start time between them; form 2 (a tournament or race: no second side) is its wrapped title and the same tag and time.
+    Type sizes are the policy's three: time 15 pt (p_pill), name 13 pt (p_foot_b), record and tag 11 pt (p_cap). The hub's Up next reuses it."""
+    h = ROW_H
+    colw = (width - TIME_W) // 2
+    mid = p.SIDE + colw
+    b = u.row_back(p, key, width, h)
+    b += u.tap(p, ident, p.SIDE, 0, width, h)
+    if form == 1:
+        for side, x in (('away', p.SIDE), ('home', mid + TIME_W)):
+            k = key + side + '.'
+            lx = x + (colw - LOGO) // 2
+            b += p.image(lx, 28, LOGO, LOGO, u.P(k + 'logo'), p.WHITE, '<aspectratio>keep</aspectratio><visible>%s</visible>' % u.has(k + 'logo'))
+            b += p.image(lx + 23, 51, 40, 40, p.MEDIA + 'ring_20.png', 'FF8E8E93', '<visible>%s</visible>' % u.neg(u.has(k + 'logo')))
+            b += u.text(p, x, 120, colw, 46, u.P(k + 'name'), 'p_foot_b', p.WHITE, 'center')
+            b += u.text(p, x, 166, colw, 40, u.P(k + 'rec'), 'p_cap', p.GREY, 'center')
+        tx = mid
+    else:
+        b += p.textbox(p.SIDE + 43, 36, width - TIME_W - 130, 156, u.P(key + 'title'), 'p_foot_b', p.WHITE)
+        tx = p.SIDE + width - TIME_W - 30
+    b += u.text(p, tx, 38, TIME_W, 40, u.P(key + 'tag'), 'p_cap', p.GREY, 'center')
+    b += u.text(p, tx, 80, TIME_W, 56, u.P(key + 'clock'), 'p_pill', p.WHITE, 'center')
     return b
 
 
