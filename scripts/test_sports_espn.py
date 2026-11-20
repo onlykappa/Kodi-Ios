@@ -130,12 +130,48 @@ class Provider(unittest.TestCase):
         p = self.provider(answers=self.answers())
         p.live_games()
         nba = [u for u in p.calls if 'basketball/nba' in u]
-        self.assertEqual(len(nba), 2)
+        self.assertEqual(len(nba), 3)      # the plain scoreboard (it lags), today's date, tomorrow's date
         self.assertTrue(nba[0].endswith('/scoreboard'))
         self.assertRegex(nba[1], r'scoreboard\?dates=\d{8}$')
+        self.assertRegex(nba[2], r'scoreboard\?dates=\d{8}$')
+        self.assertLess(nba[1].split('dates=')[-1], nba[2].split('dates=')[-1])
         self.assertFalse(any('-' in u.split('dates=')[-1] for u in p.calls if 'dates=' in u))   # the feed answers a range with HTTP 400
         # the same event in both answers is one game
         self.assertEqual(len([g for g in p.upcoming_games('NBA')]), 2)
+
+    def test_todays_games_show_when_the_plain_scoreboard_still_answers_yesterday(self):
+        # ISSUE-399 (owner, 2026-11-20 7:24 AM Pacific): ESPN's plain scoreboard still answered the finished 2026-11-19 slate at 10:25 ET, so the page said
+        # "Nothing live, next game tomorrow" while that day's games were on Apple Sports. Today's own date is asked as well.
+        import time as _t
+        now = int(_t.mktime((2026, 11, 20, 15, 25, 0, 0, 0, 0))) - _t.timezone   # 15:25 UTC on the 20th (10:25 ET)
+        asked = []
+        late = int(_t.mktime((2026, 11, 21, 0, 0, 0, 0, 0, 0))) - _t.timezone     # 00:00 UTC on the 21st: 4 PM Pacific on the 20th, a game still to come
+
+        def fetch(url):
+            asked.append(url)
+            if 'basketball/nba' not in url:
+                return body()
+            if url.endswith('/scoreboard'):   # the lagging plain answer: only the day before, finished
+                return body(event('old', '2026-11-20T01:00Z', 'post', team('GSW', 'Golden State Warriors', '90', False), team('MEM', 'Memphis Grizzlies', '95'), kind='STATUS_FINAL'))
+            if url.endswith('dates=20261120'):
+                return body(event('today1', _t.strftime('%Y-%m-%dT%H:%MZ', _t.gmtime(late)), 'pre', team('CHA', 'Charlotte Hornets', '0', False), team('ATL', 'Atlanta Hawks')))
+            return body()
+        p = se.EspnProvider(fetch=fetch, clock=lambda: now)
+        nba = [g['id'] for g in p.upcoming_games('NBA')]
+        self.assertEqual(nba, ['espn:NBA:today1'])
+        self.assertTrue(any(u.endswith('dates=20261120') for u in asked) and any(u.endswith('dates=20261121') for u in asked))
+
+    def test_the_feeds_day_is_the_us_eastern_day(self):
+        import time as _t
+        now = int(_t.mktime((2026, 11, 21, 3, 0, 0, 0, 0, 0))) - _t.timezone     # 03:00 UTC on the 21st = 22:00 ET on the 20th
+        asked = []
+        p = se.EspnProvider(fetch=lambda url: asked.append(url) or body(), clock=lambda: now)
+        try:
+            p.live_games()
+        except Exception:
+            pass
+        nba = [u.split('dates=')[-1] for u in asked if 'basketball/nba' in u and 'dates=' in u]
+        self.assertEqual(nba, ['20261120', '20261121'])
 
     def test_tomorrow_failing_keeps_the_first_answer(self):
         answers = self.answers()
