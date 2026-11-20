@@ -60,6 +60,7 @@ def record(player,read,write,now=time.time,choice=None,preserve_player=False):
  entry['player']=old.get('player') if preserve_player and old.get('player') in ('umbrella','elementum') else choice or old.get('player')
  if choice:entry['playback_source']=choice
  if old.get('version') and entry['player']==old.get('player'):entry['version']=old['version']
+ if old.get('stream') and entry['player']==old.get('player'):entry['stream']=old['stream']
  if not entry['player']:del entry['player']
  data['items'][key(entry)]=entry;data['current']=key(entry);save(data,write)
  return key(entry)
@@ -81,11 +82,15 @@ def record_downloaded_movie(params,path,position,total,read,write,now=time.time,
  if art:entry['art']={k:v for k,v in art.items() if k in ('poster','fanart','landscape','thumb','clearlogo') and v}
  data['items'][item_key]=entry;data['current']=item_key;save(data,write);return item_key
 
-def update(read,write,position,total,now=time.time):
- """Progress of the title the chooser last started (bootstrap service, while video plays)."""
+def update(read,write,position,total,now=time.time,stream=None):
+ """Progress of the title the chooser last started (bootstrap service, while video plays). `stream` is the address the video is playing from when it is
+ a remote link (never the phone's own proxy): kept for Umbrella titles so Continue can resume from it without asking Umbrella again (fast_stream)."""
  data=load(read);entry=data['items'].get(data.get('current'))
  if not entry or total<=0:return None
- entry.update(position=round(position),total=round(total),played=now());save(data,write)
+ entry.update(position=round(position),total=round(total),played=now())
+ if stream and entry.get('player')=='umbrella' and str(stream).startswith(('http://','https://')) and not str(stream).startswith(('http://127.0.0.1','http://localhost')):
+  if (entry.get('stream') or {}).get('url')!=stream:entry['stream']={'url':str(stream),'at':now()}   # when this link was first seen: it is the link's age that matters
+ save(data,write)
  return entry
 
 WATCHED_KEEP=2000

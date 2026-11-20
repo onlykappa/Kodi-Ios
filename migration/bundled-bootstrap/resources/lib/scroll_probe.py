@@ -26,21 +26,39 @@ class Probe:
         self.fps, self.touched, self.current, self.log, self.busy = fps, touched, current, log, busy
         self.samples = {}   # (window id, name) -> [fps]
         self.last = None
+        self.looked, self.said, self.seen = 0, False, False
 
     def tick(self):
         """One sample. Never raises: a probe must not disturb the screen it measures."""
         try:
-            if self.busy() or not self.touched():
+            if self.busy():
+                return
+            touched = bool(self.touched())
+            self.looked += 1
+            if not touched:
+                if self.looked % 150 == 1 and not self.said:   # build 618 logged no line at all: say what the two readings were, once
+                    self.said = True
+                    self.log('Kodi iOS scroll probe: idle (touch reading %s, System.FPS %r)' % (touched, self.reading()))
                 return
             key = self.current()
             if self.last is not None and key != self.last:
                 self.flush(self.last)
             self.last = key
-            value = float(self.fps())
+            raw = self.fps()
+            value = float(raw)
+            if not self.seen:
+                self.seen = True
+                self.log('Kodi iOS scroll probe: first touched reading System.FPS %r' % (raw,))
             if value > 0:
                 self.samples.setdefault(key, []).append(value)
         except Exception:
             pass
+
+    def reading(self):
+        try:
+            return self.fps()
+        except Exception:
+            return None
 
     def flush(self, only=None):
         for key in ([only] if only is not None else list(self.samples)):

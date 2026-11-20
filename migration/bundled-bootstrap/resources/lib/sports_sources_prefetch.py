@@ -59,15 +59,23 @@ class Prefetch:
             self.log('prefetch: %s failed (%s)' % (gid, type(error).__name__))
 
 
-def watch(get_provider, busy, wait, log=lambda text: None, every=EVERY, first=20):
-    """The service loop; `wait(seconds)` returns True when Kodi is quitting."""
+def watch(get_provider, busy, wait, log=lambda text: None, every=EVERY, first=20, poke=lambda: False):
+    """The service loop; `wait(seconds)` returns True when Kodi is quitting. `poke()` is True once when a Sports page has just been opened: the look
+    then happens at once instead of at the next minute (owner, build 618: tapping a live game said "Searching for sources" for a minute)."""
     prefetch = Prefetch(get_provider, busy, log)
-    if wait(first):
-        return
+    waited, limit = 0, first
     while True:
+        if wait(1):
+            return
+        waited += 1
+        try:
+            poked = bool(poke())
+        except Exception:
+            poked = False
+        if waited < limit and not poked:
+            continue
+        waited, limit = 0, every
         try:
             prefetch.tick()
         except Exception as error:
             log('prefetch: tick failed (%s)' % type(error).__name__)
-        if wait(every):
-            return

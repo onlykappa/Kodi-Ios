@@ -92,6 +92,7 @@ class Fake:
         self.folder, self.props, self.calls, self.notes = folder, {}, [], []
         self.subs = streams()
         self.current, self.enabled = 0, True
+        self.item = {'title': 'Film', 'year': 2019, 'file': 'Film.2019.1080p.mkv', 'uniqueid': {}}
 
     def rpc(self, text):
         request = json.loads(text)
@@ -104,7 +105,7 @@ class Fake:
             result = {'subtitles': list(self.subs), 'currentsubtitle': {'index': self.current}, 'subtitleenabled': self.enabled,
                       'audiostreams': [], 'currentaudiostream': {}}
         elif method == 'Player.GetItem':
-            result = {'item': {'title': 'Film', 'year': 2019, 'file': 'Film.2019.1080p.mkv', 'uniqueid': {}}}
+            result = {'item': dict(self.item)}
         elif method == 'Player.SetSubtitle':
             self.enabled = params.get('subtitle') != 'off'
             self.current = params['subtitle'] if self.enabled else None
@@ -113,6 +114,10 @@ class Fake:
         elif method == 'Settings.GetSettingValue':
             result = {'value': 'default' if 'locale' in params.get('setting', '') else ['English']}
         return json.dumps({'jsonrpc': '2.0', 'id': 1, 'result': result})
+
+
+HOME_PROPS = {}
+FIND_CALLS = []
 
 
 def drive(scenario, fake, found=2):
@@ -176,7 +181,7 @@ def drive(scenario, fake, found=2):
         Player=lambda: types.SimpleNamespace(getTotalTime=lambda: 7200, setSubtitles=lambda path: None))
     gui = types.SimpleNamespace(
         WindowXMLDialog=Window, ListItem=Item, NOTIFICATION_INFO=1,
-        Window=lambda ident: types.SimpleNamespace(setProperty=lambda *a: None, clearProperty=lambda *a: None, getProperty=lambda k: ''),
+        Window=lambda ident: types.SimpleNamespace(setProperty=lambda *a: None, clearProperty=lambda *a: None, getProperty=lambda k: HOME_PROPS.get(k, '')),
         Dialog=lambda: types.SimpleNamespace(notification=lambda title, *a: notes.append(title)))
     vfs = types.SimpleNamespace(translatePath=lambda path: fake.folder + os.sep)
     results = [{'id': str(n), 'releases': ['Film.2019.rel%d' % n], 'impaired': False, 'match_reason': '', 'match_rejected': False} for n in range(found)]
@@ -184,7 +189,7 @@ def drive(scenario, fake, found=2):
             patch.object(tracks, 'player_id', return_value=1), \
             patch.object(tracks, 'subtitle_language', return_value=('en', 'English')), \
             patch.object(tracks, 'keys_tag', return_value='SET'), \
-            patch('subtitle_sources.find', side_effect=lambda *a, **k: list(results) if found else []), \
+            patch('subtitle_sources.find', side_effect=lambda *a, **k: (FIND_CALLS.append(a), list(results) if found else [])[1]), \
             patch('subtitle_sources.load_keys', return_value={}), \
             patch('subtitle_sources.sources', return_value=['subdl']):
         tracks.run('subtitles')
@@ -284,6 +289,29 @@ class Flows(unittest.TestCase):
             menu.fill()
             self.assertEqual([r['label'] for r in menu.rows], ['Off', 'Spanish'])
         drive(scenario, self.fake)
+
+    def test_the_search_uses_what_the_playing_add_on_knew_when_kodis_item_lacks_it(self):
+        # Build 618 log: a Drive episode searched as 'Trust Fall' with season and episode None, SubDL found 0.
+        import json as _json
+        self.fake.item = {'title': 'Trust Fall', 'file': 'http://127.0.0.1:50465/x', 'uniqueid': {}}
+        HOME_PROPS['KodiIOS.Playing'] = _json.dumps({'t': time.time(), 'kind': 'episode', 'title': 'Trust Fall', 'show': 'Some Show', 'season': 1, 'episode': 2, 'year': 2021, 'tmdb': '95350'})
+        FIND_CALLS.clear()
+        self.addCleanup(HOME_PROPS.clear)
+
+        def scenario(menu):
+            menu.search()
+        drive(scenario, self.fake)
+        title, year, season, episode, tmdb = FIND_CALLS[0][3], FIND_CALLS[0][4], FIND_CALLS[0][5], FIND_CALLS[0][6], FIND_CALLS[0][8]
+        self.assertEqual((title, season, episode, tmdb), ('Some Show', 1, 2, '95350'))
+
+    def test_a_stale_or_different_video_is_not_used(self):
+        import json as _json
+        self.fake.item = {'title': 'Another Film', 'year': 2019, 'file': 'Another.Film.2019.mkv', 'uniqueid': {}}
+        HOME_PROPS['KodiIOS.Playing'] = _json.dumps({'t': time.time(), 'kind': 'episode', 'title': 'Trust Fall', 'show': 'Some Show', 'season': 1, 'episode': 2, 'tmdb': '95350'})
+        FIND_CALLS.clear()
+        self.addCleanup(HOME_PROPS.clear)
+        drive(lambda menu: menu.search(), self.fake)
+        self.assertEqual((FIND_CALLS[0][3], FIND_CALLS[0][5], FIND_CALLS[0][8]), ('Another Film', None, None))
 
     def test_cancel_removes_nothing(self):
         def scenario(menu):

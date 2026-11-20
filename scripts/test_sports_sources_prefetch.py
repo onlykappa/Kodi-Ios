@@ -52,4 +52,20 @@ class Prefetch(unittest.TestCase):
         p.get_provider=lambda:type('P',(),{'live_games':lambda s,league=None:(_ for _ in ()).throw(RuntimeError('x'))})()
         self.assertIsNone(p.tick())
 
+class Watch(unittest.TestCase):
+    """A Sports page opened pokes the loop: the look happens at once, not at the next minute (owner, build 618)."""
+    def run_watch(self,pokes,seconds):
+        ticks=[];clock={'n':0}
+        class Provider:
+            def live_games(self,league=None):ticks.append(clock['n']);return []
+        def wait(step):
+            clock['n']+=step;return clock['n']>seconds
+        poked=iter(pokes)
+        pf.watch(lambda:Provider(),lambda:False,wait,every=60,first=20,poke=lambda:next(poked,False))
+        return ticks
+    def test_without_a_poke_it_looks_after_the_first_wait_and_then_every_minute(self):
+        self.assertEqual(self.run_watch([],140)[:3],[20,80,140])
+    def test_a_poke_looks_at_once(self):
+        self.assertEqual(self.run_watch([False,False,True],10)[0],3)
+
 if __name__=='__main__':unittest.main()

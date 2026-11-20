@@ -219,6 +219,8 @@ def run(args=()):
             self.chosen, self.codes, self.slots, self.busy = (args[0] if args else 'All'), [], {}, threading.Lock()   # a league page starts on its chip
             self.setProperty('sub', 'Updating')
             self.fetch(False)
+            import sports_fresh
+            sports_fresh.start(sports_provider.get(), self.stop, lambda: self.fetch(False, quiet=True))
             threading.Thread(target=self.loop, daemon=True).start()
 
         def loop(self):

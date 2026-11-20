@@ -56,6 +56,10 @@ class Opening:
                 if self.owner and self.home.getProperty(OWNER)!=self.owner:
                     self.close();return
                 if self.started.is_set():self.close();return
+                try:   # this card is the loader: Crew's own busy circle drew over its text (owner, build 618)
+                    for name in ('busydialognocancel','busydialog'):
+                        if xbmc.getCondVisibility('Window.IsVisible(%s)'%name):xbmc.executebuiltin('Dialog.Close(%s)'%name)
+                except Exception:pass
                 elapsed=int(time.monotonic()-self.began)
                 self.window.setProperty('elapsed','%d seconds elapsed'%elapsed)
                 if elapsed>=10:self.window.setProperty('detail','This source is taking longer than usual. You can cancel.')

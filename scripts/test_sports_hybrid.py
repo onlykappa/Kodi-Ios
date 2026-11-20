@@ -192,5 +192,38 @@ class Refresh(unittest.TestCase):
         self.assertLessEqual(sports_hybrid.TTL, 10)
 
 
+class SharedSources(unittest.TestCase):
+    """Owner, build 618: a live game's page searched again for a minute although the service's prefetch had found its sources (separate providers)."""
+    def test_sources_one_provider_found_are_there_for_another(self):
+        text={'v':''};read=lambda:text['v'];write=lambda value:text.__setitem__('v',value)
+        a=sports_hybrid.HybridProvider(_Fake(),lambda game:[{'id':'s1','play':'x'}],clock=lambda:1000.0,store=(read,write))
+        token=a.request_game('g1')
+        for _ in range(100):
+            if not a.searching_game('g1',token):break
+            import time;time.sleep(.01)
+        b=sports_hybrid.HybridProvider(_Fake(),lambda game:self.fail('no new search'),clock=lambda:1010.0,store=(read,write))
+        self.assertEqual([x['id'] for x in b.game('g1')['sources']],['s1'])
+        self.assertFalse(b.searching_game('g1',b.request_game('g1')))      # nothing to look for: it is "done" at once
+    def test_a_stale_shared_list_is_ignored_and_only_the_newest_games_are_kept(self):
+        import json
+        text={'v':json.dumps({'old':{'at':1.0,'sources':[{'id':'s'}]}})};read=lambda:text['v'];write=lambda value:text.__setitem__('v',value)
+        p=sports_hybrid.HybridProvider(_Fake(),lambda game:[],clock=lambda:1000.0+sports_hybrid.FOUND_TTL+5,store=(read,write))
+        self.assertEqual(p.game('g1')['sources'],[])
+        for n in range(sports_hybrid.FOUND_MAX+3):p._publish('g%d'%n,[{'id':'s'}])
+        self.assertLessEqual(len(json.loads(text['v'])),sports_hybrid.FOUND_MAX)
+    def test_a_corrupt_shared_text_never_breaks_a_page(self):
+        text={'v':'{not json'};p=sports_hybrid.HybridProvider(_Fake(),lambda game:[],store=(lambda:text['v'],lambda value:None))
+        self.assertEqual(p.game('g1')['sources'],[])
+
+
+class _Fake:
+    def refresh(self):pass
+    def game(self,gid):return {'id':gid,'state':'live','league':'NCAAB','start':1,'away':{'name':'a'},'home':{'name':'b'}}
+    def live_games(self,league=None):return [self.game('g1')]
+    def upcoming_games(self,league=None):return []
+    def leagues(self):return []
+    def overview(self):return {'updated':0}
+
+
 if __name__ == '__main__':
     unittest.main()

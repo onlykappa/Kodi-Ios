@@ -307,6 +307,11 @@ def continue_position(kind,tmdb_id,season,episode,read=None):
   return 0,0
 
 def fast_copy(handle,params,read_art=None,find=None,play=None,resume=None):
+ """A copy on the phone or Drive plays first (_fast_local); failing that, an Umbrella title being continued resumes from the link it was playing (fast_stream)."""
+ if _fast_local(handle,params,read_art,find,play,resume):return True
+ return fast_stream(handle,params)
+
+def _fast_local(handle,params,read_art=None,find=None,play=None,resume=None):
  """Roadmap 1C.2 (owner logs: 1.4-2.1 s in TMDb Helper before a downloaded copy played): Next Episode, spotlight
  Play, show pages and Continue Watching play a copy already on the phone or Drive before TMDb Helper fetches details
  and builds its players. Only from saved data (art cache, saved Drive listing). Owner log 20b1ca76 (build 284): a
@@ -348,4 +353,61 @@ def fast_copy(handle,params,read_art=None,find=None,play=None,resume=None):
   return True
  except Exception as error:
   _quiet('ios_watch_dialog:fast_copy',error)
+  return False
+
+STREAM_FRESH=4*3600   # seconds a remembered Umbrella link is tried again (a debrid link lives for hours; the check below says when it does not)
+
+def _link_alive(url,timeout=3):
+ """True when the remembered link still answers a one-byte ranged read. Nothing of the address reaches the log."""
+ import urllib.request,urllib.parse
+ address,_,tail=url.partition('|');headers={'Range':'bytes=0-0'}
+ headers.update({k:v for k,v in urllib.parse.parse_qsl(tail)})   # Kodi's own `|Header=value` suffix
+ try:
+  with urllib.request.urlopen(urllib.request.Request(address,headers=headers),timeout=timeout) as answer:
+   return answer.status in (200,206)
+ except Exception:return False
+
+def fast_stream(handle,params,read=None,alive=None,play=None,now=None):
+ """Continue an Umbrella title from the link it was playing, without asking TMDb Helper or Umbrella again (owner, build 618: continuing a show still took
+ 15 s: details 2 s, Umbrella 3 s, resolving 2 s, the cache wait 2 s and the server's slow start). Only when Continue started it (ios_continue), the video was
+ last played through Umbrella within STREAM_FRESH, there is a place to resume and the link still answers; otherwise the normal way runs, as before."""
+ if params.get('ios_continue')!='1' or params.get('ios_choose')=='1':return False
+ tmdb_type=params.get('tmdb_type');tmdb_id=str(params.get('tmdb_id') or '')
+ if tmdb_type not in ('movie','tv') or not tmdb_id.isdigit():return False
+ season,episode=str(params.get('season') or ''),str(params.get('episode') or '')
+ if tmdb_type=='tv' and not (season.isdigit() and episode.isdigit()):return False
+ try:
+  import time,ios_continue
+  now=now or time.time
+  if read is None:
+   import xbmcvfs
+   def read(location):
+    source=xbmcvfs.File(location)
+    try:return source.read()
+    finally:source.close()
+  kind='movie' if tmdb_type=='movie' else 'episode'
+  data=ios_continue.load(read);item_key=ios_continue.key({'kind':kind,'tmdb_id':tmdb_id,'season':season,'episode':episode})
+  entry=data['items'].get(item_key) or {}
+  stream=entry.get('stream') or {};url=str(stream.get('url') or '')
+  if entry.get('player')!='umbrella' or not url.startswith(('http://','https://')):return False
+  if now()-float(stream.get('at') or 0)>STREAM_FRESH:return False
+  position,total=float(entry.get('position') or 0),float(entry.get('total') or 0)
+  if position<5 or (total and position>=0.92*total):return False   # nothing to resume: the normal way finds a fresh link
+  if not (alive or _link_alive)(url):return False
+  if play is None:
+   import ios_library
+   play=ios_library.play_stream
+  play(handle if handle is not None else -1,entry,url,position,total)
+  try:
+   import xbmc,xbmcvfs
+   xbmc.log('Kodi iOS watch: continued %s from its last Umbrella link (Umbrella skipped)'%kind,xbmc.LOGINFO)
+   def write(location,text):
+    target=xbmcvfs.File(location,'w')
+    try:target.write(text)
+    finally:target.close()
+   data['current']=item_key;ios_continue.save(data,write)   # the progress tracker follows this title
+  except ImportError:pass
+  return True
+ except Exception as error:
+  _quiet('ios_watch_dialog:fast_stream',error)
   return False

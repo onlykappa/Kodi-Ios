@@ -286,7 +286,11 @@ def run():
    if xbmc.Player().isPlayingVideo() or home.getProperty('KodiIOS.SportsCrewOnlyLeague'):return True
    try:return time.time()-float(home.getProperty('KodiIOS.SportsSeen') or 0)>3*3600
    except ValueError:return True
-  sports_sources_prefetch.watch(sports_provider.get,busy,monitor.waitForAbort,log=lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO))
+  def poke():
+   if home.getProperty('KodiIOS.SportsPoke'):
+    home.clearProperty('KodiIOS.SportsPoke');return True
+   return False
+  sports_sources_prefetch.watch(sports_provider.get,busy,monitor.waitForAbort,log=lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO),poke=poke)
  threading.Thread(target=sports_prefetch_loop,daemon=True).start()
  # Safety net: a modal busy dialog nobody lowers is closed after 4 s unless a video is opening or playing (busy_watchdog.py).
  def busy_watchdog_loop():

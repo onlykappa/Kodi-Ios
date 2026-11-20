@@ -243,11 +243,16 @@ def fetch_json(url, timeout=TIMEOUT):
         return json.loads(raw.decode('utf-8', 'replace'))
 
 
+SNAPSHOT_KEEP = 6 * 3600   # seconds a remembered answer may still be drawn first
+
+
 class EspnProvider:
     """The contract's provider over the ESPN feed. `fetch(url)` is injectable (tests)."""
 
-    def __init__(self, fetch=None, clock=time.time, leagues=None):
+    def __init__(self, fetch=None, clock=time.time, leagues=None, snapshot_path=None):
         self.fetch, self.clock = fetch, clock   # None: fetch_json, looked up at each call
+        self.snapshot_path = snapshot_path      # the last answer is kept here, so a page opened after a restart draws it at once (owner: "a black screen for a second")
+        self.saved_at = 0.0
         self.ttl = TTL   # the phone's provider lowers it (sports_hybrid.TTL) so scores stay live
         self.league_defs = tuple(entry for entry in LEAGUES if leagues is None or entry[0] in leagues)
         self.lock = threading.Lock()
@@ -261,10 +266,61 @@ class EspnProvider:
         except ImportError:
             pass
 
+    # -- the last answer on disk
+    def _read_disk(self):
+        try:
+            import json
+            with open(self.snapshot_path, encoding='utf-8') as handle:
+                data = json.load(handle)
+            if isinstance(data, dict) and all(key in data for key in ('at', 'live', 'upcoming', 'leagues')) and self.clock() - data['at'] < SNAPSHOT_KEEP:
+                return data
+        except (OSError, ValueError, TypeError):
+            pass
+        return None
+
+    def _write_disk(self, snapshot):
+        if not self.snapshot_path or self.clock() - self.saved_at < 15:
+            return
+        try:
+            import json
+            import os
+            import tempfile
+            folder = os.path.dirname(self.snapshot_path) or '.'
+            os.makedirs(folder, exist_ok=True)
+            handle, temp = tempfile.mkstemp(dir=folder)
+            with os.fdopen(handle, 'w', encoding='utf-8') as out:
+                json.dump(snapshot, out, separators=(',', ':'), default=str)
+            os.replace(temp, self.snapshot_path)
+            self.saved_at = self.clock()
+        except (OSError, TypeError, ValueError):
+            pass
+
+    def remembered(self):
+        """True while the answer on offer is the one kept from last time (or one is waiting on disk to be offered): the real one is on its way."""
+        if self.snapshot is not None:
+            return bool(self.snapshot.get('remembered'))
+        return bool(self.snapshot_path) and self._read_disk() is not None
+
+    def _refresh_later(self):
+        def run():
+            try:
+                self._load(force=True)
+            except Exception as error:
+                self._log('background refresh: %s' % type(error).__name__)
+        threading.Thread(target=run, daemon=True).start()
+
     # -- loading
     def _load(self, force=False):
         with self.lock:
             now = int(self.clock())
+            if not force and self.snapshot is None and self.snapshot_path:
+                remembered = self._read_disk()
+                if remembered:   # the first read after a start: what was true last time, now; the real answer follows in the background
+                    self.snapshot = dict(remembered, remembered=True)
+                    self._refresh_later()
+                    return self.snapshot
+            if not force and self.snapshot and self.snapshot.get('remembered'):
+                return self.snapshot
             if not force and self.snapshot and now - self.snapshot['at'] < self.ttl:
                 return self.snapshot
             days = [_date(now - FEED_DAY_SHIFT + d * 86400) for d in EXTRA_DAYS]
@@ -308,6 +364,7 @@ class EspnProvider:
                     return self.snapshot   # the last good answer is better than none
                 raise sm.SportsUnavailable('no league answered')
             self.snapshot = {'at': now, 'live': live, 'upcoming': upcoming, 'leagues': leagues, 'finished': finished}
+            self._write_disk(self.snapshot)
             return self.snapshot
 
     # -- the contract

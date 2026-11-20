@@ -158,6 +158,9 @@ def run(args=()):
                         self.finish()
                         return
             threading.Thread(target=watch_handoff, daemon=True).start()
+            import sports_fresh
+            if sports_fresh.remembered(sports_provider.get()):
+                self.fetch(False)   # last time's answer at once, the real one right behind it
             self.fetch(True)
             def refresh_loop():   # the hub keeps itself current: live count, next game, up next (owner: times must be live)
                 import page_wait

@@ -45,6 +45,7 @@ def subtitle_tracks(data):
     moov = _find(data, 0, len(data), b'moov')
     if not moov:
         return out
+    fragmented = _find(data, moov[0], moov[1], b'mvex') is not None   # a fragmented file keeps its samples in moof boxes: the moov counts 0 for every track
     for kind, a, b in _boxes(data, moov[0], moov[1]):
         if kind != b'trak':
             continue
@@ -72,7 +73,7 @@ def subtitle_tracks(data):
             if stsd:
                 info['codec'] = bytes(data[stsd[0] + 12:stsd[0] + 16]).decode('ascii', 'replace')
             stsz = _find(data, stbl[0], stbl[1], b'stsz') if stbl else None
-            if stsz and stsz[0] + 12 <= stsz[1]:   # how many subtitle samples the track holds: 0 or 1 is an empty track that draws nothing
+            if stsz and not fragmented and stsz[0] + 12 <= stsz[1]:   # how many subtitle samples the track holds: 0 or 1 is an empty track that draws nothing
                 info['samples'] = struct.unpack_from('>I', data, stsz[0] + 8)[0]
             out.append(info)
         except (struct.error, IndexError):
