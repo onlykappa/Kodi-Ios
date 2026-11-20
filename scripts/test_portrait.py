@@ -373,7 +373,7 @@ class ServiceTests(unittest.TestCase):
    def getTime(self):return 600
    def getTotalTime(self):return 1200
   class Store:
-   def update(self,read,write,position,total):calls.append(('update',position,total))
+   def update(self,read,write,position,total,stream=None):calls.append(('update',position,total))
    def stopped(self,read,write):calls.append(('stopped',))
   player=Player();tick=portrait.progress_tracker(player,Store(),None,None,lambda:next(clock))
   tick();player.playing=False;tick()

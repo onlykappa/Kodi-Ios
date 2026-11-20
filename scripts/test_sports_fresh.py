@@ -21,14 +21,14 @@ class Disk(unittest.TestCase):
             return answers[0]
         p=se.EspnProvider(fetch=fetch,clock=lambda:now[0],leagues={'NHL'},snapshot_path=path);p.calls=calls;return p
     def test_a_fetched_answer_is_kept_and_a_new_start_offers_it_without_waiting(self):
-        with tempfile.TemporaryDirectory() as d:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
             path=os.path.join(d,'s','snap.json');first=self.make(path,[board()])
             first.refresh();self.assertTrue(os.path.exists(path));self.assertFalse(first.remembered())
             second=self.make(path,[board()]);self.assertTrue(second.remembered())
             started=time.monotonic();second.upcoming_games();self.assertLess(time.monotonic()-started,1)
             self.assertTrue(second.snapshot.get('remembered') or not second.remembered())
     def test_the_remembered_answer_is_replaced_by_the_real_one_in_the_background(self):
-        with tempfile.TemporaryDirectory() as d:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
             path=os.path.join(d,'snap.json');self.make(path,[board()]).refresh()
             slow=threading.Event();second=self.make(path,[board()])
             second.upcoming_games()                      # remembered, offered at once
@@ -37,12 +37,12 @@ class Disk(unittest.TestCase):
                 time.sleep(.01)
             self.assertFalse(second.remembered());self.assertTrue(second.calls)   # the real fetch ran by itself
     def test_an_offline_start_keeps_offering_the_remembered_answer(self):
-        with tempfile.TemporaryDirectory() as d:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
             path=os.path.join(d,'snap.json');self.make(path,[board()]).refresh()
             second=self.make(path,[])
             self.assertEqual(len(second.upcoming_games()),1)
     def test_an_old_or_corrupt_file_is_ignored(self):
-        with tempfile.TemporaryDirectory() as d:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
             path=os.path.join(d,'snap.json');Path(path).write_text('{no')
             self.assertFalse(self.make(path,[board()]).remembered())
             Path(path).write_text(json.dumps({'at':1,'live':[],'upcoming':[],'leagues':[]}))
