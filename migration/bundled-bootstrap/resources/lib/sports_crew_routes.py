@@ -198,6 +198,7 @@ class CrewSource:
         began = time.monotonic()
         pending, visited, emitted, items = [(self.route, 0, None, [{'address':self.route, 'label':self.name}])], set(), set(), []
         failures = 0
+        unmatched = [0]   # event-looking titles (two teams) Crew showed that matched no game: counted, never named
         import sports_crew_context
         home = _home()
         def active():
@@ -247,6 +248,7 @@ class CrewSource:
                     continue
                 pair = common.title_pair(title)
                 game = match_game(title, self.games) if pair else parent_game
+                if pair and not game and not entry.get('filetype') == 'directory':unmatched[0] += 1
                 if entry.get('filetype') == 'directory':
                     # Do not walk a different/ambiguous game under an inherited match.
                     if depth < MAX_DEPTH and (not pair or game):
@@ -263,6 +265,7 @@ class CrewSource:
                              starttime=datetime.fromtimestamp(game['start']), links=[CrewLink(address, menu_path, game)]))
             yield list(items)
         import sports_jet
+        sports_jet.log('jet: %s: %d event-looking titles matched no live game' % (self.name, unmatched[0]))
         sports_jet.log('jet: %s: %d folders, %d unavailable, %d matched streams in %.2fs' % (self.name, len(visited), failures, len(items), time.monotonic() - began))
         yield list(items)
 
