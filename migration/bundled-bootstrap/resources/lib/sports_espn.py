@@ -15,9 +15,12 @@ from concurrent.futures import ThreadPoolExecutor
 import sports_model as sm
 
 BASE = 'https://site.api.espn.com/apis/site/v2/sports/%s/scoreboard'
-# The feed answers a date range with HTTP 400, a single date and the plain scoreboard (today, or the whole week for the NFL) with 200. So each league is
-# asked twice: the plain scoreboard and tomorrow's date (the answers are merged by event id).
-EXTRA_DAYS = (1,)
+# The feed answers a date range with HTTP 400, a single date and the plain scoreboard with 200. The plain scoreboard is the feed's own idea of "today" and
+# it lags: on 2026-11-20 at 10:25 ET it still answered the finished 2026-11-19 slate, so the owner's Sports page said "Nothing live, next game tomorrow"
+# while that day's games (4:00 PM onwards) were on Apple Sports (ISSUE-399). So each league is asked three times: the plain scoreboard, today's date and
+# tomorrow's (the answers are merged by event id). The feed's days are US Eastern days: a game that starts at 01:00 UTC belongs to the previous day.
+EXTRA_DAYS = (0, 1)
+FEED_DAY_SHIFT = 5 * 3600   # seconds from UTC to the feed's day (US Eastern, standard time)
 TTL = 45           # seconds a fetched answer is reused (a page asks three or four things in a row)
 TIMEOUT = 8        # seconds for one league
 UA = 'KodiIOS/1.0'
@@ -264,7 +267,7 @@ class EspnProvider:
             now = int(self.clock())
             if not force and self.snapshot and now - self.snapshot['at'] < self.ttl:
                 return self.snapshot
-            days = [_date(now + d * 86400) for d in EXTRA_DAYS]
+            days = [_date(now - FEED_DAY_SHIFT + d * 86400) for d in EXTRA_DAYS]
             jobs = [(entry, [BASE % entry[3]] + ['%s?dates=%s' % (BASE % entry[3], day) for day in days]) for entry in self.league_defs]
 
             def one(job):
