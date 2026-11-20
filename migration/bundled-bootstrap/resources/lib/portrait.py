@@ -1101,6 +1101,12 @@ def video_nav(original):
   '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout>'
   '<content>plugin://plugin.video.themoviedb.helper/?info=seasons&amp;tmdb_type=tv&amp;tmdb_id=$INFO[Container(52).ListItem.Property(tvshow.tmdb_id)]</content>'
   '</control>')%(SIDE,WIDTH-SIDE,SEASON_EPISODES,season_chip(False),season_chip(True))
+ library_chips=('<control type="list" id="47"><left>%d</left><top>0</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
+  '<ondown>52</ondown><onup>9001</onup><scrolltime tween="cubic">250</scrolltime><visible>%s</visible>'
+  '<onclick>Action(ParentDir)</onclick><onclick>Container.Update($INFO[ListItem.FolderPath])</onclick>'
+  '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout>'
+  '<content>$INFO[Container(52).ListItem.Property(KodiIOS.SeasonsPath)]</content>'
+  '</control>')%(SIDE,WIDTH-SIDE,SEASON_EPISODES_LIBRARY,season_chip(False),season_chip(True))
  episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
   '<itemlayout height="420">%s</itemlayout><focusedlayout height="420">%s</focusedlayout>%s</control>')
@@ -1124,7 +1130,7 @@ def video_nav(original):
  show_page=('<control type="grouplist" id="9900"><left>0</left><top>0</top><width>%d</width><height>%d</height>'
   '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'
-  '%s%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,episode_chips,
+  '%s%s%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,episode_chips,library_chips,
   episodes%(60,0,WIDTH,HEIGHT,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'),
   episodes%(52,0,WIDTH,HEIGHT,'9002','Container.Content(episodes)',episode_item(False),episode_item(True),''))
  # Owner (build 229): "If i scroll down after i select a season the season selecter disappears". Once the page has
@@ -1144,6 +1150,8 @@ def video_nav(original):
 
 SEASON_EPISODES=('Container.Content(episodes) + String.StartsWith(Container.FolderPath,plugin://plugin.video.themoviedb.helper/) + '
                  '!String.IsEmpty(Container(52).ListItem.Property(tvshow.tmdb_id))')   # ISSUE-334
+# A downloaded (library) show carries its own season list on every episode (KodiIOS.SeasonsPath, set by ios_library), so its season row is a second list.
+SEASON_EPISODES_LIBRARY='Container.Content(episodes) + !String.IsEmpty(Container(52).ListItem.Property(KodiIOS.SeasonsPath))'
 def season_chip(focused):
  """ISSUE-334: a season on an episodes page: white for the season the page shows."""
  on='String.IsEqual(ListItem.Season,Container(52).ListItem.Season)'

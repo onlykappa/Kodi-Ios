@@ -593,7 +593,11 @@ def _directory(handle,params):
   props.update({'KodiIOS.ShowPlot':details.get('plot',''),'KodiIOS.ShowYear':str(details.get('year') or year),
                 'KodiIOS.ShowRating':str(details.get('rating') or ''),'KodiIOS.ShowGenres':' / '.join(details.get('genres') or [])})
   if params.get('season') is None:rows=season_rows(rows,params,lib,art_cache,key)
-  else:rows=[(play_route(row),row[1],row[2],dict(row[3],properties=play_properties([row])),row[4]) for row in rows]
+  else:
+   # A season's episodes carry where the show's season list is, so the page can draw the season row above them (owner 2026-11-20:
+   # "scroll up I can't select a different season without backing out"; the row was only there for TMDb Helper shows).
+   seasons=page_url({k:v for k,v in params.items() if k in ('type','folder','show','year','local','loose','merge')})
+   rows=[(play_route(row),row[1],row[2],dict(row[3],properties=dict(play_properties([row]),**{'KodiIOS.SeasonsPath':seasons})),row[4]) for row in rows]
   if not rows:rows=[empty_show_row(details)]
  else:
   props={key:'' for key in ('KodiIOS.DownloadedShow','KodiIOS.PlayLabel','KodiIOS.PlayPath','KodiIOS.PlayResume',
