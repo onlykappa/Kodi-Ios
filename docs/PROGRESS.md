@@ -2,6 +2,8 @@
 
 ## TV handoff step1 reproduction candidate — 2026-11-20
 
+Step1 complete: native run44664113987 on5ccd958 passed19 observation checks. Prepared and long-GOP MP4 fixtures both reproduce copied target ready / converted target cold, followed by obsolete converted0; desired contract fails exactly four named assertions and no others. Long-GOP fixture confirms different copy/conversion grids. Details and step2 regression gate transition: [TV handoff reproduction](AIRPLAY-TV-HANDOFF-REPRO.md). This is native HTTP/cache/converter evidence, not AVPlayer/TV or full-suite validation. No runtime fix or release.
+
 Added real native HTTP/cache/converter host reproduction for copy→MFi converted handoff at20s in prepared and long-GOP MP4 fixtures, including different copy/conversion segment grids. Read-only test observers are excluded from shipped frameworks. Focused CI must pass observation checks and demonstrate exactly four expected RED desired-contract failures (cold converted target and obsolete segment0, two fixtures). Execution pending. No runtime behavior/release changes; actual iPhone/TV remains untested.
 
 ## New phone log is build608/r67 — 2026-11-20

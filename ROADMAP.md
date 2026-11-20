@@ -1,5 +1,7 @@
 # Kodi-iOS master roadmap
 
+AirPlay TV handoff step1 complete (2026-11-20): [native reproduction](docs/AIRPLAY-TV-HANDOFF-REPRO.md) passes19 observation checks and rejects current behavior in exactly four desired-contract assertions. Step2 must prepare the TV's selected rendition at the correct resume window and eliminate obsolete0 work, then turn that contract green. Native host evidence does not prove receiver playback. No new IPA/merge is authorized by the step1 request.
+
 Current AirPlay follow-up (2026-11-19): PR49 merged with owner approval. Build600 still fails owner seeking tests. [Build600 roadmap](docs/AIRPLAY-BUILD600-ROADMAP.md) separates slow MKV delivery from repeated empty MP4 audio at a successful video target. Prioritize audio-reader/seek reproduction, then latency; phone acceptance remains open. No new release authorized.
 
 Current phone checkpoint (2026-11-18): build575 shows ESPN cards but no Sports source choices in owner testing; manual Crew eventually plays. Documentation-only next task: [Sports source discovery, game-button and fallback roadmap](docs/SPORTS-PHONE-SOURCE-ROADMAP.md), branch `codex/sports-phone-source-roadmap`, stacked on PR #43. No new implementation/build/merge authorized by this roadmap request.
