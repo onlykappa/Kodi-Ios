@@ -2520,6 +2520,11 @@ int main(int argc, char **argv) {
         printf("%d checks, %d failed\n", checks, failures);
         return failures ? 1 : 0;
     }
+    if (argc > 3 && !strcmp(argv[3], "--audio-replay-only")) {
+        test_audio_seek_replay(argv[2]);
+        printf("%d audio replay checks, %d failed\n", checks, failures);
+        return failures ? 1 : 0;
+    }
     if (argc > 3 && !strcmp(argv[3], "--bitmap-only")) {
         char work[1024], path[1024];
         snprintf(work,sizeof work,"%s/out",fixture_dir); mkdir(work,0755);

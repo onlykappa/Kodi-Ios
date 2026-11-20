@@ -98,6 +98,28 @@ for layout in indexed fragmented; do
       -map 0:v -map 0:a -c copy -movflags "$flags" "$WORK/fixtures/audio_replay_$layout.mp4"
   fi
 done
+# empty_moov leaves duration zero: advertise the finite synthetic movie duration,
+# as the app's prepared writer does, rather than probing only the first fragment.
+python3 -B - "$WORK/fixtures/audio_replay_fragmented.mp4" <<'PY'
+import struct,sys
+from pathlib import Path
+p=Path(sys.argv[1]);data=bytearray(p.read_bytes())
+def walk(start,end):
+    at=start
+    while at+8<=end:
+        size,kind=struct.unpack_from('>I4s',data,at)
+        if size<8 or at+size>end:break
+        if kind in (b'moov',b'trak',b'mdia'):walk(at+8,at+size)
+        if kind in (b'mvhd',b'mdhd'):
+            assert data[at+8]==0,'fixture expects version-zero duration fields'
+            scale=struct.unpack_from('>I',data,at+20)[0]
+            struct.pack_into('>I',data,at+24,round(1300*scale))
+        if kind==b'tkhd':
+            assert data[at+8]==0
+            struct.pack_into('>I',data,at+28,1300000)
+        at+=size
+walk(0,len(data));p.write_bytes(data)
+PY
 if [[ ! -f "$WORK/fixtures/long_sub.mkv" ]]; then
   ffmpeg -hide_banner -loglevel error -y -i "$WORK/fixtures/long_big.mkv" -i "$WORK/fixtures/subs.srt" \
     -map 0:v -map 0:a -map 1:s -c copy "$WORK/fixtures/long_sub.mkv"
