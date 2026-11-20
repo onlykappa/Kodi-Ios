@@ -233,7 +233,6 @@ def run(args=()):
 
         def finish(self):
             self.stop.set()
-            self.crew_context.cancel()
             self.guard.close()
 
     here = HERE
@@ -244,16 +243,13 @@ def run(args=()):
         # Written while Kodi was running: its directory cache may not list it yet (build 173). Re-read and try once more.
         xbmcvfs.listdir(os.path.join(skin, 'portrait') + '/')
         page = Page(sp.WINDOW, here, 'Default', '1080i')
-    import sports_crew_context
-    page.crew_context = sports_crew_context.Context(xbmcgui.Window(10000), xbmc, xbmcgui)
+    # No Crew window under the hub any more (owner, 2026-11-20: "no more Crew UI"): ESPN supplies the lists, and Crew's code runs only when a
+    # game's page looks for its sources (sports_provider.crew_sources).
     try:
-        page.crew_context.open()
         page.doModal()
     finally:
         if hasattr(page, 'stop'):
             page.stop.set()
-        if hasattr(page, 'crew_context'):
-            page.crew_context.close()
     del page
 
 

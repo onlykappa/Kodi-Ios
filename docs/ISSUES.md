@@ -6088,3 +6088,11 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 - **Fixes found in the rig:** a score that wrapped into "88 – …" (the centre column is now wider); a team name that broke mid-word (names use the smaller font).
 - **Tests:** test_sports_live (24, updated to the card model; the crest tests use temporary folders).
 - **Desktop Kodi rig (sample data):** the card layout with real NBA crests; empty rings for teams without a crest. Not seen on a phone yet.
+
+## ISSUE-393 — "THE CREW" menu showing behind Sports (owner screenshots, 2026-11-20)
+
+- **Owner:** the Crew's own menu ("THE CREW: Movies, TV Shows, Sports…") and its "The Crew Is Finding Your Event…" dialog appeared behind and in front of our pages when a game opened. "No more Crew UI, only the code needed to play the film."
+- **Root cause (found in the code):** the Sports hub opened Crew's own Kodi window under itself every time it was entered (`sports_crew_context.Context.open`: `ActivateWindow(Videos, plugin://plugin.video.thecrew/)`), so that Crew's menus could be listed while Crew supplied the games. Since DEC-065 ESPN supplies the games, so nothing needs that window.
+- **Fix:** the hub no longer creates or opens a Crew context (`sports.py`); test_sports_landing (NoCrewWindow) pins it. The source search runs Crew's collector as a standalone caller (no session), which already works without the window.
+- **Not fixed, on purpose:** the "The Crew Is Finding Your Event…" progress dialog is Crew's own, shown by its resolver while it opens a stream (a Play). DEC-062 keeps playback inside Crew's resolver (no importing its protected code, no altering its authorization), and an earlier note in `sports_crew_routes.py` warns against hiding Crew's dialogs during a playback handoff. Closing it risks cancelling the resolve. Whether it can be covered safely needs a phone log of a Play on the new build.
+- **Not verified:** on a phone (no Crew add-on in the rig).
