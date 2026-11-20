@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sports home tiles</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Drawn to the real portrait canvas: 1080 x 2090 Kodi units
+     (402 x 778 pt), 1 unit = 0.315 px here, so what fits on this phone is what fits in the skin. Floating tab bar from y = 1916 units.
+     Owner 2026-11-20: Upcoming and Leagues stay at the top but slimmer, smaller text, no empty space, no scrolling on the home page; the time (and league tag) sit
+     in the middle of the row height, between the teams. Team logos load from ESPN's public logo host; nothing is stored in the repo. -->
+<style>
+:root{--grey:rgba(235,235,245,.6);--blue-text:#4fa8ff;--card:#1c1c1e}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro,.board{max-width:1180px;margin:0 auto}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:30px;font-weight:800;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:880px;margin-bottom:8px}
+.shots{display:flex;gap:30px;flex-wrap:wrap;align-items:flex-start;margin-top:26px}
+.slot{width:362px}
+.cap{color:var(--grey);font-size:13px;line-height:1.45;margin-top:10px}.cap b{color:#fff}
+.pframe{width:362px;border-radius:30px;padding:11px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:340px;height:658.0px;border-radius:22px;overflow:hidden;background:#000}
+.top{position:absolute;left:17.0px;right:17.0px;top:16.4px;display:flex;justify-content:space-between;align-items:center;color:var(--blue-text);font-size:15px;height:37.1px}
+.act{display:flex;gap:10px;align-items:center}.pillbtn{background:#06223a;border-radius:14px;padding:5px 14px;font-weight:600;font-size:13px}
+h3{position:absolute;left:17.0px;top:50.4px;font-size:29.0px;line-height:1.1;font-weight:800;letter-spacing:-.02em}
+.sub{position:absolute;left:17.0px;top:84.4px;color:var(--grey);font-size:12.6px}
+.live{position:absolute;left:17.0px;right:17.0px;top:116.5px;height:98.9px;border-radius:17.0px;padding:13.5px;background:linear-gradient(170deg,#c4302b,#4a0e12)}
+.live .k{font-size:11.0px;font-weight:700;color:rgba(235,235,245,.6)}.live b{display:block;margin-top:6.9px;font-size:18.3px}.live p{margin-top:4.4px;font-size:12.6px;opacity:.9}
+.live .bd{position:absolute;right:13.5px;top:9.4px;background:#fff;color:#8e1b16;border-radius:20px;padding:4.4px 8.2px;font-size:11.0px;font-weight:700;display:flex;gap:6px;align-items:center}.bd i{width:7px;height:7px;border-radius:50%;background:#ff453a}
+.tl{position:absolute;left:17.0px;right:17.0px;top:225.4px;display:flex;gap:10.1px}
+.t{flex:1;position:relative;border-radius:17.0px}
+.g1 .t{height:39.0px;padding:6.9px 13.5px;background:linear-gradient(160deg,#2f6fe0,#0e2563)}.g1 .t.lg{background:linear-gradient(160deg,#8e5be8,#2a1766)}
+.g1 .t b{display:block;font-size:12.0px}.g1 .t span{display:block;margin-top:0.6px;font-size:11.0px;opacity:.9}
+.t em{position:absolute;right:11.3px;top:50%;transform:translateY(-52%);font-style:normal;font-size:18.9px;opacity:.85}
+.g2 .t{height:39.0px;background:var(--card);display:flex;align-items:center;gap:7.6px;padding:0 11.3px}
+.g2 .t b{display:block;font-size:12.0px}.g2 .t span{display:block;font-size:11.0px;color:var(--grey);margin-top:0.6px}
+.ic{width:22.7px;height:22.7px;border-radius:6.3px;display:grid;place-items:center;text-decoration:none;font-size:12.6px}.ic.bl{background:#0a84ff}.ic.pu{background:#8e5be8}
+.g2 .t em{color:var(--grey)}
+.sh{position:absolute;left:17.0px;right:17.0px;top:267.0px;height:37.1px;display:flex;justify-content:space-between;align-items:center}.sh b{font-size:18.3px;padding-left:3.1px}.sh span{color:var(--grey);font-size:12.6px}
+.grp{position:absolute;left:17.0px;right:17.0px;top:308.5px;background:var(--card);border-radius:17.0px;overflow:hidden}
+.g{display:grid;grid-template-columns:minmax(0,1fr) 68.0px minmax(0,1fr);height:71.8px;border-top:1px solid #2c2c2e}.g:first-child{border-top:0}
+.tA{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0}.tA .lg{width:27.1px;height:27.1px;object-fit:contain;margin-bottom:1.9px}
+.tA b{font-size:11.0px;line-height:1.2;white-space:nowrap}.tA small{font-size:9.4px;line-height:1.2;color:var(--grey);white-space:nowrap}
+.mid{align-self:center;text-align:center;white-space:nowrap;font-weight:700;font-size:12.6px;line-height:1.15}.mid .tag{display:block;font-size:9.4px;color:var(--grey);font-weight:600;margin-bottom:1.9px;letter-spacing:.02em}
+.tabs{position:absolute;left:12.6px;right:12.6px;top:603.2px;height:47.2px;border-radius:23.6px;background:#1c1c1ee6;border:1px solid #3a3a3c;display:flex;justify-content:space-around;align-items:center;font-size:9.3px;color:var(--grey)}.tabs .on{color:var(--blue-text)}
+</style></head><body>
+<div class="intro"><span class="mk">MOCKUP · not a Kodi render</span>
+<h1>Sports home: slimmer Upcoming and Leagues</h1>
+<p>Both options fit the whole home page above the tab bar with nothing to scroll: Live now, the two buttons, Up next with four games. The buttons drop from 115 pt to 46 pt tall.
+They keep one line of text each (the count) with a chevron, and the big two-line text is gone. The league tag and time now sit at the vertical middle of the row, between the two teams, not level with the logos.</p>
+<p>A keeps the blue and purple gradients. B uses the grey card with a small coloured icon (quieter, closer to Apple's lists).</p></div>
+<div class="board"><div class="shots">
+<div class="slot"><div class="pframe"><div class="ps"><div class="top"><span>‹</span><span class="act"><span class="pillbtn">Edit</span><span class="refresh">↻</span></span></div><h3>Sports</h3><div class="sub">Updated just now</div><div class="live"><div class="k">LIVE NOW</div><div class="bd"><i></i>2 live</div><b>Live right now</b><p>Golf</p></div><div class="tl g1"><div class="t up"><b>Upcoming</b><span>157 games</span><em>›</em></div><div class="t lg"><b>Leagues</b><span>18 leagues</span><em>›</em></div></div><div class="sh"><b>Up next</b><span>See all</span></div><div class="grp"><div class="g ctr"><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/soccer/500/18267.png" alt=""><b>Cincinnati</b><small>16-9-9</small></div><div class="mid"><span class="tag">MLS</span>4:30 PM</div><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/soccer/500/12011.png" alt=""><b>Orlando</b><small>14-11-9</small></div></div><div class="g ctr"><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/nfl/500/ind.png" alt=""><b>Colts</b><small>5-6</small></div><div class="mid"><span class="tag">NFL</span>5:15 PM</div><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/nfl/500/hou.png" alt=""><b>Texans</b><small>7-4</small></div></div><div class="g ctr"><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/nba/500/bos.png" alt=""><b>Celtics</b><small>12-3</small></div><div class="mid"><span class="tag">NBA</span>7:30 PM</div><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/nba/500/nyk.png" alt=""><b>Knicks</b><small>9-6</small></div></div><div class="g ctr"><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/soccer/500/4771.png" alt=""><b>Salt Lake</b><small>11-15-8</small></div><div class="mid"><span class="tag">MLS</span>7:00 PM</div><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/soccer/500/9726.png" alt=""><b>Seattle</b><small>15-9-10</small></div></div></div><div class="tabs"><span class="on">Home</span><span>Movies</span><span>TV</span><span>Library</span><span>Search</span></div></div></div><p class="cap"><b>A · Slim gradient buttons.</b> Same colours as today, a quarter of the height.</p></div>
+<div class="slot"><div class="pframe"><div class="ps"><div class="top"><span>‹</span><span class="act"><span class="pillbtn">Edit</span><span class="refresh">↻</span></span></div><h3>Sports</h3><div class="sub">Updated just now</div><div class="live"><div class="k">LIVE NOW</div><div class="bd"><i></i>2 live</div><b>Live right now</b><p>Golf</p></div><div class="tl g2"><div class="t"><u class="ic bl">▦</u><div><b>Upcoming</b><span>157 games</span></div><em>›</em></div><div class="t"><u class="ic pu">☰</u><div><b>Leagues</b><span>18 leagues</span></div><em>›</em></div></div><div class="sh"><b>Up next</b><span>See all</span></div><div class="grp"><div class="g ctr"><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/soccer/500/18267.png" alt=""><b>Cincinnati</b><small>16-9-9</small></div><div class="mid"><span class="tag">MLS</span>4:30 PM</div><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/soccer/500/12011.png" alt=""><b>Orlando</b><small>14-11-9</small></div></div><div class="g ctr"><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/nfl/500/ind.png" alt=""><b>Colts</b><small>5-6</small></div><div class="mid"><span class="tag">NFL</span>5:15 PM</div><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/nfl/500/hou.png" alt=""><b>Texans</b><small>7-4</small></div></div><div class="g ctr"><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/nba/500/bos.png" alt=""><b>Celtics</b><small>12-3</small></div><div class="mid"><span class="tag">NBA</span>7:30 PM</div><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/nba/500/nyk.png" alt=""><b>Knicks</b><small>9-6</small></div></div><div class="g ctr"><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/soccer/500/4771.png" alt=""><b>Salt Lake</b><small>11-15-8</small></div><div class="mid"><span class="tag">MLS</span>7:00 PM</div><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/soccer/500/9726.png" alt=""><b>Seattle</b><small>15-9-10</small></div></div></div><div class="tabs"><span class="on">Home</span><span>Movies</span><span>TV</span><span>Library</span><span>Search</span></div></div></div><p class="cap"><b>B · Grey buttons with an icon.</b> The colour is only the small icon.</p></div>
+</div></div></body></html>
