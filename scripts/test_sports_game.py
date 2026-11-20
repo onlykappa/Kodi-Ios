@@ -16,6 +16,9 @@ import sports_game as game_page
 import sports_game_page as page
 import sports_model as sm
 import sports_upcoming
+import http.client  # noqa: F401  loaded before any test patches sys.modules (Python 3.14: a patched-away http leaves portrait's xml import without http.client)
+import urllib.request  # noqa: F401
+import portrait  # noqa: F401
 
 NOW=1794768300
 
