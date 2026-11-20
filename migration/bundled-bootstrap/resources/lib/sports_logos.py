@@ -117,3 +117,12 @@ def crests(profile, urls, get=download):
     with ThreadPoolExecutor(max_workers=6) as pool:
         found = list(pool.map(lambda u: crest(profile, u, get), urls))
     return {u: f for u, f in zip(urls, found) if f}
+
+
+def small(url):
+    """A team crest's 96 px address on ESPN's image resizer (a 500 px logo is 50 KB, this one is about 5 KB), or ''."""
+    from urllib.parse import quote
+    url = str(url or '')
+    if not url.startswith(CREST_HOST + 'i/teamlogos/'):
+        return ''
+    return CREST_HOST + 'combiner/i?img=' + quote(url[len(CREST_HOST) - 1:]) + '&w=96&h=96'

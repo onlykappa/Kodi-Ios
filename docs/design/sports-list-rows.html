@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sports game rows</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt.
+     Owner 2026-11-20: option A kept; add a league tag above the time. Apple Sports row at Apple's sizes; record belongs to the team (not beside the time); no league line, no spread.
+     Sizes follow the policy type scale (4.2) in points: time 15 pt (subhead), team name 13 pt (footnote), record 11 pt (caption, the minimum). Three sizes. 1 pt = 0.846 px in this 340 px frame.
+     Team logos are loaded from ESPN's public logo CDN when this page opens (nothing is stored in the repo); the app does the same at runtime.
+     Existing tokens only. Page headers, Live now card, day headers and the Upcoming/Leagues tiles are unchanged. -->
+<style>
+:root{--grey:rgba(235,235,245,.6);--blue-text:#4fa8ff;--card:#1c1c1e}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro,.board{max-width:1240px;margin:0 auto}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:30px;font-weight:800;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:880px;margin-bottom:8px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;margin-top:26px}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.45;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:48px 14px 0}
+.top{position:absolute;left:14px;right:14px;top:16px;display:flex;justify-content:space-between;align-items:center;color:var(--blue-text);font-size:15px}
+.act{display:flex;gap:10px;align-items:center}.pillbtn{background:#06223a;border-radius:14px;padding:5px 14px;font-weight:600}.refresh{font-size:17px}
+h3{font-size:30px;font-weight:800;letter-spacing:-.02em;margin-top:6px}
+.sub{color:var(--grey);font-size:12.5px;margin:3px 0 12px}
+.card{background:var(--card);border-radius:16px;padding:12px 14px}.card .k{color:var(--grey);font-size:11.5px;margin-bottom:4px}.card b{font-size:14px}.card p{color:var(--grey);font-size:12px;margin-top:3px}
+.sh{display:flex;justify-content:space-between;align-items:baseline;margin:16px 2px 8px}.sh b{font-size:17px}.sh span{color:var(--blue-text);font-size:13px}
+.day{display:flex;justify-content:space-between;align-items:baseline;margin:12px 2px 8px}.day b{font-size:17px}.day span{color:var(--grey);font-size:12px}
+.grp{background:var(--card);border-radius:16px;overflow:hidden}
+.two{display:flex;gap:10px;margin-top:12px}.mini{flex:1;border-radius:16px;padding:11px 12px}.mini b{display:block;font-size:14px}.mini span{font-size:11px;opacity:.85}.blue{background:#0a3a73}.purple{background:#3b2a6b}
+.g{display:grid;grid-template-columns:minmax(0,1fr) 74px minmax(0,1fr);align-items:center;border-top:1px solid #2c2c2e;padding:0 12px}.g:first-child{border-top:0}
+.lg{display:block;object-fit:contain}
+.mid{text-align:center;white-space:nowrap;font-weight:600;font-size:12.7px;line-height:1.15;font-variant-numeric:tabular-nums}.mid i{display:block;font-style:normal;color:var(--grey);font-size:9.3px;font-weight:500;margin-top:2px}
+b{font-weight:600}
+.tag{display:block;margin-bottom:3px;font-size:9.3px;font-weight:600;color:var(--grey);letter-spacing:.02em}
+/* A: logo, name, record stacked and centred over each side */
+.g.A{height:76px;padding-top:0}
+.tA{display:flex;flex-direction:column;align-items:center;gap:0;min-width:0}.tA .lg{width:27px;height:27px;margin-bottom:2px}
+.tA b{font-size:11px;line-height:1.15;white-space:nowrap}.tA small{font-size:9.3px;line-height:1.2;color:var(--grey);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tabs{position:absolute;left:0;right:0;bottom:0;height:62px;background:#1c1c1e;border-top:1px solid #2c2c2e;display:flex;justify-content:space-around;align-items:flex-start;padding-top:10px;font-size:9.3px;color:var(--grey)}.tabs .on{color:var(--blue-text)}
+</style></head><body>
+<div class="intro"><span class="mk">MOCKUP · not a Kodi render</span>
+<h1>Up next on the home page: 4 games</h1>
+<p>Four games, plain league tag, same row. Upcoming and Leagues stay fully visible. The bar at the bottom stands in for the native tab bar (Home, Movies, TV, Library, Search).</p></div>
+<div class="board"><div class="shots"><div class="slot"><div class="pframe"><div class="ps"><div class="top"><span class="back">‹</span><span class="act"><span class="pillbtn">Edit</span><span class="refresh">↻</span></span></div><h3>Sports</h3><div class="sub">Updated just now</div><div class="card"><div class="k">Live now</div><b>Nothing live right now</b><p>Next game starts at 4:30 PM.</p></div><div class="sh"><b>Up next</b><span>See all</span></div><div class="grp"><div class="g A"><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/soccer/500/18267.png" alt=""><b>Cincinnati</b><small>16-9-9</small></div><div class="mid"><span class="tag">MLS</span>4:30 PM</div><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/soccer/500/12011.png" alt=""><b>Orlando</b><small>14-11-9</small></div></div><div class="g A"><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/nfl/500/ind.png" alt=""><b>Colts</b><small>5-6</small></div><div class="mid"><span class="tag">NFL</span>5:15 PM</div><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/nfl/500/hou.png" alt=""><b>Texans</b><small>7-4</small></div></div><div class="g A"><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/nba/500/bos.png" alt=""><b>Celtics</b><small>12-3</small></div><div class="mid"><span class="tag">NBA</span>7:30 PM</div><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/nba/500/nyk.png" alt=""><b>Knicks</b><small>9-6</small></div></div><div class="g A"><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/soccer/500/4771.png" alt=""><b>Salt Lake</b><small>11-15-8</small></div><div class="mid"><span class="tag">MLS</span>7:00 PM</div><div class="tA"><img class="lg" src="https://a.espncdn.com/i/teamlogos/soccer/500/9726.png" alt=""><b>Seattle</b><small>15-9-10</small></div></div></div><div class="two"><div class="mini blue"><b>Upcoming</b><span>59 games · 2 more today</span></div><div class="mini purple"><b>Leagues</b><span>5 leagues</span></div></div><div class="tabs"><span class="on">Home</span><span>Movies</span><span>TV</span><span>Library</span><span>Search</span></div></div></div><p class="cap"><b>4 games.</b> The Upcoming and Leagues tiles stay fully on screen above the tab bar; no scrolling needed.</p></div></div></div></body></html>

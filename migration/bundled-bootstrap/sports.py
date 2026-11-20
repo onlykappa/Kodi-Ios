@@ -34,11 +34,11 @@ def sports_line(names):
     return '%s, %s\nand %d more' % (names[0], names[1], len(names) - 2)   # explicit break: "1 / more" must not be split
 
 
-def _lines(props, key, text, limit):
-    lines = sp.split_lines(text, limit) or ['']
-    props[key + '.d1'] = lines[0]
-    props[key + '.d2'] = lines[1] if len(lines) > 1 else ''
-    props[key + '.lines'] = str(len(lines))
+def _lines(props, key, text, limit=0):
+    """The tile's one detail line (the slim tiles of the owner's 2026-11-20 request have room for one; d2 stays empty)."""
+    props[key + '.d1'] = str(text).replace('\n', ' ')
+    props[key + '.d2'] = ''
+    props[key + '.lines'] = '1'
 
 
 def _next_game(start, now, offset):
@@ -70,38 +70,38 @@ def props_for(overview, now, offset):
             text = 'Next game starts%s at %s.' % (when, sm.clock_text(overview['next'], offset))
         props['live.detail'] = text
     if overview.get('next') is None:
-        props['up.d1'], props['up.d2'], props['up.lines'] = 'No games', 'coming up', '2'   # not "No games coming / up"
+        _lines(props, 'up', 'No games coming up')
     else:
         total = overview.get('upcoming')
         if total:   # "59 games · 2 more today" (mockup A1)
-            text = sm.count_text(total, 'game') + (' · %d more today' % overview['more_today'] if overview.get('more_today') else '')
-            _lines(props, 'up', text, sp.FIT_HALF)
+            _lines(props, 'up', sm.count_text(total, 'game'))   # "157 games"; the day's count is on the page itself
         else:
             first, second = _next_game(overview['next'], now, offset)
             if not second and overview.get('more_today'):
                 second = '%d more today' % overview['more_today']
-            props['up.d1'], props['up.d2'] = first, second
-            props['up.lines'] = '2' if second else '1'
-    _lines(props, 'lg', sm.count_text(overview.get('leagues') or 0, 'league'), sp.FIT_HALF)
+            _lines(props, 'up', first)   # one short line; the Live now card already says when the next game starts
+    _lines(props, 'lg', sm.count_text(overview.get('leagues') or 0, 'league'))
     return props
 
 
-def next_props(games, now, offset, logos=None, count=sp.NEXT_ROWS):
-    """The Up next rows: the next `count` games not yet started, in the Upcoming page's row shape (the small line is the day)."""
-    import choice_sheet
-    coming = sorted((g for g in games if g.get('state') == 'upcoming' and g['start'] >= now), key=lambda g: g['start'])[:count]
-    props = {}
+def up_next(games, now, offset, count=sp.NEXT_ROWS):
+    """The games for the hub's Up next: today's games that have not started, soonest first (owner, 2026-11-20: today's only, not every game)."""
+    return sorted((g for g in games if g.get('state') == 'upcoming' and g['start'] >= now and sm.day_label(g['start'], now, offset) == 'Today'),
+                  key=lambda g: g['start'])[:count]
+
+
+def next_props(games, now, offset, crests=None, count=sp.NEXT_ROWS):
+    """The Up next rows (sports_rows: logos, short names, records, league tag, time) for today's games still to come. With none left today the
+    section says so in one line (next.empty) instead of vanishing."""
+    import sports_rows
+    coming = up_next(games, now, offset, count)
+    props = {'next.empty': '' if coming else 'No more games today'}
     for n in range(count):
         game = coming[n] if n < len(coming) else None
-        title = sm.versus(game) if game else ''
-        clock = sm.clock_text(game['start'], offset).rsplit(' ', 1) + [''] if game else ['', '']
-        row = {'clock': ' '.join(clock[:2]).strip(), 'clock.main': clock[0], 'clock.ampm': clock[1], 'soon': sm.soon_text(game['start'], now) if game else '',
-               'title': title, 'logo': (logos or {}).get(game['league'], '') if game else '',
-               'sources': sm.day_label(game['start'], now, offset) if game else '',
-               'lines': str(min(4, choice_sheet.lines(title, 24))) if game else '',
-               'pos': ('only' if len(coming) == 1 else 'first' if n == 0 else 'last' if n == len(coming) - 1 else 'mid') if game else ''}
-        for key, value in row.items():
-            props['next.%d.%s' % (n, key)] = value
+        pos = ('only' if len(coming) == 1 else 'first' if n == 0 else 'last' if n == len(coming) - 1 else 'mid') if game else ''
+        row = sports_rows.row_props(game, now, offset, crests, pos)
+        for key in sports_rows.KEYS:
+            props['next.%d.%s' % (n, key)] = row.get(key, '')
     return props
 
 
@@ -111,8 +111,8 @@ def props_updating(last=None):
     props.update({'state': 'ok', 'sub': 'Updating', 'live.title': 'Live Now', 'up.title': 'Upcoming', 'lg.title': 'Leagues',
                   'live.mode': props.get('live.mode') or 'idle', 'live.badge': '',
                   'live.title': props.get('live.title') or 'Checking what is on', 'live.detail': props.get('live.detail', '')})
-    _lines(props, 'up', 'Checking today’s games', sp.FIT_HALF)
-    _lines(props, 'lg', 'Checking leagues', sp.FIT_HALF)
+    _lines(props, 'up', 'Checking games')
+    _lines(props, 'lg', 'Checking leagues')
     return props
 
 
@@ -194,12 +194,14 @@ def run(args=()):
                     if props.get('state') == 'ok':   # the leagues' real logos: fetched once, kept on the phone; the rows draw first
                         try:
                             import sports_logos
-                            found = sports_logos.paths(xbmcvfs.translatePath('special://profile/'), sorted({g['league'] for g in self.games[:sp.NEXT_ROWS + 3]}))
+                            import sports_rows
+                            coming = up_next(self.games, time.time(), sm.device_offset(time.time()))
+                            found = sports_logos.crests(xbmcvfs.translatePath('special://profile/'), sports_rows.crest_urls(coming))
                             if found and not self.stop.is_set():
                                 self.logos = found
                                 self.show(next_props(self.games, time.time(), sm.device_offset(time.time()), found))
                         except Exception as error:
-                            log('logos (%s)' % type(error).__name__)
+                            log('crests (%s)' % type(error).__name__)
             if refresh:
                 self.show(props_updating(self.last))
             threading.Thread(target=work, daemon=True).start()
@@ -226,7 +228,7 @@ def run(args=()):
                     xbmcgui.Dialog().notification('Sports', 'That page is coming in an update.', xbmcgui.NOTIFICATION_INFO, 3000, False)
             elif sp.NEXT <= control < sp.NEXT + 4 * sp.NEXT_ROWS:   # an Up next row opens that game
                 n = (control - sp.NEXT) // 4
-                coming = sorted((g for g in getattr(self, 'games', []) if g.get('state') == 'upcoming' and g['start'] >= time.time()), key=lambda g: g['start'])
+                coming = up_next(getattr(self, 'games', []), time.time(), sm.device_offset(time.time()))
                 if n < len(coming):
                     import sports_game
                     sports_game.run(coming[n], provider=sports_provider.get(), search=True)
