@@ -2660,7 +2660,7 @@ static void test_seek_target_and_empty_window(const char *base) {
         CHECK(playlist.body && strstr(playlist.body,"#EXT-X-START:TIME-OFFSET=20.000,PRECISE=YES"),"a reload's playlist starts at the resume position");free(playlist.body);
     }
     kr_remux_stop();
-    kr_remux_set_prefetch(1);
+    kr_remux_set_prefetch(0);   // the injected fault must meet the foreground request, not a background job of the same reader
     snprintf(url,sizeof url,"file:%s/h264_aac_srt.mkv",fixture_dir);
     kr_video_set_encoder("mpeg4");kr_remux_set_subtitles(-1,NULL,NULL);ticket=kr_remux_begin(0);
     opened=kr_remux_start_for(ticket,url,0,0,list,sizeof list);
@@ -2681,6 +2681,7 @@ static void test_seek_target_and_empty_window(const char *base) {
         CHECK(after.status==200 && after.len>100,"the next window is served after the reset");free(after.body);
     }
     kr_remux_stop();
+    kr_remux_set_prefetch(1);
 }
 
 static void test_seek_audio_retry(const char *base) {
