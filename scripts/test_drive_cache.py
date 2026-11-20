@@ -126,6 +126,12 @@ class Prefetch(unittest.TestCase):
     def test_a_pin_ends(self):
         self.filler.prefetch('N',len(DATA),now=1000.0);wait(self.filler.done.is_set)
         self.store.clear(keep_pins=True,now=1000.0+dc.PIN_SECONDS+1);self.assertFalse(self.store.has('N',len(DATA),0))
+    def test_prefetching_the_same_video_twice_fetches_it_once(self):
+        # Build 616 log: a show page loads two or three times per open, so the same file was prefetched twice a moment apart.
+        self.filler.prefetch('N',len(DATA));self.filler.prefetch('N',len(DATA));wait(self.filler.done.is_set)
+        first=len(base.FakeConn.log);self.assertTrue(self.filler.prefetch('N',len(DATA)));time.sleep(0.2)
+        self.assertEqual(len(base.FakeConn.log),first)                       # everything wanted is already there: no request
+        self.assertLessEqual(first,2)                                        # head and tail, once
     def test_no_prefetch_on_cellular_or_without_room(self):
         filler=dc.Filler(self.store,dp.Upstream(lambda force:'old',base.FakeConn),B,dp.Tee,allowed=lambda:False,free=lambda:10**12)
         self.assertFalse(filler.prefetch('N',len(DATA)))

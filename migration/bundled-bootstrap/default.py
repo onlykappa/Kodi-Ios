@@ -25,6 +25,10 @@ if __name__=='__main__':
  write=lambda message:xbmc.log(message,xbmc.LOGINFO)
  page=os.path.basename(path).removesuffix('.py');begun=time.monotonic()
  diagnostics.event(write,'ui','open',page=page)
+ if page.startswith('sports') and page not in ('sports_jet_run','sports_remind'):   # a Sports page was opened: source prefetch may run for a few hours (sports_sources_prefetch)
+  try:
+   import xbmcgui;xbmcgui.Window(10000).setProperty('KodiIOS.SportsSeen',str(time.time()))
+  except Exception:pass
  try:runpy.run_path(path,run_name='__main__')
  except Exception as error:
   diagnostics.log_exception(xbmc,'ui',error,page=page);raise
