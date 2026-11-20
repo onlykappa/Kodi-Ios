@@ -1,5 +1,9 @@
 # Persistent progress
 
+## New phone log is build608/r67 — 2026-11-20
+
+Reviewed four native AirPlay starts; see [build608 findings](AIRPLAY-BUILD608-FINDINGS.md). Exact installed build/source lock is608/main/f50f1a6/r67, not diagnostic602/r68; no r68 packet-window/request-correlation lines.1080p first handoff has no direct TV HTTP requests; retry and4K reach TV but deliver no successful TV video media. Copied video/audio prime precedes late receiver-selected converted rendition, and resumed conversion starts obsolete0 before target184/16. High10 MKV remains in preparation until aborted67.5s. No empty-audio-window reproduction here; later HTTP500/canceled records follow shutdown. Prioritize actual TV rendition/resume-window readiness and duplicate-lane contention, retaining source/receiver uncertainty. No runtime code or release changed.
+
 ## While awaiting IPA602 phone logs — 2026-11-20
 
 Result: focused native run44648845367 on cfa3a1c passed84 audio-replay checks. Both indexed/fragmented finite-duration MP4s produced nonempty media fragments identical between reused/fresh readers for0,9,132,171,178,1,178,178,9,0. First full run44647499269 failed24 checks because the fragmented test fixture had zero-duration init metadata (corrected), plus a separate pre-existing retry-evidence assertion: lower transport/cache recovery made both lanes succeed after35s without the app retry. That full-suite failure remains recorded; the focused pass is not a full regression pass. No runtime fix or new release. Next compare IPA602 packet/window/reader traces to these controlled results, then target original media timing and concurrent lane ordering.
