@@ -2,6 +2,8 @@
 
 ## r68 diagnostic publication / IPA602 — 2026-11-20
 
+Completion: import workflow44642982544 passed and published IPA602 from2896dfdabdcf543c68f792d2fa0dbf9d2ef33717. Downloaded589,160,451-byte IPA passes ZIP CRC, embedded build/source/r68 identity and exact framework binary hash verification. IPA SHA2564f9843f181b3683ef66fb2a8f195009e5bb46cb098a8d30db9bc49ac83769fa1. Phone test: AirPlay downloaded and streamed titles separately, short seek then>10minute seek, export kodi.log promptly on failure. Diagnostics are shipped; phone root cause and fix remain unproven.
+
 Native candidate9e65561 passed full host, end-to-end and iPhone framework workflow44640470233. Inspection44642746618 verified IOS14.0/SDK26.2, required exports, archive afd7ef59f739d80aad0db793f3601907cf271af03d8179f550a8b36abe05d6c1 and binary4656acbb04c1702798d0ac9b254220613fb8c7b65ec4a4e5d109e1c8b84ea883. Published exact r68 via44642895770; local release download matches archive hash. Owner-authorized IPA602 workflow44642982544 builds source2896dfd with r68 pinned; completion and packaged binary verification pending. This diagnostic release does not establish a fix for the owner's seek failures. PR50 stays draft.
 
 ## Diagnostic framework validation — 2026-11-19
