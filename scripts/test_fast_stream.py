@@ -79,5 +79,20 @@ class Fast(unittest.TestCase):
         self.assertIn("kwargs={'blocks':OPEN_BLOCKS,'extra':KODI_AHEAD,'resume':resume}",text)
     def test_a_link_check_never_raises_or_logs_the_address(self):
         m=self.load();self.assertFalse(m._link_alive('http://127.0.0.1:9/x|User-Agent=a'))
+    def test_a_slow_server_is_not_a_dead_link_but_a_refusal_is(self):
+        import socket,threading
+        m=self.load()
+        silent=socket.socket();silent.bind(('127.0.0.1',0));silent.listen(1)   # accepts the connection, never answers
+        self.addCleanup(silent.close)
+        self.assertTrue(m._link_alive('http://127.0.0.1:%d/x'%silent.getsockname()[1],timeout=0.3))
+        refuse=socket.socket();refuse.bind(('127.0.0.1',0));refuse.listen(1)
+        def answer():
+            c,_=refuse.accept();c.recv(2048);c.sendall(b'HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n');c.close()
+        threading.Thread(target=answer,daemon=True).start();self.addCleanup(refuse.close)
+        self.assertFalse(m._link_alive('http://127.0.0.1:%d/x'%refuse.getsockname()[1],timeout=3))
+    def test_continue_says_why_it_took_the_normal_way(self):
+        text=(Path(self.load().__file__)).read_text()
+        for reason in ('no remembered Umbrella link','older than','no place to resume','was refused'):self.assertIn(reason,text)
+        self.assertIn("setProperty('KodiIOS.OpenWanted'",text)
 
 if __name__=='__main__':unittest.main()

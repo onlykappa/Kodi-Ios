@@ -308,6 +308,10 @@ def continue_position(kind,tmdb_id,season,episode,read=None):
 
 def fast_copy(handle,params,read_art=None,find=None,play=None,resume=None):
  """A copy on the phone or Drive plays first (_fast_local); failing that, an Umbrella title being continued resumes from the link it was playing (fast_stream)."""
+ try:   # a title is being asked for: the service's background reading of the last stream's opening (resume_cache) lets go of the debrid server
+  import time,xbmcgui
+  xbmcgui.Window(10000).setProperty('KodiIOS.OpenWanted',str(time.time()))
+ except Exception:pass
  if _fast_local(handle,params,read_art,find,play,resume):return True
  return fast_stream(handle,params)
 
@@ -357,14 +361,19 @@ def _fast_local(handle,params,read_art=None,find=None,play=None,resume=None):
 
 STREAM_FRESH=4*3600   # seconds a remembered Umbrella link is tried again (a debrid link lives for hours; the check below says when it does not)
 
-def _link_alive(url,timeout=3):
- """True when the remembered link still answers a one-byte ranged read. Nothing of the address reaches the log."""
- import urllib.request,urllib.parse
+def _link_alive(url,timeout=6):
+ """False only when the remembered link was refused or cannot be reached. A debrid server that is slow to answer (2-3 s to connect; build 639 log 9f7b4ab2:
+ the check timed out while the last stream's opening was still being kept from the same server, and Continue took the 22 s way through Umbrella) is not a
+ dead link: the continue guard plays the title the normal way when the link really does not open. Nothing of the address reaches the log."""
+ import socket,urllib.error,urllib.request,urllib.parse
  address,_,tail=url.partition('|');headers={'Range':'bytes=0-0'}
  headers.update({k:v for k,v in urllib.parse.parse_qsl(tail)})   # Kodi's own `|Header=value` suffix
  try:
   with urllib.request.urlopen(urllib.request.Request(address,headers=headers),timeout=timeout) as answer:
    return answer.status in (200,206)
+ except urllib.error.HTTPError:return False
+ except (socket.timeout,TimeoutError):return True
+ except urllib.error.URLError as error:return isinstance(getattr(error,'reason',None),(socket.timeout,TimeoutError))
  except Exception:return False
 
 def _opening_kept(url):
@@ -386,6 +395,14 @@ def _cache_route(url,resume=None):
  except Exception as error:
   _quiet('ios_watch_dialog:cache_route',error)
   return url
+
+def _declined(reason):
+ """Continue went the normal way: say why in the log (build 639 log 9f7b4ab2 showed the normal way with no reason). Always False."""
+ try:
+  import xbmc
+  xbmc.log('Kodi iOS watch: Continue did not use the remembered link: '+reason,xbmc.LOGINFO)
+ except Exception:pass
+ return False
 
 def fast_stream(handle,params,read=None,alive=None,play=None,now=None,route=None):
  """Continue an Umbrella title from the link it was playing, without asking TMDb Helper or Umbrella again (owner, build 618: continuing a show still took
@@ -409,11 +426,11 @@ def fast_stream(handle,params,read=None,alive=None,play=None,now=None,route=None
   data=ios_continue.load(read);item_key=ios_continue.key({'kind':kind,'tmdb_id':tmdb_id,'season':season,'episode':episode})
   entry=data['items'].get(item_key) or {}
   stream=entry.get('stream') or {};url=str(stream.get('url') or '')
-  if entry.get('player')!='umbrella' or not url.startswith(('http://','https://')):return False
-  if now()-float(stream.get('at') or 0)>STREAM_FRESH:return False
+  if entry.get('player')!='umbrella' or not url.startswith(('http://','https://')):return _declined('no remembered Umbrella link (player %s)'%(entry.get('player') or 'none'))
+  if now()-float(stream.get('at') or 0)>STREAM_FRESH:return _declined('the remembered link is older than %d h'%(STREAM_FRESH//3600))
   position,total=float(entry.get('position') or 0),float(entry.get('total') or 0)
-  if position<5 or (total and position>=0.92*total):return False   # nothing to resume: the normal way finds a fresh link
-  if not (alive or _link_alive)(url):return False
+  if position<5 or (total and position>=0.92*total):return _declined('no place to resume (%d of %d s)'%(position,total))   # nothing to resume: the normal way finds a fresh link
+  if not (alive or _link_alive)(url):return _declined('the remembered link was refused')
   # Step 2 (owner, build 620 log 80ea6c76: Continue took 12.3 s to the first picture; Kodi read the debrid link itself over one connection: 2.8 s to
   # connect, 5.1 s for the file's start, 3.6 s for the resume seek). Umbrella's own path hands Kodi the service's cache (several connections, the
   # start, the end and now the resume point asked for at once: remote_media.for_kodi); Continue skipped Umbrella and with it the cache. It uses it

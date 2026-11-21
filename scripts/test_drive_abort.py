@@ -23,6 +23,16 @@ class Abort(unittest.TestCase):
         try:up.request('/x',attempts=1)
         except ConnectionAbortedError:self.fail('still refused after the hold')
         except Exception:pass
+    def test_release_lets_the_next_videos_requests_in_at_once(self):   # build 639 log 9f7b4ab2: the next episode's first reads, 0.4 s after the close, got 502
+        up=self.upstream();up.abort_all(hold=30)
+        with self.assertRaises(ConnectionAbortedError):up.request('/x',attempts=1)
+        up.release()
+        try:up.request('/x',attempts=1)
+        except ConnectionAbortedError:self.fail('still refused after release')
+        except Exception:pass
+    def test_next_episode_releases_the_proxy_once_the_old_video_is_closed(self):
+        text=(BOOT/'next_episode.py').read_text();self.assertIn('release_drive_reads(xbmc, xbmcgui.Window(10000))',text)
+        self.assertIn("'?release=1'",(BOOT/'resources/lib/drive_proxy.py').read_text());self.assertIn("'release=1' in self.path",(BOOT/'resources/lib/drive_proxy.py').read_text())
     def test_nothing_to_cut_is_fine(self):
         self.assertEqual(self.upstream().abort_all(),0)
     def test_the_proxy_answers_abort_and_ask_abort_reaches_it(self):
@@ -41,7 +51,7 @@ class NextEpisode(unittest.TestCase):
         spec=importlib.util.spec_from_file_location('next_ep_abort',BOOT/'next_episode.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
     def test_a_drive_copy_has_its_reads_cut_before_the_stop_and_other_videos_are_left_alone(self):
         m=self.load();asked=[]
-        real=dp.ask_abort;dp.ask_abort=lambda port,timeout=1.0:(asked.append(port),True)[1];self.addCleanup(setattr,dp,'ask_abort',real)
+        real=dp.ask_abort;dp.ask_abort=lambda port,timeout=1.0,release=False:(asked.append(port),True)[1];self.addCleanup(setattr,dp,'ask_abort',real)
         home=types.SimpleNamespace(getProperty=lambda k:'53037' if k=='KodiIOS.DriveProxy' else '')
         xbmc=lambda f:types.SimpleNamespace(Player=lambda:types.SimpleNamespace(getPlayingFile=lambda:f))
         self.assertTrue(m.cut_drive_reads(xbmc('http://127.0.0.1:53037/drive/abc/Show.mp4'),home));self.assertEqual(asked,[53037])

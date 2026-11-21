@@ -54,6 +54,18 @@ class Capture(unittest.TestCase):
         self.assertEqual(kept,6);self.assertTrue(rc.ready(LINK,self.root));self.assertIn('kept 6 of 6 blocks',self.logs[0])
         size,found=rc.load(LINK,self.root);self.assertEqual(sorted(found),[0,1,2,3,4,7]);self.assertEqual(found[4],DATA[4*rc.BLOCK:5*rc.BLOCK])
         before=len(calls);self.assertEqual(rc.capture(LINK,0.5,lambda link:rm.Foreground(link,open_url=opener),self.root),0)   # the same stop again: already kept
+    def test_a_capture_lets_go_at_once_when_a_video_is_opening(self):
+        # build 639 log 9f7b4ab2: six connections to the debrid server were still reading when Continue asked for the title
+        import threading
+        release=threading.Event()
+        def slow(request,timeout):
+            a,b=map(int,request.get_header('Range')[6:].split('-'))
+            if a>=2*rc.BLOCK:release.wait(5)
+            return Reply(a,min(b,len(DATA)-1))
+        began=time.monotonic()
+        kept=rc.capture(LINK,0.5,lambda link:rm.Foreground(link,open_url=slow),self.root,self.logs.append,stop=lambda:True,poll=0.01)
+        release.set()
+        self.assertLess(time.monotonic()-began,4);self.assertIn('stopped early',self.logs[-1]);self.assertLess(kept,6)
     def test_a_failure_keeps_nothing_and_never_raises(self):
         self.assertEqual(rc.capture(LINK,0.5,lambda link:rm.Foreground(link,open_url=dead),self.root,self.logs.append),0);self.assertFalse(rc.ready(LINK,self.root))
     def test_only_an_umbrella_stream_with_a_place_to_resume_on_wifi_is_kept(self):

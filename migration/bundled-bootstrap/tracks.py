@@ -33,6 +33,26 @@ FIELDS = ['subtitles', 'currentsubtitle', 'subtitleenabled', 'audiostreams', 'cu
 UA = 'KodiIOS/1.0'
 
 
+
+def continue_known(it, read, now=time.time):
+    """What Continue Watching knows about the video it started (show, season, episode, year, TMDb id), when Kodi's own item lacks them and the title agrees.
+    Owner, build 639 log 9f7b4ab2: an Umbrella episode played as 'Episode 8' with no show, so SubDL was asked for 'Episode 8' with no season or episode and
+    returned some other show's subtitle. {} when nothing agrees."""
+    try:
+        data = json.loads(read('special://profile/addon_data/plugin.video.kodi.ios.watch/continue.json') or '{}')
+        entry = (data.get('items') or {}).get(data.get('current')) or {}
+        if not entry or now() - float(entry.get('played') or 0) > 6 * 3600:
+            return {}
+        names = {str(it.get('title') or '').lower(), str(it.get('showtitle') or '').lower(), str(it.get('label') or '').lower()} - {''}
+        mine = {str(entry.get('title') or '').lower(), str(entry.get('tvshowtitle') or '').lower()} - {''}
+        if not names & mine:
+            return {}
+        movie = entry.get('kind') == 'movie'
+        return {'kind': 'movie' if movie else 'episode', 'title': entry.get('title') or '', 'show': '' if movie else entry.get('tvshowtitle') or '',
+                'season': entry.get('season'), 'episode': entry.get('episode'), 'year': entry.get('year') or None, 'tmdb': entry.get('tmdb_id') or None}
+    except Exception:
+        return {}
+
 def external(stream):
     """True for a subtitle file Kodi was handed (its stream name ends '(External)'): a download or a file the viewer added."""
     return str(stream.get('name') or '').rstrip().endswith('(External)')
@@ -375,6 +395,16 @@ def run(mode):
                     return known
             except Exception:
                 pass
+            try:   # a stream Continue Watching follows (Umbrella): Kodi's item says only 'Episode 8' (build 639 log 9f7b4ab2: the search had no show, season or episode)
+                def read(path):
+                    f = xbmcvfs.File(path)
+                    try:
+                        return f.read()
+                    finally:
+                        f.close()
+                return continue_known(it, read)
+            except Exception:
+                return {}
             return {}
 
         def search(self):

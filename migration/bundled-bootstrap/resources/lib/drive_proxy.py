@@ -272,6 +272,12 @@ class Upstream(object):
             self.prepare()
         return conn
 
+    def release(self):
+        """End the refusal abort_all started: the old video is closed, so what asks next is the next video (ISSUE-428, build 639 log 9f7b4ab2: the next
+        episode's first reads came 0.4 s after the close, inside the 4 s hold, and Kodi got 502 for a file that was fine)."""
+        with self.lock:
+            self.aborted_until = 0.0
+
     def abort_all(self, hold=4.0):
         """Cut every upstream connection now and refuse new requests for `hold` seconds (ISSUE-428, owner build 623 log 8c570737: Next Episode waited 40 s for the
         playing Drive video to close, Kodi's cache blocked on reads the proxy could not finish). Readers get an error at once, so Kodi's close does not wait.
@@ -611,7 +617,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._prefetch_request()
             return
         if self.path.startswith('/abort'):   # ISSUE-428: the player is about to be stopped: cut what it is waiting on
-            cut = self.upstream.abort_all() if self.upstream else 0
+            if 'release=1' in self.path:   # the old video is closed: the next one's requests are welcome (build 639 log 9f7b4ab2: Next Episode's first reads got 502)
+                if self.upstream:
+                    self.upstream.release()
+                cut = 0
+            else:
+                cut = self.upstream.abort_all() if self.upstream else 0
             self.send_response(200)
             self.send_header('Content-Length', '0')
             self.send_header('X-Cut', str(cut))
@@ -799,11 +810,11 @@ def live_port(read, ask_restart, sleep, tries=16, probe=None):
     return None
 
 
-def ask_abort(port, timeout=1.0):
-    """Ask the proxy to cut its upstream connections (see Upstream.abort_all); True when it answered."""
+def ask_abort(port, timeout=1.0, release=False):
+    """Ask the proxy to cut its upstream connections (see Upstream.abort_all), or with release=True to let new requests in again; True when it answered."""
     import urllib.request
     try:
-        with urllib.request.urlopen('http://127.0.0.1:%d/abort' % int(port), timeout=timeout) as resp:
+        with urllib.request.urlopen('http://127.0.0.1:%d/abort%s' % (int(port), '?release=1' if release else ''), timeout=timeout) as resp:
             return resp.status == 200
     except Exception:
         return False

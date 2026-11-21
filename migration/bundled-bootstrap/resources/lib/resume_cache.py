@@ -134,9 +134,11 @@ def seed(source, link, root=None):
     return len(blocks)
 
 
-def capture(link, fraction, make_source, root=None, log=lambda text: None, clock=time.monotonic):
+def capture(link, fraction, make_source, root=None, log=lambda text: None, clock=time.monotonic, stop=lambda: False, poll=0.2):
     """Read the plan's blocks of `link` through a cache source (`make_source(link)` -> remote_media.Foreground, several connections at once) and keep
-    them. One capture at a time; returns how many blocks were kept (0: busy, nothing to keep, or it failed)."""
+    them. One capture at a time; returns how many blocks were kept (0: busy, nothing to keep, or it failed). `stop()` true (a new video is opening: owner, build
+    639 log 9f7b4ab2, the capture's six connections were still reading the debrid server when Continue's own check of the same link timed out, and the title
+    opened the slow way in 22 s): the capture lets go at once and keeps the blocks it already has."""
     with _lock:
         if _busy[0]:
             return 0
@@ -161,12 +163,16 @@ def capture(link, fraction, make_source, root=None, log=lambda text: None, clock
         threads = [threading.Thread(target=one, args=(i,), daemon=True) for i in wanted]
         for thread in threads:
             thread.start()
-        for thread in threads:
-            thread.join(max(0.1, CAPTURE_LIMIT - (clock() - began)))
+        yielded = False
+        while any(t.is_alive() for t in threads) and clock() - began < CAPTURE_LIMIT:
+            if stop():
+                yielded = True
+                break
+            threads[0].join(poll) if threads[0].is_alive() else time.sleep(poll)
         with cache.lock:
             have = {i: cache.data.get(('media', i), b'') for i in wanted}
         saved = store(link, size, have, fraction, root)
-        log('resume cache: kept %d of %d blocks (%d MiB) in %.1f s' % (saved, len(wanted), saved * BLOCK // (1024 * 1024), clock() - began))
+        log('resume cache: kept %d of %d blocks (%d MiB) in %.1f s%s' % (saved, len(wanted), saved * BLOCK // (1024 * 1024), clock() - began, ' (stopped early: a video is opening)' if yielded else ''))
         return saved
     except Exception as error:
         log('resume cache: not kept (%s)' % type(error).__name__)
@@ -181,7 +187,7 @@ def capture(link, fraction, make_source, root=None, log=lambda text: None, clock
                 pass
 
 
-def capture_later(entry, make_source, wifi=lambda: True, log=lambda text: None, root=None):
+def capture_later(entry, make_source, wifi=lambda: True, log=lambda text: None, root=None, stop=lambda: False):
     """From the progress tracker when a title stops: if it was an Umbrella stream with a place to resume, keep its opening, in a thread, on Wi-Fi only."""
     try:
         stream = (entry or {}).get('stream') or {}
@@ -191,7 +197,7 @@ def capture_later(entry, make_source, wifi=lambda: True, log=lambda text: None, 
             return None
         if not wifi():
             return None
-        thread = threading.Thread(target=capture, args=(link, position / total, make_source, root, log), daemon=True)
+        thread = threading.Thread(target=capture, args=(link, position / total, make_source, root, log, time.monotonic, stop), daemon=True)
         thread.start()
         return thread
     except Exception:
