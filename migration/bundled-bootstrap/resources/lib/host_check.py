@@ -11,7 +11,7 @@ import ssl
 import threading
 import time
 
-HOSTS = ('taifood-blog.asia', 'mutstreams.pk', 'strmfree.st', 'streamcenter.st')
+HOSTS = ('taifood-blog.asia', 'v2.streameast.ga', 'thedaddy.li', 'mutstreams.pk', 'strmfree.st', 'streamcenter.st')   # the hosts Crew's streamers failed TLS to (logs 8c570737, 89646295) and the ones that work
 EVERY = 600
 _last = [0.0]
 _lock = threading.Lock()

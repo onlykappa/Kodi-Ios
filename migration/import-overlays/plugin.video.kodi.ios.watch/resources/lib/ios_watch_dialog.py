@@ -391,7 +391,7 @@ def fast_stream(handle,params,read=None,alive=None,play=None,now=None,route=None
  """Continue an Umbrella title from the link it was playing, without asking TMDb Helper or Umbrella again (owner, build 618: continuing a show still took
  15 s: details 2 s, Umbrella 3 s, resolving 2 s, the cache wait 2 s and the server's slow start). Only when Continue started it (ios_continue), the video was
  last played through Umbrella within STREAM_FRESH, there is a place to resume and the link still answers; otherwise the normal way runs, as before."""
- if params.get('ios_continue')!='1' or params.get('ios_choose')=='1':return False
+ if params.get('ios_continue')!='1' or params.get('ios_choose')=='1' or params.get('ios_fast')=='0':return False   # ios_fast=0: the continue guard's second try, the normal way
  tmdb_type=params.get('tmdb_type');tmdb_id=str(params.get('tmdb_id') or '')
  if tmdb_type not in ('movie','tv') or not tmdb_id.isdigit():return False
  season,episode=str(params.get('season') or ''),str(params.get('episode') or '')
@@ -430,6 +430,11 @@ def fast_stream(handle,params,read=None,alive=None,play=None,now=None,route=None
    import ios_library
    play=ios_library.play_stream
   play(handle if handle is not None else -1,entry,url,position,total)
+  try:   # leave a note for the continue guard (service): if this link does not open it plays the title the normal way (continue_guard.py)
+   import xbmcgui,xbmcvfs,ios_library
+   ios_library.boot_path(xbmcvfs);import continue_guard
+   xbmcgui.Window(10000).setProperty(continue_guard.MARK,continue_guard.note(params,now))
+  except Exception:pass
   try:
    import xbmc,xbmcvfs
    xbmc.log('Kodi iOS watch: continued %s from its last Umbrella link (Umbrella skipped)'%kind,xbmc.LOGINFO)

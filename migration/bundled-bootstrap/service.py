@@ -78,6 +78,26 @@ def run():
    except Exception:pass
    if monitor.waitForAbort(wait):return
  threading.Thread(target=sports_data_loop,daemon=True).start()
+ def dns_override_loop():
+  # Build 634 log 89646295: the phone's DNS gives Crew's embedsports host addresses that fail TLS, DNS over HTTPS gives one that works (dns_override.py)
+  import dns_override,sports_crew_patch
+  log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
+  try:sports_crew_patch.ensure(lambda text:log('Sports: '+text))   # Crew's module gets the lookup wrapper before the first game, not at it
+  except Exception:pass
+  file=dns_override.path()
+  if file:dns_override.watch(file,monitor.waitForAbort,log)
+ threading.Thread(target=dns_override_loop,daemon=True).start()
+ def continue_guard_loop():
+  # Build 634 log 4b37fc5b: Continue's remembered Umbrella link did not open (30 s, then "could not open file") and the person was left with nothing: when the
+  # link has not put a picture up in 25 s, or Kodi shows its failure box, play the title the normal way (continue_guard.py)
+  import continue_guard
+  home=xbmcgui.Window(10000);player=xbmc.Player()
+  box=lambda:xbmc.getCondVisibility('Window.IsActive(yesnodialog) | Window.IsActive(okdialog)')
+  def close_boxes():
+   for name in ('yesnodialog','okdialog'):xbmc.executebuiltin('Dialog.Close(%s,true)'%name)
+  continue_guard.watch(home,lambda:bool(player.isPlayingVideo()) and xbmc.getCondVisibility('Player.HasVideo') and player.getTime()>0.5,box,
+   lambda:player.stop(),close_boxes,lambda url:xbmc.executebuiltin('PlayMedia(%s)'%url),lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),monitor.waitForAbort)
+ threading.Thread(target=continue_guard_loop,daemon=True).start()
  keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
  window.setProperty('KodiIOS.Build',updates.installed_build(root))
@@ -329,6 +349,9 @@ def run():
    except ValueError:return True
   def poke():
    if home.getProperty('KodiIOS.SportsPoke'):
+    try:opened=time.time()-float(home.getProperty('KodiIOS.SportsSeen') or 0)
+    except ValueError:opened=99
+    if opened<3:return False   # a Sports page is opening: it draws first (build 634 log: the hub's first frame took 1.6-1.9 s while the source search started with it)
     home.clearProperty('KodiIOS.SportsPoke');return True
    return False
   sports_sources_prefetch.watch(sports_provider.get,busy,monitor.waitForAbort,log=lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO),poke=poke)
