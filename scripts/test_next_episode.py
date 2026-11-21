@@ -129,6 +129,10 @@ class DownloadedShow(unittest.TestCase):
   self.assertIsNone(ne.downloaded_plan(self.rpc(self.pages()),{'show':'Phony','path':'/d/elsewhere.mkv'}))
   def broken(method,params):raise RuntimeError('rpc')
   self.assertIsNone(ne.downloaded_plan(broken,{'show':'Phony','path':'/d/phony.s01e01.mkv'}))
+ def test_the_players_own_file_is_checked_too(self):   # build 622 log ac85bba1: Kodi's item was TMDb Helper's link
+  text=(BOOT/'next_episode.py').read_text()
+  self.assertIn("playing_download(raw, str(item.get('file') or '')) or playing_download(raw, str(playing_file or ''))",text)
+  self.assertIn('xbmc.Player().getPlayingFile()',text)
  def test_the_library_records_its_paths(self):
   text=(ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_library.py').read_text()
   self.assertIn("'path':params.get('path',''),'file':li.getPath(),'downloaded':True",text)

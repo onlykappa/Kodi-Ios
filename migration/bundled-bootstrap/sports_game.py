@@ -308,6 +308,9 @@ def run(game, provider=None, clock=time.time, search=False):
                 except Exception:pass
 
         def onAction(self,action):
+            import gesture_note
+            if not hasattr(self,'_gestures'):self._gestures=gesture_note.Tracker(lambda text:__import__('xbmc').log(text,__import__('xbmc').LOGINFO))
+            self._gestures.feed(action)
             if action.getId() in BACK_KEYS:self.finish()
 
         def finish(self):

@@ -96,6 +96,9 @@ def run():
             self.setProperty('editing', 'true' if self.editing and self.rows else '')
 
         def onAction(self, action):
+            import gesture_note
+            if not hasattr(self,'_gestures'):self._gestures=gesture_note.Tracker(lambda text:__import__('xbmc').log(text,__import__('xbmc').LOGINFO))
+            self._gestures.feed(action)
             code = action.getId()
             # ISSUE-322 (owner, build 486): holding a poster closed Favourites (iOS sends a long press as Back, 10, then
             # 117) and Kodi's own menu opened over Home with "Add to favourites". On a poster a long press opens this

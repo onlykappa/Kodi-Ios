@@ -53,6 +53,10 @@ class Fast(unittest.TestCase):
     def test_the_fast_copy_door_tries_a_stream_after_a_local_copy(self):
         text=(LIB/'ios_watch_dialog.py').read_text()
         self.assertIn('if _fast_local(handle,params,read_art,find,play,resume):return True\n return fast_stream(handle,params)',text)
+    def test_continue_plays_the_link_directly_by_default(self):   # build 622 log ac85bba1: the cache route made the debrid server refuse Kodi
+        m=self.load();played=[];read=self.seeded()
+        self.assertTrue(m.fast_stream(7,self.PARAMS,read,alive=lambda url:True,play=lambda h,entry,url,pos,total:played.append(url),now=lambda:1500.0))
+        self.assertEqual(played,['https://dl.example.invalid/f.mkv'])
     def test_continue_goes_through_the_services_cache_with_the_resume_point(self):
         # Step 2 (owner, build 620 log 80ea6c76): Continue took 12.3 s; Kodi read the debrid link over one connection because Continue skipped Umbrella's cache
         m=self.load();played=[];asked=[];read=self.seeded(position=350,total=1400)

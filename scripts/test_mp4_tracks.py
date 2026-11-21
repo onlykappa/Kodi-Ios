@@ -41,4 +41,37 @@ class Tracks(unittest.TestCase):
         # Build 618 log: every track of a fragmented Drive copy said "0 samples" (they live in moof boxes) and would have been hidden as empty.
         found=mt.subtitle_tracks(mp4(trak(3,b'sbtl',b'tx3g','eng',samples=0),fragmented=True))
         self.assertIsNone(found[0]['samples']);self.assertNotIn('samples',mt.describe(found))
+
+def mfra(tracks):
+    """A real-layout mfra: tracks = {track id: [(time, moof offset)]} (version 1 tfra, 1-byte traf/trun/sample numbers)."""
+    boxes=b''
+    for track,rows in tracks.items():
+        entries=b''.join(struct.pack('>QQBBB',t,o,1,1,1) for t,o in rows)
+        boxes+=struct.pack('>I4sIIII',24+len(entries),b'tfra',1<<24,track,0,len(rows))+entries
+    length=8+len(boxes)+16
+    return struct.pack('>I4s',length,b'mfra')+boxes+struct.pack('>I4sII',16,b'mfro',0,length)
+
+class Fragmented(unittest.TestCase):
+    """Build 622 (owner log ac85bba1): a fragmented file counts no samples in its moov, so an empty embedded subtitle track looked like a full one."""
+    def test_fragments_per_track_are_counted_from_the_index(self):
+        data=mfra({1:[(n*1000,n*50) for n in range(40)],2:[(n*1000,n*50+5) for n in range(40)],3:[(n*1000,n) for n in range(30)],4:[(0,9)]})
+        self.assertEqual(mt.fragment_counts(data),{1:40,2:40,3:30,4:1})
+        self.assertEqual(mt.fragment_counts(b'junk'),{});self.assertEqual(mt.fragment_counts(b''),{})
+    def test_a_track_in_one_fragment_of_a_long_video_is_empty_and_the_menu_rule_sees_it(self):
+        found=mt.subtitle_tracks(mp4(trak(1,b'vide',b'hvc1'),trak(3,b'sbtl',b'tx3g','eng'),trak(4,b'sbtl',b'tx3g','eng'),trak(5,b'sbtl',b'tx3g','und'),fragmented=True))
+        self.assertTrue(all(t['samples'] is None for t in found))
+        mt.with_fragment_counts(found,{1:60,3:41,4:1})
+        self.assertEqual([(t['id'],t['samples']) for t in found],[(3,41),(4,1),(5,0)])   # track 5 is in no fragment at all
+        self.assertEqual(mt.describe(found),'#3 eng tx3g (sbtl), 41 fragments hold it; #4 eng tx3g (sbtl), 1 fragments hold it; #5 und tx3g (sbtl), 0 fragments hold it')
+    def test_a_short_video_is_left_alone(self):
+        found=mt.subtitle_tracks(mp4(trak(3,b'sbtl',b'tx3g','eng'),fragmented=True));mt.with_fragment_counts(found,{1:4,3:1})
+        self.assertIsNone(found[0]['samples'])
+    def test_the_menu_logs_what_kodi_says_after_a_track_is_switched_on(self):
+        text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/tracks.py').read_text()
+        self.assertIn("'properties': ['subtitleenabled', 'currentsubtitle']",text);self.assertIn("log('Kodi says subtitles enabled=%s",text)
+    def test_the_track_menu_reads_it(self):
+        text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/tracks.py').read_text()
+        self.assertIn('mp4_tracks.with_fragment_counts(self.file_tracks, mp4_tracks.fragment_counts(get(total - size, total - 1)))',text)
+        self.assertIn("any(t.get('samples') is not None and t['samples'] <= 1 for t in self.file_tracks)",text)   # the existing drop of an empty track
+
 if __name__=='__main__':unittest.main()

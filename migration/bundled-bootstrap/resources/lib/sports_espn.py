@@ -243,7 +243,8 @@ def fetch_json(url, timeout=TIMEOUT):
         return json.loads(raw.decode('utf-8', 'replace'))
 
 
-SNAPSHOT_KEEP = 6 * 3600   # seconds a remembered answer may still be drawn first
+SNAPSHOT_KEEP = 48 * 3600  # seconds a remembered answer may still be drawn first (build 622, log ac85bba1: opened 4 s after launch with the last answer
+                           # from the night before, over the old 6-hour limit, so the page waited; it is drawn as "Updated at ..." while the new one loads)
 FRESH_DISK = 45            # seconds: an answer on disk this young was written by the service's loop (sports_data) and needs no refresh at all
 REFRESH_SKIP = 10          # a page's own refresh is skipped when the answer on disk is younger than this
 SHOW_SAVED = 600           # owner, build 620 (log 02bd6dd7: every Sports page sat on "Checking..." / "Updating"): a saved answer up to this old is drawn as current;

@@ -191,6 +191,9 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
                 sports_leagues.run(provider=provider,clock=clock)
 
         def onAction(self, action):
+            import gesture_note
+            if not hasattr(self,'_gestures'):self._gestures=gesture_note.Tracker(lambda text:__import__('xbmc').log(text,__import__('xbmc').LOGINFO))
+            self._gestures.feed(action)
             if action.getId() in BACK_KEYS: self.finish()
 
         def finish(self):

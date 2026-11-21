@@ -81,9 +81,42 @@ def subtitle_tracks(data):
     return out
 
 
+def fragment_counts(mfra):
+    """{track id: how many fragments hold samples of it} from a fragmented MP4's mfra box (its fragment index, at the end of the file); {} when unreadable.
+    Build 622 (owner log ac85bba1: The Lanterns' captions "on" and nothing drawn): a fragmented file's moov counts no samples, so an empty embedded subtitle
+    track could not be told from a full one. A track in at most one fragment of a long video holds no real captions."""
+    out = {}
+    try:
+        mfra = bytes(mfra)
+        at, end = 8, len(mfra) - 16
+        while at + 8 <= end:
+            length, kind = struct.unpack_from('>I4s', mfra, at)
+            if length < 8 or at + length > end:
+                break
+            if kind == b'tfra' and length >= 24:
+                track, sizes, count = struct.unpack_from('>III', mfra, at + 12)
+                out[track] = int(count)
+            at += length
+    except (struct.error, IndexError):
+        return {}
+    return out
+
+
+def with_fragment_counts(tracks, counts, minimum=10):
+    """Give each subtitle track of a fragmented file its fragment count as `samples` (see subtitle_tracks) once the file has at least `minimum`
+    fragments: fewer is too short a video to call a track empty."""
+    if not counts or max(counts.values()) < minimum:
+        return tracks
+    for track in tracks:
+        if track.get('samples') is None:
+            track['samples'] = counts.get(track.get('id'), 0)
+            track['fragments'] = True
+    return tracks
+
+
 def describe(tracks):
     """One log line: 'tracks in file: #3 eng tx3g (sbtl); #4 eng c608 (clcp)'."""
     if not tracks:
         return 'no subtitle track in the first bytes of the file'
     return '; '.join('#%s %s %s (%s)%s' % (t['id'], t['language'], t['codec'] or '?', t['handler'],
-                                           '' if t.get('samples') is None else ', %d samples' % t['samples']) for t in tracks)
+                                           '' if t.get('samples') is None else ', %d %s' % (t['samples'], 'fragments hold it' if t.get('fragments') else 'samples')) for t in tracks)
