@@ -15,6 +15,18 @@ EVERY = 0.2
 ANIMATING = 15.0   # fps: below this the page is idle (an idle Kodi page reads about 3 fps on the phone)
 
 
+def page(window, dialog, info):
+    """(id, name) of what is on top: a dialog when one is open (the Sports pages are dialogs over window 11103), named by its skin file. Build 621
+    (log 5b1f4222): keyed by the window under them and named by System.CurrentWindow, every Sports line said window 11103 with a stray label."""
+    top = dialog if dialog and dialog != 9999 else window
+    try:
+        name = info('Window(%d).Property(xmlfile)' % top) or ''
+    except Exception:
+        name = ''
+    name = name.rsplit('/', 1)[-1]
+    return top, name[:-4] if name.lower().endswith('.xml') else name
+
+
 def line(window, name, samples):
     """The log line for one window's samples, or '' when there are too few to mean anything."""
     if len(samples) < MIN:

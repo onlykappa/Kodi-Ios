@@ -382,7 +382,7 @@ def run():
  # Owner, 2026-11-20 (Sports Upcoming and Favourites flick choppily): the frame rate while a finger is on the screen, per window, one line a minute.
  import scroll_probe
  _probe=scroll_probe.Probe(lambda:xbmc.getInfoLabel('System.FPS'),lambda:not xbmc.getCondVisibility('System.IdleTime(1)'),
-                           lambda:(xbmcgui.getCurrentWindowId(),xbmc.getInfoLabel('System.CurrentWindow')),lambda text:xbmc.log(text,xbmc.LOGINFO),
+                           lambda:scroll_probe.page(xbmcgui.getCurrentWindowId(),xbmcgui.getCurrentWindowDialogId(),xbmc.getInfoLabel),lambda text:xbmc.log(text,xbmc.LOGINFO),
                            lambda:xbmc.getCondVisibility('Player.HasVideo'))
  threading.Thread(target=scroll_probe.watch,args=(_probe,monitor.waitForAbort),daemon=True).start()
  # Build 193: one status model for every page and the bell (work_state.py), every 2 s, with the reason stored.
