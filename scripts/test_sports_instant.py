@@ -57,4 +57,13 @@ class Wiring(unittest.TestCase):
         self.assertIn('import sports,sports_upcoming,sports_live,sports_leagues,sports_rows,sports_filter,sports_hybrid,sports_espn',text[start:end])
         self.assertNotIn('waitForAbort(0.5)',text[start:end])
         self.assertLess(end,text.index("window.setProperty('KodiIOS.Build'"))   # started before the set-up work
+class Upcoming(unittest.TestCase):
+    def test_a_cold_start_reads_the_saved_answer_so_the_right_window_opens_once(self):   # build 623 log f5848994: short window, then the long one
+        text=(ROOT/'sports_upcoming.py').read_text()
+        seed=text.index("if _CACHE is None:");choose=text.index('slots = page.SLOTS_SHORT\n    if _CACHE is not None:')
+        self.assertLess(seed,choose);self.assertIn("provider, 'has_answer'",text[seed:choose]);self.assertIn('_CACHE = (provider.upcoming_games(), provider.overview()',text[seed:choose])
+class Startup(unittest.TestCase):
+    def test_the_log_says_which_import_line_is_slow(self):
+        text=(ROOT/'service.py').read_text()
+        self.assertIn("_PARTS.append(('bootstrap',time.monotonic()))",text);self.assertIn("bootstrap entered (imports %.3fs: %s)",text)
 if __name__=='__main__':unittest.main()

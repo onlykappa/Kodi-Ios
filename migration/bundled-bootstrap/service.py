@@ -11,10 +11,15 @@ if __name__=='__main__' and not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
   import native_ui
   threading.Thread(target=native_ui.run,args=(xbmc,xbmcvfs,xbmc.Monitor()),daemon=True).start()
   _EARLY_UI_STARTED=True
+_PARTS=[('start',time.monotonic())]   # build 623 log f5848994: imports took 2.06 s on the phone (0.08 s on a computer) and a Sports tap in that time waited for them; this says which line
 from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,elementum_upload_cap,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
+_PARTS.append(('bootstrap',time.monotonic()))
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
+_PARTS.append(('navigation',time.monotonic()))
 from startup import generate,failure,LOCK,FUSE
+_PARTS.append(('startup',time.monotonic()))
 import airplay,notices,updates,threading,diagnostics,transfer_control
+_PARTS.append(('airplay..transfer_control',time.monotonic()))
 class _Late:
  """A module imported on first use (performance 1E.4: 1.74 s of imports before the service ran; portrait.py alone is
  147 KB). Each of these is first used in a worker thread or well after start-up, so the import leaves the main path."""
@@ -30,7 +35,7 @@ def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
  if not xbmc.getCondVisibility('System.Platform.IOS'):return
  begun=time.monotonic()
- xbmc.log('Kodi iOS startup: bootstrap entered (imports %.3fs)'%_IMPORT_SECONDS,xbmc.LOGINFO)
+ xbmc.log('Kodi iOS startup: bootstrap entered (imports %.3fs: %s)'%(_IMPORT_SECONDS,', '.join('%s %.2f'%(b[0],b[1]-a[1]) for a,b in zip(_PARTS,_PARTS[1:]))),xbmc.LOGINFO)
  monitor=xbmc.Monitor()
  root=Path(__file__).resolve().parent;profile=Path(xbmcvfs.translatePath('special://profile/')).resolve()
  diagnostics.configure(root,profile)

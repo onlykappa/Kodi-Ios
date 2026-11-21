@@ -201,6 +201,14 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
                 self.stop.set()
                 self.close()
 
+    # Build 623 log f5848994: a fresh start had no list in memory, opened the short window, found more games than it has rows and reopened the long one (a second
+    # window load, 0.2 s, and a flash). The answer saved on the phone is read first (no ESPN request) so the right window opens and its first frame holds the games.
+    if _CACHE is None:
+        try:
+            if getattr(provider, 'has_answer', lambda: False)():
+                _CACHE = (provider.upcoming_games(), provider.overview()['updated'])
+        except Exception:
+            _CACHE = None
     # The window with room for the games already known (remembered from the last open); a bigger list reopens into the long one.
     slots = page.SLOTS_SHORT
     if _CACHE is not None:
