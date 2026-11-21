@@ -51,8 +51,12 @@ class HybridProvider:
         self.searches = {}   # token -> {'game', 'state': 'searching' | 'done' | 'error'}
 
     # -- games and leagues: ESPN only
-    def refresh(self):
-        self.espn.refresh()
+    def refresh(self, block=False):
+        code = getattr(getattr(self.espn.refresh, '__func__', self.espn.refresh), '__code__', None)
+        if code is not None and 'block' in code.co_varnames[:code.co_argcount]:
+            self.espn.refresh(block=block)
+        else:   # a provider without the block argument (tests, the sample)
+            self.espn.refresh()
 
     def remembered(self):
         return bool(getattr(self.espn, 'remembered', lambda: False)())

@@ -123,7 +123,7 @@ class Provider(unittest.TestCase):
         p.upcoming_games()
         p.overview()
         self.assertEqual(len(p.calls), count)          # one fetch per page load, not three
-        p.refresh()
+        p.refresh(block=True)   # the service's loop: always asks again
         self.assertEqual(len(p.calls), 2 * count)   # both requests of every league again
 
     def test_each_league_is_asked_for_today_and_tomorrow_with_no_date_range(self):

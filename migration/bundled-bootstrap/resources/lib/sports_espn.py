@@ -246,6 +246,8 @@ def fetch_json(url, timeout=TIMEOUT):
 SNAPSHOT_KEEP = 6 * 3600   # seconds a remembered answer may still be drawn first
 FRESH_DISK = 45            # seconds: an answer on disk this young was written by the service's loop (sports_data) and needs no refresh at all
 REFRESH_SKIP = 10          # a page's own refresh is skipped when the answer on disk is younger than this
+SHOW_SAVED = 600           # owner, build 620 (log 02bd6dd7: every Sports page sat on "Checking..." / "Updating"): a page draws a saved answer up to this old at
+                           # once and the newer one follows in the background; only with nothing saved (or older) does a page wait for ESPN
 
 
 class EspnProvider:
@@ -260,6 +262,7 @@ class EspnProvider:
         self.league_defs = tuple(entry for entry in LEAGUES if leagues is None or entry[0] in leagues)
         self.lock = threading.Lock()
         self.snapshot = None   # {'at', 'live', 'upcoming', 'leagues', 'finished'}
+        self.refreshing = False   # a background refresh is running (one at a time)
 
     def _log(self, text):
         """One line in kodi.log; the pages only say "can't load", so the reason goes here."""
@@ -326,11 +329,17 @@ class EspnProvider:
         return data is not None and self.clock() - data['at'] > FRESH_DISK   # younger than that, the service kept it current: nothing is on its way
 
     def _refresh_later(self):
+        if self.refreshing:
+            return
+        self.refreshing = True
+
         def run():
             try:
                 self._load(force=True)
             except Exception as error:
                 self._log('background refresh: %s' % type(error).__name__)
+            finally:
+                self.refreshing = False
         threading.Thread(target=run, daemon=True).start()
 
     # -- loading
@@ -402,11 +411,29 @@ class EspnProvider:
             return self.snapshot
 
     # -- the contract
-    def refresh(self):
+    def refresh(self, block=False):
+        """Bring the answer up to date. A page (block=False) never waits when an answer is saved: under REFRESH_SKIP old it is current (the service's loop
+        keeps it so), under SHOW_SAVED it is drawn now and the newer one is fetched in the background (the pages re-read every second or two). Only with
+        nothing usable does a page wait for ESPN. The service's loop (block=True) always fetches."""
         with self.lock:   # an answer another process wrote a moment ago is as good as asking again
-            if self._adopt_newer_disk() and not self.snapshot.get('remembered') and self.clock() - self.snapshot['at'] < REFRESH_SKIP:
+            self._adopt_newer_disk()
+            if self.snapshot is None and self.snapshot_path:
+                data = self._read_disk()
+                if data:
+                    self.snapshot = dict(data)
+            snap = self.snapshot
+            age = self.clock() - snap['at'] if snap else None
+            if not block and snap is not None and age < REFRESH_SKIP and not snap.get('remembered'):
                 return
+            if not block and snap is not None and age < SHOW_SAVED:
+                self.snapshot = dict(snap)
+                self.snapshot.pop('remembered', None)   # drawn as the answer; the fresh one replaces it
+                self._refresh_later()
+                return
+        started = self.clock()
         self._load(force=True)
+        if not block:
+            self._log('a page waited %.1f s for ESPN (no saved answer under %d min)' % (self.clock() - started, SHOW_SAVED // 60))
 
     def live_games(self, league=None):
         return sm.filter_league(sm.order_live(self._load()['live']), league)
