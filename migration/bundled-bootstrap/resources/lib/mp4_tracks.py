@@ -298,3 +298,44 @@ def describe(tracks, video=None):
                                              '' if t.get('samples') is None else ', %d %s' % (t['samples'], 'fragments hold it' if t.get('fragments') else 'samples'),
                                              ', fragments from ' + span_text(t['first'], t['last']) if 'first' in t else '') for t in tracks)
     return line + (' | video fragments from ' + span_text(*video) if video else '')
+
+
+def zero_length(samples, minimum=2, tiny=0.05):
+    """True when a track's text cues have no length: at least `minimum` samples with text and together under `tiny` seconds of it. Build 634 log f75957fe: every
+    text cue of the Lanterns' converted tracks was written with a length of 0 s (the next, blank sample begins at the same instant), so Kodi shows each for no time
+    at all although it reports the track "on". samples: [(start s, duration s, size bytes)] from moof_samples."""
+    text = [(a, d, z) for a, d, z in samples if z > 2]
+    return len(text) >= minimum and sum(d for _, d, _ in text) < tiny
+
+
+def probe(url, opener=None, timeout=3):
+    """Read a fragmented MP4's subtitle tracks and its first fragments through `url` (the app's loopback proxy) and say which tracks have zero-length cues:
+    {'tracks': [{'id', 'zero_length': bool}...] in the file's order, 'order': [ids]} or None when it cannot be read (not fragmented, not reachable)."""
+    import urllib.request
+    opener = opener or urllib.request.urlopen
+
+    def get(first, last):
+        with opener(urllib.request.Request(url, headers={'Range': 'bytes=%d-%d' % (first, last)}), timeout=timeout) as response:
+            return response.read(last - first + 2), str(response.headers.get('Content-Range') or '')
+    try:
+        head, got = get(0, 1048575)
+        total = int(got.rpartition('/')[2] or 0)
+        tracks = subtitle_tracks(head)
+        if not tracks or total <= 1048576:
+            return None
+        tail = get(total - 16, total - 1)[0]
+        size = int.from_bytes(tail[-4:], 'big') if tail[-12:-8] == b'mfro' else 0
+        if not 24 <= size <= 2 * 1024 * 1024:
+            return None
+        entries = fragment_entries(get(total - size, total - 1)[0], 3)
+        scales = track_timescales(head)
+        first = next((t['id'] for t in tracks if len(entries.get(t['id'], ())) > 1), None)
+        seen = {t['id']: [] for t in tracks}
+        for _, offset in entries.get(first, ()):
+            found = moof_samples(get(offset, offset + 262143)[0], offset, scales)
+            for t in tracks:
+                seen[t['id']].extend(found.get(t['id'], []))
+        return {'tracks': [{'id': t['id'], 'zero_length': zero_length(seen[t['id']])} for t in tracks], 'order': [t['id'] for t in tracks]}
+    except Exception:
+        return None
+

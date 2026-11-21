@@ -141,7 +141,7 @@ def run(mode):
     # Owner log 20b1ca76: an error message carried the SubDL key into kodi.log; keys never reach the log.
     log = lambda m: xbmc.log('Kodi iOS tracks: ' + redact(m), xbmc.LOGINFO)
     lang, lang_name = subtitle_language(xbmc)
-    folder = xbmcvfs.translatePath('special://temp/kodiios-subtitles/')
+    folder = xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/subtitles/')   # build 634 log f75957fe: special://temp is emptied at every start, so a download was lost
     LIST_ID = SUBS_LIST if mode == 'subtitles' else LIST   # the drawer has a taller list of its own
 
     class Menu(xbmcgui.WindowXMLDialog):
@@ -441,6 +441,11 @@ def run(mode):
             after = (rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['subtitles']}) or {}).get('subtitles') or []
             added = {s.get('index') for s in after} - before
             self.added |= added
+            try:   # this video's subtitle from now on, put back on when it starts again (subtitle_memory.py)
+                import subtitle_memory
+                subtitle_memory.remember(folder, subtitle_memory.identity(xbmc.getInfoLabel, xbmc.Player().getPlayingFile()), path, name, self.lang)
+            except Exception as error:
+                log('subtitle memory: not kept (%s)' % type(error).__name__)
             for index in added:
                 self.paths[index] = path
                 self.track_evidence[index] = {'filename': name, 'cues': sm.cue_times(data, name), 'language': self.lang}
@@ -508,12 +513,22 @@ def run(mode):
                                 entries = mp4_tracks.fragment_entries(index, 3)
                                 first = next((t['id'] for t in self.file_tracks if len(entries.get(t['id'], ())) > 1), None)
                                 cues = {t['id']: [] for t in self.file_tracks}
+                                raw = {t['id']: [] for t in self.file_tracks}
                                 for when, offset in entries.get(first, ()):
                                     found = mp4_tracks.moof_samples(get(offset, offset + 262143), offset, scales)
                                     for t in self.file_tracks:
                                         cues[t['id']].append('%d s: %s' % (round(when / scales.get(first, 1)), mp4_tracks.cue_summary(found.get(t['id'], []))))
+                                        raw[t['id']].extend(found.get(t['id'], []))
                                 if first is not None:
                                     log('file subtitle cues: ' + '; '.join('#%s [%s]' % (k, ' | '.join(v)) for k, v in cues.items()))
+                                    # Build 634 log f75957fe: every text cue of these tracks has no length, so Kodi reports the track on and draws nothing: such a track
+                                    # is left out of the menu like an empty one, and is not shown as "on" (the existing rule below turns subtitles off)
+                                    flat = [t['id'] for t in self.file_tracks if mp4_tracks.zero_length(raw[t['id']])]
+                                    for t in self.file_tracks:
+                                        if t['id'] in flat:
+                                            t['samples'] = 0
+                                    if flat:
+                                        log('file subtitle tracks with cues that have no length (hidden, they would show nothing): %s' % ', '.join('#%s' % i for i in flat))
                             except Exception as error:
                                 log('file subtitle cues: not read (%s)' % type(error).__name__)
                     except Exception as error:
@@ -802,6 +817,11 @@ def run(mode):
                     os.remove(path)
                 except OSError:
                     pass
+            try:
+                import subtitle_memory
+                subtitle_memory.forget(folder, subtitle_memory.identity(xbmc.getInfoLabel, xbmc.Player().getPlayingFile()))
+            except Exception:
+                pass
             log('removed subtitle %s' % row['label'])
             self.end_hold()
             if self.page != 'tracks':

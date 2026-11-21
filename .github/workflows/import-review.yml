@@ -207,6 +207,8 @@ jobs:
           python3 -B scripts/test_tls_roots.py
           python3 -B scripts/test_continue_guard.py
           python3 -B scripts/test_dns_override.py
+          python3 -B scripts/test_subtitle_memory.py
+          python3 -B scripts/test_cue_length.py
           python3 -B scripts/test_sports_loop_proxy_compat.py
           python3 -B scripts/test_sports_playback_repair.py
           python3 -B scripts/test_sports_dialogs.py

@@ -1943,7 +1943,7 @@ def playing_link(player):
   try:return str(player.getPlayingFile() or '')
   except Exception:return ''
 
-def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{},log=None,on_stop=None):
+def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{},log=None,on_stop=None,on_start=None):
  """Continue Watching: save the position of what the chooser started, and drop it once finished."""
  state={'playing':False,'saved':float('-inf'),'position':0,'total':0,'started':0,'seed':0,'remote':False,'handoff':False,'remote_file':'','generation':None,'ignored_generation':None}
  # ISSUE-299 (owner, build 442: "continue watching is only tracking the downloaded things"): one line per playback
@@ -1969,6 +1969,9 @@ def progress_tracker(player,continue_module,read,write,clock,every=10,external=l
     now=clock()
     if not state['playing']:
      state.update(playing=True,started=now,seed=0)
+     if on_start:
+      try:on_start()   # a video began: its remembered subtitle goes back on (subtitle_memory)
+      except Exception as error:_quiet('portrait:on_start',error)
      try:
       data=continue_module.load(read);entry=data.get('items',{}).get(data.get('current')) or {}
       state.update(seed=float(entry.get('position') or 0),position=float(entry.get('position') or 0),total=float(entry.get('total') or 0))
@@ -2205,8 +2208,37 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
   def keep_opening(entry):
    import resume_cache,remote_media,cache_tune
    resume_cache.capture_later(entry,lambda link:remote_media.Foreground(link),wifi=lambda:cache_tune.link_kind()=='wifi',log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+  def subtitles_back():
+   import threading
+   def work():
+    import subtitle_memory,mp4_tracks
+    if xbmc.Monitor().waitForAbort(3.0):return   # Kodi has its streams by then
+    player=xbmc.Player()
+    if not player.isPlayingVideo():return
+    root=xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/subtitles/')
+    def rpc(method,params):
+     return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result') or {}
+    def streams():
+     pid=next((p['playerid'] for p in rpc('Player.GetActivePlayers',{}) if p.get('type')=='video'),None)
+     return pid,rpc('Player.GetProperties',{'playerid':pid,'properties':['subtitleenabled','currentsubtitle','subtitles']}) if pid is not None else {}
+    def current():
+     pid,p=streams();c=p.get('currentsubtitle') or {}
+     return bool(p.get('subtitleenabled')),c.get('index'),str(c.get('name') or '').rstrip().endswith('(External)')
+    def zero(index):
+     url=str(player.getPlayingFile() or '').split('|')[0]
+     if not url.startswith('http://127.0.0.1:'):return None
+     found=mp4_tracks.probe(url)
+     if not found:return None
+     pid,p=streams()
+     embedded=sorted((s for s in p.get('subtitles') or [] if not str(s.get('name') or '').rstrip().endswith('(External)')),key=lambda s:s.get('index') or 0)
+     flags=[t['zero_length'] for t in found['tracks']]
+     if len(embedded)!=len(flags):return None
+     return next((flags[n] for n,s in enumerate(embedded) if s.get('index')==index),None)
+    subtitle_memory.at_start(root,xbmc.getInfoLabel,player.getPlayingFile(),lambda path:player.setSubtitles(path),lambda on:player.showSubtitles(on),current,zero,
+                            lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+   threading.Thread(target=work,daemon=True).start()
   tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic,external=lambda:airplay.health(native_player),
-                       log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),on_stop=keep_opening)
+                       log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),on_stop=keep_opening,on_start=subtitles_back)
  except Exception as error:xbmc.log('Kodi iOS continue watching unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  # Listing cache: check the row flags against the copies now, then fill and refresh copies in the background.
  try:
