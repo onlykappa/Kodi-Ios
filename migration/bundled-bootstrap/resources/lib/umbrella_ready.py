@@ -79,7 +79,7 @@ def _stage(provider,elapsed,linked,cache,since_link=None):
  who=provider or 'the source'
  out={'Line':'','Right':'%d s'%max(0,int(elapsed)),'Fill':'','Slow':''}
  if not linked:
-  out['Line']='Getting the link from %s\u2026'%who
+  out['Line']='Getting the link from %s'%who
   return out
  size=int((cache or {}).get('block_size') or 0)
  if cache and cache.get('kodi') and size:
@@ -88,19 +88,19 @@ def _stage(provider,elapsed,linked,cache,since_link=None):
    mb=1024*1024;pct=int(100*have/target)
    out.update(Line='Opening the video \u00b7 %d of %d MB'%(have//mb,target//mb),Right='%d%%'%pct,Fill=str(pct))
   else:
-   out['Line']='Starting the video\u2026'
+   out['Line']='Starting the video'
   if elapsed>=SLOW_AFTER and since_link and since_link>=2 and have:
    speed=have/since_link
    if speed<SLOW_BELOW:out['Slow']='%s is sending it slowly right now (%.1f MB/s).'%(who,speed/(1024*1024))
   return out
- out['Line']='Starting the video\u2026'
+ out['Line']='Starting the video'
  return out
 
 def stage(provider,elapsed,linked,cache,since_link=None):
  """_stage plus Head and Sub: the step and its numbers on two lines (the owner's centred opening page, 2026-11-21)."""
  out=_stage(provider,elapsed,linked,cache,since_link)
  head,_,sub=out['Line'].partition(' \u00b7 ')
- if not linked:head=head.split(' from ')[0].rstrip('\u2026')+'\u2026'   # the service is already in the small capitals line, and a long name must not run out of the headline
+ if not linked:head=head.split(' from ')[0]   # the service is already in the small capitals line, and a long name must not run out of the headline (no "..." anywhere on this page: owner, 2026-11-21)
  out['Head'],out['Sub']=head,sub
  return out
 

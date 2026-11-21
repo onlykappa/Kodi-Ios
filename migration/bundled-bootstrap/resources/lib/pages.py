@@ -322,7 +322,7 @@ def umbrella_ready(p):
  card=('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(p.SIDE,card_y,w,card_h)+
   caps('[UPPERCASE]$INFO[Window(home).Property(IOSReady.Provider)][/UPPERCASE][UPPERCASE]$INFO[Window(home).Property(IOSReady.Via), \u00b7 ,][/UPPERCASE]',ready)+
   head('$INFO[Window(home).Property(IOSReady.Head)]','%s + %s'%(ready,STAGED))+
-  head('Getting ready to play\u2026','%s + %s'%(ready,UNSTAGED))+
+  head('Getting ready to play','%s + %s'%(ready,UNSTAGED))+
   # Before a source is known (board 10): where it looks, then Umbrella's own words under the bar.
   caps('UMBRELLA \u00b7 YOUR ACCOUNTS','!%s'%ready)+head('Looking for a source','!%s'%ready)+
   '<control type="textbox"><left>60</left><top>%d</top><width>%d</width><height>170</height><font>p_foot</font><textcolor>%s</textcolor><aligny>top</aligny>'
