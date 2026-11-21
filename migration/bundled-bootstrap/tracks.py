@@ -536,6 +536,26 @@ def run(mode):
                 import speech_check
                 tested = sm.annotate(dict(selected, filename=name, data=data), video)
                 fixed, why = speech_check.apply(selected, tested, data, name, heard)
+                log('speech check: %d words heard, this subtitle: %s' % (len(heard), speech_check.describe(selected)))
+                if not why and selected.get('match_speech') == 'unknown':
+                    # The words cannot say whether this subtitle is for this video: try the next few results and keep one the speech supports.
+                    others = [r for r in candidates if r.get('id') != selected.get('id')][:3]
+                    files = []
+                    for other in others:
+                        try:
+                            files.append(sm.choose_download([other], self.fetch_result, video))
+                        except Exception:
+                            continue
+                    best = speech_check.best_fit(heard, files)
+                    if best:
+                        selected2, name2, data2, how, seconds = best
+                        log('speech check: a better supported subtitle among %d others (%s)' % (len(files), how))
+                        if how == 'shift':
+                            data2 = speech_check.shift_file(data2, name2, seconds)
+                        self.apply(selected2, (name2, data2))
+                        xbmcgui.Dialog().notification('Better-matched %s subtitles on' % language, '', xbmcgui.NOTIFICATION_INFO, 3000, False)
+                        return
+                    log('speech check: none of %d others is better supported; subtitles kept as applied' % len(files))
                 if why:
                     others = [r for r in candidates if r.get('id') != selected.get('id')]
                     log('speech check: %s; trying %d other subtitle(s)' % (why, len(others)))

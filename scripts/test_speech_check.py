@@ -193,6 +193,30 @@ class Wiring(unittest.TestCase):
         self.assertIn('speech_check.for_playing(', (LIB / 'dub_captions.py').read_text())
         self.assertIn("NSSpeechRecognitionUsageDescription", (ROOT / 'scripts/build_customized_ipa.py').read_text())
 
+class Choosing(unittest.TestCase):
+    """Build 623 (owner: "download and apply ... they dont match and timing is off"): the first of 13 results was applied and the check could not decide."""
+    def test_the_best_supported_of_several_is_kept(self):
+        right, said = scene(0.0, seed=1);other, _ = scene(0.0, seed=7);shifted, said2 = scene(6.0, seed=1)
+        heard = sc.heard(said)
+        self.assertEqual(sc.compare(heard, sc.cues(other, 'o.srt'))['agreement'] < sc.MISMATCH + .1, True)
+        best = sc.best_fit(heard, [({'id': 'a'}, 'a.srt', other), ({'id': 'b'}, 'b.srt', right)])
+        self.assertEqual((best[0]['id'], best[3]), ('b', 'fits'))
+        best = sc.best_fit(sc.heard(said2), [({'id': 'a'}, 'a.srt', other), ({'id': 'c'}, 'c.srt', right)])
+        self.assertEqual(best[0]['id'], 'c');self.assertEqual(best[3], 'shift');self.assertAlmostEqual(best[4], 6.0, delta=.6)   # its cues are 6 s early: take that out
+    def test_nothing_established_gives_none_and_bad_files_are_skipped(self):
+        other, _ = scene(0.0, seed=7);_, said = scene(0.0, seed=1)
+        self.assertIsNone(sc.best_fit(sc.heard(said), [({'id': 'a'}, 'a.srt', other), ({'id': 'x'}, 'x.srt', b'not a subtitle')]))
+        self.assertIsNone(sc.best_fit([], []));self.assertIsNone(sc.best_fit(sc.heard(said)[:3], [({'id': 'a'}, 'a.srt', scene(0.0, seed=1)[0])]))   # too few words: no claim
+    def test_the_verdict_is_worded_for_the_log(self):
+        self.assertEqual(sc.describe({}), 'no verdict')
+        self.assertEqual(sc.describe({'match_speech': 'unknown', 'match_speech_agreement': .213, 'match_speech_shift': 0.0}), 'unknown (agreement 0.21, shift 0.0 s)')
+        self.assertEqual(sc.describe({'match_speech': 'shift', 'match_speech_agreement': None, 'match_speech_shift': -3.5}), 'shift (agreement n/a, shift -3.5 s)')
+    def test_the_menu_tries_the_next_results_when_the_check_cannot_decide(self):
+        text = (ROOT / 'migration/bundled-bootstrap/tracks.py').read_text()
+        self.assertIn("log('speech check: %d words heard, this subtitle: %s' % (len(heard), speech_check.describe(selected)))", text)
+        self.assertIn("selected.get('match_speech') == 'unknown'", text)
+        self.assertIn('best = speech_check.best_fit(heard, files)', text)
+
 
 if __name__ == '__main__':
     unittest.main()

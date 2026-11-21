@@ -301,3 +301,29 @@ def apply(original, tested, data, name, heard):
         tested['match_score'] = min(100, tested['match_score'] + 10)
         original['match_score'] = tested['match_score']
     return data, None
+
+
+def best_fit(heard, files):
+    """Of several downloaded subtitles, [(selected, name, data)], the one the heard words support best: (selected, name, data, how, seconds_to_add) where how is
+    'fits' or 'shift', or None when none of them is established. Build 623 (owner: "download and apply ... they dont match and timing is off"): the first of
+    13 results was applied and the check could not decide ('unknown'); the next few are now tried and the best supported one kept."""
+    best = None
+    for selected, name, data in files:
+        try:
+            fit = compare(heard, cues(data, name))
+        except Exception:
+            continue
+        how, seconds = verdict(fit)
+        if how in ('fits', 'shift') and (best is None or fit['agreement'] > best[0]):
+            best = (fit['agreement'], selected, name, data, how, seconds)
+    return best[1:] if best else None
+
+
+def describe(selected):
+    """The log words for what a check found (set on the result by apply): 'unknown (agreement 0.21, shift 0.0 s)'."""
+    how = selected.get('match_speech')
+    if not how:
+        return 'no verdict'
+    agreement = selected.get('match_speech_agreement')
+    return '%s (agreement %s, shift %.1f s)' % (how, 'n/a' if agreement is None else '%.2f' % agreement, float(selected.get('match_speech_shift') or 0))
+
