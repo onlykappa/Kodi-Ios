@@ -33,6 +33,9 @@ class Abort(unittest.TestCase):
     def test_next_episode_releases_the_proxy_once_the_old_video_is_closed(self):
         text=(BOOT/'next_episode.py').read_text();self.assertIn('release_drive_reads(xbmc, xbmcgui.Window(10000))',text)
         self.assertIn("'?release=1'",(BOOT/'resources/lib/drive_proxy.py').read_text());self.assertIn("'release=1' in self.path",(BOOT/'resources/lib/drive_proxy.py').read_text())
+    def test_a_response_whose_socket_was_cut_reads_as_an_abort_not_an_attribute_error(self):
+        text=(BOOT/'resources/lib/drive_proxy.py').read_text()
+        self.assertIn("except AttributeError:",text);self.assertIn("put(ConnectionAbortedError('upstream aborted'))",text)
     def test_nothing_to_cut_is_fine(self):
         self.assertEqual(self.upstream().abort_all(),0)
     def test_the_proxy_answers_abort_and_ask_abort_reaches_it(self):

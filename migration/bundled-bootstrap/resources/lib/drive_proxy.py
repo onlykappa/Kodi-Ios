@@ -452,6 +452,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     put(piece)
                     if not piece:
                         return
+            except AttributeError:   # http.client's response lost its socket when abort_all cut it (build 639 log 9f7b4ab2: 'NoneType' has no attribute 'close' in a request thread)
+                put(ConnectionAbortedError('upstream aborted'))
             except Exception as error:
                 put(error)
         threading.Thread(target=produce, daemon=True).start()
