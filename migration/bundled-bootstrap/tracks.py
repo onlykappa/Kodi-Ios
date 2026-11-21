@@ -503,6 +503,19 @@ def run(mode):
                             spans = mp4_tracks.fragment_spans(index, mp4_tracks.track_timescales(head))   # where the cues sit against the video (ISSUE-424)
                             mp4_tracks.with_spans(self.file_tracks, spans)
                             picture = mp4_tracks.video_span(self.file_tracks, spans)
+                            try:   # what the first fragments hold for each subtitle track: text or only blanks, and when (ISSUE-424: the cues exist, so are they readable?)
+                                scales = mp4_tracks.track_timescales(head)
+                                entries = mp4_tracks.fragment_entries(index, 3)
+                                first = next((t['id'] for t in self.file_tracks if len(entries.get(t['id'], ())) > 1), None)
+                                cues = {t['id']: [] for t in self.file_tracks}
+                                for when, offset in entries.get(first, ()):
+                                    found = mp4_tracks.moof_samples(get(offset, offset + 262143), offset, scales)
+                                    for t in self.file_tracks:
+                                        cues[t['id']].append('%d s: %s' % (round(when / scales.get(first, 1)), mp4_tracks.cue_summary(found.get(t['id'], []))))
+                                if first is not None:
+                                    log('file subtitle cues: ' + '; '.join('#%s [%s]' % (k, ' | '.join(v)) for k, v in cues.items()))
+                            except Exception as error:
+                                log('file subtitle cues: not read (%s)' % type(error).__name__)
                     except Exception as error:
                         log('file subtitle tracks: fragment index not read (%s)' % type(error).__name__)
                 log('file subtitle tracks: %s' % mp4_tracks.describe(self.file_tracks, picture))

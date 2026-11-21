@@ -93,4 +93,33 @@ class Fragmented(unittest.TestCase):
         self.assertIn('mp4_tracks.with_fragment_counts(self.file_tracks, mp4_tracks.fragment_counts(index))',text)
         self.assertIn("any(t.get('samples') is not None and t['samples'] <= 1 for t in self.file_tracks)",text)   # the existing drop of an empty track
 
+def moof(tracks):
+    """tracks = {track id: (base decode time, [(duration, size)])}: a moof with one traf each (tfhd flags 0x20000, tfdt v1, trun with durations and sizes)."""
+    out=b''
+    for track,(base,rows) in tracks.items():
+        tfhd=box(b'tfhd',struct.pack('>II',0x20000,track))
+        tfdt=box(b'tfdt',struct.pack('>IQ',1<<24,base))
+        trun=box(b'trun',struct.pack('>III',0x301,len(rows),0)+b''.join(struct.pack('>II',d,z) for d,z in rows))
+        out+=box(b'traf',tfhd+tfdt+trun)
+    return box(b'moof',box(b'mfhd',bytes(8))+out)
+
+class Cues(unittest.TestCase):
+    """ISSUE-424: the log says what the first fragments hold for each subtitle track, so empty (blank-only) tracks, wrongly timed ones and good ones read differently."""
+    def test_text_blank_and_missing_samples_are_told_apart(self):
+        data=moof({3:(5000,[(3000,18),(4000,2),(2000,25)]),4:(0,[(9000,2)])})+b'junk'
+        found=mt.moof_samples(data,0,{3:1000,4:1000})
+        self.assertEqual(found[3],[(5.0,3.0,18),(8.0,4.0,2),(12.0,2.0,25)])
+        self.assertEqual(mt.cue_summary(found[3]),'3 samples, 2 with text, first text at 5.0 s (18 bytes), 5.0 s of text')
+        self.assertEqual(mt.cue_summary(found[4]),'1 samples, none with text');self.assertEqual(mt.cue_summary([]),'no samples')
+    def test_entries_come_from_the_index_and_a_non_moof_is_refused(self):
+        index=mfra({3:[(0,100),(9000,500),(18000,900),(27000,1300)],4:[(0,100)]})
+        self.assertEqual(mt.fragment_entries(index,3),{3:[(0,100),(9000,500),(18000,900)],4:[(0,100)]})
+        self.assertEqual(mt.moof_samples(box(b'mdat',bytes(40)),0,{3:1000}),{});self.assertEqual(mt.moof_samples(b'',0,{}),{})
+    def test_default_sizes_and_durations_in_the_header_are_used(self):
+        tfhd=box(b'tfhd',struct.pack('>IIII',0x20000|0x8|0x10,3,2000,30));trun=box(b'trun',struct.pack('>III',0,2,0))
+        data=box(b'moof',box(b'traf',tfhd+box(b'tfdt',struct.pack('>II',0,1000))+trun))
+        self.assertEqual(mt.moof_samples(data,0,{3:1000})[3],[(1.0,2.0,30),(3.0,2.0,30)])
+    def test_the_menu_logs_the_cues(self):
+        text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/tracks.py').read_text()
+        self.assertIn("log('file subtitle cues: '",text);self.assertIn('mp4_tracks.moof_samples(get(offset, offset + 262143), offset, scales)',text)
 if __name__=='__main__':unittest.main()

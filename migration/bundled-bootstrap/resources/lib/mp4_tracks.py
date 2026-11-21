@@ -135,6 +135,109 @@ def fragment_spans(mfra, scales):
     return out
 
 
+def fragment_entries(mfra, limit=3):
+    """{track id: [(time in track units, moof offset)]} for the first `limit` entries of each tfra in a fragmented file's mfra; {} when unreadable."""
+    out = {}
+    try:
+        mfra = bytes(mfra)
+        at, end = 8, len(mfra) - 16
+        while at + 8 <= end:
+            length, kind = struct.unpack_from('>I4s', mfra, at)
+            if length < 8 or at + length > end:
+                break
+            if kind == b'tfra' and length >= 24:
+                version = mfra[at + 8]
+                track, sizes, count = struct.unpack_from('>III', mfra, at + 12)
+                width = 8 if version == 1 else 4
+                step = 2 * width + (((sizes >> 4) & 3) + 1) + (((sizes >> 2) & 3) + 1) + ((sizes & 3) + 1)
+                fmt = '>QQ' if version == 1 else '>II'
+                rows = []
+                for n in range(min(limit, count)):
+                    if 24 + (n + 1) * step > length:
+                        break
+                    rows.append(struct.unpack_from(fmt, mfra, at + 24 + n * step))
+                out[track] = rows
+            at += length
+    except (struct.error, IndexError):
+        return {}
+    return out
+
+
+def moof_samples(data, offset, scales):
+    """{track id: [(start s, duration s, size bytes)]} for the samples of every track in the moof that begins at `offset` of the file, where `data` holds
+    the file's bytes from `offset` on. Reads tfhd, tfdt and trun (default sizes and durations included). {} when it is not a moof."""
+    out = {}
+    try:
+        data = bytes(data)
+        size, kind = struct.unpack_from('>I4s', data, 0)
+        if kind != b'moof':
+            return out
+        for k, a, b in _boxes(data, 8, min(size, len(data))):
+            if k != b'traf':
+                continue
+            track = flags = default_duration = default_size = base = None
+            default_duration = default_size = 0
+            decode = 0
+            samples = []
+            for k2, a2, b2 in _boxes(data, a, b):
+                if k2 == b'tfhd':
+                    flags = struct.unpack_from('>I', data, a2)[0] & 0xFFFFFF
+                    track = struct.unpack_from('>I', data, a2 + 4)[0]
+                    at = a2 + 8
+                    if flags & 1:
+                        at += 8
+                    if flags & 2:
+                        at += 4
+                    if flags & 8:
+                        default_duration = struct.unpack_from('>I', data, at)[0]
+                        at += 4
+                    if flags & 0x10:
+                        default_size = struct.unpack_from('>I', data, at)[0]
+                elif k2 == b'tfdt':
+                    version = data[a2]
+                    decode = struct.unpack_from('>Q' if version == 1 else '>I', data, a2 + 4)[0]
+                elif k2 == b'trun':
+                    tflags = struct.unpack_from('>I', data, a2)[0] & 0xFFFFFF
+                    count = struct.unpack_from('>I', data, a2 + 4)[0]
+                    at = a2 + 8
+                    if tflags & 1:
+                        at += 4
+                    if tflags & 4:
+                        at += 4
+                    for _ in range(min(count, 5000)):
+                        duration, length = default_duration, default_size
+                        if tflags & 0x100:
+                            duration = struct.unpack_from('>I', data, at)[0]
+                            at += 4
+                        if tflags & 0x200:
+                            length = struct.unpack_from('>I', data, at)[0]
+                            at += 4
+                        if tflags & 0x400:
+                            at += 4
+                        if tflags & 0x800:
+                            at += 4
+                        samples.append((decode, duration, length))
+                        decode += duration
+            scale = scales.get(track)
+            if track is not None and scale:
+                out.setdefault(track, []).extend((start / scale, duration / scale, length) for start, duration, length in samples)
+    except (struct.error, IndexError):
+        return out
+    return out
+
+
+def cue_summary(samples, empty=2):
+    """One short phrase for a subtitle track's samples in one fragment: how many hold text (a tx3g sample of `empty` bytes or fewer is the blank that clears
+    the screen), the first text sample's start and its length, and the total time the text is up. 'no samples' for an empty list."""
+    if not samples:
+        return 'no samples'
+    text = [(start, duration, length) for start, duration, length in samples if length > empty]
+    if not text:
+        return '%d samples, none with text' % len(samples)
+    return '%d samples, %d with text, first text at %.1f s (%d bytes), %.1f s of text' % (
+        len(samples), len(text), text[0][0], text[0][2], sum(d for _, d, _ in text))
+
+
 def fragment_counts(mfra):
     """{track id: how many fragments hold samples of it} from a fragmented MP4's mfra box (its fragment index, at the end of the file); {} when unreadable.
     Build 622 (owner log ac85bba1: The Lanterns' captions "on" and nothing drawn): a fragmented file's moov counts no samples, so an empty embedded subtitle
