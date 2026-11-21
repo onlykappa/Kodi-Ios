@@ -70,7 +70,7 @@ class Watch(unittest.TestCase):
 
 class Launch(unittest.TestCase):   # build 639 log fd1d028c: the first game's Play button waited 30 s for Crew's first scan
     def test_after_launch_it_looks_on_wifi_without_sports_having_been_opened(self):
-        self.assertTrue(pf.idle_for_search('',1000,1010,True))      # too soon after launch: the Home screen draws first
+        self.assertTrue(pf.idle_for_search('',1000,1000+pf.WARM_AFTER-1,True))      # too soon after launch: the Home screen draws first
         self.assertFalse(pf.idle_for_search('',1000,1000+pf.WARM_AFTER,True))
         self.assertTrue(pf.idle_for_search('',1000,1100,False))     # never on mobile data
         self.assertTrue(pf.idle_for_search('',1000,1000+pf.SEEN_FOR+1,True))   # not for ever

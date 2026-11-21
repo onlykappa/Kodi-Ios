@@ -78,6 +78,23 @@ class Joining(unittest.TestCase):   # build 645 log aec66fce: the tap came 2 s i
         text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib/sports_crew_routes.py').read_text()
         self.assertIn('    if not playback:\n        yield_to_screen()',text)
 
+class AutoSearch(unittest.TestCase):   # build 646 log 317cd411: "None yet" on a live game until Check now was tapped
+    def setUp(self):
+        import sports_game;self.g=sports_game
+    def test_a_live_game_without_sources_keeps_looking_for_three_minutes(self):
+        g=self.g
+        self.assertTrue(g.auto_wanted(True,False,100,100+g.AUTO_SEARCH-1))
+        self.assertFalse(g.auto_wanted(True,False,100+g.AUTO_SEARCH,100+g.AUTO_SEARCH))   # it gives up: "None yet" and Check now
+        self.assertFalse(g.auto_wanted(False,False,100,1000))        # a game that has not started: Remind me, as before
+        self.assertFalse(g.auto_wanted(True,True,100,1000))          # sources found
+        self.assertFalse(g.auto_wanted(True,False,100,1000,failed=True))
+    def test_a_new_look_is_due_five_seconds_after_the_last_and_never_beside_a_running_one(self):
+        g=self.g
+        self.assertTrue(g.auto_due(10,4,False));self.assertFalse(g.auto_due(8,4,False));self.assertFalse(g.auto_due(100,4,True))
+    def test_the_page_uses_it(self):
+        text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/sports_game.py').read_text()
+        self.assertIn('auto_wanted(',text);self.assertIn('auto_due(',text);self.assertIn('searching = searching or auto_wanted(',text)
+
 class Resolved(unittest.TestCase):   # build 639 log fd1d028c: about 6 s between the play call and Kodi's first stream, silent in the log
     def test_the_time_to_the_first_stream_is_logged_without_an_address(self):
         import sports_jet

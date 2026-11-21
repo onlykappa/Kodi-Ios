@@ -13,7 +13,7 @@ RETRY = 180         # seconds before a live game that had no source is searched 
 MAX_SEARCH = 175    # the longest one search is waited for (a game page's own limit is 150)
 
 
-WARM_AFTER = 30     # seconds after launch before sources are looked for without Sports having been opened
+WARM_AFTER = 8      # seconds after launch before sources are looked for without Sports having been opened (build 646 log 317cd411: the first source came 35 s after launch)
 SEEN_FOR = 3 * 3600  # hours after Sports was opened (or after launch, for the warm-up) that sources are kept looked for
 
 
