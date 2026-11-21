@@ -379,7 +379,8 @@ def run():
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),daemon=True).start()
  # Owner, 2026-11-20 (Sports Upcoming and Favourites flick choppily): the frame rate while a finger is on the screen, per window, one line a minute.
  import scroll_probe
- _probe=scroll_probe.Probe(lambda:xbmc.getInfoLabel('System.FPS'),lambda:not xbmc.getCondVisibility('System.IdleTime(1)'),
+ # "touched" is now "animating" (System.FPS at least 15): build 619's log showed System.IdleTime(1) never sees touches (idle FPS reads about 3).
+ _probe=scroll_probe.Probe(lambda:xbmc.getInfoLabel('System.FPS'),lambda:float(xbmc.getInfoLabel('System.FPS') or 0)>=15,
                            lambda:(xbmcgui.getCurrentWindowId(),xbmc.getInfoLabel('System.CurrentWindow')),lambda text:xbmc.log(text,xbmc.LOGINFO),
                            lambda:xbmc.getCondVisibility('Player.HasVideo'))
  threading.Thread(target=scroll_probe.watch,args=(_probe,monitor.waitForAbort),daemon=True).start()

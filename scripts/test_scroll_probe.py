@@ -56,6 +56,6 @@ class Tests(unittest.TestCase):
         sp.watch(probe,wait,flush_every=1e9,step=0.0);self.assertEqual(len(logs),1)
     def test_the_service_starts_it(self):
         text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/service.py').read_text()
-        self.assertIn('scroll_probe.watch',text);self.assertIn("System.IdleTime(1)",text)
+        self.assertIn('scroll_probe.watch',text);self.assertIn("float(xbmc.getInfoLabel('System.FPS') or 0)>=15",text)
 
 if __name__=='__main__':unittest.main()
