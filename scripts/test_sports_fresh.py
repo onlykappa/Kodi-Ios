@@ -70,12 +70,12 @@ class Disk(unittest.TestCase):
             self.make(path,[board()],now).refresh(block=True)                   # the service saved an answer
             now[0]+=40;page=self.make(path,[board()],now)
             gate=threading.Event();fetch=page.fetch
-            page.fetch=lambda url:(gate.wait(5),fetch(url))[1]                 # ESPN is slow
+            page.fetch=lambda url:(gate.wait(60),fetch(url))[1]                # ESPN is slow (60 s, not 5: under a loaded CI machine the check below can run late)
             started=time.monotonic();page.refresh()
             self.assertLess(time.monotonic()-started,0.5)                       # drawn at once from the saved answer
             self.assertEqual(len(page.upcoming_games()),1);self.assertEqual(page.snapshot['at'],1_795_000_000)
             gate.set()
-            for _ in range(50):
+            for _ in range(500):
                 if page.snapshot['at']==now[0]:break
                 time.sleep(0.02)
             self.assertEqual(page.snapshot['at'],now[0])                        # the newer answer followed in the background

@@ -101,12 +101,13 @@ def subdl_parse(body, lang, season=None, episode=None):
         if season and episode and s.get('episode') not in (None, '', 0, '0') and str(s.get('episode')) != str(int(episode)):
             continue
         releases = [str(r) for r in ([s.get('release_name')] + list(s.get('releases') or []) + [s.get('name')]) if r]
-        out.append({'source': 'subdl', 'id': url, 'releases': releases, 'language': lang, 'impaired': bool(s.get('hi'))})
+        out.append({'source': 'subdl', 'id': url, 'releases': releases, 'language': lang, 'impaired': bool(s.get('hi')),
+                    'episode_match': bool(season and episode and str(s.get('episode')) == str(int(episode)))})
     return out
 
 
 def subdl_fetch(get, result, season=None, episode=None):
-    return tm.subtitle_from_zip(get(SUBDL_FILES + result['id']), season, episode)
+    return tm.subtitle_from_zip(get(SUBDL_FILES + result['id']), season, episode, loose=bool(result.get('episode_match')))
 
 
 # --- OpenSubtitles ---------------------------------------------------------------------------------------------------

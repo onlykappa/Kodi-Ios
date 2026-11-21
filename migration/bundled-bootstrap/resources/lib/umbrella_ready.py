@@ -83,10 +83,15 @@ def _stage(provider,elapsed,linked,cache,since_link=None):
   return out
  size=int((cache or {}).get('block_size') or 0)
  if cache and cache.get('kodi') and size:
-  target=TARGET_BLOCKS*size;have=min(int(cache.get('cached_blocks') or 0)*size,target)
-  if have<target:
+  target=TARGET_BLOCKS*size;blocks=min(int(cache.get('cached_blocks') or 0)*size,target)
+  # Owner, 2026-11-21 ("why does the bar not load 1 at a time"): a block is 4 MB and lands whole, so the blocks alone moved the bar 0, 33, 66.
+  # The source also counts every chunk it reads (read_bytes), so the bar follows the bytes really received, up to just under the opening's
+  # end; only the blocks all being in memory says "Starting the video".
+  have=blocks if blocks>=target else min(target-1,max(blocks,int(cache.get('read_bytes') or 0)))
+  if blocks<target:
    mb=1024*1024;pct=int(100*have/target)
-   out.update(Line='Opening the video \u00b7 %d of %d MB'%(have//mb,target//mb),Right='%d%%'%pct,Fill=str(pct))
+   tenths=int(have*10/mb);amount='%d'%(tenths//10) if tenths%10==0 else '%d.%d'%(tenths//10,tenths%10)   # 0.3, 2.2, 5.4 of 12 MB: never rounded up
+   out.update(Line='Opening the video \u00b7 %s of %d MB'%(amount,target//mb),Right='%d%%'%pct,Fill=str(pct))
   else:
    out['Line']='Starting the video'
   if elapsed>=SLOW_AFTER and since_link and since_link>=2 and have:

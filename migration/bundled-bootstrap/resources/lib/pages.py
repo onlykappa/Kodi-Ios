@@ -327,13 +327,13 @@ def umbrella_ready(p):
   caps('UMBRELLA \u00b7 YOUR ACCOUNTS','!%s'%ready)+head('Looking for a source','!%s'%ready)+
   '<control type="textbox"><left>60</left><top>%d</top><width>%d</width><height>170</height><font>p_foot</font><textcolor>%s</textcolor><aligny>top</aligny>'
   '<align>center</align><label>%s</label><visible>!%s</visible></control>'%(BY+40,w-120,'FFD1D1D6',R('Text'),ready)+
-  # Kodi's progress control cannot read a window property, so the bar is 20 segments shown by Umbrella's percent.
+  # Kodi's progress control cannot read a window property, so the bar is 50 segments (2 % each: owner, 2026-11-21, a smooth fill) shown by Umbrella's percent.
   # DEC-036: one thin bar (11 units). It follows Umbrella's percent once a source is known, and slides while Umbrella is still looking.
   # ISSUE-280 (board S1): once the source is known the stage's real numbers fill it (IOSReady.Fill) or it slides while nothing is measurable.
   p.image(X0,BY,BW,11,M+'dot.png','33FFFFFF',border=6,extra='<visible>%s + %s</visible>'%(ready,NO_SLIDE))+
-  ''.join(p.image(X0,BY,max(11,BW*k//20),11,M+'dot.png',BLUE,
+  ''.join(p.image(X0,BY,max(11,BW*k//50),11,M+'dot.png',BLUE,
                   '<visible>%s + [[%s + Integer.IsGreaterOrEqual(Window.Property(percent),%d)] | Integer.IsGreaterOrEqual(Window(home).Property(IOSReady.Fill),%d)]</visible>'%(
-                   ready,UNSTAGED,k*5,k*5),border=6) for k in range(1,21))+
+                   ready,UNSTAGED,k*2,k*2),border=6) for k in range(1,51))+
   slide_bar(M,X0,BY,BW,extra='<visible>!%s | %s</visible>'%(ready,STAGED_SLIDE))+
   p.label(0,BY+40,w,60,'$INFO[Window.Property(percent)]%','p_foot',p.GREY,'center','<visible>%s + %s</visible>'%(ready,UNSTAGED))+
   numbers+

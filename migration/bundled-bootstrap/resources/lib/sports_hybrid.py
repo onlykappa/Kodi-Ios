@@ -120,7 +120,7 @@ class HybridProvider:
             return [dict(g, sources=list(self.found.get(g['id'], []))) for g in games if g]
 
     # -- sources: Crew, asked for one game at a time
-    def request_game(self, game_id):
+    def request_game(self, game_id, fresh=False):
         game = self.espn.game(game_id)
         if game is None:
             raise sm.SportsUnavailable('this game is no longer listed')
@@ -135,7 +135,7 @@ class HybridProvider:
         def work():
             state = 'error'
             try:
-                sources = list(self.crew_sources(game) or [])
+                sources = list((self.crew_sources(game, fresh=True) if fresh else self.crew_sources(game)) or [])
                 with self.lock:
                     if sources:
                         self.found[game_id] = sources

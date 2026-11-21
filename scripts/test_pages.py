@@ -237,6 +237,18 @@ class OpeningStages(unittest.TestCase):
   steps=list(dict.fromkeys(log))
   self.assertEqual(steps[1:],[('Getting the link','',''),('Opening the video','0 of 12 MB','0'),('Opening the video','4 of 12 MB','33'),
                               ('Opening the video','8 of 12 MB','66'),('Starting the video','','')])
+ def test_the_bar_follows_the_bytes_read_not_only_whole_blocks(self):
+  """Owner, 2026-11-21: "why does the bar not load 1 at a time": the 4 MB blocks alone moved it 0, 33, 66. The source's read_bytes (every chunk) fills it
+  smoothly; only the blocks all being in memory says Starting, and the bar never reads full before that."""
+  def at(blocks,read):
+   return ready.stage('AllDebrid',4,True,{'kodi':True,'block_size':4*self.MB,'cached_blocks':blocks,'read_bytes':read},2)
+  steps=[(at(0,0),'0 of 12 MB','0'),(at(0,300000),'0.2 of 12 MB','2'),(at(0,2300000),'2.1 of 12 MB','18'),(at(1,5700000),'5.4 of 12 MB','45'),
+         (at(2,9100000),'8.6 of 12 MB','72'),(at(2,13000000),'11.9 of 12 MB','99')]
+  for out,sub,fill in steps:self.assertEqual((out['Head'],out['Sub'],out['Fill']),('Opening the video',sub,fill),sub)
+  fills=[int(o['Fill']) for o,_,_ in steps];self.assertEqual(fills,sorted(fills))
+  done=at(3,13000000);self.assertEqual((done['Head'],done['Fill']),('Starting the video',''))
+  self.assertEqual(at(1,0)['Sub'],'4 of 12 MB')   # a source with no byte count (a TV's, an older service) still moves by blocks
+  self.assertIn('range(1,51)',(ROOT/'migration/bundled-bootstrap/resources/lib/pages.py').read_text().replace(' ',''))   # a 2 % step bar, not 5 %
  def test_the_getting_the_link_headline_never_carries_a_long_service_name(self):
   for name in ('AllDebrid','Real-Debrid','Premiumize','Debrid-Link'):
    self.assertEqual(ready.stage(name,3,False,{})['Head'],'Getting the link')

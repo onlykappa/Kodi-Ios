@@ -133,6 +133,23 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
     return props,sources
 
 
+AUTO_SEARCH = 180   # seconds a live game's page keeps looking for sources by itself
+AUTO_EVERY = 5      # seconds between those looks: a cheap read of what the service's own search has found (the page asks the provider for the game again)
+AUTO_ASK = 90       # seconds between real searches while it waits: a search makes Crew walk its menus again, so one is not started every few seconds
+
+
+def auto_wanted(live, has_sources, now, until, failed=False):
+    """True while a live game's page should be looking for sources without being asked: it is live, has none, has not given up and was opened less than AUTO_SEARCH
+    ago. Owner, build 646 log 317cd411: a live game tapped right after launch said "None yet" while Crew's first scan was still running; the sources came a
+    moment later but only after "Check now"."""
+    return bool(live and not has_sources and not failed and now < until)
+
+
+def auto_due(now, last, searching, every=AUTO_EVERY):
+    """True when another look is due (none running and `every` seconds since the last)."""
+    return not searching and now - last >= every
+
+
 def warm_best(sources, warm=None):
     """The best source is a Crew link: do Crew's folder listing for it now, while the page is open, so the Play tap does not (owner, build 639 log fd1d028c: two
     folder listings, 2.7 s, after every tap). Off the main thread; never raises. True when a link was warmed."""
@@ -177,6 +194,10 @@ def run(game, provider=None, clock=time.time, search=False):
             self.search_token = None
             self.search_failed = False
             self.checked = clock()   # when the sources were last looked for (the Sources card says so)
+            self.auto_until = clock() + AUTO_SEARCH   # a live game keeps looking for sources by itself for this long (auto_wanted)
+            self.auto_last = 0.0
+            self.auto_asked = time.monotonic()   # the page's own first search (find_sources at open) counts as the first ask
+            self.sources = []
             self.crests = {}
             threading.Thread(target=self.load_crests,daemon=True).start()
             if search:
@@ -198,6 +219,13 @@ def run(game, provider=None, clock=time.time, search=False):
                             except Exception:self.search_failed = True
                             self.search_token = None
                         self.refresh(reload=False)
+                    if auto_wanted((self.data or {}).get('state') == 'live', bool(self.sources), clock(), self.auto_until, self.search_failed):
+                        if auto_due(time.monotonic(), self.auto_asked, bool(self.search_token), AUTO_ASK):
+                            self.auto_asked = self.auto_last = time.monotonic()
+                            self.find_sources()   # a real search: Crew walks its menus
+                        elif auto_due(time.monotonic(), self.auto_last, bool(self.search_token)):
+                            self.auto_last = time.monotonic()
+                            self.refresh(reload=False)   # only reads what the service's search has published for this game
                     # Every second: the clock and "in 1 h 14 min" are worked out again (only what changed is written). A live game asks for fresh
                     # scores every 5 s, any other every 30 s (owner: scores and times must be live).
                     with self.lock:
@@ -211,6 +239,8 @@ def run(game, provider=None, clock=time.time, search=False):
 
         def draw(self,error=False):
             searching = bool(self.search_token and getattr(provider,'searching_game',lambda *args:False)(game_id,self.search_token))
+            # A live game with no source yet is still being looked for: "Searching for sources", not "None yet" (auto_wanted).
+            searching = searching or auto_wanted((self.data or {}).get('state') == 'live', bool(self.sources), clock(), self.auto_until, self.search_failed)
             props,self.sources = model(self.data,clock(),sm.device_offset(clock()),'error' if error else 'ready',searching,
                                        sr.get(xbmcvfs.translatePath('special://profile/'),game_id),self.checked,self.crests)
             if self.search_failed and not self.sources:
@@ -262,11 +292,11 @@ def run(game, provider=None, clock=time.time, search=False):
         def onClick(self,ident):
             if ident==page.BACK:self.finish()
             elif ident==page.RETRY and self.search_failed:
-                self.find_sources()
+                self.find_sources(fresh=True)
                 self.draw()
             elif ident in (page.REFRESH,page.RETRY):self.refresh()
             elif ident==page.SEARCH_RETRY:
-                self.find_sources()
+                self.find_sources(fresh=True)   # "Check now": Crew's menus are walked again
                 self.draw()
             elif ident in (page.REMIND,page.REMIND_ON):
                 import sports_remind
@@ -324,10 +354,13 @@ def run(game, provider=None, clock=time.time, search=False):
                         except Exception:pass
                 threading.Thread(target=handoff,daemon=True).start()
 
-        def find_sources(self):
+        def find_sources(self, fresh=False):
             self.checked = clock()
             try:
-                self.search_token = provider.request_game(game_id)
+                try:
+                    self.search_token = provider.request_game(game_id, fresh=True) if fresh else provider.request_game(game_id)
+                except TypeError:   # a provider that has no such option (the sample one)
+                    self.search_token = provider.request_game(game_id)
                 self.search_failed = False
             except Exception as error:
                 self.search_token = None

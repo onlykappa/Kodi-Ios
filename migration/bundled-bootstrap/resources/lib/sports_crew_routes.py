@@ -61,11 +61,43 @@ def valid_route(value):
 _LISTED = [0]    # how many Crew listings have been made: opening another folder clears Crew's link rules, so a link found earlier is only still good while this has not moved
 _WARM = {}       # route -> (the link refresh_link found, _LISTED then, when): a game page opened it ahead of the tap
 WARM_FOR = 120   # seconds a warmed link is trusted
+WAIT_FOR = 8     # seconds a tap waits for a warm listing of its own link that is already running
+_INFLIGHT = {}   # route -> Event set when its listing ends
+_LOCK = __import__('threading').Lock()
+
+
+ANIMATING = 15.0   # fps: Kodi draws about 3 a second when nothing moves (scroll_probe.ANIMATING)
+YIELD_MAX = 3.0    # seconds a background listing waits for the screen to settle
+
+
+def yield_to_screen(fps=None, sleep=time.sleep, limit=YIELD_MAX, step=0.25):
+    """Before a background folder listing (the scan for sources, never one for a tap): wait while the screen is animating or being scrolled, at most `limit`
+    seconds. Build 645 log aec66fce: the Sports Live page scrolled at 59 fps until Crew's 28 s scan began, then at 16-18 fps; each listing is Crew's
+    plugin parsing pages on the same few cores that draw the page. Returns how long it waited."""
+    if fps is None:
+        try:
+            import xbmc
+            fps = lambda: xbmc.getInfoLabel('System.FPS')
+        except Exception:
+            return 0.0
+    waited = 0.0
+    while waited < limit:
+        try:
+            moving = float(fps()) >= ANIMATING
+        except Exception:
+            moving = False
+        if not moving:
+            break
+        sleep(step)
+        waited += step
+    return waited
 
 
 def listing(path, session=None, playback=False):
     if not valid_route(path):
         raise ValueError('invalid Crew route')
+    if not playback:
+        yield_to_screen()
     _LISTED[0] += 1
     try:
         return _listing(path, session, playback)
@@ -159,16 +191,31 @@ def refresh_link(link, read=None):
         raise ValueError('invalid Crew playback route')
     if read is None:
         # Owner, build 639 log fd1d028c: a tap spent 2.7 s re-listing Crew's folders twice (0.95 s, 1.76 s) before handing Kodi the link. The game page does
-        # that listing when it opens (warm); a tap soon after, with no other Crew listing in between, uses its answer.
-        kept = _WARM.get(route)
-        if kept and kept[1] == _LISTED[0] and 0 <= time.time() - kept[2] < WARM_FOR:
-            import sports_jet
-            sports_jet.log('sports: Crew link was refreshed when the game page opened (%.0f s ago); no folder is listed now' % (time.time() - kept[2]))
-            return kept[0]
-        _WARM.pop(route, None)
-        found = _refresh_link(link, read)
-        _WARM[route] = (found, _LISTED[0], time.time())
-        return found
+        # that listing when it opens (warm); a tap soon after, with no other Crew listing in between, uses its answer. Build 645 log aec66fce: the tap came
+        # 2 s into a warm listing and started a second one beside it (both 1.3 s + 1.9 s): a tap now waits for the warm listing of its link and uses it.
+        import threading
+        with _LOCK:
+            running = _INFLIGHT.get(route)
+            mine = running is None
+            if mine:
+                running = _INFLIGHT[route] = threading.Event()
+        try:
+            if not mine:
+                running.wait(WAIT_FOR)
+            kept = _WARM.get(route)
+            if kept and kept[1] == _LISTED[0] and 0 <= time.time() - kept[2] < WARM_FOR:
+                import sports_jet
+                sports_jet.log('sports: Crew link was refreshed when the game page opened (%.0f s ago); no folder is listed now' % (time.time() - kept[2]))
+                return kept[0]
+            _WARM.pop(route, None)
+            found = _refresh_link(link, read)
+            _WARM[route] = (found, _LISTED[0], time.time())
+            return found
+        finally:
+            if mine:
+                with _LOCK:
+                    _INFLIGHT.pop(route, None)
+                running.set()
     return _refresh_link(link, read)
 
 
@@ -262,12 +309,91 @@ def _refresh_link(link, read=None):
     return found
 
 
+YIELD_FILE = 'crew-yield.json'
+YIELD_KEEP = 400      # folders and games remembered
+GAME_KEEP_FOR = 6 * 3600   # seconds a game's remembered place is trusted (a live game is over by then)
+
+
+def memory_path():
+    """Where the walk remembers what it found (None outside Kodi)."""
+    try:
+        import os
+        import xbmcvfs
+        return os.path.join(xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap'), YIELD_FILE)
+    except Exception:
+        return None
+
+
+def load_memory(path, now=time.time):
+    """{'yield': {'<league>|<folder path>': count}, 'games': {game id: {'path': [labels], 'at': t}}}; never raises."""
+    empty = {'yield': {}, 'games': {}}
+    if not path:
+        return empty
+    try:
+        import json
+        with open(path, encoding='utf-8') as handle:
+            data = json.load(handle)
+        if not isinstance(data, dict):
+            return empty
+        games = {k: v for k, v in (data.get('games') or {}).items()
+                 if isinstance(v, dict) and isinstance(v.get('path'), list) and 0 <= now() - float(v.get('at') or 0) < GAME_KEEP_FOR}
+        return {'yield': {k: v for k, v in (data.get('yield') or {}).items() if isinstance(v, (int, float))}, 'games': games}
+    except Exception:
+        return empty
+
+
+def save_memory(path, memory):
+    if not path:
+        return False
+    try:
+        import json
+        import os
+        top = dict(sorted(memory['yield'].items(), key=lambda kv: -kv[1])[:YIELD_KEEP])
+        games = dict(sorted(memory['games'].items(), key=lambda kv: -float(kv[1].get('at') or 0))[:YIELD_KEEP])
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        temp = path + '.tmp'
+        with open(temp, 'w', encoding='utf-8') as handle:
+            json.dump({'yield': top, 'games': games}, handle, separators=(',', ':'))
+        os.replace(temp, path)
+        return True
+    except Exception:
+        return False
+
+
+def folder_key(league, labels):
+    return '%s|%s' % (league, '/'.join(labels))
+
+
+def order_key(memory, league, labels, wanted):
+    """Sort key for a folder about to be walked (smaller first): the folder a live game was last found in, then the folders that held the most games on past walks,
+    then the rest in the order Crew listed them. Owner, build 646 logs: a walk visits every folder of a league (14 folders, 28.5 s cold) and the first source
+    came only at the end of it."""
+    if any(path[:len(labels)] == list(labels) for path in wanted):
+        return (0, 0)
+    return (1, -memory['yield'].get(folder_key(league, labels), 0))
+
+
+def remember_walk(memory, league, found, now=time.time):
+    """Fold one walk's findings into the memory: `found` is [(game id, [folder labels from the league's first folder down])]."""
+    for key in list(memory['yield']):
+        memory['yield'][key] = memory['yield'][key] * 0.8   # older walks count for less
+        if memory['yield'][key] < 0.05:
+            del memory['yield'][key]
+    for game_id, labels in found:
+        for depth in range(1, len(labels) + 1):
+            key = folder_key(league, labels[:depth])
+            memory['yield'][key] = memory['yield'].get(key, 0) + 1
+        memory['games'][str(game_id)] = {'path': list(labels), 'at': int(now())}
+    return memory
+
+
 class CrewSource:
     def __init__(self, title, route, games, read=listing, session=None, cache_state=None):
         self.name = 'Crew ' + common.label(title)
         self.route, self.games, self.read = route, games, read
         self.session = session
         self.cache_state = cache_state
+        self.memory_path = memory_path()   # None outside Kodi: no memory then
 
     def get_items(self):
         latest = []
@@ -280,6 +406,9 @@ class CrewSource:
         began = time.monotonic()
         pending, visited, emitted, items = [(self.route, 0, None, [{'address':self.route, 'label':self.name}])], set(), set(), []
         failures = 0
+        memory = load_memory(self.memory_path)
+        wanted = [v['path'] for g in self.games for k, v in [(g.get('id'), memory['games'].get(str(g.get('id'))))] if v and g.get('state') == 'live']
+        found = []   # (game id, folder labels) of what this walk lists, remembered at the end
         unmatched = [0]   # event-looking titles (two teams) Crew showed that matched no game: counted, never named
         import sports_crew_context
         home = _home()
@@ -323,6 +452,7 @@ class CrewSource:
                 failures += 1
                 yield list(items)
                 continue
+            back = []
             for entry in entries[:512]:
                 address = entry.get('file', '')
                 title = common.label(entry.get('title') or entry.get('label') or '')
@@ -337,15 +467,20 @@ class CrewSource:
                         if game is not None:
                             pending.insert(0, (address, depth + 1, game, menu_path + [{'address':address, 'label':title}]))
                         else:
-                            pending.append((address, depth + 1, game, menu_path + [{'address':address, 'label':title}]))
+                            back.append((address, depth + 1, game, menu_path + [{'address':address, 'label':title}]))
                     continue
                 if not game or address in emitted:
                     continue
                 emitted.add(address)
+                if game.get('id') and len(menu_path) > 1:
+                    found.append((game['id'], [str(step['label']) for step in menu_path[1:]]))
                 items.append(SimpleNamespace(title=game['away']['name']+' vs '+game['home']['name'],
                              league=game['league_name'], status='LIVE' if game['state']=='live' else '',
                              starttime=datetime.fromtimestamp(game['start']), links=[CrewLink(address, menu_path, game)]))
+            pending.extend(sorted(back, key=lambda child: order_key(memory, self.name, [str(step['label']) for step in child[3][1:]], wanted)))
             yield list(items)
+        if found and self.memory_path:
+            save_memory(self.memory_path, remember_walk(memory, self.name, found))
         import sports_jet
         sports_jet.log('jet: %s: %d event-looking titles matched no live game' % (self.name, unmatched[0]))
         sports_jet.log('jet: %s: %d folders, %d unavailable, %d matched streams in %.2fs' % (self.name, len(visited), failures, len(items), time.monotonic() - began))

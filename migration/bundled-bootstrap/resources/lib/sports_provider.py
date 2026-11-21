@@ -75,7 +75,26 @@ def _scan_state(jet):
     return bool(data.get('done')), data.get('at', 0)
 
 
-def crew_sources(game, sleep=time.sleep, clock=time.monotonic):
+REUSE_WALK = 180   # seconds a finished walk of Crew's menus answers a new search for a game it did not list (a game that is not there is not there a minute later)
+
+
+def walk_reusable(jet, league, now=time.time, window=REUSE_WALK):
+    """True when Crew's menus were walked to the end less than `window` seconds ago, for this game's league (or every league): a new search then only reads
+    that answer and does not start another walk. Owner, build 646 logs: every search, the prefetch's included, started a full walk (15-70 s of Crew's plugin
+    parsing pages while the phone drew the page)."""
+    import json
+    import sports_jet
+    try:
+        data = json.loads(jet._home().getProperty(sports_jet.DATA) or 'null')
+    except Exception:
+        return False
+    if not isinstance(data, dict) or not data.get('done'):
+        return False
+    walked = str(data.get('league') or '')
+    return 0 <= now() - float(data.get('at') or 0) < window and walked in ('', str(league or ''))
+
+
+def crew_sources(game, sleep=time.sleep, clock=time.monotonic, fresh=False):
     """The sources Crew has for this one game (its page asked). Crew's collector runs only now; a list never starts it. Matching is by league,
     start and team names (sports_merge.same_game). The collector publishes as it walks Crew's menus (a minute or two on a phone), so this keeps
     reading what it has published until the game turns up, the collector finishes or SEARCH_SECONDS pass (it used to read once, so a source found
@@ -96,6 +115,14 @@ def crew_sources(game, sleep=time.sleep, clock=time.monotonic):
         home = None
     try:
         began, asked = clock(), time.time()
+        if not fresh and walk_reusable(jet, game.get('league')):   # the walk that just ended did not list it: say so now ("Check now" asks again: fresh)
+            try:
+                for other in list(jet.live_games()) + list(jet.upcoming_games()):
+                    if other.get('sources') and sports_merge.same_game(game, other):
+                        return other['sources']
+            except sm_unavailable():
+                pass
+            return []
         for attempt in (0, 1):
             jet.refresh()
             while True:

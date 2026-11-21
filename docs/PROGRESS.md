@@ -1146,3 +1146,9 @@ Build 622 flicks and captions (ISSUE-424/425, branch claude/library-playback-fix
 - 2026-11-21 (build 639 log 9f7b4ab2): ISSUE-432 (Continue/Umbrella opening: capture yields, link check no longer fails on a slow server, decline reasons logged), ISSUE-433 (Next Episode 502 from the abort hold), ISSUE-434 (subtitle search for Umbrella episodes knows the show/season/episode). Host tests only; not built. Live-game "error before second source" needs the log of that run (not in 9f7b4ab2, which starts after it).
 
 - 2026-11-21 (build 639 log fd1d028c): ISSUE-435 (Umbrella cache wait skipped on a slow server, speech check retries, caption repair after r72) and ISSUE-436 (Sports sources searched from 30 s after launch, a game page warms its Crew folder so a tap lists nothing, timing lines for Crew's hand-over). Host tests only; not built.
+
+- 2026-11-21 (build 646 logs aec66fce, d8f39741): ISSUE-438 (slow-server memory per family and on disk, bigger kept opening, busy link is not a dead link, a tap joins the warm Crew listing, background Crew listings yield to a moving screen, SubDL zips with another season number). Host tests only; not built.
+
+- 2026-11-21: Live Now line merged into the Sports build line (8580eac); ISSUE-439: instant loading circle on a Continue tap, automatic subtitles when none is usable, Umbrella subtitle key from Continue Watching, fewer refused debrid ranges. Host tests only; not built.
+
+- 2026-11-21: ISSUE-440/441: a live game's page keeps looking by itself; Crew walks answer for 3 minutes, visit productive folders and each game's last folder first; any recent Umbrella title reopens from its link. Host tests only; not built.
