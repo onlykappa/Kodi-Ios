@@ -292,6 +292,31 @@ def run():
    return False
   sports_sources_prefetch.watch(sports_provider.get,busy,monitor.waitForAbort,log=lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO),poke=poke)
  threading.Thread(target=sports_prefetch_loop,daemon=True).start()
+ # ESPN's games, scores and times are fetched here and kept on the phone, so every Sports page opens on a current answer without asking ESPN itself
+ # (owner, build 619: "it should always know what is live and upcoming ... load instantly ... never need to refresh"). Faster while Sports is in use.
+ def sports_data_loop():
+  import sports_provider,cache_tune
+  home=xbmcgui.Window(10000)
+  if monitor.waitForAbort(4):return
+  said=[False]
+  while True:
+   live=False
+   try:
+    if xbmc.Player().isPlayingVideo():raise RuntimeError('video playing')
+    provider=sports_provider.real()
+    provider.refresh()
+    live=bool(provider.live_games())
+   except Exception as error:
+    if not said[0]:said[0]=True;xbmc.log('Kodi iOS Sports: background refresh: %s'%type(error).__name__,xbmc.LOGINFO)
+   try:idle=time.time()-float(home.getProperty('KodiIOS.SportsSeen') or 0)
+   except ValueError:idle=1e9
+   wait=(10 if live else 30) if idle<900 else 60 if idle<6*3600 else 300
+   try:
+    if cache_tune.link_kind()=='cellular':wait*=3   # cellular: a third of the requests
+    if xbmc.Player().isPlayingVideo():wait=max(wait,60)   # never competes with a video for the connection
+   except Exception:pass
+   if monitor.waitForAbort(wait):return
+ threading.Thread(target=sports_data_loop,daemon=True).start()
  # Safety net: a modal busy dialog nobody lowers is closed after 4 s unless a video is opening or playing (busy_watchdog.py).
  def busy_watchdog_loop():
   import busy_watchdog

@@ -244,6 +244,8 @@ def fetch_json(url, timeout=TIMEOUT):
 
 
 SNAPSHOT_KEEP = 6 * 3600   # seconds a remembered answer may still be drawn first
+FRESH_DISK = 45            # seconds: an answer on disk this young was written by the service's loop (sports_data) and needs no refresh at all
+REFRESH_SKIP = 10          # a page's own refresh is skipped when the answer on disk is younger than this
 
 
 class EspnProvider:
@@ -253,6 +255,7 @@ class EspnProvider:
         self.fetch, self.clock = fetch, clock   # None: fetch_json, looked up at each call
         self.snapshot_path = snapshot_path      # the last answer is kept here, so a page opened after a restart draws it at once (owner: "a black screen for a second")
         self.saved_at = 0.0
+        self.disk_seen = 0.0   # modification time of the file the in-memory answer came from or was last compared with
         self.ttl = TTL   # the phone's provider lowers it (sports_hybrid.TTL) so scores stay live
         self.league_defs = tuple(entry for entry in LEAGUES if leagues is None or entry[0] in leagues)
         self.lock = threading.Lock()
@@ -278,8 +281,26 @@ class EspnProvider:
             pass
         return None
 
+    def _adopt_newer_disk(self):
+        """Another process (the service's loop, another page) wrote a newer answer: take it instead of asking ESPN again. Lock held by the caller."""
+        if not self.snapshot_path:
+            return False
+        try:
+            import os
+            stamp = os.path.getmtime(self.snapshot_path)
+        except OSError:
+            return False
+        if stamp <= self.disk_seen:
+            return False
+        self.disk_seen = stamp
+        data = self._read_disk()
+        if data and (self.snapshot is None or data['at'] > self.snapshot['at']):
+            self.snapshot = data
+            return True
+        return False
+
     def _write_disk(self, snapshot):
-        if not self.snapshot_path or self.clock() - self.saved_at < 15:
+        if not self.snapshot_path or self.clock() - self.saved_at < 4:
             return
         try:
             import json
@@ -299,7 +320,10 @@ class EspnProvider:
         """True while the answer on offer is the one kept from last time (or one is waiting on disk to be offered): the real one is on its way."""
         if self.snapshot is not None:
             return bool(self.snapshot.get('remembered'))
-        return bool(self.snapshot_path) and self._read_disk() is not None
+        if not self.snapshot_path:
+            return False
+        data = self._read_disk()
+        return data is not None and self.clock() - data['at'] > FRESH_DISK   # younger than that, the service kept it current: nothing is on its way
 
     def _refresh_later(self):
         def run():
@@ -316,9 +340,19 @@ class EspnProvider:
             if not force and self.snapshot is None and self.snapshot_path:
                 remembered = self._read_disk()
                 if remembered:   # the first read after a start: what was true last time, now; the real answer follows in the background
+                    try:
+                        import os
+                        self.disk_seen = os.path.getmtime(self.snapshot_path)
+                    except OSError:
+                        pass
+                    if now - remembered['at'] <= FRESH_DISK:   # the service kept it current: nothing to wait for or refresh
+                        self.snapshot = dict(remembered)
+                        return self.snapshot
                     self.snapshot = dict(remembered, remembered=True)
                     self._refresh_later()
                     return self.snapshot
+            if not force and self.snapshot and not self.snapshot.get('remembered') and self.snapshot['at'] != now:
+                self._adopt_newer_disk()
             if not force and self.snapshot and self.snapshot.get('remembered'):
                 return self.snapshot
             if not force and self.snapshot and now - self.snapshot['at'] < self.ttl:
@@ -369,6 +403,9 @@ class EspnProvider:
 
     # -- the contract
     def refresh(self):
+        with self.lock:   # an answer another process wrote a moment ago is as good as asking again
+            if self._adopt_newer_disk() and not self.snapshot.get('remembered') and self.clock() - self.snapshot['at'] < REFRESH_SKIP:
+                return
         self._load(force=True)
 
     def live_games(self, league=None):

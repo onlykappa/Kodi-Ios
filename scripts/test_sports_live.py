@@ -201,8 +201,9 @@ class Page(unittest.TestCase):
     def test_ids_are_unique_and_the_buttons_are_there(self):
         ids = [c.get('id') for c in self.root.iter('control') if c.get('id')]
         self.assertEqual(len(ids), len(set(ids)))
-        for ident in (lp.BACK, lp.REFRESH, lp.RETRY, lp.SEE_UPCOMING, lp.CARD0):   # no league chips any more (owner, 2026-11-20)
+        for ident in (lp.BACK, lp.RETRY, lp.SEE_UPCOMING, lp.CARD0):   # no league chips any more (owner, 2026-11-20)
             self.assertIn(str(ident), ids)
+        self.assertNotIn(str(lp.REFRESH), ids)   # no refresh button: the data is kept fresh for the person (owner, build 619)
 
     def test_every_property_the_page_reads_is_set_by_the_controller(self):
         read = set(re.findall(r'Window\(\)\.Property\(([\w.]+)\)', self.xml))

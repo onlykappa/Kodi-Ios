@@ -134,6 +134,8 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
     current_index = 0
     choice_began = clock()   # when the current choice was handed to Kodi (the person answering Crew's chooser does not count)
     pick = {'seen': None, 'picked': False}   # when a Crew chooser appeared, and whether it has been answered
+    used = {'chooser': False}                # the current choice showed Crew's chooser and it was answered: Crew has more links for this game to try
+    links = [0] * len(choices)               # which entry of Crew's chooser each choice takes (0 first); a failed route is retried with the next entry
     pick_lock = threading.Lock()
 
     def chooser_up(now):
@@ -145,22 +147,42 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                     if pick['seen'] is None:
                         pick['seen'] = now
                     elif not pick['picked'] and now - pick['seen'] >= .4:
+                        for _ in range(links[current_index] if current_index < len(links) else 0):
+                            backend.executebuiltin('Action(Down)')   # a retry of a failed route takes the chooser's next link
                         backend.executebuiltin('Action(Select)')
-                        logger('sports: picked the first link in Crew\'s chooser')
+                        n = links[current_index] if current_index < len(links) else 0
+                        logger('sports: picked the first link in Crew\'s chooser' if not n else 'sports: picked link %d in Crew\'s chooser' % (n + 1))
                         pick['picked'] = True
+                        used['chooser'] = True
                 return True
             pick['seen'], pick['picked'] = None, False
             return False
+    def retry_next_link():
+        """Crew's chooser listed more links than the one taken: the same game's next link is the next try (owner, build 619: one source failed and the
+        app stopped, although Crew had offered other links for the game)."""
+        if used['chooser'] and links[current_index] < 2 and len(choices) < MAX_CHOICES:
+            choices.insert(current_index + 1, choices[current_index])
+            links.insert(current_index + 1, links[current_index] + 1)
+            used['chooser'] = False
+
+    def close_failure_dialogs():
+        """Kodi's "playback failed" box (an OK or a Yes/No dialog) is closed: the next source opens by itself, and nothing says "check the log"."""
+        for name in ('okdialog', 'yesnodialog'):
+            backend.executebuiltin('Dialog.Close(%s)' % name)
+
     def advance(why):
         """Stop what is on, then open the next choice (raises when none is left)."""
         nonlocal current_index, check, choice_began, failed_through
+        retry_next_link()
         if current_index + 1 >= len(choices):
+            close_failure_dialogs()
             raise RuntimeError('native queue exhausted')
         failed_through = current_index
         logger('jet: a source failed (%s, choice %d)' % (why, current_index + 1))
         player.stop()
         backend.sleep(300)   # let Kodi report this Stop before the observer's flags are cleared for the next choice
-        backend.executebuiltin('Dialog.Close(okdialog)')
+        close_failure_dialogs()
+        used['chooser'] = False
         player.failed = player.stopped = player.started = player.ready = False
         current_index += 1
         playlist.clear()
@@ -202,6 +224,13 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             # Kodi also reports a user's stop during opening as a pre-AV
             # Stop. Never infer failure from that ambiguous callback.
             if player.stopped and not player.failed:
+                if player.started and not player.ready and owns_queue():
+                    # Build 619 log: Crew's streamers failed, Crew handed Kodi an unresolved link, Kodi's open failed and only a Stop reported it ("current
+                    # media"). A person's own cancel clears the ownership first (Opening.cancel), so with the queue still ours this is a failed source.
+                    logger('sports: stream check: %s stopped before any picture' % choices[current_index][1])
+                    health.fail(choices[current_index][1], 'stopped before picture')
+                    advance('stopped before a picture')
+                    continue
                 logger('sports: native opening stopped; queue cancelled')
                 raise InterruptedError('native opening stopped')
             if player.failed and not player.ready:
@@ -212,10 +241,12 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                     failed_through = n
                 # Only a recorded VideoPlayer error closes its own media-error
                 # dialog; authorization/refusal dialogs do not trigger this hook.
-                backend.executebuiltin('Dialog.Close(okdialog)')
+                close_failure_dialogs()
                 backend.sleep(100)
+                retry_next_link()
                 if current + 1 >= len(choices):
                     raise RuntimeError('native queue exhausted')
+                used['chooser'] = False
                 player.failed = player.stopped = player.started = False
                 current_index = current + 1
                 playlist.clear()

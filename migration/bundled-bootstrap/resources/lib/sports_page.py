@@ -109,11 +109,8 @@ def page(p):
     P = u.P
     ok, bad = 'String.IsEqual(Window().Property(state),ok)', 'String.IsEqual(Window().Property(state),error)'
     head = p.backdrop() + p.nav_button(BACK, S, 36, 'chevron-left.png', 'Close')
-    head += ('<control type="button" id="%d"><left>%d</left><top>40</top><width>%d</width><height>118</height><label></label>'
-             '<texturefocus /><texturenofocus /><animation effect="fade" start="100" end="65" time="0" condition="Control.HasFocus(%d)">Conditional</animation></control>'
-             % (REFRESH, W - S - 150, 150, REFRESH))
-    head += p.icon(W - S - 84, 57, 84, 'arrows-rotate.png', p.ACCENT)
-    head += edit_button.xml(p, W - S - 150 - 20 - edit_button.W, 52)
+    # No refresh button: ESPN's answer is kept fresh by the service (sports_data loop), so nothing needs refreshing by hand (owner, build 619)
+    head += edit_button.xml(p, W - S - edit_button.W, 52)
     head += u.text(p, S, 160, w, 110, 'Sports', 'p_large') + u.text(p, S, 268, w, 56, P('sub'), 'p_sub', p.GREY)
     # Everything under the title scrolls as one list: the live card, the two tiles, Up next.
     items = u.group(p, LIVE_H + GAP, _live_card(p, w) + _badge(p))

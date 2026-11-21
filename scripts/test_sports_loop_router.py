@@ -95,7 +95,7 @@ class Tests(unittest.TestCase):
    if http_error and not state.get('advanced',False):state['player'].onPlayBackError()
    if stopped:state['player'].onPlayBackStarted();state['player'].onPlayBackStopped()
    if replaced:props[router.OWNER]='new-request'
-  backend=NS(Player=Player,PlayList=lambda _:Playlist(),PLAYLIST_VIDEO=1,sleep=sleep,executebuiltin=lambda value:state.__setitem__("error_dialog_closed",value),
+  backend=NS(Player=Player,PlayList=lambda _:Playlist(),PLAYLIST_VIDEO=1,sleep=sleep,executebuiltin=lambda value:(state.__setitem__("error_dialog_closed",value),state.setdefault('closed',[]).append(value)),
     Monitor=lambda:NS(abortRequested=lambda:state['now']>2 if select else False),getCondVisibility=lambda cond:(takeover if 'HasMedia' in cond else select if "selectdialog" in cond else all_failed))
   home=NS(setProperty=lambda k,v:props.__setitem__(k,v),getProperty=lambda k:props.get(k,''),clearProperty=lambda k:props.pop(k,None))
   gui=NS(ListItem=lambda **kw:NS(setProperty=lambda *a:None),Window=lambda ident:home)
@@ -105,7 +105,7 @@ class Tests(unittest.TestCase):
   with patch.dict(sys.modules,{'xbmcgui':gui}),patch.object(router.routes,'prepare_proxy'),patch.object(router.routes,'prepare_source',side_effect=prepare):
    try:result=router.play([source(path='token-private'),source(path='second'),source(path='second')],logs.append,backend,lambda:state['now'],timeout=timeout)
    except Exception as error:result=error
-  self.assertEqual(state['clears'],1 if replaced else 3 if http_error else 2)
+  self.assertEqual(state["clears"],1 if replaced else 3 if (http_error or stopped) else 2)
   self.assertNotIn('token-private',' '.join(logs))
   return result,state,logs
  def test_native_success_clears_future_sources_without_stopping_video(self):
@@ -122,7 +122,7 @@ class Tests(unittest.TestCase):
   result,state,logs=self.exercise(http_error=True)
   self.assertTrue(result)
   self.assertEqual(len(state['prepared']),2)
-  self.assertTrue(state['advanced']);self.assertEqual(state['error_dialog_closed'],'Dialog.Close(okdialog)')
+  self.assertTrue(state['advanced']);self.assertIn('Dialog.Close(okdialog)',state['closed'])
   self.assertEqual(sum('media open failed' in line for line in logs),1)
  def test_crew_playing_its_own_stream_is_not_taken_for_an_ended_opening(self):
   # Build 611: Crew plays the resolved stream itself (the playlist no longer holds our item) while it is still opening; the queue must wait
@@ -145,12 +145,15 @@ class Tests(unittest.TestCase):
  def test_new_request_does_not_clear_or_stop_the_new_player(self):
   result,state,_=self.exercise(replaced=True)
   self.assertIsInstance(result,InterruptedError);self.assertEqual(state['stops'],0);self.assertEqual(len(state['prepared']),1)
- def test_stop_before_av_cancels_without_opening_another_source(self):
+ def test_a_stop_before_any_picture_with_the_queue_still_ours_is_a_failed_source_and_the_next_one_opens(self):
+  # Build 619 log: Crew's streamers failed, Kodi's open failed and only a Stop ("current media") reported it; the app cancelled and said "check the log".
+  # A person's own cancel clears the ownership first (see test_new_request_does_not_clear_or_stop_the_new_player), so this is a failure, not a cancel.
   result,state,logs=self.exercise(stopped=True)
-  self.assertIsInstance(result,InterruptedError)
-  self.assertFalse(state.get('advanced',False))
-  self.assertNotIn('error_dialog_closed',state)
-  self.assertIn('sports: native opening stopped; queue cancelled',logs)
+  self.assertIsInstance(result,Exception)   # both fail in this scripted run, so it ends (exhausted or timed out), never as a cancel
+  self.assertNotIn('sports: native opening stopped; queue cancelled',logs)
+  self.assertTrue(state.get('advanced',False));self.assertEqual(len(state['prepared']),2)   # the second source was tried
+  self.assertIn('Dialog.Close(yesnodialog)',state.get('closed',[]))
+  self.assertTrue(any('stopped before any picture' in l for l in logs))
  def test_nested_source_selection_does_not_consume_server_timeout(self):
   result,state,_=self.exercise(select=True)
   self.assertIsInstance(result,InterruptedError);self.assertGreater(state['now'],.6)
