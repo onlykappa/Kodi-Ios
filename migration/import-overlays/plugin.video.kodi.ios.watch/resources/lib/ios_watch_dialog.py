@@ -367,7 +367,18 @@ def _link_alive(url,timeout=3):
    return answer.status in (200,206)
  except Exception:return False
 
-def fast_stream(handle,params,read=None,alive=None,play=None,now=None):
+def _cache_route(url,resume=None):
+ """The service's cache address for a remembered Umbrella link, or the link itself."""
+ try:
+  import xbmcgui,xbmcvfs,ios_library
+  ios_library.boot_path(xbmcvfs)
+  import remote_media
+  return remote_media.for_kodi(url,xbmcgui.Window(10000),resume=resume)
+ except Exception as error:
+  _quiet('ios_watch_dialog:cache_route',error)
+  return url
+
+def fast_stream(handle,params,read=None,alive=None,play=None,now=None,route=None):
  """Continue an Umbrella title from the link it was playing, without asking TMDb Helper or Umbrella again (owner, build 618: continuing a show still took
  15 s: details 2 s, Umbrella 3 s, resolving 2 s, the cache wait 2 s and the server's slow start). Only when Continue started it (ios_continue), the video was
  last played through Umbrella within STREAM_FRESH, there is a place to resume and the link still answers; otherwise the normal way runs, as before."""
@@ -394,6 +405,12 @@ def fast_stream(handle,params,read=None,alive=None,play=None,now=None):
   position,total=float(entry.get('position') or 0),float(entry.get('total') or 0)
   if position<5 or (total and position>=0.92*total):return False   # nothing to resume: the normal way finds a fresh link
   if not (alive or _link_alive)(url):return False
+  # Step 2 (owner, build 620 log 80ea6c76: Continue took 12.3 s to the first picture; Kodi read the debrid link itself over one connection: 2.8 s to
+  # connect, 5.1 s for the file's start, 3.6 s for the resume seek). Umbrella's own path hands Kodi the service's cache (several connections, the
+  # start, the end and now the resume point asked for at once: remote_media.for_kodi); Continue skipped Umbrella and with it the cache. It uses it
+  # too now; when the cache does not answer in time the link itself is played, as before.
+  if route is None:route=_cache_route
+  url=route(url,position/total if total else None)
   if play is None:
    import ios_library
    play=ios_library.play_stream
