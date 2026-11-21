@@ -202,6 +202,7 @@ jobs:
           python3 -B scripts/test_resume_cache.py
           python3 -B scripts/test_drive_abort.py
           python3 -B scripts/test_scroll_test.py
+          python3 -B scripts/test_host_check.py
           python3 -B scripts/test_sports_loop_proxy_compat.py
           python3 -B scripts/test_sports_playback_repair.py
           python3 -B scripts/test_sports_dialogs.py

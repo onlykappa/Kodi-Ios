@@ -177,6 +177,11 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
         """Stop what is on, then open the next choice (raises when none is left)."""
         nonlocal current_index, check, choice_began, failed_through
         retry_next_link()
+        try:   # build 623 log 8c570737: Crew's streamer host failed TLS; say which layer (the phone's DNS, the handshake, DoH), once every ten minutes
+            import host_check
+            host_check.check_later(logger)
+        except Exception:
+            pass
         if current_index + 1 >= len(choices):
             close_failure_dialogs()
             raise RuntimeError('native queue exhausted')
