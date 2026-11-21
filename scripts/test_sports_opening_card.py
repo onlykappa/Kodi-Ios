@@ -48,18 +48,37 @@ class Page(unittest.TestCase):
 class Game(unittest.TestCase):
     def test_details_for_a_live_game(self):
         import sports_rows
-        g=game();found={sports_rows.crest_url(g['away']):'/crests/a.png'}
+        g=game();found={op.crest_url(g['away']):'/crests/a.png'}
         p=op.details(source(g),found)
         self.assertEqual((p['live'],p['tag'],p['away.name'],p['home.name'],p['away.code'],p['home.code']),('1','NCAAB','Titans','Spartans','DM','MSU'))
         self.assertEqual(p['away.logo'],'/crests/a.png');self.assertEqual(p['home.logo'],'')   # the other crest is not in yet: its code shows
     def test_an_upcoming_game_has_no_live_line(self):
         self.assertEqual(op.details(source(game('upcoming')))['live'],'')
-    def test_a_name_that_does_not_fit_one_line_falls_back_to_its_code_never_cut(self):
-        long={'name':'Brigham Young University Cougars Of Provo Utah','short':'Brigham Young University Cougars','code':'BYU'}
-        self.assertEqual(op.team_name(long),'BYU')
+    def test_a_name_that_does_not_fit_one_line_is_never_cut(self):
+        # the logged case (screenshot IMG_0543): the Crew link carried only full names, and the card showed "Milwau" and "Philadelphia 76e"
+        self.assertEqual(op.team_name({'name':'Milwaukee Bucks'}),'Bucks');self.assertEqual(op.team_name({'name':'Philadelphia 76ers'}),'76ers')
+        self.assertEqual(op.team_name({'name':'Brigham Young University Cougars','short':'Brigham Young University Cougars','code':'BYU'}),'Cougars')
         for short in ('Timberwolves','Trail Blazers','Diamondbacks','Blue Jackets','Golden Knights','Fighting Irish','Spartans','Titans'):   # the longest real short names
             self.assertEqual(op.team_name({'short':short,'name':short,'code':'XXX'}),short,short)
-        self.assertLessEqual(ns.text_width(op.team_name({'short':'W'*16,'code':'WWW'}),pg.NAME_SIZE,True),pg.NAME_FIT)
+        for team in ({'name':'W'*40},{'name':'Milwaukee Bucks'},{'name':'Philadelphia 76ers','short':'Philadelphia 76ers'},{'short':'W'*16,'code':'WWW'},{}):
+            name=op.team_name(team);self.assertLessEqual(ns.text_width(name,pg.NAME_SIZE,True),max(pg.NAME_FIT,ns.text_width(team.get('code') or name,pg.NAME_SIZE,True)))
+            self.assertNotIn(name[:-1]+'…',name)
+    def test_a_link_without_the_full_game_is_filled_in_from_espns_saved_answer(self):
+        import types as t
+        full=game();thin={'state':'','league':'NBA','away':{'name':full['away']['name']},'home':{'name':full['home']['name']}}
+        provider=t.SimpleNamespace(live_games=lambda:[full],upcoming_games=lambda:[])
+        sys.modules['sports_provider']=t.SimpleNamespace(get=lambda:provider)
+        try:
+            got=op.enrich(thin);self.assertEqual((got['state'],got['away']['short'],got['home']['code']),('live','Titans','MSU'))
+            self.assertEqual(op.details(source(thin))['live'],'1');self.assertEqual(op.details(source(thin))['away.name'],'Titans')
+            self.assertIs(op.enrich(full),full)                                            # already complete: untouched
+        finally:sys.modules.pop('sports_provider',None)
+    def test_crests_are_the_dark_background_versions(self):
+        self.assertIn('500-dark',op.dark_crest(game()['away']));self.assertEqual(op.dark_crest({'crest':'https://example.invalid/x.png'}),'https://example.invalid/x.png');self.assertEqual(op.dark_crest({}),'')
+    def test_the_crew_link_keeps_what_the_card_needs(self):
+        import sports_crew_routes as cr
+        link=cr.CrewLink('plugin://x',[{'label':'a'},{'label':'b'}],dict(game(),start=1,league_name='NBA'))
+        self.assertEqual((link.game['state'],link.game['away']['short'],link.game['home']['code'],'crest' in link.game['away']),('live','Titans','MSU',True))
     def test_bad_data_never_raises(self):
         for bad in ({},{'native_queue':[]},{'native_queue':[{'play':'x'}]},{'play':json.dumps({'l':{'game':5}})}):
             self.assertEqual(op.details(bad)['away.name'],'')

@@ -23,24 +23,57 @@ def game_of(source):
 
 
 def team_name(team):
-    """The short name for under a crest: ESPN's short name when it measures under the column at the card's size, else the team's code. Never cut (DEC-050)."""
-    import sports_rows,notifications_skin
-    name=sports_rows.team_name(team)
-    fit=page.NAME_FIT
-    if notifications_skin.text_width(name,page.NAME_SIZE,True)<=fit:return name
-    code=str((team or {}).get('code') or '').strip()
-    return code if code and notifications_skin.text_width(code,page.NAME_SIZE,True)<=fit else name[:6].strip()
+    """The name for under a crest, never cut (DEC-050): ESPN's short name, else the full name, else its last word ("Bucks", "76ers"), else the team's code, the
+    first that measures under the column at the card's size; the code, then the last word, when nothing does."""
+    import notifications_skin
+    team = team or {}
+    full = str(team.get('name') or '').strip()
+    short = str(team.get('short') or '').strip()
+    last = full.split(' ')[-1] if full else ''
+    code = str(team.get('code') or '').strip()
+    for name in (short, full, last, code):
+        if name and notifications_skin.text_width(name, page.NAME_SIZE, True) <= page.NAME_FIT:
+            return name
+    return code or last or short or full
+
+
+def dark_crest(team):
+    """The team's crest address in ESPN's dark-background version (`500-dark`): a dark crest such as Michigan State's green vanishes on the card's dark grey."""
+    url = str((team or {}).get('crest') or '')
+    return url.replace('/500/', '/500-dark/', 1) if '/teamlogos/' in url else url
+
+
+def crest_url(team):
+    import sports_rows
+    return sports_rows.crest_url({'crest': dark_crest(team)})
+
+
+def enrich(game):
+    """A game whose teams lack short names, codes or crests (a link saved before they were kept) is looked up in ESPN's saved answer by its team names; the game
+    as it was when nothing matches. Never raises."""
+    try:
+        teams = [game.get(side) or {} for side in ('away', 'home')]
+        if all(t.get('short') and t.get('crest') for t in teams) and game.get('state'):
+            return game
+        import sports_provider
+        provider = sports_provider.get()
+        names = [str(t.get('name') or '').casefold() for t in teams]
+        for known in list(provider.live_games()) + list(provider.upcoming_games()):
+            if [str((known.get(side) or {}).get('name') or '').casefold() for side in ('away', 'home')] == names:
+                return dict(game, state=known.get('state') or game.get('state') or '', away=dict(teams[0], **known['away']), home=dict(teams[1], **known['home']))
+    except Exception:
+        pass
+    return game
 
 
 def details(source,crests=None):
     """{property: value} for the card's game: live, tag, and each side's name, code and crest file (`crests`: {crest address: file} of crests already on the phone)."""
-    game=game_of(source);crests=crests or {};props={'live':'1' if game.get('state')=='live' else '','tag':str(game.get('league') or '')[:12]}
+    game=enrich(game_of(source));crests=crests or {};props={'live':'1' if game.get('state')=='live' else '','tag':str(game.get('league') or '')[:12]}
     for side in ('away','home'):
         team=game.get(side) if isinstance(game.get(side),dict) else {}
         props[side+'.name']=team_name(team) if team else ''
         props[side+'.code']=str(team.get('code') or team.get('name') or '')[:4].upper() if team else ''
-        import sports_rows
-        props[side+'.logo']=crests.get(sports_rows.crest_url(team),'') if team else ''
+        props[side+'.logo']=crests.get(crest_url(team),'') if team else ''
     return props
 
 
@@ -153,7 +186,7 @@ class Opening:
         try:
             import xbmcvfs,sports_logos,sports_rows
             profile=xbmcvfs.translatePath('special://profile/')
-            game=game_of(self.source);urls=[sports_rows.crest_url(game.get(side) or {}) for side in ('away','home')]
+            game=enrich(game_of(self.source));urls=[crest_url(game.get(side) or {}) for side in ('away','home')]
             found=sports_logos.crests(profile,urls)
             if found and not self.closed.is_set():
                 for key,value in details(self.source,found).items():

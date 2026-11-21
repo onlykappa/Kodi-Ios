@@ -125,9 +125,11 @@ class CrewLink:
         self.source_name = 'Crew ' + alias.group(1).strip() if alias else ''
         import time
         self.at = time.time()   # when Crew listed it: a recent link's folder address is still current (bug 1, refresh_link)
-        self.game = {'league':game.get('league') or game.get('league_name'), 'start':game['start'],
-                     'away':{key:game['away'][key] for key in ('name','aliases') if key in game['away']},
-                     'home':{key:game['home'][key] for key in ('name','aliases') if key in game['home']}}
+        # The opening card (build 634 screenshot IMG_0543: no LIVE line, the teams' letters instead of crests, "Milwau" and "Philadelphia 76e") draws from this: it
+        # needs each team's short name, code and crest and whether the game is on, which the descriptor did not carry.
+        self.game = {'league':game.get('league') or game.get('league_name'), 'start':game['start'], 'state':game.get('state') or '',
+                     'away':{key:game['away'][key] for key in ('name','aliases','short','code','crest') if key in game['away']},
+                     'home':{key:game['home'][key] for key in ('name','aliases','short','code','crest') if key in game['home']}}
 
     def to_dict(self):
         return {'address':self.address, 'menu_path':self.menu_path, 'game':self.game, 'at':self.at}
