@@ -197,6 +197,12 @@ def run(args=()):
                         last = time.monotonic()
                         self.fetch(False)
             threading.Thread(target=refresh_loop, daemon=True).start()
+            if args and args[0] == 'scrolltest':   # started from Settings search ("scroll test"): the hub scrolls itself, part by part (ISSUE-429)
+                def scroll_test():
+                    import scroll_test as test
+                    if not xbmc.Monitor().waitForAbort(3):   # the games are drawn first
+                        test.start(self, xbmc, xbmcgui, log)
+                threading.Thread(target=scroll_test, daemon=True).start()
 
         def show(self, props):
             for key, value in props.items():

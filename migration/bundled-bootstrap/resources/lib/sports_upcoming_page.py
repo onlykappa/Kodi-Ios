@@ -83,6 +83,15 @@ def _chips(p):
     return rows
 
 
+SCROLL_TEST = 'KodiIOS.ScrollTest'   # Home window property: "_rows_tiles_" and so on while the scroll test runs (scroll_test.py); empty otherwise
+
+
+def quiet(part, xml):
+    """`xml` drawn unless the scroll test is leaving `part` out (ISSUE-429: what costs a frame while a page scrolls). The group keeps no size of its own, so the
+    page's layout, and what can be focused, does not change; with the property empty (always, outside the test) nothing is different on screen."""
+    return '<control type="group"><visible>!String.Contains(Window(Home).Property(%s),_%s_)</visible>%s</control>' % (SCROLL_TEST, part, xml)
+
+
 def game_row(p, key, ident, form, width):
     """One game row, the approved Apple Sports layout (docs/design/sports-list-rows.html): form 1 is two teams (logo, short name, record under it)
     with the league tag over the start time between them; form 2 (a tournament or race: no second side) is its wrapped title and the same tag and time.
@@ -91,7 +100,7 @@ def game_row(p, key, ident, form, width):
     colw = (width - TIME_W) // 2
     mid = p.SIDE + colw
     b = u.row_back(p, key, width, h)
-    b += u.tap(p, ident, p.SIDE, 0, width, h)
+    tap = u.tap(p, ident, p.SIDE, 0, width, h)
     if form == 1:
         for side, x in (('away', p.SIDE), ('home', mid + TIME_W)):
             k = key + side + '.'
@@ -106,7 +115,7 @@ def game_row(p, key, ident, form, width):
         tx = p.SIDE + width - TIME_W - 30
     b += u.text(p, tx, 66, TIME_W, 40, u.P(key + 'tag'), 'p_cap', p.GREY, 'center')   # the league tag and time sit at the row's middle, between the teams
     b += u.text(p, tx, 108, TIME_W, 56, u.P(key + 'clock'), 'p_pill', p.WHITE, 'center')
-    return b
+    return quiet('rows', b) + tap   # the tap area stays on top whatever the scroll test leaves out
 
 
 def _rows(p, slots):

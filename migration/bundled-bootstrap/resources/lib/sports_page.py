@@ -72,8 +72,7 @@ def _text_block(p, w, h, key, big):
 
 def _tile_xml(p, ident, key, x, w, texture, mask):
     """One short gradient tile (title and one or two lines, bottom-anchored) with a button over all of it."""
-    out = p.image(0, 0, w, TILE_H, p.MEDIA + 'sports_%s.png' % texture, p.WHITE, aspect='>stretch')
-    out += _text_block(p, w, TILE_H, key, False)
+    out = upcoming_page.quiet('tiles', p.image(0, 0, w, TILE_H, p.MEDIA + 'sports_%s.png' % texture, p.WHITE, aspect='>stretch') + _text_block(p, w, TILE_H, key, False))
     out += ('<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
             '<texturefocus colordiffuse="30FFFFFF" border="%d">%s%s</texturefocus><texturenofocus /></control>' % (ident, w, TILE_H, 54 if texture in ('up', 'lg') else 27, p.MEDIA, mask))
     return '<control type="group"><left>%d</left><top>0</top><width>%d</width><height>%d</height>%s</control>' % (x, w, TILE_H, out)
@@ -87,6 +86,7 @@ def _live_card(p, w):
     out += u.text(p, S + PAD, 30, 500, 48, 'LIVE NOW', 'p_foot_b', p.GREY)
     out += u.text(p, S + PAD, 86, w - 2 * PAD, 62, u.P('live.title'), 'p_h3')
     out += p.textbox(S + PAD, 156, w - 2 * PAD, 76, u.P('live.detail'), 'p_foot', 'EBFFFFFF')
+    out = upcoming_page.quiet('live', out)   # the scroll test (ISSUE-429) can leave the drawing out; the button below stays
     out += ('<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><label></label>'
             '<texturefocus colordiffuse="30FFFFFF" border="43">%srow_only.png</texturefocus><texturenofocus /></control>' % (LIVE, S, w, LIVE_H, p.MEDIA))
     return out
@@ -113,7 +113,7 @@ def page(p):
     head += edit_button.xml(p, W - S - edit_button.W, 52)
     head += u.text(p, S, 160, w, 110, 'Sports', 'p_large') + u.text(p, S, 268, w, 56, P('sub'), 'p_sub', p.GREY)
     # Everything under the title scrolls as one list: the live card, the two tiles, Up next.
-    items = u.group(p, LIVE_H + GAP, _live_card(p, w) + _badge(p))
+    items = u.group(p, LIVE_H + GAP, _live_card(p, w) + upcoming_page.quiet('live', _badge(p)))
     # The Upcoming and Leagues tiles sit right under Live now so they are never cut off by the floating tab bar (owner, 2026-11-20); the four games scroll below them.
     tiles = _tile_xml(p, UPCOMING, 'up', S, half, 'up', 'sports_half_mask.png') + _tile_xml(p, LEAGUES, 'lg', S + half + GAP, half, 'lg', 'sports_half_mask.png')
     items += u.group(p, TILE_H + 8, tiles)

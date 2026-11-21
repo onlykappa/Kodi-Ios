@@ -61,6 +61,7 @@ def run():
   def refresh(self,typed):
    query=' '.join(str(typed or '').split());self.query=typed
    found=settings_find.search(entries,query) if query else [e for e in entries if e[1]=='Settings']
+   if query.lower()=='scroll test':found=[('Run the scroll test','Developer','RunScript(service.kodi.ios.bootstrap,sports,scrolltest)')]   # ISSUE-429: only for this exact query
    self.found=found
    control=self.getControl(LIST);control.reset()
    for n,(label,where,_) in enumerate(found):
