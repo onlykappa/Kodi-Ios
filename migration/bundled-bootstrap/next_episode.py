@@ -186,6 +186,47 @@ def show_seasons(item, current, timeout=4):
         return None
 
 
+CLOSE_AFTER_STOP = ('movieinformation', 'contextmenu', 'selectdialog', 'okdialog', 'yesnodialog')
+
+
+def spinner(xbmc, on):
+    """The white loading circle over whatever is on screen, so the person can see Next Episode is working (owner, build 634 log 4c4cf619: "add the loading circle
+    so people know its loading"). It stays until the next video plays (finish) or 45 s have gone."""
+    try:
+        xbmc.executebuiltin('ActivateWindow(busydialognocancel)' if on else 'Dialog.Close(busydialognocancel,true)')
+    except Exception:
+        pass
+
+
+def tidy(xbmc):
+    """Close what Kodi reopened when the old video stopped. Build 634 log 4c4cf619: stopping the video brought back the info page of a film the person had opened
+    earlier (DialogVideoInfo, 'Madden'); it stayed over the next episode, a tap on the video landed on its Play button, TMDb Helper asked "Download or Stream" for
+    the film and the empty box and the failed film play stopped the episode."""
+    for name in CLOSE_AFTER_STOP:
+        try:
+            xbmc.executebuiltin('Dialog.Close(%s,true)' % name)
+        except Exception:
+            pass
+
+
+def finish(xbmc, limit=45.0, step=0.3):
+    """After PlayMedia: wait for a picture (at most `limit` s), close the stray pages again (the info page can come back when the new video opens) and the circle."""
+    monitor = xbmc.Monitor()
+    waited = 0.0
+    try:
+        while waited < limit and not monitor.waitForAbort(step):
+            waited += step
+            if xbmc.getCondVisibility('Player.HasVideo') and not xbmc.getCondVisibility('Player.Caching'):
+                try:
+                    if xbmc.Player().getTime() > 0.5:
+                        break
+                except Exception:
+                    pass
+        tidy(xbmc)
+    finally:
+        spinner(xbmc, False)
+
+
 def cut_drive_reads(xbmc, home):
     """Before the playing video is stopped: if it is a Drive copy read through the app's proxy, cut the proxy's upstream reads so Kodi's close does not wait
     on them (ISSUE-428, owner build 623 log 8c570737: the old video took 40 s to close, Kodi's cache stuck on Drive reads). Never raises."""
@@ -288,8 +329,11 @@ def run():
                     xbmcgui.Dialog().notification('Next Episode', 'S%s, E%s' % found[2], xbmcgui.NOTIFICATION_INFO, 2500)
                 except Exception:
                     pass
+                spinner(xbmc, True)
                 wait_stopped(xbmc)
+                tidy(xbmc)
                 xbmc.executebuiltin('PlayMedia(%s)' % found[1])
+                finish(xbmc)
                 return
             if found:
                 xbmc.log('Kodi iOS Next Episode: %s' % found[1], xbmc.LOGINFO)
@@ -314,9 +358,12 @@ def run():
                                           xbmcgui.NOTIFICATION_INFO, 2500)
         except (TypeError, ValueError, KeyError):
             pass
+        spinner(xbmc, True)
         stopped = wait_stopped(xbmc)
         xbmc.log('Kodi iOS Next Episode: current video %s' % ('closed' if stopped else 'still closing after 6 s'), xbmc.LOGINFO)
+        tidy(xbmc)
         xbmc.executebuiltin('PlayMedia(%s)' % what)
+        finish(xbmc)
     else:
         xbmcgui.Dialog().notification('Next Episode', what, xbmcgui.NOTIFICATION_INFO, 3000)
 

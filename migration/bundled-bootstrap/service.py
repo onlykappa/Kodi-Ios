@@ -101,6 +101,7 @@ def run():
  keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
  window.setProperty('KodiIOS.Build',updates.installed_build(root))
+ window.setProperty('KodiIOS.ServiceStart',str(time.time()))   # library plays in the first seconds wait for the Drive proxy (ios_library.live_proxy_port)
  # Settings › AI Upscale's row: "On · 4K" or "Off" (the page updates it after each change).
  try:
   import picture,upscale_page,upscale_queue

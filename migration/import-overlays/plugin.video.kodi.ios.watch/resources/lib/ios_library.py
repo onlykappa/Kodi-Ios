@@ -104,6 +104,14 @@ def prefetch_copy(path,xbmcvfs=None,ask=None,at=None):
 def live_proxy_port(xbmc,xbmcgui,xbmcvfs):
  """The app's Drive proxy port as a string, or '' when it does not answer (ISSUE-355)."""
  window=xbmcgui.Window(10000)
+ try:   # build 634 log 4c4cf619: a Continue 6 s after launch found no proxy yet (it was up at 8 s) and played through the Drive add-on's own server, which could not be cut when Next Episode stopped it for 26 s: in the first 40 s after the service started, wait up to 5 s for it
+  import time
+  began=float(window.getProperty('KodiIOS.ServiceStart') or 0)
+  if not window.getProperty('KodiIOS.DriveProxy') and began and time.time()-began<40:
+   for _ in range(25):
+    if window.getProperty('KodiIOS.DriveProxy'):break
+    xbmc.sleep(200)
+ except Exception:pass
  try:
   boot_path(xbmcvfs);import drive_proxy
   port=drive_proxy.live_port(lambda:window.getProperty('KodiIOS.DriveProxy'),lambda p:window.setProperty(drive_proxy.DEAD,str(p)),lambda s:xbmc.sleep(int(s*1000)))

@@ -47,6 +47,32 @@ class NextEpisode(unittest.TestCase):
         self.assertTrue(m.cut_drive_reads(xbmc('http://127.0.0.1:53037/drive/abc/Show.mp4'),home));self.assertEqual(asked,[53037])
         self.assertFalse(m.cut_drive_reads(xbmc('https://dl.example.invalid/f.mkv'),home));self.assertEqual(asked,[53037])
         self.assertFalse(m.cut_drive_reads(xbmc('http://127.0.0.1:53037/x'),types.SimpleNamespace(getProperty=lambda k:'')))
+    def fake(self,playing_after=3):
+        calls=[];state={'t':0}
+        class Monitor:
+            def waitForAbort(inner,step):state['t']+=1;return False
+        class Player:
+            def getTime(inner):return 1.0 if state['t']>=playing_after else 0.0
+        xbmc=types.SimpleNamespace(executebuiltin=lambda c:calls.append(c),Monitor=Monitor,Player=Player,
+                                   getCondVisibility=lambda c:{'Player.HasVideo':state['t']>=playing_after,'Player.Caching':False}.get(c,False))
+        return xbmc,calls
+    def test_next_episode_shows_the_circle_closes_stray_pages_and_removes_the_circle_when_the_video_plays(self):   # build 634 log 4c4cf619
+        m=self.load();xbmc,calls=self.fake()
+        m.spinner(xbmc,True);m.tidy(xbmc);m.finish(xbmc)
+        self.assertEqual(calls[0],'ActivateWindow(busydialognocancel)')
+        for name in ('movieinformation','contextmenu','selectdialog','okdialog','yesnodialog'):self.assertIn('Dialog.Close(%s,true)'%name,calls)
+        self.assertEqual(calls[-1],'Dialog.Close(busydialognocancel,true)');self.assertNotIn('Dialog.Close(all,true)',calls)   # never closes the circle by accident, nor everything
+    def test_the_circle_is_removed_even_when_the_video_never_plays(self):
+        m=self.load();xbmc,calls=self.fake(playing_after=10**6);m.finish(xbmc,limit=1.0,step=0.3)
+        self.assertEqual(calls[-1],'Dialog.Close(busydialognocancel,true)')
+    def test_both_routes_show_the_circle_tidy_up_and_wait_for_the_picture(self):
+        text=(BOOT/'next_episode.py').read_text()
+        self.assertEqual(text.count('spinner(xbmc, True)'),2);self.assertEqual(text.count('finish(xbmc)'),2);self.assertEqual(text.count('        tidy(xbmc)\n        xbmc.executebuiltin'),1)
+        self.assertIn("                tidy(xbmc)\n                xbmc.executebuiltin('PlayMedia(%s)' % found[1])",text)
+    def test_a_library_play_right_after_launch_waits_for_the_apps_drive_proxy(self):
+        lib=(ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_library.py').read_text()
+        self.assertIn("window.getProperty('KodiIOS.ServiceStart')",lib);self.assertIn('time.time()-began<40',lib)
+        self.assertIn("window.setProperty('KodiIOS.ServiceStart',str(time.time()))",(BOOT/'service.py').read_text())
     def test_the_stop_is_preceded_by_the_cut_and_logs_how_long_it_took(self):
         text=(BOOT/'next_episode.py').read_text()
         self.assertLess(text.index('cut_drive_reads(xbmc, xbmcgui.Window(10000))'),text.index('stopped = _wait_stopped(xbmc, limit, step)'))
