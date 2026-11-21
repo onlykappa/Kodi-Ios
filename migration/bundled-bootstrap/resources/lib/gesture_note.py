@@ -10,7 +10,7 @@ action, so its onAction can tell the two apart without any native change:
 A drag that ends without a glide and a flick that glides differ in how long the pans go on and how far they move. Never raises; at most MAX lines."""
 import time
 
-BEGIN, PAN, END, ABORT = 501, 504, 505, 506
+BEGIN, PAN, END, ABORT = 501, 504, 599, 505   # ActionIDs.h: ACTION_GESTURE_END is 599, ACTION_GESTURE_ABORT 505 (build 623 log 8c570737: 35 swipe lines and no pan line, because END was 505 here)
 SWIPES = (511, 521, 531, 541)   # left, right, up, down: Kodi's swipe actions
 MAX = 40
 

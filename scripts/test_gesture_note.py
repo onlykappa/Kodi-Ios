@@ -18,6 +18,9 @@ def run(events):
     return logs
 
 class Tracking(unittest.TestCase):
+    def test_the_ids_are_kodis_own(self):   # build 623 log 8c570737: END was written as 505 (that is ABORT), so no pan line was ever logged
+        self.assertEqual((g.BEGIN,g.PAN,g.END,g.ABORT),(501,504,599,505))   # xbmc/input/actions/ActionIDs.h, Kodi 21.3
+        self.assertEqual(g.SWIPES,(511,521,531,541))
     def test_a_drag_that_stops_at_once(self):
         ev=[(0,g.BEGIN,0)]+[(0.02,g.PAN,100+i*20) for i in range(12)]+[(0.01,g.END,0)]
         logs=run(ev);self.assertEqual(len(logs),1)
