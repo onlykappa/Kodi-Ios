@@ -84,8 +84,15 @@ class Disk(unittest.TestCase):
             path=os.path.join(d,'snap.json');now=[1_795_000_000]
             page=self.make(path,[board()],now);page.refresh()
             self.assertTrue(page.calls);self.assertEqual(page.snapshot['at'],now[0])
-            old=self.make(path,[board()],now);now[0]+=se.SHOW_SAVED+5
-            old.refresh();self.assertEqual(old.snapshot['at'],now[0])           # too old to draw: asked and waited
+    def test_an_old_saved_answer_is_drawn_as_remembered_never_a_blank_page(self):
+        # Build 621 (owner log 0ee2c2eb: "sports doesn't work at all"): a 3-hour-old answer and a bad network left every page waiting
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            path=os.path.join(d,'snap.json');now=[1_795_000_000]
+            self.make(path,[board()],now).refresh(block=True)
+            now[0]+=3*3600;page=self.make(path,[],now)                            # ESPN does not answer now
+            started=time.monotonic();page.refresh()
+            self.assertLess(time.monotonic()-started,0.5)
+            self.assertTrue(page.remembered());self.assertEqual(len(page.upcoming_games()),1)
 
 class Page(unittest.TestCase):
     def test_the_page_redraws_once_the_real_answer_has_arrived(self):
