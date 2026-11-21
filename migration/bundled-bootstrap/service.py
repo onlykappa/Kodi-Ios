@@ -385,6 +385,14 @@ def run():
                            lambda:scroll_probe.page(xbmcgui.getCurrentWindowId(),xbmcgui.getCurrentWindowDialogId(),xbmc.getInfoLabel),lambda text:xbmc.log(text,xbmc.LOGINFO),
                            lambda:xbmc.getCondVisibility('Player.HasVideo'))
  threading.Thread(target=scroll_probe.watch,args=(_probe,monitor.waitForAbort),daemon=True).start()
+ # page_cover: a covering page that died leaves its token behind; with no modal dialog open nothing covers, so the list is cleared (every 2 s).
+ def cover_tidy():
+  import page_cover
+  home=xbmcgui.Window(10000)
+  while not monitor.waitForAbort(2):
+   try:page_cover.tidy(home,xbmc.getCondVisibility('System.HasActiveModalDialog'))
+   except Exception:pass
+ threading.Thread(target=cover_tidy,daemon=True).start()
  # Build 193: one status model for every page and the bell (work_state.py), every 2 s, with the reason stored.
  import work_state,slowdown
  # ISSUE-228 (owner: "cancel all upscaling isn't working"): the page's cancel / cancel all / order requests were applied only

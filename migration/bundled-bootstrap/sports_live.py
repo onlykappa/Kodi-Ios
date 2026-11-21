@@ -320,7 +320,9 @@ def run(args=()):
     except RuntimeError:
         xbmcvfs.listdir(os.path.join(skin, 'portrait') + '/')   # written while Kodi was running: its directory cache may not list it yet
         page = Page(lp.WINDOW, HERE, 'Default', '1080i')
-    page.doModal()
+    import page_cover
+    with page_cover.covering():   # the window under this opaque page stops drawing while it is open
+        page.doModal()
     if hasattr(page, 'stop'):
         page.stop.set()
     del page

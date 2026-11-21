@@ -197,7 +197,9 @@ def run():
             self.show()
 
     page = Page('IOSFavourites.xml', HERE, 'Default', '1080i')
-    page.doModal()
+    import page_cover
+    with page_cover.covering():   # the window under this opaque page stops drawing while it is open
+        page.doModal()
     del page
 
 
