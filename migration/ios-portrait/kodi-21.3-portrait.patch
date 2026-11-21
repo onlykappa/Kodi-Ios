@@ -788,13 +788,13 @@ index f5c0732..2d7257c 100644
        // no need to send a resize message, as this message will do the rounds
        return true;
 diff --git a/xbmc/guilib/GUIWindow.cpp b/xbmc/guilib/GUIWindow.cpp
-index ebb133d..9017863 100644
+index ebb133d..3b4836d 100644
 --- a/xbmc/guilib/GUIWindow.cpp
 +++ b/xbmc/guilib/GUIWindow.cpp
 @@ -499,9 +499,20 @@ EVENT_RESULT CGUIWindow::OnMouseAction(const CAction &action)
    CPoint mousePoint(action.GetAmount(0), action.GetAmount(1));
    CServiceBroker::GetWinSystem()->GetGfxContext().InvertFinalCoords(mousePoint.x, mousePoint.y);
-
+ 
 +  // Kodi-iOS: a touch pan's distance arrives in screen pixels like its position; convert it the same way, or
 +  // lists move further than the finger (25% on an iPhone in portrait, where the skin is smaller than the screen).
 +  float offsetX = action.GetAmount(2);
@@ -815,9 +815,9 @@ index ebb133d..9017863 100644
    {
      CGUIControl *child = GetControl(m_exclusiveMouseControl);
 @@ -514,7 +525,15 @@ EVENT_RESULT CGUIWindow::OnMouseAction(const CAction &action)
-
+ 
    UnfocusFromPoint(mousePoint);
-
+ 
 -  return SendMouseEvent(mousePoint, event);
 +  const EVENT_RESULT result = SendMouseEvent(mousePoint, event);
 +  // Kodi-iOS r17: the owner reports the video controls' buttons "not working well". Log every tap (click) with the
@@ -829,7 +829,7 @@ index ebb133d..9017863 100644
 +              result == EVENT_RESULT_UNHANDLED ? "(not handled)" : "(handled)");
 +  return result;
  }
-
+ 
  EVENT_RESULT CGUIWindow::OnMouseEvent(const CPoint& point, const MOUSE::CMouseEvent& event)
 @@ -591,7 +610,30 @@ bool CGUIWindow::OnMessage(CGUIMessage& message)
    case GUI_MSG_WINDOW_INIT:
@@ -863,6 +863,24 @@ index ebb133d..9017863 100644
        OnInitWindow();
        return true;
      }
+@@ -682,8 +724,17 @@ bool CGUIWindow::OnMessage(CGUIMessage& message)
+     break;
+   case GUI_MSG_GESTURE_NOTIFY:
+     {
++      // Kodi-iOS r35: the window manager hands this message to the topmost modal dialog, then to every modeless
++      // dialog, then (the sender id is 0) to the window under them, and each one replaced the answer the one before
++      // had stored. A page that is a modal dialog said "scroll with inertia", and the window under it, asked last
++      // with the flick's speed read as a screen position, overwrote that with "unhandled": the flick stopped dead.
++      // An answer that accepts inertia now stays; only an "unhandled" one is replaced (and freed).
++      int* answered = static_cast<int*>(message.GetPointer());
++      if (answered && *answered != EVENT_RESULT_UNHANDLED)
++        return true;
+       CAction action(ACTION_GESTURE_NOTIFY, 0, static_cast<float>(message.GetParam1()), static_cast<float>(message.GetParam2()), 0, 0);
+       EVENT_RESULT result = OnMouseAction(action);
++      delete answered;
+       auto res = new int(result);
+       message.SetPointer(static_cast<void*>(res));
+       return result != EVENT_RESULT_UNHANDLED;
 diff --git a/xbmc/input/touch/generic/GenericTouchActionHandler.cpp b/xbmc/input/touch/generic/GenericTouchActionHandler.cpp
 index 265f2a1..cbd808a 100644
 --- a/xbmc/input/touch/generic/GenericTouchActionHandler.cpp
