@@ -545,7 +545,10 @@ def play_downloaded(handle,params):
   except NameError:known={}
   xbmcgui.Window(10000).setProperty('KodiIOS.Playing',json.dumps({'t':time.time(),'kind':params.get('kind') or 'episode','title':known.get('title') or params.get('title',''),
    'show':known.get('tvshowtitle') or params.get('show',''),'season':known.get('season') or params.get('season',''),'episode':known.get('episode') or params.get('episode',''),
-   'year':known.get('year') or params.get('year',''),'tmdb':params.get('tmdb_id') or known.get('tmdb_id','')}))
+   'year':known.get('year') or params.get('year',''),'tmdb':params.get('tmdb_id') or known.get('tmdb_id',''),
+   # Next Episode on a downloaded copy (owner 2026-11-21: it did nothing): the Library path of this copy and what Kodi plays, so the next downloaded
+   # episode of the show can be found in the Library's own order (next_episode.downloaded_plan).
+   'path':params.get('path',''),'file':li.getPath(),'downloaded':True}))
  except Exception:pass
  import ios_continue
  def read(location):

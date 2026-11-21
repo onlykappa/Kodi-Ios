@@ -92,4 +92,46 @@ class AcrossSeasons(unittest.TestCase):
         self.assertIn('season=1&episode=13', url)
 
 
+class DownloadedShow(unittest.TestCase):
+ """Owner 2026-11-21: Next Episode on a downloaded (Elementum) show did nothing; build 619 shows Kodi's item had no show/season/episode."""
+ LIB='plugin://plugin.video.kodi.ios.watch/?'
+ def play(self,path,s,e):
+  import urllib.parse
+  return self.LIB+urllib.parse.urlencode({'action':'library_play','path':path,'show':'Phony','season':s,'episode':e})
+ def rpc(self,pages):
+  def call(method,params):
+   self.assertEqual(method,'Files.GetDirectory');return {'result':{'files':pages.get(params['directory'],[])}}
+  return call
+ def pages(self):
+  import urllib.parse
+  root=self.LIB+urllib.parse.urlencode({'action':'library','type':'tv','show':'Phony','merge':'1'})
+  s1=self.LIB+'action=library&type=tv&show=Phony&merge=1&season=1';s2=self.LIB+'action=library&type=tv&show=Phony&merge=1&season=2'
+  return {root:[{'file':s1,'filetype':'directory'},{'file':s2,'filetype':'directory'}],
+          s1:[{'file':self.play('/d/phony.s01e01.mkv',1,1)},{'file':self.play('/d/phony.s01e02.mkv',1,2)}],
+          s2:[{'file':self.play('/d/phony.s02e01.mkv',2,1)}]}
+ def record(self,path='/d/phony.s01e01.mkv',file='http://127.0.0.1:5000/x'):
+  import json
+  return json.dumps({'downloaded':True,'kind':'episode','show':'Phony','path':path,'file':file})
+ def test_the_playing_download_is_recognised_by_what_kodi_plays(self):
+  self.assertTrue(ne.playing_download(self.record(),'http://127.0.0.1:5000/x'))
+  self.assertTrue(ne.playing_download(self.record(),self.play('/d/phony.s01e01.mkv',1,1)))   # Kodi reports the Library's link
+  self.assertIsNone(ne.playing_download(self.record(),'https://debrid/other.mkv'))           # an Umbrella video after a download
+  self.assertIsNone(ne.playing_download('',''))
+ def test_the_next_downloaded_episode_in_library_order(self):
+  rpc=self.rpc(self.pages())
+  how,url,se=ne.downloaded_plan(rpc,{'show':'Phony','path':'/d/phony.s01e01.mkv'})
+  self.assertEqual((how,se),('play',('1','2')));self.assertIn('phony.s01e02',url)
+ def test_the_season_boundary_and_the_last_one(self):
+  rpc=self.rpc(self.pages())
+  self.assertEqual(ne.downloaded_plan(rpc,{'show':'Phony','path':'/d/phony.s01e02.mkv'})[2],('2','1'))
+  self.assertEqual(ne.downloaded_plan(rpc,{'show':'Phony','path':'/d/phony.s02e01.mkv'}),(None,'That was the last downloaded episode.'))
+ def test_an_unlisted_copy_falls_back_to_tmdb_helper(self):
+  self.assertIsNone(ne.downloaded_plan(self.rpc(self.pages()),{'show':'Phony','path':'/d/elsewhere.mkv'}))
+  def broken(method,params):raise RuntimeError('rpc')
+  self.assertIsNone(ne.downloaded_plan(broken,{'show':'Phony','path':'/d/phony.s01e01.mkv'}))
+ def test_the_library_records_its_paths(self):
+  text=(ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_library.py').read_text()
+  self.assertIn("'path':params.get('path',''),'file':li.getPath(),'downloaded':True",text)
+  self.assertIn("'file']})",(BOOT/'next_episode.py').read_text())
+
 if __name__=='__main__':unittest.main()
