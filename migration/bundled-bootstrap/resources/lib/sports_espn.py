@@ -329,6 +329,12 @@ class EspnProvider:
         data = self._read_disk()
         return data is not None and self.clock() - data['at'] > FRESH_DISK   # younger than that, the service kept it current: nothing is on its way
 
+    def has_answer(self):
+        """True when an answer (this run's or the one kept on the phone) can be drawn at once, without asking ESPN: a page may draw before it opens."""
+        if self.snapshot is not None:
+            return True
+        return bool(self.snapshot_path) and self._read_disk() is not None
+
     def _refresh_later(self):
         if self.refreshing:
             return

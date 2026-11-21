@@ -37,6 +37,37 @@ def run():
  diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'startup','installed_build',
   kodi=xbmc.getInfoLabel('System.BuildVersion'),os=xbmc.getInfoLabel('System.OSVersion'),python=sys.version.split()[0])
  window=xbmcgui.Window(10000);state={'stage':'prepare'};generated=False
+ # ESPN's games, scores and times are fetched here and kept on the phone, so every Sports page opens on a current answer without asking ESPN itself
+ # (owner, build 619: "it should always know what is live and upcoming ... load instantly ... never need to refresh"). Faster while Sports is in use.
+ def sports_data_loop():
+  import sports_provider,cache_tune
+  home=xbmcgui.Window(10000)
+  # Build 623 (owner: the Sports hub must be instant after a force-quit): this thread starts first thing, loads the hub's modules so the first page open
+  # finds them ready, and asks ESPN at once (build 622 waited 0.5 s, and the thread itself only started at the end of set-up).
+  try:
+   import sports,sports_upcoming,sports_live,sports_leagues,sports_rows,sports_filter,sports_hybrid,sports_espn
+  except Exception:pass
+  said=[False,False]
+  while True:
+   live=False
+   try:
+    if xbmc.Player().isPlayingVideo():raise RuntimeError('video playing')
+    provider=sports_provider.real()
+    began=time.time();provider.refresh(block=True)
+    live=bool(provider.live_games())
+    if not said[1]:   # build 620 log had no sign of this loop: say once that it saved an answer, and how long ESPN took
+     said[1]=True;xbmc.log('Kodi iOS Sports: background refresh: ESPN saved in %.1f s (%d live)'%(time.time()-began,len(provider.live_games())),xbmc.LOGINFO)
+   except Exception as error:
+    if not said[0]:said[0]=True;xbmc.log('Kodi iOS Sports: background refresh: %s'%type(error).__name__,xbmc.LOGINFO)
+   try:idle=time.time()-float(home.getProperty('KodiIOS.SportsSeen') or 0)
+   except ValueError:idle=1e9
+   wait=(10 if live else 30) if idle<900 else 60 if idle<6*3600 else 300
+   try:
+    if cache_tune.link_kind()=='cellular':wait*=3   # cellular: a third of the requests
+    if xbmc.Player().isPlayingVideo():wait=max(wait,60)   # never competes with a video for the connection
+   except Exception:pass
+   if monitor.waitForAbort(wait):return
+ threading.Thread(target=sports_data_loop,daemon=True).start()
  keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
  window.setProperty('KodiIOS.Build',updates.installed_build(root))
@@ -292,33 +323,6 @@ def run():
    return False
   sports_sources_prefetch.watch(sports_provider.get,busy,monitor.waitForAbort,log=lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO),poke=poke)
  threading.Thread(target=sports_prefetch_loop,daemon=True).start()
- # ESPN's games, scores and times are fetched here and kept on the phone, so every Sports page opens on a current answer without asking ESPN itself
- # (owner, build 619: "it should always know what is live and upcoming ... load instantly ... never need to refresh"). Faster while Sports is in use.
- def sports_data_loop():
-  import sports_provider,cache_tune
-  home=xbmcgui.Window(10000)
-  if monitor.waitForAbort(0.5):return   # build 622: Sports opened 4 s after launch, before the first answer (it came 16 s after launch)
-  said=[False,False]
-  while True:
-   live=False
-   try:
-    if xbmc.Player().isPlayingVideo():raise RuntimeError('video playing')
-    provider=sports_provider.real()
-    began=time.time();provider.refresh(block=True)
-    live=bool(provider.live_games())
-    if not said[1]:   # build 620 log had no sign of this loop: say once that it saved an answer, and how long ESPN took
-     said[1]=True;xbmc.log('Kodi iOS Sports: background refresh: ESPN saved in %.1f s (%d live)'%(time.time()-began,len(provider.live_games())),xbmc.LOGINFO)
-   except Exception as error:
-    if not said[0]:said[0]=True;xbmc.log('Kodi iOS Sports: background refresh: %s'%type(error).__name__,xbmc.LOGINFO)
-   try:idle=time.time()-float(home.getProperty('KodiIOS.SportsSeen') or 0)
-   except ValueError:idle=1e9
-   wait=(10 if live else 30) if idle<900 else 60 if idle<6*3600 else 300
-   try:
-    if cache_tune.link_kind()=='cellular':wait*=3   # cellular: a third of the requests
-    if xbmc.Player().isPlayingVideo():wait=max(wait,60)   # never competes with a video for the connection
-   except Exception:pass
-   if monitor.waitForAbort(wait):return
- threading.Thread(target=sports_data_loop,daemon=True).start()
  # Safety net: a modal busy dialog nobody lowers is closed after 4 s unless a video is opening or playing (busy_watchdog.py).
  def busy_watchdog_loop():
   import busy_watchdog

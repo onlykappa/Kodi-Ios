@@ -58,6 +58,9 @@ class HybridProvider:
         else:   # a provider without the block argument (tests, the sample)
             self.espn.refresh()
 
+    def has_answer(self):
+        return bool(getattr(self.espn, 'has_answer', lambda: False)())
+
     def remembered(self):
         return bool(getattr(self.espn, 'remembered', lambda: False)())
 

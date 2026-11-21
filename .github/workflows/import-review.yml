@@ -198,6 +198,7 @@ jobs:
           python3 -B scripts/test_source_speed.py
           python3 -B scripts/test_fast_stream.py
           python3 -B scripts/test_sports_fresh.py
+          python3 -B scripts/test_sports_instant.py
           python3 -B scripts/test_sports_loop_proxy_compat.py
           python3 -B scripts/test_sports_playback_repair.py
           python3 -B scripts/test_sports_dialogs.py

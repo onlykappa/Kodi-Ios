@@ -133,6 +133,31 @@ def load(provider, now=None, offset=None, refresh=False):
         return dict(ERROR)
 
 
+def draw_first(page, provider_module):
+    """Before the page opens: when an answer is on the phone, set the page's properties from it (no ESPN request, no thread), so the first frame the person
+    sees is the real hub. Returns True when it did. Never raises."""
+    try:
+        provider = provider_module.get()
+        if not getattr(provider, 'has_answer', lambda: False)():
+            return False
+        now = time.time()
+        props = load(provider, now=now)
+        if props.get('state') != 'ok':
+            return False
+        props.update(sf.edit_state(provider))
+        games = provider.upcoming_games()
+        props.update(next_props(games, now, sm.device_offset(now)))
+        if props.get('edit.summary'):
+            props['sub'] = '%s · %s' % (props['edit.summary'], props.get('sub', ''))
+        page.games = games
+        page.last = props
+        for key, value in props.items():
+            page.setProperty(key, value)
+        return True
+    except Exception:
+        return False
+
+
 def run(args=()):
     import xbmc
     import xbmcgui
@@ -147,8 +172,9 @@ def run(args=()):
                 return
             self.guard = live_window.Guard(self)   # controls only while this page is open
             self.stop = threading.Event()
-            self.last = {}
-            self.show(props_updating())
+            if not getattr(self, 'last', None):
+                self.last = {}
+                self.show(props_updating())   # nothing saved to draw: the tiles say so until ESPN answers
             home = xbmcgui.Window(10000)
             initial_owner = home.getProperty('KodiIOS.SportsNativeOwner')
             def watch_handoff():
@@ -205,7 +231,7 @@ def run(args=()):
                                 self.show(next_props(self.games, time.time(), sm.device_offset(time.time()), found))
                         except Exception as error:
                             log('crests (%s)' % type(error).__name__)
-            if refresh:
+            if refresh and not self.last:   # with games already drawn the refresh is silent: no "Updating" over them (owner: the page must not look like it loads)
                 self.show(props_updating(self.last))
             threading.Thread(target=work, daemon=True).start()
 
@@ -220,6 +246,7 @@ def run(args=()):
             if control == sp.BACK:
                 self.finish()
             elif control in (sp.REFRESH, sp.RETRY):
+                self.show(props_updating(self.last))   # the person asked: say it is trying
                 self.fetch(True)
             elif control == sp.edit_button.ID:
                 import sports_edit
@@ -245,12 +272,15 @@ def run(args=()):
 
     here = HERE
     skin = xbmcvfs.translatePath('special://skin/')
+    began = time.monotonic()
     try:
         page = Page(sp.WINDOW, here, 'Default', '1080i')
     except RuntimeError:
         # Written while Kodi was running: its directory cache may not list it yet (build 173). Re-read and try once more.
         xbmcvfs.listdir(os.path.join(skin, 'portrait') + '/')
         page = Page(sp.WINDOW, here, 'Default', '1080i')
+    first = draw_first(page, sports_provider)   # owner, build 623: "needs to be instant like every other page": the first frame already holds the games
+    log('hub: first frame %s (%.0f ms)' % ('from the saved answer' if first else 'waits for ESPN', (time.monotonic() - began) * 1000))
     # No Crew window under the hub any more (owner, 2026-11-20: "no more Crew UI"): ESPN supplies the lists, and Crew's code runs only when a
     # game's page looks for its sources (sports_provider.crew_sources).
     try:
