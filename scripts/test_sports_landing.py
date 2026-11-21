@@ -127,8 +127,9 @@ class Page(unittest.TestCase):
     def test_ids_are_unique_and_the_buttons_are_there(self):
         ids = [c.get('id') for c in self.root.iter('control') if c.get('id')]
         self.assertEqual(len(ids), len(set(ids)))
-        for ident in (sp.BACK, sp.REFRESH, sp.LIVE, sp.UPCOMING, sp.LEAGUES, sp.SEE_ALL, sp.NEXT, sp.RETRY):
+        for ident in (sp.BACK, sp.LIVE, sp.UPCOMING, sp.LEAGUES, sp.SEE_ALL, sp.NEXT, sp.RETRY):
             self.assertIn(str(ident), ids)
+        self.assertNotIn(str(sp.REFRESH), ids)   # no refresh button: the service keeps the answer fresh (owner, build 619)
 
     def test_every_property_the_page_reads_is_set_by_the_controller(self):
         read = set(re.findall(r'Window\(\)\.Property\(([\w.]+)\)', self.xml))

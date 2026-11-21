@@ -60,8 +60,8 @@ def _error(p):
 
 def page(p):
     header = p.nav_button(BACK,32,5,'chevron-left.png','noop')
-    header += p.nav_button(REFRESH,940,5,p.MEDIA+'hdr_refresh.png','noop',glyph_size=60).replace(p.WHITE,p.ACCENT)
-    header += edit_button.xml(p,940-20-edit_button.W,22)
+    # No refresh button: ESPN's answer is kept fresh by the service (sports_data loop), so nothing needs refreshing by hand (owner, build 619)
+    header += edit_button.xml(p,p.WIDTH-p.SIDE-edit_button.W,22)
     header += u.text(p,p.SIDE,124,972,110,'Leagues','p_large')
     header += u.text(p,p.SIDE,239,972,51,u.P('subtitle'),'p_sub',p.GREY)
     empty = u.group(p,118,u.text(p,p.SIDE,30,972,60,u.P('empty.text'),'p_sub',p.GREY,'center'),u.has('empty.text'))

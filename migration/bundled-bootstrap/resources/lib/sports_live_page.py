@@ -113,10 +113,7 @@ def page(p):
     P = u.P
     ok, none, bad = ('String.IsEqual(Window().Property(state),%s)' % s for s in ('ok', 'none', 'error'))
     head = p.backdrop() + p.nav_button(BACK, S, 36, 'chevron-left.png', 'Close')
-    head += ('<control type="button" id="%d"><left>%d</left><top>40</top><width>150</width><height>118</height><label></label>'
-             '<texturefocus /><texturenofocus /><animation effect="fade" start="100" end="65" time="0" condition="Control.HasFocus(%d)">Conditional</animation></control>'
-             % (REFRESH, W - S - 150, REFRESH))
-    head += p.icon(W - S - 84, 57, 84, 'arrows-rotate.png', p.ACCENT)
+    # No refresh button: ESPN's answer is kept fresh by the service (sports_data loop), so nothing needs refreshing by hand (owner, build 619)
     head += u.text(p, S, 160, w, 110, 'Live Now', 'p_large') + u.text(p, S, 268, w, 56, P('sub'), 'p_sub', p.GREY)
     items = ''   # no league chips on Live Now (owner, 2026-11-20): the cards start under the subtitle
     for g in range(1, GAMES + 1):

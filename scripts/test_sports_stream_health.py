@@ -95,11 +95,11 @@ class Scenario(unittest.TestCase):
  def run_queue(self,behaviours,pinned=False,health=None,names=None):
   state={'now':0.0,'log':[],'order':[],'cur':None,'t0':0.0,'stops':0,'entries':[]};logs=[];props={}
   names=names or ['Crew %s'%chr(65+i) for i in range(len(behaviours))]
-  by_address={'plugin://plugin.video.thecrew/?action=play&url='+n[-1].lower():b for n,b in zip(names,behaviours)}
+  by_address={'plugin://plugin.video.thecrew/?action=play&url='+n[-1].lower():(list(b) if isinstance(b,(list,tuple)) else b) for n,b in zip(names,behaviours)}
   class Player:
    def play(self,playlist,**kw):
-    address=state['entries'][-1];state['cur']=by_address[address];state['order'].append(address);state['t0']=state['now'];state['avs']=False;state['player']=self
-   def isPlayingVideo(self):return state['cur'] in ('good','stall') and state['now']-state['t0']>=.4
+    address=state['entries'][-1];plan=by_address[address];state['cur']=plan.pop(0) if isinstance(plan,list) else plan;state['order'].append(address);state['t0']=state['now'];state['avs']=False;state['player']=self;state['picked']=False
+   def isPlayingVideo(self):return state['cur'] in ('good','stall','chooser_good') and state['now']-state['t0']>=.4 and (state['cur']!='chooser_good' or state['picked'])
    def getTime(self):
     t=state['now']-state['t0']-.4
     return min(t,2.0) if state['cur']=='stall' else max(t,0)
@@ -115,10 +115,11 @@ class Scenario(unittest.TestCase):
    state['now']+=ms/1000;p=state.get('player')
    if p is None or state['cur'] is None:return
    if state['cur'] in ('good','stall') and state['now']-state['t0']>=.4 and not state['avs']:state['avs']=True;p.onPlayBackStarted();p.onAVStarted()
-   if state['cur']=='dead' and not state.get('errored_'+str(len(state['order']))):state['errored_'+str(len(state['order']))]=True;p.onPlayBackError()
+   if state['cur']=='chooser_good' and state['picked'] and not state['avs']:state['avs']=True;p.onPlayBackStarted();p.onAVStarted()
+   if state['cur'] in ('dead','chooser_dead') and (state['cur']=='dead' or state['picked']) and not state.get('errored_'+str(len(state['order']))):state['errored_'+str(len(state['order']))]=True;p.onPlayBackError()
   info=lambda label:{'Player.Process(videoheight)':'720','Player.Process(videofps)':'30'}.get(label,'')
-  backend=NS(Player=Player,PlayList=lambda _:Playlist(),PLAYLIST_VIDEO=1,sleep=sleep,executebuiltin=lambda v:None,getInfoLabel=info,
-             Monitor=lambda:NS(abortRequested=lambda:False),getCondVisibility=lambda cond:False)
+  backend=NS(Player=Player,PlayList=lambda _:Playlist(),PLAYLIST_VIDEO=1,sleep=sleep,executebuiltin=lambda v:(state.setdefault('builtins',[]).append(v),state.__setitem__('picked',True) if v=='Action(Select)' else None),getInfoLabel=info,
+             Monitor=lambda:NS(abortRequested=lambda:False),getCondVisibility=lambda cond:'selectdialog' in cond and str(state['cur']).startswith('chooser') and not state['picked'])
   home=NS(setProperty=lambda k,v:props.__setitem__(k,v),getProperty=lambda k:props.get(k,''),clearProperty=lambda k:props.pop(k,None))
   gui=NS(ListItem=lambda **kw:NS(setProperty=lambda *a:None),Window=lambda ident:home)
   queue=[src(n,n[-1].lower()) for n in names]
@@ -139,6 +140,15 @@ class Scenario(unittest.TestCase):
  def test_a_dead_link_then_a_frozen_one_then_a_good_one(self):
   result,state,logs,health=self.run_queue(['dead','stall','good'])
   self.assertTrue(result);self.assertEqual(len(state['order']),3)
+ def test_a_game_whose_crew_chooser_has_more_links_tries_the_next_link_of_the_same_route(self):
+  # Build 619 log: the one route's first link failed (Crew's streamers did), the app stopped. Crew's chooser had offered more links: the next entry is tried.
+  result,state,logs,health=self.run_queue([('chooser_dead','chooser_good')])
+  self.assertTrue(result);self.assertEqual(len(state['order']),2)                       # the same route, twice
+  self.assertEqual(state['builtins'].count('Action(Down)'),1)                            # the second try moved down one entry before selecting
+  self.assertTrue(any('picked link 2' in l for l in logs))
+ def test_a_route_with_no_chooser_is_not_retried(self):
+  result,state,logs,health=self.run_queue(['dead'])
+  self.assertIsInstance(result,RuntimeError);self.assertEqual(len(state['order']),1)
  def test_a_source_that_never_answers_is_dropped_after_the_first_picture_limit(self):
   result,state,logs,health=self.run_queue(['silent','good'])
   self.assertTrue(result);self.assertEqual(len(state['order']),2)

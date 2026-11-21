@@ -24,13 +24,13 @@ class Disk(unittest.TestCase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
             path=os.path.join(d,'s','snap.json');first=self.make(path,[board()])
             first.refresh();self.assertTrue(os.path.exists(path));self.assertFalse(first.remembered())
-            second=self.make(path,[board()]);self.assertTrue(second.remembered())
+            second=self.make(path,[board()],[1_795_000_100]);self.assertTrue(second.remembered())
             started=time.monotonic();second.upcoming_games();self.assertLess(time.monotonic()-started,1)
             self.assertTrue(second.snapshot.get('remembered') or not second.remembered())
     def test_the_remembered_answer_is_replaced_by_the_real_one_in_the_background(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
             path=os.path.join(d,'snap.json');self.make(path,[board()]).refresh()
-            slow=threading.Event();second=self.make(path,[board()])
+            second=self.make(path,[board()],[1_795_000_100])
             second.upcoming_games()                      # remembered, offered at once
             for _ in range(200):
                 if not second.remembered():break
@@ -39,7 +39,7 @@ class Disk(unittest.TestCase):
     def test_an_offline_start_keeps_offering_the_remembered_answer(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
             path=os.path.join(d,'snap.json');self.make(path,[board()]).refresh()
-            second=self.make(path,[])
+            second=self.make(path,[],[1_795_000_100])
             self.assertEqual(len(second.upcoming_games()),1)
     def test_an_old_or_corrupt_file_is_ignored(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
@@ -47,6 +47,21 @@ class Disk(unittest.TestCase):
             self.assertFalse(self.make(path,[board()]).remembered())
             Path(path).write_text(json.dumps({'at':1,'live':[],'upcoming':[],'leagues':[]}))
             self.assertFalse(self.make(path,[board()]).remembered())
+
+    def test_an_answer_the_service_just_wrote_is_used_as_it_is_and_a_page_refresh_does_not_ask_espn(self):
+        # Owner, build 619: "it should always know what is live ... load instantly ... it shouldn't ever need to refresh". The service keeps the file fresh.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            path=os.path.join(d,'snap.json');self.make(path,[board()]).refresh()
+            page=self.make(path,[board()],[1_795_000_020])                 # 20 s later: the service's file is still fresh
+            self.assertFalse(page.remembered());self.assertEqual(len(page.upcoming_games()),1)
+            self.assertEqual(page.calls,[])                                 # no request to ESPN at all
+    def test_a_newer_file_replaces_the_pages_older_answer_without_a_request(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            path=os.path.join(d,'snap.json');now=[1_795_000_000]
+            service=self.make(path,[board()],now);service.refresh()
+            page=self.make(path,[board()],now);page.upcoming_games()
+            now[0]+=30;service.refresh();os.utime(path,(time.time()+5,time.time()+5))   # the service refreshed 30 s later
+            page.refresh();self.assertEqual(page.snapshot['at'],now[0]);self.assertEqual(page.calls,[])   # a page's own refresh adopts it too
 
 class Page(unittest.TestCase):
     def test_the_page_redraws_once_the_real_answer_has_arrived(self):
@@ -67,5 +82,15 @@ class Page(unittest.TestCase):
         boot=Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap'
         for name in ('sports_upcoming.py','sports_leagues.py','sports_live.py','sports.py'):
             self.assertIn('sports_fresh',(boot/name).read_text(),name)
+
+class Service(unittest.TestCase):
+    def test_the_service_keeps_espns_answer_fresh_and_the_refresh_buttons_are_gone(self):
+        boot=Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap'
+        text=(boot/'service.py').read_text()
+        self.assertIn('def sports_data_loop():',text);self.assertIn('threading.Thread(target=sports_data_loop,daemon=True).start()',text)
+        self.assertIn("never competes with a video",text)
+        for name in ('sports_page.py','sports_live_page.py','sports_upcoming_page.py','sports_leagues_page.py','sports_game_page.py'):
+            self.assertNotIn('hdr_refresh.png',(boot/'resources/lib'/name).read_text(),name)
+            self.assertNotIn('arrows-rotate.png',(boot/'resources/lib'/name).read_text(),name)
 
 if __name__=='__main__':unittest.main()
