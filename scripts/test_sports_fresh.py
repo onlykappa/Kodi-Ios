@@ -94,6 +94,14 @@ class Disk(unittest.TestCase):
             self.assertLess(time.monotonic()-started,0.5)
             self.assertTrue(page.remembered());self.assertEqual(len(page.upcoming_games()),1)
 
+    def test_last_nights_answer_is_still_drawn(self):   # build 622 log ac85bba1: opened 4 s after launch, last answer over 6 h old
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            path=os.path.join(d,'snap.json');now=[1_795_000_000]
+            self.make(path,[board()],now).refresh(block=True)
+            now[0]+=30*3600;page=self.make(path,[],now)
+            started=time.monotonic();page.refresh();self.assertLess(time.monotonic()-started,0.5)
+            self.assertTrue(page.remembered());self.assertEqual(se.SNAPSHOT_KEEP,48*3600)
+
 class Page(unittest.TestCase):
     def test_the_page_redraws_once_the_real_answer_has_arrived(self):
         state={'remembered':True};drawn=[];stop=threading.Event()

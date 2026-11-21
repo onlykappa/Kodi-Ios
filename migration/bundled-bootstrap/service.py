@@ -297,7 +297,7 @@ def run():
  def sports_data_loop():
   import sports_provider,cache_tune
   home=xbmcgui.Window(10000)
-  if monitor.waitForAbort(4):return
+  if monitor.waitForAbort(0.5):return   # build 622: Sports opened 4 s after launch, before the first answer (it came 16 s after launch)
   said=[False,False]
   while True:
    live=False

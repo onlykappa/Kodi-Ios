@@ -236,7 +236,14 @@ def run():
     # Owner (2026-11-21): on a downloaded show Next Episode did nothing (build 619: Kodi's item had no show, season or episode, so plan() said
     # "not an episode"). A downloaded copy plays the next downloaded episode, in the Library's order, without TMDb or Umbrella.
     if not (size and 0 <= int(props.get('position', -1)) < size - 1):
-        mine = playing_download(home.getProperty(PLAYING), str(item.get('file') or ''))
+        # Build 622 (owner: "next episode doesn't do anything"; log ac85bba1): a copy opened by Continue plays inside TMDb Helper, so Kodi's item is
+        # TMDb Helper's link; the player's own file is the copy's address the Library recorded.
+        try:
+            playing_file = xbmc.Player().getPlayingFile()
+        except Exception:
+            playing_file = ''
+        raw = home.getProperty(PLAYING)
+        mine = playing_download(raw, str(item.get('file') or '')) or playing_download(raw, str(playing_file or ''))
         if mine:
             found = downloaded_plan(rpc, mine)
             if found and found[0] == 'play':

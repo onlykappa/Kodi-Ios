@@ -409,8 +409,10 @@ def fast_stream(handle,params,read=None,alive=None,play=None,now=None,route=None
   # connect, 5.1 s for the file's start, 3.6 s for the resume seek). Umbrella's own path hands Kodi the service's cache (several connections, the
   # start, the end and now the resume point asked for at once: remote_media.for_kodi); Continue skipped Umbrella and with it the cache. It uses it
   # too now; when the cache does not answer in time the link itself is played, as before.
-  if route is None:route=_cache_route
-  url=route(url,position/total if total else None)
+  # Build 622 (log ac85bba1) undid this by default: on that debrid link the cache had 1 of its 3 opening blocks after 2 s, handed Kodi the link with
+  # 9 of its 40 reads still running, and the server then refused Kodi's own range request ("Requested range was not delivered"): the open failed.
+  # Continue plays the remembered link directly again (build 620: 12.3 s, and it played). `route` stays for tests and a later, safer try.
+  if route is not None:url=route(url,position/total if total else None)
   if play is None:
    import ios_library
    play=ios_library.play_stream
