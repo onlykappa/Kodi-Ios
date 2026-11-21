@@ -186,8 +186,43 @@ def show_seasons(item, current, timeout=4):
         return None
 
 
+def cut_drive_reads(xbmc, home):
+    """Before the playing video is stopped: if it is a Drive copy read through the app's proxy, cut the proxy's upstream reads so Kodi's close does not wait
+    on them (ISSUE-428, owner build 623 log 8c570737: the old video took 40 s to close, Kodi's cache stuck on Drive reads). Never raises."""
+    try:
+        if '127.0.0.1' not in str(xbmc.Player().getPlayingFile() or ''):
+            return False
+        port = home.getProperty('KodiIOS.DriveProxy')
+        if not port.isdigit():
+            return False
+        import os
+        import sys
+        lib = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', 'lib')
+        if lib not in sys.path:
+            sys.path.insert(0, lib)
+        import drive_proxy
+        return drive_proxy.ask_abort(int(port))
+    except Exception:
+        return False
+
+
 def wait_stopped(xbmc, limit=6.0, step=0.1):
     """Stop the video and wait until Kodi has no video player (True), at most limit seconds."""
+    try:
+        import xbmcgui
+        cut_drive_reads(xbmc, xbmcgui.Window(10000))
+    except Exception:
+        pass
+    began = __import__('time').monotonic()
+    stopped = _wait_stopped(xbmc, limit, step)
+    try:
+        xbmc.log('Kodi iOS Next Episode: old video %s after %.1f s' % ('closed' if stopped else 'still closing', __import__('time').monotonic() - began), xbmc.LOGINFO)
+    except Exception:
+        pass
+    return stopped
+
+
+def _wait_stopped(xbmc, limit=6.0, step=0.1):
     xbmc.Player().stop()
     waited = 0.0
     monitor = xbmc.Monitor()

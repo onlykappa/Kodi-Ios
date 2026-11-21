@@ -367,6 +367,15 @@ def _link_alive(url,timeout=3):
    return answer.status in (200,206)
  except Exception:return False
 
+def _opening_kept(url):
+ """True when the service has this link's opening on the phone."""
+ try:
+  import xbmcvfs,ios_library
+  ios_library.boot_path(xbmcvfs)
+  import resume_cache
+  return resume_cache.ready(url)
+ except Exception:return False
+
 def _cache_route(url,resume=None):
  """The service's cache address for a remembered Umbrella link, or the link itself."""
  try:
@@ -412,6 +421,10 @@ def fast_stream(handle,params,read=None,alive=None,play=None,now=None,route=None
   # Build 622 (log ac85bba1) undid this by default: on that debrid link the cache had 1 of its 3 opening blocks after 2 s, handed Kodi the link with
   # 9 of its 40 reads still running, and the server then refused Kodi's own range request ("Requested range was not delivered"): the open failed.
   # Continue plays the remembered link directly again (build 620: 12.3 s, and it played). `route` stays for tests and a later, safer try.
+  # Build 623 log 8c570737 (a second Continue took as long as the first, 10.7 s against 11.3 s): when the opening of this very link is already on the phone
+  # (resume_cache, saved when the stream last stopped) the cache route is used: Kodi's open and its resume seek are answered from disk. Otherwise the link
+  # plays directly, as in build 620 (the cache's race against a slow debrid server is what failed in build 622).
+  if route is None and _opening_kept(url):route=_cache_route
   if route is not None:url=route(url,position/total if total else None)
   if play is None:
    import ios_library

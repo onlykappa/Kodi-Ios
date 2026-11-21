@@ -214,6 +214,8 @@ class Upstream(object):
         self.token = token
         self.connect = connect or (lambda: http.client.HTTPSConnection(HOST, timeout=TIMEOUT))
         self.local = threading.local()
+        self.open = set()               # every connection made, so abort_all can cut them (ISSUE-428)
+        self.aborted_until = 0.0
         self.keep_spare = spare       # roadmap 1A.5: keep one connected (TLS done) connection ready for the next request
         self.lock = threading.Lock()
         self.spare = None
@@ -265,8 +267,31 @@ class Upstream(object):
             conn = None if fresh else self._take_spare()
             self.local.conn = conn or self.connect()
             conn = self.local.conn
+            with self.lock:
+                self.open.add(conn)
             self.prepare()
         return conn
+
+    def abort_all(self, hold=4.0):
+        """Cut every upstream connection now and refuse new requests for `hold` seconds (ISSUE-428, owner build 623 log 8c570737: Next Episode waited 40 s for the
+        playing Drive video to close, Kodi's cache blocked on reads the proxy could not finish). Readers get an error at once, so Kodi's close does not wait.
+        Returns how many connections were cut."""
+        with self.lock:
+            conns = list(self.open) + ([self.spare] if self.spare is not None else [])
+            self.open.clear()
+            self.spare = None
+            self.aborted_until = time.monotonic() + hold
+        cut = 0
+        for conn in conns:
+            try:
+                sock = getattr(conn, 'sock', None)
+                if sock is not None:
+                    sock.shutdown(2)   # socket.SHUT_RDWR: a blocked read returns at once
+                    cut += 1
+                conn.close()
+            except Exception:
+                pass
+        return cut
 
     def drop(self):
         conn = getattr(self.local, 'conn', None)
@@ -301,6 +326,8 @@ class Upstream(object):
         """The open upstream response for file_id (status 200/206/...), retrying once on a stale connection or 401."""
         force = False
         for attempt in range(attempts):
+            if time.monotonic() < self.aborted_until:
+                raise ConnectionAbortedError('upstream aborted')
             began = time.monotonic()
             access = self.token(force)
             authenticated = time.monotonic()
@@ -583,6 +610,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path.startswith('/prefetch/'):
             self._prefetch_request()
             return
+        if self.path.startswith('/abort'):   # ISSUE-428: the player is about to be stopped: cut what it is waiting on
+            cut = self.upstream.abort_all() if self.upstream else 0
+            self.send_response(200)
+            self.send_header('Content-Length', '0')
+            self.send_header('X-Cut', str(cut))
+            self.end_headers()
+            return
         file_id = parse_path(self.path)
         if not file_id:
             self.send_error(404)
@@ -763,6 +797,16 @@ def live_port(read, ask_restart, sleep, tries=16, probe=None):
         if not str(port).isdigit():
             continue
     return None
+
+
+def ask_abort(port, timeout=1.0):
+    """Ask the proxy to cut its upstream connections (see Upstream.abort_all); True when it answered."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen('http://127.0.0.1:%d/abort' % int(port), timeout=timeout) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
 
 
 def ask_warm(port, file_id, name='', timeout=0.6):

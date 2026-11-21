@@ -1943,7 +1943,7 @@ def playing_link(player):
   try:return str(player.getPlayingFile() or '')
   except Exception:return ''
 
-def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{},log=None):
+def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{},log=None,on_stop=None):
  """Continue Watching: save the position of what the chooser started, and drop it once finished."""
  state={'playing':False,'saved':float('-inf'),'position':0,'total':0,'started':0,'seed':0,'remote':False,'handoff':False,'remote_file':'','generation':None,'ignored_generation':None}
  # ISSUE-299 (owner, build 442: "continue watching is only tracking the downloaded things"): one line per playback
@@ -2012,7 +2012,10 @@ def progress_tracker(player,continue_module,read,write,clock,every=10,external=l
     state.update(position=position,total=total)
     if now-state['saved']>=every:continue_module.update(read,write,state['position'],state['total'],stream=playing_link(player));state['saved']=now
    elif state['playing']:
-    state['playing']=False;continue_module.update(read,write,state['position'],state['total']);continue_module.stopped(read,write)
+    state['playing']=False;entry=continue_module.update(read,write,state['position'],state['total']);continue_module.stopped(read,write)
+    if on_stop and entry:
+     try:on_stop(entry)   # an Umbrella stream that stopped: its opening is kept for the next Continue (resume_cache)
+     except Exception as error:_quiet('portrait:on_stop',error)
   except Exception as error:_quiet('portrait:1179',error)
  return tick
 
@@ -2199,8 +2202,11 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
   import airplay
   try:native_player=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
   except Exception:native_player=None
+  def keep_opening(entry):
+   import resume_cache,remote_media,cache_tune
+   resume_cache.capture_later(entry,lambda link:remote_media.Foreground(link),wifi=lambda:cache_tune.link_kind()=='wifi',log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
   tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic,external=lambda:airplay.health(native_player),
-                       log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+                       log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),on_stop=keep_opening)
  except Exception as error:xbmc.log('Kodi iOS continue watching unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  # Listing cache: check the row flags against the copies now, then fill and refresh copies in the background.
  try:

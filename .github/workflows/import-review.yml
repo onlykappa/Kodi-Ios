@@ -199,6 +199,8 @@ jobs:
           python3 -B scripts/test_fast_stream.py
           python3 -B scripts/test_sports_fresh.py
           python3 -B scripts/test_sports_instant.py
+          python3 -B scripts/test_resume_cache.py
+          python3 -B scripts/test_drive_abort.py
           python3 -B scripts/test_sports_loop_proxy_compat.py
           python3 -B scripts/test_sports_playback_repair.py
           python3 -B scripts/test_sports_dialogs.py

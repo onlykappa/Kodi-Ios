@@ -381,6 +381,13 @@ class Broker:
         broker.current.open_blocks=OPEN_BLOCKS
         resume=request.get('resume')
         resume=resume if isinstance(resume,(int,float)) and 0<resume<1 else None
+        try:   # the opening kept from the last time this stream was played (resume_cache): in memory before Kodi reads, so the open and the resume seek need no network
+         import resume_cache
+         seeded=resume_cache.seed(broker.current,source)
+         if seeded:
+          import xbmc
+          xbmc.log('Kodi iOS resume cache: %d kept blocks given to the opening'%seeded,xbmc.LOGINFO)
+        except Exception:pass
         threading.Thread(target=prefetch,args=(broker.current,),kwargs={'blocks':OPEN_BLOCKS,'extra':KODI_AHEAD,'resume':resume},daemon=True).start()
        answer={'url':broker.current.media_url,'id':broker.ident,'warmed':warmed}
       elif action=='warm':
