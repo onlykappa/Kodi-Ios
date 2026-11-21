@@ -1,16 +1,16 @@
 {
  "framework_release": {
+  "tag": "kodi-airplay-r72",
+  "asset": "KodiAirPlay.framework.zip",
+  "sha256": "68dd3735c8e1beb7482c2368220ec32ce9e66c492f0a208ece72d4a90b49d2a9"
+ },
+ "previous": {
   "tag": "kodi-airplay-r71",
   "asset": "KodiAirPlay.framework.zip",
   "sha256": "71fdd0feacaf09d4338566436cd57beda0b3090f340df6c35f1d25bef6173e64"
  },
- "previous": {
-  "tag": "kodi-airplay-r70",
-  "asset": "KodiAirPlay.framework.zip",
-  "sha256": "9a7edb041dca82f17133c4d2a53636be8d33455d80d435bc643830cc0dd74892"
- },
- "source_commit": "bdc7185e50fc6bdf47ab2d6b2b8b7878c96f7e0e",
- "pin_note": "r71 candidate for ISSUE-393 (build612 downloaded-show log): a longer read-ahead lead for a Drive-bound source (video 5 windows / 24-30 s, audio 18 s; 56% of video and about 60% of audio windows were not made when the TV asked), on top of r70's audio lane fix and r69's receiver handoff, seek resume and audio reader reset. Native host and end-to-end tests plus iPhone compilation passed full run 44762248382 on bdc7185 (including test_video_lead_is_long_enough and the retry-evidence check that now accepts the source-layer recovery but still requires proof the fault fired, owner approved); inspection run 44765342540 verified IOS 14.0/SDK 26.2 and required exports; binary SHA256 9450dea08a99068be733bb7dad6e71d91654be1336c50ece09d6acf023958bd7. Host evidence only: no AVPlayer, TV or phone result. Owner approved the change and asked for the IPA (2026-11-20).",
- "verified_run": 44762248382,
- "verified_host_run": 44762248382
+ "source_commit": "4ac58a036569b114c7e461080d32c12b4a79f651",
+ "pin_note": "r72 candidate for ISSUE-424 (build 634 captions log): a subtitle sample with no length now gets a reading time (1.2 s plus 70 ms a character, 2 to 7 s) so a converted copy's captions are not zero-length and invisible, on top of r71's longer read-ahead lead. Native host and end-to-end tests plus iPhone compilation passed full run 44946538854 on 4ac58a0; inspection run 44948056178 verified IOS 14.0/SDK 26.2 and required exports; binary SHA256 ae264b5e80b257876d9d2ac5c6adf8eba4af41a0a58889a24e546ac2629e8159. Host evidence only: no AVPlayer, TV or phone result. Owner approved the AirPlay build (2026-11-21).",
+ "verified_run": 44946538854,
+ "verified_host_run": 44946538854
 }
