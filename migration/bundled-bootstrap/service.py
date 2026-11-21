@@ -311,6 +311,13 @@ def run():
    except Exception as error:xbmc.log('Kodi iOS loop: check failed (%s)'%type(error).__name__,xbmc.LOGWARNING)
    if monitor.waitForAbort(900):return
  threading.Thread(target=loop_quiet_loop,daemon=True).start()
+ # Crew's client lacks the parseDOM name its own downloaded streamers call (build 616 log: "Streamer [generic] failed"): added once at start, for Movies and TV too.
+ def crew_alias():
+  try:
+   import sports_crew_patch
+   sports_crew_patch.ensure(lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+  except Exception as error:xbmc.log('Kodi iOS crew: alias check failed (%s)'%type(error).__name__,xbmc.LOGWARNING)
+ threading.Thread(target=crew_alias,daemon=True).start()
  # Roadmap 1C.1: "open timing" log line per video (tap to picture).
  import open_timing
  # Owner, 2026-11-20 (a stream took 20 s to open): remember how fast each Umbrella source opened, so the version page lists the fast ones first.

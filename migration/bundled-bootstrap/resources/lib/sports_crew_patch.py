@@ -98,6 +98,43 @@ def apply(folders):
     return reason
 
 
+CLIENT_RELATIVE = os.path.join('lib', 'resources', 'lib', 'modules', 'client.py')
+CLIENT_ANCHOR = "def parseHTML(html, name='', attrs=None, ret=False):\n"
+CLIENT_MARK = '# Kodi iOS parseDOM'
+CLIENT_ADDED = ("parseDOM = parseDom  # Kodi iOS parseDOM: Crew's runtime stream code (generic streamer, rapidmoviez and others) calls client.parseDOM, "
+                "which client.py never defined: \"Streamer [generic] failed ... has no attribute 'parseDOM'\" (owner log 551591c4)\n\n\n")
+
+
+def apply_client(folders):
+    """Give Crew's client module the `parseDOM` name its own downloaded streamers call (it defines only `parseDom`). Pinned version and the exact anchor line
+    are checked, as for the scan patch. Returns 'patched', 'already', or a short reason it was left alone."""
+    reason = 'no Crew module folder'
+    for folder in folders:
+        path = os.path.join(folder, CLIENT_RELATIVE)
+        if not os.path.isfile(path):
+            continue
+        if _version(folder) != VERSION:
+            reason = 'Crew module is not the pinned version'
+            continue
+        try:
+            source = open(path, encoding='utf-8').read()
+        except OSError:
+            reason = 'Crew client cannot be read'
+            continue
+        if CLIENT_MARK in source or 'parseDOM =' in source:
+            return 'already'
+        if source.count(CLIENT_ANCHOR) != 1 or 'def parseDom(' not in source:
+            reason = 'Crew client does not match the pinned file'
+            continue
+        try:
+            open(path, 'w', encoding='utf-8').write(source.replace(CLIENT_ANCHOR, CLIENT_ADDED + CLIENT_ANCHOR, 1))
+        except OSError:
+            reason = 'Crew client cannot be written'
+            continue
+        return 'patched'
+    return reason
+
+
 def folders():
     """Where Kodi keeps this add-on on the phone and on the desktop rig."""
     out = []
@@ -111,6 +148,11 @@ def folders():
 
 
 def ensure(log=lambda text: None):
+    client = apply_client(folders())
+    if client == 'patched':
+        log('crew: parseDOM alias added')
+    elif client != 'already':
+        log('crew: parseDOM alias left alone (%s)' % client)
     result = apply(folders())
     if result not in ('patched', 'already'):
         log('crew: scan patch left alone (%s)' % result)

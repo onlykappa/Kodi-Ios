@@ -808,7 +808,9 @@ def favourite_cell(p,n,x,y,cw,ch):
  cap=96
  return ('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><visible>%s</visible>'%(x,y,cw,ch+cap,shown)+
   '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus /></control>'%(9700+n,cw,ch+cap)+
-  '<control type="group"><animation effect="zoom" start="100" end="104" time="160" center="auto" tween="cubic" easing="out" condition="Control.HasFocus(%d)">Conditional</animation>'%(9700+n)+
+  # No focus zoom here: a conditional zoom on every poster cell made Kodi transform all of them every frame (rig, 30 favourites: 73-81 fps with it, 107
+  # without; owner, build 618: "scrolling on favourites is laggy"). A tap opens the title at once, so the 4 % press zoom was barely seen.
+  '<control type="group">'+
   p.image(0,0,cw,ch,p.MEDIA+'white.png',p.SURFACE,'','',p.MEDIA+'poster_mask.png')+
   p.image(0,0,cw,ch,'$INFO[%s]'%flag('thumb'),p.WHITE,'','>scale',p.MEDIA+'poster_mask.png',background=True)+
   p.label(0,ch+14,cw,cap-14,'$INFO[%s]'%flag('title'),'p_foot_b',p.WHITE,'left','<wrapmultiline>true</wrapmultiline>').replace('<aligny>center</aligny>','<aligny>top</aligny>')+   # label() writes aligny first, so an extra one never wins (ISSUE-310)
