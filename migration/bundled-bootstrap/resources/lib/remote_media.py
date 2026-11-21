@@ -39,10 +39,10 @@ _BROKER=[None]   # ISSUE-281: one cache per service run; a restarted Drive loop 
 # opening blocks (the first two and the last) were fetched one after another: 60 s before the first picture. Debrid links
 # are slow per connection, not per phone (ISSUE-163): each block is now fetched as SPLIT parallel ranges, and the opening
 # blocks together. At most PIECES requests run at once, so a link that limits connections is not flooded.
-SPLIT=4;PIECES=8;SPLIT_MIN=256*1024
+SPLIT=4;PIECES=6;SPLIT_MIN=256*1024   # PIECES 8 -> 6 (build 646 log d8f39741: the read-ahead blocks 5-8 and the resume blocks were all refused, "Drive answered without the asked byte range", after 4.6-6.5 s while the blocks Kodi waited on came through)
 TYPES={'mkv':'video/x-matroska','avi':'video/x-msvideo','webm':'video/webm'}
 RACE=20          # ISSUE-315: a Kodi source replaced this soon after it was opened is kept beside the new one
-KODI_AHEAD=4     # ISSUE-315: blocks after the opening ones fetched at once for Kodi (it reads the file's start next)
+KODI_AHEAD=2     # ISSUE-315: blocks after the opening ones fetched at once for Kodi (it reads the file's start next); 4 -> 2 in build 647: fewer refused ranges
 # ISSUE-317 (owner log d3c14036, build 482: the cache route with all three opening blocks ready in 4.3 s still took 31.3 s
 # for Kodi to open; the direct link 19.6 s): every read Kodi makes through the cache (offset, length, time, how long it
 # waited for blocks) and every block fetched, for READ_LOG_FOR seconds after the source opens (READ_LOG_MAX lines at most).

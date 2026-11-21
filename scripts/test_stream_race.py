@@ -67,7 +67,7 @@ class Ahead(unittest.TestCase):
         rm.prefetch(s, extra=rm.KODI_AHEAD)
         import time
         deadline = time.time() + 5
-        want = {0, 1, 2, 3, 4, 5, (len(DATA) - 1) // rm.BLOCK}
+        want = set(range(rm.OPEN_BLOCKS + rm.KODI_AHEAD)) | {(len(DATA) - 1) // rm.BLOCK}   # the opening blocks, the read-ahead, the last
         while time.time() < deadline and not want <= {k[1] for k in s.blocks.data}:
             time.sleep(0.05)
         self.assertTrue(want <= {k[1] for k in s.blocks.data}, sorted(k[1] for k in s.blocks.data))

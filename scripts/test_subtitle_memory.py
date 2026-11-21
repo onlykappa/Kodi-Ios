@@ -80,4 +80,24 @@ class Wiring(unittest.TestCase):
         self.assertIn('subtitle_memory.remember(folder,',t);self.assertIn('subtitle_memory.forget(folder,',t);self.assertIn('mp4_tracks.zero_length(raw[t[',t)
         p=(ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py').read_text()
         self.assertIn('on_start=subtitles_back',p);self.assertIn('subtitle_memory.at_start(root,',p);self.assertIn('if on_start:',p)
+class UmbrellaKey(unittest.TestCase):   # build 646 log d8f39741: an Umbrella stream's labels say only "Episode 8"
+    def label(self,**v):return lambda name:v.get(name,'')
+    def test_continue_watching_gives_the_key_when_the_labels_lack_the_show(self):
+        import json,time
+        data=json.dumps({'current':'k','items':{'k':{'kind':'episode','title':'Episode 8','tvshowtitle':'Black Clover','season':'2','episode':'8','played':time.time()}}})
+        known=sm.known_from(lambda path:data,'Episode 8')
+        self.assertEqual(known,{'show':'Black Clover','season':'2','episode':'8'})
+        label=self.label(**{'VideoPlayer.Title':'Episode 8','VideoPlayer.Year':'2017'})
+        self.assertEqual(sm.identity(label,'http://x/a.mkv',known),'tv|black clover|2|8')
+        self.assertEqual(sm.identity(label,'http://x/a.mkv'),'film|episode 8|2017')   # without it: what filed every show's "Episode 8" together
+    def test_another_title_an_old_entry_or_a_movie_gives_nothing(self):
+        import json,time
+        entry={'kind':'episode','title':'Episode 8','tvshowtitle':'Black Clover','season':'2','episode':'8','played':time.time()}
+        for e,title in ((entry,'Other'),(dict(entry,played=time.time()-7*3600),'Episode 8'),(dict(entry,kind='movie'),'Episode 8')):
+            self.assertEqual(sm.known_from(lambda path,e=e:json.dumps({'current':'k','items':{'k':e}}),title),{})
+        self.assertEqual(sm.known_from(lambda path:1/0,'x'),{})
+    def test_kodis_own_labels_win(self):
+        label=self.label(**{'VideoPlayer.TVShowTitle':'Show','VideoPlayer.Season':'1','VideoPlayer.Episode':'2'})
+        self.assertEqual(sm.identity(label,'',{'show':'Other','season':'9','episode':'9'}),'tv|show|1|2')
+
 if __name__=='__main__':unittest.main()

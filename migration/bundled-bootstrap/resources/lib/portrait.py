@@ -761,6 +761,13 @@ def title_tap(id,title,path,visible):
          '<control type="button" id="%d"><left>%d</left><top>-129</top><width>%d</width><height>128</height><label></label>'
          '<texturefocus /><texturenofocus />%s</control></control>')%(visible,id+700,SIDE,WIDTH-2*SIDE,clicks)
 
+def play_now():
+ """A tap on a Continue Watching card shows the loading circle at once and plays (owner, build 646: "make it start loading when i click it ... i shouldnt have
+ time to tap it again"; the first sign of life was a second or more later, when TMDb Helper had started). The row's items are all playable plugin paths, so the
+ click does what Kodi did by default, after raising the circle; the service closes it when the video starts (Dialog.Close in the progress tracker) and the busy
+ watchdog closes it after a few seconds if nothing opens."""
+ return '<onclick>ActivateWindow(busydialognocancel)</onclick><onclick>PlayMedia($ESCINFO[ListItem.FileNameAndPath])</onclick>'
+
 def row(index,widget,last,tab='home',variables=None):
  id=5001+index;title=str(widget.get('label') or '')
  style=widget.get('style') or ('poster' if str(widget.get('widget_style') or '').lower()=='poster' else 'card')
@@ -777,10 +784,10 @@ def row(index,widget,last,tab='home',variables=None):
    ''.join(image(SIDE+k*(w+GAP),14,w,POSTER[1] if style=='poster' else CARD[1],MEDIA+'white.png',SURFACE,
                  diffuse=MEDIA+('poster_mask.png' if style=='poster' else 'card_mask.png')) for k in range(4 if style=='poster' else 2))+'</control>')+
   ('<control type="list" id="%d"><left>0</left><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
-   '%s<scrolltime tween="cubic" easing="out">320</scrolltime><preloaditems>2</preloaditems><visible allowhiddenfocus="true">%s</visible>'
+   '%s%s<scrolltime tween="cubic" easing="out">320</scrolltime><preloaditems>2</preloaditems><visible allowhiddenfocus="true">%s</visible>'
    '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
    '<content target="%s">%s</content></control>'
-   )%(id,WIDTH,h,'<ondown>9201</ondown>' if last else '',visible,w+GAP,h,item(False),w+GAP,h,item(True),
+   )%(id,WIDTH,h,'<ondown>9201</ondown>' if last else '',play_now() if style=='continue' else '',visible,w+GAP,h,item(False),w+GAP,h,item(True),
       e(widget.get('target') or 'videos'),cached_content('Portrait_Cache_Row_%s_%d'%(tab,index),widget['path'],variables,tab=tab)))
 
 def hero(spotlight,title,tab='home',variables=None):
@@ -2237,6 +2244,8 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
                               stop=lambda:home.getProperty('KodiIOS.OpenWanted')!=began or xbmc.Player().isPlayingVideo())
   def subtitles_back():
    import threading
+   try:xbmc.executebuiltin('Dialog.Close(busydialognocancel,true)')   # the circle a Continue Watching tap raised at once (play_now): the video is up
+   except Exception:pass
    def work():
     import subtitle_memory,mp4_tracks
     if xbmc.Monitor().waitForAbort(3.0):return   # Kodi has its streams by then
@@ -2261,8 +2270,24 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
      flags=[t['zero_length'] for t in found['tracks']]
      if len(embedded)!=len(flags):return None
      return next((flags[n] for n,s in enumerate(embedded) if s.get('index')==index),None)
-    subtitle_memory.at_start(root,xbmc.getInfoLabel,player.getPlayingFile(),lambda path:player.setSubtitles(path),lambda on:player.showSubtitles(on),current,zero,
-                            lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+    said=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
+    known=subtitle_memory.known_from(read,xbmc.getInfoLabel('VideoPlayer.Title'))
+    result=subtitle_memory.at_start(root,xbmc.getInfoLabel,player.getPlayingFile(),lambda path:player.setSubtitles(path),lambda on:player.showSubtitles(on),current,zero,said,known)
+    if result=='remembered':return   # the viewer's own subtitle is on again
+    # No usable subtitle in the viewer's language (none, only a forced track, or cues with no length) and one is wanted: fetch it as the menu's button does (auto_subtitles.py).
+    try:
+     import auto_subtitles
+     pid,p=streams()
+     audio=(rpc('Player.GetProperties',{'playerid':pid,'properties':['currentaudiostream']}).get('currentaudiostream') or {}) if pid is not None else {}
+     names=(rpc('Settings.GetSettingValue',{'setting':'subtitles.languages'}).get('value') or ['English'])
+     try:code=xbmc.convertLanguage(names[0],xbmc.ISO_639_1) or 'en'
+     except Exception:code='en'
+     chosen=str((rpc('Settings.GetSettingValue',{'setting':'locale.subtitlelanguage'}) or {}).get('value') or '')
+     always=chosen not in ('','default','original','none','forced_only')
+     key=subtitle_memory.identity(xbmc.getInfoLabel,player.getPlayingFile(),known)
+     auto_subtitles.consider(root,key,player.getTotalTime(),p.get('subtitles') or [],code,audio.get('language'),always,zero,
+                             lambda:xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,tracks,auto)'),said)
+    except Exception as error:xbmc.log('Kodi iOS auto subtitles: not looked at (%s)'%type(error).__name__,xbmc.LOGINFO)
    threading.Thread(target=work,daemon=True).start()
   tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic,external=lambda:airplay.health(native_player),
                        log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),on_stop=keep_opening,on_start=subtitles_back)

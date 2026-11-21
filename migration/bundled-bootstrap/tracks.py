@@ -151,6 +151,36 @@ def keys_tag(xbmcvfs):
     return ' + '.join(names).upper() if names else 'NOT SET'
 
 
+def auto_flow(Menu, xbmc, xbmcgui, log, lang, lang_name):
+    """Subtitles for the playing video without the menu: Menu's own search, fetch and apply (their closures are the menu's), on an object that has no window."""
+    class Auto:
+        pass
+    for name in ('item', 'video', 'played', 'search', 'fetch_result', 'apply'):
+        setattr(Auto, name, getattr(Menu, name))
+    auto = Auto()
+    auto.lang, auto.lang_name, auto.added, auto.paths, auto.track_evidence, auto.episode = lang, lang_name, set(), {}, {}, (None, None)
+    try:
+        results = auto.search()
+        if not results:
+            log('auto: nothing found')
+            xbmcgui.Dialog().notification('No %s subtitles found' % lang_name, '', xbmcgui.NOTIFICATION_INFO, 3000, False)
+            return False
+        selected, name, data = sm.choose_download(list(results), auto.fetch_result, auto.video())
+        auto.apply(selected, (name, data))
+        log('auto: %s subtitles applied' % lang_name)
+        xbmcgui.Dialog().notification('%s subtitles on' % lang_name, '', xbmcgui.NOTIFICATION_INFO, 2000, False)
+        return True
+    except Exception as error:
+        log('auto: failed: %s: %s' % (type(error).__name__, error))
+        try:
+            if tm.ZIP_NAMES:
+                log('subtitle files in the last zip: %s' % ' | '.join(tm.ZIP_NAMES))
+        except Exception:
+            pass
+        xbmcgui.Dialog().notification('No %s subtitles found' % lang_name, '', xbmcgui.NOTIFICATION_INFO, 3000, False)
+        return False
+
+
 def run(mode):
     import xbmc
     import xbmcgui
@@ -163,6 +193,18 @@ def run(mode):
     lang, lang_name = subtitle_language(xbmc)
     folder = xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/subtitles/')   # build 634 log f75957fe: special://temp is emptied at every start, so a download was lost
     LIST_ID = SUBS_LIST if mode == 'subtitles' else LIST   # the drawer has a taller list of its own
+
+    def known_now():
+        """subtitle_memory.known_from for the video playing now: the same key the service files and finds a subtitle under."""
+        import subtitle_memory
+
+        def read(path):
+            f = xbmcvfs.File(path)
+            try:
+                return f.read()
+            finally:
+                f.close()
+        return subtitle_memory.known_from(read, xbmc.getInfoLabel('VideoPlayer.Title'))
 
     class Menu(xbmcgui.WindowXMLDialog):
         closed = False
@@ -473,7 +515,7 @@ def run(mode):
             self.added |= added
             try:   # this video's subtitle from now on, put back on when it starts again (subtitle_memory.py)
                 import subtitle_memory
-                subtitle_memory.remember(folder, subtitle_memory.identity(xbmc.getInfoLabel, xbmc.Player().getPlayingFile()), path, name, self.lang)
+                subtitle_memory.remember(folder, subtitle_memory.identity(xbmc.getInfoLabel, xbmc.Player().getPlayingFile(), known_now()), path, name, self.lang)
             except Exception as error:
                 log('subtitle memory: not kept (%s)' % type(error).__name__)
             for index in added:
@@ -854,7 +896,7 @@ def run(mode):
                     pass
             try:
                 import subtitle_memory
-                subtitle_memory.forget(folder, subtitle_memory.identity(xbmc.getInfoLabel, xbmc.Player().getPlayingFile()))
+                subtitle_memory.forget(folder, subtitle_memory.identity(xbmc.getInfoLabel, xbmc.Player().getPlayingFile(), known_now()))
             except Exception:
                 pass
             log('removed subtitle %s' % row['label'])
@@ -865,6 +907,9 @@ def run(mode):
                 self.fill()
             xbmcgui.Dialog().notification('%s removed' % row['label'], '', xbmcgui.NOTIFICATION_INFO, 2000, False)
 
+    if mode == 'auto':   # no window: the same search, download and apply as the menu's button, started by the service (auto_subtitles.py)
+        auto_flow(Menu, xbmc, xbmcgui, log, lang, lang_name)
+        return
     home = HERE
     menu = Menu('IOSTrackMenu.xml', home, 'Default', '1080i')
     menu.doModal()
@@ -872,4 +917,4 @@ def run(mode):
 
 
 if __name__ == '__main__':
-    run(sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] in ('subtitles', 'audio', 'speed') else 'subtitles')
+    run(sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] in ('subtitles', 'audio', 'speed', 'auto') else 'subtitles')

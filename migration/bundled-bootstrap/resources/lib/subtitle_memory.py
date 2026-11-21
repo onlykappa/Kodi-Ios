@@ -13,9 +13,30 @@ KEEP = 60
 INDEX = 'subtitle-memory.json'
 
 
-def identity(label, playing_file=''):
-    """A key for the video playing, from Kodi's info labels (label(name) -> text); '' when nothing identifies it."""
+STORE = 'special://profile/addon_data/plugin.video.kodi.ios.watch/continue.json'
+
+
+def known_from(read, title, now=time.time):
+    """The show, season and episode Continue Watching holds for the video playing now ({} when it does not agree): Kodi's own labels for an Umbrella stream say
+    only 'Episode 8', so a subtitle downloaded for it was filed under the stream's link and lost when the link changed (build 646 log d8f39741)."""
+    try:
+        data = json.loads(read(STORE) or '{}')
+        entry = (data.get('items') or {}).get(data.get('current')) or {}
+        if entry.get('kind') == 'movie' or now() - float(entry.get('played') or 0) > 6 * 3600:
+            return {}
+        if str(entry.get('title') or '').strip().lower() != str(title or '').strip().lower() or not entry.get('tvshowtitle'):
+            return {}
+        return {'show': str(entry['tvshowtitle']), 'season': str(entry.get('season') or ''), 'episode': str(entry.get('episode') or '')}
+    except Exception:
+        return {}
+
+
+def identity(label, playing_file='', known=None):
+    """A key for the video playing, from Kodi's info labels (label(name) -> text); '' when nothing identifies it. `known`: known_from() for a stream whose labels
+    lack the show."""
     show, season, episode = label('VideoPlayer.TVShowTitle').strip(), label('VideoPlayer.Season').strip(), label('VideoPlayer.Episode').strip()
+    if not (show and season and episode) and known and known.get('show') and known.get('season') and known.get('episode'):
+        show, season, episode = known['show'].strip(), known['season'].strip(), known['episode'].strip()
     if show and season and episode:
         return 'tv|%s|%s|%s' % (show.lower(), season, episode)
     title, year = label('VideoPlayer.Title').strip(), label('VideoPlayer.Year').strip()
@@ -78,10 +99,10 @@ def forget(root, key):
             pass
 
 
-def at_start(root, label, playing_file, set_subtitles, show_subtitles, current, zero_length, log):
+def at_start(root, label, playing_file, set_subtitles, show_subtitles, current, zero_length, log, known=None):
     """What to do when a video starts. current() -> (enabled, index of Kodi's current subtitle stream, external?); zero_length() -> True when that embedded
     stream's cues have no length, False when they have, None when unknown. Returns 'remembered', 'off' or 'left'."""
-    key = identity(label, playing_file)
+    key = identity(label, playing_file, known)
     found = recall(root, key)
     if found:
         set_subtitles(found['path'])
