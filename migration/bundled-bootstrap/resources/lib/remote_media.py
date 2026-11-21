@@ -627,6 +627,32 @@ def acquire(source,home):
  except Exception:return source,None
 
 
+SLOW_SKIP=1200   # seconds a server that did not answer the cache's opening in time is played directly without asking again
+SLOW_PROPERTY='KodiIOS.CacheSlowHost'
+
+def _host(source):
+ try:return (urllib.parse.urlsplit(str(source).split('|',1)[0]).hostname or '').lower()
+ except Exception:return ''
+
+def _kept(source):
+ try:
+  import resume_cache
+  return resume_cache.ready(source)
+ except Exception:return False
+
+def note_slow(home,source,now=time.time):
+ """Remember (in the Home window, shared by every add-on) that this link's server was too slow for the cache's opening."""
+ try:
+  host=_host(source)
+  if host:home.setProperty(SLOW_PROPERTY,'%s|%d'%(host,now()))
+ except Exception:pass
+
+def slow_recently(home,source,now=time.time):
+ try:
+  host,_,at=(home.getProperty(SLOW_PROPERTY) or '').partition('|')
+  return bool(host) and host==_host(source) and 0<=now()-float(at)<SLOW_SKIP
+ except Exception:return False
+
 def for_kodi(source,home,wait=None,clock=time.monotonic,resume=None):
  """ISSUE-280: the address Kodi's own player should open for a link Umbrella just resolved: the service's cache when
  the link is a remote MKV / AVI / WebM and the service answers, else the link itself (nothing changes then)."""
@@ -635,6 +661,11 @@ def for_kodi(source,home,wait=None,clock=time.monotonic,resume=None):
  try:
   endpoint=_endpoint(home)
   if not endpoint:return source
+  # Build 639 log 9f7b4ab2: both Umbrella opens waited 2 s for the cache's opening blocks (ready=False, 0 of 3) and then went direct. A server that
+  # was too slow a moment ago is not asked again for SLOW_SKIP seconds: the link is played directly at once (the cache is tried again afterwards).
+  if slow_recently(home,source) and not _kept(source):   # unless the opening of this very link is on the phone (resume_cache)
+   opening_log('direct',0,{},reason='this server did not answer the cache in time a moment ago')
+   return source
   # ISSUE-306: the source handed over last time is still here and Kodi took nothing from it, a moment ago: Umbrella went on
   # to its next source without playing this one. Whatever stops the cache route playing, more of it will not help: this
   # source (and the rest of the cycle) is played directly, as in the builds that played.
@@ -656,6 +687,7 @@ def for_kodi(source,home,wait=None,clock=time.monotonic,resume=None):
    try:_call(endpoint,{'action':'drop','id':answer.get('id','')})
    except Exception:pass
    opening_log('direct',clock()-began,sample)
+   note_slow(home,source)
    return source
   opening_log('cache',clock()-began,sample)
   _LAST[0]=clock()

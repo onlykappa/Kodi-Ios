@@ -847,6 +847,14 @@ class Queue:
   # not upgrade that known old layout; progressive front-moov originals need no rewrite.
   if repack_due(item) and probe.get('layout_reason')=='fragment_index':
    probe.update(fast_open=False,layout_reason='older_prepared_layout')
+  elif streamable_video(probe) and probe.get('fast_open') is not False and ready(item):
+   # Captions with no length (build 639 log 9f7b4ab2): made again once, when the converter can give cues a length (caption_repair.py).
+   try:
+    import caption_repair
+    if caption_repair.due(source,key(item),self.state.setdefault('captions',{})):
+     probe.update(fast_open=False,layout_reason=caption_repair.REASON)
+     self.log('preparation: subtitle cues with no length; the copy is made again with the converter that gives them one')
+   except Exception:pass
   if not keep_going():raise driveupload.Stop('Library check paused')
   if identity(metadata(self.drive,item['id']))!=identity(item):raise RuntimeError('Drive source changed during inspection')
   return probe

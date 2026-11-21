@@ -174,6 +174,16 @@ class Listening(unittest.TestCase):
         self.assertEqual(lib.calls[0][0], b'http://127.0.0.1:1/v.mkv')   # Kodi's header suffix is not part of the link
         self.assertEqual((lib.calls[0][1], lib.calls[0][4], lib.calls[0][5]), (1, sc.BYTE_BUDGET, b'en-US'))
 
+    def test_a_place_with_no_sound_is_read_again_with_a_bigger_budget_and_a_third_place_is_tried(self):   # build 639 log 9f7b4ab2: 4K Drive episode, 'less than a second of sound'
+        quiet = {'status': 'no_sound', 'why': 'speech sample: less than a second of sound'}
+        lib = FakeLib([quiet, quiet, quiet, quiet, {'status': 'ok', 'words': [{'w': 'lantern', 't': 1350.0, 'd': .4}]}])
+        heard = sc.listen(lib, 'u', 0, 'en', 3000)
+        self.assertEqual(heard, [(1350.2, 'lantern')])
+        self.assertEqual([c[4] for c in lib.calls], [sc.BYTE_BUDGET, sc.BYTE_BUDGET * sc.RETRY_BUDGET] * 2 + [sc.BYTE_BUDGET * sc.RETRY_BUDGET])
+        self.assertEqual([c[2] for c in lib.calls], [900.0, 900.0, 1800.0, 1800.0, 1350.0])
+        lib = FakeLib([quiet, {'status': 'ok', 'words': [{'w': 'river', 't': 900.0, 'd': .2}]}, {'status': 'ok', 'words': []}])
+        sc.listen(lib, 'u', 0, 'en', 3000);self.assertEqual(len(lib.calls), 3)   # a retry that hears something is kept; no third place once words are heard
+
     def test_a_language_the_phone_cannot_recognise_stops_at_once(self):
         lib = FakeLib([{'status': 'not_on_device', 'why': 'no'}, {'status': 'ok', 'words': []}])
         self.assertEqual(sc.listen(lib, 'u', 0, 'en', 3000), [])
