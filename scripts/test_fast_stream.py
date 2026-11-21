@@ -39,10 +39,16 @@ class Fast(unittest.TestCase):
         m=self.load();played=[];read=self.seeded()
         self.assertTrue(m.fast_stream(7,self.PARAMS,read,alive=lambda url:True,play=lambda h,entry,url,pos,total:played.append((h,url,pos,total)),now=lambda:1500.0))
         self.assertEqual(played,[(7,'https://dl.example.invalid/f.mkv',300.0,1400.0)])
+    def test_any_play_of_a_title_streamed_lately_reopens_from_its_link(self):   # owner, 2026-11-21: "same logic ... after it has been opened the first time"
+        m=self.load();played=[];read=self.seeded()
+        params={k:v for k,v in self.PARAMS.items() if k!='ios_continue'}   # a show page's Play, Next Episode: not started by Continue
+        self.assertTrue(m.fast_stream(7,params,read,alive=lambda url:True,play=lambda h,entry,url,pos,total:played.append((h,url,pos)),now=lambda:1500.0))
+        self.assertEqual(played,[(7,'https://dl.example.invalid/f.mkv',300.0)])
+        self.assertFalse(m.fast_stream(7,dict(params,ios_choose='1'),read,alive=lambda url:True,play=lambda *a:played.append('x'),now=lambda:1500.0))   # asked to choose
+        self.assertEqual(len(played),1)
     def test_every_reason_to_use_the_normal_way(self):
         m=self.load();never=lambda *a:self.fail('must not play')
         run=lambda read,params=None,**k:m.fast_stream(7,params or self.PARAMS,read,alive=k.get('alive',lambda url:True),play=never,now=k.get('now',lambda:1500.0))
-        self.assertFalse(run(self.seeded(),dict(self.PARAMS,ios_continue='0')))           # not started by Continue
         self.assertFalse(run(self.seeded(),dict(self.PARAMS,ios_choose='1')))             # the person asked to choose a source
         self.assertFalse(run(self.seeded(player_name='elementum')))                       # not an Umbrella title
         self.assertFalse(run(self.seeded(),now=lambda:1000.0+m.STREAM_FRESH+1))           # the link is too old

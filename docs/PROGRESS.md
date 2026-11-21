@@ -1150,3 +1150,5 @@ Build 622 flicks and captions (ISSUE-424/425, branch claude/library-playback-fix
 - 2026-11-21 (build 646 logs aec66fce, d8f39741): ISSUE-438 (slow-server memory per family and on disk, bigger kept opening, busy link is not a dead link, a tap joins the warm Crew listing, background Crew listings yield to a moving screen, SubDL zips with another season number). Host tests only; not built.
 
 - 2026-11-21: Live Now line merged into the Sports build line (8580eac); ISSUE-439: instant loading circle on a Continue tap, automatic subtitles when none is usable, Umbrella subtitle key from Continue Watching, fewer refused debrid ranges. Host tests only; not built.
+
+- 2026-11-21: ISSUE-440/441: a live game's page keeps looking by itself; Crew walks answer for 3 minutes, visit productive folders and each game's last folder first; any recent Umbrella title reopens from its link. Host tests only; not built.

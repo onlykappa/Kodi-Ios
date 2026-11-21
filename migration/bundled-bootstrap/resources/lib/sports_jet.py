@@ -22,6 +22,7 @@ import sports_merge
 import sports_model as sm
 
 TTL = 45                # recheck ESPN while avoiding a scan for each page tap
+WALK_TTL = 180          # a walk of Crew's menus that ran to the end answers any read for this long (build 646 logs: a walk started whenever a read found the answer 45 s old)
 SCORE_EVERY, SCORE_STALE = 8, 40   # live scores: asked again at most every 8 s while a page polls, trusted for 40 s (owner: scores and clocks must be live)
 SHOW_AFTER = 6          # allow an initial scan to collect a useful first batch
 LOAD_SECONDS = 18       # how long a page waits for the scrapers before showing what it has
@@ -339,6 +340,7 @@ class JetProvider:
         self.at = 0
         self.running = None   # (thread list, done event)
         self.reason = ''
+        self.walked = ''   # the league the last Crew walk was limited to ('' = every league), published with its answer (sports_provider reuses a recent walk)
         self._remote_cache = None  # snapshot bytes and recent merged result
         self.score_loader, self._scores = score_loader, []
         self._score_started = self._score_at = 0
@@ -436,6 +438,7 @@ class JetProvider:
                             only_league = str(self._home().getProperty(sports_crew_routes.ONLY_LEAGUE) or '')
                         except Exception:   # outside Kodi (tests): every league
                             only_league = ''
+                        self.walked = only_league
                         schedule = sports_crew_routes.schedule(only_league) if only_league else sports_crew_routes.schedule()
                         log('jet: ESPN schedule ready in %.2fs (%d live, %d upcoming)' % (
                             time.monotonic() - schedule_began,
@@ -512,7 +515,7 @@ class JetProvider:
             with self.lock:
                 every = [r for rs in self.records.values() for r in rs]
                 schedule = copy.deepcopy(self.schedule)
-            self.publish({'at': int(self.clock()), 'done': bool(done), 'records': every, 'schedule': schedule, 'reason': self.reason})
+            self.publish({'at': int(self.clock()), 'done': bool(done), 'records': every, 'schedule': schedule, 'reason': self.reason, 'league': self.walked})
         except Exception as error:
             log('jet: publish failed (%s)' % type(error).__name__)
 
@@ -542,7 +545,8 @@ class JetProvider:
             except ValueError:
                 return None
         data = read()
-        if force or not data or now - data.get('at', 0) >= TTL:
+        limit = WALK_TTL if data and data.get('done') and data.get('records') else TTL
+        if force or not data or now - data.get('at', 0) >= limit:
             try:
                 started = float(home.getProperty(RUN) or 0)
             except ValueError:

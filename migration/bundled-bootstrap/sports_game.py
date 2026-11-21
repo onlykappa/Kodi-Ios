@@ -292,11 +292,11 @@ def run(game, provider=None, clock=time.time, search=False):
         def onClick(self,ident):
             if ident==page.BACK:self.finish()
             elif ident==page.RETRY and self.search_failed:
-                self.find_sources()
+                self.find_sources(fresh=True)
                 self.draw()
             elif ident in (page.REFRESH,page.RETRY):self.refresh()
             elif ident==page.SEARCH_RETRY:
-                self.find_sources()
+                self.find_sources(fresh=True)   # "Check now": Crew's menus are walked again
                 self.draw()
             elif ident in (page.REMIND,page.REMIND_ON):
                 import sports_remind
@@ -354,10 +354,13 @@ def run(game, provider=None, clock=time.time, search=False):
                         except Exception:pass
                 threading.Thread(target=handoff,daemon=True).start()
 
-        def find_sources(self):
+        def find_sources(self, fresh=False):
             self.checked = clock()
             try:
-                self.search_token = provider.request_game(game_id)
+                try:
+                    self.search_token = provider.request_game(game_id, fresh=True) if fresh else provider.request_game(game_id)
+                except TypeError:   # a provider that has no such option (the sample one)
+                    self.search_token = provider.request_game(game_id)
                 self.search_failed = False
             except Exception as error:
                 self.search_token = None

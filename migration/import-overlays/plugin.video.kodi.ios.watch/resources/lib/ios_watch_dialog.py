@@ -410,7 +410,10 @@ def fast_stream(handle,params,read=None,alive=None,play=None,now=None,route=None
  """Continue an Umbrella title from the link it was playing, without asking TMDb Helper or Umbrella again (owner, build 618: continuing a show still took
  15 s: details 2 s, Umbrella 3 s, resolving 2 s, the cache wait 2 s and the server's slow start). Only when Continue started it (ios_continue), the video was
  last played through Umbrella within STREAM_FRESH, there is a place to resume and the link still answers; otherwise the normal way runs, as before."""
- if params.get('ios_continue')!='1' or params.get('ios_choose')=='1' or params.get('ios_fast')=='0':return False   # ios_fast=0: the continue guard's second try, the normal way
+ # Owner, 2026-11-21: "same logic ... to make umbrella streams open faster after it has been opened the first time". Not only Continue: a title streamed through Umbrella
+ # in the last STREAM_FRESH seconds, with a place to resume, reopens from its remembered link from anywhere (a show page, Next Episode) - never with ios_choose
+ # (the viewer wants another version) and never on the continue guard's second try (ios_fast=0: the normal way).
+ if params.get('ios_choose')=='1' or params.get('ios_fast')=='0':return False
  tmdb_type=params.get('tmdb_type');tmdb_id=str(params.get('tmdb_id') or '')
  if tmdb_type not in ('movie','tv') or not tmdb_id.isdigit():return False
  season,episode=str(params.get('season') or ''),str(params.get('episode') or '')
