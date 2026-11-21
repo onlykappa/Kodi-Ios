@@ -1144,3 +1144,5 @@ Build 622 flicks and captions (ISSUE-424/425, branch claude/library-playback-fix
 - 2026-11-21: AirPlay r72 pinned (cue-length fix for converted copies, ISSUE-424): candidate run 44946538854 on 4ac58a0, inspection 44948056178, archive sha256 68dd3735…49d2a9. Host evidence only; it reaches the phone in the next IPA and only for newly prepared copies.
 
 - 2026-11-21 (build 639 log 9f7b4ab2): ISSUE-432 (Continue/Umbrella opening: capture yields, link check no longer fails on a slow server, decline reasons logged), ISSUE-433 (Next Episode 502 from the abort hold), ISSUE-434 (subtitle search for Umbrella episodes knows the show/season/episode). Host tests only; not built. Live-game "error before second source" needs the log of that run (not in 9f7b4ab2, which starts after it).
+
+- 2026-11-21 (build 639 log fd1d028c): ISSUE-435 (Umbrella cache wait skipped on a slow server, speech check retries, caption repair after r72) and ISSUE-436 (Sports sources searched from 30 s after launch, a game page warms its Crew folder so a tap lists nothing, timing lines for Crew's hand-over). Host tests only; not built.

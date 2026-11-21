@@ -1040,6 +1040,26 @@ def hold_local_proxy(xbmc, address, startup_seconds=20):
             return
 
 
+def watch_resolved(route, playing_file, log, clock=None, sleep=None, limit=40.0, step=0.25):
+    """After Kodi was handed a Crew play route: say how long Crew's plugin took to give Kodi the stream (build 639 log fd1d028c: about 6 s between the play call and
+    the first stream Kodi opened, silent in the log, so nothing could say where it went). `playing_file()` is what Kodi has open ('' when none). One line, no address."""
+    import time
+    clock = clock or time.monotonic
+    sleep = sleep or time.sleep
+    began = clock()
+    while clock() - began < limit:
+        try:
+            current = str(playing_file() or '')
+        except Exception:
+            current = ''
+        if current and current != route:
+            log('sports: Crew handed Kodi its stream %.1fs after the play call' % (clock() - began))
+            return True
+        sleep(step)
+    log('sports: Crew gave Kodi no stream in %.0fs after the play call' % limit)
+    return False
+
+
 def play_one(play_value, logger=log):
     """One add-on's stream of a game. Raises when it cannot be opened."""
     import xbmc
@@ -1057,13 +1077,21 @@ def play_one(play_value, logger=log):
         if value['e'] == 'TheCrewRoute':
             import sports_crew_routes
             if getattr(_play_session,'opening',None):_play_session.opening.stage('Getting the source ready')
+            import time as _time
+            _began = _time.monotonic()
             try:
                 route = sports_crew_routes.refresh_link(value['l'])
             except RuntimeError as error:
                 raise InterruptedError('Crew source refresh incomplete') from error
+            _ready = _time.monotonic() - _began
         logger('sports: opening via %s' % ('The Crew' if value['e'] == 'TheCrewRoute' else 'The Loop'))
+        if value['e'] == 'TheCrewRoute':
+            logger('sports: Crew link ready after %.2fs' % _ready)
         if getattr(_play_session,'opening',None):_play_session.opening.stage('Connecting to the source')
         xbmc.Player().play(route)
+        if value['e'] == 'TheCrewRoute':
+            _route = route
+            threading.Thread(target=watch_resolved, args=(_route, lambda: xbmc.Player().getPlayingFile(), logger), daemon=True).start()
         return True
     if value.get('e') == sports_fawa.NAME:
         address = sports_fawa.resolve(value['l']['address'])

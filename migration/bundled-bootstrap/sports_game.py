@@ -133,6 +133,30 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
     return props,sources
 
 
+def warm_best(sources, warm=None):
+    """The best source is a Crew link: do Crew's folder listing for it now, while the page is open, so the Play tap does not (owner, build 639 log fd1d028c: two
+    folder listings, 2.7 s, after every tap). Off the main thread; never raises. True when a link was warmed."""
+    try:
+        import json
+        import sports_loop_router
+        best = sports_loop_router.automatic_source(sources)
+        value = json.loads(best['play'])
+        if value.get('e') != 'TheCrewRoute':
+            return False
+        try:
+            import xbmc
+            if xbmc.Player().isPlayingVideo():
+                return False
+        except Exception:
+            pass
+        if warm is None:
+            import sports_crew_routes
+            warm = sports_crew_routes.warm
+        return bool(warm(value['l']))
+    except Exception:
+        return False
+
+
 def run(game, provider=None, clock=time.time, search=False):
     import xbmc
     import xbmcgui
@@ -195,6 +219,11 @@ def run(game, provider=None, clock=time.time, search=False):
                 # The tap handler also writes play.error; a refresh must still clear it.
                 if key=='play.error' or getattr(self,'_shown',{}).get(key)!=value:self.setProperty(key,value)
             self._shown = props.copy()
+            if self.sources:   # the best source's Crew folder is listed now, not at the tap
+                best = str((self.sources[0] if self.sources else {}).get('play') or '')
+                if getattr(self, '_warmed', None) != best:
+                    self._warmed = best
+                    threading.Thread(target=warm_best, args=(list(self.sources),), daemon=True).start()
 
         def load_crests(self):
             """The teams' real crests, downloaded once and kept on the phone; the page draws first (a ring with the code) and gains them a moment later."""

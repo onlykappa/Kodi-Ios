@@ -1,4 +1,5 @@
 """Sports catalog from The Crew's normal Kodi menus; playback stays in The Crew."""
+import time
 from datetime import datetime
 from types import SimpleNamespace
 from urllib.parse import parse_qs, unquote, urlsplit
@@ -57,9 +58,22 @@ def valid_route(value):
         return False
 
 
+_LISTED = [0]    # how many Crew listings have been made: opening another folder clears Crew's link rules, so a link found earlier is only still good while this has not moved
+_WARM = {}       # route -> (the link refresh_link found, _LISTED then, when): a game page opened it ahead of the tap
+WARM_FOR = 120   # seconds a warmed link is trusted
+
+
 def listing(path, session=None, playback=False):
     if not valid_route(path):
         raise ValueError('invalid Crew route')
+    _LISTED[0] += 1
+    try:
+        return _listing(path, session, playback)
+    finally:
+        _LISTED[0] += 1
+
+
+def _listing(path, session=None, playback=False):
     import json, threading, xbmc
     home = _home()
     if not playback and playback_requested():
@@ -143,6 +157,35 @@ def refresh_link(link, read=None):
     route = link.get('address', '')
     if not valid_route(route):
         raise ValueError('invalid Crew playback route')
+    if read is None:
+        # Owner, build 639 log fd1d028c: a tap spent 2.7 s re-listing Crew's folders twice (0.95 s, 1.76 s) before handing Kodi the link. The game page does
+        # that listing when it opens (warm); a tap soon after, with no other Crew listing in between, uses its answer.
+        kept = _WARM.get(route)
+        if kept and kept[1] == _LISTED[0] and 0 <= time.time() - kept[2] < WARM_FOR:
+            import sports_jet
+            sports_jet.log('sports: Crew link was refreshed when the game page opened (%.0f s ago); no folder is listed now' % (time.time() - kept[2]))
+            return kept[0]
+        _WARM.pop(route, None)
+        found = _refresh_link(link, read)
+        _WARM[route] = (found, _LISTED[0], time.time())
+        return found
+    return _refresh_link(link, read)
+
+
+def warm(link):
+    """From a game page that has a Crew source: do refresh_link's listing now, off the tap. Never raises; True when the link is ready."""
+    try:
+        home = _home()
+        if home and home.getProperty(OWNER):
+            return False   # a playback is being handed over: it does its own
+        refresh_link(link)
+        return True
+    except Exception:
+        return False
+
+
+def _refresh_link(link, read=None):
+    route = link.get('address', '')
     path = link.get('menu_path') or []
     if not path:
         if '$doregex[' in parse_qs(urlsplit(route).query).get('url', [''])[0]:
@@ -198,6 +241,13 @@ def refresh_link(link, read=None):
             return found
         import sports_jet
         sports_jet.log('sports: Crew game folder alone did not give the link; reopening the whole chain')
+    else:   # build 639 log fd1d028c: two listings (root, then folder) on every tap and nothing said why the direct way was not taken
+        try:
+            import sports_jet
+            sports_jet.log('sports: Crew game folder not opened directly (%s)' % ('link found %.0f s ago' % (time.time() - float(link.get('at') or 0)) if not recent
+                                                                                  else 'only %d menu step(s)' % len(path) if len(path) <= 1 else 'its address holds a $doregex rule'))
+        except Exception:
+            pass
     entries = load(root)
     for step in path[1:]:
         folders = [entry for entry in entries if entry.get('filetype') == 'directory' and valid_route(entry.get('file'))]

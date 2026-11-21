@@ -342,12 +342,17 @@ def run():
  def sports_prefetch_loop():
   import sports_provider,sports_sources_prefetch
   home=xbmcgui.Window(10000)
+  launched=time.time()
   def busy():
    # Not while a video plays or a game page searches, and not until the owner has opened Sports this session (build 616: the search began 30 s after
    # launch, on the Home screen, and Crew's busy dialog covered it). Then for 3 hours.
    if xbmc.Player().isPlayingVideo() or home.getProperty('KodiIOS.SportsCrewOnlyLeague'):return True
-   try:return time.time()-float(home.getProperty('KodiIOS.SportsSeen') or 0)>3*3600
-   except ValueError:return True
+   # Before Sports has been opened: from 30 s after launch, on Wi-Fi, so the first game's sources are ready when the owner gets there (sports_sources_prefetch.idle_for_search).
+   try:
+    import cache_tune
+    wifi=cache_tune.link_kind()=='wifi'
+   except Exception:wifi=False
+   return sports_sources_prefetch.idle_for_search(home.getProperty('KodiIOS.SportsSeen'),launched,time.time(),wifi)
   def poke():
    if home.getProperty('KodiIOS.SportsPoke'):
     try:opened=time.time()-float(home.getProperty('KodiIOS.SportsSeen') or 0)
@@ -355,7 +360,7 @@ def run():
     if opened<3:return False   # a Sports page is opening: it draws first (build 634 log: the hub's first frame took 1.6-1.9 s while the source search started with it)
     home.clearProperty('KodiIOS.SportsPoke');return True
    return False
-  sports_sources_prefetch.watch(sports_provider.get,busy,monitor.waitForAbort,log=lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO),poke=poke)
+  sports_sources_prefetch.watch(sports_provider.get,busy,monitor.waitForAbort,log=lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO),poke=poke,first=sports_sources_prefetch.WARM_AFTER)
  threading.Thread(target=sports_prefetch_loop,daemon=True).start()
  # Safety net: a modal busy dialog nobody lowers is closed after 4 s unless a video is opening or playing (busy_watchdog.py).
  def busy_watchdog_loop():

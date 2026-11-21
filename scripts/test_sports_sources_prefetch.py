@@ -68,4 +68,18 @@ class Watch(unittest.TestCase):
     def test_a_poke_looks_at_once(self):
         self.assertEqual(self.run_watch([False,False,True],10)[0],3)
 
+class Launch(unittest.TestCase):   # build 639 log fd1d028c: the first game's Play button waited 30 s for Crew's first scan
+    def test_after_launch_it_looks_on_wifi_without_sports_having_been_opened(self):
+        self.assertTrue(pf.idle_for_search('',1000,1010,True))      # too soon after launch: the Home screen draws first
+        self.assertFalse(pf.idle_for_search('',1000,1000+pf.WARM_AFTER,True))
+        self.assertTrue(pf.idle_for_search('',1000,1100,False))     # never on mobile data
+        self.assertTrue(pf.idle_for_search('',1000,1000+pf.SEEN_FOR+1,True))   # not for ever
+    def test_once_sports_was_opened_the_old_rule_holds(self):
+        self.assertFalse(pf.idle_for_search('2000',1000,2100,False))
+        self.assertTrue(pf.idle_for_search('2000',1000,2000+pf.SEEN_FOR+1,True))
+        self.assertFalse(pf.idle_for_search('bad',1000,1100,True))   # unreadable counts as not opened
+    def test_the_service_uses_it_and_first_look_is_at_the_warm_up(self):
+        text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/service.py').read_text()
+        self.assertIn('sports_sources_prefetch.idle_for_search(',text);self.assertIn('first=sports_sources_prefetch.WARM_AFTER',text)
+
 if __name__=='__main__':unittest.main()

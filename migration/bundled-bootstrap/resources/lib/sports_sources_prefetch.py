@@ -13,6 +13,26 @@ RETRY = 180         # seconds before a live game that had no source is searched 
 MAX_SEARCH = 175    # the longest one search is waited for (a game page's own limit is 150)
 
 
+WARM_AFTER = 30     # seconds after launch before sources are looked for without Sports having been opened
+SEEN_FOR = 3 * 3600  # hours after Sports was opened (or after launch, for the warm-up) that sources are kept looked for
+
+
+def idle_for_search(seen, started, now, on_wifi):
+    """False when the search may go ahead. `seen` is when Sports was last opened ('' or 0 when not this session). Owner, build 639 log fd1d028c: on a cold start
+    the first game's Play button waited about 30 s for Crew's first scan, because nothing looked for sources until Sports was opened. The look now begins
+    WARM_AFTER seconds after launch, on Wi-Fi, so the scan is done (or well on its way) when the owner gets to a game. The service's own checks (a video is
+    playing, a game page is searching) still apply on top of this."""
+    try:
+        seen = float(seen or 0)
+    except (TypeError, ValueError):
+        seen = 0.0
+    if seen:
+        return now - seen > SEEN_FOR
+    if now - started < WARM_AFTER or now - started > SEEN_FOR:
+        return True
+    return not on_wifi
+
+
 class Prefetch:
     def __init__(self, get_provider, busy=lambda: False, log=lambda text: None, clock=time.time, sleep=time.sleep):
         self.get_provider, self.busy, self.log, self.clock, self.sleep = get_provider, busy, log, clock, sleep
