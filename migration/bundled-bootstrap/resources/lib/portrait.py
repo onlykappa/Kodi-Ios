@@ -14,6 +14,8 @@ import importlib.util as _iu
 for _name in ('status_ui','notifications_skin','sports_edit_button','sports_upcoming_page','sports_hero'):   # sports_edit_button: the Edit capsule on the three Sports pages; sports_upcoming_page: the hub reuses its game rows
  _shared=_iu.spec_from_file_location(_name,os.path.join(os.path.dirname(os.path.abspath(__file__)),_name+'.py'))
  _module=_iu.module_from_spec(_shared);sys.modules[_name]=_module;_shared.loader.exec_module(_module)
+_spec=_iu.spec_from_file_location('score_font',os.path.join(os.path.dirname(os.path.abspath(__file__)),'score_font.py'))
+score_font=_iu.module_from_spec(_spec);_spec.loader.exec_module(score_font)   # Live Now's score font, as text
 _spec=_iu.spec_from_file_location('player_osd',os.path.join(os.path.dirname(os.path.abspath(__file__)),'player_osd.py'))
 player_osd=_iu.module_from_spec(_spec);_spec.loader.exec_module(player_osd)
 _spec=_iu.spec_from_file_location('settings_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'settings_page.py'))
@@ -166,6 +168,10 @@ FONTS=[('p_large','Inter-Bold.ttf',92),('p_title','Inter-Bold.ttf',78),('p_h2','
        ('p_pill','Inter-Bold.ttf',40),('p_pill_s','Inter-Regular.ttf',35)]   # Notifications' rows
 # Approved Sports states (boards 14–15) use a 20 pt headline; the neighbouring tokens are 17 and 22 pt.
 FONTS.append(('p_state_title','Inter-Bold.ttf',54))
+# Live Now's scores (owner, 2026-11-21): a condensed bold like the ESPN app's. Barlow Condensed ExtraBold, SIL Open Font License (resources/fonts/OFL-BarlowCondensed.md),
+# the digits only, 7 KB. It keeps its own file even where every other style uses the phone's San Francisco. 107 units = a 28 pt digit height.
+SCORE_FONT='BarlowCondensed-ExtraBold.ttf'
+FONTS.append(('p_score',SCORE_FONT,107))
 SIDE=54                      # 20 pt margins
 POSTER=(300,450);CARD=(640,360);GAP=26;RADIUS=26
 HERO=1420
@@ -181,6 +187,23 @@ def png(width,height,pixel):
  rows=b''.join(b'\0'+b''.join(struct.pack('4B',*pixel(x,y)) for x in range(width)) for y in range(height))
  chunk=lambda tag,data:struct.pack('>I',len(data))+tag+data+struct.pack('>I',zlib.crc32(tag+data)&0xffffffff)
  return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',width,height,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(rows,9))+chunk(b'IEND',b'')
+
+def football(size=96):
+ """The little football beside the clock on Live Now (owner, 2026-11-21): a grey tilted ball with laces and end seams, drawn here (the repository takes no
+ images). Geometry in a 24-unit box: an ellipse 11 by 6.8 turned 40 degrees, a lace line with three ticks, a seam near each end."""
+ import math
+ cos,sin=math.cos(math.radians(40)),math.sin(math.radians(40))
+ def sample(px,py):
+  x,y=px*24/size-12,py*24/size-12;u,v=x*cos-y*sin,x*sin+y*cos   # back into the ball's own axes
+  if (u/11)**2+(v/6.8)**2>1:return None
+  lace=abs(v)<0.6 and abs(u)<3 or any(abs(u-t)<0.5 and abs(v)<1.5 for t in (-1.6,0,1.6))
+  seam=abs(v)<3.6 and abs(abs(u)-(5.6+0.7*(1-(v/3.6)**2)))<0.55
+  return (44,44,46) if lace or seam else (161,161,166)
+ def pixel(x,y):
+  hits=[sample(x+(i+.5)/4,y+(j+.5)/4) for i in range(4) for j in range(4)];seen=[h for h in hits if h]
+  if not seen:return (0,0,0,0)
+  return tuple(sum(h[c] for h in seen)//len(seen) for c in range(3))+(255*len(seen)//16,)
+ return png(size,size,pixel)
 
 def coverage(x,y,width,height,radius,inset=0):
  """Anti-aliased coverage of a rounded rectangle (inset shrinks it, for strokes)."""
@@ -1647,8 +1670,8 @@ def fonts(original,sf=None):
  root=ET.fromstring(original)
  for fontset in root.findall('fontset'):
   for name,filename,size in FONTS:
-   f=ET.SubElement(fontset,'font');ET.SubElement(f,'name').text=name;ET.SubElement(f,'filename').text=sf or filename;ET.SubElement(f,'size').text=str(size)
-   if sf and sf_bold(name,filename):ET.SubElement(f,'style').text='bold'
+   f=ET.SubElement(fontset,'font');ET.SubElement(f,'name').text=name;ET.SubElement(f,'filename').text=filename if filename==SCORE_FONT else sf or filename;ET.SubElement(f,'size').text=str(size)
+   if sf and filename!=SCORE_FONT and sf_bold(name,filename):ET.SubElement(f,'style').text='bold'
  return b'<?xml version="1.0" encoding="UTF-8"?>\n'+ET.tostring(root,encoding='utf-8')+b'\n'
 
 def with_variables(xml):return xml
@@ -1735,6 +1758,8 @@ def portrait_files(skin,profile):
  files.update(library_files_page.files(ns))
  # Library › Sports, the landing page (DEC-054, DEC-057; sports_page.py, filled by sports.py).
  files.update(sports_page.files(ns))
+ files['fonts/'+SCORE_FONT]=score_font.data()   # Live Now's score font and football (sports_live_page.py): text in the repository, a TrueType file on the phone
+ files['extras/portrait/football.png']=football()
  files.update(sports_live_page.files(ns))   # Library › Sports › Live Now (DEC-055; sports_live_page.py, filled by sports_live.py)
  files.update(sports_upcoming_page.files(ns))
  files.update(sports_game_page.files(ns))

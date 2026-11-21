@@ -1,14 +1,16 @@
-"""Sports › Live Now (DEC-055, DEC-057; approved boards 6-9 of docs/design/sports-approved-pages.html, option B).
+"""Sports › Live Now (DEC-055, DEC-057; the owner's approved rows of 2026-11-21, ISSUE-426).
 
-Draws IOSSportsLive.xml: back, refresh, the title with "4 games on now · updated just now", league chips, then one card per live game:
-the league label and the clock, both teams with their scores, and the game's sources under them (best first, each with a play button).
-A card is a run of pooled rows in one vertical list (a head row, then one row per source), because Kodi list items cannot differ in height;
-sports_live.py fills the properties. Kodi skin XML, portrait units (2.687 per pt); existing tokens and helpers only.
+Draws IOSSportsLive.xml: back, the title with "4 games on now · updated just now", then every live game as a compact row, grouped by league under a
+small header (the league's logo, its name and a chevron, "College Football" under NCAAF). Only live games: no upcoming. A row (89 pt, measured from the
+owner's ESPN-app reference): each team's logo at its edge with its short name (or code, "UNC") under it, its score beside the logo in a condensed
+bold (Barlow Condensed ExtraBold, p_score) and, in the middle, the white game clock, the football on the side that has the ball and the grey
+down-and-distance line with the yard line (red inside the 20). A tap opens the game's page. Kodi skin XML, portrait units (2.687 per pt).
 
 Properties (sports_live.py sets them; every one is read here):
-  state ('ok' | 'none' | 'error'), sub, chips.rows (1-3), chip.N (label) and chip.N.on ('true'), more (the "N more games" note)
-  g.G.league, g.G.clock, g.G.pos ('first' | 'only'), g.G.a|h.code / .name / .score / .lead ('true') / .crest, g.G.n (sources)
-  g.G.s.S.addon, .mono, .detail, .also, .tag ('best' | 'good' | ''), .pos ('mid' | 'last')
+  state ('ok' | 'none' | 'error'), sub, more (the "N more games" note)
+  g.G.gn / .gs / .hp / .gl (the league header: name, subtitle, 'true' when there is no subtitle, logo file; set on the first game of each league only)
+  g.G.clock, g.G.dn (down and distance), g.G.yd (yard line), g.G.rz ('true' inside the 20), g.G.ball ('a' | 'h')
+  g.G.a|h.name (the row shows when set) / .short / .score / .crest
   none.title / none.text / none.button, err.title / err.text / err.button
 """
 import status_ui as u
@@ -16,19 +18,16 @@ import sports_page as sp
 
 WINDOW = 'IOSSportsLive.xml'
 BACK, REFRESH, RETRY, SEE_UPCOMING = sp.BACK, sp.REFRESH, sp.RETRY, 9106
-GAMES, SOURCES = 12, 4                 # cards on a page and sources shown under each; the rest is behind the league chips and the note
+GAMES = 30                             # rows on a page; the rest is behind the note
 CHIPS, CHIPS_PER_ROW = 15, 5
-CHIP0, PLAY0, LIST = 9200, 9300, 9099
+CHIP0, LIST = 9200, 9099
 SEARCH0 = 9700
-CARD0 = 9720                              # the team area of each card: a tap opens that game's page (owner, 2026-11-20)
-ALSO_IDS, CHIP_IDS = 200, 20          # the row variants with an "Also on" line, and the ids one chip-row variant spans
+CARD0 = 9740                              # the tap area of each row: a tap opens that game's page (owner, 2026-11-20)
+CHIP_IDS = 20                             # the ids one chip-row variant spans
 TOP = 370
 CHIP_W, CHIP_H, CHIP_GAP, CHIP_ROW = 160, 91, 21, 118
-PAD = 43                               # 16 pt
-HEAD_H = 341
-SRC_H, SRC_ALSO_H = 161, 215           # 60 pt, 80 pt
-GAP = 27                               # 10 pt between cards
-TAG_W = {'best': 128, 'good': 214}
+PAD = 43                               # 16 pt: the rows run a little wider than the page's 20 pt margin, as the reference does
+GAP = 27
 
 
 def _wrap(p, x, y, w, h, value, font, color, align='left'):
@@ -36,49 +35,82 @@ def _wrap(p, x, y, w, h, value, font, color, align='left'):
     return p.label(x, y, w, h, value, font, color, align, '<wrapmultiline>true</wrapmultiline><scroll>false</scroll>')
 
 
-def _bg(p, key, w, h, x, poses):
-    """The card's background for this row: rounded ends only at the first/last row of a card (the row_* textures)."""
-    out = ''
-    for pos, tex in poses:
-        out += p.image(x, 0, w, h, p.MEDIA + tex, p.SURFACE, '<visible>String.IsEqual(Window().Property(%spos),%s)</visible>' % (key, pos),
-                       border=43 if tex != 'white.png' else '')
+# Geometry measured from the owner's ESPN-app crops (3 px per pt, row pitch 89 pt) and approved in the mockup of 2026-11-21 (ISSUE-426).
+ROW_H = 239                               # 89 pt
+LOGO, LOGO_Y = 97, 40                     # 36 pt
+NAME_Y, NAME_W, NAME_H = 153, 204, 50     # the short name, centred under the logo
+SCORE_W, SCORE_Y, SCORE_H = 150, 70, 97   # the score, 56 pt wide, centred in the row
+COL = 339                                 # 126 pt: a team's side (logo, name and score); the middle is what is left
+BALL = 51                                 # 19 pt
+HEAD_H, HEAD_SUB_H = 88, 128              # a league header, without and with a subtitle
+CARD_H = ROW_H
+LINE = '24EBEBF5'
+
+
+def _team(p, key, x, logo_x):
+    """A team's logo (bare, as the reference draws it) at logo_x with its short name centred under it, x being the left of the name's box; an empty
+    ring when the team has no logo (never letters)."""
+    out = p.image(logo_x, LOGO_Y, LOGO, LOGO, u.P(key + 'crest'), p.WHITE, '<visible>%s</visible>' % u.has(key + 'crest'), '>keep')
+    out += p.image(logo_x + 22, LOGO_Y + 22, LOGO - 44, LOGO - 44, p.MEDIA + 'ring_20.png', 'FF8E8E93', '<visible>%s</visible>' % u.neg(u.has(key + 'crest')))
+    out += u.text(p, x, NAME_Y, NAME_W, NAME_H, u.P(key + 'short'), 'p_foot_b', p.GREY, 'center')
     return out
 
 
-CREST, CREST_Y, NAME_Y = 230, 118, 366     # option B (owner, 2026-11-20): big crests, the names under them
-CARD_H = 500                              # one live game: league and clock, crests with names, the score (a tap opens the game)
+def _clock_row(p, key, top, cond):
+    """The clock with the football on the side that has the ball: a centred row, the invisible ball takes no room."""
+    ball = lambda side: p.image(0, (59 - BALL) // 2, BALL, BALL, p.MEDIA + 'football.png', p.WHITE,
+                                '<visible>String.IsEqual(Window().Property(%sball),%s)</visible>' % (key, side), '>keep')
+    return ('<control type="grouplist"><left>%d</left><top>%d</top><width>%d</width><height>59</height><orientation>horizontal</orientation><align>center</align>'
+            '<itemgap>14</itemgap><usecontrolcoords>true</usecontrolcoords><visible>%s</visible>%s'
+            '<control type="label"><width>auto</width><height>59</height><font>p_pill</font><textcolor>FFFFFFFF</textcolor><aligny>center</aligny>'
+            '<scroll>false</scroll><label>%s</label></control>%s</control>') % (COL, top, p.WIDTH - 2 * PAD - 2 * COL, cond, ball('a'), u.P(key + 'clock'), ball('h'))
 
 
-def _crest(p, key, x):
-    """A team's crest in a light circle; a team without a crest shows an empty ring, never letters (owner, 2026-11-20)."""
-    out = p.image(x, CREST_Y, CREST, CREST, p.MEDIA + 'pill_170.png', u.SURF2, border=80)
-    out += p.image(x + 16, CREST_Y + 16, CREST - 32, CREST - 32, u.P(key + 'crest'), p.WHITE,
-                   '<visible>%s</visible>' % u.has(key + 'crest'), '>keep')
-    out += p.image(x + 74, CREST_Y + 74, CREST - 148, CREST - 148, p.MEDIA + 'ring_20.png', 'FF8E8E93',
-                   '<visible>%s</visible>' % u.neg(u.has(key + 'crest')))
-    out += _wrap(p, x - 20, NAME_Y, CREST + 40, 118, u.P(key + 'name'), 'p_foot', p.WHITE, 'center')
-    return out
+def _detail_row(p, key):
+    """"2nd & 10 · WVU 45": grey, the yard line red inside the 20 (ESPN's red zone)."""
+    grey = lambda cond, value, extra='': ('<control type="label"><width>auto</width><height>45</height><font>p_cap</font><textcolor>%s</textcolor><aligny>center</aligny>'
+                                          '<scroll>false</scroll>%s<label>%s</label></control>') % (extra or p.GREY, cond, value)
+    rz = 'String.IsEqual(Window().Property(%srz),true)' % key
+    return ('<control type="grouplist"><left>%d</left><top>140</top><width>%d</width><height>45</height><orientation>horizontal</orientation><align>center</align>'
+            '<itemgap>8</itemgap><usecontrolcoords>true</usecontrolcoords><visible>%s</visible>%s%s%s%s</control>') % (
+        COL, p.WIDTH - 2 * PAD - 2 * COL, u.has(key + 'dn'), grey('', u.P(key + 'dn')),
+        grey('<visible>%s</visible>' % u.has(key + 'yd'), '·'),
+        grey('<visible>%s</visible>' % u.neg(rz), u.P(key + 'yd')),
+        grey('<visible>%s</visible>' % rz, u.P(key + 'yd'), 'FFFF453A'))
+
+
+def header(p, g, with_sub):
+    """A league's header: its logo, name and a chevron (not a button), "College Football" under NCAAF. A hairline above it, but not on the first."""
+    key, h = 'g.%d.' % g, HEAD_SUB_H if with_sub else HEAD_H
+    cond = u.has(key + ('gs' if with_sub else 'hp'))   # hp: a header with no subtitle (set by sports_live.py), gs: one with
+    body = '' if g == 1 else p.image(PAD, 0, p.WIDTH - 2 * PAD, 2, p.MEDIA + 'white.png', LINE)
+    body += p.image(PAD + 22, (h - 64) // 2 + 6, 64, 64, u.P(key + 'gl'), p.WHITE, '<visible>%s</visible>' % u.has(key + 'gl'), '>keep')
+    ty = 16 if with_sub else 24
+    body += ('<control type="grouplist"><left>%d</left><top>%d</top><width>600</width><height>52</height><orientation>horizontal</orientation>'
+             '<itemgap>10</itemgap><usecontrolcoords>true</usecontrolcoords>'
+             '<control type="label"><width>auto</width><height>52</height><font>p_foot_b</font><textcolor>FFFFFFFF</textcolor><aligny>center</aligny>'
+             '<scroll>false</scroll><label>%s</label></control>%s</control>') % (
+        PAD + 22 + 64 + 24, ty, u.P(key + 'gn'), p.icon(0, 10, 32, 'chevron-right.png', p.GREY))
+    if with_sub:
+        body += u.text(p, PAD + 22 + 64 + 24, 68, 700, 40, u.P(key + 'gs'), 'p_cap', p.GREY)
+    return u.group(p, h, body, cond)
 
 
 def head_row(p, g):
-    """One live game as a big card: the league and the clock, the two crests with their names, and the score in the middle."""
-    S, w = p.SIDE, p.WIDTH - 2 * p.SIDE
+    """One live game as a compact row (see the module docstring)."""
+    w = p.WIDTH - 2 * PAD
     P, key = u.P, 'g.%d.' % g
-    body = p.image(S, 0, w, CARD_H, p.MEDIA + 'row_only.png', p.SURFACE, border=43)
-    body += p.image(S + PAD, PAD, 190, 64, p.MEDIA + 'pill_56.png', u.SURF2, border=28)
-    body += u.text(p, S + PAD, PAD, 190, 64, P(key + 'league'), 'p_foot_b', p.WHITE, 'center')
-    body += ('<control type="grouplist"><left>%d</left><top>%d</top><width>420</width><height>64</height><orientation>horizontal</orientation>'
-             '<align>right</align><itemgap>14</itemgap><usecontrolcoords>true</usecontrolcoords>'
-             '<control type="image"><width>22</width><height>22</height><top>21</top><texture colordiffuse="FFFF453A">%sdot.png</texture></control>'
-             '<control type="label"><width>auto</width><height>64</height><font>p_sub</font><textcolor>FFFF453A</textcolor><aligny>center</aligny>'
-             '<scroll>false</scroll><label>%s</label></control></control>' % (S + w - PAD - 420, PAD, p.MEDIA, P(key + 'clock')))
-    body += _crest(p, key + 'a.', S + 40)
-    body += _crest(p, key + 'h.', S + w - 40 - CREST)
-    body += u.text(p, S + 300, CREST_Y + 4, w - 600, 50, 'LIVE', 'p_foot_b', 'FFFF453A', 'center')
-    body += u.text(p, S + 300, CREST_Y + 64, w - 600, 110, P(key + 'score'), 'p_h2', p.WHITE, 'center')
+    body = p.image(PAD, 0, w, 2, p.MEDIA + 'white.png', LINE, '<visible>%s</visible>' % u.neg(u.has(key + 'gn')))   # a hairline between rows, none under a header
+    body += '<control type="group"><left>%d</left><top>0</top><width>%d</width><height>%d</height>' % (PAD, w, ROW_H)
+    body += _team(p, key + 'a.', 0, 54)
+    body += _team(p, key + 'h.', w - NAME_W, w - COL + 188)
+    body += u.text(p, 188, SCORE_Y, SCORE_W, SCORE_H, P(key + 'a.score'), 'p_score', p.WHITE, 'center')
+    body += u.text(p, w - COL, SCORE_Y, SCORE_W, SCORE_H, P(key + 'h.score'), 'p_score', p.WHITE, 'center')
+    body += _clock_row(p, key, 64, u.has(key + 'dn')) + _clock_row(p, key, 89, u.neg(u.has(key + 'dn'))) + _detail_row(p, key)
+    body += '</control>'
     body += ('<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><label></label>'
-             '<texturefocus colordiffuse="18FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>') % (CARD0 + g - 1, S, w, CARD_H, p.MEDIA)
-    return u.group(p, CARD_H + GAP, body, u.has(key + 'a.name'))
+             '<texturefocus colordiffuse="18FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>') % (CARD0 + g - 1, PAD, w, ROW_H, p.MEDIA)
+    return u.group(p, ROW_H, body, u.has(key + 'a.name'))
 
 
 def chip_id(rows, n):
@@ -117,7 +149,7 @@ def page(p):
     head += u.text(p, S, 160, w, 110, 'Live Now', 'p_large') + u.text(p, S, 268, w, 56, P('sub'), 'p_sub', p.GREY)
     items = ''   # no league chips on Live Now (owner, 2026-11-20): the cards start under the subtitle
     for g in range(1, GAMES + 1):
-        items += head_row(p, g)
+        items += header(p, g, False) + header(p, g, True) + head_row(p, g)
     items += u.group(p, 150, u.text(p, S, 0, w, 150, P('more'), 'p_sub', p.GREY, 'center'), u.has('more'))
     items += u.group(p, 360, '', 'true')
     listing = ('<control type="grouplist" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
