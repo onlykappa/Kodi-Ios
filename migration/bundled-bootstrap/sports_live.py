@@ -274,6 +274,9 @@ def run(args=()):
             threading.Thread(target=work, daemon=True).start()
 
         def onAction(self, action):
+            import gesture_note
+            if not hasattr(self,'_gestures'):self._gestures=gesture_note.Tracker(lambda text:__import__('xbmc').log(text,__import__('xbmc').LOGINFO))
+            self._gestures.feed(action)
             if action.getId() in BACK_KEYS:
                 self.finish()
 

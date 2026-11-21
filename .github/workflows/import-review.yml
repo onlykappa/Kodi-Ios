@@ -194,6 +194,7 @@ jobs:
           python3 -B scripts/test_sports_stream_health.py
           python3 -B scripts/test_scroll_probe.py
           python3 -B scripts/test_page_cover.py
+          python3 -B scripts/test_gesture_note.py
           python3 -B scripts/test_source_speed.py
           python3 -B scripts/test_fast_stream.py
           python3 -B scripts/test_sports_fresh.py

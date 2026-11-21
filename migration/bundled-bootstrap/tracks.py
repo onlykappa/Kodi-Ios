@@ -291,6 +291,19 @@ def run(mode):
                 rpc(xbmc, 'Player.SetAudioStream', {'playerid': pid, 'stream': r['index']})
                 said = 'Audio: %s' % r['label']
             log(said)
+            if mode == 'subtitles' and r.get('index') is not None:
+                # Build 622 (owner: captions "on" and nothing drawn): what Kodi itself says a moment later, so "on but not drawn" and "never turned on" differ.
+                def report():
+                    try:
+                        xbmc.sleep(2500)
+                        got = rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['subtitleenabled', 'currentsubtitle']}) or {}
+                        shown = xbmc.getCondVisibility('VideoPlayer.SubtitlesEnabled')
+                        current = got.get('currentsubtitle') or {}
+                        log('Kodi says subtitles enabled=%s (info %s), current #%s %s %s' % (got.get('subtitleenabled'), shown, current.get('index'),
+                                                                                           current.get('language') or '?', current.get('name') or ''))
+                    except Exception as error:
+                        log('subtitle check not read (%s)' % type(error).__name__)
+                threading.Thread(target=report, daemon=True).start()
             self.fill()
             xbmc.sleep(300)
             self.close()
@@ -473,7 +486,20 @@ def run(mode):
                 request = urllib.request.Request(url, headers={'Range': 'bytes=0-1048575'})
                 with urllib.request.urlopen(request, timeout=3) as response:
                     head = response.read(1048576)
+                    total = int(str(response.headers.get('Content-Range') or '').rpartition('/')[2] or 0)
                 self.file_tracks = mp4_tracks.subtitle_tracks(head)
+                if self.file_tracks and all(t.get('samples') is None for t in self.file_tracks) and total > 1048576:
+                    # A fragmented file counts no samples in its moov: its fragment index (the last bytes) says how many fragments hold each track.
+                    try:
+                        def get(first, last):
+                            with urllib.request.urlopen(urllib.request.Request(url, headers={'Range': 'bytes=%d-%d' % (first, last)}), timeout=3) as r:
+                                return r.read(last - first + 2)
+                        tail = get(total - 16, total - 1)
+                        size = int.from_bytes(tail[-4:], 'big') if tail[-12:-8] == b'mfro' else 0
+                        if 24 <= size <= 2 * 1024 * 1024:
+                            mp4_tracks.with_fragment_counts(self.file_tracks, mp4_tracks.fragment_counts(get(total - size, total - 1)))
+                    except Exception as error:
+                        log('file subtitle tracks: fragment index not read (%s)' % type(error).__name__)
                 log('file subtitle tracks: %s' % mp4_tracks.describe(self.file_tracks))
                 if any(t.get('samples') is not None and t['samples'] <= 1 for t in self.file_tracks) and not self.closed:
                     self.fill(focus_on=False)   # an empty embedded track is now known: the list drops it
