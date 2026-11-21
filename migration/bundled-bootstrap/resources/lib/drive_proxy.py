@@ -547,13 +547,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _prefetch_request(self):
         """GET /prefetch/<file id>/<name>: this video may play next (the next episode, a Continue Watching item): keep its start and end on the phone
         past the current video's stop (drive_cache.Filler.prefetch)."""
-        parts = urllib.parse.urlsplit(self.path).path.split('/')
+        split = urllib.parse.urlsplit(self.path)
+        parts = split.path.split('/')
         file_id = urllib.parse.unquote(parts[2]) if len(parts) >= 3 else ''
         ok = False
         try:
             if file_id and self.filler:
                 info = self._size(file_id)
-                ok = bool(info and self.filler.prefetch(file_id, info[0]))
+                first = ()
+                at = urllib.parse.parse_qs(split.query).get('at', [''])[0]   # step 3: a resumed copy's share: its fragment is fetched first
+                if at and self.indices and info:
+                    block = getattr(self.filler, 'block', BLOCK)
+                    first = [(offset, max(1, -(-count // block))) for offset, count in self.indices.resume_plan(file_id, at, info[0])]
+                ok = bool(info and self.filler.prefetch(file_id, info[0], first=first))
         except Exception:
             ok = False
         self.send_response(202 if ok else 404)
@@ -770,9 +776,12 @@ def ask_warm(port, file_id, name='', timeout=0.6):
         return False
 
 
-def ask_prefetch(port, file_id, name='', timeout=1.5):
-    """Ask the proxy to keep a video's start and end ready (the next episode, a Continue Watching item). True when it accepted."""
+def ask_prefetch(port, file_id, name='', timeout=1.5, at=None):
+    """Ask the proxy to keep a video's start and end ready (the next episode, a Continue Watching item); with `at` (a share of the video), the
+    fragment where it resumes first. True when it accepted."""
     address = 'http://127.0.0.1:%d/prefetch/%s/%s' % (int(port), urllib.parse.quote(file_id, safe=''), urllib.parse.quote(name or 'video'))
+    if isinstance(at, (int, float)) and 0 < at < 1:
+        address += '?at=%.6f' % at
     try:
         with urllib.request.urlopen(address, timeout=timeout) as resp:
             return resp.status == 202

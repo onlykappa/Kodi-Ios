@@ -3,23 +3,24 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "build_tag": "kodi-ios-portrait-r33",
+  "build_tag": "kodi-ios-portrait-r34",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
+    "tag": "kodi-ios-portrait-r34",
+    "asset": "Kodi-portrait-executable.zip",
+    "sha256": "8f2ad9fdeabc2319f141458545daca82c639dbde48542c1966f7da91ee9f45bf",
+    "archive_sha256": "5fff7ae8b856ef8444fad18432a6eef88648cbc38588db6b2ff90cc35bda8970"
+  },
+  "build_note": "r34 built and published by run 44845188966 (manual build of 70b81ed, ISSUE-411: black cover while the phone turns): release zip and executable digests checked after download (arm64 Mach-O). r33 kept as previous; device acceptance pending.",
+  "previous_executable_release": {
     "tag": "kodi-ios-portrait-r33",
     "asset": "Kodi-portrait-executable.zip",
     "sha256": "091eb4a4ef75ad1475f5aa0d5d014f5eddb0ff3eb398e6d23b5a5e64a4671435",
     "archive_sha256": "7ebe1377e8a409f74531ebbc7666d0f915cca9c9bee42cc831093ffd894afb00"
   },
-  "build_note": "r33 built by run 43681992197 (manual build of 04ffff0, ISSUE-316: a group list skips children far off screen) and published by run 43719679425 (from_run, ISSUE-332): release zip and executable digests checked after download (arm64 Mach-O). r32 kept as previous; device acceptance pending.",
-  "previous_executable_release": {
-    "tag": "kodi-ios-portrait-r32",
-    "asset": "Kodi-portrait-executable.zip",
-    "sha256": "8ebf5aa4027573d3fc02be8952af014d88e1e45d494b993c02e233d995a3fe57",
-    "archive_sha256": "7565cddcb792a4aa8cd79a100f7ab96b6705b3065b2deb1a884609c2733c2169"
-  },
-  "verified_run": 43362838057,
-  "source_commit": "61510d7781025b4c3dc633c571ae9310dbaac0fa",
-  "patch_sha256": "f7c287f05e61359445a11b7035b414e015ee1d9b38b8b04a5711e431aeb91efb",
-  "build_note_r33": "r33 (owner approved the build 2026-11-15): ISSUE-316, a group list skips children more than a screen away from the visible part, so long pages scroll like the hubs. executable_release stays r32 until r33 is built and checked."
+  "verified_run": 44845188966,
+  "source_commit": "70b81ed8a0d792e05891fb2cdb68de443e0b4be3",
+  "patch_sha256": "3b0fbb6393cfa7a50a5da24951327a04d10c65e85daaaf90e115307c7029eed3",
+  "build_note_r33": "r33 (owner approved the build 2026-11-15): ISSUE-316, a group list skips children more than a screen away from the visible part, so long pages scroll like the hubs. executable_release stays r32 until r33 is built and checked.",
+  "build_note_r34": "r34 (owner approved the build 2026-11-21): ISSUE-411, a black cover over the whole window while the phone turns into or out of a video, removed once Kodi has drawn the new size (at most 0.6 s after the turn ends: owner wants Home within 1 s of leaving a video). executable_release stays r33 until r34 is built and checked."
 }

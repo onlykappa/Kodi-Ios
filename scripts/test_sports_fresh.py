@@ -58,10 +58,41 @@ class Disk(unittest.TestCase):
     def test_a_newer_file_replaces_the_pages_older_answer_without_a_request(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
             path=os.path.join(d,'snap.json');now=[1_795_000_000]
-            service=self.make(path,[board()],now);service.refresh()
+            service=self.make(path,[board()],now);service.refresh(block=True)
             page=self.make(path,[board()],now);page.upcoming_games()
-            now[0]+=30;service.refresh();os.utime(path,(time.time()+5,time.time()+5))   # the service refreshed 30 s later
+            now[0]+=30;service.refresh(block=True);os.utime(path,(time.time()+5,time.time()+5))   # the service refreshed 30 s later
             page.refresh();self.assertEqual(page.snapshot['at'],now[0]);self.assertEqual(page.calls,[])   # a page's own refresh adopts it too
+
+    def test_a_page_never_waits_when_an_answer_is_saved(self):
+        # Owner, build 620 (log 02bd6dd7): every Sports page sat on "Checking..." because a page's refresh asked ESPN whenever the saved answer was over 10 s old
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            path=os.path.join(d,'snap.json');now=[1_795_000_000]
+            self.make(path,[board()],now).refresh(block=True)                   # the service saved an answer
+            now[0]+=40;page=self.make(path,[board()],now)
+            gate=threading.Event();fetch=page.fetch
+            page.fetch=lambda url:(gate.wait(5),fetch(url))[1]                 # ESPN is slow
+            started=time.monotonic();page.refresh()
+            self.assertLess(time.monotonic()-started,0.5)                       # drawn at once from the saved answer
+            self.assertEqual(len(page.upcoming_games()),1);self.assertEqual(page.snapshot['at'],1_795_000_000)
+            gate.set()
+            for _ in range(50):
+                if page.snapshot['at']==now[0]:break
+                time.sleep(0.02)
+            self.assertEqual(page.snapshot['at'],now[0])                        # the newer answer followed in the background
+    def test_a_page_waits_only_with_nothing_saved(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            path=os.path.join(d,'snap.json');now=[1_795_000_000]
+            page=self.make(path,[board()],now);page.refresh()
+            self.assertTrue(page.calls);self.assertEqual(page.snapshot['at'],now[0])
+    def test_an_old_saved_answer_is_drawn_as_remembered_never_a_blank_page(self):
+        # Build 621 (owner log 0ee2c2eb: "sports doesn't work at all"): a 3-hour-old answer and a bad network left every page waiting
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            path=os.path.join(d,'snap.json');now=[1_795_000_000]
+            self.make(path,[board()],now).refresh(block=True)
+            now[0]+=3*3600;page=self.make(path,[],now)                            # ESPN does not answer now
+            started=time.monotonic();page.refresh()
+            self.assertLess(time.monotonic()-started,0.5)
+            self.assertTrue(page.remembered());self.assertEqual(len(page.upcoming_games()),1)
 
 class Page(unittest.TestCase):
     def test_the_page_redraws_once_the_real_answer_has_arrived(self):

@@ -511,6 +511,16 @@ def header_buttons(y,tab=None,down=''):
  return xml
 def header_width(tab=None):return WIDTH-2*SIDE-(3 if tab else 2)*(HDR+HDR_GAP)
 
+# Opaque full-screen pages (page_cover.py) list themselves in KodiIOS.Covered while open: a full window under them stops drawing then. Only while a
+# modal dialog is open too, so a page that died never leaves a window blank (owner, 2026-11-21: Sports pages scrolled at 21-34 fps against Home's 60;
+# in the desktop rig the window under Upcoming took 60 % of the drawing time).
+COVERED_CONDITION='![!String.IsEmpty(Window(Home).Property(KodiIOS.Covered)) + System.HasActiveModalDialog]'
+
+def covered(body):
+ """A full window's controls inside one group that hides while an opaque page covers the window."""
+ if not body.startswith('<controls>') or not body.endswith('</controls>'):return body
+ return '<controls><control type="group"><visible>%s</visible>%s</control></controls>'%(COVERED_CONDITION,body[len('<controls>'):-len('</controls>')])
+
 def window(original,body,default,extra_root=''):
  # Pages with the tab bar forget the title of the last category or library page.
  extra_root+='<onload>ClearProperty(Portrait.Title,home)</onload>' if 'id="9200"' in body else ''
@@ -821,7 +831,7 @@ def hub_body(title,widgets,tab,spotlight,resume='all',variables=None):
 
 def hub_window(original,title,widgets,tab,spotlight,resume='all'):
  """One hub alone in its window (kept for tests and tools; the phone uses hubs_window)."""
- return window(original,'<controls>%s%s</controls>'%(backdrop(),hub_body(title,widgets,tab,spotlight,resume)),'4000')
+ return window(original,covered('<controls>%s%s</controls>'%(backdrop(),hub_body(title,widgets,tab,spotlight,resume))),'4000')
 
 def hubs_window(original,hubs,variables=None):
  """Home, Movies and TV in one window: a group per hub, shown by Portrait.Tab. Every row of all three hubs
@@ -829,7 +839,7 @@ def hubs_window(original,hubs,variables=None):
  groups=''.join('<control type="group" id="%d"><visible>%s</visible>%s</control>'%(3900+HUB_OFFSET[tab],tab_visible(tab),hub_body(*args,variables=variables))
                 for tab,args in hubs)
  focus=''.join('<onload condition="%s">SetFocus(%d)</onload>'%(e(tab_visible(tab)),4000+HUB_OFFSET[tab]) for tab,_ in hubs if HUB_OFFSET[tab])
- return window(strip_fuse_onloads(original),'<controls>%s%s</controls>'%(backdrop(),groups),'4000',focus)
+ return window(strip_fuse_onloads(original),covered('<controls>%s%s</controls>'%(backdrop(),groups)),'4000',focus)
 
 def forward_window(original,tab):
  """Movies/TV windows (opened by Fuse menus or older shortcuts) show that hub in Home instead."""
@@ -853,7 +863,7 @@ def library_window(original):
       '<itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout><content>%s</content></control>'
       )%(WIDTH,row_h*len(LIBRARY),row_h,item(False),row_h,item(True),items)
  body='<controls>%s%s%s%s</controls>'%(backdrop(),page_header('Library'),lst,tabbar('library'))
- return window(original,body,'5000')
+ return window(original,covered(body),'5000')
 
 # r3 glass bar framework: the field is a native iOS search field in a dark band at the top (searchbar.py), and the results
 # of what is typed show in a poster grid under it; Portrait.SearchBar marks a phone that has it.
@@ -1009,7 +1019,7 @@ def search_window(original):
  root=ET.fromstring(original) if original else ET.Element('window')
  bare='<window%s />'%''.join(' %s="%s"'%(k,e(v)) for k,v in root.attrib.items())
  body='<controls>%s%s%s%s<control type="image"><height>2</height><texture /></control>%s</controls>'%(backdrop(),panel,results,old,tabbar('search'))
- return window(bare,body,'5100')
+ return window(bare,covered(body),'5100')
 
 VARIABLES=('<variable name="Portrait_Hero_Art"><value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value>'
            '<value>$INFO[ListItem.Art(poster)]</value></variable>'

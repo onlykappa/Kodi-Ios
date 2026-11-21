@@ -53,6 +53,26 @@ class Fast(unittest.TestCase):
     def test_the_fast_copy_door_tries_a_stream_after_a_local_copy(self):
         text=(LIB/'ios_watch_dialog.py').read_text()
         self.assertIn('if _fast_local(handle,params,read_art,find,play,resume):return True\n return fast_stream(handle,params)',text)
+    def test_continue_goes_through_the_services_cache_with_the_resume_point(self):
+        # Step 2 (owner, build 620 log 80ea6c76): Continue took 12.3 s; Kodi read the debrid link over one connection because Continue skipped Umbrella's cache
+        m=self.load();played=[];asked=[];read=self.seeded(position=350,total=1400)
+        route=lambda url,resume:(asked.append((url,resume)),'http://127.0.0.1:5555/media')[1]
+        self.assertTrue(m.fast_stream(7,self.PARAMS,read,alive=lambda url:True,play=lambda h,entry,url,pos,total:played.append(url),now=lambda:1500.0,route=route))
+        self.assertEqual(asked,[('https://dl.example.invalid/f.mkv',0.25)]);self.assertEqual(played,['http://127.0.0.1:5555/media'])
+    def test_without_the_cache_the_link_itself_plays(self):
+        m=self.load();played=[];read=self.seeded()
+        self.assertTrue(m.fast_stream(7,self.PARAMS,read,alive=lambda url:True,play=lambda h,entry,url,pos,total:played.append(url),now=lambda:1500.0,route=lambda url,resume:url))
+        self.assertEqual(played,['https://dl.example.invalid/f.mkv'])
+        self.assertEqual(m._cache_route('https://dl.example.invalid/f.mkv',0.5),'https://dl.example.invalid/f.mkv')   # no Kodi, no service: unchanged
+    def test_the_resume_blocks(self):
+        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'))
+        import remote_media as rm
+        mb=1024*1024
+        self.assertEqual(rm.resume_blocks(0.5,400*mb,4*mb),[49,50,51])
+        self.assertEqual(rm.resume_blocks(None,400*mb,4*mb),[]);self.assertEqual(rm.resume_blocks(0,400*mb,4*mb),[]);self.assertEqual(rm.resume_blocks(1.2,400*mb,4*mb),[])
+        self.assertEqual(rm.resume_blocks(0.999,400*mb,4*mb),[98])   # never the last block (asked for already) or past it
+        text=(Path(rm.__file__)).read_text()
+        self.assertIn("kwargs={'blocks':OPEN_BLOCKS,'extra':KODI_AHEAD,'resume':resume}",text)
     def test_a_link_check_never_raises_or_logs_the_address(self):
         m=self.load();self.assertFalse(m._link_alive('http://127.0.0.1:9/x|User-Agent=a'))
 

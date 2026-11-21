@@ -1,7 +1,7 @@
 """Sports catalog from The Crew's normal Kodi menus; playback stays in The Crew."""
 from datetime import datetime
 from types import SimpleNamespace
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 import sports_loop_routes as common
 
 ADDON = 'plugin.video.thecrew'
@@ -123,12 +123,17 @@ class CrewLink:
         provider = menu_path[1]['label'] if len(menu_path) > 1 else ''
         alias = re.search(r'\(([A-Za-z0-9 _-]{1,16})\)', provider)
         self.source_name = 'Crew ' + alias.group(1).strip() if alias else ''
+        import time
+        self.at = time.time()   # when Crew listed it: a recent link's folder address is still current (bug 1, refresh_link)
         self.game = {'league':game.get('league') or game.get('league_name'), 'start':game['start'],
                      'away':{key:game['away'][key] for key in ('name','aliases') if key in game['away']},
                      'home':{key:game['home'][key] for key in ('name','aliases') if key in game['home']}}
 
     def to_dict(self):
-        return {'address':self.address, 'menu_path':self.menu_path, 'game':self.game}
+        return {'address':self.address, 'menu_path':self.menu_path, 'game':self.game, 'at':self.at}
+
+
+DIRECT_FOR = 600   # seconds a found link's own folder is opened directly by refresh_link
 
 
 def refresh_link(link, read=None):
@@ -163,6 +168,34 @@ def refresh_link(link, read=None):
         sports_jet.log('sports: Crew refresh folder completed in %.3fs (%d entries)' % (time.monotonic() - began, len(entries)))
         check_owner()
         return entries
+    def pick(entries):
+        matches = [entry for entry in entries if entry.get('filetype') != 'directory' and valid_route(entry.get('file'))
+                   and match_game(entry.get('title') or entry.get('label') or '', [game])]
+        exact = [entry for entry in matches if entry['file'] == route]
+        matches = exact or matches
+        return matches[0]['file'] if len(matches) == 1 else None
+    # Bug 1 (owner, build 619 log: about 3 s of a Sports tap were spent reopening Crew's sports root and then the game's folder, one after the other):
+    # the game's own folder is opened directly when its address is a plain Crew route (no $doregex rule from its parent). Opening it rebuilds Crew's link
+    # rules for the items in it. If the game's link is not uniquely there, the whole chain is reopened as before.
+    # Crew's folder addresses can expire (test_reopens_native_menu_chain...), so only a link found in the last DIRECT_FOR seconds (the service's prefetch)
+    # tries its folder directly.
+    last = path[-1].get('address') or ''
+    import time
+    try:
+        recent = time.time() - float(link.get('at') or 0) < DIRECT_FOR
+    except (TypeError, ValueError):
+        recent = False
+    if recent and len(path) > 1 and '$doregex[' not in unquote(last):
+        try:
+            found = pick(load(last))
+        except InterruptedError:
+            raise
+        except Exception:
+            found = None
+        if found:
+            return found
+        import sports_jet
+        sports_jet.log('sports: Crew game folder alone did not give the link; reopening the whole chain')
     entries = load(root)
     for step in path[1:]:
         folders = [entry for entry in entries if entry.get('filetype') == 'directory' and valid_route(entry.get('file'))]
@@ -171,13 +204,10 @@ def refresh_link(link, read=None):
         if len(matches) != 1:
             raise RuntimeError('Crew source folder is no longer uniquely available')
         entries = load(matches[0]['file'])
-    matches = [entry for entry in entries if entry.get('filetype') != 'directory' and valid_route(entry.get('file'))
-               and match_game(entry.get('title') or entry.get('label') or '', [game])]
-    exact = [entry for entry in matches if entry['file'] == route]
-    matches = exact or matches
-    if len(matches) != 1:
+    found = pick(entries)
+    if not found:
         raise RuntimeError('Crew game source is no longer uniquely available')
-    return matches[0]['file']
+    return found
 
 
 class CrewSource:

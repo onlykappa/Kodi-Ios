@@ -213,7 +213,9 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
         except RuntimeError:
             xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'portrait')+'/')
             window = Upcoming(name,HERE,'Default','1080i')
-        window.doModal()
+        import page_cover
+        with page_cover.covering():   # the window under this opaque page stops drawing while it is open
+            window.doModal()
         if hasattr(window,'stop'): window.stop.set()
         again = getattr(window,'bigger',False) and slots < page.SLOTS
         del window

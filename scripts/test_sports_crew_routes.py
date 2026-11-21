@@ -481,8 +481,35 @@ class Tests(unittest.TestCase):
    if route==parent:return [entry('Alpha vs Beta',fresh.removeprefix(ROOT),False)]
    self.fail('old cached folder used')
   link=crew.CrewLink(old,[{'address':root,'label':'Crew NBA'},{'address':ROOT+'?action=xdirectory&url=expired-parent','label':'NBA LIVE (CS)'}],GAME).to_dict()
+  link['at']-=crew.DIRECT_FOR+1   # found long ago: its folder address may have expired, so the whole chain is reopened
   self.assertEqual(crew.refresh_link(link,read),fresh)
   self.assertEqual(calls,[root,parent]);self.assertEqual(link['address'],old)
+ def test_a_recent_link_opens_its_own_folder_directly(self):   # bug 1 (owner 2026-11-21): about 1 s of every Sports tap reopened Crew's root
+  fresh=ROOT+'?action=play&url=%24doregex%5Bmakelist2%5D%7Cregex%3Dfresh&content=0'
+  root=ROOT+'?action=nba';parent=ROOT+'?action=xdirectory&url=parent'
+  calls=[]
+  def read(route):
+   calls.append(route)
+   return [entry('Alpha vs Beta',fresh.removeprefix(ROOT),False)] if route==parent else [entry('NBA LIVE (CS)','?action=xdirectory&url=parent')]
+  link=crew.CrewLink(ROOT+'?action=play&url=old',[{'address':root,'label':'Crew NBA'},{'address':parent,'label':'NBA LIVE (CS)'}],GAME).to_dict()
+  self.assertEqual(crew.refresh_link(link,read),fresh);self.assertEqual(calls,[parent])   # one listing instead of two
+ def test_a_recent_link_whose_folder_lost_it_reopens_the_chain(self):
+  fresh=ROOT+'?action=play&url=fresh';root=ROOT+'?action=nba';parent=ROOT+'?action=xdirectory&url=parent'
+  calls=[];state={'n':0}
+  def read(route):
+   calls.append(route)
+   if route==root:return [entry('NBA LIVE (CS)','?action=xdirectory&url=parent')]
+   state['n']+=1
+   return [] if state['n']==1 else [entry('Alpha vs Beta',fresh.removeprefix(ROOT),False)]   # first direct look: gone; after the root: there
+  link=crew.CrewLink(ROOT+'?action=play&url=old',[{'address':root,'label':'Crew NBA'},{'address':parent,'label':'NBA LIVE (CS)'}],GAME).to_dict()
+  self.assertEqual(crew.refresh_link(link,read),fresh);self.assertEqual(calls,[parent,root,parent])
+ def test_a_folder_address_built_by_a_parent_rule_is_never_opened_alone(self):
+  root=ROOT+'?action=nba';parent=ROOT+'?action=xdirectory&url=%24doregex%5Bp%5D';calls=[]
+  def read(route):
+   calls.append(route)
+   return [entry('NBA LIVE (CS)',parent.removeprefix(ROOT))] if route==root else [entry('Alpha vs Beta','?action=play&url=x',False)]
+  link=crew.CrewLink(ROOT+'?action=play&url=x',[{'address':root,'label':'Crew NBA'},{'address':parent,'label':'NBA LIVE (CS)'}],GAME).to_dict()
+  crew.refresh_link(link,read);self.assertEqual(calls[0],root)
  def test_unresolved_legacy_expression_is_rejected_without_menu_provenance(self):
   with self.assertRaises(RuntimeError):crew.refresh_link({'address':ROOT+'?action=play&url=%24doregex%5Bmakelist2%5D%7Cregex%3Dmissing'})
  def test_refresh_refuses_missing_ambiguous_or_wrong_game(self):

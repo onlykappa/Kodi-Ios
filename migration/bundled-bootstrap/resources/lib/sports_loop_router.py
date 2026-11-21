@@ -11,6 +11,9 @@ MAX_CHOICES = 32
 OWNER = "KodiIOS.SportsNativeOwner"
 
 
+CHOOSER_SETTLE = 0.2   # seconds Crew's chooser is left to build its list before its first entry is taken (was 0.4; bug 1, owner 2026-11-21)
+
+
 def native_route(source):
     try:
         value = json.loads(source.get('play') or '')
@@ -146,7 +149,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                 if auto_pick:
                     if pick['seen'] is None:
                         pick['seen'] = now
-                    elif not pick['picked'] and now - pick['seen'] >= .4:
+                    elif not pick['picked'] and now - pick['seen'] >= CHOOSER_SETTLE:
                         for _ in range(links[current_index] if current_index < len(links) else 0):
                             backend.executebuiltin('Action(Down)')   # a retry of a failed route takes the chooser's next link
                         backend.executebuiltin('Action(Select)')

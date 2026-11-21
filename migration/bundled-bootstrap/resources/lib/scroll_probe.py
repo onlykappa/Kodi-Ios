@@ -1,15 +1,30 @@
 """Scroll smoothness, measured on the phone (owner, 2026-11-20: Sports Upcoming and Favourites flick choppily; Home, Movies and TV are fluid).
 
-While a finger is on the screen (no input idle for a second) the frame rate Kodi reports is sampled five times a second and kept per window. Once a
-minute, and when the window changes, one line says how smooth each window was:
+The frame rate Kodi reports is read five times a second and kept per window while the screen is moving: a touch is seen (no input idle for a
+second), or the rate itself is at least ANIMATING. Build 619 (log d366ccf2) showed why both are needed: Kodi's idle timer never saw a touch on the
+phone, while an idle page reads about 3 fps (Kodi draws only when something changes), so a rate of 15 or more means a list is scrolling or a page
+is animating. Once a minute, and when the window changes, one line says how smooth each window was:
 
-  Kodi iOS scroll: window 13005 'Home': 58 fps typical, 41 fps slowest tenth, 34 samples while touched
+  Kodi iOS scroll: window 13005 'Home': 58 fps typical, 41 fps slowest tenth, 34 samples while moving
 
 so a log from a short test of every page ranks them with real numbers instead of impressions. Windows with fewer than MIN samples say nothing."""
 import statistics
 
 MIN = 8
 EVERY = 0.2
+ANIMATING = 15.0   # fps: below this the page is idle (an idle Kodi page reads about 3 fps on the phone)
+
+
+def page(window, dialog, info):
+    """(id, name) of what is on top: a dialog when one is open (the Sports pages are dialogs over window 11103), named by its skin file. Build 621
+    (log 5b1f4222): keyed by the window under them and named by System.CurrentWindow, every Sports line said window 11103 with a stray label."""
+    top = dialog if dialog and dialog != 9999 else window
+    try:
+        name = info('Window(%d).Property(xmlfile)' % top) or ''
+    except Exception:
+        name = ''
+    name = name.rsplit('/', 1)[-1]
+    return top, name[:-4] if name.lower().endswith('.xml') else name
 
 
 def line(window, name, samples):
@@ -17,7 +32,7 @@ def line(window, name, samples):
     if len(samples) < MIN:
         return ''
     ordered = sorted(samples)
-    return "Kodi iOS scroll: window %s%s: %d fps typical, %d fps slowest tenth, %d samples while touched" % (
+    return "Kodi iOS scroll: window %s%s: %d fps typical, %d fps slowest tenth, %d samples while moving" % (
         window, " '%s'" % name if name else '', round(statistics.median(ordered)), round(ordered[(len(ordered) - 1) // 10]), len(ordered))
 
 
@@ -34,21 +49,24 @@ class Probe:
             if self.busy():
                 return
             touched = bool(self.touched())
+            raw = self.reading()
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                value = 0.0
             self.looked += 1
-            if not touched:
+            if not touched and value < ANIMATING:
                 if self.looked % 150 == 1 and not self.said:   # build 618 logged no line at all: say what the two readings were, once
                     self.said = True
-                    self.log('Kodi iOS scroll probe: idle (touch reading %s, System.FPS %r)' % (touched, self.reading()))
+                    self.log('Kodi iOS scroll probe: idle (touch reading %s, System.FPS %r)' % (touched, raw))
                 return
             key = self.current()
             if self.last is not None and key != self.last:
                 self.flush(self.last)
             self.last = key
-            raw = self.fps()
-            value = float(raw)
             if not self.seen:
                 self.seen = True
-                self.log('Kodi iOS scroll probe: first touched reading System.FPS %r' % (raw,))
+                self.log('Kodi iOS scroll probe: first moving reading System.FPS %r (%s)' % (raw, 'touch' if touched else 'animating'))
             if value > 0:
                 self.samples.setdefault(key, []).append(value)
         except Exception:

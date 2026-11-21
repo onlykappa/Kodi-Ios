@@ -412,5 +412,65 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(attempts, [3])
 
 
+
+def mfra(tracks):
+    """A real-layout mfra: tracks = {track_id: [(time, moof offset)]}, version 1 tfra with 1-byte traf/trun/sample numbers."""
+    boxes = b''
+    for track, rows in tracks.items():
+        entries = b''.join(struct.pack('>QQBBB', t, o, 1, 1, 1) for t, o in rows)
+        boxes += struct.pack('>I4sIIII', 24 + len(entries), b'tfra', 1 << 24, track, 0, len(rows)) + entries
+    length = 8 + len(boxes) + 16
+    return struct.pack('>I4s', length, b'mfra') + boxes + struct.pack('>I4sII', 16, b'mfro', 0, length)
+
+
+class ResumeOffsets(unittest.TestCase):
+    """Step 3 (owner, build 619 log bb2b3e35: the jump to where a Drive copy was left took 3.5 s, every read cold)."""
+    VIDEO = [(n * 90000 * 30, 1000 + n * 64 * 1024 * 1024) for n in range(10)]   # 10 fragments of 30 s at 90 kHz
+    def test_the_video_tracks_fragments_are_read_not_the_sparse_subtitle(self):
+        data = mfra({1: self.VIDEO, 3: [(0, 1000), (90000 * 100, 1000 + 3 * 64 * 1024 * 1024)]})
+        self.assertTrue(di.valid(data, 10 ** 10))
+        self.assertEqual(di.fragments(data), self.VIDEO)
+    def test_the_bytes_around_the_point_inside_its_fragment(self):
+        data = mfra({1: self.VIDEO});mb = 1024 * 1024
+        plan = di.resume_plan(data, 0.42, 10 ** 10)
+        # 126 s is 6 s into fragment 4 (120-150 s): a fifth of its 64 MB, so about 12.8 MB in; 6 MB around it
+        self.assertEqual(plan[:2], [(self.VIDEO[3][1], 1), (self.VIDEO[4][1], 1)])
+        self.assertEqual(plan[2], (self.VIDEO[4][1] + int(64 * mb * 0.2) - 3 * mb, 6 * mb))
+    def test_the_fragment_holding_the_resume_point_and_the_one_before(self):
+        data = mfra({1: self.VIDEO})
+        self.assertEqual(di.resume_offsets(data, 0.42), [self.VIDEO[3][1], self.VIDEO[4][1]])   # 126 s of 300: fragment 4 (120-150 s)
+        self.assertEqual(di.resume_offsets(data, 0.01), [self.VIDEO[0][1]])
+        self.assertEqual(di.resume_offsets(data, 0.99), [self.VIDEO[8][1], self.VIDEO[9][1]])
+        for bad in (None, 'x', 0, 1, 1.5):
+            self.assertEqual(di.resume_offsets(data, bad), [])
+        self.assertEqual(di.resume_offsets(b'garbage', 0.5), [])
+    def test_a_prefetch_request_with_a_share_reaches_the_filler_with_the_fragment(self):
+        got = {}
+        class Filler:
+            def prefetch(self, file_id, size, now=None, first=()):
+                got.update(file_id=file_id, first=list(first));return True
+        class Indices:
+            def resume_plan(self, file_id, at, size):
+                return di.resume_plan(mfra({1: ResumeOffsets.VIDEO}), at, size)
+        sent = []
+        handler = type('H', (dp.Handler,), {'filler': Filler(), 'indices': Indices(), 'sizes': {}})
+        h = object.__new__(handler)
+        h.path = '/prefetch/F1/video?at=0.420000'
+        h._size = lambda file_id: (10 ** 9, 'video/mp4')
+        h.send_response = sent.append;h.send_header = lambda *a: None;h.end_headers = lambda: None
+        h._prefetch_request()
+        self.assertEqual(sent, [202]);self.assertEqual(got['file_id'], 'F1')
+        mb = 1024 * 1024
+        self.assertEqual(got['first'][:2], [(self.VIDEO[3][1], 1), (self.VIDEO[4][1], 1)])   # the two fragment headers
+        inside, blocks = got['first'][2]
+        self.assertTrue(self.VIDEO[4][1] < inside < self.VIDEO[5][1]);self.assertEqual(blocks, -(-6 * mb // dp.BLOCK))
+    def test_the_proxy_and_the_library_ask_for_it(self):
+        lib = Path(di.__file__).parent
+        proxy = (lib / 'drive_proxy.py').read_text()
+        self.assertIn("self.indices.resume_plan(file_id, at, info[0])", proxy)
+        self.assertIn("address += '?at=%.6f' % at", proxy)
+        watch = (lib.parents[2] / 'import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_library.py').read_text()
+        self.assertIn("if ours and position and total and 0<position<total:prefetch_copy(path,xbmcvfs,at=position/total)", watch)
+
 if __name__ == '__main__':
     unittest.main()

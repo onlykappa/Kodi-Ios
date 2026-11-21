@@ -84,7 +84,7 @@ def warm_copy(path,xbmcvfs=None,ask=None):
   return bool(ask(int(port),file_id))
  except Exception:return False
 
-def prefetch_copy(path,xbmcvfs=None,ask=None):
+def prefetch_copy(path,xbmcvfs=None,ask=None,at=None):
  """A copy that may play next (the next episode, the movie most likely to be resumed, a Continue Watching item): the app's Drive proxy keeps its first
  24 MB and last 4 MB on the phone until it plays (Wi-Fi only, kept past the current video's stop), so it opens and autoplays without a Drive wait.
  Asked on a thread: a page never waits for it. Quiet when it cannot."""
@@ -96,7 +96,8 @@ def prefetch_copy(path,xbmcvfs=None,ask=None):
   if not port.isdigit():return False
   if ask is None:
    boot_path(xbmcvfs);import drive_proxy;ask=drive_proxy.ask_prefetch
-  threading.Thread(target=ask,args=(int(port),file_id),daemon=True).start()
+  args=(int(port),file_id)
+  threading.Thread(target=ask,args=args,kwargs={'at':at} if at else {},daemon=True).start()
   return True
  except Exception:return False
 
@@ -532,6 +533,9 @@ def play_downloaded(handle,params):
    # roadmap 1A.1: the app's own Drive proxy. ISSUE-355: checked first; a dead one (iOS closes sockets in the background) is restarted by the
    # service and its new port read, else the Drive add-on's stream below plays the copy.
    ours=live_proxy_port(xbmc,xbmcgui,xbmcvfs)
+   # Step 3 (owner, build 619 log bb2b3e35: the jump to where a Drive copy was left took 3.5 s, its reads cold): the proxy fetches the fragment
+   # where it resumes (found in the copy's own index) while Kodi opens the file.
+   if ours and position and total and 0<position<total:prefetch_copy(path,xbmcvfs,at=position/total)
    fast=lib.direct_url(path,state,ours,ours=True) if ours else None
    via='app proxy' if fast else 'Drive add-on stream'
    fast=fast or lib.direct_url(path,state,xbmcaddon.Addon('plugin.googledrive').getSetting('download.service.port'))
@@ -545,7 +549,10 @@ def play_downloaded(handle,params):
   except NameError:known={}
   xbmcgui.Window(10000).setProperty('KodiIOS.Playing',json.dumps({'t':time.time(),'kind':params.get('kind') or 'episode','title':known.get('title') or params.get('title',''),
    'show':known.get('tvshowtitle') or params.get('show',''),'season':known.get('season') or params.get('season',''),'episode':known.get('episode') or params.get('episode',''),
-   'year':known.get('year') or params.get('year',''),'tmdb':params.get('tmdb_id') or known.get('tmdb_id','')}))
+   'year':known.get('year') or params.get('year',''),'tmdb':params.get('tmdb_id') or known.get('tmdb_id',''),
+   # Next Episode on a downloaded copy (owner 2026-11-21: it did nothing): the Library path of this copy and what Kodi plays, so the next downloaded
+   # episode of the show can be found in the Library's own order (next_episode.downloaded_plan).
+   'path':params.get('path',''),'file':li.getPath(),'downloaded':True}))
  except Exception:pass
  import ios_continue
  def read(location):

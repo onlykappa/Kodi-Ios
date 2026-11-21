@@ -242,7 +242,7 @@ class Filler(object):
         """True when no followed position is still near where this pass began: the viewer seeked away from it."""
         return not any(abs(known - started_at) <= CHUNK_BLOCKS for known in job.get('cursors') or [job['at']])
 
-    def prefetch(self, file_id, size, now=None):
+    def prefetch(self, file_id, size, now=None, first=()):
         """A video that may play next (the next episode, the top Continue Watching item): its start and its end are fetched once and kept past
         the current video's stop, so it opens without a Drive wait (owner, 2026-11-20). Wi-Fi only and only with room, like the filler."""
         if not size or not self.allowed():
@@ -255,11 +255,17 @@ class Filler(object):
         total = (size + self.block - 1) // self.block
         now = time.time() if now is None else now
         self.store.pin(file_id, now + PIN_SECONDS)
-        wanted = [(0, min(HEAD_BLOCKS, total))]
+        wanted = []
+        # `first`: (byte offset, blocks) to fetch before the start and the end: where a resumed copy will be read first (step 3)
+        for offset, count in first:
+            at = max(0, int(offset) // self.block)
+            if at < total:
+                wanted.append((at, min(int(count), total - at)))
+        wanted.append((0, min(HEAD_BLOCKS, total)))
         if total > HEAD_BLOCKS:
             wanted.append((max(HEAD_BLOCKS, total - TAIL_BLOCKS), total - max(HEAD_BLOCKS, total - TAIL_BLOCKS)))
         with self.lock:   # a page loads two or three times per open (build 616 log: the same file prefetched twice a moment apart): once is enough
-            if file_id in self.prefetching or all(self.store.has(file_id, size, n) for first, count in wanted for n in range(first, first + count)):
+            if file_id in self.prefetching or all(self.store.has(file_id, size, n) for start, count in wanted for n in range(start, start + count)):
                 return True
             self.prefetching.add(file_id)
 

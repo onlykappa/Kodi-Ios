@@ -1033,7 +1033,7 @@ index b2a06d0..0c74089 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..816152c 100644
+index a450151..37dac10 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -1165,7 +1165,7 @@ index a450151..816152c 100644
  @implementation XBMCController
  @synthesize animating;
  @synthesize lastGesturePoint;
-@@ -203,10 +304,171 @@ public:
+@@ -203,10 +304,217 @@ public:
  }
  // END OF UIKeyInput protocol
 
@@ -1272,6 +1272,30 @@ index a450151..816152c 100644
 +  [m_glView recreateFramebuffer];
 +}
 +
++// Kodi-iOS r34 (ISSUE-411): while the phone turns (into or out of a video), iOS stretches the last frame of the old size
++// until Kodi has rebuilt its framebuffer and laid every window out again, so the owner saw the Home screen turned and
++// squeezed on leaving a video. A black cover sits over the whole window from the start of the turn until Kodi has drawn
++// the new size (end of ApplyRotatedScreen plus one frame); at most 0.6 s after the turn (owner: Home within 1 s).
++static UIView* s_rotationCover = nil;
++static NSUInteger s_rotationTurn = 0;
++
++static void HideRotationCover(NSUInteger turn, double delay)
++{
++  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
++    if (turn != s_rotationTurn || !s_rotationCover || !s_rotationCover.superview)
++      return;
++    UIView* cover = s_rotationCover;
++    [UIView animateWithDuration:0.15
++        animations:^{
++          cover.alpha = 0.0;
++        }
++        completion:^(BOOL finished) {
++          if (turn == s_rotationTurn)
++            [cover removeFromSuperview];
++        }];
++  });
++}
++
 +static void ApplyRotatedScreen(void*)
 +{
 +  // Runs on Kodi's application thread (the one that renders): rebuild the framebuffer for the GL view's new size
@@ -1287,15 +1311,37 @@ index a450151..816152c 100644
 +  winSystem->GetGfxContext().SetVideoResolution(RES_DESKTOP, true);
 +  CLog::Log(LOGINFO, "Screen rotated: {} x {}", winSystem->GetGfxContext().GetWidth(),
 +            winSystem->GetGfxContext().GetHeight());
-+}
++  const NSUInteger turn = s_rotationTurn;
++  HideRotationCover(turn, 0.05); // Kodi draws the new layout on its next frame
+ }
 +
 +- (void)viewWillTransitionToSize:(CGSize)size
 +       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
 +{
 +  [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
++  NSUInteger turn = s_rotationTurn;
++  if (m_window && ![[IOSScreenManager sharedInstance] isExternalScreen] &&
++      !CGSizeEqualToSize(size, self.view.bounds.size))
++  {
++    // Kodi-iOS r34 (ISSUE-411): cover the window for the turn (see HideRotationCover).
++    if (!s_rotationCover)
++    {
++      s_rotationCover = [[UIView alloc] initWithFrame:CGRectZero];
++      s_rotationCover.backgroundColor = UIColor.blackColor;
++      s_rotationCover.userInteractionEnabled = NO;
++    }
++    const CGFloat side = MAX(MAX(size.width, size.height), MAX(m_window.bounds.size.width, m_window.bounds.size.height));
++    s_rotationCover.frame = CGRectMake(0, 0, side, side); // covers the window in both orientations
++    [s_rotationCover.layer removeAllAnimations];
++    s_rotationCover.alpha = 1.0;
++    [m_window addSubview:s_rotationCover];
++    [m_window bringSubviewToFront:s_rotationCover];
++    turn = ++s_rotationTurn;
++  }
 +  [coordinator animateAlongsideTransition:nil
 +                               completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
 +                                 [self applyRotatedScreen];
++                                 HideRotationCover(turn, 0.6); // limit: Home shows within 1 s of leaving a video
 +                               }];
 +}
 +
@@ -1333,12 +1379,12 @@ index a450151..816152c 100644
 +    static KODI::MESSAGING::ThreadMessageCallback callback = {ApplyRotatedScreen, nullptr};
 +    CServiceBroker::GetAppMessenger()->PostMsg(TMSG_CALLBACK, -1, -1, &callback);
 +  }
- }
++}
 +
  //--------------------------------------------------------------
  - (UIInterfaceOrientation) getOrientation
  {
-@@ -429,6 +691,11 @@ public:
+@@ -429,6 +737,11 @@ public:
    if( m_glView && [m_glView isXBMCAlive] )//NO GESTURES BEFORE WE ARE UP AND RUNNING
    {
      CGPoint velocity = [sender velocityInView:m_glView];
@@ -1350,7 +1396,7 @@ index a450151..816152c 100644
 
      if( [sender state] == UIGestureRecognizerStateBegan && sender.numberOfTouches )
      {
-@@ -462,7 +729,11 @@ public:
+@@ -462,7 +775,11 @@ public:
        {
          if( !touchBeginSignaled )
          {
@@ -1363,7 +1409,7 @@ index a450151..816152c 100644
            touchBeginSignaled = true;
          }
 
-@@ -530,7 +801,32 @@ public:
+@@ -530,7 +847,32 @@ public:
      CGPoint point = [sender locationOfTouch:0 inView:m_glView];
      point.x *= screenScale;
      point.y *= screenScale;
@@ -1397,7 +1443,7 @@ index a450151..816152c 100644
      CGenericTouchActionHandler::GetInstance().OnTap((float)point.x, (float)point.y, [sender numberOfTouches]);
    }
  }
-@@ -575,7 +871,7 @@ public:
+@@ -575,7 +917,7 @@ public:
    m_isPlayingBeforeInactive = NO;
    m_bgTask = UIBackgroundTaskInvalid;
 
@@ -1406,7 +1452,7 @@ index a450151..816152c 100644
    [m_window setRootViewController:self];
    m_window.screen = screen;
    /* Turn off autoresizing */
-@@ -589,7 +885,7 @@ public:
+@@ -589,7 +931,7 @@ public:
                   name: nil
                 object: nil];
 
@@ -1415,7 +1461,7 @@ index a450151..816152c 100644
 
    [m_window makeKeyAndVisible];
    g_xbmcController = self;
-@@ -600,7 +896,8 @@ public:
+@@ -600,7 +942,8 @@ public:
  //--------------------------------------------------------------
  - (void)loadView
  {
@@ -1425,7 +1471,7 @@ index a450151..816152c 100644
    self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
    self.view.autoresizesSubviews = YES;
 
-@@ -661,6 +958,13 @@ public:
+@@ -661,6 +1004,13 @@ public:
    if ([self respondsToSelector:@selector(setNeedsUpdateOfHomeIndicatorAutoHidden)]) {
      [self performSelector:@selector(setNeedsUpdateOfHomeIndicatorAutoHidden)];
    }
@@ -1439,7 +1485,7 @@ index a450151..816152c 100644
  }
  //--------------------------------------------------------------
  - (BOOL)prefersHomeIndicatorAutoHidden
-@@ -671,6 +975,7 @@ public:
+@@ -671,6 +1021,7 @@ public:
  - (void)viewWillDisappear:(BOOL)animated
  {
    PRINT_SIGNATURE();
@@ -1447,7 +1493,7 @@ index a450151..816152c 100644
 
    [self pauseAnimation];
 
-@@ -712,6 +1017,15 @@ public:
+@@ -712,6 +1063,15 @@ public:
  {
    m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
    [self setGUIInsetsFromMainThread:NO];
@@ -1463,7 +1509,7 @@ index a450151..816152c 100644
  }
  //--------------------------------------------------------------
  - (void)setGUIInsetsFromMainThread:(BOOL)isMainThread
-@@ -738,8 +1052,15 @@ public:
+@@ -738,8 +1098,15 @@ public:
    CLog::Log(LOGDEBUG, "insets: {}\nwindow: {}\nscreen: {}",
              NSStringFromUIEdgeInsets(insets).UTF8String, m_window.description.UTF8String,
              m_glView.currentScreen.description.UTF8String);
@@ -1480,7 +1526,7 @@ index a450151..816152c 100644
 
    auto scale = [m_glView getScreenScale:m_glView.currentScreen];
    guiInsets = EdgeInsets(insets.left * scale, insets.top * scale, insets.right * scale,
-@@ -1045,4 +1366,70 @@ public:
+@@ -1045,4 +1412,70 @@ public:
    return [m_glView getCurrentEAGLContext];
  }
 

@@ -22,9 +22,19 @@ class SmoothPages(unittest.TestCase):
         self.assertIn('+      control->DoProcess(currentTime, dirtyregions);', section)
         self.assertIn('-    control->DoProcess(currentTime, dirtyregions);', section)
 
+    def test_a_turn_is_covered_until_kodi_drew_the_new_size(self):   # ISSUE-411: Home turned and squeezed on leaving a video
+        text = PATCH.read_text()
+        section = text[text.index('diff --git a/xbmc/platform/darwin/ios/XBMCController.mm'):]
+        section = section[:section.index('\ndiff --git ', 10)]
+        self.assertIn('+static UIView* s_rotationCover = nil;', section)
+        self.assertIn('+    [m_window bringSubviewToFront:s_rotationCover];', section)            # over Kodi and the glass bar
+        self.assertIn('+  HideRotationCover(turn, 0.05); // Kodi draws the new layout on its next frame', section)   # after ApplyRotatedScreen
+        self.assertIn('+                                 HideRotationCover(turn, 0.6); // limit', section)        # Home within 1 s (owner)
+        self.assertIn('+    if (turn != s_rotationTurn || !s_rotationCover || !s_rotationCover.superview)', section)  # a newer turn keeps its cover
+
     def test_the_lock_names_the_new_build_and_this_patch(self):
         lock = json.loads(LOCK.read_text())
-        self.assertEqual(lock['build_tag'], 'kodi-ios-portrait-r33')
+        self.assertEqual(lock['build_tag'], 'kodi-ios-portrait-r34')
         self.assertEqual(lock['patch_sha256'], hashlib.sha256(PATCH.read_bytes()).hexdigest())
 
 

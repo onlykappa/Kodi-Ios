@@ -13,6 +13,67 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'res
 TMDB_PLAY = 'plugin://plugin.video.themoviedb.helper/?'
 
 
+LIBRARY = 'plugin://plugin.video.kodi.ios.watch/?'
+PLAYING = 'KodiIOS.Playing'   # set by the Library's player (ios_library.play_downloaded) for a downloaded copy
+
+
+def playing_download(raw, file):
+    """The Library's record of the downloaded episode Kodi is playing now, or None (another video, an old record)."""
+    try:
+        data = json.loads(raw or '{}')
+    except ValueError:
+        return None
+    if not data.get('downloaded') or str(data.get('kind') or 'episode') != 'episode' or not data.get('show') or not data.get('path'):
+        return None
+    if file and file in (data.get('file'), data.get('path')):
+        return data
+    # Kodi can report the Library's own play link for a resolved item instead of the address it plays
+    if 'action=library_play' in file and dict(urllib.parse.parse_qsl(file.split('?', 1)[-1])).get('path') == data.get('path'):
+        return data
+    return None
+
+
+def library_episodes(rpc, show):
+    """The show's downloaded episodes in the Library's own order (season pages in order, episodes within each): their play links.
+    The show page with merge=1 lists phone and Drive copies together."""
+    def listing(url):
+        answer = rpc('Files.GetDirectory', {'directory': url, 'media': 'video', 'properties': ['file']}).get('result') or {}
+        return answer.get('files') or []
+    out = []
+    for entry in listing(LIBRARY + urllib.parse.urlencode({'action': 'library', 'type': 'tv', 'show': show, 'merge': '1'})):
+        url = str(entry.get('file') or '')
+        if entry.get('filetype') == 'directory' and 'action=library' in url:
+            out += [str(e.get('file') or '') for e in listing(url) if 'action=library_play' in str(e.get('file') or '')]
+        elif 'action=library_play' in url:
+            out.append(url)
+    return list(dict.fromkeys(out))
+
+
+def downloaded_next(urls, path):
+    """The play link after the one whose copy is `path`; None when it is the last one, False when `path` is not in the list."""
+    for n, url in enumerate(urls):
+        query = dict(urllib.parse.parse_qsl(url.split('?', 1)[-1]))
+        if query.get('path') == path:
+            return urls[n + 1] if n + 1 < len(urls) else None
+    return False
+
+
+def downloaded_plan(rpc, playing):
+    """('play', url, (season, episode)) for the next downloaded episode, (None, why) when there is none, or None when the Library could not say
+    (the TMDb Helper way is used then)."""
+    try:
+        urls = library_episodes(rpc, playing['show'])
+    except Exception:
+        return None
+    following = downloaded_next(urls, playing['path'])
+    if following is False:
+        return None
+    if following is None:
+        return None, 'That was the last downloaded episode.'
+    query = dict(urllib.parse.parse_qsl(following.split('?', 1)[-1]))
+    return 'play', following, (query.get('season') or '?', query.get('episode') or '?')
+
+
 CONTINUE_STORE = 'special://profile/addon_data/plugin.video.kodi.ios.watch/continue.json'
 BUSY = 'KodiIOS.NextEpisode.At'   # ISSUE-331: a second tap while the first is still starting does nothing
 BUSY_SECONDS = 10
@@ -156,7 +217,7 @@ def run():
             return
     except ValueError:
         pass
-    item = (rpc('Player.GetItem', {'playerid': video[0], 'properties': ['showtitle', 'season', 'episode', 'uniqueid']})
+    item = (rpc('Player.GetItem', {'playerid': video[0], 'properties': ['showtitle', 'season', 'episode', 'uniqueid', 'file']})
             .get('result') or {}).get('item') or {}
     props = rpc('Player.GetProperties', {'playerid': video[0], 'properties': ['playlistid', 'position']}).get('result') or {}
     size = 0
@@ -172,7 +233,31 @@ def run():
             f.close()
     except Exception:
         current = None
+    # Owner (2026-11-21): on a downloaded show Next Episode did nothing (build 619: Kodi's item had no show, season or episode, so plan() said
+    # "not an episode"). A downloaded copy plays the next downloaded episode, in the Library's order, without TMDb or Umbrella.
+    if not (size and 0 <= int(props.get('position', -1)) < size - 1):
+        mine = playing_download(home.getProperty(PLAYING), str(item.get('file') or ''))
+        if mine:
+            found = downloaded_plan(rpc, mine)
+            if found and found[0] == 'play':
+                home.setProperty(BUSY, str(time.time()))
+                xbmc.log('Kodi iOS Next Episode: next downloaded episode S%sE%s of a downloaded show' % found[2], xbmc.LOGINFO)
+                try:
+                    xbmcgui.Dialog().notification('Next Episode', 'S%s, E%s' % found[2], xbmcgui.NOTIFICATION_INFO, 2500)
+                except Exception:
+                    pass
+                wait_stopped(xbmc)
+                xbmc.executebuiltin('PlayMedia(%s)' % found[1])
+                return
+            if found:
+                xbmc.log('Kodi iOS Next Episode: %s' % found[1], xbmc.LOGINFO)
+                xbmcgui.Dialog().notification('Next Episode', found[1], xbmcgui.NOTIFICATION_INFO, 3000)
+                return
+            xbmc.log('Kodi iOS Next Episode: the Library did not list this downloaded episode; trying TMDb Helper', xbmc.LOGINFO)
     how, what = plan(item, int(props.get('position', -1)), size, current, show_seasons(item, current))
+    if how is None:
+        xbmc.log('Kodi iOS Next Episode: %s (item: type %r, show %r, S%r E%r)' % (what, item.get('type'), bool(item.get('showtitle')), item.get('season'),
+                                                                               item.get('episode')), xbmc.LOGINFO)
     if how:
         home.setProperty(BUSY, str(time.time()))
     if how == 'playlist':

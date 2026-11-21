@@ -73,5 +73,27 @@ class Ahead(unittest.TestCase):
         self.assertTrue(want <= {k[1] for k in s.blocks.data}, sorted(k[1] for k in s.blocks.data))
 
 
+class Resume(unittest.TestCase):
+    def test_continue_asks_for_the_resume_point_with_the_opening(self):
+        # Step 2 (owner, build 620 log 80ea6c76): the resume seek read cold for 3.6 s; the block where playback resumes is fetched with the opening blocks
+        broker = rm.Broker(source_factory=lambda source: rm.Foreground(source, open_url=opener))
+        self.addCleanup(broker.close)
+        rm._call(broker.url, {'action': 'open', 'source': 'https://x.example/r/Ep.mkv', 'player': 'kodi', 'resume': 0.5})
+        import time
+        last = (len(DATA) - 1) // rm.BLOCK
+        want = {0, last} | set(rm.resume_blocks(0.5, len(DATA), rm.BLOCK))
+        self.assertTrue(rm.resume_blocks(0.5, len(DATA), rm.BLOCK))
+        deadline = time.time() + 5
+        while time.time() < deadline and not want <= {k[1] for k in broker.current.blocks.data}:
+            time.sleep(0.05)
+        self.assertTrue(want <= {k[1] for k in broker.current.blocks.data}, sorted(k[1] for k in broker.current.blocks.data))
+
+    def test_a_bad_resume_value_is_ignored(self):
+        broker = rm.Broker(source_factory=lambda source: rm.Foreground(source, open_url=opener))
+        self.addCleanup(broker.close)
+        answer = rm._call(broker.url, {'action': 'open', 'source': 'https://x.example/r/Ep2.mkv', 'player': 'kodi', 'resume': 'x'})
+        self.assertTrue(answer['url'].startswith('http://127.0.0.1'))
+
+
 if __name__ == '__main__':
     unittest.main()

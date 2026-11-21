@@ -298,14 +298,16 @@ def run():
   import sports_provider,cache_tune
   home=xbmcgui.Window(10000)
   if monitor.waitForAbort(4):return
-  said=[False]
+  said=[False,False]
   while True:
    live=False
    try:
     if xbmc.Player().isPlayingVideo():raise RuntimeError('video playing')
     provider=sports_provider.real()
-    provider.refresh()
+    began=time.time();provider.refresh(block=True)
     live=bool(provider.live_games())
+    if not said[1]:   # build 620 log had no sign of this loop: say once that it saved an answer, and how long ESPN took
+     said[1]=True;xbmc.log('Kodi iOS Sports: background refresh: ESPN saved in %.1f s (%d live)'%(time.time()-began,len(provider.live_games())),xbmc.LOGINFO)
    except Exception as error:
     if not said[0]:said[0]=True;xbmc.log('Kodi iOS Sports: background refresh: %s'%type(error).__name__,xbmc.LOGINFO)
    try:idle=time.time()-float(home.getProperty('KodiIOS.SportsSeen') or 0)
@@ -379,11 +381,18 @@ def run():
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),daemon=True).start()
  # Owner, 2026-11-20 (Sports Upcoming and Favourites flick choppily): the frame rate while a finger is on the screen, per window, one line a minute.
  import scroll_probe
- # "touched" is now "animating" (System.FPS at least 15): build 619's log showed System.IdleTime(1) never sees touches (idle FPS reads about 3).
- _probe=scroll_probe.Probe(lambda:xbmc.getInfoLabel('System.FPS'),lambda:float(xbmc.getInfoLabel('System.FPS') or 0)>=15,
-                           lambda:(xbmcgui.getCurrentWindowId(),xbmc.getInfoLabel('System.CurrentWindow')),lambda text:xbmc.log(text,xbmc.LOGINFO),
+ _probe=scroll_probe.Probe(lambda:xbmc.getInfoLabel('System.FPS'),lambda:not xbmc.getCondVisibility('System.IdleTime(1)'),
+                           lambda:scroll_probe.page(xbmcgui.getCurrentWindowId(),xbmcgui.getCurrentWindowDialogId(),xbmc.getInfoLabel),lambda text:xbmc.log(text,xbmc.LOGINFO),
                            lambda:xbmc.getCondVisibility('Player.HasVideo'))
  threading.Thread(target=scroll_probe.watch,args=(_probe,monitor.waitForAbort),daemon=True).start()
+ # page_cover: a covering page that died leaves its token behind; with no modal dialog open nothing covers, so the list is cleared (every 2 s).
+ def cover_tidy():
+  import page_cover
+  home=xbmcgui.Window(10000)
+  while not monitor.waitForAbort(2):
+   try:page_cover.tidy(home,xbmc.getCondVisibility('System.HasActiveModalDialog'))
+   except Exception:pass
+ threading.Thread(target=cover_tidy,daemon=True).start()
  # Build 193: one status model for every page and the bell (work_state.py), every 2 s, with the reason stored.
  import work_state,slowdown
  # ISSUE-228 (owner: "cancel all upscaling isn't working"): the page's cancel / cancel all / order requests were applied only
