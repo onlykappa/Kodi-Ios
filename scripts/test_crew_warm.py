@@ -91,9 +91,11 @@ class AutoSearch(unittest.TestCase):   # build 646 log 317cd411: "None yet" on a
     def test_a_new_look_is_due_five_seconds_after_the_last_and_never_beside_a_running_one(self):
         g=self.g
         self.assertTrue(g.auto_due(10,4,False));self.assertFalse(g.auto_due(8,4,False));self.assertFalse(g.auto_due(100,4,True))
+        self.assertFalse(g.auto_due(60,0,False,g.AUTO_ASK));self.assertTrue(g.auto_due(g.AUTO_ASK,0,False,g.AUTO_ASK))   # a real search (Crew walks its menus) is not started every few seconds
     def test_the_page_uses_it(self):
         text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/sports_game.py').read_text()
         self.assertIn('auto_wanted(',text);self.assertIn('auto_due(',text);self.assertIn('searching = searching or auto_wanted(',text)
+        self.assertIn('AUTO_ASK',text);self.assertIn('self.refresh(reload=False)   # only reads',text)
 
 class Resolved(unittest.TestCase):   # build 639 log fd1d028c: about 6 s between the play call and Kodi's first stream, silent in the log
     def test_the_time_to_the_first_stream_is_logged_without_an_address(self):

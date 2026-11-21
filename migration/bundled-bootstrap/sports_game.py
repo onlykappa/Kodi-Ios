@@ -134,7 +134,8 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
 
 
 AUTO_SEARCH = 180   # seconds a live game's page keeps looking for sources by itself
-AUTO_EVERY = 5      # seconds between those looks
+AUTO_EVERY = 5      # seconds between those looks: a cheap read of what the service's own search has found (the page asks the provider for the game again)
+AUTO_ASK = 90       # seconds between real searches while it waits: a search makes Crew walk its menus again, so one is not started every few seconds
 
 
 def auto_wanted(live, has_sources, now, until, failed=False):
@@ -144,9 +145,9 @@ def auto_wanted(live, has_sources, now, until, failed=False):
     return bool(live and not has_sources and not failed and now < until)
 
 
-def auto_due(now, last, searching):
-    """True when another look is due (none running and AUTO_EVERY seconds since the last)."""
-    return not searching and now - last >= AUTO_EVERY
+def auto_due(now, last, searching, every=AUTO_EVERY):
+    """True when another look is due (none running and `every` seconds since the last)."""
+    return not searching and now - last >= every
 
 
 def warm_best(sources, warm=None):
@@ -195,6 +196,7 @@ def run(game, provider=None, clock=time.time, search=False):
             self.checked = clock()   # when the sources were last looked for (the Sources card says so)
             self.auto_until = clock() + AUTO_SEARCH   # a live game keeps looking for sources by itself for this long (auto_wanted)
             self.auto_last = 0.0
+            self.auto_asked = time.monotonic()   # the page's own first search (find_sources at open) counts as the first ask
             self.sources = []
             self.crests = {}
             threading.Thread(target=self.load_crests,daemon=True).start()
@@ -217,10 +219,13 @@ def run(game, provider=None, clock=time.time, search=False):
                             except Exception:self.search_failed = True
                             self.search_token = None
                         self.refresh(reload=False)
-                    if auto_wanted((self.data or {}).get('state') == 'live', bool(self.sources), clock(), self.auto_until, self.search_failed) and \
-                            auto_due(time.monotonic(), self.auto_last, bool(self.search_token)):
-                        self.auto_last = time.monotonic()
-                        self.find_sources()
+                    if auto_wanted((self.data or {}).get('state') == 'live', bool(self.sources), clock(), self.auto_until, self.search_failed):
+                        if auto_due(time.monotonic(), self.auto_asked, bool(self.search_token), AUTO_ASK):
+                            self.auto_asked = self.auto_last = time.monotonic()
+                            self.find_sources()   # a real search: Crew walks its menus
+                        elif auto_due(time.monotonic(), self.auto_last, bool(self.search_token)):
+                            self.auto_last = time.monotonic()
+                            self.refresh(reload=False)   # only reads what the service's search has published for this game
                     # Every second: the clock and "in 1 h 14 min" are worked out again (only what changed is written). A live game asks for fresh
                     # scores every 5 s, any other every 30 s (owner: scores and times must be live).
                     with self.lock:
