@@ -81,6 +81,60 @@ def subtitle_tracks(data):
     return out
 
 
+def track_timescales(data):
+    """{track id: media timescale} for every track in the moov of `data` (the index's times are in these units); {} when not there."""
+    out = {}
+    data = bytes(data)
+    moov = _find(data, 0, len(data), b'moov')
+    if not moov:
+        return out
+    for kind, a, b in _boxes(data, moov[0], moov[1]):
+        if kind != b'trak':
+            continue
+        try:
+            tkhd = _find(data, a, b, b'tkhd')
+            mdia = _find(data, a, b, b'mdia')
+            mdhd = _find(data, mdia[0], mdia[1], b'mdhd') if mdia else None
+            if not tkhd or not mdhd:
+                continue
+            ident = struct.unpack_from('>I', data, tkhd[0] + (20 if data[tkhd[0]] == 1 else 12))[0]
+            scale = struct.unpack_from('>I', data, mdhd[0] + (20 if data[mdhd[0]] == 1 else 12))[0]
+            if scale:
+                out[ident] = scale
+        except (struct.error, IndexError):
+            continue
+    return out
+
+
+def fragment_spans(mfra, scales):
+    """{track id: (first, last)} in seconds: when the first and the last fragment holding samples of the track begin, from the tfra times of a fragmented
+    file's mfra and the tracks' timescales. Build 622 asked "are the captions there?"; this also says where they sit against the video's own span, so
+    cues at the wrong times (or none beyond the start) show in the log. {} when unreadable."""
+    out = {}
+    try:
+        mfra = bytes(mfra)
+        at, end = 8, len(mfra) - 16
+        while at + 8 <= end:
+            length, kind = struct.unpack_from('>I4s', mfra, at)
+            if length < 8 or at + length > end:
+                break
+            if kind == b'tfra' and length >= 24:
+                version = mfra[at + 8]
+                track, sizes, count = struct.unpack_from('>III', mfra, at + 12)
+                width = 8 if version == 1 else 4
+                step = 2 * width + (((sizes >> 4) & 3) + 1) + (((sizes >> 2) & 3) + 1) + ((sizes & 3) + 1)
+                scale = scales.get(track)
+                if count and scale and 24 + count * step <= length:
+                    fmt = '>Q' if version == 1 else '>I'
+                    first = struct.unpack_from(fmt, mfra, at + 24)[0]
+                    last = struct.unpack_from(fmt, mfra, at + 24 + (count - 1) * step)[0]
+                    out[track] = (first / scale, last / scale)
+            at += length
+    except (struct.error, IndexError):
+        return {}
+    return out
+
+
 def fragment_counts(mfra):
     """{track id: how many fragments hold samples of it} from a fragmented MP4's mfra box (its fragment index, at the end of the file); {} when unreadable.
     Build 622 (owner log ac85bba1: The Lanterns' captions "on" and nothing drawn): a fragmented file's moov counts no samples, so an empty embedded subtitle
@@ -114,9 +168,30 @@ def with_fragment_counts(tracks, counts, minimum=10):
     return tracks
 
 
-def describe(tracks):
+def with_spans(tracks, spans):
+    """Put `first` and `last` (seconds) on each subtitle track that has a span in `spans` (see fragment_spans)."""
+    for track in tracks:
+        if track.get('id') in spans:
+            track['first'], track['last'] = spans[track['id']]
+    return tracks
+
+
+def span_text(first, last):
+    return '%d s to %d s' % (round(first), round(last))
+
+
+def video_span(tracks, spans):
+    """The longest span among the tracks that are not subtitles: the picture's, to read the cues against."""
+    ids = {t.get('id') for t in tracks}
+    others = [v for k, v in spans.items() if k not in ids]
+    return max(others, key=lambda v: v[1], default=None)
+
+
+def describe(tracks, video=None):
     """One log line: 'tracks in file: #3 eng tx3g (sbtl); #4 eng c608 (clcp)'."""
     if not tracks:
         return 'no subtitle track in the first bytes of the file'
-    return '; '.join('#%s %s %s (%s)%s' % (t['id'], t['language'], t['codec'] or '?', t['handler'],
-                                           '' if t.get('samples') is None else ', %d %s' % (t['samples'], 'fragments hold it' if t.get('fragments') else 'samples')) for t in tracks)
+    line = '; '.join('#%s %s %s (%s)%s%s' % (t['id'], t['language'], t['codec'] or '?', t['handler'],
+                                             '' if t.get('samples') is None else ', %d %s' % (t['samples'], 'fragments hold it' if t.get('fragments') else 'samples'),
+                                             ', fragments from ' + span_text(t['first'], t['last']) if 'first' in t else '') for t in tracks)
+    return line + (' | video fragments from ' + span_text(*video) if video else '')

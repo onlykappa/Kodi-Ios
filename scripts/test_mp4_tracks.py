@@ -69,9 +69,28 @@ class Fragmented(unittest.TestCase):
     def test_the_menu_logs_what_kodi_says_after_a_track_is_switched_on(self):
         text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/tracks.py').read_text()
         self.assertIn("'properties': ['subtitleenabled', 'currentsubtitle']",text);self.assertIn("log('Kodi says subtitles enabled=%s",text)
+    def test_where_each_track_s_fragments_sit_is_read_from_the_index(self):   # ISSUE-424: cues may exist yet be at the wrong times
+        head=mp4(trak(1,b'vide',b'hvc1'),trak(3,b'sbtl',b'tx3g','eng'),trak(4,b'sbtl',b'tx3g','eng'),fragmented=True)
+        self.assertEqual(mt.track_timescales(head),{1:1000,3:1000,4:1000})
+        index=mfra({1:[(n*9000,n) for n in range(40)],3:[(n*9000,n) for n in range(30)],4:[(0,9)]})
+        spans=mt.fragment_spans(index,mt.track_timescales(head))
+        self.assertEqual(spans,{1:(0.0,351.0),3:(0.0,261.0),4:(0.0,0.0)})
+        found=mt.subtitle_tracks(head);mt.with_fragment_counts(found,mt.fragment_counts(index));mt.with_spans(found,spans)
+        self.assertEqual(mt.describe(found,mt.video_span(found,spans)),
+            '#3 eng tx3g (sbtl), 30 fragments hold it, fragments from 0 s to 261 s; #4 eng tx3g (sbtl), 1 fragments hold it, fragments from 0 s to 0 s | video fragments from 0 s to 351 s')
+    def test_version_0_index_and_wider_number_fields_are_read(self):
+        entries=b''.join(struct.pack('>II',t,o)+struct.pack('>HHH',1,1,1) for t,o in ((0,5),(90000,6)))   # version 0, 2-byte traf/trun/sample numbers
+        tfra=struct.pack('>I4sIIII',24+len(entries),b'tfra',0,3,(1<<4)|(1<<2)|1,2)+entries
+        index=struct.pack('>I4s',8+len(tfra)+16,b'mfra')+tfra+struct.pack('>I4sII',16,b'mfro',0,8+len(tfra)+16)
+        self.assertEqual(mt.fragment_spans(index,{3:90000}),{3:(0.0,1.0)})
+        self.assertEqual(mt.fragment_spans(index,{}),{});self.assertEqual(mt.fragment_spans(b'junk',{3:1}),{})
+    def test_the_menu_logs_the_spans(self):
+        text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/tracks.py').read_text()
+        self.assertIn('mp4_tracks.fragment_spans(index, mp4_tracks.track_timescales(head))',text)
+        self.assertIn('mp4_tracks.describe(self.file_tracks, picture)',text)
     def test_the_track_menu_reads_it(self):
         text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/tracks.py').read_text()
-        self.assertIn('mp4_tracks.with_fragment_counts(self.file_tracks, mp4_tracks.fragment_counts(get(total - size, total - 1)))',text)
+        self.assertIn('mp4_tracks.with_fragment_counts(self.file_tracks, mp4_tracks.fragment_counts(index))',text)
         self.assertIn("any(t.get('samples') is not None and t['samples'] <= 1 for t in self.file_tracks)",text)   # the existing drop of an empty track
 
 if __name__=='__main__':unittest.main()

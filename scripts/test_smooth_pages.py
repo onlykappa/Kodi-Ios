@@ -32,9 +32,18 @@ class SmoothPages(unittest.TestCase):
         self.assertIn('+                                 HideRotationCover(turn, 0.6); // limit', section)        # Home within 1 s (owner)
         self.assertIn('+    if (turn != s_rotationTurn || !s_rotationCover || !s_rotationCover.superview)', section)  # a newer turn keeps its cover
 
+    def test_a_pages_inertia_answer_is_not_overwritten_by_the_window_under(self):   # ISSUE-424: flicks did nothing on Python dialog pages
+        text = PATCH.read_text()
+        section = text[text.index('diff --git a/xbmc/guilib/GUIWindow.cpp'):]
+        section = section[:section.index('\ndiff --git ', 10)]
+        self.assertIn('+      int* answered = static_cast<int*>(message.GetPointer());', section)
+        self.assertIn('+      if (answered && *answered != EVENT_RESULT_UNHANDLED)\n+        return true;', section)   # an accepted answer stays
+        self.assertIn('+      delete answered;', section)                                                         # a replaced one is freed
+        self.assertLess(section.index('return true;'), section.index('OnMouseAction(action);\n+      delete answered'))
+
     def test_the_lock_names_the_new_build_and_this_patch(self):
         lock = json.loads(LOCK.read_text())
-        self.assertEqual(lock['build_tag'], 'kodi-ios-portrait-r34')
+        self.assertEqual(lock['build_tag'], 'kodi-ios-portrait-r35')
         self.assertEqual(lock['patch_sha256'], hashlib.sha256(PATCH.read_bytes()).hexdigest())
 
 

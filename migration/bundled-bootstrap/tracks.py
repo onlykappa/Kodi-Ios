@@ -488,6 +488,7 @@ def run(mode):
                     head = response.read(1048576)
                     total = int(str(response.headers.get('Content-Range') or '').rpartition('/')[2] or 0)
                 self.file_tracks = mp4_tracks.subtitle_tracks(head)
+                picture = None
                 if self.file_tracks and all(t.get('samples') is None for t in self.file_tracks) and total > 1048576:
                     # A fragmented file counts no samples in its moov: its fragment index (the last bytes) says how many fragments hold each track.
                     try:
@@ -497,10 +498,14 @@ def run(mode):
                         tail = get(total - 16, total - 1)
                         size = int.from_bytes(tail[-4:], 'big') if tail[-12:-8] == b'mfro' else 0
                         if 24 <= size <= 2 * 1024 * 1024:
-                            mp4_tracks.with_fragment_counts(self.file_tracks, mp4_tracks.fragment_counts(get(total - size, total - 1)))
+                            index = get(total - size, total - 1)
+                            mp4_tracks.with_fragment_counts(self.file_tracks, mp4_tracks.fragment_counts(index))
+                            spans = mp4_tracks.fragment_spans(index, mp4_tracks.track_timescales(head))   # where the cues sit against the video (ISSUE-424)
+                            mp4_tracks.with_spans(self.file_tracks, spans)
+                            picture = mp4_tracks.video_span(self.file_tracks, spans)
                     except Exception as error:
                         log('file subtitle tracks: fragment index not read (%s)' % type(error).__name__)
-                log('file subtitle tracks: %s' % mp4_tracks.describe(self.file_tracks))
+                log('file subtitle tracks: %s' % mp4_tracks.describe(self.file_tracks, picture))
                 if any(t.get('samples') is not None and t['samples'] <= 1 for t in self.file_tracks) and not self.closed:
                     self.fill(focus_on=False)   # an empty embedded track is now known: the list drops it
             except Exception as error:
