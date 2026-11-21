@@ -217,6 +217,18 @@ def parse(code, name, sport, joiner, cfg, body, now):
                     'joiner': joiner, 'start': start, 'sources': [], 'path': path_of(code),
                     'venue': _venue(comp.get('venue')), 'week': ((event.get('week') or {}).get('number') or 0)}
             if state == 'in':
+                # Football's situation, drawn under the clock on the Live Now rows (owner, 2026-11-21): the down and distance ("2nd & 10"), the yard line
+                # ("WVU 45"; red inside the 20, ESPN's isRedZone) and the team id that has the ball (the football icon sits on that side).
+                situation = comp.get('situation') or {}
+                for key, value in (('detail', situation.get('shortDownDistanceText')), ('yard', situation.get('possessionText'))):
+                    if value:
+                        game[key] = str(value)
+                if situation.get('isRedZone'):
+                    game['redzone'] = True
+                ball = str(situation.get('possession') or '')
+                if ball:
+                    ids = {side: str((teams[side].get('team') or {}).get('id') or '') for side in ('away', 'home')}
+                    game['ball'] = 'a' if ball == ids['away'] else 'h' if ball == ids['home'] else ''
                 game['clock'] = _clock(code, status, cfg)
                 game['left'] = _left(cfg, status.get('period'), status.get('displayClock'))
                 seconds = status.get('clock')

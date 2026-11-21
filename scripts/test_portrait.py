@@ -101,6 +101,17 @@ class PortraitTests(unittest.TestCase):
  def test_fonts_added_to_every_fontset(self):
   names={f.findtext('name') for f in self.read('portrait/Font.xml').iter('font')}
   self.assertIn('p_title',names)
+ def test_the_score_font_keeps_its_own_file_and_ships_with_the_page(self):
+  # Live Now's scores (owner, 2026-11-21): Barlow Condensed ExtraBold, drawn from its own file even where every other style is the phone's SF.
+  fonts=portrait.fonts(FONT,'SF-UI.ttf')
+  score=[f for f in ET.fromstring(fonts).iter('font') if f.findtext('name')=='p_score']
+  self.assertTrue(score);self.assertTrue(all(f.findtext('filename')==portrait.SCORE_FONT and f.find('style') is None for f in score))
+  other=[f for f in ET.fromstring(fonts).iter('font') if f.findtext('name')=='p_title']
+  self.assertTrue(all(f.findtext('filename')=='SF-UI.ttf' for f in other))
+  files=portrait.portrait_files(self.skin,self.profile)
+  self.assertTrue(files['fonts/'+portrait.SCORE_FONT].startswith(b'\x00\x01\x00\x00'))   # a TrueType file, kept in the repository as base64 text (score_font.py)
+  self.assertTrue(files['extras/portrait/football.png'].startswith(b'\x89PNG'))              # drawn by portrait.football(): the repository takes no images
+  self.assertTrue((ROOT/'migration/bundled-bootstrap/resources/fonts/OFL-BarlowCondensed.md').is_file())   # its licence travels with it
  def test_refresh_is_idempotent_and_follows_widget_changes(self):
   self.assertEqual(portrait.refresh(self.skin,self.profile),[])
   nodes=self.profile/'addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json'
@@ -288,7 +299,7 @@ class PortraitTests(unittest.TestCase):
   for filename in ('Inter-Medium.ttf','Inter-SemiBold.ttf','Inter-Black.ttf','Inter-ExtraBold.ttf'):self.assertTrue(portrait.sf_bold('x',filename),filename)
   self.assertFalse(portrait.sf_bold('x','Inter-Regular.ttf'));self.assertFalse(portrait.sf_bold('x','Inter-Light.ttf'))
   root=ET.fromstring(portrait.fonts('<fonts><fontset id="Default"/></fonts>'))
-  self.assertTrue(all(f.findtext('filename').startswith('Inter') for f in root.iter('font')))
+  self.assertTrue(all(f.findtext('filename').startswith('Inter') for f in root.iter('font') if f.findtext('name')!='p_score'))   # the score font is its own file
  def test_textures_are_png(self):
   for name,data in portrait.textures().items():self.assertTrue(data.startswith(b'\x89PNG'),name)
 
