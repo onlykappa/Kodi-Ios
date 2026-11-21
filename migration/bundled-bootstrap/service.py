@@ -1,5 +1,9 @@
 import json,os,sys,time,threading
 _IMPORT_STARTED=time.monotonic()
+sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
+try:   # first thing: every add-on builds its SSL contexts later, and the phone's default has no CA roots (tls_roots.py: Crew's streamers failed TLS, build 623)
+ import tls_roots;_TLS_ROOTS=tls_roots.apply()
+except Exception:_TLS_ROOTS=''
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
 # Request the navigation UI before importing the setup/generator/provider stack. Recovery runs beside the existing
@@ -35,6 +39,7 @@ def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
  if not xbmc.getCondVisibility('System.Platform.IOS'):return
  begun=time.monotonic()
+ xbmc.log('Kodi iOS startup: TLS roots %s'%('set from certifi for every add-on' if _TLS_ROOTS else 'left as they were (SSL_CERT_FILE %s)'%('is a file' if os.path.isfile(os.environ.get('SSL_CERT_FILE','')) else 'is not set; certifi not found')),xbmc.LOGINFO)
  xbmc.log('Kodi iOS startup: bootstrap entered (imports %.3fs: %s)'%(_IMPORT_SECONDS,', '.join('%s %.2f'%(b[0],b[1]-a[1]) for a,b in zip(_PARTS,_PARTS[1:]))),xbmc.LOGINFO)
  monitor=xbmc.Monitor()
  root=Path(__file__).resolve().parent;profile=Path(xbmcvfs.translatePath('special://profile/')).resolve()

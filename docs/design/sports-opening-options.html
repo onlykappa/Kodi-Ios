@@ -1,0 +1,97 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sports Opening Card</title>
+<style>
+:root{--bg:#000;--s1:#1C1C1E;--s2:#2C2C2E;--grey:rgba(235,235,245,.6);--sep:rgba(235,235,245,.2);--blue:#0A84FF;--blue-t:#4FA8FF;--red:#FF453A}
+*{box-sizing:border-box}
+body{margin:0;background:#111;color:#EBEBF5;font-family:Inter,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+header{max-width:900px;margin:0 auto;padding:32px 16px 8px}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1.main{font-size:28px;margin:0 0 8px;color:#fff}
+header p{margin:6px 0;color:var(--grey);font-size:15px;line-height:1.5}
+header p b{color:#fff}
+.ctl{max-width:900px;margin:14px auto 0;padding:0 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ctl button{border:0;cursor:pointer;font:inherit;font-size:14px;min-height:44px;padding:0 16px;border-radius:22px;background:var(--s2);color:#fff}
+.ctl button.on{background:#fff;color:#000;font-weight:600}
+.ctl span{color:var(--grey);font-size:13px;margin:0 6px 0 14px}.ctl span:first-child{margin-left:0}
+.boards{display:flex;justify-content:center;padding:24px 16px}
+figure{margin:0;display:flex;flex-direction:column;gap:10px}
+figcaption{font-size:14px;font-weight:600;color:#fff;width:402px;line-height:1.35}
+figcaption span{display:block;font-weight:400;color:var(--grey);font-size:13px;margin-top:2px}
+.phone{width:402px;height:874px;border-radius:44px;background:#000;box-shadow:0 0 0 10px #2a2a2c;position:relative;overflow:hidden}
+.scr{position:absolute;inset:0;overflow:hidden;color:#fff}
+.status{height:54px;padding:20px 30px 0;display:flex;justify-content:space-between;font-size:15px;position:relative;z-index:1;background:#000}
+.status span{font-size:12px;color:var(--grey)}
+.under{padding:0 20px;position:relative}
+.under h1{margin:30px 0 0;font-size:34px;font-weight:700;letter-spacing:-.4px}.under p{margin:2px 0 14px;color:var(--grey);font-size:15px}
+.live{height:100px;border-radius:20px;background:linear-gradient(150deg,#C4302B,#4A0E12);padding:16px}.live b{font-size:17px}.live i{display:block;font-style:normal;font-size:13px;color:rgba(255,255,255,.8);margin-top:6px}
+.tiles{display:flex;gap:12px;margin-top:12px}.tiles div{flex:1;height:56px;border-radius:20px;padding:10px 14px;font-weight:600;font-size:17px;background:linear-gradient(150deg,#2F6FE0,#0E2563)}.tiles div+div{background:linear-gradient(150deg,#8E5BE8,#2A1766)}
+.row{height:74px;border-bottom:1px solid var(--sep);display:flex;align-items:center;font-size:15px;color:var(--grey)}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.62);z-index:2}
+/* the card */
+.card{position:absolute;z-index:3;left:34px;right:34px;top:50%;transform:translateY(-50%);background:var(--s1);border-radius:20px;padding:22px 20px 20px}
+.badge{display:flex;flex-direction:column;align-items:center;gap:2px}
+.badge .live-l{font-size:13px;font-weight:700;letter-spacing:.5px;color:var(--red);display:flex;align-items:center;gap:6px}
+.badge .live-l i{width:8px;height:8px;border-radius:50%;background:var(--red);display:block}
+.badge .tag{font-size:11px;font-weight:600;letter-spacing:.4px;color:var(--grey)}
+.teams{display:flex;align-items:flex-start;gap:6px;margin:16px 0 18px}
+.team{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;min-width:0}
+.logo{width:64px;height:64px;display:flex;align-items:center;justify-content:center}
+.logo img{max-width:100%;max-height:100%;display:block}
+.logo b{font-size:16px;color:var(--grey)}
+.name{font-size:15px;font-weight:600;color:#fff;line-height:1.25;white-space:nowrap}
+.at{color:var(--grey);font-size:13px;padding-top:24px}
+.stage{font-size:15px;font-weight:600;color:#fff;line-height:1.3;text-align:center}
+.sub{font-size:13px;color:var(--grey);line-height:1.4;text-align:center}
+.bar{height:4px;background:rgba(255,255,255,.2);border-radius:2px;overflow:hidden;position:relative;margin:14px 0 10px}
+.bar span{display:block;position:absolute;top:0;bottom:0;width:30%;background:var(--blue);border-radius:2px;animation:slide 1.4s infinite alternate ease-in-out}
+@keyframes slide{from{left:0}to{left:70%}}
+.btn{border:0;font:inherit;font-size:17px;font-weight:600;min-height:44px;border-radius:22px;width:100%;color:#fff;background:rgba(255,255,255,.14);margin-top:16px}
+.btn.primary{background:#fff;color:#000}
+.btn+.btn{margin-top:10px}
+.hide{display:none!important}
+@media(prefers-reduced-motion:reduce){.bar span{animation:none;left:0;width:45%}}
+</style></head><body>
+<header><span class="mk">MOCKUP · not the app, not an iPhone screenshot</span><h1 class="main">Sports opening card (option A, refined)</h1>
+<p>Owner: "I like this": the centered card with the game first. Changes asked for: <b>LIVE on its own line at the top, the league tag under it</b>; <b>real team logos, no circles</b>; <b>the team's short name on one line under its logo</b> (the same short names the Sports rows use, so they stay on one line).</p>
+<p>Logos here load from ESPN's image server when this page is opened online (nothing is stored in the repository); the app fetches the same crests at run time (<code>sports_logos</code>) and shows the team's letters until each is in. They are ESPN's dark-background versions (<code>500-dark</code>), because dark crests such as Michigan State's green disappear on the dark card. Names are never cut: they are short names, and the longest real ones (switch below) still fit on one line. Failed: the card now says so and has one button, Back to Sports (today it closes and a toast flashes). Built as shown.</p></header>
+<div class="ctl"><span>State</span>
+<button data-s="connect" class="on">Connecting</button><button data-s="next">Trying the next source</button><button data-s="slow">Slow (10 s+)</button><button data-s="fail">Failed</button>
+<span>Game</span><button data-n="usual" class="on">College</button><button data-n="long">Longest names</button></div>
+<main class="boards"><figure><figcaption>Opening your game · centered card<span>The page behind is dimmed. Mockup of the Sports hub as it is when a game is tapped.</span></figcaption>
+<div class="phone"><div class="scr"><div class="status">9:41<span>●●●</span></div>
+<div class="under"><h1>Sports</h1><p>Updated just now</p><div class="live"><b>2 live now</b><i>Michigan State · Houston</i></div><div class="tiles"><div>Upcoming</div><div>Leagues</div></div><div class="row">Up next</div><div class="row"></div></div>
+<div class="dim"></div>
+<section class="card">
+<div class="badge"><div class="live-l"><i></i>LIVE</div><div class="tag" id="tag">NCAAB</div></div>
+<div class="teams"><div class="team"><div class="logo"><img id="la" alt=""><b id="ca"></b></div><div class="name" id="na"></div></div><div class="at">at</div><div class="team"><div class="logo"><img id="lh" alt=""><b id="ch"></b></div><div class="name" id="nh"></div></div></div>
+<div class="stage" id="stage">Connecting to the source</div><div class="sub" id="sub">Source 1 of 2 · 0:03</div>
+<div class="bar" id="bar"><span></span></div>
+<button class="btn" id="cancel">Cancel</button><button class="btn primary hide" id="back">Back to Sports</button>
+</section></div></div></figure></main>
+<script>
+const CDN='https://a.espncdn.com/i/teamlogos/';
+const GAMES={
+ usual:{tag:'NCAAB',away:['Titans','DM',CDN+'ncaa/500-dark/2174.png'],home:['Spartans','MSU',CDN+'ncaa/500-dark/127.png']},
+ long:{tag:'NBA',away:['Timberwolves','MIN',CDN+'nba/500-dark/min.png'],home:['Trail Blazers','POR',CDN+'nba/500-dark/por.png']}};
+const STATES={
+ connect:{stage:'Connecting to the source',sub:'Source 1 of 2 · 0:03',fail:false},
+ next:{stage:'Trying the next source',sub:'Source 2 of 2 · 0:09',fail:false},
+ slow:{stage:'Taking longer than usual',sub:'Source 1 of 2 · 0:14 · You can cancel',fail:false},
+ fail:{stage:'This game didn’t open',sub:'None of its sources worked.',fail:true}};
+let state='connect',game='usual';
+function crest(img,letters,team){letters.textContent='';img.style.display='';img.onerror=()=>{img.style.display='none';letters.textContent=team[1]};img.src=team[2]}
+function paint(){
+ const s=STATES[state],g=GAMES[game];
+ document.getElementById('tag').textContent=g.tag;
+ document.getElementById('na').textContent=g.away[0];document.getElementById('nh').textContent=g.home[0];
+ crest(document.getElementById('la'),document.getElementById('ca'),g.away);crest(document.getElementById('lh'),document.getElementById('ch'),g.home);
+ document.getElementById('stage').textContent=s.stage;document.getElementById('sub').textContent=s.sub;
+ document.getElementById('bar').classList.toggle('hide',s.fail);
+ document.getElementById('cancel').classList.toggle('hide',s.fail);
+ document.getElementById('back').classList.toggle('hide',!s.fail);
+ document.querySelectorAll('.ctl [data-s]').forEach(b=>b.classList.toggle('on',b.dataset.s===state));
+ document.querySelectorAll('.ctl [data-n]').forEach(b=>b.classList.toggle('on',b.dataset.n===game));
+}
+document.querySelectorAll('.ctl [data-s]').forEach(b=>b.onclick=()=>{state=b.dataset.s;paint()});
+document.querySelectorAll('.ctl [data-n]').forEach(b=>b.onclick=()=>{game=b.dataset.n;paint()});
+const q=new URLSearchParams(location.search);if(q.get('state'))state=q.get('state');if(q.get('game'))game=q.get('game');paint();
+</script></body></html>

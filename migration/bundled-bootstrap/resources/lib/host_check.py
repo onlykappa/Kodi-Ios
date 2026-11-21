@@ -36,13 +36,18 @@ def system_lookup(host):
     return sorted({item[4][0] for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)})
 
 
-def handshake(host, address, timeout=6):
-    """'ok TLSv1.3' when a TLS connection to `address` for `host` completes (its certificate checked for the name), else the error's kind."""
+def handshake(host, address, timeout=6, roots='certifi'):
+    """'ok TLSv1.3' when a TLS connection to `address` for `host` completes (its certificate checked for the name), else the error's kind. roots 'certifi':
+    certifi's CA bundle; 'default': Python's own default context, which has no CA roots on this phone (tls_roots.py)."""
     try:
-        try:
-            import certifi
-            context = ssl.create_default_context(cafile=certifi.where())
-        except Exception:
+        context = None
+        if roots == 'certifi':
+            try:
+                import certifi
+                context = ssl.create_default_context(cafile=certifi.where())
+            except Exception:
+                context = None
+        if context is None:
             context = ssl.create_default_context()
         with socket.create_connection((address, 443), timeout) as sock:
             with context.wrap_socket(sock, server_hostname=host) as tls:
@@ -57,7 +62,7 @@ def handshake(host, address, timeout=6):
         return 'no connection (%s)' % type(error).__name__
 
 
-def check_host(host, system=system_lookup, doh=None, tls=handshake):
+def check_host(host, system=system_lookup, doh=None, tls=handshake, plain=None):
     """One line about one host: 'taifood-blog.asia: phone DNS 1 address (public), TLS ok TLSv1.3 | DoH 1 address (public), TLS tls refused'."""
     parts = []
     try:
@@ -68,6 +73,8 @@ def check_host(host, system=system_lookup, doh=None, tls=handshake):
     if found is not None:
         kinds = sorted({kind(a) for a in found}) or ['none']
         parts.append('phone DNS %d address%s (%s), TLS %s' % (len(found), '' if len(found) == 1 else 'es', ','.join(kinds), tls(host, found[0]) if found else 'nothing to try'))
+        if found:   # the same address with Python's default roots: "unknown error" here and ok above means the phone lacks CA roots, not that the site refuses us
+            parts.append('default roots: %s' % (plain or (lambda h, a: handshake(h, a, roots='default')))(host, found[0]))
     try:
         if doh is None:
             import doh_fetch

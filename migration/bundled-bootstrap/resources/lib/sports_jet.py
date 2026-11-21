@@ -821,10 +821,16 @@ def run_script(args, window=None):
             log('sports: opening cancelled')
         except Exception as error:
             log('jet: play failed (%s)' % type(error).__name__)
-            try:
-                xbmcgui.Dialog().notification('Sports', "Can't play this source right now. Try another source.", xbmcgui.NOTIFICATION_WARNING, 4000)
+            shown = False
+            try:   # the card says so (one button, Back to Sports) instead of closing and leaving a toast (owner, build 623: "we cant have failed sources")
+                shown = bool(opening and opening.fail())
             except Exception:
-                pass
+                shown = False
+            if not shown:
+                try:
+                    xbmcgui.Dialog().notification('Sports', "Can't play this source right now. Try another source.", xbmcgui.NOTIFICATION_WARNING, 4000)
+                except Exception:
+                    pass
         finally:
             _play_session.opening = None
             if opening:opening.close()
@@ -1050,13 +1056,13 @@ def play_one(play_value, logger=log):
         sports_native_routes.prepare_proxy([route])
         if value['e'] == 'TheCrewRoute':
             import sports_crew_routes
-            if getattr(_play_session,'opening',None):_play_session.opening.stage('Refreshing the selected source.')
+            if getattr(_play_session,'opening',None):_play_session.opening.stage('Getting the source ready')
             try:
                 route = sports_crew_routes.refresh_link(value['l'])
             except RuntimeError as error:
                 raise InterruptedError('Crew source refresh incomplete') from error
         logger('sports: opening via %s' % ('The Crew' if value['e'] == 'TheCrewRoute' else 'The Loop'))
-        if getattr(_play_session,'opening',None):_play_session.opening.stage('Connecting to the selected source.')
+        if getattr(_play_session,'opening',None):_play_session.opening.stage('Connecting to the source')
         xbmc.Player().play(route)
         return True
     if value.get('e') == sports_fawa.NAME:

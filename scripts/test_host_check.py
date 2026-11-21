@@ -11,19 +11,22 @@ class Check(unittest.TestCase):
         self.assertEqual([hc.kind(a) for a in ('104.21.4.5','10.0.0.2','192.168.1.1','127.0.0.1','0.0.0.0','::1','nope','2606:4700::1')],
                          ['public','private','private','loopback','unspecified','loopback','invalid','public'])
     def test_a_sinkhole_from_the_phones_dns_while_doh_gives_the_real_address_reads_as_such(self):
-        line=hc.check_host('taifood-blog.asia',system=lambda h:['0.0.0.0'],doh=lambda h:['104.21.4.5'],tls=lambda h,a:'ok TLSv1.3' if a=='104.21.4.5' else 'tls refused (unknown error)')
-        self.assertEqual(line,'taifood-blog.asia: phone DNS 1 address (unspecified), TLS tls refused (unknown error) | DoH 1 address (public, not the phone\'s), TLS ok TLSv1.3')
+        line=hc.check_host('taifood-blog.asia',system=lambda h:['0.0.0.0'],doh=lambda h:['104.21.4.5'],tls=lambda h,a:'ok TLSv1.3' if a=='104.21.4.5' else 'tls refused (unknown error)',plain=lambda h,a:'tls refused (unknown error)')
+        self.assertEqual(line,'taifood-blog.asia: phone DNS 1 address (unspecified), TLS tls refused (unknown error) | default roots: tls refused (unknown error) | DoH 1 address (public, not the phone\'s), TLS ok TLSv1.3')
     def test_the_same_address_both_ways_with_a_refused_handshake_points_at_the_site(self):
-        line=hc.check_host('h.example',system=lambda h:['104.21.4.5'],doh=lambda h:['104.21.4.5'],tls=lambda h,a:'tls refused (unknown error)')
+        line=hc.check_host('h.example',system=lambda h:['104.21.4.5'],doh=lambda h:['104.21.4.5'],tls=lambda h,a:'tls refused (unknown error)',plain=lambda h,a:'x')
         self.assertIn('DoH 1 address (public, same as the phone), TLS tls refused (unknown error)',line)
     def test_dns_failures_and_no_answers_are_words_not_crashes(self):
         def boom(h):raise OSError('nodename')
-        self.assertEqual(hc.check_host('h.example',system=boom,doh=lambda h:[],tls=lambda h,a:'x'),'h.example: phone DNS failed (OSError) | DoH no answer')
+        self.assertEqual(hc.check_host('h.example',system=boom,doh=lambda h:[],tls=lambda h,a:'x'),'h.example: phone DNS failed (OSError) | DoH no answer')   # nothing found: no default-roots probe
         self.assertIn('DoH failed (RuntimeError)',hc.check_host('h.example',system=lambda h:[],doh=boom_runtime,tls=lambda h,a:'x'))
         self.assertIn('nothing to try',hc.check_host('h.example',system=lambda h:[],doh=lambda h:[],tls=lambda h,a:'x'))
     def test_no_path_or_header_reaches_the_line(self):
         line=hc.check_host('taifood-blog.asia',system=lambda h:['1.2.3.4'],doh=lambda h:[],tls=lambda h,a:'ok TLSv1.3')
         self.assertNotIn('://',line);self.assertNotIn('?',line)
+    def test_the_default_roots_are_told_from_certifi_on_the_same_address(self):
+        line=hc.check_host('h.example',system=lambda h:['104.21.4.5'],doh=lambda h:[],tls=lambda h,a:'ok TLSv1.3',plain=lambda h,a:'tls refused (unknown error)')
+        self.assertIn('TLS ok TLSv1.3 | default roots: tls refused (unknown error)',line)
 
 def boom_runtime(host):raise RuntimeError('x')
 

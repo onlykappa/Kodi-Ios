@@ -126,6 +126,8 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             raise InterruptedError('native source preparation incomplete') from error
         if not owns_queue():
             raise InterruptedError('a newer play request replaced this queue')
+        if home is not None:
+            home.setProperty('KodiIOS.SportsOpeningChoice', '%d/%d' % (index + 1, len(choices)))   # the opening card says "Source 2 of 3"
         item = xbmcgui.ListItem(label=choices[index][1])
         item.setProperty('IsPlayable', 'true')
         playlist.add(address, item)
