@@ -51,6 +51,25 @@ class Logos(unittest.TestCase):
             self.assertEqual(sl.paths(profile, ['MLB', 'BOX'], lambda u: PNG)['BOX'], '')
 
 
+class DarkLogos(unittest.TestCase):
+    """Live Now's league headers sit on black (owner, 2026-11-21): ESPN's 500-dark logos, because the NHL's own is black."""
+    def test_the_dark_address_is_espns_500_dark_folder(self):
+        self.assertEqual(sl.dark_url('NHL'), 'https://a.espncdn.com/i/teamlogos/leagues/500-dark/nhl.png')
+        self.assertEqual(sl.dark_url('LIGA'), 'https://a.espncdn.com/i/leaguelogos/soccer/500-dark/15.png')
+        self.assertEqual(sl.dark_url('NCAAF'), '')    # college football has no such logo: the page draws a football glyph
+        self.assertEqual(sl.dark_url('BOX'), '')
+
+    def test_fetched_once_kept_and_nothing_bad_is_saved(self):
+        with tempfile.TemporaryDirectory() as profile:
+            calls = []
+            got = sl.fetch_dark(profile, 'NBA', lambda u: calls.append(u) or PNG)
+            self.assertTrue(got.endswith('NBA-dark.png'))
+            self.assertEqual(sl.fetch_dark(profile, 'NBA', lambda u: calls.append(u) or PNG), got)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(sl.fetch_dark(profile, 'NHL', lambda u: b'<html>blocked</html>'), '')
+            self.assertEqual(sl.fetch_dark('special://profile/', 'NFL', lambda u: PNG), '')
+
+
 class Crests(unittest.TestCase):
     PNG = b'\x89PNG' + b'0' * 200
     URL = 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png'

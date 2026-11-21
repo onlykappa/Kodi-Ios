@@ -44,6 +44,12 @@ class Games(unittest.TestCase):
         self.assertEqual(games[0]['start'], START - 300)   # the earliest start
         self.assertEqual(games[0]['away']['name'], 'Manchester City')   # the add-on that ranks first supplies the names
 
+    def test_football_situation_and_possession_survive_the_merge(self):
+        """The Live Now rows draw ESPN's down and distance and the ball icon (owner, 2026-11-21); the merge once dropped both."""
+        games = mg.merge([rec('The Loop', state='live', detail='2nd & 10', yard='WVU 37', redzone=True, ball='h'), rec('Loop TV', state='live')], ORDER)
+        self.assertEqual((games[0]['detail'], games[0]['yard'], games[0]['redzone'], games[0]['ball']), ('2nd & 10', 'WVU 37', True, 'h'))
+        self.assertNotIn('detail', mg.merge([rec('The Loop', state='live')], ORDER)[0])
+
     def test_different_games_or_a_different_day_do_not_merge(self):
         games = mg.merge([rec('The Loop'), rec('The Loop', 'Real Sociedad', 'Athletic Club', league='LIGA'), rec('Loop TV', start=START + 24 * 3600),
                           rec('Loop TV', 'Arsenal', 'Chelsea', league='UCL')], ORDER)

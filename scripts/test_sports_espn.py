@@ -37,6 +37,24 @@ class Parse(unittest.TestCase):
         self.assertIsNone(live[0]['away']['score'])
         self.assertIsNone(live[0]['home']['score'])
 
+    def test_a_live_football_game_has_its_situation_yard_line_and_who_has_the_ball(self):
+        """Owner, 2026-11-21 (the Live Now rows): ESPN's down and distance, yard line, red zone flag and the team that has the ball (a team id)."""
+        away, home = team('UTC', 'Chattanooga', '0', False), team('ALA', 'Alabama', '47')
+        away['team']['id'], home['team']['id'] = '236', '333'
+        ev = event('9', '2025-11-16T17:00Z', 'in', away, home, period=4, clock='5:18', kind='STATUS_IN_PROGRESS')
+        ev['competitions'][0]['situation'] = {'shortDownDistanceText': '2nd & 2', 'possessionText': 'ALA 31', 'isRedZone': False, 'possession': '333'}
+        g = self.go('NCAAF', [ev])[0][0]
+        self.assertEqual((g['detail'], g['yard'], g['ball'], g.get('redzone')), ('2nd & 2', 'ALA 31', 'h', None))
+        ev['competitions'][0]['situation'] = {'shortDownDistanceText': '1st & Goal', 'possessionText': 'CHAT 4', 'isRedZone': True, 'possession': '236'}
+        g = self.go('NCAAF', [ev])[0][0]
+        self.assertEqual((g['detail'], g['ball'], g['redzone']), ('1st & Goal', 'a', True))
+        ev['competitions'][0]['situation'] = {'possession': '999'}
+        g = self.go('NCAAF', [ev])[0][0]
+        self.assertEqual((g.get('detail'), g['ball']), (None, ''))   # a team id that is neither side: no football
+        ev['competitions'][0].pop('situation')
+        g = self.go('NCAAF', [ev])[0][0]
+        self.assertNotIn('ball', g)
+
     def test_a_live_nba_game_has_score_clock_and_what_is_left(self):
         live, up, done = self.go('NBA', [event('1', '2025-11-16T17:00Z', 'in', team('IND', 'Indiana Pacers', '88', False), team('PHI', 'Philadelphia 76ers', '91'),
                                                 period=3, clock='8:41', kind='STATUS_IN_PROGRESS')])
@@ -207,7 +225,7 @@ class Provider(unittest.TestCase):
         p = self.provider(answers=self.answers())
         props, chosen, slots = sports_live.load(p, now=NOW, offset=0)
         self.assertEqual(props['state'], 'ok')
-        self.assertEqual(props['g.1.league'], 'NBA')
+        self.assertEqual(props['g.1.gn'], 'NBA')
         self.assertEqual(props['g.1.clock'], 'Q4 · 1:00')
         self.assertEqual(slots, {})   # no sources yet: nothing to play
 
