@@ -67,12 +67,12 @@ def parse(text):
 
 # ISSUE-280 (owner-approved board S1, docs/design/stream-opening-mockups.html): the line under the card's bar says which
 # step the open is on, with real numbers only. IOSReady.Line / Right / Fill (0-100, empty: the bar slides) / Slow.
-STAGE_KEYS=('Line','Right','Fill','Slow')
+STAGE_KEYS=('Line','Right','Fill','Slow','Head','Sub')   # Head and Sub: the line split for the centred page (owner, 2026-11-21): "Opening the video" / "0 of 12 MB"
 TARGET_BLOCKS=3          # remote_media asks for the first two blocks and the last one (WARM_BLOCKS + 1)
 SLOW_AFTER=10            # seconds before the slow-source note may show
 SLOW_BELOW=1.5*1024*1024 # bytes per second under which the note says so
 
-def stage(provider,elapsed,linked,cache,since_link=None):
+def _stage(provider,elapsed,linked,cache,since_link=None):
  """The three approved stages. provider: 'AllDebrid' (the card's name); elapsed: seconds since the source was known;
  linked: True once the debrid link arrived; cache: remote_media stats of the source Kodi reads ({} when none);
  since_link: seconds since the link arrived (for the speed). Returns {Line, Right, Fill, Slow}."""
@@ -94,6 +94,14 @@ def stage(provider,elapsed,linked,cache,since_link=None):
    if speed<SLOW_BELOW:out['Slow']='%s is sending it slowly right now (%.1f MB/s).'%(who,speed/(1024*1024))
   return out
  out['Line']='Starting the video\u2026'
+ return out
+
+def stage(provider,elapsed,linked,cache,since_link=None):
+ """_stage plus Head and Sub: the step and its numbers on two lines (the owner's centred opening page, 2026-11-21)."""
+ out=_stage(provider,elapsed,linked,cache,since_link)
+ head,_,sub=out['Line'].partition(' \u00b7 ')
+ if not linked:head=head.split(' from ')[0].rstrip('\u2026')+'\u2026'   # the service is already in the small capitals line, and a long name must not run out of the headline
+ out['Head'],out['Sub']=head,sub
  return out
 
 def watch(visible,read_text,set_property,clear_property,wait,interval=0.25,linked=None,cache=None,clock=None):

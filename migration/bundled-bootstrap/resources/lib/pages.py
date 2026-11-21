@@ -306,49 +306,43 @@ def umbrella_ready(p):
  plot=('<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>200</height><font>p_foot</font><textcolor>%s</textcolor>'
        '<label>$INFO[Window.Property(umbrella.plot)]</label></control>')%(p.SIDE,card_y-400,w,p.GREY)
  tv=p.label(p.SIDE,card_y-460,w,56,'$INFO[Window.Property(umbrella.tvtitle)]','p_foot_b','FFFF6B6B')
- # Source card
+ # Owner, 2026-11-21 (chosen from the mockups of the same day): no card. The source in small capitals, a large stage headline, one thin bar, the
+ # numbers under it, and Cancel as a blue text button. Same properties as before (umbrella_ready.stage adds Head and Sub: "Opening the video" / "0 of 12 MB").
+ X0,BW=100,w-200;BY=250
+ has=lambda k:'!String.IsEmpty(Window(home).Property(IOSReady.%s))'%k
+ caps=lambda text,cond:p.label(0,40,w,50,text,'p_cap',p.GREY,'center','<visible>%s</visible>'%cond)
+ head=lambda text,cond:p.label(0,100,w,100,text,'p_h2',p.WHITE,'center','<scroll>false</scroll><visible>%s</visible>'%cond)
+ grey=lambda value,extra='':('<control type="label"><width>auto</width><height>60</height><font>p_foot</font><textcolor>%s</textcolor><aligny>center</aligny>'
+                              '<scroll>false</scroll>%s<label>%s</label></control>')%(p.GREY,extra,value)
+ numbers=('<control type="grouplist"><left>0</left><top>%d</top><width>%d</width><height>60</height><orientation>horizontal</orientation><align>center</align>'
+          '<itemgap>12</itemgap><usecontrolcoords>true</usecontrolcoords><visible>%s + %s</visible>%s%s%s</control>')%(
+          BY+40,w,ready,STAGED,grey(R('Sub'),'<visible>%s</visible>'%has('Sub')),
+          grey('\u00b7','<visible>%s + %s</visible>'%(has('Sub'),has('Size'))),
+          grey('$INFO[Window(home).Property(IOSReady.Size),, file]','<visible>%s</visible>'%has('Size')))
  card=('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(p.SIDE,card_y,w,card_h)+
-  p.image(0,0,w,card_h,M+'glass_card.png',p.WHITE,border=44)+
-  '<control type="group"><visible>%s</visible>'%ready+
-  p.surface(40,40,100,100,'tile100.png','FF7D3CFF',28)+p.icon(55,55,70,'umbrella.png',p.WHITE)+
-  p.label(170,40,w-460,56,R('Provider'),'p_body',p.WHITE)+
-  p.label(170,96,w-460,46,'$INFO[Window(home).Property(IOSReady.Via),via ,]','p_foot',p.GREY)+
-  p.label(w-330,40,290,100,R('Size'),'p_h3',p.WHITE,'right')+
-  '<control type="group"><visible>!String.IsEmpty(Window(home).Property(IOSReady.Quality))</visible>'+
-  p.surface(40,178,120,64,'pill_56.png','FFFFFFFF',28)+p.label(40,178,120,64,R('Quality'),'p_foot_b','FF000000','center')+'</control>'+
-  '<control type="textbox"><left>180</left><top>184</top><width>%d</width><height>110</height><font>p_foot_b</font><textcolor>%s</textcolor>'
-  '<label>%s</label></control>'%(w-220,p.WHITE,R('Badges'))+
-  p.label(40,290,w-80,50,R('File'),'p_cap',p.GREY,'left','<scroll>true</scroll>')+'</control>'+
-  # Board 10, before a source is known: the Umbrella tile, "Looking for a source" and where it looks, then
-  # Umbrella's own words (IOSReady.Text) under them.
-  '<control type="group"><visible>!%s</visible>'%ready+
-  p.surface(40,40,100,100,'tile100.png','FF7D3CFF',28)+p.icon(55,55,70,'umbrella.png',p.WHITE)+
-  p.label(170,40,w-210,56,'Looking for a source','p_body',p.WHITE)+
-  p.label(170,96,w-210,46,'Umbrella · your accounts','p_foot',p.GREY)+
-  '<control type="textbox"><left>40</left><top>178</top><width>%d</width><height>170</height><font>p_foot</font><textcolor>%s</textcolor>'
-  '<label>%s</label></control></control>'%(w-80,'FFD1D1D6',R('Text'))+
+  caps('[UPPERCASE]$INFO[Window(home).Property(IOSReady.Provider)][/UPPERCASE][UPPERCASE]$INFO[Window(home).Property(IOSReady.Via), \u00b7 ,][/UPPERCASE]',ready)+
+  head('$INFO[Window(home).Property(IOSReady.Head)]','%s + %s'%(ready,STAGED))+
+  head('Getting ready to play\u2026','%s + %s'%(ready,UNSTAGED))+
+  # Before a source is known (board 10): where it looks, then Umbrella's own words under the bar.
+  caps('UMBRELLA \u00b7 YOUR ACCOUNTS','!%s'%ready)+head('Looking for a source','!%s'%ready)+
+  '<control type="textbox"><left>60</left><top>%d</top><width>%d</width><height>170</height><font>p_foot</font><textcolor>%s</textcolor><aligny>top</aligny>'
+  '<align>center</align><label>%s</label><visible>!%s</visible></control>'%(BY+40,w-120,'FFD1D1D6',R('Text'),ready)+
   # Kodi's progress control cannot read a window property, so the bar is 20 segments shown by Umbrella's percent.
-  # DEC-036 / board 10: one thin bar (11 units). It follows Umbrella's percent once a source is known, and slides
-  # while Umbrella is still looking.
-  # ISSUE-280 (owner-approved board S1, stream-opening-mockups.html): once the source is known the line says the step
-  # (umbrella_ready.stage: IOSReady.Line / Right / Fill / Slow). The bar fills by a real amount (Fill) or slides while
-  # nothing is measurable; Umbrella's own percent stays the fallback for a service that sets no line.
-  p.image(40,368,w-80,11,M+'dot.png','33FFFFFF',border=6,extra='<visible>%s + %s</visible>'%(ready,NO_SLIDE))+
-  ''.join(p.image(40,368,max(11,(w-80)*k//20),11,M+'dot.png',BLUE,
+  # DEC-036: one thin bar (11 units). It follows Umbrella's percent once a source is known, and slides while Umbrella is still looking.
+  # ISSUE-280 (board S1): once the source is known the stage's real numbers fill it (IOSReady.Fill) or it slides while nothing is measurable.
+  p.image(X0,BY,BW,11,M+'dot.png','33FFFFFF',border=6,extra='<visible>%s + %s</visible>'%(ready,NO_SLIDE))+
+  ''.join(p.image(X0,BY,max(11,BW*k//20),11,M+'dot.png',BLUE,
                   '<visible>%s + [[%s + Integer.IsGreaterOrEqual(Window.Property(percent),%d)] | Integer.IsGreaterOrEqual(Window(home).Property(IOSReady.Fill),%d)]</visible>'%(
                    ready,UNSTAGED,k*5,k*5),border=6) for k in range(1,21))+
-  slide_bar(M,40,368,w-80,extra='<visible>!%s | %s</visible>'%(ready,STAGED_SLIDE))+
-  p.label(40,390,w-300,60,'Getting ready to play…','p_foot','FFD1D1D6','left','<visible>%s</visible>'%UNSTAGED)+
-  p.label(w-260,390,220,60,'$INFO[Window.Property(percent)]%','p_foot','FFD1D1D6','right','<visible>%s + %s</visible>'%(ready,UNSTAGED))+
-  '<control type="textbox"><left>40</left><top>390</top><width>%d</width><height>60</height><font>p_foot</font><textcolor>FFD1D1D6</textcolor>'
-  '<label>$INFO[Window(home).Property(IOSReady.Line)]</label><visible>%s</visible></control>'%(w-300,STAGED)+
-  p.label(w-260,390,220,60,'$INFO[Window(home).Property(IOSReady.Right)]','p_foot','FFD1D1D6','right','<visible>%s</visible>'%STAGED)+
-  '<control type="textbox"><left>40</left><top>446</top><width>%d</width><height>70</height><font>p_cap</font><textcolor>%s</textcolor>'
-  '<label>$INFO[Window(home).Property(IOSReady.Slow)]</label><visible>%s</visible></control>'%(w-80,p.GREY,STAGED)+'</control>')
+  slide_bar(M,X0,BY,BW,extra='<visible>!%s | %s</visible>'%(ready,STAGED_SLIDE))+
+  p.label(0,BY+40,w,60,'$INFO[Window.Property(percent)]%','p_foot',p.GREY,'center','<visible>%s + %s</visible>'%(ready,UNSTAGED))+
+  numbers+
+  '<control type="textbox"><left>60</left><top>%d</top><width>%d</width><height>90</height><font>p_cap</font><textcolor>%s</textcolor><align>center</align>'
+  '<label>$INFO[Window(home).Property(IOSReady.Slow)]</label><visible>%s</visible></control>'%(BY+110,w-120,p.GREY,STAGED)+'</control>')
  cancel=('<control type="button" id="9001"><left>%d</left><top>%d</top><width>%d</width><height>140</height><label>Cancel</label>'
          '<font>p_btn</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
-         '<texturefocus border="70" colordiffuse="FFFFFFFF">%sglass_150.png</texturefocus><texturenofocus border="70" colordiffuse="FFFFFFFF">%sglass_150.png</texturenofocus>'
-         '<onclick>Action(Back)</onclick></control>')%(p.SIDE,p.HEIGHT-200,w,p.WHITE,p.WHITE,M,M)
+         '<texturefocus border="70" colordiffuse="14FFFFFF">%sglass_150.png</texturefocus><texturenofocus />'
+         '<onclick>Action(Back)</onclick></control>')%((W-460)//2,p.HEIGHT-200,460,p.ACCENT,p.ACCENT,M)
  # Umbrella's "icon only" setting: just a small spinner in the corner, as Umbrella draws it.
  small=('<control type="group"><visible>String.IsEqual(Window.Property(umbrella.icononly),true) + !String.IsEqual(Window.Property(umbrella.isHidden),true)</visible>'+
         slide_bar(M,W-p.SIDE-240,90,240)+'</control>')
