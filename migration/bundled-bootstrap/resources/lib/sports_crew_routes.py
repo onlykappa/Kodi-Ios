@@ -61,11 +61,43 @@ def valid_route(value):
 _LISTED = [0]    # how many Crew listings have been made: opening another folder clears Crew's link rules, so a link found earlier is only still good while this has not moved
 _WARM = {}       # route -> (the link refresh_link found, _LISTED then, when): a game page opened it ahead of the tap
 WARM_FOR = 120   # seconds a warmed link is trusted
+WAIT_FOR = 8     # seconds a tap waits for a warm listing of its own link that is already running
+_INFLIGHT = {}   # route -> Event set when its listing ends
+_LOCK = __import__('threading').Lock()
+
+
+ANIMATING = 15.0   # fps: Kodi draws about 3 a second when nothing moves (scroll_probe.ANIMATING)
+YIELD_MAX = 3.0    # seconds a background listing waits for the screen to settle
+
+
+def yield_to_screen(fps=None, sleep=time.sleep, limit=YIELD_MAX, step=0.25):
+    """Before a background folder listing (the scan for sources, never one for a tap): wait while the screen is animating or being scrolled, at most `limit`
+    seconds. Build 645 log aec66fce: the Sports Live page scrolled at 59 fps until Crew's 28 s scan began, then at 16-18 fps; each listing is Crew's
+    plugin parsing pages on the same few cores that draw the page. Returns how long it waited."""
+    if fps is None:
+        try:
+            import xbmc
+            fps = lambda: xbmc.getInfoLabel('System.FPS')
+        except Exception:
+            return 0.0
+    waited = 0.0
+    while waited < limit:
+        try:
+            moving = float(fps()) >= ANIMATING
+        except Exception:
+            moving = False
+        if not moving:
+            break
+        sleep(step)
+        waited += step
+    return waited
 
 
 def listing(path, session=None, playback=False):
     if not valid_route(path):
         raise ValueError('invalid Crew route')
+    if not playback:
+        yield_to_screen()
     _LISTED[0] += 1
     try:
         return _listing(path, session, playback)
@@ -159,16 +191,31 @@ def refresh_link(link, read=None):
         raise ValueError('invalid Crew playback route')
     if read is None:
         # Owner, build 639 log fd1d028c: a tap spent 2.7 s re-listing Crew's folders twice (0.95 s, 1.76 s) before handing Kodi the link. The game page does
-        # that listing when it opens (warm); a tap soon after, with no other Crew listing in between, uses its answer.
-        kept = _WARM.get(route)
-        if kept and kept[1] == _LISTED[0] and 0 <= time.time() - kept[2] < WARM_FOR:
-            import sports_jet
-            sports_jet.log('sports: Crew link was refreshed when the game page opened (%.0f s ago); no folder is listed now' % (time.time() - kept[2]))
-            return kept[0]
-        _WARM.pop(route, None)
-        found = _refresh_link(link, read)
-        _WARM[route] = (found, _LISTED[0], time.time())
-        return found
+        # that listing when it opens (warm); a tap soon after, with no other Crew listing in between, uses its answer. Build 645 log aec66fce: the tap came
+        # 2 s into a warm listing and started a second one beside it (both 1.3 s + 1.9 s): a tap now waits for the warm listing of its link and uses it.
+        import threading
+        with _LOCK:
+            running = _INFLIGHT.get(route)
+            mine = running is None
+            if mine:
+                running = _INFLIGHT[route] = threading.Event()
+        try:
+            if not mine:
+                running.wait(WAIT_FOR)
+            kept = _WARM.get(route)
+            if kept and kept[1] == _LISTED[0] and 0 <= time.time() - kept[2] < WARM_FOR:
+                import sports_jet
+                sports_jet.log('sports: Crew link was refreshed when the game page opened (%.0f s ago); no folder is listed now' % (time.time() - kept[2]))
+                return kept[0]
+            _WARM.pop(route, None)
+            found = _refresh_link(link, read)
+            _WARM[route] = (found, _LISTED[0], time.time())
+            return found
+        finally:
+            if mine:
+                with _LOCK:
+                    _INFLIGHT.pop(route, None)
+                running.set()
     return _refresh_link(link, read)
 
 

@@ -371,7 +371,9 @@ def _link_alive(url,timeout=6):
  try:
   with urllib.request.urlopen(urllib.request.Request(address,headers=headers),timeout=timeout) as answer:
    return answer.status in (200,206)
- except urllib.error.HTTPError:return False
+ except urllib.error.HTTPError as error:
+  # 429 and 5xx say "busy", not "gone" (build 639 log aec66fce: a second Continue tapped while the first was still reading was "refused" and took the 10 s way through Umbrella)
+  return error.code==429 or error.code>=500
  except (socket.timeout,TimeoutError):return True
  except urllib.error.URLError as error:return isinstance(getattr(error,'reason',None),(socket.timeout,TimeoutError))
  except Exception:return False

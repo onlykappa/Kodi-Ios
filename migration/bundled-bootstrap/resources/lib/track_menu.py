@@ -209,22 +209,32 @@ def rank(results, filename, dubbed=False):
     return sorted(results, key=score, reverse=True)
 
 
-def subtitle_from_zip(blob, season=None, episode=None):
+ZIP_NAMES = []   # the subtitle files of the last zip that gave nothing, for the log (no addresses): build 645 log d8f39741, "No subtitle file for this episode" five times
+
+
+def subtitle_from_zip(blob, season=None, episode=None, loose=False):
     """The .srt (or .ass / .ssa / .sub / .vtt) inside a subtitle zip: (name, bytes) or None. A season pack's zip
-    (SubDL) gives the file of this episode (S01E05, 1x05)."""
+    (SubDL) gives the file of this episode (S01E05, 1x05). `loose`: the provider itself says this zip is for this episode (SubDL's own episode field), so a
+    file named for the same episode number in another season (a long-running show the sites number differently from TMDb) is taken when it is the only one."""
     try:
         z = zipfile.ZipFile(io.BytesIO(blob))
     except zipfile.BadZipFile:
         return None
     names = [n for n in z.namelist() if n.lower().endswith(('.srt', '.ass', '.ssa', '.vtt', '.sub'))]
+    every = list(names)
     if season is not None and episode:
         mark = re.compile(r'(?i)(?:s0*%d[ ._-]?e0*%d|\b0*%dx0*%d)(?!\d)' % (int(season), int(episode), int(season), int(episode)))
         matching = [n for n in names if mark.search(n.rsplit('/', 1)[-1])]
+        if not matching and loose:
+            same = [n for n in names if (subtitle_match.episode_identity(n) or (0, -1))[1] == int(episode)]
+            matching = same if len(same) == 1 else []
         # Even a zip with one file may be the wrong episode. An unnumbered single file remains a candidate.
         if len(names) == 1:
             names = matching or [n for n in names if not subtitle_match.episode_identity(n)]
         else:
             names = matching
+    if not names:
+        ZIP_NAMES[:] = [n.rsplit('/', 1)[-1][:70] for n in every[:6]]
     names.sort(key=lambda n: (not n.lower().endswith('.srt'), len(n)))
     return (names[0].rsplit('/', 1)[-1], z.read(names[0])) if names else None
 

@@ -50,6 +50,34 @@ class Warm(unittest.TestCase):
         self.assertTrue(sports_game.warm_best([crewsrc],warm=lambda link:seen.append(link) or True));self.assertEqual(seen,[{'address':ROOT+'?action=play&url=x'}])
         seen.clear();self.assertFalse(sports_game.warm_best([loopsrc],warm=lambda link:seen.append(link)));self.assertEqual(seen,[])
         self.assertFalse(sports_game.warm_best([],warm=lambda link:True));self.assertFalse(sports_game.warm_best([{'play':'{no'}],warm=lambda link:True))
+class Joining(unittest.TestCase):   # build 645 log aec66fce: the tap came 2 s into the warm listing and started a second one
+    def setUp(self):
+        crew._WARM.clear();crew._INFLIGHT.clear()
+    def test_a_tap_during_the_warm_listing_waits_for_it_and_lists_nothing_itself(self):
+        import threading,time
+        calls=[];started=threading.Event();release=threading.Event()
+        def slow(path,session=None,playback=False):
+            calls.append(path);started.set();release.wait(5)
+            return [entry('Alpha vs Beta',FRESH.removeprefix(ROOT),False)] if path==PARENT else [entry('NBA LIVE (CS)','?action=xdirectory&url=parent')]
+        link=crew.CrewLink(ROOT+'?action=play&url=old',[{'address':ROOT_ROUTE,'label':'Crew NBA'},{'address':PARENT,'label':'NBA LIVE (CS)'}],GAME).to_dict()
+        answers=[]
+        with patch.object(crew,'_listing',slow):
+            warm=threading.Thread(target=lambda:crew.warm(link));warm.start();started.wait(2)
+            tap=threading.Thread(target=lambda:answers.append(crew.refresh_link(link)));tap.start()
+            time.sleep(.2);self.assertTrue(tap.is_alive())   # waiting, not listing
+            release.set();warm.join(3);tap.join(3)
+        self.assertEqual(answers,[FRESH]);self.assertEqual(calls,[PARENT])
+    def test_a_background_listing_waits_for_a_moving_screen_but_never_long(self):
+        waited=[];readings=iter(['60.0','60.0','3.1'])
+        t=crew.yield_to_screen(fps=lambda:next(readings),sleep=waited.append)
+        self.assertEqual(len(waited),2);self.assertEqual(t,.5)
+        self.assertEqual(crew.yield_to_screen(fps=lambda:'60',sleep=lambda n:None),crew.YIELD_MAX)   # a screen that never settles: three seconds at most
+        self.assertEqual(crew.yield_to_screen(fps=lambda:'3.0',sleep=lambda n:self.fail('idle screen')),0.0)
+        self.assertEqual(crew.yield_to_screen(fps=lambda:'abc',sleep=lambda n:self.fail('unreadable')),0.0)
+    def test_only_background_listings_yield(self):
+        text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib/sports_crew_routes.py').read_text()
+        self.assertIn('    if not playback:\n        yield_to_screen()',text)
+
 class Resolved(unittest.TestCase):   # build 639 log fd1d028c: about 6 s between the play call and Kodi's first stream, silent in the log
     def test_the_time_to_the_first_stream_is_logged_without_an_address(self):
         import sports_jet

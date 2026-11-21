@@ -90,6 +90,15 @@ class Fast(unittest.TestCase):
             c,_=refuse.accept();c.recv(2048);c.sendall(b'HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n');c.close()
         threading.Thread(target=answer,daemon=True).start();self.addCleanup(refuse.close)
         self.assertFalse(m._link_alive('http://127.0.0.1:%d/x'%refuse.getsockname()[1],timeout=3))
+    def test_a_busy_server_is_not_a_dead_link(self):   # 429 / 503
+        import socket,threading
+        m=self.load()
+        for code,alive in ((429,True),(503,True),(404,False),(410,False)):
+            server=socket.socket();server.bind(('127.0.0.1',0));server.listen(1);self.addCleanup(server.close)
+            def answer(server=server,code=code):
+                c,_=server.accept();c.recv(2048);c.sendall(('HTTP/1.1 %d X\r\nContent-Length: 0\r\nConnection: close\r\n\r\n'%code).encode());c.close()
+            threading.Thread(target=answer,daemon=True).start()
+            self.assertEqual(m._link_alive('http://127.0.0.1:%d/x'%server.getsockname()[1],timeout=3),alive,code)
     def test_continue_says_why_it_took_the_normal_way(self):
         text=(Path(self.load().__file__)).read_text()
         for reason in ('no remembered Umbrella link','older than','no place to resume','was refused'):self.assertIn(reason,text)

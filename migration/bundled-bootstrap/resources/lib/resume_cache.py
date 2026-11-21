@@ -14,9 +14,9 @@ import threading
 import time
 
 BLOCK = 4 * 1024 * 1024        # remote_media.BLOCK: blocks are saved as that cache holds them
-HEAD_BLOCKS = 2               # remote_media.OPEN_BLOCKS: what Kodi's probe of the file's start reads
+HEAD_BLOCKS = 6               # what Kodi's open of an MKV reads: build 639 log aec66fce had it read blocks 0, 2, 3 and 5 (offsets 0, 9 MB, 13 MB, 22 MB) before the first picture; two kept blocks left it waiting 2.9 s on the server for the rest
 AROUND = 3                    # remote_media.RESUME_BLOCKS: the block at the resume point and its neighbours
-MAX_BLOCKS = 8
+MAX_BLOCKS = 12
 CAPTURE_LIMIT = 90            # seconds a capture may take
 _lock = threading.Lock()
 _busy = [False]

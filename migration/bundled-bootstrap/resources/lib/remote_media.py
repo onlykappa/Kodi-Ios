@@ -627,30 +627,61 @@ def acquire(source,home):
  except Exception:return source,None
 
 
-SLOW_SKIP=1200   # seconds a server that did not answer the cache's opening in time is played directly without asking again
+SLOW_SKIP=6*3600   # seconds a server family that did not answer the cache's opening in time is played directly without asking again (build 639 log aec66fce: the
+                   # first open after each launch still paid 2 s and, with 28 requests in flight, left the debrid server refusing Kodi's own range read: "Requested range was not delivered")
 SLOW_PROPERTY='KodiIOS.CacheSlowHost'
 
 def _host(source):
- try:return (urllib.parse.urlsplit(str(source).split('|',1)[0]).hostname or '').lower()
+ """The server family of a link: 'debrid.it' for 8sio2e.debrid.it (every link of one debrid service has its own sub-domain)."""
+ try:
+  labels=(urllib.parse.urlsplit(str(source).split('|',1)[0]).hostname or '').lower().split('.')
+  return '.'.join(labels[-2:]) if len(labels)>=2 else '.'.join(labels)
  except Exception:return ''
+
+def _memory_path():
+ try:
+  import xbmcvfs,os
+  return os.path.join(xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap'),'cache-slow.json')
+ except Exception:return None
+
+def note_slow(home,source,now=time.time,path=None):
+ """Remember (in the Home window and on disk, so a restart keeps it) that this link's server was too slow for the cache's opening."""
+ try:
+  host=_host(source)
+  if not host:return
+  stamp=now()
+  try:home.setProperty(SLOW_PROPERTY,'%s|%d'%(host,stamp))
+  except Exception:pass
+  path=path or _memory_path()
+  if path:
+   import json,os
+   try:data=json.load(open(path,encoding='utf-8'))
+   except Exception:data={}
+   data=data if isinstance(data,dict) else {}
+   data[host]=int(stamp)
+   os.makedirs(os.path.dirname(path),exist_ok=True)
+   with open(path,'w',encoding='utf-8') as out:json.dump({k:v for k,v in data.items() if now()-float(v)<SLOW_SKIP},out)
+ except Exception:pass
+
+def slow_recently(home,source,now=time.time,path=None):
+ try:
+  host=_host(source)
+  if not host:return False
+  mine,_,at=(home.getProperty(SLOW_PROPERTY) or '').partition('|')
+  if mine==host and 0<=now()-float(at)<SLOW_SKIP:return True
+ except Exception:pass
+ try:
+  path=path or _memory_path()
+  if not path:return False
+  import json
+  at=json.load(open(path,encoding='utf-8')).get(_host(source))
+  return at is not None and 0<=now()-float(at)<SLOW_SKIP
+ except Exception:return False
 
 def _kept(source):
  try:
   import resume_cache
   return resume_cache.ready(source)
- except Exception:return False
-
-def note_slow(home,source,now=time.time):
- """Remember (in the Home window, shared by every add-on) that this link's server was too slow for the cache's opening."""
- try:
-  host=_host(source)
-  if host:home.setProperty(SLOW_PROPERTY,'%s|%d'%(host,now()))
- except Exception:pass
-
-def slow_recently(home,source,now=time.time):
- try:
-  host,_,at=(home.getProperty(SLOW_PROPERTY) or '').partition('|')
-  return bool(host) and host==_host(source) and 0<=now()-float(at)<SLOW_SKIP
  except Exception:return False
 
 def for_kodi(source,home,wait=None,clock=time.monotonic,resume=None):

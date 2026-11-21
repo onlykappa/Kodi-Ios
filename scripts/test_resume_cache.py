@@ -25,8 +25,8 @@ class Disk(unittest.TestCase):
         self.dir=tempfile.mkdtemp();self.root=os.path.join(self.dir,'o');calls.clear()
         self.addCleanup(__import__('shutil').rmtree,self.dir,True)
     def test_the_plan_is_the_start_the_end_and_the_blocks_around_the_resume_point(self):
-        self.assertEqual(rc.plan(len(DATA),0.5),[0,1,2,3,4,7])   # 8 blocks: 0,1 | 2,3,4 around block 3 (half of 30 MiB) | 7 last
-        self.assertEqual(rc.plan(len(DATA),None),[0,1,7]);self.assertEqual(rc.plan(len(DATA),0.02),[0,1,7]);self.assertEqual(rc.plan(0,.5),[])
+        self.assertEqual(rc.plan(len(DATA),0.5),[0,1,2,3,4,5,7])   # 8 blocks: 0-5 the opening | 2,3,4 around block 3 (half of 30 MiB) | 7 last
+        self.assertEqual(rc.plan(len(DATA),None),[0,1,2,3,4,5,7]);self.assertEqual(rc.plan(len(DATA),0.02),[0,1,2,3,4,5,7]);self.assertEqual(rc.plan(0,.5),[])
         self.assertLessEqual(len(rc.plan(10**12,0.5)),rc.MAX_BLOCKS)
     def test_store_load_ready_round_trip_and_nothing_of_the_link_is_written(self):
         blocks={0:DATA[:rc.BLOCK],7:DATA[7*rc.BLOCK:]}
@@ -51,8 +51,8 @@ class Capture(unittest.TestCase):
         self.addCleanup(__import__('shutil').rmtree,self.dir,True)
     def test_a_stopped_stream_keeps_its_start_its_end_and_the_blocks_around_where_it_stopped(self):
         kept=rc.capture(LINK,0.5,lambda link:rm.Foreground(link,open_url=opener),self.root,self.logs.append)
-        self.assertEqual(kept,6);self.assertTrue(rc.ready(LINK,self.root));self.assertIn('kept 6 of 6 blocks',self.logs[0])
-        size,found=rc.load(LINK,self.root);self.assertEqual(sorted(found),[0,1,2,3,4,7]);self.assertEqual(found[4],DATA[4*rc.BLOCK:5*rc.BLOCK])
+        self.assertEqual(kept,7);self.assertTrue(rc.ready(LINK,self.root));self.assertIn('kept 7 of 7 blocks',self.logs[0])
+        size,found=rc.load(LINK,self.root);self.assertEqual(sorted(found),[0,1,2,3,4,5,7]);self.assertEqual(found[4],DATA[4*rc.BLOCK:5*rc.BLOCK])
         before=len(calls);self.assertEqual(rc.capture(LINK,0.5,lambda link:rm.Foreground(link,open_url=opener),self.root),0)   # the same stop again: already kept
     def test_a_capture_lets_go_at_once_when_a_video_is_opening(self):
         # build 639 log 9f7b4ab2: six connections to the debrid server were still reading when Continue asked for the title

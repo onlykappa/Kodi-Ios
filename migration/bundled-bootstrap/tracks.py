@@ -504,6 +504,11 @@ def run(mode):
                 threading.Thread(target=self.check_by_speech, args=(selected, name, data, candidates, self.lang_name), daemon=True).start()
             except Exception as error:
                 log('download and apply failed: %s: %s' % (type(error).__name__, error))
+                try:
+                    if tm.ZIP_NAMES:
+                        log('subtitle files in the last zip: %s' % ' | '.join(tm.ZIP_NAMES))
+                except Exception:
+                    pass
                 self.state(self.missing('error'))
                 if isinstance(error, sm.Mismatch):
                     self.setProperty('hint', str(error))
