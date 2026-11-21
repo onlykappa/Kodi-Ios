@@ -298,14 +298,16 @@ def run():
   import sports_provider,cache_tune
   home=xbmcgui.Window(10000)
   if monitor.waitForAbort(4):return
-  said=[False]
+  said=[False,False]
   while True:
    live=False
    try:
     if xbmc.Player().isPlayingVideo():raise RuntimeError('video playing')
     provider=sports_provider.real()
-    provider.refresh()
+    began=time.time();provider.refresh(block=True)
     live=bool(provider.live_games())
+    if not said[1]:   # build 620 log had no sign of this loop: say once that it saved an answer, and how long ESPN took
+     said[1]=True;xbmc.log('Kodi iOS Sports: background refresh: ESPN saved in %.1f s (%d live)'%(time.time()-began,len(provider.live_games())),xbmc.LOGINFO)
    except Exception as error:
     if not said[0]:said[0]=True;xbmc.log('Kodi iOS Sports: background refresh: %s'%type(error).__name__,xbmc.LOGINFO)
    try:idle=time.time()-float(home.getProperty('KodiIOS.SportsSeen') or 0)
