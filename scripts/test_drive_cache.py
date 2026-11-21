@@ -143,6 +143,13 @@ class Prefetch(unittest.TestCase):
     def test_a_pin_ends(self):
         self.filler.prefetch('N',len(DATA),now=1000.0);wait(self.filler.done.is_set)
         self.store.clear(keep_pins=True,now=1000.0+dc.PIN_SECONDS+1);self.assertFalse(self.store.has('N',len(DATA),0))
+    def test_a_resumed_copy_fetches_its_resume_fragment_first(self):
+        # Step 3 (owner, build 619 log bb2b3e35): the jump to where a Drive copy was left read cold for 3.5 s
+        self.assertTrue(self.filler.prefetch('N',len(DATA),first=[(9*B,2)]));self.assertTrue(wait(self.filler.done.is_set))
+        held=[n for n in range(16) if self.store.has('N',len(DATA),n)]
+        self.assertEqual(held,[0,1,2,3,9,10,14,15])                 # the resume blocks, the start and the end
+        first_request=base.FakeConn.log[0]
+        self.assertIn('bytes=%d-'%(9*B),str(first_request))          # and the resume fragment was asked for first
     def test_prefetching_the_same_video_twice_fetches_it_once(self):
         # Build 616 log: a show page loads two or three times per open, so the same file was prefetched twice a moment apart.
         self.filler.prefetch('N',len(DATA));self.filler.prefetch('N',len(DATA));wait(self.filler.done.is_set)

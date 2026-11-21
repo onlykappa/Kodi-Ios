@@ -251,7 +251,9 @@ def run(args=()):
     # No Crew window under the hub any more (owner, 2026-11-20: "no more Crew UI"): ESPN supplies the lists, and Crew's code runs only when a
     # game's page looks for its sources (sports_provider.crew_sources).
     try:
-        page.doModal()
+        import page_cover
+        with page_cover.covering():   # the window under this opaque page stops drawing while it is open
+            page.doModal()
     finally:
         if hasattr(page, 'stop'):
             page.stop.set()

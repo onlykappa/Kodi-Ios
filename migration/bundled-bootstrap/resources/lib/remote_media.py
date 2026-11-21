@@ -379,7 +379,9 @@ class Broker:
         broker.current.connect_timeout=min(20,FIRST_ANSWER)
         broker.current.opening_deadline=broker.opened+FIRST_ANSWER
         broker.current.open_blocks=OPEN_BLOCKS
-        threading.Thread(target=prefetch,args=(broker.current,),kwargs={'blocks':OPEN_BLOCKS,'extra':KODI_AHEAD},daemon=True).start()
+        resume=request.get('resume')
+        resume=resume if isinstance(resume,(int,float)) and 0<resume<1 else None
+        threading.Thread(target=prefetch,args=(broker.current,),kwargs={'blocks':OPEN_BLOCKS,'extra':KODI_AHEAD,'resume':resume},daemon=True).start()
        answer={'url':broker.current.media_url,'id':broker.ident,'warmed':warmed}
       elif action=='warm':
        source=request.get('source','')
@@ -487,7 +489,18 @@ class Broker:
    if self.current:self.current.close();self.current=None
 
 
-def prefetch(source,blocks=None,extra=0):
+RESUME_BLOCKS=3   # Continue (owner, build 620 log 80ea6c76: 3.6 s from streams ready to the first picture, the resume seek reading cold): the
+                  # block where playback resumes and its neighbours, asked for with the opening blocks
+
+def resume_blocks(fraction,total,size):
+ """The block indexes around `fraction` of a file of `total` bytes (a guess from time: bitrate varies), or [] when there is no resume point."""
+ try:fraction=float(fraction)
+ except (TypeError,ValueError):return []
+ if not 0<fraction<1 or total<=0 or size<=0:return []
+ at=int(fraction*total)//size;last=(total-1)//size
+ return [i for i in range(at-1,at-1+RESUME_BLOCKS) if 0<i<last]
+
+def prefetch(source,blocks=None,extra=0,resume=None):
  """ISSUE-259: the blocks a converter reads first, fetched once (the size comes with block 0). Failures only mean
  Play on TV reads them itself later."""
  try:
@@ -508,6 +521,7 @@ def prefetch(source,blocks=None,extra=0):
   begins=video_start(cache.data.get(('media',0),b''))
   if begins is not None:first=max(first,begins//size)
   more=[threading.Thread(target=one,args=(i,),daemon=True) for i in range(first,first+extra) if i<last]
+  more+=[threading.Thread(target=one,args=(i,),daemon=True) for i in resume_blocks(resume,total,size)]
   for t in threads:t.start()
   # the opening blocks' requests queue first (the gate only orders waiters; a free place goes to whoever asks first)
   gate=getattr(source,'pieces',None);want=min(PIECES,SPLIT*len(threads))
@@ -606,7 +620,7 @@ def acquire(source,home):
  except Exception:return source,None
 
 
-def for_kodi(source,home,wait=None,clock=time.monotonic):
+def for_kodi(source,home,wait=None,clock=time.monotonic,resume=None):
  """ISSUE-280: the address Kodi's own player should open for a link Umbrella just resolved: the service's cache when
  the link is a remote MKV / AVI / WebM and the service answers, else the link itself (nothing changes then)."""
  if not KODI_PLAYBACK or not eligible(source):return source
@@ -624,7 +638,9 @@ def for_kodi(source,home,wait=None,clock=time.monotonic):
    except Exception:pass
    opening_log('direct',clock()-began,before,reason='previous source never read by Kodi')
    return source
-  answer=_call(endpoint,{'action':'open','source':source,'renewal':umbrella_recovery.selected(source,home),'player':'kodi'},timeout=min(1,FIRST_ANSWER))
+  request={'action':'open','source':source,'renewal':umbrella_recovery.selected(source,home),'player':'kodi'}
+  if isinstance(resume,(int,float)) and 0<resume<1:request['resume']=resume   # Continue: where playback resumes, as a share of the file
+  answer=_call(endpoint,request,timeout=min(1,FIRST_ANSWER))
   target=urllib.parse.urlsplit(answer['url'])
   if target.scheme!='http' or target.hostname!='127.0.0.1':return source
   # A Content-Range header is not video data. Admit only completed opening probes; otherwise preserve direct play.

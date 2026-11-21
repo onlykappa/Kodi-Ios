@@ -54,6 +54,50 @@ def valid(data,size):
   at+=length
  return found and at==end
 
+def fragments(data):
+ """[(time, moof offset)] of the track with the most entries in a validated mfra (the video: one entry per fragment), sorted; [] when unreadable."""
+ best=[]
+ try:
+  at=8;end=len(data)-16
+  while at+8<=end:
+   length,kind=struct.unpack_from('>I4s',data,at)
+   if length<8 or at+length>end:break
+   if kind==b'tfra' and length>=24:
+    version=data[at+8];sizes=struct.unpack_from('>I',data,at+16)[0];count=struct.unpack_from('>I',data,at+20)[0]
+    extra=((sizes>>4)&3)+((sizes>>2)&3)+(sizes&3)+3;wide=16 if version==1 else 8;fmt='>QQ' if version==1 else '>II'
+    rows=[];pos=at+24
+    for _ in range(min(count,100000)):
+     if pos+wide+extra>at+length:break
+     rows.append(struct.unpack_from(fmt,data,pos));pos+=wide+extra
+    if len(rows)>len(best):best=rows
+   at+=length
+ except (struct.error,IndexError):return []
+ return sorted(set(best))
+
+def resume_plan(data,fraction,size,around=6*1024*1024):
+ """Step 3 (owner, build 619 log bb2b3e35: the jump to where a Drive copy was left took 3.5 s, every read cold): [(byte offset, bytes)] Kodi reads
+ first when it resumes at `fraction` of the video, from the copy's own index: the header of the fragment holding that point (and of the one before:
+ a share of the running time is only near a boundary), and the bytes around the point inside that fragment (time and bytes go together closely
+ within one fragment of 6-60 s)."""
+ try:fraction=float(fraction)
+ except (TypeError,ValueError):return []
+ rows=fragments(data)
+ if not 0<fraction<1 or len(rows)<2 or size<=0:return []
+ last=rows[-1][0];gap=last/(len(rows)-1)
+ target=fraction*(last+gap)   # the last fragment lasts about one gap
+ n=max((i for i,row in enumerate(rows) if row[0]<=target),default=0)
+ start,until=rows[n][1],(rows[n+1][1] if n+1<len(rows) else size-len(data))
+ t0,t1=rows[n][0],(rows[n+1][0] if n+1<len(rows) else last+gap)
+ inside=start+int((until-start)*max(0.0,min(1.0,(target-t0)/(t1-t0) if t1>t0 else 0)))
+ plan=[(rows[n-1][1],1)] if n else []
+ plan.append((start,1))
+ first=max(start,inside-around//2);plan.append((first,max(1,min(around,until-first))))
+ return plan
+
+def resume_offsets(data,fraction):
+ """The fragment-start offsets used by resume_plan (tests and logs)."""
+ return [offset for offset,count in resume_plan(data,fraction,1<<62)[:-1]]
+
 class Cache:
  def __init__(self,state_dir,log=lambda text:None,clock=time.monotonic,background=False):
   self.path=Path(state_dir)/FILE;self.log=log;self.clock=clock;self.lock=threading.RLock()
@@ -87,6 +131,10 @@ class Cache:
    if tmp:
     try:os.unlink(tmp)
     except OSError:pass
+ def resume_plan(self,file_id,fraction,size):
+  with self.lock:
+   row=self.entries.get(file_id)
+   return resume_plan(row['data'],fraction,size) if row else []
  def begin(self,file_id,upstream,head=False,front=False):
   with self.lock:
    now=self.clock();current=self.opened.get(file_id)

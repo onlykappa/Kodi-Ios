@@ -246,8 +246,8 @@ def fetch_json(url, timeout=TIMEOUT):
 SNAPSHOT_KEEP = 6 * 3600   # seconds a remembered answer may still be drawn first
 FRESH_DISK = 45            # seconds: an answer on disk this young was written by the service's loop (sports_data) and needs no refresh at all
 REFRESH_SKIP = 10          # a page's own refresh is skipped when the answer on disk is younger than this
-SHOW_SAVED = 600           # owner, build 620 (log 02bd6dd7: every Sports page sat on "Checking..." / "Updating"): a page draws a saved answer up to this old at
-                           # once and the newer one follows in the background; only with nothing saved (or older) does a page wait for ESPN
+SHOW_SAVED = 600           # owner, build 620 (log 02bd6dd7: every Sports page sat on "Checking..." / "Updating"): a saved answer up to this old is drawn as current;
+                           # an older one (up to SNAPSHOT_KEEP) is drawn as remembered. The newer one follows in the background; only with nothing saved does a page wait
 
 
 class EspnProvider:
@@ -425,15 +425,21 @@ class EspnProvider:
             age = self.clock() - snap['at'] if snap else None
             if not block and snap is not None and age < REFRESH_SKIP and not snap.get('remembered'):
                 return
-            if not block and snap is not None and age < SHOW_SAVED:
+            if not block and snap is not None:
+                # Build 621 (owner log 0ee2c2eb: "sports doesn't work at all", a bad network and a 3-hour-old saved answer): an answer under SHOW_SAVED is
+                # drawn as current; an older one (up to SNAPSHOT_KEEP, which _read_disk enforces) is drawn as remembered ("Updating"). Either way the page
+                # shows it now and the fresh one replaces it when ESPN answers; a page waits only when nothing at all is saved.
                 self.snapshot = dict(snap)
-                self.snapshot.pop('remembered', None)   # drawn as the answer; the fresh one replaces it
+                if age < SHOW_SAVED:
+                    self.snapshot.pop('remembered', None)
+                else:
+                    self.snapshot['remembered'] = True
                 self._refresh_later()
                 return
         started = self.clock()
         self._load(force=True)
         if not block:
-            self._log('a page waited %.1f s for ESPN (no saved answer under %d min)' % (self.clock() - started, SHOW_SAVED // 60))
+            self._log('a page waited %.1f s for ESPN (no saved answer)' % (self.clock() - started))
 
     def live_games(self, league=None):
         return sm.filter_league(sm.order_live(self._load()['live']), league)

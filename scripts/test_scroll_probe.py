@@ -63,6 +63,11 @@ class Tests(unittest.TestCase):
         probe,logs=make([9]*10)
         for _ in range(10):probe.tick()
         probe.flush();self.assertIn("9 fps typical",logs[0])
+    def test_a_dialog_on_top_is_the_page_named_by_its_skin_file(self):   # build 621 log 5b1f4222: every Sports line said window 11103
+        info=lambda label:{'Window(13010).Property(xmlfile)':'/var/x/portrait/IOSSportsUpcoming.xml','Window(10000).Property(xmlfile)':'Home.xml'}.get(label,'')
+        self.assertEqual(sp.page(11103,13010,info),(13010,'IOSSportsUpcoming'))
+        self.assertEqual(sp.page(10000,9999,info),(10000,'Home'))          # no dialog: the window itself
+        self.assertEqual(sp.page(10000,0,lambda l:1/0),(10000,''))          # a failing reading never raises
     def test_the_service_starts_it(self):
         text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/service.py').read_text()
         self.assertIn('scroll_probe.watch',text);self.assertIn("System.IdleTime(1)",text)
