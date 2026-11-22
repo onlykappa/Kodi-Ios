@@ -15,6 +15,8 @@ if os.environ.get('LAB_OUTGOING'):
 TRAP = {'proxy_type': lt.proxy_type_t.socks5, 'proxy_hostname': '127.0.0.1', 'proxy_port': 1, 'proxy_peer_connections': True,
         'proxy_tracker_connections': True, 'proxy_hostnames': True, 'force_proxy': True}   # the guard's block: a SOCKS5 proxy nobody listens on, forced (vpn_guard.TRAP)
 RELEASE = {'proxy_type': lt.proxy_type_t.none, 'force_proxy': False}
+if os.environ.get('LAB_PIN_ADDR'):   # the guard's release: libtorrent listens and goes out by the tunnel's own address only
+    RELEASE.update({'listen_interfaces': os.environ['LAB_PIN_ADDR'] + ':6891', 'outgoing_interfaces': os.environ['LAB_PIN_ADDR']})
 trap_from_start = bool(os.environ.get('LAB_TRAP'))
 if trap_from_start:
     settings.update(TRAP)

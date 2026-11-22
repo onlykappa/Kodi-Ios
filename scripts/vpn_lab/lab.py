@@ -81,9 +81,11 @@ def setup():
 
 def route(mode):
     """The phone's IPv4 default route: vpn (through the tunnel), direct (the household router, as after a tunnel failure with no kill switch), killed (blackhole)."""
-    ns('phone', 'ip route del default', check=False)
+    ns('phone', 'ip route flush 0.0.0.0/0', check=False)
     if mode == 'vpn':
-        ns('phone', 'ip route add default via 10.8.0.1 dev utun0')
+        # As on a real phone the physical network's own default route stays in the table (iOS keeps one scoped to each interface); the tunnel's wins by metric.
+        ns('phone', 'ip route add default via 10.8.0.1 dev utun0 metric 10')
+        ns('phone', 'ip route add default via 192.168.1.1 dev eth0 metric 100')
     elif mode == 'direct':
         ns('phone', 'ip route add default via 192.168.1.1 dev eth0')
     elif mode == 'killed':
@@ -148,6 +150,19 @@ def world_log(path):
     return {k: sorted(v) for k, v in out.items()}
 
 
+def probe_pair():
+    """vpn_probe + vpn_guard.decide() in the phone namespace for four situations. Linux binds to the device with SO_BINDTODEVICE (Darwin uses IP_BOUND_IF)."""
+    out = {}
+    def ask():
+        r = ns('phone', 'python3 %s/probe_client.py' % HERE, check=False)
+        return json.loads(r.stdout.strip().splitlines()[-1]) if r.stdout.strip() else {'error': r.stderr[-200:]}
+    route('vpn'); out['vpn_carrying_the_traffic'] = ask()
+    route('direct'); out['helper_tunnel_up_but_default_route_direct'] = ask()   # what LocalDevVPN looks like: a tunnel exists, the route does not use it
+    ns('phone', 'ip link set utun0 down'); out['tunnel_failed_no_kill_switch'] = ask(); ns('phone', 'ip link set utun0 up')
+    route('killed'); out['kill_switch_blackhole'] = ask()
+    return out
+
+
 def scenario(name, work):
     """Returns a dict of observations for one scenario."""
     if name.startswith('ipv6') and not HAVE_V6:
@@ -156,7 +171,7 @@ def scenario(name, work):
         shutil.rmtree(os.path.join(work, f), ignore_errors=True) if f == 'dl' else (os.path.exists(os.path.join(work, f)) and os.unlink(os.path.join(work, f)))
     log = os.path.join(work, 'world.jsonl')
     env_v6 = 'LAB_V6_PEER=1 ' if name.startswith('ipv6') else ''
-    w = popen('peer', '%spython3 %s/world.py %s %s' % (env_v6, HERE, log, work))
+    w = popen('peer', '%spython3 %s/world.py %s %s' % (env_v6, HERE, log, work), out=open(os.path.join(work, 'world.out'), 'w'))
     for _ in range(100):
         if os.path.exists(os.path.join(work, 'ready')): break
         time.sleep(.3)
@@ -167,10 +182,20 @@ def scenario(name, work):
             route('vpn'); cap = Capture('a'); c = run_client(work, 25, out=open(out, 'w')); c.wait(); report['capture'] = cap.stop()
         elif name == 'vpn_up_tcp_only':
             route('vpn'); cap = Capture('a'); c = run_client(work, 20, env='LAB_TCP_ONLY=1', out=open(out, 'w')); c.wait(); report['capture'] = cap.stop()
+        elif name == 'probe_pair':   # the address seen by the default route against the address seen straight out of the physical interface
+            report['probe_pair'] = probe_pair()
+        elif name == 'pinned_to_tunnel_address':   # what the guard sets while verified: listen and outgoing both the tunnel's own address (Elementum accepts an address or a name)
+            route('vpn'); cap = Capture('a'); c = run_client(work, 25, env='LAB_LISTEN=10.8.0.2:6891 LAB_OUTGOING=10.8.0.2', out=open(out, 'w')); c.wait(); report['capture'] = cap.stop()
+        elif name == 'pinned_tunnel_fails':
+            route('vpn'); cap = Capture('a'); c = run_client(work, 40, env='LAB_LISTEN=10.8.0.2:6891 LAB_OUTGOING=10.8.0.2', out=open(out, 'w')); time.sleep(12); report['before'] = cap.stop()
+            ns('phone', 'ip link set utun0 down'); route('direct'); cap = Capture('b'); c.wait(); report['after_failure'] = cap.stop()
         elif name == 'blocked_without_vpn':    # the guard's block while no VPN exists: the household route is the only way out
             route('direct'); cap = Capture('a'); c = run_client(work, 25, env='LAB_TRAP=1', out=open(out, 'w')); c.wait(); report['capture'] = cap.stop()
-        elif name == 'blocked_then_vpn_verified_then_released':
+        elif name == 'blocked_then_vpn_verified_then_released_unpinned':   # the first design: the release restores the wildcard
             route('direct'); cap = Capture('a'); c = run_client(work, 40, env='LAB_TRAP=1 LAB_RELEASE_AT=15', out=open(out, 'w')); time.sleep(13); report['blocked'] = cap.stop()
+            route('vpn'); cap = Capture('b'); c.wait(); report['after_release'] = cap.stop()
+        elif name == 'blocked_then_vpn_verified_then_released':
+            route('direct'); cap = Capture('a'); c = run_client(work, 40, env='LAB_TRAP=1 LAB_RELEASE_AT=15 LAB_PIN_ADDR=10.8.0.2', out=open(out, 'w')); time.sleep(13); report['blocked'] = cap.stop()
             route('vpn'); cap = Capture('b'); c.wait(); report['after_release'] = cap.stop()
         elif name == 'tunnel_fails_then_block':    # the failure is followed by the guard's block (as soon as its next look): what escapes in between is what matters
             route('vpn'); cap = Capture('a'); c = run_client(work, 45, env='LAB_TRAP_AT=22', out=open(out, 'w')); time.sleep(12); report['before'] = cap.stop()
@@ -205,7 +230,7 @@ def scenario(name, work):
     return report
 
 
-ALL = ('blocked_without_vpn', 'blocked_then_vpn_verified_then_released', 'tunnel_fails_then_block', 'vpn_up', 'vpn_up_tcp_only', 'tunnel_fails_no_kill_switch', 'tunnel_fails_with_kill_switch', 'started_before_vpn_no_kill_switch', 'started_before_vpn_kill_switch',
+ALL = ('probe_pair', 'pinned_to_tunnel_address', 'pinned_tunnel_fails', 'blocked_without_vpn', 'blocked_then_vpn_verified_then_released', 'tunnel_fails_then_block', 'vpn_up', 'vpn_up_tcp_only', 'tunnel_fails_no_kill_switch', 'tunnel_fails_with_kill_switch', 'started_before_vpn_no_kill_switch', 'started_before_vpn_kill_switch',
        'ipv6_default_listen', 'ipv6_listen_all', 'outgoing_interface_pinned')
 
 if __name__ == '__main__':

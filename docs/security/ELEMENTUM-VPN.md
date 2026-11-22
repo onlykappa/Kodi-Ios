@@ -1,6 +1,7 @@
 # Elementum and a VPN: source review, lab results and "Require VPN for torrents"
 
 Status: **not claimed protected.** Host evidence only; nothing here was observed on an iPhone. Branch `claude/elementum-vpn-privacy`, base `main` at `cf42c63`.
+**Headline finding (lab, libtorrent 2.1.1 on Linux): a wildcard-listening session sends tracker and uTP traffic out of the physical interface even with a VPN up as the default route. The guard therefore pins libtorrent to the tunnel's address while verified.**
 No credentials, public addresses, torrent identifiers, captures or private logs are in this document or the repository (the lab uses reserved documentation
 ranges: 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24).
 
@@ -49,65 +50,78 @@ excerpts of Proton's own support pages and must be confirmed on the phone. Apple
 
 ## 3. The lab, and what it shows
 
-`scripts/vpn_lab/` builds five Linux network namespaces (phone, household router, VPN exit, world, remote peer). The phone's default route decides the path; the remote
-side records the source address of every tracker, DNS and peer connection, and `tcpdump` at the world namespace's two uplinks independently counts what arrived by
-which path. Run as root with `pip install libtorrent`. **The client is libtorrent 2.1.1 from PyPI configured like Elementum (listen wildcard, DHT/LSD/UPnP/NAT-PMP off, announce to all), not the Elementum engine and not libtorrent 2.0.x:** the engine could not be built and run in this session, so these results describe libtorrent's behaviour, not Elementum's. A firewall does not hide anything: the capture is taken at the remote side, and "nothing arrived" is only claimed where the capture shows nothing arrived.
+`scripts/vpn_lab/` builds five Linux network namespaces (phone, household router, VPN exit, world, remote peer). The phone's routing table is the only thing deciding the path,
+as on a phone with a VPN: with the VPN up the tunnel's default route wins by metric **and the physical network's own default route stays in the table** (iOS keeps one
+scoped to each interface). The remote side records the source address of every tracker, DNS, echo and peer connection, and `tcpdump` at the world namespace's two
+uplinks independently counts what arrived by which path. Run as root with `pip install libtorrent`. **The client is libtorrent 2.1.1 from PyPI configured like
+Elementum (wildcard listen, DHT/LSD/UPnP/NAT-PMP off, announce to all), not the Elementum engine and not libtorrent 2.0.x**; the engine could not be built and run in this
+session, so these results describe libtorrent on Linux, not Elementum on an iPhone. No firewall is used: "nothing arrived" is claimed only where the capture shows nothing arrived.
 
-| Scenario | What the remote side saw (summary) |
+**An earlier run of this lab had no physical default route while the tunnel was up and showed a clean result for a plain wildcard session. That model was wrong:
+with the physical default route present, as on a real phone, the same session leaks. Both are in the table; only the second is a fair test.**
+
+| Scenario (realistic routes unless noted) | What the remote side saw |
 |---|---|
-| Tunnel up (uTP, then TCP only) | Tracker, DNS and peer traffic arrived **only** from the VPN exit's address; none on the household path. Download progressed. |
-| Client started while no VPN, no kill switch | DNS, tracker and uTP arrived from the **household** address immediately. (This is the leak the feature exists to prevent.) |
-| Tunnel fails while running, no kill switch | Over the 28 s observed after the failure nothing new arrived by either path; the transfer stalled. libtorrent's tracker and uTP sockets are bound to the tunnel's address, so on Linux they could not use the household route. **This is a property of those sockets on Linux; it was not shown for Darwin/iOS and must not be relied on.** |
-| Tunnel fails, kill switch (blackhole) then reconnect | Nothing escaped while blocked; announces resumed through the exit after reconnect (data resumed slowly). |
-| Started before the VPN, then route switched to VPN (no kill switch) | Leaked to the household address before the switch; after it nothing flowed (stale sockets) until restarted. Order matters: connect the VPN **first**. |
-| Interface pinned (`outgoing_interfaces` = tunnel address) | Same observations as the unpinned tunnel failure. Pinning by name or address needs the tunnel's name or address, which on iOS changes: not used. |
-| **Block applied (forced SOCKS5 proxy nobody listens on + session paused), no VPN, household route** | **Zero packets on either path**: no DNS, no tracker, no peer, no uTP, over 25 s. |
-| Block applied, then lifted with the tunnel up | Zero packets while blocked; after the release all traffic arrived only from the VPN exit and the download ran (6.9 MB in the run). |
-| Tunnel fails then block applied | Nothing arrived by the household path between the failure and the block, and nothing after (see the caveat on the third row). |
-| IPv6 (default listen / `[::]` listen) | **Not run**: the sandbox kernel has no IPv6. Marked unverified. |
+| Tunnel up, wildcard listen (Elementum's default), uTP | **Leak with the VPN on:** the household address reached the tracker (84 packets) and the peer over uTP (386 packets); DNS and part of the tracker traffic came from the exit. libtorrent's per-interface listen socket for the physical interface sends out of that interface, whatever the default route says. |
+| Same, TCP only | Peer connection from the exit, but 68 tracker packets from the household address. |
+| Tunnel fails while running, wildcard, no kill switch | Everything continued from the household address (uTP 439, tracker 82 packets); the download went on. |
+| Tunnel fails, kill switch (blackhole) then reconnect | Nothing arrived while blocked; after reconnect traffic resumed by the exit, with some tracker packets still by the household path. |
+| Started before the VPN, then VPN connected, no kill switch | Household address throughout, including after the VPN came up (sockets stay on the physical interface). Connect the VPN first. |
+| `outgoing_interfaces` = tunnel, listen still wildcard | Peer traffic from the exit, tracker still from the household address (39 then 77 packets). |
+| **Listen and outgoing both pinned to the tunnel's address** | **Zero packets by the household path with the VPN up** (6.9 MB downloaded, tracker/DNS/uTP all from the exit); **when the tunnel then fails (household default route present) zero packets by either path: it fails closed.** |
+| **Block applied (forced SOCKS5 proxy on a closed port + paused session), no VPN, household route** | **Zero packets on either path** (no DNS, tracker, peer or uTP) over 25 s. |
+| Block applied, then released with the pin and the tunnel up | Zero packets while blocked; after release everything arrived only from the exit and the download ran. (Released without the pin, as the first design did, it leaked the household address again: the pin is required.) |
+| Echo probe by the default route and straight out of the physical interface (`vpn_probe`, `SO_BINDTODEVICE`; Darwin would use `IP_BOUND_IF`) | VPN carrying the traffic: default route showed the exit, the physical interface the household address → `verified`. Tunnel up but default route direct (what LocalDevVPN looks like), and tunnel failed: both answers the household address → `blocked: same as direct`. Kill-switch blackhole: both failed → `blocked`. |
+| IPv6 (default listen / `[::]` listen) | **Not run**: the sandbox kernel has no IPv6. Unverified. |
 
-Raw capture files and addresses are not kept.
+Raw captures and addresses are not kept.
 
 ## 4. Feasibility of "Require VPN for torrents"
 
-Options considered:
-
 | Option | Verdict |
 |---|---|
-| Pin libtorrent to the tunnel interface (`listen_interfaces`/`outgoing_interfaces` by name) | Rejected: iOS tunnel names (`utunN`) change per connection and across VPN apps; hard-coding is brittle and the engine would stay pinned to a dead name. |
+| Pin libtorrent by a fixed interface name | Rejected: iOS tunnel names (`utunN`) change per connection and per VPN app. |
+| Pin libtorrent to whatever tunnel address the interface list shows **right now**, set by the guard each time it verifies, removed when it stops | **Adopted.** It is not a hard-coded name; Elementum accepts an address in `listen_interfaces`/`outgoing_interfaces` (`GetInterfaceAddrs` parses an IP first). Lab: no household packets with the VPN up, fail-closed when the tunnel dies. |
 | Read another VPN app's status through NetworkExtension | Not available: an app sees only its own `NEVPNManager` configuration; Network Extension entitlements are not part of the free SideStore provisioning (per Apple's account model; not tested here). |
-| Detect a tunnel-class interface | Cheap and useful as a *necessary* signal; not a proof (LocalDevVPN is one; so is any dead tunnel). |
-| Compare the public address with the home address (the owner's idea) | Adopted as the *second* necessary signal. It proves the phone's default route currently exits somewhere other than home, which LocalDevVPN does not. It does not prove libtorrent's device-bound sockets take the same route, and a tunnel can fail between checks. |
-| Ask the engine itself what address peers see | Not possible without a tracker or peer we control (no infrastructure is deployed or approved). |
-| Block at the engine, not at the button | **Adopted** (section 5): a forced SOCKS5 proxy on a closed local port covers every entry point at once, because libtorrent then makes no direct connection (lab: zero packets), plus `/torrents/pause`. |
+| A tunnel-class interface exists | Necessary, not sufficient. |
+| The address by the default route differs from the address straight out of the physical interface | **Adopted as the test that a VPN really carries the traffic.** It needs no list of home networks, so it holds on any network and rejects LocalDevVPN and a split-tunnelled "on" VPN. A VPN kill switch can close the physical path; then the question fails and the guard falls back to the learned home addresses or a network name you gave (never a pass by itself). |
+| Ask the engine what address peers see | Not possible without a tracker or peer we control (no infrastructure is deployed or approved). |
+| Block at the engine, not at the button | **Adopted:** a forced SOCKS5 proxy on a closed local port covers every entry point at once (lab: zero packets), plus `/torrents/pause`. |
 
-**Conclusion.** Generic detection cannot prove protection. What can be supported is a *fail-closed gate with best-effort verification*: the engine is blocked first and by
-construction, unblocked only after two agreeing checks, re-blocked at the next look when anything changes. There is a gap of up to one look (1 s for the interface list,
-20 s for the address) in which a tunnel can fail while the gate is open. **Only the VPN's own kill switch closes that gap**; the app says so and never shows a green "protected".
+**Conclusion.** Generic detection cannot prove protection, but it is strong enough to be a **gate**, and pinning makes the engine itself unable to use the physical network
+while the gate is open (in the lab). What remains: the guard is a thread inside Kodi that looks at the interface list every second and at the addresses every 10 s, so there
+is a window of up to ~10 s in which a *changed route* is not yet noticed; with the pin, a dead tunnel address stops the engine by itself in that window (lab), which is the
+Kodi-side kill switch. The VPN's own kill switch stays the protection for everything else. The app never shows "protected", only "VPN address check passed".
 
 ## 5. What was implemented
 
+- `resources/lib/vpn_probe.py`: the two-way address question (`SO_BINDTODEVICE` on Linux for the lab, `IP_BOUND_IF` on Darwin, whose effect on iOS is **unverified**).
 - `resources/lib/vpn_guard.py`: pure rules plus a `Guard` with everything injected; `service.py` runs it from startup (`vpn_guard_loop`).
-- Setting `Require VPN for torrents` (Settings › Transfer settings › Privacy; off by default), optional "name of my VPN network" words, and the address-check services.
-- States: `blocked` (no tunnel / no answer / same address as home / unexpected network / no home address learned / network changed) and `verified`
-  ("VPN address check passed", deliberately not "protected"). Home addresses are learned only while no tunnel interface exists and kept as salted hashes in the profile folder.
-- Block: Elementum's settings are replaced by the trap (`proxy_enabled`, SOCKS5 `127.0.0.1:1`, forced for peers, trackers and names, `use_proxy_http` off), the engine is
-  reloaded and its session paused. The owner's own proxy settings are saved first and restored on release, when the feature is turned off, and after a restart. Progress is kept: pausing a session does not remove torrents.
-- `elementum_download.follow` refuses to contact the engine while blocked and shows "Connect your VPN to continue"; the debrid cloud route is not gated because it makes no torrent connection. Direct entries to the engine (plugin menus, API calls, restored or seeding torrents) meet the engine-level block; they get the rate-limited notification, not a dialog.
-- LocalDevVPN: not recognised by name or range; it fails the address comparison (its public address is unchanged) or, with no home address known, fails `no_home`.
-- Normal Kodi playback and AirPlay do not use libtorrent and are untouched (the trap affects only the torrent engine; the add-on's HTTP stays direct).
+- Setting `Require VPN for torrents` (Settings › Transfer settings › Privacy; off by default), optional "name of my VPN network" words, address-check services (two must agree).
+- Sequence: feature on → **block first** (pause the session, then the closed-port proxy, reload); every second the interface list is read; a change in tunnels or link kind blocks at once;
+  with a tunnel present the address is asked by the default route and straight out of each physical interface; **two agreeing checks 4 s apart** lift the block: the owner's own proxy settings
+  are put back, listen/outgoing are pinned to the tunnel's address(es), the engine reloaded and resumed; **while verified a check every 10 s (one service)**; any failed or
+  differing check blocks again. Turning the feature off restores every setting the guard touched (the owner's originals are saved first, kept across restarts). Progress is kept: pausing a session removes nothing.
+- Notifications: "Torrents stopped: Connect your VPN to continue…" (and the other reasons, in words) and once "VPN is on. Torrents are running again."; seamless when the VPN is simply on.
+- `elementum_download.follow` refuses to contact the engine while blocked and shows the dialog; the debrid cloud route is not gated because it makes no torrent connection.
+  Other entries (plugin menus, API calls, restored or seeding torrents) meet the engine-level block.
+- LocalDevVPN: not recognised by name or range; the two-way question gives equal answers, so it is `blocked`.
+- Ordinary Kodi playback and AirPlay do not use libtorrent and are untouched.
 
-Tests: `scripts/test_vpn_guard.py` (26 tests, registered in `import-review.yml`): rules, the whole sequence (VPN up, no VPN, LocalDevVPN-like tunnel, unexpected failure, deliberate disconnect, Wi-Fi to cellular, VPN replacement, restart with saved state, feature turned off, engine restart, no repeated reconfigure, hashed storage), the gated entry points. These test the code's decisions and its writes to Elementum's settings and API, **not** an iPhone's network.
+Tests: `scripts/test_vpn_guard.py` (37, registered in `import-review.yml`) cover the rules and the whole sequence (VPN up on an unseen network, no VPN, a helper tunnel on an unseen network, a tunnel that
+stays but stops carrying traffic, unexpected failure, deliberate disconnect, Wi-Fi to cellular, VPN replacement and re-pinning, restart with saved state, feature off undoing
+proxy and pin, engine restart, no repeated reconfigure, hashed storage, the gated entry points, the probe's interface options). They test the code's decisions and its writes to Elementum's settings and API,
+**not** an iPhone's network.
 
 ## 6. Limits and open items (do not call this protected)
 
-- The real engine was not run: the trap's effect on **Elementum 0.1.114 / libtorrent 2.0.x on iOS** is shown only for libtorrent 2.1.1 on Linux. Elementum applies the proxy keys as read in `service.go`; whether the add-on's settings write is picked up by `/reload` on the phone is unverified.
-- A short window of up to ~20 s exists between address checks; a failing tunnel and a replaced VPN are noticed at the next interface change (1 s) or check.
-- libtorrent's own sockets are not asked what they see; on iOS they might choose a physical interface when a tunnel changes. The block, not the check, is what protects, and only while the guard runs (the guard is a thread inside Kodi: if Kodi is suspended or killed while the door is open, nothing re-closes it until the next launch; the engine dies with Kodi, but a background-running engine with the VPN lost is exactly the case for the VPN's kill switch).
-- Two public address-echo services are asked (defaults in the setting) and see the phone's current public address, with or without the VPN.
-- The guard needs Elementum installed to write the trap; without it nothing runs and nothing is blocked.
-- IPv6 untested; DNS and DHT only observed in the lab (zero packets when blocked; exit only when open).
-- A first run with the VPN already on cannot learn the home address: turn the VPN off once, or name the VPN's network in the setting.
+- The real engine was not run: the trap and pin are shown only for libtorrent 2.1.1 on Linux. That Elementum applies them on `/reload` through the add-on's settings is read from source, not observed.
+- Whether `IP_BOUND_IF` to the physical interface bypasses a running VPN on iOS (and what a VPN kill switch does to it) is the key unknown for the two-way question; if iOS refuses or the kill switch closes it, the guard needs a learned home address or a network name (the setting) instead.
+- A window of up to ~10 s remains between address checks (1 s for interface changes). The pin closes most of it in the lab; the lab is not iOS.
+- On iOS libtorrent may enumerate more than IPv4 interfaces; the pin names only IPv4 tunnel addresses, so IPv6 is not used while pinned. IPv6 was not tested.
+- Two public address-echo services are asked and see the phone's current public address, with or without the VPN; the direct question goes to the first only.
+- The guard needs Elementum installed, and Kodi running: it is a thread inside Kodi.
+- A first run with the VPN already on and the physical path closed by the VPN cannot learn a home address: name the VPN's network in the setting, or turn the VPN off once.
 
 ## 7. Phone checks (not done; each is unverified until you run it)
 

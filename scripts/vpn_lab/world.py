@@ -47,8 +47,21 @@ class Tracker(http.server.BaseHTTPRequestHandler):
         self.send_response(200); self.send_header('Content-Length', str(len(out))); self.end_headers(); self.wfile.write(out)
 
 
-class V6Tracker(http.server.HTTPServer):
-    address_family = socket.AF_INET6
+class Echo(http.server.BaseHTTPRequestHandler):   # what an address-echo service does: says which address it sees
+    def log_message(self, *a): pass
+    def do_GET(self):
+        note('echo', self.client_address[0])
+        out = json.dumps({'ip': self.client_address[0]}).encode()
+        self.send_response(200); self.send_header('Content-Length', str(len(out))); self.end_headers(); self.wfile.write(out)
+
+
+import socketserver
+
+
+class Server(http.server.ThreadingHTTPServer):
+    def server_bind(self):   # HTTPServer.server_bind asks DNS for the host's name, which can stall for seconds in a namespace with no resolver
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[0], self.server_address[1]
 
 
 def dns():
@@ -63,7 +76,9 @@ def dns():
 
 def main():
     make_torrent()
-    threading.Thread(target=lambda: http.server.ThreadingHTTPServer((PEER, 6969), Tracker).serve_forever(), daemon=True).start()
+    servers = [Server((PEER, 6969), Tracker), Server((PEER, 8080), Echo)]   # bound before `ready` is written
+    for server in servers:
+        threading.Thread(target=server.serve_forever, daemon=True).start()
     threading.Thread(target=dns, daemon=True).start()
     ses = lt.session({'listen_interfaces': ('%s:6881,[%s]:6881' % (PEER, PEER6)) if os.path.exists('/proc/sys/net/ipv6') else '%s:6881' % PEER, 'enable_dht': False, 'enable_lsd': False, 'enable_upnp': False,
                       'enable_natpmp': False, 'upload_rate_limit': 300000, 'alert_mask': lt.alert.category_t.all_categories})

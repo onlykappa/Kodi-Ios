@@ -53,7 +53,7 @@ def run():
  # Require VPN for torrents (owner, 2026-11-22; vpn_guard.py): when the setting is on, Elementum's torrent networking is blocked first, then allowed only while a VPN is verified.
  # Started before the slow setup stages so the block is in place early; the loop looks at the interface list every second and at the public address every few seconds.
  def vpn_guard_loop():
-  import urllib.request,cache_tune,vpn_guard
+  import urllib.request,cache_tune,vpn_guard,vpn_probe
   addon=xbmcaddon.Addon()
   def engine_settings():
    if not xbmc.getCondVisibility('System.HasAddon(plugin.video.elementum)'):return None
@@ -75,7 +75,8 @@ def run():
   store=vpn_guard.Store(str(profile/'addon_data'/'service.kodi.ios.bootstrap'/'vpn_guard.json'))
   guard=vpn_guard.Guard(store,lambda:addon.getSettingBool('require_vpn'),lambda:words(xbmcaddon.Addon().getSetting('vpn_expected')),
    lambda:words(xbmcaddon.Addon().getSetting('vpn_echo')),cache_tune.interfaces,lambda table:cache_tune.link_kind(table=table),get,(Settings(0),Settings(1)),call,publish,
-   lambda text:xbmcgui.Dialog().notification('Torrents stopped',text,xbmcgui.NOTIFICATION_WARNING,6000),log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+   lambda title,text:xbmcgui.Dialog().notification(title,text,xbmcgui.NOTIFICATION_WARNING if title=='Torrents stopped' else xbmcgui.NOTIFICATION_INFO,6000),
+   log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),direct=lambda url,interface,timeout:vpn_probe.get(url,interface,timeout),physical=vpn_probe.physical)
   while not monitor.waitForAbort(vpn_guard.WATCH_EVERY):
    try:
     addon=xbmcaddon.Addon();guard.step()
