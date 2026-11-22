@@ -23,6 +23,10 @@ def event(eid, when, state, away, home, period=0, clock='', kind='STATUS_SCHEDUL
                                                        'competitors': [home, away]}]}
 
 
+def _epoch_of(text):
+    return se._epoch(text)
+
+
 def body(*events):
     return {'leagues': [{'name': 'x'}], 'events': list(events)}
 
@@ -55,6 +59,23 @@ class Parse(unittest.TestCase):
         g = self.go('NCAAF', [ev])[0][0]
         self.assertNotIn('ball', g)
 
+    def test_a_race_weekend_is_live_while_its_race_is_in_progress(self):
+        """Owner, 2026-11-21: "it says there is no f1 streams and there is? vegas is rn". ESPN's F1 event status is FINAL from the first practice while the
+        Race competition is IN PROGRESS (the real answer of that evening)."""
+        def comp(kind,date,state):
+            return {'type':{'abbreviation':kind},'date':date,'status':{'type':{'state':state}}}
+        def weekend(race_state,qual_state='post'):
+            return {'id':'600','name':'Heineken Las Vegas Grand Prix','date':'2026-11-20T00:30Z','status':{'type':{'state':'post','name':'STATUS_FINAL'}},
+                    'competitions':[comp('FP1','2026-11-20T00:30Z','post'),comp('Qual','2026-11-21T04:00Z',qual_state),comp('Race','2026-11-22T04:00Z',race_state)]}
+        entry=next(e for e in se.LEAGUES if e[0]=='F1')
+        run=lambda ev:se.parse(entry[0],entry[1],entry[2],entry[4],entry[5],body(ev),NOW)
+        live,up,done=run(weekend('in'))
+        self.assertEqual((len(live),len(up),done),(1,0,0));self.assertEqual((live[0]['league'],live[0]['title'],live[0]['clock'],live[0]['state']),('F1','Heineken Las Vegas Grand Prix','Race','live'))
+        live,up,done=run(weekend('pre',qual_state='in'));self.assertEqual((len(live),live[0]['clock']),(1,'Qualifying'))      # qualifying on: the weekend is live
+        live,up,done=run(weekend('post'));self.assertEqual((len(live),len(up),done),(0,0,1))                                    # every session over: finished
+        far=weekend('pre');far['competitions'][1]['status']['type']['state']='post'
+        live,up,done=se.parse(entry[0],entry[1],entry[2],entry[4],entry[5],body(far),_epoch_of('2026-11-21T05:00Z'));self.assertEqual((len(live),len(up),done),(0,1,0))   # the race still to come: upcoming at ITS time
+        self.assertEqual(up[0]['start'],_epoch_of('2026-11-22T04:00Z'))
     def test_a_live_nba_game_has_score_clock_and_what_is_left(self):
         live, up, done = self.go('NBA', [event('1', '2025-11-16T17:00Z', 'in', team('IND', 'Indiana Pacers', '88', False), team('PHI', 'Philadelphia 76ers', '91'),
                                                 period=3, clock='8:41', kind='STATUS_IN_PROGRESS')])

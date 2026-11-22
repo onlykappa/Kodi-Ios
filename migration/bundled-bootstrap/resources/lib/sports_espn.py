@@ -140,6 +140,15 @@ def _person(name):
             'aliases': [name] if name else []}
 
 
+SESSIONS = {'FP1': 'Practice 1', 'FP2': 'Practice 2', 'FP3': 'Practice 3', 'Qual': 'Qualifying', 'SQ': 'Sprint qualifying', 'Sprint': 'Sprint', 'Race': 'Race'}
+
+
+def _session_name(competition):
+    """The session of a race weekend that is on ("Race", "Qualifying"), or '' when there is none."""
+    abbreviation = ((competition or {}).get('type') or {}).get('abbreviation') or ''
+    return SESSIONS.get(abbreviation, abbreviation if abbreviation and len(abbreviation) <= 16 else '')
+
+
 def parse_events(code, name, sport, joiner, kind, body, now):
     """(live, upcoming, finished) for a league whose events are not two-team games: golf and F1 (the event's title alone) and UFC (the card's main
     event: the last fight listed, its two fighters). A tournament that began and is not over is live (its round is the clock)."""
@@ -150,6 +159,19 @@ def parse_events(code, name, sport, joiner, kind, body, now):
             state = (status.get('type') or {}).get('state')
             start = _epoch(event.get('date'))
             comps = event.get('competitions') or [{}]
+            session = None
+            if kind == 'event' and state in ('post', 'pre'):
+                # A race weekend (owner, 2026-11-21: "it says there is no f1 streams and there is? vegas is rn"): ESPN's event status is FINAL from the first practice
+                # (the event's date is the first session's) while its Race competition is IN PROGRESS, so the weekend was counted as finished and never listed.
+                # The sessions decide: one in progress makes the event live, one still to come (with the earlier ones done) makes it upcoming at that session's time.
+                states = [(((c.get('status') or {}).get('type') or {}).get('state'), c) for c in comps]
+                if state == 'post':
+                    found = next((c for st, c in states if st == 'in'), None)
+                    coming = next((c for st, c in states if st == 'pre'), None)
+                    if found is not None:
+                        state, session = 'in', found
+                    elif coming is not None and _epoch(coming.get('date')) is not None:
+                        state, session, start = 'pre', coming, _epoch(coming.get('date'))
             if state not in ('pre', 'in', 'post') or start is None:
                 continue
             if state == 'post':
@@ -169,7 +191,7 @@ def parse_events(code, name, sport, joiner, kind, body, now):
                     'sources': [], 'path': path_of(code), 'venue': _venue((comps[0] or {}).get('venue')), 'title': title}
             if state == 'in':
                 period = (comps[0].get('status') or {}).get('period') or status.get('period')
-                game['clock'] = ('Round %s' % period) if kind == 'event' and period and sport == 'Golf' else 'Live'
+                game['clock'] = ('Round %s' % period) if kind == 'event' and period and sport == 'Golf' else _session_name(session) or 'Live'
                 game['left'] = None
                 live.append(game)
             elif start >= now - 600:

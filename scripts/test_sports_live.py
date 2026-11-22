@@ -166,6 +166,21 @@ class DarkCrests(unittest.TestCase):
         self.assertIsNone(sports_logos.brightness(b'\x89PNG not really'))
 
 
+class EventRow(unittest.TestCase):
+    """Owner, 2026-11-21: Formula 1 (the Las Vegas race) was on and not listed. An event has one title and no two teams: its row says the title and the session."""
+    def test_an_event_without_a_second_side_carries_its_title(self):
+        game={'id':'espn:F1:600','league':'F1','league_name':'Formula 1','sport':'Motorsport','state':'live','start':0,'sources':[],'clock':'Race','title':'Heineken Las Vegas Grand Prix',
+              'away':{'name':'Heineken Las Vegas Grand Prix','short':'Heineken Las Vegas Grand Prix','code':'F1','score':None},'home':{'name':'','short':'','code':'','score':None}}
+        p=ctl.game_props(1,game,True)
+        self.assertEqual((p['g.1.et'],p['g.1.clock'],p['g.1.h.name'],p['g.1.gn']),('Heineken Las Vegas Grand Prix','Race','','Formula 1'))
+        two=ctl.game_props(1,dict(game,home={'name':'B','short':'B','code':'B','score':1},away={'name':'A','short':'A','code':'A','score':2}),True)
+        self.assertEqual(two['g.1.et'],'')                                                  # a two-team game never shows the event row
+    def test_the_page_draws_the_event_row_only_when_there_is_no_home_team(self):
+        xml=lp.page(portrait)
+        self.assertIn('String.IsEmpty(Window().Property(g.1.h.name))',xml);self.assertIn('Window().Property(g.1.et)',xml)
+        self.assertIn('!String.IsEmpty(Window().Property(g.1.h.name))',xml)               # and the two-team layout only when there is one
+
+
 class Grouping(unittest.TestCase):
     """Owner, 2026-11-21: NFL games with NFL games, NBA with NBA; a header (logo, name, chevron) over each league's first game; live games only."""
     def game(self, league, n, **kw):

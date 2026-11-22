@@ -101,13 +101,17 @@ def head_row(p, g):
     w = p.WIDTH - 2 * PAD
     P, key = u.P, 'g.%d.' % g
     body = p.image(PAD, 0, w, 2, p.MEDIA + 'white.png', LINE, '<visible>%s</visible>' % u.neg(u.has(key + 'gn')))   # a hairline between rows, none under a header
-    body += '<control type="group"><left>%d</left><top>0</top><width>%d</width><height>%d</height>' % (PAD, w, ROW_H)
+    body += '<control type="group"><left>%d</left><top>0</top><width>%d</width><height>%d</height><visible>%s</visible>' % (PAD, w, ROW_H, u.has(key + 'h.name'))
     body += _team(p, key + 'a.', 0, 54)
     body += _team(p, key + 'h.', w - NAME_W, w - COL + 188)
     body += u.text(p, 188, SCORE_Y, SCORE_W, SCORE_H, P(key + 'a.score'), 'p_score', p.WHITE, 'center')
     body += u.text(p, w - COL, SCORE_Y, SCORE_W, SCORE_H, P(key + 'h.score'), 'p_score', p.WHITE, 'center')
     body += _clock_row(p, key, 64, u.has(key + 'dn')) + _clock_row(p, key, 89, u.neg(u.has(key + 'dn'))) + _detail_row(p, key)
     body += '</control>'
+    # An event with no second side (a Formula 1 weekend, a golf tournament): its title and the session that is on, centred (owner, 2026-11-21: Vegas was on and F1 was missing)
+    body += ('<control type="group"><left>%d</left><top>0</top><width>%d</width><height>%d</height><visible>%s</visible>' % (PAD, w, ROW_H, u.neg(u.has(key + 'h.name')))
+             + u.text(p, 0, 46, w, 80, P(key + 'et'), 'p_h3', p.WHITE, 'center')
+             + u.text(p, 0, 132, w, 60, P(key + 'clock'), 'p_pill', p.GREY, 'center') + '</control>')
     body += ('<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><label></label>'
              '<texturefocus colordiffuse="18FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>') % (CARD0 + g - 1, PAD, w, ROW_H, p.MEDIA)
     return u.group(p, ROW_H, body, u.has(key + 'a.name'))

@@ -76,7 +76,7 @@ def grouped(games):
 
 def _empty_game(g):
     props = {}
-    for k in ('id', 'clock', 'ball', 'dn', 'yd', 'rz', 'gn', 'gs', 'hp', 'gl'):
+    for k in ('id', 'clock', 'ball', 'dn', 'yd', 'rz', 'gn', 'gs', 'hp', 'gl', 'et'):
         props['g.%d.%s' % (g, k)] = ''
     for t in 'ah':
         for k in ('name', 'short', 'score', 'crest'):
@@ -94,6 +94,8 @@ def game_props(g, game, first=False):
         props.update({'g.%d.%s.name' % (g, t): team.get('name') or '', 'g.%d.%s.crest' % (g, t): team.get('crest') or '',
                       'g.%d.%s.short' % (g, t): team_label(team),
                       'g.%d.%s.score' % (g, t): '' if team.get('score') is None else str(team['score'])})
+    if not home.get('name'):   # a race weekend, a tournament: one title, no two teams (Formula 1, golf): the row draws the title and the session
+        props['g.%d.et' % g] = game.get('title') or away.get('name') or ''
     props['g.%d.dn' % g] = game.get('detail') or ''                           # football: "2nd & 10"
     props['g.%d.yd' % g] = game.get('yard') or ''                             # football: "WVU 45"
     props['g.%d.rz' % g] = 'true' if game.get('redzone') and game.get('yard') else ''   # inside the 20: the yard line is red
