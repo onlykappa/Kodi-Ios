@@ -192,6 +192,10 @@ def log_text(line):
   return '[URL redacted]'
  return diagnostics.redact(re.sub(r'https?://[^\s\"\']+',stream,str(line)))
 ENDED=('player: closed','player: stopped')
+def cast_ended():
+ try:
+  import cast_cache;cast_cache.SEEK.disarm()   # a TV seek no longer starts the fill (the cast is over)
+ except Exception:pass
 def mark_busy(window,now):window.setProperty(BUSY,'%.0f'%now)
 def clear_busy(window):window.setProperty(BUSY,'')
 # Roadmap 1G.3: Play on TV has paused Kodi and is starting. Kodi's file cache keeps reading ahead of a paused video
@@ -242,7 +246,10 @@ def activity(lines,window,now):
  try:
   import slowdown;slowdown.note_served(lines,now)
  except Exception:pass
- if any(end in line for line in lines for end in ENDED) and not any('start:' in line for line in lines):clear_busy(window);clear_serve(window)
+ try:
+  import cast_cache;cast_cache.DIAG.feed(lines);cast_cache.SEEK.feed(lines)   # the 30 s line of the cast diagnostics (no URL, id or token); a TV seek starts the fill there
+ except Exception:pass
+ if any(end in line for line in lines for end in ENDED) and not any('start:' in line for line in lines):clear_busy(window);clear_serve(window);window.clearProperty('KodiIOS.CastCushion');cast_ended()
  else:
   mark_busy(window,now)
   # A TV fed by the phone's server keeps its mark while it asks for the video (its GET lines).

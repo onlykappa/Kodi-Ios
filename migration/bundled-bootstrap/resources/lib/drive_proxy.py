@@ -601,6 +601,35 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header('Content-Length', '0')
         self.end_headers()
 
+    def _cushion_request(self):
+        """GET /cushion/<file id>/<name>?at=<byte>: Play on TV is about to start reading this file from about byte `at`. Starts (or moves) the filler there and
+        answers with how many bytes in a row are already on the phone from that point, as JSON {"ahead": bytes, "state": "..."}: the app waits for a
+        cushion before it tells the TV to start (owner log f93a3233: the TV began after one segment and starved at 40 s). No ids and no links in the state."""
+        split = urllib.parse.urlsplit(self.path)
+        parts = split.path.split('/')
+        file_id = urllib.parse.unquote(parts[2]) if len(parts) >= 3 else ''
+        body, code = {'ahead': 0, 'state': 'no cache'}, 404
+        try:
+            if file_id and self.filler:
+                info = self._size(file_id)
+                at = urllib.parse.parse_qs(split.query).get('at', ['0'])[0]
+                if info:
+                    size = info[0]
+                    position = max(0, min(size - 1, int(at))) if at.isdigit() else 0
+                    self.filler.want(file_id, size, position)
+                    need = urllib.parse.parse_qs(split.query).get('need', [''])[0]
+                    body, code = {'ahead': self.filler.ahead_bytes(file_id), 'state': self.filler.state(), 'size': size}, 200
+                    if need.isdigit():
+                        body['ready'] = self.filler.cushion_ready(file_id, int(need))   # the picture's cushion AND every other followed stretch's (audio)
+        except Exception:
+            body, code = {'ahead': 0, 'state': 'error'}, 500
+        data = json.dumps(body).encode()
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def _warm_request(self):
         """GET /warm/<file id>/<name>: the page of this title opened; read its start and end now (roadmap 1A.4)."""
         parts = urllib.parse.urlsplit(self.path).path.split('/')
@@ -612,6 +641,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         started = time.time()
+        if self.path.startswith('/cushion/'):
+            return self._cushion_request()
         if self.path.startswith('/warm/'):
             self._warm_request()
             return
@@ -701,6 +732,15 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
         super().handle_error(request, client_address)
 
 
+def filler_state():
+    """The fillers' one-line state for the cast diagnostics ('filler idle', 'filler on 1 file(s), 120 MB ahead'); '' with no cache."""
+    for server in CURRENT:
+        filler = server.RequestHandlerClass.filler
+        if filler:
+            return filler.state()
+    return ''
+
+
 def clear_cache():
     """Playback stopped: drop the playback cache (the movie blocks on the phone) and stop the fillers."""
     for server in CURRENT:
@@ -714,7 +754,7 @@ def clear_cache():
             handler.blocks.size.clear()
 
 
-def start(token, connect=None, port=0, hold=None, state_dir=None, log=lambda text: None, cache_dir=None, wifi_ok=None):
+def start(token, connect=None, port=0, hold=None, state_dir=None, log=lambda text: None, cache_dir=None, wifi_ok=None, pace=None):
     """Start the proxy on 127.0.0.1; returns (server, port). token(force) -> bearer token."""
     stats = Stats()
     indices = None
@@ -727,6 +767,7 @@ def start(token, connect=None, port=0, hold=None, state_dir=None, log=lambda tex
         import drive_cache
         blocks = drive_cache.DiskBlocks(cache_dir, BLOCK, log=log)
         filler = drive_cache.Filler(blocks, Upstream(token, connect, log=log), BLOCK, Tee, allowed=wifi_ok or (lambda: True), log=log)
+        filler.pace = pace   # cast_cache.Pacing: rests while a TV is fed and its cushion is full
     handler = type('DriveProxyHandler', (Handler,), {'upstream': upstream, 'sizes': {}, 'filler': filler,
                                                      'warm': Warm(), 'blocks': blocks, 'stats': stats, 'hold': staticmethod(hold) if hold else None,
                                                      'indices': indices})

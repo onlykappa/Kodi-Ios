@@ -79,6 +79,44 @@ class Cached(base.ProxyBase):
         self.assertEqual(list(Path(self.folder).rglob('*.blk')),[]);self.assertFalse(self.handler.blocks.has('F1',len(DATA),0))
         time.sleep(0.3);self.assertEqual(list(Path(self.folder).rglob('*.blk')),[])   # and the filler does not put them back
 
+class FillerForTheTv(unittest.TestCase):
+    """Owner log f93a3233 (build 657, a 7.5 GB Drive episode cast to a TV): no line said whether the filler ran or why it did not."""
+    def setUp(self):
+        self.small=dp.BLOCK;dp.BLOCK=B;self.addCleanup(setattr,dp,'BLOCK',self.small)
+        self.tmp=tempfile.TemporaryDirectory(ignore_cleanup_errors=True);self.addCleanup(self.tmp.cleanup);base.FakeConn.log=[];base.FakeConn.expired=set()
+        self.lines=[]
+    def make(self,cap=None,free=None,allowed=lambda:True):
+        store=dc.DiskBlocks(os.path.join(self.tmp.name,'c'),B,cap_bytes=cap or dc.CAP_BYTES)
+        up=dp.Upstream(lambda force:'old',base.FakeConn)
+        return store,dc.Filler(store,up,B,dp.Tee,allowed=allowed,cap_bytes=cap or dc.CAP_BYTES,free=free or (lambda:10**12),log=self.lines.append)
+    def test_a_decline_is_said_once_with_its_reason(self):
+        store,filler=self.make(allowed=lambda:False)
+        for _ in range(5):filler.want('FILE0001',len(DATA),0)
+        self.assertEqual([l for l in self.lines if 'not filling' in l],['Kodi iOS Drive cache: not filling FILE0001 (not on Wi-Fi)'])
+        self.lines.clear();store,filler=self.make(free=lambda:3*1024**3)
+        for _ in range(5):filler.want('FILE0002',8*1024**3,0)            # a 7.5 GB-class file: the cap (3 GB) plus the margin (2 GB) must be free
+        text=[l for l in self.lines if 'not filling' in l];self.assertEqual(len(text),1);self.assertIn('free space: 3072 MB free, 5120 MB needed',text[0])
+    def test_a_started_filler_says_how_far_ahead_it_works(self):
+        store,filler=self.make(cap=8*B)
+        filler.want('FILE0003',len(DATA),0);self.assertTrue(wait(filler.done.is_set))
+        self.assertTrue(any('filling FILE0003 from 0 MB, a window of' in l for l in self.lines),self.lines)
+        store2,filler2=self.make();filler2.want('FILE0004',len(DATA),0);self.assertTrue(wait(filler2.done.is_set))
+        self.assertTrue(any('filling FILE0004 from 0 MB, the whole file' in l for l in self.lines),self.lines)
+    def test_a_big_file_gets_a_window_of_a_third_of_the_cap(self):
+        store,filler=self.make()
+        self.assertEqual(filler.window_blocks(7727*1024**2,7727*16)*B,min(dc.CAP_BYTES,max(dc.CHUNK_BLOCKS*B,dc.CAP_BYTES//dc.WINDOW_DIVISOR)))   # 1 GB at 64 KB blocks
+        self.assertEqual(filler.window_blocks(len(DATA),16),16)           # a small file: all of it
+    def test_ahead_counts_the_blocks_in_a_row_from_the_readers_position(self):
+        store,filler=self.make()
+        for n in (3,4,5,6,9):store.put('F',len(DATA),n,DATA[n*B:(n+1)*B])
+        filler.jobs['F']={'size':len(DATA),'at':3,'cursors':[3],'turn':0,'stop':True,'generation':store.generation}
+        self.assertEqual(filler.ahead_bytes('F'),4*B)                     # blocks 3-6, then a gap
+        self.assertEqual(filler.ahead_bytes('other'),0)
+        self.assertEqual(filler.state(),'filler on 1 file(s), 0 MB ahead');filler.stop_all();self.assertEqual(filler.state(),'filler idle')
+    def test_the_state_line_carries_no_file_id(self):
+        store,filler=self.make();filler.jobs['SECRETID']={'size':len(DATA),'at':0,'cursors':[0],'turn':0,'stop':True,'generation':store.generation}
+        self.assertNotIn('SECRETID',filler.state())
+
 class Filler(unittest.TestCase):
     def setUp(self):
         self.small=dp.BLOCK;dp.BLOCK=B;self.addCleanup(setattr,dp,'BLOCK',self.small)
