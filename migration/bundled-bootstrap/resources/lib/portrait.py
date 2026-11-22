@@ -2271,7 +2271,11 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
      if len(embedded)!=len(flags):return None
      return next((flags[n] for n,s in enumerate(embedded) if s.get('index')==index),None)
     said=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
-    known=subtitle_memory.known_from(read,xbmc.getInfoLabel('VideoPlayer.Title'))
+    try:
+     import remote_media
+     link=remote_media.original(player.getPlayingFile(),xbmcgui.Window(10000))
+    except Exception:link=None
+    known=subtitle_memory.known_from(read,xbmc.getInfoLabel('VideoPlayer.Title'),link=link)
     result=subtitle_memory.at_start(root,xbmc.getInfoLabel,player.getPlayingFile(),lambda path:player.setSubtitles(path),lambda on:player.showSubtitles(on),current,zero,said,known)
     if result=='remembered':return   # the viewer's own subtitle is on again
     # No usable subtitle in the viewer's language (none, only a forced track, or cues with no length) and one is wanted: fetch it as the menu's button does (auto_subtitles.py).

@@ -69,7 +69,7 @@ class Tests(unittest.TestCase):
   selected=router.automatic_source([source(),{'addon':'Independent','play':'independent-value'}])
   with patch.object(router,'play',side_effect=InterruptedError()),patch.object(sports_jet,'play_one') as played:
    self.assertFalse(sports_jet.play(selected,lambda s:None));played.assert_not_called()
- def exercise(self,ready=False,stopped=False,select=False,all_failed=False,replaced=False,http_error=False,frozen=False,takeover=False,timeout=.6,slow_play=False):
+ def exercise(self,ready=False,stopped=False,select=False,all_failed=False,replaced=False,http_error=False,frozen=False,takeover=False,timeout=.6,slow_play=False,late_stop=False,sources=3):
   state={'now':0,'entries':[],'clears':0,'stops':0,'prepared':[]};logs=[];props={}
   class Player:
    def play(self,playlist,**kwargs):
@@ -94,6 +94,8 @@ class Tests(unittest.TestCase):
    if ready or (http_error and state.get('advanced',False)):state['player'].onAVStarted()
    if http_error and not state.get('advanced',False):state['player'].onPlayBackError()
    if stopped:state['player'].onPlayBackStarted();state['player'].onPlayBackStopped()
+   if late_stop and state['now']>=state.get('late_after',3.2) and state.get('late_stops',0)<9:
+    state['late_after']=state['now']+7;state['late_stops']=state.get('late_stops',0)+1;state['player'].onPlayBackStopped()   # a failed open: a Stop and no start, 3 s or more in
    if replaced:props[router.OWNER]='new-request'
   backend=NS(Player=Player,PlayList=lambda _:Playlist(),PLAYLIST_VIDEO=1,sleep=sleep,executebuiltin=lambda value:(state.__setitem__("error_dialog_closed",value),state.setdefault('closed',[]).append(value)),
     Monitor=lambda:NS(abortRequested=lambda:state['now']>2 if select else False),getCondVisibility=lambda cond:(takeover if 'HasMedia' in cond else select if "selectdialog" in cond else all_failed))
@@ -103,9 +105,9 @@ class Tests(unittest.TestCase):
   def prepare(candidate):
    state['prepared'].append(candidate['play']);return original_prepare(candidate)
   with patch.dict(sys.modules,{'xbmcgui':gui}),patch.object(router.routes,'prepare_proxy'),patch.object(router.routes,'prepare_source',side_effect=prepare):
-   try:result=router.play([source(path='token-private'),source(path='second'),source(path='second')],logs.append,backend,lambda:state['now'],timeout=timeout)
+   try:result=router.play([source(path='token-private'),source(path='second'),source(path='second')][:sources],logs.append,backend,lambda:state['now'],timeout=timeout)
    except Exception as error:result=error
-  self.assertEqual(state["clears"],1 if replaced else 3 if (http_error or stopped) else 2)
+  self.assertEqual(state["clears"],1 if replaced else 3 if (http_error or stopped) else 2) if not late_stop else None
   self.assertNotIn('token-private',' '.join(logs))
   return result,state,logs
  def test_native_success_clears_future_sources_without_stopping_video(self):
@@ -154,6 +156,14 @@ class Tests(unittest.TestCase):
   self.assertTrue(state.get('advanced',False));self.assertEqual(len(state['prepared']),2)   # the second source was tried
   self.assertIn('Dialog.Close(yesnodialog)',state.get('closed',[]))
   self.assertTrue(any('stopped before any picture' in l for l in logs))
+ def test_a_late_stop_with_no_start_is_a_failed_source_not_a_cancel(self):   # build 653 logs 5ee55982: HTTP 503 from the stream's host
+  result,state,logs=self.exercise(late_stop=True,timeout=40,sources=2)
+  self.assertNotIn('sports: native opening stopped; queue cancelled',logs)
+  self.assertTrue(state.get('advanced',False));self.assertTrue(any('stopped before a picture' in l or 'stopped before any picture' in l for l in logs))
+ def test_a_source_that_fails_quickly_is_tried_again_at_the_end_when_it_is_the_only_one(self):
+  result,state,logs=self.exercise(late_stop=True,timeout=60,sources=1)
+  self.assertTrue(any('failed quickly; it will be tried again' in l for l in logs))
+  self.assertEqual(len(state['prepared']),1+router.SAME_RETRIES)   # the first try and the retries, then it gives up
  def test_nested_source_selection_does_not_consume_server_timeout(self):
   result,state,_=self.exercise(select=True)
   self.assertIsInstance(result,InterruptedError);self.assertGreater(state['now'],.6)

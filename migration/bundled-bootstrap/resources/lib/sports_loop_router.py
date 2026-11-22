@@ -50,6 +50,12 @@ def tapped_source(source, sources):
     return result
 
 
+LATE_STOP = 3      # seconds after a source was handed to Kodi from which a Stop with no start is a failure, not a cancel
+SAME_FAST = 30      # seconds: a failure sooner than this after the source was handed to Kodi counts as a quick one
+SAME_RETRIES = 2    # times the same source is tried again at the end of the queue
+SAME_WAIT_MS = 2500  # a moment for a busy server
+
+
 def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=None, keep_owner_on_failure=False, auto_pick=True, pinned=False,
          health=None, info=None):
     if backend is None:
@@ -170,6 +176,20 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             links.insert(current_index + 1, links[current_index] + 1)
             used['chooser'] = False
 
+    tries = {}   # address -> how many times it was put back at the end of the queue after a quick failure
+
+    def retry_same_source():
+        """A source that fails within SAME_FAST seconds of being handed to Kodi is put back at the end of the queue, up to SAME_RETRIES times, after the others have had
+        their turn. Build 653 logs 5ee55982 (two plays, one source each): the stream's host answered HTTP 503 to the first three manifest requests, 0.4 s apart, and
+        the queue, having one choice, gave up in 1 s; a server that is busy for a moment is often fine a few seconds later, and Crew resolves a fresh link each try."""
+        address = choices[current_index][0]
+        if clock() - choice_began < SAME_FAST and tries.get(address, 0) < SAME_RETRIES and len(choices) < MAX_CHOICES + SAME_RETRIES:
+            tries[address] = tries.get(address, 0) + 1
+            choices.append(choices[current_index])
+            links.append(links[current_index])
+            logger('sports: %s failed quickly; it will be tried again after the others (try %d of %d)' % (choices[current_index][1], tries[address], SAME_RETRIES))
+            backend.sleep(SAME_WAIT_MS)
+
     def close_failure_dialogs():
         """Kodi's "playback failed" box (an OK or a Yes/No dialog) is closed: the next source opens by itself, and nothing says "check the log"."""
         for name in ('okdialog', 'yesnodialog'):
@@ -179,6 +199,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
         """Stop what is on, then open the next choice (raises when none is left)."""
         nonlocal current_index, check, choice_began, failed_through
         retry_next_link()
+        retry_same_source()
         try:   # build 623 log 8c570737: Crew's streamer host failed TLS; say which layer (the phone's DNS, the handshake, DoH), once every ten minutes
             import host_check
             host_check.check_later(logger)
@@ -234,7 +255,12 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             # Kodi also reports a user's stop during opening as a pre-AV
             # Stop. Never infer failure from that ambiguous callback.
             if player.stopped and not player.failed:
-                if player.started and not player.ready and owns_queue():
+                # Build 653 logs 5ee55982: Kodi's open of Crew's manifest failed (the host answered HTTP 503), Kodi reported only a Stop, and no "started" had come
+                # (the picture never began): that was taken for the person's own cancel and the queue ended. A Stop that arrives LATE_STOP seconds or more after the
+                # source was handed over, with the queue still ours, is a failed source too (a person's cancel clears the ownership first).
+                late = not player.started and (now - choice_began >= LATE_STOP or backend.getCondVisibility('Window.IsActive(yesnodialog)')
+                                               or backend.getCondVisibility('Window.IsActive(okdialog)'))   # Kodi's own "playback failed" box is up
+                if (player.started or late) and not player.ready and owns_queue():
                     # Build 619 log: Crew's streamers failed, Crew handed Kodi an unresolved link, Kodi's open failed and only a Stop reported it ("current
                     # media"). A person's own cancel clears the ownership first (Opening.cancel), so with the queue still ours this is a failed source.
                     logger('sports: stream check: %s stopped before any picture' % choices[current_index][1])

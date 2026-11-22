@@ -39,6 +39,7 @@ _BROKER=[None]   # ISSUE-281: one cache per service run; a restarted Drive loop 
 # opening blocks (the first two and the last) were fetched one after another: 60 s before the first picture. Debrid links
 # are slow per connection, not per phone (ISSUE-163): each block is now fetched as SPLIT parallel ranges, and the opening
 # blocks together. At most PIECES requests run at once, so a link that limits connections is not flooded.
+SERIAL_FAMILIES=('debrid.it','real-debrid.com','debrid-link.com','debrid-link.fr','premiumize.me','alldebrid.com','torbox.app');SERIAL_PIECES=2
 SPLIT=4;PIECES=6;SPLIT_MIN=256*1024   # PIECES 8 -> 6 (build 646 log d8f39741: the read-ahead blocks 5-8 and the resume blocks were all refused, "Drive answered without the asked byte range", after 4.6-6.5 s while the blocks Kodi waited on came through)
 TYPES={'mkv':'video/x-matroska','avi':'video/x-msvideo','webm':'video/webm'}
 RACE=20          # ISSUE-315: a Kodi source replaced this soon after it was opened is kept beside the new one
@@ -138,7 +139,12 @@ class Foreground(drive_stream.DriveStream):
   # 4 MB block: at ~0.7 MB/s that block takes ~6 s, longer than for_kodi's FIRST_ANSWER, so Kodi always fell back.
   self.answered_size=0
   self.cancelled=threading.Event();self.response_lock=threading.Lock();self.responses=set()
-  self.pieces=_Gate(PIECES);self.urgent=set();self.connect_timeout=20;self.opening_deadline=None
+  # Build 653 log d63069c3: Continue played through this cache and every block after the opening was refused ("Drive answered without the asked byte range",
+  # 4-30 s each, Kodi's reads waited up to 28 s): the debrid server answers one or two connections and refuses a crowd. Its links are read one request at a time
+  # in 2 places, as Kodi's own player reads them (SERIAL_FAMILIES, and any server a refusal was seen from).
+  self.serial=serial_host(source)
+  self.split=1 if self.serial else SPLIT
+  self.pieces=_Gate(SERIAL_PIECES if self.serial else PIECES);self.urgent=set();self.connect_timeout=20;self.opening_deadline=None
   self.renew_lock=threading.Lock();self.renewal=None;self.renew_link=None;self.renewed=False;self.renewal_state='unavailable'
   self.renew_clock=clock;self.renew_after=0.0
   self.remote_headers={k:v for k,v in urllib.parse.parse_qsl(extra,keep_blank_values=True)
@@ -237,7 +243,9 @@ class Foreground(drive_stream.DriveStream):
    # ISSUE-344 (owner log a83e06c7, build 513: "Drive answered without the asked byte range" again and again while Kodi
    # and AirPlay read one AllDebrid link; most pieces in flight failed, single ones went through): the server answers
    # a ranged request with the whole file (200) when too many connections ask at once. Two places for a minute.
-   if 'without the asked byte range' in str(error):self.pieces.calm(REFUSED_FOR,places=REFUSED_PLACES)
+   if 'without the asked byte range' in str(error):
+    self.pieces.calm(REFUSED_FOR,places=REFUSED_PLACES)
+    note_slow(None,self.remote_url)   # this server refuses a crowd: its next source is read serially from the start (serial_host)
    else:self.pieces.calm()
    # Only a failed transfer is tried again; an answer that contradicts the file (a wrong range, another size, pieces
    # that do not make one block) never becomes a block (ISSUE-303 integrity).
@@ -294,9 +302,10 @@ class Foreground(drive_stream.DriveStream):
  def _fetch_block(self,item,start,end):
   if self.cancelled.is_set():raise _SourceClosed('Stream cache closed')
   total=self.blocks.sizes.get(item);stop=end if total is None else min(end,total-1)
-  if stop-start+1<=SPLIT*SPLIT_MIN:return super()._fetch(item,start,end)
-  step=-(-(stop-start+1)//SPLIT)
-  spans=[(start+i*step,min(stop,start+(i+1)*step-1)) for i in range(SPLIT) if start+i*step<=stop]
+  split=self.split
+  if split<=1 or stop-start+1<=split*SPLIT_MIN:return super()._fetch(item,start,end)
+  step=-(-(stop-start+1)//split)
+  spans=[(start+i*step,min(stop,start+(i+1)*step-1)) for i in range(split) if start+i*step<=stop]
   results=[None]*len(spans);errors=[]
   def piece(i,a,b):
    # A refused split range should yield to the existing single-connection fallback immediately. Retrying each piece
@@ -512,6 +521,7 @@ def prefetch(source,blocks=None,extra=0,resume=None):
  Play on TV reads them itself later."""
  try:
   cache=source.blocks;cache.get('media',0);total=cache.sizes['media'];size=cache.block_size
+  if getattr(source,'serial',False):extra=min(extra,1)   # a serial server is read one block ahead, not a crowd of them
   last=(total-1)//size
   # ISSUE-302: together, not one after another (each is slow on its own on a debrid link)
   def one(index):
@@ -531,9 +541,9 @@ def prefetch(source,blocks=None,extra=0,resume=None):
   more+=[threading.Thread(target=one,args=(i,),daemon=True) for i in resume_blocks(resume,total,size)]
   for t in threads:t.start()
   # the opening blocks' requests queue first (the gate only orders waiters; a free place goes to whoever asks first)
-  gate=getattr(source,'pieces',None);want=min(PIECES,SPLIT*len(threads))
+  gate=getattr(source,'pieces',None);room=getattr(gate,'size',PIECES);want=min(room,getattr(source,'split',SPLIT)*len(threads))
   until=time.monotonic()+1
-  while gate is not None and more and time.monotonic()<until and PIECES-gate.free+len(gate.waiting)<want:time.sleep(.01)
+  while gate is not None and more and time.monotonic()<until and room-gate.free+len(gate.waiting)<want:time.sleep(.01)
   for t in more:t.start()
   for t in threads:t.join()
  except Exception:pass
@@ -677,6 +687,11 @@ def slow_recently(home,source,now=time.time,path=None):
   at=json.load(open(path,encoding='utf-8')).get(_host(source))
   return at is not None and 0<=now()-float(at)<SLOW_SKIP
  except Exception:return False
+
+def serial_host(source):
+  """True for a link whose server is read one request at a time: a debrid service, or any server that refused a crowd (or missed the cache's opening) lately."""
+  try:return _host(source) in SERIAL_FAMILIES or slow_recently(None,source)
+  except Exception:return False
 
 def _kept(source):
  try:

@@ -23,6 +23,12 @@ class Known(unittest.TestCase):
     def test_a_movie_has_no_show(self):
         got=known({'title':'Heat'},lambda path:store(kind='movie',title='Heat',tvshowtitle='',season=None,episode=None,year='1995'))
         self.assertEqual((got['kind'],got['show'],got['year']),('movie','','1995'))
+    def test_the_link_the_stream_is_read_from_counts_when_the_titles_differ(self):   # build 653 log d63069c3: the item's title need not be the entry's
+        store=lambda **e:json.dumps({'current':'k','items':{'k':dict({'kind':'episode','title':'The Mage','tvshowtitle':'Black Clover','season':'2','episode':'8','played':time.time(),'stream':{'url':'https://dl.example.invalid/f.mkv'}},**e)}})
+        got=known({'title':'Episode 8'},lambda p:store(),link='https://dl.example.invalid/f.mkv|User-Agent=Kodi')
+        self.assertEqual((got['show'],got['season'],got['episode']),('Black Clover','2','8'))
+        self.assertEqual(known({'title':'Episode 8'},lambda p:store(),link='https://dl.example.invalid/other.mkv'),{})
+        self.assertEqual(known({'title':'Episode 8'},lambda p:store()),{})
     def test_the_menu_asks_for_it_when_nothing_else_knows_the_title(self):
-        self.assertIn('return continue_known(it, read)',SRC)
+        self.assertIn('return continue_known(it, read, link=link)',SRC)
 if __name__=='__main__':unittest.main()

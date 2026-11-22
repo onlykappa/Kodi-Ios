@@ -16,7 +16,12 @@ INDEX = 'subtitle-memory.json'
 STORE = 'special://profile/addon_data/plugin.video.kodi.ios.watch/continue.json'
 
 
-def known_from(read, title, now=time.time):
+def _same_link(a, b):
+    a, b = str(a or '').split('|')[0], str(b or '').split('|')[0]
+    return bool(a) and a == b
+
+
+def known_from(read, title, now=time.time, link=None):
     """The show, season and episode Continue Watching holds for the video playing now ({} when it does not agree): Kodi's own labels for an Umbrella stream say
     only 'Episode 8', so a subtitle downloaded for it was filed under the stream's link and lost when the link changed (build 646 log d8f39741)."""
     try:
@@ -24,7 +29,10 @@ def known_from(read, title, now=time.time):
         entry = (data.get('items') or {}).get(data.get('current')) or {}
         if entry.get('kind') == 'movie' or now() - float(entry.get('played') or 0) > 6 * 3600:
             return {}
-        if str(entry.get('title') or '').strip().lower() != str(title or '').strip().lower() or not entry.get('tvshowtitle'):
+        # The title agrees, or the video playing is read from the very link Continue Watching remembers (build 653 log d63069c3: a Continue's item is built from the
+        # entry and its title need not be the one Kodi shows; the cache route's own address is turned back into the link by remote_media.original).
+        same_title = str(entry.get('title') or '').strip().lower() == str(title or '').strip().lower()
+        if not (same_title or _same_link(link, (entry.get('stream') or {}).get('url'))) or not entry.get('tvshowtitle'):
             return {}
         return {'show': str(entry['tvshowtitle']), 'season': str(entry.get('season') or ''), 'episode': str(entry.get('episode') or '')}
     except Exception:
