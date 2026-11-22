@@ -6,7 +6,12 @@ SRC=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/tracks.py'
 tree=ast.parse(SRC)
 func=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='continue_known')
 space={'json':json,'time':time};exec(compile(ast.Module([func],[]),'tracks.py','exec'),space)
-known=space['continue_known']
+pfunc=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='playing_known')
+exec(compile(ast.Module([pfunc],[]),'tracks.py','exec'),space)
+space['re']=__import__('re')
+for _n in ('generic_title','tmdb_known'):
+    exec(compile(ast.Module([next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name==_n)],[]),'tracks.py','exec'),space)
+known=space['continue_known'];playing_known=space['playing_known']
 
 def store(**entry):
     base={'kind':'episode','tmdb_id':'73223','title':'Episode 8','tvshowtitle':'Black Clover','year':'2017','season':'2','episode':'8','played':time.time()}
@@ -35,6 +40,21 @@ class Known(unittest.TestCase):
         self.assertEqual((got['show'],got['season'],got['episode']),('Black Clover','2','8'))
         self.assertEqual(known({'title':'Episode 9'},lambda p:old()),{})
         self.assertEqual(known({'title':'Episode 8'},lambda p:old(played=time.time()-7*3600)),{})
+    def test_an_unset_playing_property_does_not_end_the_lookup(self):   # build 662 log 3173e72b: '' read as time 0 = stale, so Continue's record was never asked
+        self.assertEqual(playing_known({'title':'Episode 8'},''),{});self.assertEqual(playing_known({'title':'Episode 8'},None),{})
+        self.assertEqual(playing_known({'title':'Episode 8'},'{}'),{})
+        fresh=json.dumps({'t':time.time(),'title':'Episode 8','show':'Black Clover','season':2,'episode':8})
+        self.assertEqual(playing_known({'title':'Episode 8'},fresh)['show'],'Black Clover')
+        self.assertEqual(playing_known({'title':'Other'},fresh),{})
+        self.assertEqual(playing_known({'title':'Episode 8'},json.dumps({'t':time.time()-7*3600,'title':'Episode 8'})),{})
+    def test_the_search_asks_continue_after_the_property(self):
+        src=SRC[SRC.index('def played(self, it)'):SRC.index('def search(self)')]
+        self.assertIn('playing_known(it,',src);self.assertLess(src.index('playing_known'),src.index('continue_known'))
+    def test_a_bare_episode_label_names_no_show(self):
+        g=space['generic_title']
+        for t in ('Episode 8','episode 08','E8','Ep. 3','Part 2'):self.assertTrue(g(t),t)
+        for t in ('Episode 8 The Mage','Black Clover','Heat',''):self.assertFalse(g(t),t)
+        self.assertTrue(space['tmdb_known']({'uniqueid':{'tmdb':'1'}},None));self.assertFalse(space['tmdb_known']({},None))
     def test_the_menu_asks_for_it_when_nothing_else_knows_the_title(self):
         self.assertIn('return continue_known(it, read, link=link)',SRC)
 if __name__=='__main__':unittest.main()

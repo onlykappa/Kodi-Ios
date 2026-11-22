@@ -7,6 +7,7 @@ finds subtitles for this video in the owner's language on Podnapisi, downloads a
 holds Choose another (the other results), Add from a file and Use for all videos. Timing and Volume boost use Kodi's
 own subtitle delay, audio delay and volume amplification."""
 import json
+import re
 import os
 import sys
 import threading
@@ -32,6 +33,30 @@ BACK_LINK = 9502    # board 02: the sub-page's back link in the header (owner lo
 FIELDS = ['subtitles', 'currentsubtitle', 'subtitleenabled', 'audiostreams', 'currentaudiostream']
 UA = 'KodiIOS/1.0'
 
+
+
+def generic_title(title):
+    """True for a title that is only an episode label ('Episode 8', 'E08', 'Part 2'): it says nothing about the show."""
+    return bool(re.match(r'^\s*(episode|ep\.?|e|part|chapter)\s*0*\d+\s*$', str(title or ''), re.I))
+
+
+def tmdb_known(it, show_tmdb):
+    """A TMDb id for the video, from Kodi's own item or from what Continue knew."""
+    return bool(show_tmdb or (it.get('uniqueid') or {}).get('tmdb'))
+
+
+def playing_known(it, raw, now=time.time):
+    """What the Library's player left in KodiIOS.Playing for the video that plays, when it is recent and the title agrees; {} otherwise. Build 662 log 3173e72b:
+    with the property unset the old check read its time as 0 and returned {} for everything, so Continue's own record was never asked and SubDL got 'Episode 8'
+    with no show (a dragon cartoon's subtitle on a Black Clover episode)."""
+    try:
+        known = json.loads(raw or '{}')
+        if not known or now() - float(known.get('t') or 0) > 6 * 3600:
+            return {}
+        names = {str(it.get('title') or '').lower(), str(it.get('showtitle') or '').lower(), str(it.get('label') or '').lower()} - {''}
+        return known if names & {str(known.get('title') or '').lower(), str(known.get('show') or '').lower()} else {}
+    except Exception:
+        return {}
 
 
 def continue_known(it, read, now=time.time, link=None):
@@ -441,12 +466,9 @@ def run(mode):
             """What the add-on that started this video knew about it (show, season, episode, year, TMDb id of the show), when Kodi's own item lacks it and the
             title agrees. Owner, build 618 log: a Drive episode searched as 'Trust Fall' with no season or episode, and SubDL found nothing."""
             try:
-                known = json.loads(xbmcgui.Window(10000).getProperty('KodiIOS.Playing') or '{}')
-                if time.time() - float(known.get('t') or 0) > 6 * 3600:
-                    return {}
-                names = {str(it.get('title') or '').lower(), str(it.get('showtitle') or '').lower(), str(it.get('label') or '').lower()} - {''}
-                if names & {str(known.get('title') or '').lower(), str(known.get('show') or '').lower()}:
-                    return known
+                found = playing_known(it, xbmcgui.Window(10000).getProperty('KodiIOS.Playing'))
+                if found:
+                    return found
             except Exception:
                 pass
             try:   # a stream Continue Watching follows (Umbrella): Kodi's item says only 'Episode 8' (build 639 log 9f7b4ab2: the search had no show, season or episode)
@@ -502,6 +524,11 @@ def run(mode):
             import subtitle_sources as ss
             keys = ss.load_keys(keys_folder(xbmcvfs))
             self.episode = ep
+            if not ep[0] and not tmdb_known(it, show_tmdb) and generic_title(title):
+                # A bare 'Episode 8' names no show: SubDL answers with whatever it calls that (a dragon cartoon's subtitle on an anime episode, build 662 log
+                # 3173e72b). No subtitle is better than another show's.
+                log('search skipped: %r names no show, season or episode' % title)
+                return []
             tmdb = (it.get('uniqueid') or {}).get('tmdb') if not ep[0] else show_tmdb
             log('search %s %r %s S%sE%s via %s' % (self.lang, title, year, ep[0], ep[1], ', '.join(ss.sources(keys))))
             video = self.video()
