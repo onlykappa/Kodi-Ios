@@ -33,5 +33,12 @@
     <setting id="airplay_button" type="boolean" label="32027"><level>0</level><default>false</default><control type="toggle"/></setting>
    </group>
   </category>
+ <category id="privacy" label="32031">
+   <group id="1">
+    <setting id="require_vpn" type="boolean" label="32032"><level>0</level><default>false</default><control type="toggle"/><help>Elementum's torrent traffic runs only while a VPN is verified, and stops when that stops. Works with any VPN app: it needs a tunnel and a public address that differs from this iPhone's home address, which it learns while no VPN is on (kept only as a salted hash). It is a check made every few seconds, not a kill switch: keep the VPN's own kill switch on. Normal Kodi playback and AirPlay are not touched.</help></setting>
+    <setting id="vpn_expected" type="string" label="32033"><level>0</level><default/><constraints><allowempty>true</allowempty></constraints><control type="edit" format="string"><heading>Words from the VPN network's name, e.g. its provider</heading></control><help>Optional. When set, the public address must also belong to a network whose name contains one of these words (comma separated). Needed if the VPN was already on the first time this ran.</help></setting>
+    <setting id="vpn_echo" type="string" label="32034"><level>0</level><default>https://api.ipify.org?format=json,https://ipinfo.io/json</default><constraints><allowempty>false</allowempty></constraints><control type="edit" format="string"><heading>Address check services (comma separated)</heading></control><help>Two services must agree on the address. They see the address the phone shows to the internet, with or without the VPN.</help></setting>
+   </group>
+  </category>
  </section>
 </settings>

@@ -68,7 +68,21 @@ def _interruptible_get(url,timeout,cancel):
  if cancel():raise Canceled('Source search canceled')
  if 'error' in result:raise result['error']
 
-def follow(url,opener=None,hops=6,timeout=600,route=None,engine=None,cancel=None):
+def _vpn_gate():
+ """Require VPN for torrents (vpn_guard.py): torrent work is not started while the setting is on and no VPN is verified; the person is told why. Raises Canceled so
+ the callers end quietly (the sentence has been shown). A no-op outside Kodi."""
+ try:
+  import xbmcaddon,xbmcgui,vpn_guard
+ except ImportError:return
+ enabled=xbmcaddon.Addon('service.kodi.ios.bootstrap').getSettingBool('require_vpn')
+ state=xbmcgui.Window(10000).getProperty(vpn_guard.PROPERTY)
+ try:vpn_guard.gate(enabled,state)
+ except vpn_guard.Blocked:
+  text=xbmcgui.Window(10000).getProperty(vpn_guard.PROPERTY_TEXT) or str(vpn_guard.TEXT['no_tunnel'])
+  xbmcgui.Dialog().ok('Connect your VPN to continue',text)
+  raise Canceled(text)
+
+def follow(url,opener=None,hops=6,timeout=600,route=None,engine=None,cancel=None,gate=None):
  """Run an Elementum plugin link over its HTTP API, following its redirects. Owner (build-133): a season download
  picked a version, then Elementum answered with a redirect to plugin://.../download (and that to /play?background)
  which Kodi dropped when the link was run with RunPlugin, so no torrent was added. Returns the last URL reached."""
@@ -89,6 +103,7 @@ def follow(url,opener=None,hops=6,timeout=600,route=None,engine=None,cancel=None
  for _ in range(hops):
   if cancel and cancel():raise Canceled('Source search canceled')
   if route(url):return url
+  (gate or _vpn_gate)()   # not the debrid cloud route: this is the torrent engine
   if engine is not None:engine();engine=None
   if cancel and cancel():raise Canceled('Source search canceled')
   try:
