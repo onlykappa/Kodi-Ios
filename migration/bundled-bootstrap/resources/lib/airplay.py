@@ -249,7 +249,7 @@ def activity(lines,window,now):
  try:
   import cast_cache;cast_cache.DIAG.feed(lines);cast_cache.SEEK.feed(lines)   # the 30 s line of the cast diagnostics (no URL, id or token); a TV seek starts the fill there
  except Exception:pass
- if any(end in line for line in lines for end in ENDED) and not any('start:' in line for line in lines):clear_busy(window);clear_serve(window);window.clearProperty('KodiIOS.CastCushion');cast_ended()
+ if any(end in line for line in lines for end in ENDED) and not any('start:' in line for line in lines):clear_busy(window);clear_serve(window);window.setProperty('KodiIOS.CastCushion','');cast_ended()
  else:
   mark_busy(window,now)
   # A TV fed by the phone's server keeps its mark while it asks for the video (its GET lines).
