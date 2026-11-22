@@ -95,8 +95,12 @@ def run():
   box=lambda:xbmc.getCondVisibility('Window.IsActive(yesnodialog) | Window.IsActive(okdialog)')
   def close_boxes():
    for name in ('yesnodialog','okdialog'):xbmc.executebuiltin('Dialog.Close(%s,true)'%name)
-  continue_guard.watch(home,lambda:bool(player.isPlayingVideo()) and xbmc.getCondVisibility('Player.HasVideo') and player.getTime()>0.5,box,
-   lambda:player.stop(),close_boxes,lambda url:xbmc.executebuiltin('PlayMedia(%s)'%url),lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),monitor.waitForAbort)
+  playing=lambda:bool(player.isPlayingVideo()) and xbmc.getCondVisibility('Player.HasVideo') and player.getTime()>0.5
+  circle=continue_guard.Circle(home,playing,box,lambda:xbmc.getCondVisibility('Window.IsVisible(busydialognocancel)'),
+   lambda:xbmc.executebuiltin('ActivateWindow(busydialognocancel)'),lambda:xbmc.executebuiltin('Dialog.Close(busydialognocancel,true)'),lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+  continue_guard.watch(home,playing,box,
+   lambda:player.stop(),close_boxes,lambda url:xbmc.executebuiltin('PlayMedia(%s)'%url),lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),monitor.waitForAbort,
+   opened=lambda:bool(xbmc.getCondVisibility('Player.HasVideo')),circle=circle)
  threading.Thread(target=continue_guard_loop,daemon=True).start()
  keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
@@ -381,7 +385,7 @@ def run():
  def busy_watchdog_loop():
   import busy_watchdog
   busy_watchdog.watch(lambda name:xbmc.getCondVisibility('Window.IsVisible(%s)'%name),
-                      lambda:xbmc.getCondVisibility('Player.HasMedia') or xbmc.getCondVisibility('Player.Caching'),
+                      lambda:xbmc.getCondVisibility('Player.HasMedia') or xbmc.getCondVisibility('Player.Caching') or bool(xbmcgui.Window(10000).getProperty('KodiIOS.ContinueOpening')),
                       lambda name:xbmc.executebuiltin('Dialog.Close(%s,true)'%name),monitor.waitForAbort,
                       log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
  threading.Thread(target=busy_watchdog_loop,daemon=True).start()

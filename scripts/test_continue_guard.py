@@ -16,6 +16,36 @@ class Home:
     def setProperty(self,k,v):self.p[k]=v
     def clearProperty(self,k):self.p.pop(k,None)
 
+class OpenedAndCircle(unittest.TestCase):
+    """Build 663 log 63e92ff2: the open was cut 3 s after Kodi had its streams, and nothing showed that the video was opening."""
+    def test_an_open_whose_streams_are_there_is_not_cut_at_the_short_limit(self):
+        mark=g.note(PARAMS,lambda:1000.0)
+        self.assertEqual(g.decide(mark,1000+g.LIMIT,False,False,opened=True),'wait')
+        self.assertEqual(g.decide(mark,1000+g.LIMIT_OPENED,False,False,opened=True),'fallback')
+        self.assertEqual(g.decide(mark,1000+g.LIMIT,False,False,opened=False),'fallback')
+        self.assertEqual(g.decide(mark,1000+g.LIMIT,False,True,opened=True),'fallback')   # a failure box still ends it
+    def test_the_fallback_keeps_the_circle_flag(self):
+        home=Home();home.p[g.MARK]=g.note(PARAMS,lambda:1000.0);played=[]
+        g.step(home,lambda:False,lambda:False,lambda:None,lambda:None,played.append,lambda t:None,now=lambda:1000+g.LIMIT,opened=lambda:False)
+        self.assertEqual(home.getProperty(g.OPENING),'1');self.assertEqual(len(played),1)
+    def circle(self,playing=False,box=False,visible=False,clock=None):
+        self.home=Home();self.calls=[];self.t=[1000.0]
+        return g.Circle(self.home,lambda:playing,lambda:box,lambda:visible,lambda:self.calls.append('raise'),lambda:self.calls.append('close'),
+                        lambda t:self.calls.append('log'),lambda:self.t[0])
+    def test_nothing_is_raised_without_the_flag(self):
+        c=self.circle();self.assertEqual(c.tick(),'idle');self.assertEqual(self.calls,[])
+    def test_the_circle_is_raised_again_when_kodi_has_closed_its_own(self):
+        c=self.circle();self.home.p[g.OPENING]='1'
+        self.assertEqual(c.tick(),'keep');self.assertEqual(self.calls,['raise'])
+        c.visible=lambda:True;self.calls.clear();self.assertEqual(c.tick(),'keep');self.assertEqual(self.calls,[])
+    def test_a_picture_or_a_failure_box_closes_it_and_clears_the_flag(self):
+        for kw,word in (({'playing':True},'playing'),({'box':True},'failed')):
+            c=self.circle(**kw);self.home.p[g.OPENING]='1'
+            self.assertEqual(c.tick(),word);self.assertEqual(self.calls,['close']);self.assertEqual(self.home.getProperty(g.OPENING),'')
+    def test_it_is_never_kept_longer_than_the_cap(self):
+        c=self.circle();self.home.p[g.OPENING]='1';c.tick();self.t[0]+=g.CIRCLE_CAP
+        self.assertEqual(c.tick(),'gave up');self.assertIn('close',self.calls);self.assertEqual(self.home.getProperty(g.OPENING),'')
+
 class Rules(unittest.TestCase):
     def test_the_retry_address_is_the_same_title_without_the_remembered_link(self):
         url=g.retry_url(PARAMS);self.assertTrue(url.startswith('plugin://plugin.video.themoviedb.helper/?'))

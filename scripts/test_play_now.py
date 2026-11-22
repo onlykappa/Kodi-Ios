@@ -11,6 +11,11 @@ class PlayNow(unittest.TestCase):
         text=p.play_now()
         self.assertLess(text.index('ActivateWindow(busydialognocancel)'),text.index('PlayMedia('))
         self.assertIn('$ESCINFO[ListItem.FileNameAndPath]',text)
+    def test_the_tap_sets_the_flag_that_keeps_the_circle_up(self):   # build 663 log 63e92ff2
+        text=p.play_now()
+        self.assertLess(text.index('SetProperty(KodiIOS.ContinueOpening,1,home)'),text.index('ActivateWindow(busydialognocancel)'))
+        service=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/service.py').read_text()
+        self.assertIn('continue_guard.Circle(',service);self.assertIn('circle=circle',service);self.assertIn("KodiIOS.ContinueOpening",service)
     def test_only_the_continue_watching_row_has_it(self):
         widget={'label':'Continue Watching','path':'plugin://x/','target':'videos','style':'continue'}
         other={'label':'Trending','path':'plugin://y/','target':'videos','style':'card'}

@@ -766,7 +766,7 @@ def play_now():
  time to tap it again"; the first sign of life was a second or more later, when TMDb Helper had started). The row's items are all playable plugin paths, so the
  click does what Kodi did by default, after raising the circle; the service closes it when the video starts (Dialog.Close in the progress tracker) and the busy
  watchdog closes it after a few seconds if nothing opens."""
- return '<onclick>ActivateWindow(busydialognocancel)</onclick><onclick>PlayMedia($ESCINFO[ListItem.FileNameAndPath])</onclick>'
+ return '<onclick>SetProperty(KodiIOS.ContinueOpening,1,home)</onclick><onclick>ActivateWindow(busydialognocancel)</onclick><onclick>PlayMedia($ESCINFO[ListItem.FileNameAndPath])</onclick>'
 
 def row(index,widget,last,tab='home',variables=None):
  id=5001+index;title=str(widget.get('label') or '')
