@@ -278,6 +278,39 @@ class Foreground(drive_stream.DriveStream):
   if index<self.open_blocks or (total and index==(total-1)//self.block_size):return 1
   return 2
 
+ def relay_tail(self,item,position,end,write):
+  """Bytes position..end relayed to `write` from ONE upstream connection as they arrive, for a source read serially (a debrid link). Returns how many were relayed
+  (0: not used: not a serial source, the block is in the cache or on its way, or the server did not answer: the block path then reads it as before).
+  Build 653 log d63069c3: Continue's cache fetched the file block by block and the debrid server refused almost every one (`RangeRefused`, Kodi's reads waited up to
+  28 s); in the same logs Kodi's own direct reads of the same server never were refused. One streaming request from where Kodi reads, like its own, with the
+  opening still answered from the kept blocks on the phone: fast to start and smooth after."""
+  if not self.serial or self.cancelled.is_set():return 0
+  size=self.block_size;index=position//size
+  with self.blocks.lock:
+   if (item,index) in self.blocks.data or (item,index) in self.blocks.pending:return 0
+  self.want(index)
+  try:
+   response=self.open_url(urllib.request.Request(self.remote_url,headers={'Range':'bytes=%d-%d'%(position,end)}),20)
+  except Exception:return 0
+  sent=0
+  try:
+   while position+sent<=end and not self.cancelled.is_set():
+    try:chunk=response.read(256*1024)
+    except Exception:break   # the server cut it: what was relayed stands, the block path takes over from there
+    if not chunk:break
+    chunk=chunk[:end-position-sent+1]
+    try:write(chunk)
+    except OSError as error:raise BrokenPipeError('the reader went away') from error
+    sent+=len(chunk)
+    at=position+sent
+    if at%size==0:   # at a block boundary: a block that is in the cache is served from it (the kept opening, the resume blocks)
+     with self.blocks.lock:
+      if (item,at//size) in self.blocks.data:break
+  finally:
+   try:response.close()
+   except Exception:pass
+  return sent
+
  def on_read(self,start,end,sent,took,waited,waits):
   """ISSUE-317: two lines per read Kodi makes through the cache: as it asks (sent is None) and as it ends."""
   at=time.monotonic()-took-self.born

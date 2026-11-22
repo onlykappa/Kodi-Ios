@@ -216,6 +216,7 @@ jobs:
           python3 -B scripts/test_zip_loose.py
           python3 -B scripts/test_play_now.py
           python3 -B scripts/test_crew_memory.py
+          python3 -B scripts/test_relay_tail.py
           python3 -B scripts/test_auto_subtitles.py
           python3 -B scripts/test_sports_loop_proxy_compat.py
           python3 -B scripts/test_sports_playback_repair.py
