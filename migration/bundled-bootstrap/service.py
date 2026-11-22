@@ -352,7 +352,10 @@ def run():
     import cache_tune
     wifi=cache_tune.link_kind()=='wifi'
    except Exception:wifi=False
-   return sports_sources_prefetch.idle_for_search(home.getProperty('KodiIOS.SportsSeen'),launched,time.time(),wifi)
+   if xbmc.getCondVisibility('System.HasModalDialog'):return True   # a dialog (Crew's, a chooser) is up: not now
+   try:moving=float(xbmc.getInfoLabel('System.FPS') or 0)>=15   # the screen is animating or being scrolled: the look waits for it to settle
+   except ValueError:moving=False
+   return moving or sports_sources_prefetch.idle_for_search(home.getProperty('KodiIOS.SportsSeen'),launched,time.time(),wifi)
   def poke():
    if home.getProperty('KodiIOS.SportsPoke'):
     try:opened=time.time()-float(home.getProperty('KodiIOS.SportsSeen') or 0)

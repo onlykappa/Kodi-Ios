@@ -1152,3 +1152,5 @@ Build 622 flicks and captions (ISSUE-424/425, branch claude/library-playback-fix
 - 2026-11-21: Live Now line merged into the Sports build line (8580eac); ISSUE-439: instant loading circle on a Continue tap, automatic subtitles when none is usable, Umbrella subtitle key from Continue Watching, fewer refused debrid ranges. Host tests only; not built.
 
 - 2026-11-21: ISSUE-440/441: a live game's page keeps looking by itself; Crew walks answer for 3 minutes, visit productive folders and each game's last folder first; any recent Umbrella title reopens from its link. Host tests only; not built.
+
+- 2026-11-21 (build 653 logs 5ee55982, d63069c3): ISSUE-442: background source look at 25 s and only while the screen is idle, failed Sports sources retried and no longer taken for a cancel, debrid links read serially through the cache, Continue's subtitle search knows its show. Host tests only; not built.

@@ -34,7 +34,7 @@ UA = 'KodiIOS/1.0'
 
 
 
-def continue_known(it, read, now=time.time):
+def continue_known(it, read, now=time.time, link=None):
     """What Continue Watching knows about the video it started (show, season, episode, year, TMDb id), when Kodi's own item lacks them and the title agrees.
     Owner, build 639 log 9f7b4ab2: an Umbrella episode played as 'Episode 8' with no show, so SubDL was asked for 'Episode 8' with no season or episode and
     returned some other show's subtitle. {} when nothing agrees."""
@@ -45,7 +45,8 @@ def continue_known(it, read, now=time.time):
             return {}
         names = {str(it.get('title') or '').lower(), str(it.get('showtitle') or '').lower(), str(it.get('label') or '').lower()} - {''}
         mine = {str(entry.get('title') or '').lower(), str(entry.get('tvshowtitle') or '').lower()} - {''}
-        if not names & mine:
+        same_link = bool(link) and str(link).split('|')[0] == str((entry.get('stream') or {}).get('url') or '').split('|')[0]   # Continue plays this very link
+        if not (names & mine or same_link):
             return {}
         movie = entry.get('kind') == 'movie'
         return {'kind': 'movie' if movie else 'episode', 'title': entry.get('title') or '', 'show': '' if movie else entry.get('tvshowtitle') or '',
@@ -204,7 +205,13 @@ def run(mode):
                 return f.read()
             finally:
                 f.close()
-        return subtitle_memory.known_from(read, xbmc.getInfoLabel('VideoPlayer.Title'))
+        link = None
+        try:
+            import remote_media
+            link = remote_media.original(xbmc.Player().getPlayingFile(), xbmcgui.Window(10000))
+        except Exception:
+            link = None
+        return subtitle_memory.known_from(read, xbmc.getInfoLabel('VideoPlayer.Title'), link=link)
 
     class Menu(xbmcgui.WindowXMLDialog):
         closed = False
@@ -444,7 +451,13 @@ def run(mode):
                         return f.read()
                     finally:
                         f.close()
-                return continue_known(it, read)
+                link = None
+                try:   # the link behind the cache's own address (remote_media.original)
+                    import remote_media
+                    link = remote_media.original(str(it.get('file') or ''), xbmcgui.Window(10000))
+                except Exception:
+                    link = None
+                return continue_known(it, read, link=link)
             except Exception:
                 return {}
             return {}

@@ -13,7 +13,7 @@ RETRY = 180         # seconds before a live game that had no source is searched 
 MAX_SEARCH = 175    # the longest one search is waited for (a game page's own limit is 150)
 
 
-WARM_AFTER = 8      # seconds after launch before sources are looked for without Sports having been opened (build 646 log 317cd411: the first source came 35 s after launch)
+WARM_AFTER = 25     # seconds after launch before sources are looked for without Sports having been opened (build 653 log 5ee55982: at 8 s the search's Crew start-up shared the phone with the app's own start-up and a tap on Live Now took 6.5 s to open its page, so it was tapped three times)
 SEEN_FOR = 3 * 3600  # hours after Sports was opened (or after launch, for the warm-up) that sources are kept looked for
 
 
