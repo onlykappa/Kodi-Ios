@@ -732,6 +732,52 @@ def _kept(source):
   return resume_cache.ready(source)
  except Exception:return False
 
+PREFLIGHT=5.0       # seconds a link's server has to send its first byte before Kodi is given the link to play directly
+PREFLIGHT_TRIES=2   # connections asked at once: a debrid node that hangs one connection often answers another
+
+def first_byte(source,limit=PREFLIGHT,tries=PREFLIGHT_TRIES,open_url=None,clock=time.monotonic):
+ """Seconds until the server of `source` answers a one-byte range read (200 or 206), or None when nothing answered within `limit`. Several connections at once,
+ the first answer counts; the address never reaches a log. open_url(request,timeout) is injectable (tests)."""
+ address,_,tail=str(source).partition('|');headers={'Range':'bytes=0-0'}
+ headers.update({k:v for k,v in urllib.parse.parse_qsl(tail)})
+ opener=open_url or (lambda request,timeout:urllib.request.urlopen(request,timeout=timeout))
+ began=clock();answers=[];done=threading.Event()
+ def one():
+  try:
+   with opener(urllib.request.Request(address,headers=headers),limit) as response:
+    if getattr(response,'status',None) in (200,206) or response.getcode() in (200,206):
+     answers.append(clock()-began);done.set()
+  except Exception:pass
+ threads=[threading.Thread(target=one,daemon=True) for _ in range(max(1,tries))]
+ for thread in threads:thread.start()
+ done.wait(limit)
+ return min(answers) if answers else None
+
+def preflight(source,home,limit=PREFLIGHT,check=None,renew=None,log=None):
+ """The link Kodi should be given when it will play it directly (the cache did not answer, or this server was slow a moment ago): `source` when its server sends
+ a first byte within `limit`; else the same file unlocked again, which a debrid service serves from another node, when THAT answers; else `source` (as before).
+ Owner, build 659 (log 4a05fc8f): Kodi waited 27.6 s for the first bytes of a link whose server was not answering, then read an empty file: 36.7 s of nothing."""
+ check=check or first_byte
+ log=log or (lambda text:None)
+ try:
+  waited=check(source,limit)
+  if waited is not None:
+   log('Kodi iOS stream opening: preflight: the server answered in %d ms'%int(waited*1000))
+   return source
+  record=umbrella_recovery.selected(source,home)
+  if not record:
+   log('Kodi iOS stream opening: preflight: no first byte in %d s and no way to unlock the file again'%int(limit))
+   return source
+  fresh=(renew or umbrella_recovery.renew)(record)
+  if fresh and umbrella_recovery.web(fresh) and fresh.partition('|')[0]!=source.partition('|')[0]:
+   again=check(fresh,limit)
+   if again is not None:
+    log('Kodi iOS stream opening: preflight: no first byte in %d s; the file unlocked again answered in %d ms'%(int(limit),int(again*1000)))
+    return fresh
+  log('Kodi iOS stream opening: preflight: no first byte in %d s and the unlocked-again link did not answer either; playing it as it is'%int(limit))
+ except Exception as error:log('Kodi iOS stream opening: preflight failed (%s)'%describe(error))
+ return source
+
 def for_kodi(source,home,wait=None,clock=time.monotonic,resume=None):
  """ISSUE-280: the address Kodi's own player should open for a link Umbrella just resolved: the service's cache when
  the link is a remote MKV / AVI / WebM and the service answers, else the link itself (nothing changes then)."""
@@ -744,7 +790,7 @@ def for_kodi(source,home,wait=None,clock=time.monotonic,resume=None):
   # was too slow a moment ago is not asked again for SLOW_SKIP seconds: the link is played directly at once (the cache is tried again afterwards).
   if slow_recently(home,source) and not _kept(source):   # unless the opening of this very link is on the phone (resume_cache)
    opening_log('direct',0,{},reason='this server did not answer the cache in time a moment ago')
-   return source
+   return _direct(source,home)
   # ISSUE-306: the source handed over last time is still here and Kodi took nothing from it, a moment ago: Umbrella went on
   # to its next source without playing this one. Whatever stops the cache route playing, more of it will not help: this
   # source (and the rest of the cycle) is played directly, as in the builds that played.
@@ -767,12 +813,18 @@ def for_kodi(source,home,wait=None,clock=time.monotonic,resume=None):
    except Exception:pass
    opening_log('direct',clock()-began,sample)
    note_slow(home,source)
-   return source
+   return _direct(source,home)
   opening_log('cache',clock()-began,sample)
   _LAST[0]=clock()
   return answer['url']
  except Exception:return source
 
+
+def _direct(source,home):
+ """The link for a direct open, checked first (preflight), with the failover logged."""
+ try:import xbmc
+ except ImportError:return source   # outside Kodi (tests, tools): nothing is asked of the network
+ return preflight(source,home,log=lambda text:xbmc.log(text,xbmc.LOGINFO))
 
 def opening_log(route,elapsed,stats,reason=''):
  """One useful, credential-free line per handoff, including failed/stalled probes."""

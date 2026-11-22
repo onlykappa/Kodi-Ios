@@ -52,6 +52,33 @@ class Prefetch(unittest.TestCase):
         p.get_provider=lambda:type('P',(),{'live_games':lambda s,league=None:(_ for _ in ()).throw(RuntimeError('x'))})()
         self.assertIsNone(p.tick())
 
+class BackToBack(unittest.TestCase):
+    """Owner, build 659 (log 4a05fc8f): one search a minute left an NBA game with no source two minutes after launch; streams should be ready in 5-10 s."""
+    def test_the_big_leagues_are_searched_first_not_only_the_soonest_start(self):
+        p=Prefetch.make(Prefetch(),[dict(game('x',10),league='EPL'),dict(game('n',500),league='NBA'),dict(game('f',900),league='NFL'),dict(game('o',5),league='ZZZ')])
+        order=[p.tick(),p.tick(),p.tick(),p.tick()]
+        self.assertEqual(order,['f','n','x','o'])
+    def test_after_a_search_the_next_game_is_searched_within_seconds_not_a_minute(self):
+        ticks=[];clock={'n':0};provider=Provider([game('a',100),game('b',200),game('c',300)])
+        class P:
+            def live_games(self,league=None):ticks.append(clock['n']);return provider.live_games()
+            def request_game(self,gid):return provider.request_game(gid)
+            def searching_game(self,gid,token):return False
+            def cancel_game_search(self,token):pass
+            def game(self,gid):return provider.game(gid)
+        def wait(step):
+            clock['n']+=step;return clock['n']>40
+        pf.watch(lambda:P(),lambda:False,wait,every=60,first=20,poke=lambda:False)
+        self.assertEqual(ticks[:3],[20,23,26])                      # a at 20 s, then b 3 s later, then c: all searched in the first half minute
+    def test_when_nothing_is_left_it_waits_the_usual_minute(self):
+        ticks=[];clock={'n':0}
+        class P:
+            def live_games(self,league=None):ticks.append(clock['n']);return []
+        def wait(step):
+            clock['n']+=step;return clock['n']>100
+        pf.watch(lambda:P(),lambda:False,wait,every=60,first=20,poke=lambda:False)
+        self.assertEqual(ticks[:2],[20,80])
+
 class Watch(unittest.TestCase):
     """A Sports page opened pokes the loop: the look happens at once, not at the next minute (owner, build 618)."""
     def run_watch(self,pokes,seconds):

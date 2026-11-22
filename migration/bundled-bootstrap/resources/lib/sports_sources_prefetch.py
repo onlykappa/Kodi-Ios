@@ -11,6 +11,9 @@ import time
 EVERY = 60          # seconds between looks at the live games
 RETRY = 180         # seconds before a live game that had no source is searched again
 MAX_SEARCH = 175    # the longest one search is waited for (a game page's own limit is 150)
+AFTER_SEARCH = 3    # seconds before the next game is searched when one search has just finished (owner, build 659 log 4a05fc8f: one search a minute left the NBA game with "no
+                    # source yet" two minutes after launch, and the owner wants streams in 5-10 s: the games are now searched back to back)
+LEAGUE_FIRST = {'NFL': 0, 'NBA': 1, 'NHL': 2, 'MLB': 3, 'NCAAF': 4, 'NCAAB': 5, 'WNBA': 6, 'MLS': 7, 'EPL': 8, 'UCL': 9}   # the leagues people open first are searched first
 
 
 WARM_AFTER = 25     # seconds after launch before sources are looked for without Sports having been opened (build 653 log 5ee55982: at 8 s the search's Crew start-up shared the phone with the app's own start-up and a tap on Live Now took 6.5 s to open its page, so it was tapped three times)
@@ -52,7 +55,7 @@ class Prefetch:
         live = {g['id'] for g in games}
         for gone in [gid for gid in self.attempts if gid not in live]:
             del self.attempts[gone]   # it ended: forget it
-        for game in sorted(games, key=lambda g: g.get('start') or 0):
+        for game in sorted(games, key=lambda g: (LEAGUE_FIRST.get(g.get('league'), 99), g.get('start') or 0)):
             if game.get('sources'):
                 continue
             last = self.attempts.get(game['id'])
@@ -96,6 +99,7 @@ def watch(get_provider, busy, wait, log=lambda text: None, every=EVERY, first=20
             continue
         waited, limit = 0, every
         try:
-            prefetch.tick()
+            if prefetch.tick():
+                limit = AFTER_SEARCH   # that game is done: the next one without a source is searched straight away, not a minute later
         except Exception as error:
             log('prefetch: tick failed (%s)' % type(error).__name__)
