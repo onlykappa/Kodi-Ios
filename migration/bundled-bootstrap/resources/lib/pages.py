@@ -434,7 +434,7 @@ def play_on_tv():
 TRACK_MENU='IOSTrackMenu.xml'
 TRACK_ROWS=3   # rows shown before the list scrolls
 # Subtitles is a full-height drawer (owner, 2026-11-16, option C): up to five rows, its own list and controls.
-SUBS_LIST=9312;SUBS_ROWS=5;T_MINUS_S=9405;T_PLUS_S=9406
+SUBS_LIST=9312;SUBS_ROWS=5;T_MINUS_S=9405;T_PLUS_S=9406;SYNC=9407
 HOLD_FIND=9601;HOLD_REMOVE=9602;HOLD_SCRIM=9690;SURE_SCRIM=9691;SURE_CANCEL=9611;SURE_REMOVE=9612
 # Board 02: Playback speed shows every speed Kodi plays (0.8x-1.5x) in its own list, so none scrolls away.
 SPEED_LIST=9311;SPEED_ROWS=6
@@ -544,9 +544,26 @@ def track_menu():
   img(w-pad-70,y_more+(row-56)//2,40,56,ICONS+'chevron-right.png','80EBEBF5')+
   '<control type="button" id="9501"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus /><texturenofocus />'
   '<onup>%d</onup></control></control>'%(pad,y_more,w-2*pad,row,SUBS_LIST))
+ # Auto sync (owner, 2026-11-22; docs/design/subtitles-autosync-mockup.html): under Timing. Window properties sync (the line under the title) and
+ # sync_state (busy | done | fail; empty = ready). 9407 is the button; tracks.py listens to the video and moves the subtitle.
+ sst=lambda v:isp('sync_state',v)
+ y_sy=y_tm+row
  subs_timing=('<control type="group"><visible>String.IsEqual(Window().Property(page),more)</visible>'+
-  img(pad,y_tm,w-2*pad,row,MEDIA+'round_s.png','47000000','','26')+
-  lab(pad+36,y_tm,300,row,'Timing','font_main')+stepper(w-pad-372,y_tm,T_MINUS_S,T_PLUS_S,'timing','<onup>%d</onup>'%SUBS_LIST)+'</control>')
+  img(pad,y_tm,w-2*pad,2*row,MEDIA+'round_s.png','47000000','','26')+
+  lab(pad+36,y_tm,300,row,'Timing','font_main')+stepper(w-pad-372,y_tm,T_MINUS_S,T_PLUS_S,'timing','<onup>%d</onup><ondown>%d</ondown>'%(SUBS_LIST,SYNC))+
+  img(pad+36,y_tm+row-1,w-2*pad-36,2,MEDIA+'white.png','1FEBEBF5')+
+  img(pad,y_sy,w-2*pad,row,MEDIA+'round_s.png','1AFFFFFF','<visible>Control.HasFocus(%d)</visible>'%SYNC,'26')+
+  lab(pad+36,y_sy+8,w-2*pad-200,64,'Auto sync','font_main')+
+  lab(pad+36,y_sy+66,w-2*pad-200,40,'$INFO[Window().Property(sync)]','font_mini','99EBEBF5','left','<visible>!%s + !%s + !%s</visible>'%(sst('busy'),sst('done'),sst('fail')))+
+  lab(pad+36,y_sy+66,w-2*pad-200,40,'$INFO[Window().Property(sync)]','font_mini','FFFFFFFF','left','<visible>%s</visible>'%sst('busy'))+
+  lab(pad+36,y_sy+66,w-2*pad-200,40,'$INFO[Window().Property(sync)]','font_mini','FF30D158','left','<visible>%s</visible>'%sst('done'))+
+  lab(pad+36,y_sy+66,w-2*pad-200,40,'$INFO[Window().Property(sync)]','font_mini','FFFF453A','left','<visible>%s</visible>'%sst('fail'))+
+  img(w-pad-78,y_sy+(row-44)//2,44,44,MEDIA+'ring.png','FFFFFFFF','<visible>%s</visible>'
+      '<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'%sst('busy'))+
+  img(w-pad-76,y_sy+(row-40)//2,40,40,ICONS+'check.png','FF30D158','<visible>%s</visible>'%sst('done'))+
+  img(w-pad-70,y_sy+(row-56)//2,40,56,ICONS+'chevron-right.png','80EBEBF5','<visible>!%s + !%s</visible>'%(sst('busy'),sst('done')))+
+  '<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus /><texturenofocus />'
+  '<onup>%d</onup></control>'%(SYNC,pad,y_sy,w-2*pad,row,T_MINUS_S)+'</control>')
  # The hold menu sits left of the drawer, level with the held row (ctx.row 0-4); a scrim over the drawer ends it with one tap.
  hold_w=640;hold_x=-(hold_w+24)
  hold_item=lambda y,id,prop,color:(

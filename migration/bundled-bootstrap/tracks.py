@@ -23,7 +23,7 @@ import subtitle_match as sm
 BACK = (9, 10, 92, 110)
 CLOSE, MORE, CTA, LIST, T_MINUS, T_PLUS, B_MINUS, B_PLUS = 9500, 9501, 9510, 9310, 9401, 9402, 9403, 9404
 # The Subtitles drawer (owner, 2026-11-16): its own list and timing buttons; holding a track opens a menu (Find another / Remove).
-SUBS_LIST, T_MINUS_S, T_PLUS_S = 9312, 9405, 9406
+SUBS_LIST, T_MINUS_S, T_PLUS_S, SYNC = 9312, 9405, 9406, 9407
 HOLD_FIND, HOLD_REMOVE, HOLD_SCRIM, SURE_SCRIM, SURE_CANCEL, SURE_REMOVE = 9601, 9602, 9690, 9691, 9611, 9612
 LONG = (101, 117, 10)   # a long press on the phone arrives as 101 / 117, and as 10 (Back) first; see favourites_page.onAction
 SUBS_ROWS = 5
@@ -540,7 +540,7 @@ def run(mode):
             ep = getattr(self, 'episode', (None, None))
             return ss.fetch(http_get, http_post, ss.load_keys(keys_folder(xbmcvfs)), result, ep[0], ep[1])
 
-        def apply(self, result, got=None):
+        def apply(self, result, got=None, path=None):
             if got is None:
                 result, name, data = sm.choose_download([result], self.fetch_result, self.checked_video())
                 got = (name, data)
@@ -548,8 +548,8 @@ def run(mode):
             os.makedirs(folder, exist_ok=True)
             # Owner log 20b1ca76: SubDL's id is its download path ('/subtitle/…zip?…'), which made an absolute, missing
             # path; the file is named by a hash of the id.
-            path = os.path.join(folder, '%s.%s.%s' % (zlib.crc32(str(result['id']).encode('utf-8')) & 0xffffffff, self.lang,
-                                                      name.rsplit('.', 1)[-1].lower()))
+            path = path or os.path.join(folder, '%s.%s.%s' % (zlib.crc32(str(result['id']).encode('utf-8')) & 0xffffffff, self.lang,
+                                                          name.rsplit('.', 1)[-1].lower()))
             with open(path, 'wb') as f:
                 f.write(data)
             before = {s.get('index') for s in (rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['subtitles']}) or {}).get('subtitles') or []}
@@ -706,6 +706,42 @@ def run(mode):
             except Exception as error:
                 log('speech check: skipped (%s: %s)' % (type(error).__name__, error))
 
+        def sync_say(self, state, text):
+            self.setProperty('sync_state', state)
+            self.setProperty('sync', text)
+
+        def auto_sync(self):
+            """Subtitles > More > Auto sync (owner, 2026-11-22): listen to the video now and move the subtitle that is on by what the speech says. Only a file this app
+            downloaded can be moved; the sound must be in the subtitle's language (speech_check.wanted)."""
+            try:
+                self.sync_say('busy', 'Listening to the video')
+                p = rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['currentsubtitle', 'subtitleenabled', 'currentaudiostream']}) or {}
+                index = (p.get('currentsubtitle') or {}).get('index')
+                path = self.paths.get(index) or external_file(folder, self.names.get(index, ''))
+                if not p.get('subtitleenabled') or not path or not os.path.exists(path):
+                    log('auto sync: no downloaded subtitle is on (index %s)' % index)
+                    self.sync_say('fail', 'Turn on a downloaded subtitle first')
+                    return
+                import speech_check
+                video = self.video()
+                if not speech_check.wanted(video, (p.get('currentaudiostream') or {}).get('language')):
+                    log('auto sync: not listening (sound %s, subtitles %s)' % ((p.get('currentaudiostream') or {}).get('language') or 'unknown', video.get('language')))
+                    self.sync_say('fail', 'The sound is in another language than the subtitles')
+                    return
+                xbmcgui.Window(10000).setProperty(speech_check.PROPERTY, '')   # listen again: an earlier try may have heard nothing
+                heard = speech_check.for_playing(xbmc, xbmcgui, xbmcvfs, video, log)
+                with open(path, 'rb') as f:
+                    data = f.read()
+                state, text, fixed = speech_check.sync_result(heard, data, path)
+                log('auto sync: %d words heard; %s (%s)' % (len(heard or []), text, state))
+                if fixed is not None:
+                    self.apply({'id': 'auto sync'}, (os.path.basename(path), fixed), path=path)
+                    self.timing()
+                self.sync_say(state, text)
+            except Exception as error:
+                log('auto sync: failed (%s: %s)' % (type(error).__name__, error))
+                self.sync_say('fail', 'Could not sync. Try again')
+
         def always_on(self):
             try:
                 cur = (rpc(xbmc, 'Settings.GetSettingValue', {'setting': 'locale.subtitlelanguage'}) or {}).get('value') or ''
@@ -830,6 +866,9 @@ def run(mode):
                     threading.Thread(target=self.download_and_apply, daemon=True).start()
             elif control == MORE:
                 self.more()
+            elif control == SYNC:
+                if self.getProperty('sync_state') != 'busy':
+                    threading.Thread(target=self.auto_sync, daemon=True).start()
             elif control in (T_MINUS, T_PLUS, T_MINUS_S, T_PLUS_S):
                 step = 'SubtitleDelay' if mode == 'subtitles' else 'AudioDelay'
                 xbmc.executebuiltin('Action(%s%s)' % (step, 'Minus' if control in (T_MINUS, T_MINUS_S) else 'Plus'))

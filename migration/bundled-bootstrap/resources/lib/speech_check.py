@@ -341,3 +341,19 @@ def describe(selected):
     agreement = selected.get('match_speech_agreement')
     return '%s (agreement %s, shift %.1f s)' % (how, 'n/a' if agreement is None else '%.2f' % agreement, float(selected.get('match_speech_shift') or 0))
 
+
+
+def sync_result(heard, data, name):
+    """What Auto sync (Subtitles > More) does with the subtitle that is on, given the words heard: (state, line shown, new file data or None). state: done | fail.
+    Pure; tracks.py listens and applies."""
+    if len(heard or []) < MIN_WORDS:
+        return 'fail', 'Not enough speech heard. Try during dialogue', None
+    fit = compare(heard, cues(data, name))
+    how, seconds = verdict(fit)
+    if how == 'mismatch':
+        return 'fail', 'These subtitles are for another video. Try Find another', None
+    if how == 'shift':
+        return 'done', 'Moved %.1f s %s' % (abs(seconds), 'later' if seconds > 0 else 'earlier'), shift_file(data, name, seconds)
+    if how == 'fits':
+        return 'done', 'Already in sync', None
+    return 'fail', 'Could not tell. Try again during dialogue', None

@@ -101,6 +101,37 @@ class Shifting(unittest.TestCase):
         self.assertIn(b'00:00:00,000 --> 00:00:01,000', sc.shift_file(b'1\n00:00:02,000 --> 00:00:05,000\nHi\n', 'a.srt', -4))
 
 
+class AutoSync(unittest.TestCase):
+    """Subtitles > More > Auto sync (owner, 2026-11-22): the subtitle that is on is moved by what the speech says, at once."""
+    def test_a_late_subtitle_is_moved_and_says_so(self):
+        data, said = scene(3.0)
+        state, text, fixed = sc.sync_result(sc.heard(said), data, 'a.srt')
+        self.assertEqual(state, 'done');self.assertRegex(text, r'^Moved 3\.[01] s later$')
+        again = sc.verdict(sc.compare(sc.heard(said), sc.cues(fixed, 'a.srt')))
+        self.assertEqual(again, ('fits', 0.0))
+
+    def test_an_early_one_moves_the_other_way(self):
+        data, said = scene(-7.5)
+        state, text, fixed = sc.sync_result(sc.heard(said), data, 'a.srt')
+        self.assertEqual(state, 'done');self.assertRegex(text, r'^Moved 7\.[45] s earlier$')
+
+    def test_one_in_time_is_left_alone(self):
+        data, said = scene()
+        self.assertEqual(sc.sync_result(sc.heard(said), data, 'a.srt'), ('done', 'Already in sync', None))
+
+    def test_another_video_is_named_and_not_moved(self):
+        _, said = scene(seed=1)
+        data = '\n'.join('%d\n%s --> %s\nSpaceship engines failing number %d\n' % (i, sc._fmt_srt(100 + 4 * i), sc._fmt_srt(102 + 4 * i), i) for i in range(60)).encode()
+        state, text, fixed = sc.sync_result(sc.heard(said), data, 'b.srt')
+        self.assertEqual((state, fixed), ('fail', None));self.assertIn('another video', text)
+
+    def test_too_few_words_say_so(self):
+        data, said = scene()
+        few = sc.heard(said)[:5]
+        self.assertEqual(sc.sync_result(few, data, 'a.srt'), ('fail', 'Not enough speech heard. Try during dialogue', None))
+        self.assertEqual(sc.sync_result([], data, 'a.srt')[0], 'fail')
+
+
 class Download(unittest.TestCase):
     video = {'duration': 3000, 'language': 'en', 'season': None, 'episode': None}
 

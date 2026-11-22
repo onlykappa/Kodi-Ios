@@ -73,10 +73,18 @@ class Rows(unittest.TestCase):
         root = ET.fromstring(pages.track_menu().split('\n', 2)[2])
         ids = [c.get('id') for c in root.iter('control') if c.get('id')]
         self.assertEqual(len(ids), len(set(ids)))
-        for name in ('SUBS_LIST', 'T_MINUS_S', 'T_PLUS_S', 'HOLD_FIND', 'HOLD_REMOVE', 'HOLD_SCRIM', 'SURE_SCRIM', 'SURE_CANCEL', 'SURE_REMOVE'):
+        for name in ('SUBS_LIST', 'T_MINUS_S', 'T_PLUS_S', 'HOLD_FIND', 'HOLD_REMOVE', 'HOLD_SCRIM', 'SURE_SCRIM', 'SURE_CANCEL', 'SURE_REMOVE', 'SYNC'):
             self.assertEqual(getattr(tracks, name), getattr(pages, name), name)
             self.assertIn(str(getattr(pages, name)), ids)
         self.assertEqual(tracks.SUBS_ROWS, pages.SUBS_ROWS)
+
+    def test_auto_sync_is_a_row_under_timing_with_its_states(self):   # owner, 2026-11-22; docs/design/subtitles-autosync-mockup.html
+        xml = pages.track_menu()
+        self.assertIn('Auto sync', xml);self.assertIn('Window().Property(sync)', xml)
+        for state in ('busy', 'done', 'fail'):
+            self.assertIn('String.IsEqual(Window().Property(sync_state),%s)' % state, xml)
+        src = Path(tracks.__file__).read_text()
+        self.assertIn('control == SYNC', src);self.assertIn('def auto_sync(self)', src)
 
     def test_the_drawer_is_full_height_at_the_right_edge_with_no_cut_text(self):
         xml = pages.track_menu()
