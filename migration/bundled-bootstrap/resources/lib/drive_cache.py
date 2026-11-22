@@ -200,11 +200,26 @@ class Filler(object):
         self.lock = threading.Lock()
         self.jobs = {}   # file_id -> {'size', 'at' (block), 'stop'}
         self.prefetching = set()   # videos being prefetched now
+        self.declined = set()      # (file id, reason) already said once in the log
+        self.pace = None            # pace(file_id, ahead_bytes) -> seconds to rest before the next chunk (the TV link first: cast_cache.Pacing)
+        self.recent = collections.OrderedDict()   # file id -> (size, read positions): what ahead_bytes counts from after a job has finished
         self.done = threading.Event()   # set for tests when a worker has finished
+
+    def _decline(self, file_id, reason):
+        """Why a file is not being filled, said once per file and reason (owner log f93a3233: no filler line at all appeared while a TV starved)."""
+        key = (file_id, reason.split(':')[0])
+        with self.lock:
+            if key in self.declined:
+                return
+            self.declined.add(key)
+        self.log('Kodi iOS Drive cache: not filling %s (%s)' % (str(file_id)[:8], reason))
 
     def want(self, file_id, size, position):
         """Playback is at byte `position` of the file: make sure it is being filled from there."""
-        if not size or not self.allowed():
+        if not size:
+            return
+        if not self.allowed():
+            self._decline(file_id, 'not on Wi-Fi')
             return
         at = position // self.block
         self.store.unpin(file_id)   # it is playing now: the next stop clears it like any other
@@ -212,15 +227,89 @@ class Filler(object):
             job = self.jobs.get(file_id)
             if job and job['size'] == size:
                 self._follow(job, at)   # a seek (or another track's stretch): the worker follows this position too
+                self._remember(file_id, size, job['cursors'])
                 return
-            try:
-                if self.free() < min(size, self.cap_bytes) + FREE_MARGIN:
-                    return
-            except OSError:
+        try:
+            free, needs = self.free(), min(size, self.cap_bytes) + FREE_MARGIN
+        except OSError:
+            self._decline(file_id, 'free space unknown')
+            return
+        if free < needs:
+            self._decline(file_id, 'free space: %d MB free, %d MB needed' % (free // 1048576, needs // 1048576))
+            return
+        with self.lock:
+            job = self.jobs.get(file_id)
+            if job and job['size'] == size:
+                self._follow(job, at)
                 return
             job = {'size': size, 'at': at, 'cursors': [at], 'turn': 0, 'stop': False, 'generation': self.store.generation}
             self.jobs[file_id] = job
+            self._remember(file_id, size, job['cursors'])
+            self.declined = {k for k in self.declined if k[0] != file_id}   # a later decline is news again
+        total = (size + self.block - 1) // self.block
+        window = self.window_blocks(size, total)
+        self.log('Kodi iOS Drive cache: filling %s from %d MB, %s' % (str(file_id)[:8], at * self.block // 1048576,
+                 'the whole file' if window >= total else 'a window of %d MB ahead' % (window * self.block // 1048576)))
         threading.Thread(target=self._run, args=(file_id, job), daemon=True).start()
+
+    def window_blocks(self, size, total):
+        """How many blocks ahead of a position are kept: the whole file when it fits the cap, else a window (a third of the cap)."""
+        if size <= self.cap_bytes:
+            return total
+        return min(self.cap_bytes // self.block, max(CHUNK_BLOCKS, self.cap_bytes // self.block // WINDOW_DIVISOR))
+
+    def ahead_bytes(self, file_id):
+        """Bytes in a row that are already on the phone from the furthest read position seen for this file (0 for a file never read): the cushion a reader
+        starting there has before Drive is needed. It counts blocks and reads nothing, and still answers after the filler has finished the file."""
+        with self.lock:
+            job = self.jobs.get(file_id)
+            known = (job['size'], list(job.get('cursors') or [job['at']])) if job else self.recent.get(file_id)
+        if not known:
+            return 0
+        size, cursors = known[0], list(known[1])
+        total = (size + self.block - 1) // self.block
+        best = 0
+        for start in cursors:
+            run = 0
+            while start + run < total and self.store.has(file_id, size, start + run):
+                run += 1
+            best = max(best, run)
+        return min(size, best * self.block)
+
+    def cushion_ready(self, file_id, need, other=12 * 1024 * 1024):
+        """True when the furthest read position has `need` bytes in a row ahead of it (the picture) and every other position the filler follows has at least
+        min(need, `other`) (the audio and subtitle stretches of the same file, which lie far from the picture in an MP4: owner log 4f1691fe, 60 MB apart).
+        A file never read answers False."""
+        with self.lock:
+            job = self.jobs.get(file_id)
+            known = (job['size'], list(job.get('cursors') or [job['at']])) if job else self.recent.get(file_id)
+        if not known:
+            return False
+        size, cursors = known[0], list(known[1])
+        total = (size + self.block - 1) // self.block
+
+        def run(start):
+            n = 0
+            while start + n < total and self.store.has(file_id, size, start + n):
+                n += 1
+            return min(size, n * self.block)
+        ahead = sorted((run(c) for c in cursors), reverse=True)
+        return bool(ahead) and ahead[0] >= need and all(a >= min(need, other) for a in ahead[1:])
+
+    def _remember(self, file_id, size, cursors):
+        self.recent[file_id] = (size, list(cursors))
+        self.recent.move_to_end(file_id)
+        while len(self.recent) > 8:
+            self.recent.popitem(last=False)
+
+    def state(self):
+        """One short line for the cast diagnostics: how many files are being filled and how far ahead of the readers they are. No ids, no links."""
+        with self.lock:
+            ids = list(self.jobs)
+            idle = [i for i in self.recent if i not in self.jobs]
+        if not ids:
+            return 'filler idle' + (', %d MB ahead' % (self.ahead_bytes(idle[-1]) // 1048576) if idle else '')
+        return 'filler on %d file(s), %s ahead' % (len(ids), ', '.join('%d MB' % (self.ahead_bytes(i) // 1048576) for i in ids))
 
     @staticmethod
     def _follow(job, at):
@@ -304,7 +393,7 @@ class Filler(object):
     def _run(self, file_id, job):
         size, block = job['size'], self.block
         total = (size + block - 1) // block
-        window = total if size <= self.cap_bytes else min(self.cap_bytes // block, max(CHUNK_BLOCKS, self.cap_bytes // block // WINDOW_DIVISOR))
+        window = self.window_blocks(size, total)
         try:
             while not job['stop'] and job['generation'] == self.store.generation and self.allowed():
                 cursors = list(job['cursors'])
@@ -318,6 +407,9 @@ class Filler(object):
                 if run is None:
                     break
                 first, count = run
+                self._rest(file_id, job)
+                if job['stop'] or job['generation'] != self.store.generation:
+                    break
                 self._fetch(file_id, size, first, count, job, start)
                 if not self.store.has(file_id, size, first) and not job['stop']:
                     break   # the fetch stored nothing (or the block was evicted at once): never spin on it
@@ -328,6 +420,17 @@ class Filler(object):
                 if self.jobs.get(file_id) is job:
                     del self.jobs[file_id]
             self.done.set()
+
+    def _rest(self, file_id, job):
+        """While a TV is fed and the cushion is full, wait here (the job stays) so the phone's radio is free for the TV; see cast_cache.Pacing."""
+        while self.pace and not job['stop'] and job['generation'] == self.store.generation and self.allowed():
+            try:
+                delay = self.pace(file_id, self.ahead_bytes(file_id))
+            except Exception:
+                return
+            if not delay:
+                return
+            time.sleep(delay)
 
     def _next_run(self, file_id, size, start, total, window):
         """The first missing block from `start` (wrapping to the start of the file once), and how many missing blocks follow it, up to CHUNK_BLOCKS."""

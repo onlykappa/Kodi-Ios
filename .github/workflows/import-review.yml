@@ -147,6 +147,7 @@ jobs:
           python3 -B scripts/test_cast_ready.py
           python3 -B scripts/test_drive_proxy.py
           python3 -B scripts/test_drive_cache.py
+          python3 -B scripts/test_cast_cache.py
           python3 -B scripts/test_prefetch_copy.py
           python3 -B scripts/test_drive_index.py
           python3 -B scripts/test_settings_search.py

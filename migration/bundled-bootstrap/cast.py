@@ -473,6 +473,17 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
   ui.stage(phase)
   diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','phase',phase=phase)
  try:
+  # owner log f93a3233 (build 657): the TV started after one segment and starved at 40 s. A Drive file is filled from where Kodi is and the start waits
+  # (at most cast_cache.CUSHION_LIMIT seconds) until about 25 s of it are on the phone; any problem starts the TV at once, as before.
+  try:
+   import cast_cache,json,urllib.request
+   def cushion_json(url):
+    with urllib.request.urlopen(url,timeout=4) as answer:return json.loads(answer.read().decode('utf-8','replace'))
+   try:position,duration=float(player.getTime()),float(player.getTotalTime())
+   except Exception:position,duration=0.0,0.0
+   cast_cache.SEEK.fetch=cast_cache.reseek_fetch(cushion_json);cast_cache.SEEK.log=lambda text:xbmc.log(text,xbmc.LOGINFO);cast_cache.SEEK.arm(source,duration)   # a TV seek starts the fill at the new place
+   cast_cache.wait_for_cushion(source,position,duration,cushion_json,wait,lambda text:xbmc.log(text,xbmc.LOGINFO),ui.canceled,lambda need:home.setProperty(cast_cache.CUSHION_PROPERTY,str(need)))
+  except Exception as error:diagnostics.log_exception(xbmc,'airplay_cushion',error)
   # r39: the TV starts where Kodi is (the native side seeks once the stream is ready).
   if hasattr(lib,'kodi_airplay_start_at'):
    try:lib.kodi_airplay_start_at(float(player.getTime()))

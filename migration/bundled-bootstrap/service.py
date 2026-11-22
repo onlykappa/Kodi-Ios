@@ -307,15 +307,27 @@ def run():
         link[:]=[time.time(),cache_tune.link_kind()]
        except Exception:link[:]=[time.time(),'other']
       return link[1]!='cellular'
+     # owner log f93a3233 (build 657): Play on TV stops Kodi's player, and this wiped the cache and the filler exactly when the converter began reading the
+     # same Drive file. cast_cache.Keep keeps them while a TV is being fed and clears them once when it is over.
+     import cast_cache
+     def casting():
+      now=time.time();return airplay.starting(home_window,now) or airplay.busy(home_window,now) or airplay.serve_busy(home_window,now)
+     def clear_playback_cache():
+      try:drive_proxy.clear_cache()
+      except Exception as error:xbmc.log('Kodi iOS Drive cache: clear failed (%s)'%type(error).__name__,xbmc.LOGWARNING)
+     keep=cast_cache.Keep(casting,lambda:xbmc.Player().isPlaying(),clear_playback_cache,lambda text:xbmc.log(text,xbmc.LOGINFO))
      class CacheCleaner(xbmc.Monitor):
       def onNotification(self,sender,method,data):
-       if method=='Player.OnStop':
-        try:drive_proxy.clear_cache()
-        except Exception as error:xbmc.log('Kodi iOS Drive cache: clear failed (%s)'%type(error).__name__,xbmc.LOGWARNING)
+       if method=='Player.OnStop':keep.stopped()
      cleaner=CacheCleaner()   # kept referenced for the life of the service
+     def cast_cache_loop():
+      while not monitor.waitForAbort(cast_cache.RECHECK):keep.tick()
+     threading.Thread(target=cast_cache_loop,daemon=True).start()
+     cast_cache.DIAG.log=lambda text:xbmc.log(text,xbmc.LOGINFO);cast_cache.DIAG.state=drive_proxy.filler_state   # one line every 30 s while a TV is fed
+     pacing=cast_cache.Pacing(casting,lambda:int(home_window.getProperty(cast_cache.CUSHION_PROPERTY) or 0),lambda text:xbmc.log(text,xbmc.LOGINFO))
      drive_proxy.supervise(lambda port:drive_proxy.start(drive.token,port=port,hold=lambda:airplay.starting(home_window),   # roadmap 1G.3
                                    state_dir=profile/'addon_data/service.kodi.ios.bootstrap',log=lambda text:xbmc.log(text,xbmc.LOGINFO),   # 1A.3
-                                   cache_dir=str(Path(xbmcvfs.translatePath('special://temp/'))/'drive-playback-cache'),wifi_ok=wifi_ok),
+                                   cache_dir=str(Path(xbmcvfs.translatePath('special://temp/'))/'drive-playback-cache'),wifi_ok=wifi_ok,pace=pacing),
                            monitor.waitForAbort,publish,lambda text:xbmc.log(text,xbmc.LOGINFO),
                            nudge=lambda port:home_window.getProperty(drive_proxy.DEAD)==str(port) and (home_window.clearProperty(drive_proxy.DEAD) or True))
      return
