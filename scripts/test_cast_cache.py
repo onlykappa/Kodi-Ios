@@ -221,6 +221,21 @@ class AudioStretchAndSeek(unittest.TestCase):
         lines=[];out=cc.wait_for_cushion('http://127.0.0.1:9/drive/ID/x.mkv',100.0,1000.0,lambda url:(calls.append(url),{'ahead':10**9,'state':'x','size':3000*1024**2,'ready':False})[1],lambda s:True,lines.append)
         self.assertEqual(out,'canceled')                      # enough picture but the audio is not: it waits (here the user cancels)
         self.assertTrue(any('&need=' in u for u in calls))
+    def test_a_stretch_near_the_end_of_the_file_does_not_hold_the_cushion_forever(self):
+        """Owner, build 659 (log a8919a24): the picture had 64-96 MB ahead and the TV still waited 25-33 s."""
+        import drive_cache as dc
+        store=dc.DiskBlocks(os.path.join(tempfile.mkdtemp(),'c'),B);up=dp.Upstream(lambda f:'old',base.FakeConn)
+        filler=dc.Filler(store,up,B,dp.Tee,allowed=lambda:True,free=lambda:10**12);size=100*B
+        filler.recent['F']=(size,[10,98])                          # the picture at block 10 and a read near the end (an MP4's index): only 2 blocks left there
+        for n in list(range(10,40))+[98,99]:store.put('F',size,n,b'x'*B)
+        self.assertTrue(filler.cushion_ready('F',20*B,other=12*B))
+    def test_the_audio_stretch_gets_a_few_seconds_then_the_tv_starts_anyway(self):
+        lines=[];calls=[]
+        def get_json(url):
+            calls.append(url);return {'ahead':10**9,'state':'filler on 1 file(s), 90 MB ahead','size':3000*1024**2,'ready':False}
+        out=cc.wait_for_cushion('http://127.0.0.1:9/drive/ID/x.mkv',100.0,1000.0,get_json,lambda s:False,lines.append)
+        self.assertEqual(out,'ready');self.assertLessEqual(len(calls),cc.AUDIO_GRACE+4)               # not the whole limit
+        self.assertLess(cc.CUSHION_LIMIT,45);self.assertEqual(cc.CUSHION_LIMIT,20)
     def test_a_tv_jump_starts_the_fill_at_the_new_place(self):
         asked=[];seek=cc.Reseek(lambda base,path,second,duration:asked.append((base,path,second,duration)))
         line='seek: the receiver jumped from segment 21 to 54 (324.4 s)'

@@ -70,6 +70,24 @@ class BackToBack(unittest.TestCase):
             clock['n']+=step;return clock['n']>40
         pf.watch(lambda:P(),lambda:False,wait,every=60,first=20,poke=lambda:False)
         self.assertEqual(ticks[:3],[20,23,26])                      # a at 20 s, then b 3 s later, then c: all searched in the first half minute
+    def test_only_the_first_pass_is_back_to_back_a_repeat_search_keeps_the_minute(self):
+        """Efficiency (owner: "if the parallel scan can be efficient to not take a lot of performance and heat"): games with no source are not scanned all day."""
+        ticks=[];clock={'n':0};provider=Provider([game('a',100)])
+        class P:
+            def live_games(self,league=None):ticks.append(clock['n']);return provider.live_games()
+            def request_game(self,gid):return provider.request_game(gid)
+            def searching_game(self,gid,token):return False
+            def cancel_game_search(self,token):pass
+            def game(self,gid):return provider.game(gid)
+        def wait(step):
+            clock['n']+=step;return clock['n']>900
+        original=pf.RETRY;pf.RETRY=100
+        try:pf.watch(lambda:P(),lambda:False,wait,every=60,first=20,poke=lambda:False)
+        finally:pf.RETRY=original
+        searched=[t for t in ticks if t>=20];self.assertEqual(searched[0],20)
+        gaps=[b-a for a,b in zip(searched,searched[1:])];self.assertEqual(gaps[0],3);self.assertTrue(all(g>=60 for g in gaps[1:]),gaps)   # after the first search every look waits the usual minute
+    def test_the_retry_for_a_game_without_a_source_is_five_minutes(self):
+        self.assertEqual(pf.RETRY,300)
     def test_when_nothing_is_left_it_waits_the_usual_minute(self):
         ticks=[];clock={'n':0}
         class P:

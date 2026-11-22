@@ -293,8 +293,9 @@ class Filler(object):
             while start + n < total and self.store.has(file_id, size, start + n):
                 n += 1
             return min(size, n * self.block)
-        ahead = sorted((run(c) for c in cursors), reverse=True)
-        return bool(ahead) and ahead[0] >= need and all(a >= min(need, other) for a in ahead[1:])
+        runs = sorted(((run(c), size - c * self.block) for c in cursors), key=lambda pair: -pair[0])   # (bytes in a row ahead, bytes left to the end of the file)
+        # a stretch near the end of the file cannot have more ahead than is left (build 659 log a8919a24: the TV waited for a cursor that could never get 12 MB)
+        return bool(runs) and runs[0][0] >= need and all(a >= min(need, other, max(1, left)) for a, left in runs[1:])
 
     def _remember(self, file_id, size, cursors):
         self.recent[file_id] = (size, list(cursors))

@@ -59,7 +59,8 @@ import re
 import urllib.parse
 
 CUSHION_SECONDS = 25      # seconds of video that should be on the phone before the TV is told to start
-CUSHION_LIMIT = 45        # the longest wait, in seconds; after it the TV starts anyway
+CUSHION_LIMIT = 20        # the longest wait, in seconds; after it the TV starts anyway (owner, build 659 log a8919a24: 33 s of "preparing" before the owner pressed Stop)
+AUDIO_GRACE = 4           # seconds the audio stretch may take to catch up once the picture's cushion is there (it is not worth holding the TV for)
 CUSHION_MIN = 24 * 1024 * 1024
 CUSHION_MAX = 240 * 1024 * 1024
 POLL = 1.0
@@ -96,6 +97,7 @@ def wait_for_cushion(source, position, duration, get_json, wait, log=lambda text
         return 'not a Drive source'
     base, path = target
     waited, size, need, answer = 0.0, 0, 0, {}
+    met = None   # when the picture's cushion was first there
     at = 0
     outcome = 'timeout'
     while True:
@@ -124,9 +126,14 @@ def wait_for_cushion(source, position, duration, get_json, wait, log=lambda text
             except Exception:
                 pass
             continue   # ask again from the estimated byte; the first answer only told us the size
-        if int(answer.get('ahead') or 0) >= need and answer.get('ready', True):   # 'ready' (when the proxy says) also needs the audio stretch ahead
-            outcome = 'ready'
-            break
+        if int(answer.get('ahead') or 0) >= need:
+            met = waited if met is None else met
+            if answer.get('ready', True):   # the proxy also says the audio stretch is ahead
+                outcome = 'ready'
+                break
+            if waited - met >= AUDIO_GRACE:   # build 659 log a8919a24: the picture had 64-96 MB ahead (24 needed) and the TV still waited 25-33 s for an audio stretch that never filled
+                outcome = 'ready'
+                break
         if str(answer.get('state', '')).startswith('filler idle') and waited >= 2 * POLL:
             outcome = 'not filling'   # asked twice and nothing is filling: not on Wi-Fi, or no room (the proxy logged why)
             break

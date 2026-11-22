@@ -9,7 +9,7 @@ tried again after RETRY seconds while it is live. One search at a time, so Crew'
 import time
 
 EVERY = 60          # seconds between looks at the live games
-RETRY = 180         # seconds before a live game that had no source is searched again
+RETRY = 300         # seconds before a live game that had no source is searched again (a walk is 15-66 s of Crew's pages: scanning again and again is heat and battery)
 MAX_SEARCH = 175    # the longest one search is waited for (a game page's own limit is 150)
 AFTER_SEARCH = 3    # seconds before the next game is searched when one search has just finished (owner, build 659 log 4a05fc8f: one search a minute left the NBA game with "no
                     # source yet" two minutes after launch, and the owner wants streams in 5-10 s: the games are now searched back to back)
@@ -40,6 +40,7 @@ class Prefetch:
     def __init__(self, get_provider, busy=lambda: False, log=lambda text: None, clock=time.time, sleep=time.sleep):
         self.get_provider, self.busy, self.log, self.clock, self.sleep = get_provider, busy, log, clock, sleep
         self.attempts = {}   # game id -> when it was last searched
+        self.fresh = False   # the game the last tick searched had never been searched before (the first pass over the live games)
 
     def tick(self):
         """One look. Returns the game id searched, or None."""
@@ -61,6 +62,7 @@ class Prefetch:
             last = self.attempts.get(game['id'])
             if last is not None and now - last < RETRY:
                 continue
+            self.fresh = game['id'] not in self.attempts
             self.attempts[game['id']] = now
             self._search(provider, game)
             return game['id']
@@ -99,7 +101,7 @@ def watch(get_provider, busy, wait, log=lambda text: None, every=EVERY, first=20
             continue
         waited, limit = 0, every
         try:
-            if prefetch.tick():
-                limit = AFTER_SEARCH   # that game is done: the next one without a source is searched straight away, not a minute later
+            if prefetch.tick() and prefetch.fresh:
+                limit = AFTER_SEARCH   # the first pass over the live games runs back to back; a game searched again (no source last time) keeps the minute, so the phone does not scan all day
         except Exception as error:
             log('prefetch: tick failed (%s)' % type(error).__name__)
