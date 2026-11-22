@@ -133,26 +133,39 @@ def load(provider, now=None, offset=None, refresh=False):
         return dict(ERROR)
 
 
-def draw_first(page, provider_module):
+def draw_first(page, provider_module, laps=None):
     """Before the page opens: when an answer is on the phone, set the page's properties from it (no ESPN request, no thread), so the first frame the person
-    sees is the real hub. Returns True when it did. Never raises."""
+    sees is the real hub. Returns True when it did. Never raises. `laps` (a list) gets (step, ms) pairs: owner, build 659 (log 4a05fc8f): the hub's first
+    frame took 5.4-5.8 s three times from the saved answer while the same work takes about 55 ms on a computer; the log now says which step it is."""
+    began = time.monotonic()
+
+    def lap(step):
+        if laps is not None:
+            laps.append((step, (time.monotonic() - began) * 1000))
     try:
         provider = provider_module.get()
+        lap('provider')
         if not getattr(provider, 'has_answer', lambda: False)():
             return False
+        lap('saved answer')
         now = time.time()
         props = load(provider, now=now)
+        lap('load')
         if props.get('state') != 'ok':
             return False
         props.update(sf.edit_state(provider))
+        lap('edit state')
         games = provider.upcoming_games()
+        lap('upcoming')
         props.update(next_props(games, now, sm.device_offset(now)))
         if props.get('edit.summary'):
-            props['sub'] = '%s · %s' % (props['edit.summary'], props.get('sub', ''))
+            props['sub'] = '%s \u00b7 %s' % (props['edit.summary'], props.get('sub', ''))
+        lap('next game')
         page.games = games
         page.last = props
         for key, value in props.items():
             page.setProperty(key, value)
+        lap('properties')
         return True
     except Exception:
         return False
@@ -285,8 +298,11 @@ def run(args=()):
         # Written while Kodi was running: its directory cache may not list it yet (build 173). Re-read and try once more.
         xbmcvfs.listdir(os.path.join(skin, 'portrait') + '/')
         page = Page(sp.WINDOW, here, 'Default', '1080i')
-    first = draw_first(page, sports_provider)   # owner, build 623: "needs to be instant like every other page": the first frame already holds the games
-    log('hub: first frame %s (%.0f ms)' % ('from the saved answer' if first else 'waits for ESPN', (time.monotonic() - began) * 1000))
+    made = (time.monotonic() - began) * 1000
+    laps = []
+    first = draw_first(page, sports_provider, laps)   # owner, build 623: "needs to be instant like every other page": the first frame already holds the games
+    steps = ', '.join('%s %.0f' % (step, ms - (laps[n - 1][1] if n else 0)) for n, (step, ms) in enumerate(laps))
+    log('hub: first frame %s (%.0f ms: window %.0f, %s)' % ('from the saved answer' if first else 'waits for ESPN', (time.monotonic() - began) * 1000, made, steps or 'no steps'))
     # No Crew window under the hub any more (owner, 2026-11-20: "no more Crew UI"): ESPN supplies the lists, and Crew's code runs only when a
     # game's page looks for its sources (sports_provider.crew_sources).
     try:

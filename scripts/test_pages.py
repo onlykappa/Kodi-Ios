@@ -218,6 +218,24 @@ class OpeningStages(unittest.TestCase):
   self.assertIn('IOSReady.Size),, file]',xml)                                                                            # "2.56 GB file" under the bar
   for c in root.iter('control'):                                                                                         # a headline is never cut off
    if c.get('type')=='label' and c.findtext('font')=='p_h2':self.assertEqual(c.findtext('scroll'),'false')
+ def test_the_elapsed_time_is_published_and_drawn_under_the_size(self):
+  """Owner, 2026-11-21: "id like the elapsed time to show under the size of file so i know how long it takes to load video"."""
+  self.assertEqual([ready.elapsed_text(n) for n in (0,7,59,60,65,3599,-3)],['0 s','7 s','59 s','1:00','1:05','59:59','0 s'])
+  props={};now=[0.0];ticks=iter(range(8));seen=[]
+  def wait(_):
+   n=next(ticks,None);now[0]+=1;seen.append(props.get('IOSReady.Elapsed'));return n is None
+  ready.watch(lambda:True,lambda:'',props.__setitem__,lambda k:props.pop(k,None),wait,clock=lambda:now[0])
+  self.assertEqual([x for x in dict.fromkeys(seen) if x][:4],['0 s','1 s','2 s','3 s'])                           # it counts from when the window appears
+  import pages
+  xml=pages.umbrella_ready(portrait);root=ET.fromstring(xml.split('\n',2)[2])
+  self.assertIn('$INFO[Window(home).Property(IOSReady.Elapsed)]',xml)
+  tops={c.findtext('label'):int(c.findtext('top')) for c in root.iter('control') if c.get('type')=='label' and c.findtext('top')}
+  size=[int(c.findtext('top')) for c in root.iter('control') if c.get('type')=='grouplist' and 'IOSReady.Size' in ET.tostring(c,encoding='unicode')][0]
+  elapsed=tops['$INFO[Window(home).Property(IOSReady.Elapsed)]'];self.assertGreater(elapsed,size)                  # under the line with the size
+ def test_a_remembered_link_is_tried_for_a_day(self):
+  import importlib.util
+  spec=importlib.util.spec_from_file_location('iwd',ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_watch_dialog.py')
+  self.assertIn('STREAM_FRESH=24*3600',(ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_watch_dialog.py').read_text())
  def test_no_dots_and_the_bar_follows_the_real_progress(self):
   """Owner, 2026-11-21: no "..." on the page, and the page shows real progress: the link step, then the bytes Kodi has read (0, 4, 8 of 12 MB) filling the bar,
   then "Starting the video" (published through watch(), as the service does)."""

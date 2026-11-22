@@ -47,9 +47,16 @@ class FirstFrame(unittest.TestCase):
         self.assertFalse(sports.draw_first(Page(),Bad()))
 
 class Wiring(unittest.TestCase):
+    def test_the_first_frame_log_says_which_step_takes_the_time(self):
+        """Owner, build 659 (log 4a05fc8f): the hub's first frame took 5.4-5.8 s from the saved answer; the log line now names each step."""
+        laps=[];later=Later() if 'Later' in globals() else None
+        page=type('Page',(),{'setProperty':lambda self,k,v:None})()
+        text=(ROOT/'sports.py').read_text()
+        self.assertIn("'hub: first frame %s (%.0f ms: window %.0f, %s)'",text)
+        for step in ('provider','saved answer','load','edit state','upcoming','next game','properties'):self.assertIn("lap('%s')"%step,text)
     def test_a_refresh_does_not_cover_drawn_games_with_updating(self):
         text=(ROOT/'sports.py').read_text()
-        self.assertIn('if refresh and not self.last:',text);self.assertIn('first = draw_first(page, sports_provider)',text)
+        self.assertIn('if refresh and not self.last:',text);self.assertIn('first = draw_first(page, sports_provider, laps)',text)
         self.assertIn("if not getattr(self, 'last', None):",text)
     def test_the_service_asks_espn_first_thing_and_loads_the_hubs_modules(self):
         text=(ROOT/'service.py').read_text()

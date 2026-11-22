@@ -326,7 +326,7 @@ def umbrella_ready(p):
   # Before a source is known (board 10): where it looks, then Umbrella's own words under the bar.
   caps('UMBRELLA \u00b7 YOUR ACCOUNTS','!%s'%ready)+head('Looking for a source','!%s'%ready)+
   '<control type="textbox"><left>60</left><top>%d</top><width>%d</width><height>170</height><font>p_foot</font><textcolor>%s</textcolor><aligny>top</aligny>'
-  '<align>center</align><label>%s</label><visible>!%s</visible></control>'%(BY+40,w-120,'FFD1D1D6',R('Text'),ready)+
+  '<align>center</align><label>%s</label><visible>!%s</visible></control>'%(BY+110,w-120,'FFD1D1D6',R('Text'),ready)+
   # Kodi's progress control cannot read a window property, so the bar is 50 segments (2 % each: owner, 2026-11-21, a smooth fill) shown by Umbrella's percent.
   # DEC-036: one thin bar (11 units). It follows Umbrella's percent once a source is known, and slides while Umbrella is still looking.
   # ISSUE-280 (board S1): once the source is known the stage's real numbers fill it (IOSReady.Fill) or it slides while nothing is measurable.
@@ -337,8 +337,9 @@ def umbrella_ready(p):
   slide_bar(M,X0,BY,BW,extra='<visible>!%s | %s</visible>'%(ready,STAGED_SLIDE))+
   p.label(0,BY+40,w,60,'$INFO[Window.Property(percent)]%','p_foot',p.GREY,'center','<visible>%s + %s</visible>'%(ready,UNSTAGED))+
   numbers+
+  p.label(0,BY+100,w,50,R('Elapsed'),'p_foot',p.GREY,'center','<scroll>false</scroll><visible>%s</visible>'%has('Elapsed'))+   # how long the open has taken, under the size (owner, 2026-11-21)
   '<control type="textbox"><left>60</left><top>%d</top><width>%d</width><height>90</height><font>p_cap</font><textcolor>%s</textcolor><align>center</align>'
-  '<label>$INFO[Window(home).Property(IOSReady.Slow)]</label><visible>%s</visible></control>'%(BY+110,w-120,p.GREY,STAGED)+'</control>')
+  '<label>$INFO[Window(home).Property(IOSReady.Slow)]</label><visible>%s</visible></control>'%(BY+160,w-120,p.GREY,STAGED)+'</control>')
  cancel=('<control type="button" id="9001"><left>%d</left><top>%d</top><width>%d</width><height>140</height><label>Cancel</label>'
          '<font>p_btn</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
          '<texturefocus border="70" colordiffuse="14FFFFFF">%sglass_150.png</texturefocus><texturenofocus />'
