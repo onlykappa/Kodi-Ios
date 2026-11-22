@@ -85,7 +85,10 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
     import xbmcgui
     import xbmcvfs
     global _CACHE
+    import page_clock
+    clock_now = page_clock.Clock('upcoming', lambda text: xbmc.log('Kodi iOS Sports: ' + text, xbmc.LOGINFO))
     provider = provider or sports_provider.get()
+    clock_now.lap('provider')
     on_game = on_game or (lambda game,log:open_game(game,log,provider,clock))
     log = lambda text: xbmc.log(text, xbmc.LOGINFO)
 
@@ -101,6 +104,8 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
             self.league = args[0] if args else 'All'   # a league page starts on its chip (an unknown code shows All)
             self.data = _CACHE
             self.draw()
+            clock_now.lap('rows drawn')
+            clock_now.done('first frame' if _CACHE is not None else 'opened empty (nothing saved to draw)')
             self.refresh(reload=False)
             import sports_fresh
             sports_fresh.start(provider,self.stop,lambda:self.refresh(reload=False))   # redraw when the real answer replaces the remembered one
@@ -217,6 +222,7 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
             slots = page.SLOTS_SHORT if len(model(_CACHE[0],_CACHE[1],now,sm.device_offset(now),args[0] if args else 'All')[1]) <= page.SLOTS_SHORT else page.SLOTS
         except Exception:
             slots = page.SLOTS_SHORT
+    clock_now.lap('saved answer and rows')
     while True:
         name = page.WINDOW if slots <= page.SLOTS_SHORT else page.WINDOW_LONG
         try:

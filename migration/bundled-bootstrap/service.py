@@ -369,6 +369,7 @@ def run():
     wifi=cache_tune.link_kind()=='wifi'
    except Exception:wifi=False
    if xbmc.getCondVisibility('System.HasModalDialog'):return True   # a dialog (Crew's, a chooser) is up: not now
+   if not xbmc.getCondVisibility('System.IdleTime(5)'):return True   # a finger touched the screen in the last 5 s: the pages draw first (owner, 2026-11-22, log 71e31b26: Sports pages took 2-5 s while the search ran back to back)
    try:moving=float(xbmc.getInfoLabel('System.FPS') or 0)>=15   # the screen is animating or being scrolled: the look waits for it to settle
    except ValueError:moving=False
    return moving or sports_sources_prefetch.idle_for_search(home.getProperty('KodiIOS.SportsSeen'),launched,time.time(),wifi)

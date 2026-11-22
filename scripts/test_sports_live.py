@@ -438,5 +438,39 @@ class Crests(unittest.TestCase):
         self.assertTrue(all(none[k] == '' for k in none if k.endswith('.crest')))   # a failed download is an empty ring
 
 
+class FirstFrame(unittest.TestCase):
+    """Owner, 2026-11-22 (log 71e31b26): Live Now took 3-5 s to show anything; it now draws the saved answer before the window opens, with no request."""
+    class Page:
+        def __init__(self):
+            self.p = {}
+        def setProperty(self, k, v):
+            self.p[k] = v
+
+    def test_the_saved_answer_is_drawn_with_the_crests_on_the_phone_and_no_request(self):
+        import tempfile
+        asked = []
+        real = ctl.with_crests
+        def spy(props, profile, get=None):
+            asked.append(get)
+            return real(props, profile, get=get)
+        page = self.Page()
+        provider_module = SimpleNamespace(get=lambda: SAMPLE)
+        SAMPLE.has_answer = lambda: True
+        try:
+            with patch.object(ctl, 'with_crests', spy):
+                self.assertTrue(ctl.first_frame(page, provider_module, 'All', tempfile.mkdtemp()))
+        finally:
+            del SAMPLE.has_answer
+        self.assertEqual(asked, [ctl._offline])             # never the network
+        self.assertEqual(page.p.get('state'), 'ok');self.assertTrue(page.drawn)
+        self.assertTrue(page.p.get('g.1.id'))
+
+    def test_nothing_saved_leaves_the_page_to_the_normal_load(self):
+        page = self.Page()
+        self.assertFalse(ctl.first_frame(page, SimpleNamespace(get=lambda: SimpleNamespace(has_answer=lambda: False)), 'All', '/tmp'))
+        self.assertEqual(page.p, {})
+        self.assertFalse(ctl.first_frame(page, SimpleNamespace(get=lambda: 1 / 0), 'All', '/tmp'))   # never raises
+
+
 if __name__ == '__main__':
     unittest.main()

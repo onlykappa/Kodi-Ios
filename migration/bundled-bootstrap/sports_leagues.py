@@ -76,7 +76,10 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
     import xbmcvfs
     import diagnostics
     global _CACHE
+    import page_clock
+    clock_now = page_clock.Clock('leagues', lambda text: xbmc.log('Kodi iOS Sports: ' + text, xbmc.LOGINFO))
     provider = provider or sports_provider.get()
+    clock_now.lap('provider')
     on_league = on_league or open_league
     log = lambda text:xbmc.log(text,xbmc.LOGINFO)
 
@@ -90,6 +93,8 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
             self.data = seed if seed is not None else _CACHE
             self.logos = {}
             self.draw()
+            clock_now.lap('rows drawn')
+            clock_now.done('first frame' if self.data is not None else 'opened empty (nothing saved to draw)')
             self.refresh(reload=False)
             import sports_fresh
             sports_fresh.start(provider,self.stop,lambda:self.refresh(reload=False))

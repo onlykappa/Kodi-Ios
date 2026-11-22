@@ -248,13 +248,45 @@ def watch_handoff(stop, home, initial_owner, finish):
             return
 
 
+def _offline(url):
+    raise OSError('not asked: the first frame uses only what is on the phone')
+
+
+def first_frame(page, provider_module, chosen, profile, clock=None):
+    """Before the page opens: the games from the answer saved on the phone, drawn with the crests that are already kept (no request: an unseen team's logo
+    is asked for afterwards, one 8 s timeout at a time before this). Owner, 2026-11-22 (log 71e31b26): Live Now took 3-5 s to show anything. Returns True when
+    it drew. Never raises."""
+    try:
+        provider = provider_module.get()
+        if clock:
+            clock.lap('provider')
+        if not getattr(provider, 'has_answer', lambda: False)():
+            return False
+        props, chosen_now, slots = load(provider, chosen)
+        if clock:
+            clock.lap('saved answer')
+        if props.get('state') not in ('ok', 'none'):
+            return False
+        props = with_crests(props, profile, get=_offline)
+        if clock:
+            clock.lap('crests on the phone')
+        for key, value in props.items():
+            page.setProperty(key, value)
+        page.chosen, page.slots, page.drawn = chosen_now, slots, True
+        return True
+    except Exception:
+        return False
+
+
 def run(args=()):
     import xbmc
     import xbmcgui
     import xbmcvfs
     import sports_provider
     import sports_routes
+    import page_clock
     log = lambda message: xbmc.log('Kodi iOS Sports: ' + message, xbmc.LOGINFO)
+    clock = page_clock.Clock('live now', log)
 
     class Page(xbmcgui.WindowXMLDialog):
         def onInit(self):
@@ -266,8 +298,12 @@ def run(args=()):
             home = xbmcgui.Window(10000)
             initial_owner = home.getProperty('KodiIOS.SportsNativeOwner')
             threading.Thread(target=watch_handoff,args=(self.stop,home,initial_owner,self.finish),daemon=True).start()
-            self.chosen, self.codes, self.slots, self.busy = (args[0] if args else 'All'), [], {}, threading.Lock()   # a league page starts on its chip
-            self.setProperty('sub', 'Updating')
+            if not getattr(self, 'drawn', False):
+                self.chosen, self.codes, self.slots = (args[0] if args else 'All'), [], {}   # a league page starts on its chip
+                self.setProperty('sub', 'Updating')
+            self.codes = getattr(self, 'codes', [])
+            self.busy = threading.Lock()
+            clock.done('first frame' if getattr(self, 'drawn', False) else 'opened empty (nothing saved to draw)')
             self.fetch(False)
             import sports_fresh
             sports_fresh.start(sports_provider.get(), self.stop, lambda: self.fetch(False, quiet=True))
@@ -310,7 +346,11 @@ def run(args=()):
                         props, chosen, slots = load(sports_provider.get(), self.chosen, refresh=refresh)
                         try:
                             import xbmcvfs
-                            props = with_crests(props, xbmcvfs.translatePath('special://profile/'))   # real logos, kept on the phone
+                            profile = xbmcvfs.translatePath('special://profile/')
+                            if not self.stop.is_set():   # the games first, with the crests already on the phone; the logos still to be fetched follow
+                                self.chosen, self.slots = chosen, slots
+                                self.show(with_crests(dict(props), profile, get=_offline))
+                            props = with_crests(props, profile)   # real logos, kept on the phone
                         except Exception as error:
                             log('live crests (%s)' % type(error).__name__)
                     except Exception as error:   # the page must never stay on "Updating"
@@ -373,6 +413,8 @@ def run(args=()):
     except RuntimeError:
         xbmcvfs.listdir(os.path.join(skin, 'portrait') + '/')   # written while Kodi was running: its directory cache may not list it yet
         page = Page(lp.WINDOW, HERE, 'Default', '1080i')
+    clock.lap('window')
+    first_frame(page, sports_provider, args[0] if args else 'All', xbmcvfs.translatePath('special://profile/'), clock)
     import page_cover
     with page_cover.covering():   # the window under this opaque page stops drawing while it is open
         page.doModal()
