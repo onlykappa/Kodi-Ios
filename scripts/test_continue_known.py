@@ -27,8 +27,14 @@ class Known(unittest.TestCase):
         store=lambda **e:json.dumps({'current':'k','items':{'k':dict({'kind':'episode','title':'The Mage','tvshowtitle':'Black Clover','season':'2','episode':'8','played':time.time(),'stream':{'url':'https://dl.example.invalid/f.mkv'}},**e)}})
         got=known({'title':'Episode 8'},lambda p:store(),link='https://dl.example.invalid/f.mkv|User-Agent=Kodi')
         self.assertEqual((got['show'],got['season'],got['episode']),('Black Clover','2','8'))
-        self.assertEqual(known({'title':'Episode 8'},lambda p:store(),link='https://dl.example.invalid/other.mkv'),{})
-        self.assertEqual(known({'title':'Episode 8'},lambda p:store()),{})
+        self.assertEqual(known({'title':'Episode 9'},lambda p:store(),link='https://dl.example.invalid/other.mkv'),{})
+        self.assertEqual(known({'title':'Episode 9'},lambda p:store()),{})
+    def test_a_recent_start_of_episode_n_counts_after_a_fallback_link(self):   # build 660 log dc74b76b: new link, entry titled 'The Mage'
+        old=lambda **e:store(title='The Mage',**e)
+        got=known({'title':'Episode 8'},lambda p:old(),link='https://other.example/f.mkv')
+        self.assertEqual((got['show'],got['season'],got['episode']),('Black Clover','2','8'))
+        self.assertEqual(known({'title':'Episode 9'},lambda p:old()),{})
+        self.assertEqual(known({'title':'Episode 8'},lambda p:old(played=time.time()-3600)),{})
     def test_the_menu_asks_for_it_when_nothing_else_knows_the_title(self):
         self.assertIn('return continue_known(it, read, link=link)',SRC)
 if __name__=='__main__':unittest.main()

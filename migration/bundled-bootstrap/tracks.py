@@ -46,7 +46,12 @@ def continue_known(it, read, now=time.time, link=None):
         names = {str(it.get('title') or '').lower(), str(it.get('showtitle') or '').lower(), str(it.get('label') or '').lower()} - {''}
         mine = {str(entry.get('title') or '').lower(), str(entry.get('tvshowtitle') or '').lower()} - {''}
         same_link = bool(link) and str(link).split('|')[0] == str((entry.get('stream') or {}).get('url') or '').split('|')[0]   # Continue plays this very link
-        if not (names & mine or same_link):
+        # Build 660 log dc74b76b: the guard fell back to a new link and the entry's title was the episode's own name, so neither the title nor the link
+        # agreed and SubDL was asked for 'Episode 8' with no show (the subtitle did not line up). A recent start of the very episode Kodi calls 'Episode N' counts.
+        import re
+        number = re.search(r'\bepisode\s*0*(\d+)\b', ' '.join(names))
+        same_episode = bool(number) and str(entry.get('episode') or '').strip() == number.group(1) and now() - float(entry.get('played') or 0) < 1800
+        if not (names & mine or same_link or same_episode):
             return {}
         movie = entry.get('kind') == 'movie'
         return {'kind': 'movie' if movie else 'episode', 'title': entry.get('title') or '', 'show': '' if movie else entry.get('tvshowtitle') or '',
