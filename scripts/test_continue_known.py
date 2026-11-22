@@ -34,7 +34,7 @@ class Known(unittest.TestCase):
         got=known({'title':'Episode 8'},lambda p:old(),link='https://other.example/f.mkv')
         self.assertEqual((got['show'],got['season'],got['episode']),('Black Clover','2','8'))
         self.assertEqual(known({'title':'Episode 9'},lambda p:old()),{})
-        self.assertEqual(known({'title':'Episode 8'},lambda p:old(played=time.time()-3600)),{})
+        self.assertEqual(known({'title':'Episode 8'},lambda p:old(played=time.time()-7*3600)),{})
     def test_the_menu_asks_for_it_when_nothing_else_knows_the_title(self):
         self.assertIn('return continue_known(it, read, link=link)',SRC)
 if __name__=='__main__':unittest.main()
