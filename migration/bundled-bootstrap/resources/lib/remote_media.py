@@ -732,21 +732,30 @@ def _kept(source):
   return resume_cache.ready(source)
  except Exception:return False
 
-PREFLIGHT=5.0       # seconds a link's server has to send its first byte before Kodi is given the link to play directly
+PREFLIGHT=6.0       # seconds a link's server has to deliver the start of the file before Kodi is given the link to play directly
 PREFLIGHT_TRIES=2   # connections asked at once: a debrid node that hangs one connection often answers another
 
-def first_byte(source,limit=PREFLIGHT,tries=PREFLIGHT_TRIES,open_url=None,clock=time.monotonic):
- """Seconds until the server of `source` answers a one-byte range read (200 or 206), or None when nothing answered within `limit`. Several connections at once,
- the first answer counts; the address never reaches a log. open_url(request,timeout) is injectable (tests)."""
- address,_,tail=str(source).partition('|');headers={'Range':'bytes=0-0'}
- headers.update({k:v for k,v in urllib.parse.parse_qsl(tail)})
+PREFLIGHT_BYTES=32768   # data that must really arrive: a server can answer a one-byte range quickly and then sit on a bigger read for 28 s (build 660 log bbd44482)
+
+def first_byte(source,limit=PREFLIGHT,tries=PREFLIGHT_TRIES,open_url=None,clock=time.monotonic,want=PREFLIGHT_BYTES):
+ """Seconds until the server of `source` has really sent `want` bytes of the start of the file (a range read of the first 64 KB), or None when that did not happen
+ within `limit`. Owner, build 660 (log bbd44482): the one-byte check answered in 1.4 s and Kodi's own read of the same link then waited 28 s for data, twice. Several
+ connections at once, the first that delivers counts; the address never reaches a log. open_url(request,timeout) is injectable (tests)."""
+ address,_,tail=str(source).partition('|');headers={'Range':'bytes=0-%d'%(2*want-1)}
+ headers.update({k:v for k,v in urllib.parse.parse_qsl(tail)})   # Kodi's own `|Header=value` suffix
  opener=open_url or (lambda request,timeout:urllib.request.urlopen(request,timeout=timeout))
  began=clock();answers=[];done=threading.Event()
  def one():
   try:
    with opener(urllib.request.Request(address,headers=headers),limit) as response:
-    if getattr(response,'status',None) in (200,206) or response.getcode() in (200,206):
-     answers.append(clock()-began);done.set()
+    if not (getattr(response,'status',None) in (200,206) or response.getcode() in (200,206)):return
+    got=0
+    while got<want:
+     chunk=response.read(min(16384,want-got))
+     if not chunk:break
+     got+=len(chunk)
+    if got>=want or got>0:   # a file shorter than `want` ends early: what it has is what it sends
+     if got>=want or not response.read(1):answers.append(clock()-began);done.set()
   except Exception:pass
  threads=[threading.Thread(target=one,daemon=True) for _ in range(max(1,tries))]
  for thread in threads:thread.start()

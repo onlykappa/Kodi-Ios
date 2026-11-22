@@ -6637,3 +6637,10 @@ Build 646 is the Sports build line with the other agent's Live Now rows merged i
 - **Fix:** a stretch needs at most what is left to the end of the file (`Filler.cushion_ready`); once the picture's cushion is there the audio stretch gets `AUDIO_GRACE` = 4 s and the TV starts anyway; the longest wait is 20 s (was 45). Test: `test_cast_cache.AudioStretchAndSeek` (a stretch near the end, the grace).
 - **Lesson kept:** a wait before a start needs an exit that does not depend on the thing it waits for; the host test covered "audio thin" but not "audio can never fill".
 
+
+## ISSUE-449: Continue from Umbrella failed twice, 28 s stall although the link "answered" (build 660, log bbd44482)
+- Symptom: owner continued two Umbrella streams, both failed. Log: preflight answered in 1.4 s, Kodi opened the same link and got no data for ~29.6 s; the continue guard fired at 25 s, the normal route then took ~17 s more and the second try ended unfinished.
+- Root cause: the preflight asked for one byte (`Range: bytes=0-0`). A debrid node can answer that at once and then stall on a real read, so the check proved nothing. The guard limit (25 s) also made every failed open cost almost as long as Kodi's own 30 s.
+- Fix: the preflight now has to receive 32 KB of the real start of the file within 6 s (two connections, first to deliver counts); headers alone do not count. Continue guard limit 25 s → 14 s.
+- Retest: test_remote_media (headers without data give None, Range is the 64 KB read), test_continue_guard, test_slowdown pass on the host.
+- Regression protection: `Preflight.test_headers_without_data_do_not_count`. Device result unproven; needs the owner's phone.

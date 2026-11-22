@@ -349,8 +349,10 @@ class Preflight(unittest.TestCase):
    if delay is None:time.sleep(timeout+0.2);raise TimeoutError('no answer')
    time.sleep(delay)
    class Answer:
-    status=206
+    status=206;left=1<<20
     def getcode(self):return 206
+    def read(self,n=-1):
+     n=self.left if n is None or n<0 else min(n,self.left);self.left-=n;return b'x'*n
     def __enter__(self):return self
     def __exit__(self,*a):return False
    return Answer()
@@ -361,7 +363,18 @@ class Preflight(unittest.TestCase):
   opener=self.fake([None,0.05])
   waited=remote.first_byte(self.LINK,limit=1.0,tries=2,open_url=opener)
   self.assertIsNotNone(waited);self.assertLess(waited,0.5);self.assertEqual(len(opener.seen),2)
-  self.assertEqual(opener.seen[0][1].get('Range'),'bytes=0-0')
+  self.assertEqual(opener.seen[0][1].get('Range'),'bytes=0-65535')
+ def test_headers_without_data_do_not_count(self):
+  # build 660 (log bbd44482): the server answered at once, then sat on the real read for 28 s
+  def opener(request,timeout):
+   class Slow:
+    status=206
+    def getcode(self):return 206
+    def __enter__(self):return self
+    def __exit__(self,*a):return False
+    def read(self,n=-1):time.sleep(timeout+0.2);raise TimeoutError('stalled')
+   return Slow()
+  started=time.monotonic();self.assertIsNone(remote.first_byte(self.LINK,limit=0.3,tries=2,open_url=opener));self.assertLess(time.monotonic()-started,1.5)
  def test_a_server_that_never_answers_gives_none_at_the_limit(self):
   started=time.monotonic();self.assertIsNone(remote.first_byte(self.LINK,limit=0.3,tries=2,open_url=self.fake([None,None])));self.assertLess(time.monotonic()-started,1.5)
  def test_kodis_header_suffix_is_sent(self):

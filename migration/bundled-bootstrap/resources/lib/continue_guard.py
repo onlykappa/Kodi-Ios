@@ -10,7 +10,7 @@ import json
 import time
 
 MARK = 'KodiIOS.ContinueFast'
-LIMIT = 25.0      # seconds the remembered link gets to put a picture up (a good open takes 3-12 s; Kodi itself gave up at 30)
+LIMIT = 14.0      # seconds the remembered link gets to put a picture up (a good open takes 3-12 s; Kodi itself gave up at 30; build 660 log bbd44482: 25 s of waiting, then 17 s more the normal way)
 STEP = 0.5
 
 
