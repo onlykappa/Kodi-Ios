@@ -100,8 +100,23 @@ def run():
    lambda:xbmc.executebuiltin('ActivateWindow(busydialognocancel)'),lambda:xbmc.executebuiltin('Dialog.Close(busydialognocancel,true)'),lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
   continue_guard.watch(home,playing,box,
    lambda:player.stop(),close_boxes,lambda url:xbmc.executebuiltin('PlayMedia(%s)'%url),lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),monitor.waitForAbort,
-   opened=lambda:bool(xbmc.getCondVisibility('Player.HasVideo')),circle=circle)
+   opened=lambda:bool(xbmc.getCondVisibility('Player.HasVideo')),circle=circle,probe=continue_guard.Probe(__import__('link_warm').link_answers))
  threading.Thread(target=continue_guard_loop,daemon=True).start()
+ def link_warm_loop():
+  # Owner, 2026-11-23: Continue's remembered link takes 11-19 s to open (the debrid server's first reads); warm the first 3 Continue Watching links
+  # (start, end, resume point; about 1.3 MB each) every 10 minutes while nothing plays, so the tap finds the server awake (link_warm.watch)
+  import link_warm,importlib.util,xbmcaddon
+  lib=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.kodi.ios.watch').getAddonInfo('path'))+'/resources/lib/ios_continue.py'
+  spec=importlib.util.spec_from_file_location('ios_continue',lib);ios_continue=importlib.util.module_from_spec(spec);spec.loader.exec_module(ios_continue)
+  def read(location):
+   source=xbmcvfs.File(location)
+   try:return source.read()
+   finally:source.close()
+  home=xbmcgui.Window(10000)
+  link_warm.watch(lambda:ios_continue.entries(ios_continue.load(read),'all'),
+   lambda:bool(xbmc.getCondVisibility('Player.HasVideo') or home.getProperty('KodiIOS.ContinueOpening')),
+   monitor.waitForAbort,lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+ threading.Thread(target=link_warm_loop,daemon=True).start()
  keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
  window.setProperty('KodiIOS.Build',updates.installed_build(root))

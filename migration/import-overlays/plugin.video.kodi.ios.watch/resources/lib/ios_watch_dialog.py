@@ -447,6 +447,7 @@ def fast_stream(handle,params,read=None,alive=None,play=None,now=None,route=None
   # (resume_cache, saved when the stream last stopped) the cache route is used: Kodi's open and its resume seek are answered from disk. Otherwise the link
   # plays directly, as in build 620 (the cache's race against a slow debrid server is what failed in build 622).
   if route is None and _opening_kept(url):route=_cache_route
+  remembered=url
   if route is not None:url=route(url,position/total if total else None)
   if play is None:
    import ios_library
@@ -455,7 +456,7 @@ def fast_stream(handle,params,read=None,alive=None,play=None,now=None,route=None
   try:   # leave a note for the continue guard (service): if this link does not open it plays the title the normal way (continue_guard.py)
    import xbmcgui,xbmcvfs,ios_library
    ios_library.boot_path(xbmcvfs);import continue_guard
-   xbmcgui.Window(10000).setProperty(continue_guard.MARK,continue_guard.note(params,now));xbmcgui.Window(10000).setProperty(continue_guard.OPENING,'1')
+   xbmcgui.Window(10000).setProperty(continue_guard.MARK,continue_guard.note(params,now,remembered));xbmcgui.Window(10000).setProperty(continue_guard.OPENING,'1')
   except Exception:pass
   try:
    import xbmc,xbmcvfs

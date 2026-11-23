@@ -89,7 +89,7 @@ class Wiring(unittest.TestCase):
         played=[];self.assertTrue(m.fast_stream(7,PARAMS,read,alive=lambda u:True,play=lambda *a:played.append(a),now=lambda:1500.0));self.assertEqual(len(played),1)
     def test_the_service_runs_the_guard_and_the_plugin_leaves_the_note(self):
         svc=(ROOT/'migration/bundled-bootstrap/service.py').read_text();self.assertIn('continue_guard.watch(home,',svc);self.assertIn("Window.IsActive(yesnodialog) | Window.IsActive(okdialog)",svc)
-        self.assertIn('continue_guard.note(params,now)',(WATCH/'ios_watch_dialog.py').read_text())
+        self.assertIn('continue_guard.note(params,now,remembered)',(WATCH/'ios_watch_dialog.py').read_text())
     def test_the_source_search_waits_three_seconds_for_a_page_that_is_opening(self):
         svc=(ROOT/'migration/bundled-bootstrap/service.py').read_text();self.assertIn('if opened<3:return False',svc)
 if __name__=='__main__':unittest.main()

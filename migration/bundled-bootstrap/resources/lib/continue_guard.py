@@ -12,6 +12,7 @@ import time
 MARK = 'KodiIOS.ContinueFast'
 LIMIT = 30.0      # seconds the remembered link gets to put a picture up (a good open takes 3-12 s; Kodi itself gave up at 30; build 660 log bbd44482: 25 s of waiting, then 17 s more the normal way)
 LIMIT_OPENED = 45.0   # when Kodi has opened the streams (a video stream is there) but no picture yet - it is seeking to the resume point - the open is not cut off (build 663 log 63e92ff2: cut 3 s after the streams opened)
+EARLY = 8.0   # seconds before a link that the server itself refuses (gone, or no connection) is given up on; slow is not dead, so a link that still answers keeps its LIMIT
 STEP = 0.5
 OPENING = 'KodiIOS.ContinueOpening'   # set when a Continue/Next Episode tap starts an open (skin play_now, fast_stream): the loading circle stays up while it is set
 CIRCLE_CAP = 60.0
@@ -27,12 +28,12 @@ def retry_url(params):
     return 'plugin://plugin.video.themoviedb.helper/?' + urllib.parse.urlencode(keep)
 
 
-def note(params, now=time.time):
-    """The text fast_stream leaves in MARK."""
-    return json.dumps({'at': now(), 'retry': retry_url(params)})
+def note(params, now=time.time, url=''):
+    """The text fast_stream leaves in MARK. `url` is the remembered link, kept only so the guard can ask the server whether it still answers (never logged)."""
+    return json.dumps({'at': now(), 'retry': retry_url(params), 'url': url or ''})
 
 
-def decide(mark, now, playing, failure_box, opened=False):
+def decide(mark, now, playing, failure_box, opened=False, refused=False):
     """'none' (no note), 'ok' (a picture is up: note done), 'wait', or 'fallback' (failure box up, or LIMIT seconds with no picture)."""
     try:
         data = json.loads(mark or '')
@@ -46,13 +47,21 @@ def decide(mark, now, playing, failure_box, opened=False):
         return 'ok'
     if failure_box or now - started >= (LIMIT_OPENED if opened else LIMIT):
         return 'fallback'
+    if refused and not opened and now - started >= EARLY:
+        return 'fallback'   # the server refuses the link (twice): waiting longer cannot help
     return 'wait'
 
 
-def step(home, playing, failure_box, stop, close_boxes, play, log, now=time.time, opened=lambda: False):
+def step(home, playing, failure_box, stop, close_boxes, play, log, now=time.time, opened=lambda: False, probe=None):
     """One look. Returns what was decided."""
     mark = home.getProperty(MARK)
-    verdict = decide(mark, now(), playing(), failure_box(), opened())
+    refused = False
+    if probe is not None:
+        try:
+            refused = bool(probe(json.loads(mark).get('url') or ''))
+        except Exception:
+            refused = False
+    verdict = decide(mark, now(), playing(), failure_box(), opened(), refused)
     if verdict == 'ok':
         home.clearProperty(MARK)
     elif verdict == 'fallback':
@@ -67,12 +76,12 @@ def step(home, playing, failure_box, stop, close_boxes, play, log, now=time.time
     return verdict
 
 
-def watch(home, playing, failure_box, stop, close_boxes, play, log, wait, now=time.time, opened=lambda: False, circle=None):
+def watch(home, playing, failure_box, stop, close_boxes, play, log, wait, now=time.time, opened=lambda: False, circle=None, probe=None):
     """The service's loop: wait(STEP) returns True when Kodi is closing."""
     while not wait(STEP):
         try:
             if home.getProperty(MARK):
-                step(home, playing, failure_box, stop, close_boxes, play, log, now, opened)
+                step(home, playing, failure_box, stop, close_boxes, play, log, now, opened, probe)
             if circle is not None:
                 circle.tick()
         except Exception as error:
@@ -112,3 +121,33 @@ class Circle:
         if not self.visible():
             self.raise_it()
         return 'keep'
+
+
+class Probe:
+    """Asks the debrid server, from a thread, whether the remembered link is refused (gone, or no connection); a slow answer is not a refusal. Two refusals in a
+    row make `refused` true. Called once a step; it starts at most one request at a time and never blocks the guard. Nothing of the address reaches the log."""
+    EVERY = 2.0
+
+    def __init__(self, ask, now=time.time, start=None):
+        import threading
+        self.ask, self.now = ask, now
+        self.start = start or (lambda work: threading.Thread(target=work, daemon=True).start())
+        self.busy, self.misses, self.last, self.url = False, 0, float('-inf'), ''
+
+    def __call__(self, url):
+        if url != self.url:
+            self.url, self.misses, self.last, self.busy = url, 0, float('-inf'), False
+        if url and not self.busy and self.now() - self.last >= self.EVERY:
+            self.busy, self.last = True, self.now()
+            asked = url
+
+            def work():
+                try:
+                    gone = self.ask(asked) is False
+                except Exception:
+                    gone = False
+                if self.url == asked:
+                    self.misses = self.misses + 1 if gone else 0
+                self.busy = False
+            self.start(work)
+        return self.misses >= 2

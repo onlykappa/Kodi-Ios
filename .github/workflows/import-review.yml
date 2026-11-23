@@ -153,6 +153,7 @@ jobs:
           python3 -B scripts/test_player_scrubber.py
           python3 -B scripts/test_page_clock.py
           python3 -B scripts/test_sports_nonblocking.py
+          python3 -B scripts/test_link_warm_recent.py
           python3 -B scripts/test_prefetch_copy.py
           python3 -B scripts/test_drive_index.py
           python3 -B scripts/test_settings_search.py

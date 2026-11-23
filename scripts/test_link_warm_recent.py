@@ -1,0 +1,94 @@
+"""Continue warm-up of the first Continue Watching links, and the guard's refused-link early cut (owner, 2026-11-23)."""
+import json, sys, unittest
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap/resources/lib'))
+import link_warm as lw
+import continue_guard as cg
+
+NOW = 1_000_000.0
+def row(n, player='umbrella', age=3600, pos=600, total=3000):
+    return {'player': player, 'position': pos, 'total': total, 'stream': {'url': 'https://x.test/%d.mkv' % n, 'at': NOW - age}}
+
+class Recent(unittest.TestCase):
+    def test_only_first_three_rows(self):
+        rows = [row(i) for i in range(10)]
+        self.assertEqual([u for u, f in lw.recent_links(rows, NOW)], ['https://x.test/%d.mkv' % i for i in range(3)])
+    def test_skips_other_players_old_links_and_no_resume(self):
+        rows = [row(0, player='elementum'), row(1, age=73 * 3600), row(2, pos=1), row(3, pos=2900), row(4)]
+        self.assertEqual([u for u, f in lw.recent_links(rows, NOW, limit=5)], ['https://x.test/4.mkv'])
+    def test_72_hours_kept(self):
+        self.assertEqual(len(lw.recent_links([row(0, age=71 * 3600)], NOW)), 1)
+    def test_fraction(self):
+        self.assertAlmostEqual(lw.recent_links([row(0, pos=600, total=3000)], NOW)[0][1], 0.2)
+
+class Warm(unittest.TestCase):
+    def test_reads_start_end_and_resume_point(self):
+        seen = []
+        class R:
+            headers = {'Content-Range': 'bytes 0-1/100000000'}
+            def __init__(self): self.n = 0
+            def read(self, k): 
+                self.n += 1
+                return b'x' * k if self.n < 3 else b''
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        def opener(request, timeout=0):
+            seen.append(request.get_header('Range')); return R()
+        made = lw.warm('https://x.test/a.mkv', 0, opener, fraction=0.5)
+        self.assertEqual(made, 3)
+        self.assertEqual(seen[0], 'bytes=0-%d' % (lw.HEAD - 1))
+        self.assertTrue(seen[1].startswith('bytes=%d-' % (100000000 - lw.TAIL)))
+        self.assertTrue(seen[2].startswith('bytes=50000000-'))
+    def test_failure_is_swallowed(self):
+        def boom(request, timeout=0): raise OSError('no')
+        self.assertEqual(lw.warm('https://x.test/a.mkv', 0, boom, fraction=0.5), 0)
+    def test_loop_skips_while_playing_and_repeats_not_within_25_min(self):
+        calls, clock, waits = [], [NOW], []
+        def wait(sec):
+            waits.append(sec); clock[0] += sec; return len(waits) >= 4
+        busy = [True]
+        def warm_it(url, size, fraction=None): calls.append(url); return 3
+        lw.watch(lambda: [row(0)], lambda: busy[0], wait, lambda t: None, now=lambda: clock[0], warm_it=warm_it)
+        self.assertEqual(calls, [])                     # busy: nothing warmed
+        busy[0] = False; waits.clear(); clock[0] = NOW
+        lw.watch(lambda: [row(0)], lambda: busy[0], wait, lambda t: None, now=lambda: clock[0], warm_it=warm_it)
+        self.assertEqual(len(calls), 1)                 # 10 min apart < 25 min: warmed once in the run
+    def test_log_has_no_address(self):
+        logs = []
+        waits = []
+        def wait(sec): waits.append(sec); return len(waits) >= 2
+        lw.watch(lambda: [row(0)], lambda: False, wait, logs.append, now=lambda: NOW, warm_it=lambda *a, **k: 3)
+        self.assertTrue(logs and all('x.test' not in l for l in logs))
+
+class Guard(unittest.TestCase):
+    def mark(self, at=1000.0):
+        return cg.note({'tmdb_type': 'movie', 'tmdb_id': '1'}, lambda: at, 'https://x.test/a.mkv')
+    def test_refused_link_cut_after_8_seconds_not_before(self):
+        m = self.mark()
+        self.assertEqual(cg.decide(m, 1007.0, False, False, refused=True), 'wait')
+        self.assertEqual(cg.decide(m, 1008.5, False, False, refused=True), 'fallback')
+    def test_slow_link_keeps_waiting(self):
+        m = self.mark()
+        self.assertEqual(cg.decide(m, 1020.0, False, False, refused=False), 'wait')
+        self.assertEqual(cg.decide(m, 1000.0 + cg.LIMIT, False, False), 'fallback')
+    def test_opened_streams_are_never_cut_early(self):
+        self.assertEqual(cg.decide(self.mark(), 1012.0, False, False, opened=True, refused=True), 'wait')
+    def test_probe_needs_two_refusals_and_one_request_at_a_time(self):
+        t = [0.0]; started = []
+        p = cg.Probe(lambda url: False, now=lambda: t[0], start=lambda work: started.append(work))
+        self.assertFalse(p('u')); self.assertEqual(len(started), 1)
+        self.assertFalse(p('u')); self.assertEqual(len(started), 1)   # first still running
+        started.pop()(); t[0] += 3
+        self.assertFalse(p('u')); started.pop()(); t[0] += 3
+        self.assertTrue(p('u'))
+    def test_probe_answer_resets(self):
+        t = [0.0]; started = []; answers = iter([False, True, False])
+        p = cg.Probe(lambda url: next(answers), now=lambda: t[0], start=lambda w: started.append(w))
+        for _ in range(3):
+            p('u'); started.pop()(); t[0] += 3
+        self.assertFalse(p('u'))
+    def test_note_carries_address(self):
+        self.assertEqual(json.loads(self.mark())['url'], 'https://x.test/a.mkv')
+
+if __name__ == '__main__':
+    unittest.main()
