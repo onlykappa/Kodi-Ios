@@ -1111,3 +1111,7 @@ handoff is harness-controlled, not production provider/engine proof. See
 docs/SOURCE-RIG-BASELINE.md, reports/source-rig-baseline.json and ISSUE-398.
 Old private profiles preserved. Services disabled, null audio, no live results,
 no iPhone/native-engine or portrait visual claim. Step 3 next; no IPA/merge.
+
+## 2026-11-23 — Source resilience step 3 partial offline staging
+
+Reconstructed all 29 provider inputs and separately verified Elementum client, Burst and CocoScrapers against the existing locks. A local-only `provider_addons.run` exercise blocked Python socket connects and reverified/restored 29 provider inputs; actual clean preparer tests passed 27 cases against them. Current Crew's manifest retains the locked artwork dependency, but the unavailable 21.3 rig prevented a fresh runtime import check. Archive licensing, third-party artwork, the unlicensed Otaku mapping, native engine/source closure and durable owner-controlled backup remain unresolved. Step 3 is blocked rather than complete; details and the storage decision are in docs/SOURCE-PRESERVATION-STEP3.md. No source archives, private profile, release or IPA committed.

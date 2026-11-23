@@ -244,7 +244,8 @@ experiment stays recorded. Later work can expose a need to revisit earlier steps
 | --- | --- | --- |
 | 1 | COMPLETE (available-source scope) | [Inventory](SOURCE-DEPENDENCY-INVENTORY.md); verified package hashes, manifest imports, dependency roles and traces. Phone version/partial Umbrella/dynamic endpoint gaps explicit. |
 | 2 | COMPLETE (controlled baseline) | [Rig baseline](SOURCE-RIG-BASELINE.md); 13 fixture scenarios pass after isolated artwork repair; generated-video picker/start/advancing clock/stop pass. Production engine and phone unverified. |
-| 3–16 | NOT STARTED | Next: licensed reproducible source baseline. |
+| 3 | IN PROGRESS — BLOCKED | [Offline staging and license evidence](SOURCE-PRESERVATION-STEP3.md): 29 verified provider inputs restored locally with Python network connects blocked; durable approved backup, license closure, Elementum inputs and actual Kodi runtime closure remain open. |
+| 4–16 | NOT STARTED | Do not start until separately authorized. |
 
 On completing a step, replace its row range with individual rows and record dates,
 commands, expected/observed results and links to sanitized reports. Do not renumber

@@ -206,6 +206,7 @@ jobs:
           python3 -B scripts/test_provider_queue_bridge.py
           python3 -B scripts/test_provider_worker.py
           python3 -B scripts/test_provider_addons.py
+          python3 -B scripts/test_source_offline_restore.py
           python3 -B scripts/test_provider_direct_queue.py
           python3 -B scripts/test_provider_adapters_primary.py
           python3 -B scripts/test_provider_adapters_secondary.py
