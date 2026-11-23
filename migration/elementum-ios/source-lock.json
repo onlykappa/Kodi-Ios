@@ -81,5 +81,13 @@
       "url": "https://raw.githubusercontent.com/not-coco-joe/repository.cocoscrapers/f1772775291a432cf2a7c6e45ea038c894ea8b70/zips/repository.cocoscrapers/repository.cocoscrapers-1.0.0.zip",
       "sha256": "9f32a572818065af9fab6c2131513470dc004fe1bb23e7fc040cfef0239d6b22"
     }
+  },
+  "go_toolchain": {
+    "version": "1.21.1",
+    "platform": "darwin-arm64",
+    "url": "https://go.dev/dl/go1.21.1.darwin-arm64.tar.gz",
+    "sha256": "ffd40391a1e995855488b008ad9326ff8c2e81803a6e80894401003bae47fcf1",
+    "bytes": 65100144,
+    "evidence": "Official Go download metadata queried 2026-11-23; archive not downloaded or mirrored in this checkpoint"
   }
 }

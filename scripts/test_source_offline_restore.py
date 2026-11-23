@@ -15,6 +15,15 @@ import source_elementum_offline as elementum
 
 
 class OfflineRestore(unittest.TestCase):
+    def test_engine_toolchain_checksum_is_available_without_metadata_api(self):
+        root = Path(__file__).resolve().parents[1]
+        pin = json.loads((root / 'migration/elementum-ios/source-lock.json').read_text())['go_toolchain']
+        build = (root / 'migration/elementum-ios/build-ios-engine.sh').read_text()
+        self.assertIn('GO_VERSION=' + pin['version'], build)
+        self.assertIn('GO_SHA256=' + pin['sha256'], build)
+        self.assertNotIn('mode=json&include=all', build)
+        self.assertEqual(pin['url'], 'https://go.dev/dl/go' + pin['version'] + '.darwin-arm64.tar.gz')
+
     def test_preserved_repository_archives_restore_exact_git_trees(self):
         root = Path(__file__).resolve().parents[1]
         manifest = json.loads((root / 'migration/source-baseline/manifest.json').read_text())
