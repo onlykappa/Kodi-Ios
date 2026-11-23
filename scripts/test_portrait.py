@@ -528,7 +528,9 @@ class BufferingPill(unittest.TestCase):
   osd=portrait.player_osd;xml=osd.buffering_window()
   root=ET.fromstring(xml.split('\n',2)[2]);self.assertEqual(root.findtext('visible'),'false')
   src=open(osd.__file__,encoding='utf-8').read()
-  self.assertIn("'Buffering $INFO[Player.CacheLevel]%','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>'",src)
+  # 2026-11-23 (owner: the bar sat at 0 and jumped to 100): no percentage in the words, a pulse while empty, a short linger when full; the Kodi patch eases the bar
+  self.assertIn("'Buffering','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>'+LINGER",src)
+  self.assertNotIn('Buffering $INFO[Player.CacheLevel]',osd.window())   # the controls; the legacy dialog above is never shown
  def test_kodi_cache_is_tuned_once(self):
   calls=[]
   class X:

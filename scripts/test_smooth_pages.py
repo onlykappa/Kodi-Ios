@@ -43,7 +43,7 @@ class SmoothPages(unittest.TestCase):
 
     def test_the_lock_names_the_new_build_and_this_patch(self):
         lock = json.loads(LOCK.read_text())
-        self.assertEqual(lock['build_tag'], 'kodi-ios-portrait-r35')
+        self.assertEqual(lock['build_tag'], 'kodi-ios-portrait-r36')   # r36's patch is ready; executable_release stays r35 until it is built
         self.assertEqual(lock['patch_sha256'], hashlib.sha256(PATCH.read_bytes()).hexdigest())
 
 

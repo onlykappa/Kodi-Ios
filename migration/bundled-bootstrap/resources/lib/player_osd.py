@@ -111,6 +111,8 @@ FIRST_ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(
 BACKDROP=('<control type="button" id="7100"><left>0</left><top>0</top><right>0</right><bottom>0</bottom>'
           '<texturefocus /><texturenofocus /><label></label><onclick>Dialog.Close(videoosd)</onclick></control>')
 ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(videoosd),$INFO[%s,00:,],silent)'%TIMEOUT)
+LINGER='<animation effect="fade" start="100" end="0" time="500" delay="500">Hidden</animation>'   # stays 0.5 s after the buffer is full, then fades
+PULSE='<animation effect="fade" start="100" end="30" time="700" tween="sine" easing="inout" reversible="true" loop="true" condition="true">Conditional</animation>'
 def rearm(xml):
  tags=''.join('<onclick condition="%s">%s</onclick>'%(e(ARM_WHEN),e(a)) for a in ARM)
  return re.sub(r'(<control type="button" id="\d+">)',lambda m:m.group(1)+tags,xml)
@@ -152,10 +154,14 @@ def window():
   tap(7113,cx+gap,cy,240,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',160)+ten(cx+gap)+
   # Build 210: the buffer percentage lives here, in the controls already on screen while seeking. Its own dialog
   # (Custom_1156) froze Kodi's main thread each time it opened (logs 34cd7aac 15:07:09, 3efdc5ca 15:53:08).
-  label(cx-300,cy+150,600,64,'Buffering $INFO[Player.CacheLevel]%','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>')+
+  # Owner, 2026-11-23: the bar sat at 0 and jumped to 100 when the buffer filled (the cache level arrives in bursts). The Kodi patch eases the bar up to the level;
+  # no percentage is written (it jumped the same way); a pulse at the bar's start shows it is working while it is still empty; and the words and the bar stay
+  # for a moment after the buffer is full (a Hidden animation) so the fill is seen finishing.
+  label(cx-300,cy+150,600,64,'Buffering','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>'+LINGER)+
   # Board 05 (DEC-036): the buffer fill as a thin bar under the words (the cache level is the only number Kodi has).
-  '<control type="progress"><left>%d</left><top>%d</top><width>360</width><height>11</height><info>Player.CacheLevel</info><visible>Player.Caching</visible>'
-  '<texturebg border="6" colordiffuse="33FFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="6" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>'%(cx-180,cy+222,MEDIA,MEDIA),
+  ('<control type="progress"><left>%d</left><top>%d</top><width>360</width><height>11</height><info>Player.CacheLevel</info><visible>Player.Caching</visible>%s'
+  '<texturebg border="6" colordiffuse="33FFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="6" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>')%(cx-180,cy+222,LINGER,MEDIA,MEDIA)+
+  image(cx-180,cy+222,52,11,MEDIA+'dot.png','FF0A84FF','<visible>Player.Caching + Integer.IsLess(Player.CacheLevel,4)</visible>'+PULSE,border='6'),
   '<visible>!%s</visible>'%PANEL)
  # Title: the film, or the show and the episode.
  title=('<control type="label"><left>%d</left><right>%d</right><top>770</top><height>90</height><font>font_title_midi</font>'

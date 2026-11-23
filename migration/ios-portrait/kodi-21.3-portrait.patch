@@ -1761,19 +1761,20 @@ diff --git a/xbmc/cores/VideoPlayer/DVDDemuxers/DVDDemuxFFmpeg.cpp b/xbmc/cores/
      {
        CLog::Log(LOGWARNING, "could not find codec parameters for {}", CURL::GetRedacted(strFile));
 diff --git a/xbmc/guilib/GUIProgressControl.cpp b/xbmc/guilib/GUIProgressControl.cpp
-index 1167d64..aa2a6e4 100644
+index 1167d64..bdc5e93 100644
 --- a/xbmc/guilib/GUIProgressControl.cpp
 +++ b/xbmc/guilib/GUIProgressControl.cpp
-@@ -6,6 +6,8 @@
+@@ -6,6 +6,9 @@
   *  See LICENSES/README.md for more information.
   */
  
 +#include "guilib/IOSScrub.h"
++#include <chrono>
 +#include "guilib/guiinfo/GUIInfoLabels.h"
  #include "GUIProgressControl.h"
  
  #include "GUIInfoManager.h"
-@@ -336,7 +338,13 @@ void CGUIProgressControl::UpdateInfo(const CGUIListItem *item)
+@@ -336,7 +339,28 @@ void CGUIProgressControl::UpdateInfo(const CGUIListItem *item)
      {
        int value;
        if (CServiceBroker::GetGUI()->GetInfoManager().GetInt(value, m_iInfoCode, m_parentID, item))
@@ -1782,12 +1783,39 @@ index 1167d64..aa2a6e4 100644
 +        // Kodi iOS: under a finger on the seek slider the bar is where the finger is, to the pixel (the info is a whole percent)
 +        if (m_iInfoCode == PLAYER_PROGRESS && IOSScrub::Active())
 +          m_fPercent = std::max(0.0f, std::min(IOSScrub::percent.load(), 100.0f));
++        else if (m_iInfoCode == PLAYER_CACHELEVEL)
++        {
++          // Kodi iOS: the cache level arrives in bursts (0 for seconds, then the queue fills at once), so the bar jumped from empty to full. It now
++          // runs up to the level at 125 % a second (a full queue in 0.8 s); a falling level (a new stall starts) is shown at once.
++          const float target = std::max(0.0f, std::min(static_cast<float>(value), 100.0f));
++          const long long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
++          if (target <= m_fPercent)
++            m_fPercent = target;
++          else
++          {
++            const float seconds = m_easedAt ? std::min(0.1f, static_cast<float>(now - m_easedAt) / 1000.0f) : 0.016f;
++            m_fPercent = std::min(target, m_fPercent + 125.0f * seconds);
++          }
++          m_easedAt = now;
++        }
 +        else
 +          m_fPercent = std::max(0.0f, std::min(static_cast<float>(value), 100.0f));
 +      }
      }
      if (m_iInfoCode2)
      {
+diff --git a/xbmc/guilib/GUIProgressControl.h b/xbmc/guilib/GUIProgressControl.h
+index 9509e1c..43b3557 100644
+--- a/xbmc/guilib/GUIProgressControl.h
++++ b/xbmc/guilib/GUIProgressControl.h
+@@ -62,6 +62,7 @@ protected:
+   int m_iInfoCode2 = 0;
+   float m_fPercent;
+   float m_fPercent2 = 0.0f;
++  long long m_easedAt{0}; // Kodi iOS: when the buffer bar last moved towards the cache level (steady clock, ms)
+   bool m_bReveal;
+   bool m_bChanged;
+ 
 diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 index 8158f17..b921aa5 100644
 --- a/xbmc/guilib/GUISliderControl.cpp

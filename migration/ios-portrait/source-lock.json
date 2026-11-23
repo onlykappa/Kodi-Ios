@@ -3,7 +3,7 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "build_tag": "kodi-ios-portrait-r35",
+  "build_tag": "kodi-ios-portrait-r36",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
     "tag": "kodi-ios-portrait-r35",
@@ -20,8 +20,9 @@
   },
   "verified_run": 44933200650,
   "source_commit": "695bebe75c2d463567af47fe94a679e75dfd113f",
-  "patch_sha256": "1e31df5a4c815947a32aff80b36797b1eb16142e0e9e7a16885cf16dca1293f0",
+  "patch_sha256": "0a3ac81e51f539591d4a7592ade7da0ae742f7d19be903e6fa87953c2d99ec3e",
   "build_note_r33": "r33 (owner approved the build 2026-11-15): ISSUE-316, a group list skips children more than a screen away from the visible part, so long pages scroll like the hubs. executable_release stays r32 until r33 is built and checked.",
   "build_note_r34": "r34 (owner approved the build 2026-11-21): ISSUE-411, a black cover over the whole window while the phone turns into or out of a video, removed once Kodi has drawn the new size (at most 0.6 s after the turn ends: owner wants Home within 1 s of leaving a video). executable_release stays r33 until r34 is built and checked.",
-  "build_note_r35": "r35 (built and pinned): ISSUE-424, a flick on a Python dialog page (Sports, Favourites) never glided because the window under the modal dialog overwrote the dialog's inertia answer to Kodi's gesture-notify message (CGUIWindow::OnMessage, GUI_MSG_GESTURE_NOTIFY). An accepted answer now stays."
+  "build_note_r35": "r35 (built and pinned): ISSUE-424, a flick on a Python dialog page (Sports, Favourites) never glided because the window under the modal dialog overwrote the dialog's inertia answer to Kodi's gesture-notify message (CGUIWindow::OnMessage, GUI_MSG_GESTURE_NOTIFY). An accepted answer now stays.",
+  "build_note_r36": "r36 (patch ready, NOT built yet; the owner must approve the build): ISSUE-462, the seek slider's dragged position drives Player.Progress, SeekTime, SeekOffset, TimeRemaining and Seeking and the progress fill to the pixel (IOSScrub.h), the controls' close timer is renewed under the finger, and a seek to where the progress already is lands after 0.6 s; ISSUE-464, the buffer bar eases up to the cache level. Tested in the desktop rig and by test_seek_release (48 scenarios). executable_release stays r35 until r36 is built and checked."
 }

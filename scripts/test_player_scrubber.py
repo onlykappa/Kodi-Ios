@@ -76,6 +76,22 @@ class Scrubber(unittest.TestCase):
                        'value = IOSScrub::Active() || m_appPlayer->GetSeekHandler().InProgress();', 'm_fPercent = std::max(0.0f, std::min(IOSScrub::percent.load(), 100.0f));'):
             self.assertIn(needle, patch)
 
+    def test_the_buffer_bar_eases_pulses_and_lingers(self):
+        """Owner 2026-11-23: the buffer bar sat at 0 and jumped to 100. Rig (a server that held new regions back 5 s): level 15 -> 71 -> 98 in 0.3 s, the bar 11 -> 22 -> 36 -> 56 -> 74 -> 95 -> 98 over 0.7 s;
+        empty, the pulse shows; after the buffer is full the bar stays about 0.5 s and fades (Hidden animation)."""
+        bar = next(c for c in controls('progress') if c.findtext('info') == 'Player.CacheLevel')
+        self.assertEqual(bar.findtext('visible'), 'Player.Caching')
+        self.assertEqual([(a.text, a.get('delay'), a.get('time')) for a in bar.findall('animation')], [('Hidden', '500', '500')])
+        words = next(c for c in controls('label') if (c.findtext('label') or '').startswith('Buffering'))
+        self.assertEqual(words.findtext('label'), 'Buffering')   # no percentage: it jumped the same way
+        pulse = [c for c in controls('image') if 'IsLess(Player.CacheLevel,4)' in (c.findtext('visible') or '')]
+        self.assertEqual(len(pulse), 1)
+        self.assertEqual(pulse[0].find('animation').get('loop'), 'true')
+    def test_the_patch_eases_the_cache_level_bar(self):
+        patch = (ROOT / 'migration/ios-portrait/kodi-21.3-portrait.patch').read_text()
+        for needle in ('else if (m_iInfoCode == PLAYER_CACHELEVEL)', 'm_fPercent = std::min(target, m_fPercent + 125.0f * seconds);', '+  long long m_easedAt{0};'):
+            self.assertIn(needle, patch)
+
 
 if __name__ == '__main__':
     unittest.main()
