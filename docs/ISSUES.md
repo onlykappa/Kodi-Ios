@@ -6680,3 +6680,8 @@ Build 646 is the Sports build line with the other agent's Live Now rows merged i
 - Fix: (a) the prefetch search also waits until nothing has touched the screen for 5 s (`System.IdleTime(5)`); (b) Live Now draws the saved answer before the window opens (`first_frame`, as the hub does), with only the crests already on the phone (`_offline`), and the logos still to be fetched follow; (c) every sports page logs `page: <name>: first frame in N ms (steps)` (`page_clock.py`) so the next log shows where any remaining time goes.
 - Retest: `test_page_clock` (5), `test_sports_live` (46, incl. `FirstFrame`) and all other sports tests pass on host. Device unproven; I could not measure the phone from the log beyond the step times above.
 - Not done: pages are still separate RunScript processes (each re-imports its modules); if the new timing lines show that import time dominates, the next step is one long-lived process for the Sports pages.
+
+## ISSUE-455: Elementum's DHT announced the phone at every launch although AllDebrid does all downloading (owner, 2026-11-23)
+- Evidence: 119 logs since 6 Nov show `Starting DHT...` 124 times and not one "Adding torrent"; since the AllDebrid→Drive route (6 Nov) every selected torrent is consumed by `elementum_cloud.route`.
+- Fix: `phone_housekeeping` sets Elementum's `disable_dht` once (marker `elementum_dht`); effective at the next engine start; a setting the owner turns back on stays on. `test_updates_calibration` covers it.
+- Next (awaiting the owner's approval of docs/design/torrent-warning-mockup.html): a confirmation before any request reaches Elementum's own torrent engine, recommending a VPN. Not built yet.

@@ -177,6 +177,7 @@ def phone_housekeeping(profile,elementum_setting=None,api=None):
  - TMDb Helper looks for players in addon_data/.../reconfigured_players: create it.
  - Elementum's UPnP / NAT-PMP / local service discovery fail on a phone ("no router found", "Can't assign requested
    address") and keep the radio busy: off.
+ - Elementum's DHT (peer discovery) is off: AllDebrid does the torrenting, so this phone has no reason to announce itself (2026-11-23).
  - Elementum always shows its version list and waits for an answer (downloads asked nothing).
  - Kodi's Bonjour announcing is refused by iOS for this app (CFNetServiceRegister -72008): off.
  - Kodi's version check service (desktop release notices): off.
@@ -200,6 +201,12 @@ def phone_housekeeping(profile,elementum_setting=None,api=None):
   for key in ('disable_upnp','disable_natpmp','disable_lsd'):
    if get(key)!='true':put(key,'true')
   now.append('elementum_network')
+ # Owner, 2026-11-23: downloads go through AllDebrid, so the phone never joins a swarm; Elementum's DHT would still announce this phone's address as a node at every
+ # launch (124 starts in the logs, none with a torrent). Off, once; it takes effect at the next launch of the engine. A setting the owner turns back on stays on.
+ if 'elementum_dht' not in done and elementum_setting:
+  get,put=elementum_setting
+  if get('disable_dht')!='true':put('disable_dht','true')
+  now.append('elementum_dht')
  # Owner (build-122): Download › episodes closed without the quality page. Elementum skips its version list when it
  # remembers an earlier pick for the title (use_cache_selection), when a torrent on the phone already holds the
  # episode (smart_episode_choose), and answers its own "use that one?" question Yes after 5 s (autoyes). Now it
