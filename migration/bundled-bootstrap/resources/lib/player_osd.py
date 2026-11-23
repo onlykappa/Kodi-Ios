@@ -164,7 +164,7 @@ def window():
  # Owner-approved Apple-style scrubber (docs/design/player-scrubber-mockup.html, 2026-11-23): a thin fully rounded bar with no knob at rest, thicker under the finger,
  # elapsed time under its left end and the time left under its right end (tap it for the total length). Track and fill are one progress control each; the slider on top
  # only takes the touch (its knob is clear), and the thick bar shows while the slider has focus, which is while it is dragged.
- DRAG='Control.HasFocus(7131)'
+ DRAG='Player.Seeking'   # Kodi iOS patch (IOSScrub): true under the finger and until the seek lands; Player.Progress, SeekTime, SeekOffset and TimeRemaining follow the finger then
  def fill(top,height,border,visible):
   return ('<control type="progress"><left>0</left><right>0</right><top>%d</top><height>%d</height><info>Player.Progress</info><visible>%s</visible>'
    '<texturebg border="%d" colordiffuse="4DFFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="%d" colordiffuse="FFFFFFFF">%sdot.png</midtexture><righttexture /></control>'
@@ -181,7 +181,7 @@ def window():
   '</control>'+
   # Times: 70 % white at rest, white while dragging. The right one is a button too: a tap switches between the time left and the total length.
   label(left,912,400,50,'$INFO[Player.Time]','font_midi_bold','B3FFFFFF','left','<visible>!%s</visible>'%DRAG)+
-  label(left,912,400,50,'$INFO[Player.Time]','font_midi_bold','FFFFFFFF','left','<visible>%s</visible>'%DRAG)+
+  label(left,912,400,50,'$INFO[Player.SeekTime]','font_midi_bold','FFFFFFFF','left','<visible>%s</visible>'%DRAG)+
   '<control type="group"><right>%d</right><width>400</width><top>912</top><height>50</height>'%left+
   '<control type="label"><right>0</right><width>400</width><top>0</top><height>50</height><font>font_midi_bold</font><textcolor>B3FFFFFF</textcolor><align>right</align><aligny>center</aligny>'
   '<label>-$INFO[Player.TimeRemaining]</label><visible>!Skin.HasSetting(ios_osd_total) + !%s</visible></control>'%DRAG+
@@ -193,6 +193,18 @@ def window():
   '<label>$INFO[Player.Duration]</label><visible>Skin.HasSetting(ios_osd_total) + %s</visible></control>'%DRAG+
   '<control type="button" id="7132"><left>0</left><top>-10</top><width>400</width><height>70</height><texturefocus /><texturenofocus /><onclick>Skin.ToggleSetting(ios_osd_total)</onclick>'
   '<onup>7131</onup><ondown>7141</ondown></control></control>')
+
+ # The frame card of the mockup (docs/design/player-scrubber-mockup.html): rides above the finger with the time under it and the jump from where you were.
+ # Kodi cannot place a control by a value, so there is one copy per whole percent (each shown only at its own Player.Progress, a share of the bar's width).
+ # It holds the title's artwork, not the frame at that time: Kodi has no thumbnails of a stream.
+ def bubble(n):
+  at=min(88,max(12,n))
+  return ('<control type="group"><left>%d%%</left><top>-392</top><width>470</width><height>400</height><visible>%s + Integer.IsEqual(Player.Progress,%d)</visible>'%(at,DRAG,n)+
+   image(-235,0,470,264,MEDIA+'scrub_card.png','FFFFFFFF')+
+   image(-223,12,446,240,'$INFO[Player.Art(fanart)]','99FFFFFF','<aspectratio>scale</aspectratio><visible>!String.IsEmpty(Player.Art(fanart))</visible>')+
+   label(-235,274,470,56,'$INFO[Player.SeekTime]','font_midi_bold','FFFFFFFF','center')+
+   label(-235,330,470,40,'$INFO[Player.SeekOffset]','font_mini','99EBEBF5','center')+'</control>')
+ bubbles=('<control type="group"><left>%d</left><right>%d</right><top>862</top><height>60</height>'%(left,left)+''.join(bubble(n) for n in range(101))+'</control>')
  row=(text_button(7141,left,970,140,54,'Info',[INFO],'<onright>7142</onright><onup>7131</onup>')+
       text_button(7142,left+200,970,460,54,'Continue Watching',['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'<onleft>7141</onleft><onup>7201</onup>'))
  panel=('<control type="group"><visible>%s</visible>'%PANEL+
@@ -212,7 +224,7 @@ def window():
   +''.join('<onload condition="%s">%s</onload>'%(e(c),e(a)) for c,a in DEFAULT_ONLOAD)
   +''.join('<onload condition="%s">%s</onload>'%(e(ARM_WHEN),e(a)) for a in ARM)
   +''.join('<onload condition="%s">%s</onload>'%(e(FIRST_WHEN),e(a)) for a in FIRST_ARM)+
-  '<controls>%s%s</controls>\n</window>\n')%(MARKER,BACKDROP,rearm(shade+head+centre+title+bar+row+panel))
+  '<controls>%s%s</controls>\n</window>\n')%(MARKER,BACKDROP,rearm(shade+head+centre+title+bar+bubbles+row+panel))
 
 # r4: never shown. The owner does not want a bar besides the controls' own ("the old one still appears"): the
 # window stays because Kodi opens it while seeking and moves its progress control (401).

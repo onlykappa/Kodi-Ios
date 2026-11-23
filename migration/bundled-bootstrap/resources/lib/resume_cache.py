@@ -230,6 +230,7 @@ def capture_later(entry, make_source, wifi=lambda: True, log=lambda text: None, 
         if (entry or {}).get('player') != 'umbrella' or not link.startswith(('http://', 'https://')) or link.startswith(('http://127.0.0.1', 'http://localhost')) or position < 5 or total <= 0 or position >= 0.92 * total:
             return None
         if not wifi():
+            log('resume cache: not kept (not on Wi-Fi: it costs about 40 MB of data)')   # owner log 1b574ee3: on mobile data nothing was kept and nothing said why
             return None
         thread = threading.Thread(target=capture, args=(link, position / total, make_source, root, log, time.monotonic, stop), daemon=True)
         thread.start()

@@ -1760,30 +1760,80 @@ diff --git a/xbmc/cores/VideoPlayer/DVDDemuxers/DVDDemuxFFmpeg.cpp b/xbmc/cores/
      if (iErr < 0)
      {
        CLog::Log(LOGWARNING, "could not find codec parameters for {}", CURL::GetRedacted(strFile));
+diff --git a/xbmc/guilib/GUIProgressControl.cpp b/xbmc/guilib/GUIProgressControl.cpp
+index 1167d64..aa2a6e4 100644
+--- a/xbmc/guilib/GUIProgressControl.cpp
++++ b/xbmc/guilib/GUIProgressControl.cpp
+@@ -6,6 +6,8 @@
+  *  See LICENSES/README.md for more information.
+  */
+ 
++#include "guilib/IOSScrub.h"
++#include "guilib/guiinfo/GUIInfoLabels.h"
+ #include "GUIProgressControl.h"
+ 
+ #include "GUIInfoManager.h"
+@@ -336,7 +338,13 @@ void CGUIProgressControl::UpdateInfo(const CGUIListItem *item)
+     {
+       int value;
+       if (CServiceBroker::GetGUI()->GetInfoManager().GetInt(value, m_iInfoCode, m_parentID, item))
+-        m_fPercent = std::max(0.0f, std::min(static_cast<float>(value), 100.0f));
++      {
++        // Kodi iOS: under a finger on the seek slider the bar is where the finger is, to the pixel (the info is a whole percent)
++        if (m_iInfoCode == PLAYER_PROGRESS && IOSScrub::Active())
++          m_fPercent = std::max(0.0f, std::min(IOSScrub::percent.load(), 100.0f));
++        else
++          m_fPercent = std::max(0.0f, std::min(static_cast<float>(value), 100.0f));
++      }
+     }
+     if (m_iInfoCode2)
+     {
 diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
+index 8158f17..b921aa5 100644
 --- a/xbmc/guilib/GUISliderControl.cpp
 +++ b/xbmc/guilib/GUISliderControl.cpp
-@@ -19,6 +19,9 @@
+@@ -19,6 +19,11 @@
  #include "input/mouse/MouseStat.h"
  #include "utils/MathUtils.h"
  #include "utils/StringUtils.h"
 +#include "utils/log.h"
++#include "guilib/IOSScrub.h"
++#include "utils/AlarmClock.h"
 +#include <chrono>
 +#include <cmath>
-
+ 
  using namespace KODI;
-
-@@ -119,7 +122,22 @@
+ 
+@@ -115,11 +120,42 @@ void CGUISliderControl::Process(unsigned int currentTime, CDirtyRegionList &dirt
+   int infoCode = m_iInfoCode;
+   if (m_action && (!m_dragging || m_action->fireOnDrag))
+     infoCode = m_action->infoCode;
++  if (m_action && m_action->infoCode == PLAYER_PROGRESS && m_dragging)
++  {
++    IOSScrub::percent = GetPercentage(); // under the finger: the player info labels follow it
++    // The controls' close timer (the skin's osd_timeout alarm) must not run out under the finger: it is started again with a fresh few seconds.
++    const double left = g_alarmClock.GetRemaining("osd_timeout");
++    if (left > 0.0 && left < 2.0)
++    {
++      g_alarmClock.Stop("osd_timeout", true);
++      g_alarmClock.Start("osd_timeout", 4.0f, "Dialog.Close(videoosd)", true);
++    }
++  }
+   if (infoCode)
    {
      int val;
-     if (CServiceBroker::GetGUI()->GetInfoManager().GetInt(val, infoCode, INFO::DEFAULT_CONTEXT))
+-    if (CServiceBroker::GetGUI()->GetInfoManager().GetInt(val, infoCode, INFO::DEFAULT_CONTEXT))
 -      SetIntValue(val);
++    IOSScrub::sliderReading = true; // the slider compares the real progress with where it was dragged to
++    const bool gotValue = CServiceBroker::GetGUI()->GetInfoManager().GetInt(val, infoCode, INFO::DEFAULT_CONTEXT);
++    IOSScrub::sliderReading = false;
++    if (gotValue)
 +    {
 +      bool hold = infoCode == PLAYER_PROGRESS && m_dragging;
 +      if (infoCode == PLAYER_PROGRESS && m_pendingSeekAt && !m_dragging)
 +      {
 +        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_pendingSeekAt;
-+        const bool landed = val != m_pendingSeekFrom && std::abs(val - m_pendingSeekPercent) <= 1.0f;
++        const bool landed = (val != m_pendingSeekFrom || elapsed > 600) && std::abs(val - m_pendingSeekPercent) <= 1.0f; // a seek to where the progress already is lands at once
 +        hold = !landed && elapsed < 15000;
 +        if (!hold)
 +        {
@@ -1791,13 +1841,15 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 +          m_pendingSeekAt = 0;
 +        }
 +      }
++      if (infoCode == PLAYER_PROGRESS)
++        IOSScrub::percent = hold ? (m_dragging ? GetPercentage() : m_pendingSeekPercent) : -1.0f;
 +      if (!hold)
 +        SetIntValue(val);
 +    }
    }
-
+ 
    dirty |= guiBackground->SetHeight(m_height);
-@@ -386,7 +404,18 @@
+@@ -386,7 +422,18 @@ void CGUISliderControl::SendClick()
      std::string action = StringUtils::Format(m_action->formatString, percent);
      CGUIMessage message(GUI_MSG_EXECUTE, m_controlID, m_parentID);
      message.SetStringParam(action);
@@ -1816,9 +1868,17 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 +      CServiceBroker::GetGUI()->GetWindowManager().SendMessage(message);
    }
  }
-
-@@ -682,7 +711,7 @@
-
+ 
+@@ -571,6 +618,7 @@ void CGUISliderControl::SetFloatRange(float fStart, float fEnd)
+ 
+ void CGUISliderControl::FreeResources(bool immediately)
+ {
++  IOSScrub::percent = -1.0f; // the controls close: nothing is scrubbing any more
+   CGUIControl::FreeResources(immediately);
+   m_guiBackground->FreeResources(immediately);
+   m_guiBackgroundDisabled->FreeResources(immediately);
+@@ -682,7 +730,7 @@ void CGUISliderControl::SetFromPosition(const CPoint &point, bool guessSelector
+ 
  EVENT_RESULT CGUISliderControl::OnMouseEvent(const CPoint& point, const MOUSE::CMouseEvent& event)
  {
 -  m_dragging = false;
@@ -1826,7 +1886,7 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
    if (event.m_id == ACTION_MOUSE_DRAG || event.m_id == ACTION_MOUSE_DRAG_END)
    {
      m_dragging = true;
-@@ -729,17 +758,40 @@
+@@ -729,17 +777,40 @@ EVENT_RESULT CGUISliderControl::OnMouseEvent(const CPoint& point, const MOUSE::C
    }
    else if (event.m_id == ACTION_GESTURE_BEGIN)
    { // grab exclusive access
@@ -1868,9 +1928,10 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
      SendWindowMessage(msg);
      return EVENT_RESULT_HANDLED;
 diff --git a/xbmc/guilib/GUISliderControl.h b/xbmc/guilib/GUISliderControl.h
+index eacf51d..2de0d66 100644
 --- a/xbmc/guilib/GUISliderControl.h
 +++ b/xbmc/guilib/GUISliderControl.h
-@@ -139,7 +139,11 @@
+@@ -139,7 +139,11 @@ protected:
    int m_iInfoCode;
    std::string m_textValue; ///< Allows overriding of the text value to be displayed (parent must update when the slider updates)
    const SliderAction *m_action; ///< Allows the skin to configure the action of a click on the slider \sa SendClick
@@ -1884,6 +1945,129 @@ diff --git a/xbmc/guilib/GUISliderControl.h b/xbmc/guilib/GUISliderControl.h
    ORIENTATION m_orientation;
  };
 -
+diff --git a/xbmc/guilib/IOSScrub.h b/xbmc/guilib/IOSScrub.h
+new file mode 100644
+index 0000000..aee57fd
+--- /dev/null
++++ b/xbmc/guilib/IOSScrub.h
+@@ -0,0 +1,18 @@
++/*
++ *  Kodi iOS: the position a seek slider is dragged to (or holds until the seek lands), shared with the player info labels.
++ *  Header only. percent < 0 means nobody is scrubbing.
++ */
++#pragma once
++
++#include <atomic>
++
++namespace IOSScrub
++{
++inline std::atomic<float> percent{-1.0f};
++// True while the slider itself reads the real progress (its own "landed" check must not see the dragged value).
++inline bool sliderReading = false;
++inline bool Active()
++{
++  return !sliderReading && percent.load() >= 0.0f;
++}
++} // namespace IOSScrub
+diff --git a/xbmc/guilib/guiinfo/PlayerGUIInfo.cpp b/xbmc/guilib/guiinfo/PlayerGUIInfo.cpp
+index 3a8e672..6a9ddde 100644
+--- a/xbmc/guilib/guiinfo/PlayerGUIInfo.cpp
++++ b/xbmc/guilib/guiinfo/PlayerGUIInfo.cpp
+@@ -23,6 +23,7 @@
+ #include "guilib/GUIComponent.h"
+ #include "guilib/GUIDialog.h"
+ #include "guilib/GUIWindowManager.h"
++#include "guilib/IOSScrub.h"
+ #include "guilib/guiinfo/GUIInfo.h"
+ #include "guilib/guiinfo/GUIInfoHelper.h"
+ #include "guilib/guiinfo/GUIInfoLabels.h"
+@@ -83,12 +84,28 @@ std::string CPlayerGUIInfo::GetCurrentPlayTime(TIME_FORMAT format) const
+   return StringUtils::SecondsToTimeString(std::lrint(GetPlayTime()), format);
+ }
+ 
++// Kodi iOS: while a seek slider is dragged (or waits for its seek to land) these follow the finger, to the second.
++static bool ScrubTimes(int& target, int& now, int& total)
++{
++  if (!IOSScrub::Active())
++    return false;
++  total = static_cast<int>(std::lrint(g_application.GetTotalTime()));
++  if (total <= 0)
++    return false;
++  now = static_cast<int>(std::lrint(g_application.GetTime()));
++  target = static_cast<int>(std::lrint(total * std::min(100.0f, IOSScrub::percent.load()) / 100.0f));
++  return true;
++}
++
+ std::string CPlayerGUIInfo::GetCurrentPlayTimeRemaining(TIME_FORMAT format) const
+ {
+   if (format == TIME_FORMAT_GUESS && GetTotalPlayTime() >= 3600)
+     format = TIME_FORMAT_HH_MM_SS;
+ 
+   int iTimeRemaining = GetPlayTimeRemaining();
++  int scrubTarget = 0, scrubNow = 0, scrubTotal = 0;
++  if (ScrubTimes(scrubTarget, scrubNow, scrubTotal))
++    iTimeRemaining = scrubTotal - scrubTarget;
+   if (iTimeRemaining)
+     return StringUtils::SecondsToTimeString(iTimeRemaining, format);
+ 
+@@ -167,6 +184,9 @@ bool CPlayerGUIInfo::GetLabel(std::string& value, const CFileItem *item, int con
+     case PLAYER_SEEKOFFSET:
+     {
+       int lastSeekOffset = CServiceBroker::GetDataCacheCore().GetSeekOffSet();
++      int scrubTarget = 0, scrubNow = 0, scrubTotal = 0;
++      if (ScrubTimes(scrubTarget, scrubNow, scrubTotal))
++        lastSeekOffset = (scrubTarget - scrubNow) * 1000;
+       std::string seekOffset = StringUtils::SecondsToTimeString(
+           std::abs(lastSeekOffset / 1000), static_cast<TIME_FORMAT>(info.GetData1()));
+       if (lastSeekOffset < 0)
+@@ -176,7 +196,7 @@ bool CPlayerGUIInfo::GetLabel(std::string& value, const CFileItem *item, int con
+       return true;
+     }
+     case PLAYER_PROGRESS:
+-      value = std::to_string(std::lrintf(g_application.GetPercentage()));
++      value = std::to_string(std::lrintf(IOSScrub::Active() ? IOSScrub::percent.load() : g_application.GetPercentage()));
+       return true;
+     case PLAYER_PROGRESS_CACHE:
+       value = std::to_string(std::lrintf(g_application.GetCachePercentage()));
+@@ -258,8 +278,19 @@ bool CPlayerGUIInfo::GetLabel(std::string& value, const CFileItem *item, int con
+       return true;
+     }
+     case PLAYER_SEEKTIME:
+-      value = GetCurrentSeekTime(static_cast<TIME_FORMAT>(info.GetData1()));
++    {
++      int scrubTarget = 0, scrubNow = 0, scrubTotal = 0;
++      if (ScrubTimes(scrubTarget, scrubNow, scrubTotal))
++      {
++        TIME_FORMAT format = static_cast<TIME_FORMAT>(info.GetData1());
++        if (format == TIME_FORMAT_GUESS && scrubTotal >= 3600)
++          format = TIME_FORMAT_HH_MM_SS;
++        value = StringUtils::SecondsToTimeString(scrubTarget, format);
++      }
++      else
++        value = GetCurrentSeekTime(static_cast<TIME_FORMAT>(info.GetData1()));
+       return true;
++    }
+     case PLAYER_SEEKSTEPSIZE:
+     {
+       int seekSize = m_appPlayer->GetSeekHandler().GetSeekSize();
+@@ -366,7 +397,7 @@ bool CPlayerGUIInfo::GetInt(int& value, const CGUIListItem *gitem, int contextWi
+       value = static_cast<int>(m_appVolume->GetVolumePercent());
+       return true;
+     case PLAYER_PROGRESS:
+-      value = std::lrintf(g_application.GetPercentage());
++      value = std::lrintf(IOSScrub::Active() ? IOSScrub::percent.load() : g_application.GetPercentage());
+       return true;
+     case PLAYER_PROGRESS_CACHE:
+       value = std::lrintf(g_application.GetCachePercentage());
+@@ -497,7 +528,7 @@ bool CPlayerGUIInfo::GetBool(bool& value, const CGUIListItem *gitem, int context
+       return true;
+     }
+     case PLAYER_SEEKING:
+-      value = m_appPlayer->GetSeekHandler().InProgress();
++      value = IOSScrub::Active() || m_appPlayer->GetSeekHandler().InProgress();
+       return true;
+     case PLAYER_HASPERFORMEDSEEK:
+     {
 
 diff --git a/xbmc/cores/VideoPlayer/VideoPlayerVideo.cpp b/xbmc/cores/VideoPlayer/VideoPlayerVideo.cpp
 --- a/xbmc/cores/VideoPlayer/VideoPlayerVideo.cpp

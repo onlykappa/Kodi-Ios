@@ -115,7 +115,7 @@ def run():
   home=xbmcgui.Window(10000)
   link_warm.watch(lambda:ios_continue.entries(ios_continue.load(read),'all'),
    lambda:bool(xbmc.getCondVisibility('Player.HasVideo') or home.getProperty('KodiIOS.ContinueOpening')),
-   monitor.waitForAbort,lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+   monitor.waitForAbort,lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),allowed=lambda:__import__('cache_tune').link_kind()!='cellular')
  threading.Thread(target=link_warm_loop,daemon=True).start()
  keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).

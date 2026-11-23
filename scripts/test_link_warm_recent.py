@@ -54,6 +54,11 @@ class Warm(unittest.TestCase):
         busy[0] = False; waits.clear(); clock[0] = NOW
         lw.watch(lambda: [row(0)], lambda: busy[0], wait, lambda t: None, now=lambda: clock[0], warm_it=warm_it)
         self.assertEqual(len(calls), 1)                 # 10 min apart < 25 min: warmed once in the run
+    def test_nothing_is_warmed_on_mobile_data(self):
+        calls, waits = [], []
+        def wait(sec): waits.append(sec); return len(waits) >= 2
+        lw.watch(lambda: [row(0)], lambda: False, wait, lambda t: None, now=lambda: NOW, warm_it=lambda *a, **k: calls.append(1) or 3, allowed=lambda: False)
+        self.assertEqual(calls, [])
     def test_log_has_no_address(self):
         logs = []
         waits = []

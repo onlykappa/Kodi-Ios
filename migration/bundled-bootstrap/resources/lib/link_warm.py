@@ -219,7 +219,7 @@ def start(url, size=0, urlopen=urllib.request.urlopen):
     return thread
 
 
-def watch(rows_now, busy, wait, log, now=time.time, warm_it=warm):
+def watch(rows_now, busy, wait, log, now=time.time, warm_it=warm, allowed=lambda: True):
     """The service's loop. rows_now() gives the Continue Watching rows (newest first); busy() is true while a video plays or opens (nothing is warmed then, so
     playback never shares the phone's connection with a warm-up). Warms the first RECENT links one after the other, a link at most once per AGAIN seconds.
     wait(seconds) returns True when Kodi is closing. The log says how many links and how long, never the addresses."""
@@ -228,7 +228,7 @@ def watch(rows_now, busy, wait, log, now=time.time, warm_it=warm):
         return
     while True:
         try:
-            if not busy():
+            if not busy() and allowed():   # allowed(): not on mobile data (owner log 1b574ee3 showed the warm-up running on the cellular link)
                 links = recent_links(rows_now(), now())
                 started, count = time.time(), 0
                 for url, fraction, seconds in links:
