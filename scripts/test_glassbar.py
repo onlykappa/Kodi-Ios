@@ -237,11 +237,11 @@ class NativeOwnerTests(unittest.TestCase):
   self.assertEqual(bar['previous']['tag'],'kodi-glassbar-r5')
   self.assertNotIn('build_status',bar)
   exe=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
-  self.assertEqual(exe['executable_release']['tag'],'kodi-ios-portrait-r35')   # flick inertia on dialog pages (ISSUE-425); r34 rotation cover (ISSUE-411)
-  self.assertEqual(exe['executable_release']['sha256'],'411523c9482cf71603fd543a9ff16198b1b9f6f1655956de400d511c94a3f61c')
-  self.assertEqual(exe['previous_executable_release']['tag'],'kodi-ios-portrait-r34')
+  self.assertEqual(exe['executable_release']['tag'],'kodi-ios-portrait-r36')   # r36: the seek slider drives the player labels, the buffer bar eases (ISSUE-462/464); r35 flick inertia on dialog pages
+  self.assertEqual(exe['executable_release']['sha256'],'6b4abd88dae6e00754b5c2826a0201bd5f8a8f52e62d87d9ef5a004ba7a13601')
+  self.assertEqual(exe['previous_executable_release']['tag'],'kodi-ios-portrait-r35')
   self.assertNotIn('build_status',exe)
-  self.assertEqual(exe['previous_executable_release']['sha256'],'8f2ad9fdeabc2319f141458545daca82c639dbde48542c1966f7da91ee9f45bf')
+  self.assertEqual(exe['previous_executable_release']['sha256'],'411523c9482cf71603fd543a9ff16198b1b9f6f1655956de400d511c94a3f61c')
   workflow=(ROOT/'.github/workflows/glassbar-ios.yml').read_text()
   self.assertIn("d.get('build_tag') or d['framework_release']['tag']",workflow)
 
