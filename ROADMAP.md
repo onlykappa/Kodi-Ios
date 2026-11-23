@@ -1,5 +1,7 @@
 # Kodi-iOS master roadmap
 
+Source resilience planning (2026-11-23): [16-step bundled backup source roadmap](docs/SOURCE-RESILIENCE-ROADMAP.md). Documentation-only draft; implementation 0/16. Owner can authorize each numbered step. No build, release or merge.
+
 Current phone checkpoint (2026-11-18): build575 shows ESPN cards but no Sports source choices in owner testing; manual Crew eventually plays. Documentation-only next task: [Sports source discovery, game-button and fallback roadmap](docs/SPORTS-PHONE-SOURCE-ROADMAP.md), branch `codex/sports-phone-source-roadmap`, stacked on PR #43. No new implementation/build/merge authorized by this roadmap request.
 
 Sports testing-build follow-up (2026-11-17): ambiguous native startup stops/timeouts cancel rather than launch another source; definite errors can advance. Timing diagnostics added. Slow-opening Kodi 21.2 fixture did not open another source but took about 21 seconds to unwind; phone behavior and live acceptance remain pending. Owner authorized one testing IPA. Preserve prior releases. See docs/SPORTS-HANDOFF.md.

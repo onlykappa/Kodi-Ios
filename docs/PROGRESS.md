@@ -1072,3 +1072,16 @@ AirPlay step 5 candidate (ISSUE-377): the latest trustworthy final player snapsh
 AirPlay step 6 validation: native run 44343640378 succeeded on retry, including host tests and iPhone framework compilation for `95bb0d2`; this did not publish or pin a framework. Import CI on `369bab3` exposed a real step-2 fallback regression after prolonged range refusal. ISSUE-378 records the bounded retry repair and local retests; the full workflow is being rerun. Existing AirPlay IPA and r65 binary do not contain the native stall-recovery change. Device tests and a separately authorized testing build remain open.
 
 AirPlay step 6 results: import CI run 44358013453 passed on `3bb8bf5`. A separate local run of all 180 then-registered workflow test commands passed 179 initially; `test_customized_ipa.py` failed because the host lacked CPython 3.11, then passed all 14 cases with a task-local CPython 3.11.18. All 26 separately run slowdown tests pass and are now registered in CI. The native host tests and candidate compile passed, but GitHub's temporary artifact download returned Forbidden, so independent binary inspection remains open. Synthetic long-fragment host audio generated 27 segments without failure; deliberately injected EOF produced an empty segment that recovered on retry. This does not reproduce the owner's original audio issue or establish iPhone playback, buffering, stall recovery or resume. No framework release, new IPA or merge is authorized.
+
+
+## 2026-11-23 — Bundled backup source resilience roadmap
+
+Owner requests a fresh documentation-only draft PR, keeping development in this
+repository. Added docs/SOURCE-RESILIENCE-ROADMAP.md: 16 stable numbered steps from
+actual dependency inventory through licensed source preservation, independent
+search/resolution, existing picker/engine integration, Sports, outage/rig tests and
+separately authorized phone acceptance. Initial observations were checked against
+main cf42c63; existing fallback adapters still depend on installed upstream code
+and some remote backends. No new endpoint inventory, live playback or independence
+claim. No runtime changes, IPA, publication or merge. Implementation 0/16; next is
+owner-authorized step 1.
