@@ -39,11 +39,29 @@ class Disk(unittest.TestCase):
     def test_a_short_or_damaged_block_is_not_kept_or_not_used(self):
         self.assertEqual(rc.store(LINK,len(DATA),{0:b'short'},0.5,self.root),0);self.assertFalse(rc.ready(LINK,self.root))
         rc.store(LINK,len(DATA),{0:DATA[:rc.BLOCK],1:DATA[rc.BLOCK:2*rc.BLOCK]},0.5,self.root)
-        (Path(self.root)/'1.blk').write_bytes(b'cut');self.assertEqual(sorted(rc.load(LINK,self.root)[1]),[0])
-        (Path(self.root)/'meta.json').write_text('{no');self.assertFalse(rc.ready(LINK,self.root));self.assertIsNone(rc.load(LINK,self.root))
-    def test_the_next_stream_replaces_the_last_one(self):
-        rc.store(LINK,len(DATA),{0:DATA[:rc.BLOCK]},0.5,self.root);rc.store('https://other.invalid/b.mkv',len(DATA),{0:DATA[:rc.BLOCK]},0.5,self.root)
-        self.assertFalse(rc.ready(LINK,self.root));self.assertTrue(rc.ready('https://other.invalid/b.mkv',self.root))
+        (Path(self.root)/rc.key(LINK)/'1.blk').write_bytes(b'cut');self.assertEqual(sorted(rc.load(LINK,self.root)[1]),[0])
+        (Path(self.root)/rc.key(LINK)/'meta.json').write_text('{no');self.assertFalse(rc.ready(LINK,self.root));self.assertIsNone(rc.load(LINK,self.root))
+    def test_the_last_three_titles_are_kept_and_the_oldest_goes(self):
+        links=['https://x.invalid/%d.mkv'%i for i in range(4)]
+        for i,l in enumerate(links):rc.store(l,len(DATA),{0:DATA[:rc.BLOCK]},0.5,self.root,now=lambda i=i:1000.0+i)
+        self.assertEqual([rc.ready(l,self.root) for l in links],[False,True,True,True])
+        self.assertEqual(len(os.listdir(self.root)),3)
+    def test_storing_a_title_again_replaces_only_that_title(self):
+        a,b='https://x.invalid/a.mkv','https://x.invalid/b.mkv'
+        rc.store(a,len(DATA),{0:DATA[:rc.BLOCK]},0.5,self.root);rc.store(b,len(DATA),{0:DATA[:rc.BLOCK]},0.5,self.root)
+        rc.store(a,len(DATA),{0:DATA[:rc.BLOCK],1:DATA[rc.BLOCK:2*rc.BLOCK]},0.5,self.root)
+        self.assertTrue(rc.ready(b,self.root));self.assertEqual(sorted(rc.load(a,self.root)[1]),[0,1])
+    def test_a_title_older_than_72_hours_goes(self):
+        a,b='https://x.invalid/a.mkv','https://x.invalid/b.mkv'
+        rc.store(a,len(DATA),{0:DATA[:rc.BLOCK]},0.5,self.root,now=lambda:1000.0)
+        rc.store(b,len(DATA),{0:DATA[:rc.BLOCK]},0.5,self.root,now=lambda:1000.0+73*3600)
+        self.assertFalse(rc.ready(a,self.root));self.assertTrue(rc.ready(b,self.root))
+    def test_the_old_one_title_files_are_removed(self):
+        os.makedirs(self.root);(Path(self.root)/'0.blk').write_bytes(b'x');(Path(self.root)/'meta.json').write_text('{}')
+        rc.store(LINK,len(DATA),{0:DATA[:rc.BLOCK]},0.5,self.root)
+        self.assertEqual(sorted(os.listdir(self.root)),[rc.key(LINK)])
+    def test_worst_case_size_is_144_mib(self):
+        self.assertEqual(rc.TITLES*rc.MAX_BLOCKS*rc.BLOCK//(1024*1024),144)
 
 class Capture(unittest.TestCase):
     def setUp(self):

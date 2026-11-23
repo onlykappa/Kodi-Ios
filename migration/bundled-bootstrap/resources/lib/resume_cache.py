@@ -3,7 +3,7 @@ took 10.7 s, the first 11.3 s: 1.9 s connecting to the debrid server, 5.4 s read
 
 When an Umbrella stream stops, the service reads a few blocks of it into this folder (the file's start, its last block, and the blocks around where the person
 stopped; Wi-Fi only) and Continue's cache source starts with them in memory, so Kodi's opening reads and its resume seek are answered at once while everything
-else is fetched from the link as before. One stream at a time (the last one), at most MAX_BLOCKS blocks, wiped when another is saved. The link itself is never
+else is fetched from the link as before. The last TITLES streams (about 144 MiB at most, Continue Watching's first rows), at most MAX_BLOCKS blocks each; the oldest is wiped when another is saved. The link itself is never
 written down: the folder is named by a hash of it. If the folder has nothing for a link, nothing changes: Continue plays the link directly.
 """
 import hashlib
@@ -17,6 +17,8 @@ BLOCK = 4 * 1024 * 1024        # remote_media.BLOCK: blocks are saved as that ca
 HEAD_BLOCKS = 6               # what Kodi's open of an MKV reads: build 639 log aec66fce had it read blocks 0, 2, 3 and 5 (offsets 0, 9 MB, 13 MB, 22 MB) before the first picture; two kept blocks left it waiting 2.9 s on the server for the rest
 AROUND = 3                    # remote_media.RESUME_BLOCKS: the block at the resume point and its neighbours
 MAX_BLOCKS = 12
+TITLES = 3                    # titles kept at once (the last three that stopped): at most TITLES x MAX_BLOCKS x 4 MiB = 144 MiB; the oldest goes when a fourth is saved
+KEEP_SECONDS = 72 * 3600      # a kept opening older than this is dropped (the link behind it is no longer remembered)
 CAPTURE_LIMIT = 90            # seconds a capture may take
 _lock = threading.Lock()
 _busy = [False]
@@ -65,12 +67,40 @@ def _meta(path):
         return None
 
 
+def _dir(root, link):
+    """The folder of one link's blocks, named by its hash."""
+    return os.path.join(root, key(link))
+
+
+def _prune(root, keep_dir, now):
+    """Leave at most TITLES folders (the newest, `keep_dir` among them), none older than KEEP_SECONDS; the one-title layout of builds 623-669 (files straight in root) goes."""
+    try:
+        names = os.listdir(root)
+    except OSError:
+        return
+    found = []
+    for name in names:
+        path = os.path.join(root, name)
+        if os.path.isfile(path):
+            try:
+                os.remove(path)   # old layout
+            except OSError:
+                pass
+            continue
+        meta = _meta(path)
+        found.append((float((meta or {}).get('at') or 0) if path != keep_dir else now, path))
+    found.sort(reverse=True)
+    for index, (at, path) in enumerate(found):
+        if path != keep_dir and (index >= TITLES or now - at > KEEP_SECONDS):
+            shutil.rmtree(path, ignore_errors=True)
+
+
 def ready(link, root=None):
     """True when blocks for exactly this link are on the phone (cheap: one small file)."""
     root = root or folder()
     if not root:
         return False
-    meta = _meta(root)
+    meta = _meta(_dir(root, link))
     return bool(meta and meta.get('key') == key(link) and meta.get('size', 0) > 0 and meta.get('blocks') and meta.get('block') == BLOCK)
 
 
@@ -83,17 +113,19 @@ def store(link, size, blocks, fraction=None, root=None, now=time.time):
     if not good:
         return 0
     with _lock:
-        shutil.rmtree(root, ignore_errors=True)
+        mine = _dir(root, link)
+        shutil.rmtree(mine, ignore_errors=True)
         try:
-            os.makedirs(root, exist_ok=True)
+            os.makedirs(mine, exist_ok=True)
             for index, data in good.items():
-                with open(os.path.join(root, '%d.blk' % index), 'wb') as out:
+                with open(os.path.join(mine, '%d.blk' % index), 'wb') as out:
                     out.write(data)
-            with open(os.path.join(root, 'meta.json'), 'w', encoding='utf-8') as out:   # last: a folder without it is nothing
+            with open(os.path.join(mine, 'meta.json'), 'w', encoding='utf-8') as out:   # last: a folder without it is nothing
                 json.dump({'key': key(link), 'size': size, 'block': BLOCK, 'blocks': sorted(good), 'fraction': fraction, 'at': int(now())}, out)
         except OSError:
-            shutil.rmtree(root, ignore_errors=True)
+            shutil.rmtree(mine, ignore_errors=True)
             return 0
+        _prune(root, mine, now())
     return len(good)
 
 
@@ -102,12 +134,13 @@ def load(link, root=None):
     root = root or folder()
     if not root or not ready(link, root):
         return None
-    meta = _meta(root)
+    mine = _dir(root, link)
+    meta = _meta(mine)
     size = int(meta['size'])
     blocks = {}
     for index in meta['blocks']:
         try:
-            with open(os.path.join(root, '%d.blk' % int(index)), 'rb') as handle:
+            with open(os.path.join(mine, '%d.blk' % int(index)), 'rb') as handle:
                 data = handle.read()
         except (OSError, ValueError):
             continue
@@ -151,7 +184,8 @@ def capture(link, fraction, make_source, root=None, log=lambda text: None, clock
         cache.get('media', 0)
         size = int(cache.sizes.get('media') or 0)
         wanted = plan(size, fraction)
-        meta = _meta(root or folder() or '') if (root or folder()) else None
+        base = root or folder()
+        meta = _meta(_dir(base, link)) if base else None
         if meta and meta.get('key') == key(link) and meta.get('size') == size and set(wanted) <= set(meta.get('blocks') or ()):
             return 0   # already kept (the same stream stopped again near the same place)
 
