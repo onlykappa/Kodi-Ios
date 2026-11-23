@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "scope": "Four pinned Elementum dependency trees; future excluded due bundled test keys; engine and provider archives excluded",
+  "archives": [
+    {
+      "path": "migration/source-baseline/script.module.kodi-six.zip",
+      "id": "script.module.kodi-six",
+      "repository": "xbmc/repo-scripts",
+      "commit": "6689984b17b7756396902199deb5b90626ae8f75",
+      "git_tree": "2cbe46637d11af7183c58ec986d815d931c47af9",
+      "sha256": "c50253b225f55337dc3863bf8b96bd43baf7209ec1096471272f40ff46f7af58",
+      "bytes": 24186,
+      "notice": "script.module.kodi-six/LICENSE.txt"
+    },
+    {
+      "path": "migration/source-baseline/script.module.autocompletion.zip",
+      "id": "script.module.autocompletion",
+      "repository": "xbmc/repo-scripts",
+      "commit": "6689984b17b7756396902199deb5b90626ae8f75",
+      "git_tree": "af1f8d5843c4bb964c288a27d755d8530946774a",
+      "sha256": "94e07d99c10687f973b4d5d9cac46b5f69ac5b16867f93342c384c2aca914d55",
+      "bytes": 175575,
+      "notice": "script.module.autocompletion/LICENSE.txt"
+    },
+    {
+      "path": "migration/source-baseline/script.module.inputstreamhelper.zip",
+      "id": "script.module.inputstreamhelper",
+      "repository": "xbmc/repo-scripts",
+      "commit": "6689984b17b7756396902199deb5b90626ae8f75",
+      "git_tree": "5123929a65877bc0bf56e25c24624b9730d040d1",
+      "sha256": "6c4a8291409c7ff2c46285a716b22102c277c404a202a7d1cc1d893b2de7634b",
+      "bytes": 110321,
+      "notice": "script.module.inputstreamhelper/LICENSE.txt"
+    },
+    {
+      "path": "migration/source-baseline/plugin.program.autocompletion.zip",
+      "id": "plugin.program.autocompletion",
+      "repository": "xbmc/repo-plugins",
+      "commit": "527461c9fb06e17621283ab35bd76e160e8669b5",
+      "git_tree": "28cb73d9d46ce38801e3fc1b6d677a7e904881db",
+      "sha256": "1b7bdd44db85576187ef04ab44a0affe4069afcca16692f217aa69b35f847975",
+      "bytes": 333351,
+      "notice": "plugin.program.autocompletion/LICENSE.txt"
+    }
+  ]
+}

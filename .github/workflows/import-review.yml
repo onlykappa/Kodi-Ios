@@ -114,6 +114,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+          lfs: true
       # The phone runs CPython 3.11: the bundle's .pyc files must come from the same version (build_customized_ipa.precompile).
       - name: Python 3.11 for the bundle bytecode
         id: py311

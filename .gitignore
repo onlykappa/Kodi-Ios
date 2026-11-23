@@ -6,6 +6,7 @@ private/
 *.tar.*
 *.tgz
 *.zip
+!migration/source-baseline/*.zip
 *.7z
 *.zst
 *.bak

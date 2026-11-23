@@ -8,6 +8,9 @@ import argparse
 import collections
 import hashlib
 import json
+import io
+import zipfile
+import stat
 from pathlib import Path
 import re
 import subprocess
@@ -135,6 +138,32 @@ def check(source_userdata=None, git_history=False):
     for p in allfiles:
         rel=p.relative_to(ROOT)
         if p.is_symlink():issue(p,'symlink-not-publishable');continue
+        if rel.as_posix()=='.gitattributes':
+            if p.read_text()!='migration/source-baseline/*.zip filter=lfs diff=lfs merge=lfs -text\n':issue(p,'unexpected-lfs-policy')
+            continue
+        if rel.parts[:2]==('migration','source-baseline') and p.suffix=='.zip':
+            try:
+                records=json.loads((ROOT/'migration/source-baseline/manifest.json').read_text())['archives']
+                spec=next(x for x in records if x['path']==rel.as_posix())
+                pinned=json.loads((ROOT/'migration/elementum-ios/source-lock.json').read_text())['modules']
+                if not any(s['repository']==spec['repository'] and s['commit']==spec['commit'] and s['trees'].get(spec['id'])==spec['git_tree'] for s in pinned):raise ValueError('unreviewed source tree')
+                data=p.read_bytes()
+                if hashlib.sha256(data).hexdigest()!=spec['sha256'] or len(data)!=spec['bytes']:raise ValueError('digest')
+                with zipfile.ZipFile(io.BytesIO(data)) as z:
+                    if spec['notice'] not in z.namelist():raise ValueError('notice')
+                    seen=set()
+                    for entry in z.infolist():
+                        name=Path(entry.filename)
+                        if name.is_absolute() or '..' in name.parts or '\\' in entry.filename or stat.S_ISLNK(entry.external_attr>>16) or entry.filename in seen or name.parts[0]!=spec['id']:raise ValueError('path')
+                        seen.add(entry.filename)
+                        if name.suffix.lower() not in {'.py','.xml','.po','.txt','.md','.rst','.png','.jpg','.jpeg'}:raise ValueError('type')
+                        body=z.read(entry)
+                        if name.suffix.lower() in {'.png','.jpg','.jpeg'}:continue
+                        text=body.decode('utf-8')
+                        if any(rx.search(text) for rx in PATTERNS.values()):raise ValueError('secret pattern')
+                        if any(v in text for v in needles):raise ValueError('private value')
+            except Exception:issue(p,'invalid-preserved-source-archive')
+            continue
         if rel.parts[0] not in ALLOWED_TOP_LEVEL and rel.as_posix() not in {'.github/workflows/drive-upstream.yml','.github/workflows/ios-foundation.yml','.github/workflows/elementum-ios-probe.yml','.github/workflows/import-review.yml','.github/workflows/elementum-ios-engine.yml','.github/workflows/airplay-ios.yml','.github/workflows/signin-server.yml'}:issue(p,'unexpected-top-level-file')
         if p.name!='.gitignore' and p.suffix.lower() not in ALLOWED_SUFFIXES and rel.as_posix() not in {'migration/elementum-ios/probe-build.sh','migration/elementum-ios/build-ios-engine.sh','migration/airplay-ios/build-airplay.sh'} and rel.as_posix() not in {'.github/workflows/drive-upstream.yml','.github/workflows/ios-foundation.yml','.github/workflows/elementum-ios-probe.yml','.github/workflows/import-review.yml','.github/workflows/elementum-ios-engine.yml','.github/workflows/airplay-ios.yml','.github/workflows/signin-server.yml'}:issue(p,'unexpected-file-type')
         if p.suffix.lower() in FORBIDDEN_EXTENSIONS or '.private.' in p.name:issue(p,'private-or-runtime-file')

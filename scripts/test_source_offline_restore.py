@@ -15,6 +15,22 @@ import source_elementum_offline as elementum
 
 
 class OfflineRestore(unittest.TestCase):
+    def test_preserved_repository_archives_restore_exact_git_trees(self):
+        root = Path(__file__).resolve().parents[1]
+        manifest = json.loads((root / 'migration/source-baseline/manifest.json').read_text())
+        for spec in manifest['archives']:
+            archive = root / spec['path']
+            self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(), spec['sha256'])
+            with tempfile.TemporaryDirectory() as tmp:
+                with zipfile.ZipFile(archive) as z:
+                    self.assertIn(spec['notice'], z.namelist())
+                    self.assertTrue(all(n.startswith(spec['id'] + '/') and '..' not in Path(n).parts for n in z.namelist()))
+                    z.extractall(tmp)
+                subprocess.run(['git', 'init', '-q', tmp], check=True)
+                subprocess.run(['git', '-C', tmp, 'add', '-f', '--', spec['id']], check=True)
+                actual = subprocess.check_output(['git', '-C', tmp, 'write-tree', '--prefix=' + spec['id']], text=True).strip()
+                self.assertEqual(actual, spec['git_tree'])
+
     def test_restore_missing_and_tampered_inputs(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
