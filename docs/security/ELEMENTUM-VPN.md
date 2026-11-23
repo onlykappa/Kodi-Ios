@@ -1,5 +1,10 @@
 # Elementum and a VPN: source review, lab results and "Require VPN for torrents"
 
+> **Update, 2026-11-23: the "Require VPN for torrents" guard described in sections 4 and 5 was removed at the owner's request.** Reason: every selected torrent already goes
+> through AllDebrid (the phone never joins a swarm), so the guard added code for a path that is not used. What stays: the source review, the lab, the findings and the phone
+> checks. What replaced it: Elementum's DHT is turned off once (ISSUE-455) and a confirmation popup is being designed for any request that would reach Elementum's own engine.
+> The removed code is in this branch's history (commit `e6c5b87`) if it is ever wanted again. Sections 4-5 below describe it as it was; they are no longer implemented.
+
 Status: **not claimed protected.** Host evidence only; nothing here was observed on an iPhone. Branch `claude/elementum-vpn-privacy`, base `main` at `cf42c63`.
 **Headline finding (lab, libtorrent 2.1.1 on Linux): a wildcard-listening session sends tracker and uTP traffic out of the physical interface even with a VPN up as the default route. The guard therefore pins libtorrent to the tunnel's address while verified.**
 No credentials, public addresses, torrent identifiers, captures or private logs are in this document or the repository (the lab uses reserved documentation
@@ -93,7 +98,7 @@ while the gate is open (in the lab). What remains: the guard is a thread inside 
 is a window of up to ~10 s in which a *changed route* is not yet noticed; with the pin, a dead tunnel address stops the engine by itself in that window (lab), which is the
 Kodi-side kill switch. The VPN's own kill switch stays the protection for everything else. The app never shows "protected", only "VPN address check passed".
 
-## 5. What was implemented
+## 5. What was implemented (REMOVED 2026-11-23, see the note at the top)
 
 - `resources/lib/vpn_probe.py`: the two-way address question (`SO_BINDTODEVICE` on Linux for the lab, `IP_BOUND_IF` on Darwin, whose effect on iOS is **unverified**).
 - `resources/lib/vpn_guard.py`: pure rules plus a `Guard` with everything injected; `service.py` runs it from startup (`vpn_guard_loop`).

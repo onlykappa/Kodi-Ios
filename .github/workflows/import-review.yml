@@ -24,7 +24,6 @@ on:
       - 'scripts/test_skin_textures.py'
       - 'scripts/test_search_categories.py'
       - 'scripts/test_updates_calibration.py'
-      - 'scripts/test_vpn_guard.py'
       - 'scripts/test_drive_upload.py'
       - 'scripts/test_settings_search.py'
       - 'scripts/test_deck_picker.py'
@@ -72,7 +71,6 @@ on:
       - 'scripts/test_skin_textures.py'
       - 'scripts/test_search_categories.py'
       - 'scripts/test_updates_calibration.py'
-      - 'scripts/test_vpn_guard.py'
       - 'scripts/test_drive_upload.py'
       - 'scripts/test_settings_search.py'
       - 'scripts/test_deck_picker.py'
@@ -318,7 +316,6 @@ jobs:
           python3 -B scripts/test_continue_downloads.py
           python3 -B scripts/test_drive_library.py
           python3 -B scripts/test_listing_cache.py
-          python3 -B scripts/test_vpn_guard.py
           python3 -B scripts/test_activation.py
           python3 -B scripts/test_ios.py
           python3 -B scripts/test_review_low_items.py

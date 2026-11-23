@@ -50,38 +50,6 @@ def run():
   return {key:addon.getSettingBool(key) for key in ('background_transfers','drive_upload','prepare_downloads','airplay_button')}
  threading.Thread(target=diagnostics.watch,args=(profile,lambda message:xbmc.log(message,xbmc.LOGINFO),monitor.waitForAbort),
   kwargs={'settings':diagnostic_settings},daemon=True).start()
- # Require VPN for torrents (owner, 2026-11-22; vpn_guard.py): when the setting is on, Elementum's torrent networking is blocked first, then allowed only while a VPN is verified.
- # Started before the slow setup stages so the block is in place early; the loop looks at the interface list every second and at the public address every few seconds.
- def vpn_guard_loop():
-  import urllib.request,cache_tune,vpn_guard,vpn_probe
-  addon=xbmcaddon.Addon()
-  def engine_settings():
-   if not xbmc.getCondVisibility('System.HasAddon(plugin.video.elementum)'):return None
-   engine=xbmcaddon.Addon('plugin.video.elementum');return engine.getSetting,engine.setSetting
-  class Settings:   # the Elementum add-on may not be installed yet or may be updated meanwhile: looked up at each use
-   def __init__(self,which):self.which=which
-   def __call__(self,*args):
-    pair=engine_settings()
-    if pair is None:return '' if self.which==0 and len(args)==1 else None
-    return pair[self.which](*args)
-  def call(path):
-   try:urllib.request.urlopen('http://127.0.0.1:65220'+path,timeout=5).read(10)
-   except Exception:pass   # the engine may not be running yet: its settings are already in place for when it starts
-  def words(text):return [w.strip() for w in (text or '').split(',') if w.strip()]
-  def get(url,timeout):
-   with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'Kodi-iOS'}),timeout=timeout) as answer:return answer.read(4000)
-  def publish(state,text):
-   window.setProperty(vpn_guard.PROPERTY,state);window.setProperty(vpn_guard.PROPERTY_TEXT,text)
-  store=vpn_guard.Store(str(profile/'addon_data'/'service.kodi.ios.bootstrap'/'vpn_guard.json'))
-  guard=vpn_guard.Guard(store,lambda:addon.getSettingBool('require_vpn'),lambda:words(xbmcaddon.Addon().getSetting('vpn_expected')),
-   lambda:words(xbmcaddon.Addon().getSetting('vpn_echo')),cache_tune.interfaces,lambda table:cache_tune.link_kind(table=table),get,(Settings(0),Settings(1)),call,publish,
-   lambda title,text:xbmcgui.Dialog().notification(title,text,xbmcgui.NOTIFICATION_WARNING if title=='Torrents stopped' else xbmcgui.NOTIFICATION_INFO,6000),
-   log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),direct=lambda url,interface,timeout:vpn_probe.get(url,interface,timeout),physical=vpn_probe.physical)
-  while not monitor.waitForAbort(vpn_guard.WATCH_EVERY):
-   try:
-    addon=xbmcaddon.Addon();guard.step()
-   except Exception as error:xbmc.log('Kodi iOS vpn guard: %s'%type(error).__name__,xbmc.LOGWARNING)
- threading.Thread(target=vpn_guard_loop,daemon=True).start()
  def stage(value):
   state['stage']=value
   xbmc.log('Kodi iOS startup: %s +%.3fs'%(value,time.monotonic()-begun),xbmc.LOGINFO)

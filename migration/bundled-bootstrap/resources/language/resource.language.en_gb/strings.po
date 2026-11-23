@@ -83,19 +83,3 @@ msgstr ""
 msgctxt "#32030"
 msgid "Make downloads ready while they copy"
 msgstr ""
-
-msgctxt "#32031"
-msgid "Privacy"
-msgstr ""
-
-msgctxt "#32032"
-msgid "Require VPN for torrents"
-msgstr ""
-
-msgctxt "#32033"
-msgid "Name of my VPN network (optional)"
-msgstr ""
-
-msgctxt "#32034"
-msgid "Address check services"
-msgstr ""

@@ -150,19 +150,6 @@ def world_log(path):
     return {k: sorted(v) for k, v in out.items()}
 
 
-def probe_pair():
-    """vpn_probe + vpn_guard.decide() in the phone namespace for four situations. Linux binds to the device with SO_BINDTODEVICE (Darwin uses IP_BOUND_IF)."""
-    out = {}
-    def ask():
-        r = ns('phone', 'python3 %s/probe_client.py' % HERE, check=False)
-        return json.loads(r.stdout.strip().splitlines()[-1]) if r.stdout.strip() else {'error': r.stderr[-200:]}
-    route('vpn'); out['vpn_carrying_the_traffic'] = ask()
-    route('direct'); out['helper_tunnel_up_but_default_route_direct'] = ask()   # what LocalDevVPN looks like: a tunnel exists, the route does not use it
-    ns('phone', 'ip link set utun0 down'); out['tunnel_failed_no_kill_switch'] = ask(); ns('phone', 'ip link set utun0 up')
-    route('killed'); out['kill_switch_blackhole'] = ask()
-    return out
-
-
 def scenario(name, work):
     """Returns a dict of observations for one scenario."""
     if name.startswith('ipv6') and not HAVE_V6:
@@ -182,8 +169,6 @@ def scenario(name, work):
             route('vpn'); cap = Capture('a'); c = run_client(work, 25, out=open(out, 'w')); c.wait(); report['capture'] = cap.stop()
         elif name == 'vpn_up_tcp_only':
             route('vpn'); cap = Capture('a'); c = run_client(work, 20, env='LAB_TCP_ONLY=1', out=open(out, 'w')); c.wait(); report['capture'] = cap.stop()
-        elif name == 'probe_pair':   # the address seen by the default route against the address seen straight out of the physical interface
-            report['probe_pair'] = probe_pair()
         elif name == 'pinned_to_tunnel_address':   # what the guard sets while verified: listen and outgoing both the tunnel's own address (Elementum accepts an address or a name)
             route('vpn'); cap = Capture('a'); c = run_client(work, 25, env='LAB_LISTEN=10.8.0.2:6891 LAB_OUTGOING=10.8.0.2', out=open(out, 'w')); c.wait(); report['capture'] = cap.stop()
         elif name == 'pinned_tunnel_fails':
@@ -230,7 +215,7 @@ def scenario(name, work):
     return report
 
 
-ALL = ('probe_pair', 'pinned_to_tunnel_address', 'pinned_tunnel_fails', 'blocked_without_vpn', 'blocked_then_vpn_verified_then_released', 'tunnel_fails_then_block', 'vpn_up', 'vpn_up_tcp_only', 'tunnel_fails_no_kill_switch', 'tunnel_fails_with_kill_switch', 'started_before_vpn_no_kill_switch', 'started_before_vpn_kill_switch',
+ALL = ('pinned_to_tunnel_address', 'pinned_tunnel_fails', 'blocked_without_vpn', 'blocked_then_vpn_verified_then_released', 'tunnel_fails_then_block', 'vpn_up', 'vpn_up_tcp_only', 'tunnel_fails_no_kill_switch', 'tunnel_fails_with_kill_switch', 'started_before_vpn_no_kill_switch', 'started_before_vpn_kill_switch',
        'ipv6_default_listen', 'ipv6_listen_all', 'outgoing_interface_pinned')
 
 if __name__ == '__main__':
