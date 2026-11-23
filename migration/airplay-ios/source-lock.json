@@ -1,16 +1,16 @@
 {
  "framework_release": {
+  "tag": "kodi-airplay-r73",
+  "asset": "KodiAirPlay.framework.zip",
+  "sha256": "26b0b881d8f2011e073f4ac14b90d18d0a7581f37401703ae1ba81d83fb2ce60"
+ },
+ "previous": {
   "tag": "kodi-airplay-r72",
   "asset": "KodiAirPlay.framework.zip",
   "sha256": "68dd3735c8e1beb7482c2368220ec32ce9e66c492f0a208ece72d4a90b49d2a9"
  },
- "previous": {
-  "tag": "kodi-airplay-r71",
-  "asset": "KodiAirPlay.framework.zip",
-  "sha256": "71fdd0feacaf09d4338566436cd57beda0b3090f340df6c35f1d25bef6173e64"
- },
- "source_commit": "4ac58a036569b114c7e461080d32c12b4a79f651",
- "pin_note": "r72 candidate for ISSUE-424 (build 634 captions log): a subtitle sample with no length now gets a reading time (1.2 s plus 70 ms a character, 2 to 7 s) so a converted copy's captions are not zero-length and invisible, on top of r71's longer read-ahead lead. Native host and end-to-end tests plus iPhone compilation passed full run 44946538854 on 4ac58a0; inspection run 44948056178 verified IOS 14.0/SDK 26.2 and required exports; binary SHA256 ae264b5e80b257876d9d2ac5c6adf8eba4af41a0a58889a24e546ac2629e8159. Host evidence only: no AVPlayer, TV or phone result. Owner approved the AirPlay build (2026-11-21).",
- "verified_run": 44946538854,
- "verified_host_run": 44946538854
+ "source_commit": "afbef5b7947c0d27c441525891680dea0b372634",
+ "pin_note": "r73 candidate for ISSUE-467 (owner, build 676: the seek card should show the frame where the finger is): kodi_thumbs_make / kodi_thumbs_cancel (remux/src/kr_thumbs.c) make a title's preview strip, 0.jpg ... 100.jpg, one keyframe per whole percent, JPEG by the public-domain stb_image_write.h, over the remuxer's own HTTP Range source. Run 45271718446 on afbef5b: host tests (3978 checks, plus scripts/test_thumb_strip.py against the project's FFmpeg 8.1.1: 101 pictures from a colour-coded video, resume, black bars, errors) and the iPhoneOS framework compile passed; the framework archive sha256 is the pin; nm shows _kodi_thumbs_make, _kodi_thumbs_cancel and _kr_thumbs_make. An earlier run (45269417674) failed one existing timing check that the same code passed in runs 45263581966 and 45271718446: a flake. Host evidence only: no phone result.",
+ "verified_run": 45271718446,
+ "verified_host_run": 45271718446
 }
