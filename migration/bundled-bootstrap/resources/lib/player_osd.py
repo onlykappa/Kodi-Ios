@@ -161,21 +161,36 @@ def window():
  title=('<control type="label"><left>%d</left><right>%d</right><top>770</top><height>90</height><font>font_title_midi</font>'
   '<textcolor>FFFFFFFF</textcolor><align>left</align><aligny>center</aligny><label>%s</label><visible>!%s</visible></control>')%(
   left,left,e('$INFO[VideoPlayer.TVShowTitle,,  ·  ]$INFO[VideoPlayer.Title]'),PANEL)
- # Thin bar with a white knob (drag to seek), time left under its right end.
+ # Owner-approved Apple-style scrubber (docs/design/player-scrubber-mockup.html, 2026-11-23): a thin fully rounded bar with no knob at rest, thicker under the finger,
+ # elapsed time under its left end and the time left under its right end (tap it for the total length). Track and fill are one progress control each; the slider on top
+ # only takes the touch (its knob is clear), and the thick bar shows while the slider has focus, which is while it is dragged.
+ DRAG='Control.HasFocus(7131)'
+ def fill(top,height,border,visible):
+  return ('<control type="progress"><left>0</left><right>0</right><top>%d</top><height>%d</height><info>Player.Progress</info><visible>%s</visible>'
+   '<texturebg border="%d" colordiffuse="4DFFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="%d" colordiffuse="FFFFFFFF">%sdot.png</midtexture><righttexture /></control>'
+   )%(top,height,visible,border,MEDIA,border,MEDIA)
  bar=('<control type="group"><left>%d</left><right>%d</right><top>862</top><height>60</height>'%(left,left)+
-  # Track and fill in one control (same height and place), the knob from a slider whose bar is an invisible
-  # picture of the slider's height (Kodi sizes the knob from the bar picture).
-  '<control type="progress"><left>0</left><right>0</right><top>25</top><height>10</height><info>Player.Progress</info>'
-  '<texturebg border="4" colordiffuse="59FFFFFF">%sdot.png</texturebg><lefttexture />'
-  '<midtexture border="4" colordiffuse="FFFFFFFF">%sdot.png</midtexture><righttexture /></control>'%(MEDIA,MEDIA)+
+  fill(22,16,8,'!'+DRAG)+fill(14,32,16,DRAG)+
   '<control type="slider" id="7131"><left>0</left><right>0</right><top>6</top><height>48</height><action>seek</action><texturesliderbar>%sclear48.png</texturesliderbar>'%MEDIA+
-  '<textureslidernib colordiffuse="FFFFFFFF">%sknob.png</textureslidernib><textureslidernibfocus colordiffuse="FFFFFFFF">%sknob.png</textureslidernibfocus>'
+  '<textureslidernib>%sclear48.png</textureslidernib><textureslidernibfocus>%sclear48.png</textureslidernibfocus>'
   '<onup>7112</onup><ondown>7141</ondown></control>'%(MEDIA,MEDIA)+
   '</control>'+
-  '<control type="label"><right>%d</right><width>400</width><top>936</top><height>60</height><font>font_midi</font><textcolor>D9FFFFFF</textcolor>'
-  '<align>right</align><aligny>center</aligny><label>-$INFO[Player.TimeRemaining]</label></control>'%left)
- row=(text_button(7141,left,936,140,60,'Info',[INFO],'<onright>7142</onright><onup>7131</onup>')+
-      text_button(7142,left+200,936,460,60,'Continue Watching',['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'<onleft>7141</onleft><onup>7201</onup>'))
+  # Times: 70 % white at rest, white while dragging. The right one is a button too: a tap switches between the time left and the total length.
+  label(left,912,400,50,'$INFO[Player.Time]','font_midi_bold','B3FFFFFF','left','<visible>!%s</visible>'%DRAG)+
+  label(left,912,400,50,'$INFO[Player.Time]','font_midi_bold','FFFFFFFF','left','<visible>%s</visible>'%DRAG)+
+  '<control type="group"><right>%d</right><width>400</width><top>912</top><height>50</height>'%left+
+  '<control type="label"><right>0</right><width>400</width><top>0</top><height>50</height><font>font_midi_bold</font><textcolor>B3FFFFFF</textcolor><align>right</align><aligny>center</aligny>'
+  '<label>-$INFO[Player.TimeRemaining]</label><visible>!Skin.HasSetting(ios_osd_total) + !%s</visible></control>'%DRAG+
+  '<control type="label"><right>0</right><width>400</width><top>0</top><height>50</height><font>font_midi_bold</font><textcolor>FFFFFFFF</textcolor><align>right</align><aligny>center</aligny>'
+  '<label>-$INFO[Player.TimeRemaining]</label><visible>!Skin.HasSetting(ios_osd_total) + %s</visible></control>'%DRAG+
+  '<control type="label"><right>0</right><width>400</width><top>0</top><height>50</height><font>font_midi_bold</font><textcolor>B3FFFFFF</textcolor><align>right</align><aligny>center</aligny>'
+  '<label>$INFO[Player.Duration]</label><visible>Skin.HasSetting(ios_osd_total) + !%s</visible></control>'%DRAG+
+  '<control type="label"><right>0</right><width>400</width><top>0</top><height>50</height><font>font_midi_bold</font><textcolor>FFFFFFFF</textcolor><align>right</align><aligny>center</aligny>'
+  '<label>$INFO[Player.Duration]</label><visible>Skin.HasSetting(ios_osd_total) + %s</visible></control>'%DRAG+
+  '<control type="button" id="7132"><left>0</left><top>-10</top><width>400</width><height>70</height><texturefocus /><texturenofocus /><onclick>Skin.ToggleSetting(ios_osd_total)</onclick>'
+  '<onup>7131</onup><ondown>7141</ondown></control></control>')
+ row=(text_button(7141,left,970,140,54,'Info',[INFO],'<onright>7142</onright><onup>7131</onup>')+
+      text_button(7142,left+200,970,460,54,'Continue Watching',['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'<onleft>7141</onleft><onup>7201</onup>'))
  panel=('<control type="group"><visible>%s</visible>'%PANEL+
   '<animation effect="fade" start="0" end="100" time="200">Visible</animation>'+
   label(left,520,1200,60,'Continue Watching','font_head_bold')+

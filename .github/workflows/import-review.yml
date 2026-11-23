@@ -150,6 +150,7 @@ jobs:
           python3 -B scripts/test_cast_cache.py
           python3 -B scripts/test_torrent_prompt.py
           python3 -B scripts/test_airplay_recover.py
+          python3 -B scripts/test_player_scrubber.py
           python3 -B scripts/test_page_clock.py
           python3 -B scripts/test_prefetch_copy.py
           python3 -B scripts/test_drive_index.py
