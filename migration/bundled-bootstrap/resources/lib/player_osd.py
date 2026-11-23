@@ -173,7 +173,11 @@ def window():
   fill(22,16,8,'!'+DRAG)+fill(14,32,16,DRAG)+
   '<control type="slider" id="7131"><left>0</left><right>0</right><top>6</top><height>48</height><action>seek</action><texturesliderbar>%sclear48.png</texturesliderbar>'%MEDIA+
   '<textureslidernib>%sclear48.png</textureslidernib><textureslidernibfocus>%sclear48.png</textureslidernibfocus>'
-  '<onup>7112</onup><ondown>7141</ondown></control>'%(MEDIA,MEDIA)+
+  '<onup>7112</onup><ondown>7141</ondown>'%(MEDIA,MEDIA)+
+  # Dragging must not let the 3 s timer close the controls under the finger (build 669: taps right after a drag hit the closing animation and were ignored).
+  ('<onfocus condition="%s">CancelAlarm(osd_timeout,true)</onfocus><onfocus condition="%s">AlarmClock(osd_timeout,Dialog.Close(videoosd),00:15,silent)</onfocus>'
+   '<onunfocus condition="%s">CancelAlarm(osd_timeout,true)</onunfocus><onunfocus condition="%s">AlarmClock(osd_timeout,Dialog.Close(videoosd),$INFO[%s,00:,],silent)</onunfocus></control>')%(
+   e(ARM_WHEN),e(ARM_WHEN),e(ARM_WHEN),e(ARM_WHEN),TIMEOUT)+
   '</control>'+
   # Times: 70 % white at rest, white while dragging. The right one is a button too: a tap switches between the time left and the total length.
   label(left,912,400,50,'$INFO[Player.Time]','font_midi_bold','B3FFFFFF','left','<visible>!%s</visible>'%DRAG)+

@@ -10,8 +10,8 @@ import json
 import time
 
 MARK = 'KodiIOS.ContinueFast'
-LIMIT = 14.0      # seconds the remembered link gets to put a picture up (a good open takes 3-12 s; Kodi itself gave up at 30; build 660 log bbd44482: 25 s of waiting, then 17 s more the normal way)
-LIMIT_OPENED = 35.0   # when Kodi has opened the streams (a video stream is there) but no picture yet - it is seeking to the resume point - the open is not cut off (build 663 log 63e92ff2: cut 3 s after the streams opened)
+LIMIT = 30.0      # seconds the remembered link gets to put a picture up (a good open takes 3-12 s; Kodi itself gave up at 30; build 660 log bbd44482: 25 s of waiting, then 17 s more the normal way)
+LIMIT_OPENED = 45.0   # when Kodi has opened the streams (a video stream is there) but no picture yet - it is seeking to the resume point - the open is not cut off (build 663 log 63e92ff2: cut 3 s after the streams opened)
 STEP = 0.5
 OPENING = 'KodiIOS.ContinueOpening'   # set when a Continue/Next Episode tap starts an open (skin play_now, fast_stream): the loading circle stays up while it is set
 CIRCLE_CAP = 60.0

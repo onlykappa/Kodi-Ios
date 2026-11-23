@@ -296,6 +296,7 @@ class EspnProvider:
         self.ttl = TTL   # the phone's provider lowers it (sports_hybrid.TTL) so scores stay live
         self.league_defs = tuple(entry for entry in LEAGUES if leagues is None or entry[0] in leagues)
         self.lock = threading.Lock()
+        self.fetch_lock = threading.Lock()   # one fetch at a time; the state lock above is never held while ESPN is asked
         self.snapshot = None   # {'at', 'live', 'upcoming', 'leagues', 'finished'}
         self.refreshing = False   # a background refresh is running (one at a time)
 
@@ -407,6 +408,16 @@ class EspnProvider:
                 return self.snapshot
             if not force and self.snapshot and now - self.snapshot['at'] < self.ttl:
                 return self.snapshot
+            stale = self.snapshot
+        # The network is asked with the lock NOT held (owner, 2026-11-23, log e38980c3: every Sports page waited 2.2-3.0 s for its own background refresh, which held the
+        # lock across the whole ESPN fetch while the page's first read waited for it). A reader with any answer in hand never waits for a fetch that is already running.
+        if not force and stale is not None and self.fetch_lock.locked():
+            return stale
+        with self.fetch_lock:
+            now = int(self.clock())
+            with self.lock:   # an answer that arrived while this call waited for its turn is as good as asking again
+                if not force and self.snapshot and not self.snapshot.get('remembered') and now - self.snapshot['at'] < self.ttl:
+                    return self.snapshot
             days = [_date(now - FEED_DAY_SHIFT + d * 86400) for d in EXTRA_DAYS]
             jobs = [(entry, [BASE % entry[3]] + ['%s?dates=%s' % (BASE % entry[3], day) for day in days]) for entry in self.league_defs]
 
@@ -447,9 +458,11 @@ class EspnProvider:
                 if self.snapshot:
                     return self.snapshot   # the last good answer is better than none
                 raise sm.SportsUnavailable('no league answered')
-            self.snapshot = {'at': now, 'live': live, 'upcoming': upcoming, 'leagues': leagues, 'finished': finished}
-            self._write_disk(self.snapshot)
-            return self.snapshot
+            fresh = {'at': now, 'live': live, 'upcoming': upcoming, 'leagues': leagues, 'finished': finished}
+            with self.lock:
+                self.snapshot = fresh
+            self._write_disk(fresh)
+            return fresh
 
     # -- the contract
     def refresh(self, block=False):

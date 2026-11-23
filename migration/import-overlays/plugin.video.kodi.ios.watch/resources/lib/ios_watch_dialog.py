@@ -359,7 +359,7 @@ def _fast_local(handle,params,read_art=None,find=None,play=None,resume=None):
   _quiet('ios_watch_dialog:fast_copy',error)
   return False
 
-STREAM_FRESH=24*3600   # seconds a remembered Umbrella link is tried again (a debrid link lives for hours; _link_alive says when it does not). Owner, build 659 (log 4a05fc8f): a show watched 4+ hours earlier went the normal way (TMDb Helper 4.7 s, Umbrella 3 s, a slow server 28 s) instead of the remembered link; 4 h was too short
+STREAM_FRESH=72*3600   # seconds a remembered Umbrella link is tried again (a debrid link lives for hours; _link_alive says when it does not). Owner, build 659 (log 4a05fc8f): a show watched 4+ hours earlier went the normal way (TMDb Helper 4.7 s, Umbrella 3 s, a slow server 28 s) instead of the remembered link; 4 h was too short
 
 def _link_alive(url,timeout=6):
  """False only when the remembered link was refused or cannot be reached. A debrid server that is slow to answer (2-3 s to connect; build 639 log 9f7b4ab2:
