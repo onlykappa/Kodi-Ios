@@ -129,6 +129,13 @@ jobs:
           if [ "$AUDIO_REPLAY_ONLY" = true ]; then mode=--audio-replay-only; fi
           if [ "$RECEIVER_HANDOFF_ONLY" = true ]; then mode=--receiver-handoff; fi
           KR_HDR_TESTS=1 bash migration/airplay-ios/remux/tests/run_host_tests.sh "$RUNNER_TEMP/ff-host" "$RUNNER_TEMP/remux-tests" "$RUNNER_TEMP/ass-host" "$mode"
+      # Owner, 2026-11-23: the seek bar's preview strip. kr_thumbs.c is compiled against this job's FFmpeg 8.1.1 and run on a video whose colour is its time.
+      - name: Preview strip maker (kr_thumbs.c) against the host FFmpeg
+        run: |
+          FF="$RUNNER_TEMP/ff-host"
+          KR_THUMBS_CFLAGS="-I$FF/include" \
+          KR_THUMBS_LDLIBS="$FF/lib/libavformat.a $FF/lib/libavcodec.a $FF/lib/libdav1d.a $FF/lib/libswscale.a $FF/lib/libswresample.a $FF/lib/libavutil.a -lm -lpthread -lz -ldl" \
+          python3 -B scripts/test_thumb_strip.py
       # Build 190 (owner: "do a full rundown audit and tests on this conversion"): the real converter and the add-on's
       # queue end to end against a local Drive stand-in: interrupted runs, killed uploads, slow lines, the read-back check.
       - name: End-to-end conversion (converter + add-on queue + Drive stand-in)

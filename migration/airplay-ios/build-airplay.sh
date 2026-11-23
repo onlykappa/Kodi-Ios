@@ -71,6 +71,10 @@
 # r57 (ISSUE-278, owner's build-430 log: Naruto S1 E1, a prepared H.264 file; the Roku took the sound only and Apple's
 # player stopped "Cannot Complete Action" 1.5 s in): a prepared file the TV turns down restarts once, also when the
 # picture is already H.264; an H.264 picture is kept as it is in 6-s segments (KR_COMPAT_SEGMENTED), not converted.
+# r73 (owner, 2026-11-23, build 676: "the photo doesn't match where the film is going"): kodi_thumbs_make(url, dir, w, h, quality, pause_ms, out, len)
+# writes the seek bar's preview strip: 0.jpg ... 100.jpg, the keyframe at or before each whole percent of the video (software decode of one
+# keyframe per picture over the remuxer's own HTTP Range source, remux/src/kr_thumbs.c; JPEG by the public-domain stb_image_write.h), then
+# `done`. kodi_thumbs_cancel() stops it between pictures. About 8 KB a picture at 320x180, 20-40 MB read for a 1080p episode.
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh, REMUX_LIBASS=DIR
 # one of build-libass.sh ios)
 set -euo pipefail
@@ -1465,6 +1469,7 @@ printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airpla
 printf '_kodi_http_copy_max\n_kodi_http_copy_streams\n_kodi_http_copy\n_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
 printf '_kodi_airplay_prepare_upscale\n_kodi_airplay_upscale_support\n_kodi_airplay_upscale_model\n_kodi_device_state\n' >> "$WORK/exports"   # r48
 printf '_kodi_speech_words\n_kodi_speech_authorize\n_kodi_speech_state\n' >> "$WORK/exports"   # ISSUE-347 (r62)
+printf '_kodi_thumbs_make\n_kodi_thumbs_cancel\n' >> "$WORK/exports"   # r73: the seek bar's preview strip (kr_thumbs.c)
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
   -framework VideoToolbox -framework CoreVideo -framework CoreText -framework Metal -framework Speech \
@@ -1515,6 +1520,10 @@ nm -m "$FW/KodiAirPlay" | grep -E '_OBJC_CLASS_\$_VT(LowLatency)?SuperResolution
 nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_speech_(words|authorize|state)$'
 [[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_speech_(words|authorize|state)$')" == 3 ]] || { echo 'speech check exports missing' >&2; exit 1; }
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _kr_speech_pcm$')" == 1 ]] || { echo 'speech sound reader not linked' >&2; exit 1; }
+# r73: the preview strip's entry points are exported and its picture maker is linked (private).
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_thumbs_(make|cancel)$'
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_thumbs_(make|cancel)$')" == 2 ]] || { echo 'preview strip exports missing' >&2; exit 1; }
+[[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _kr_thumbs_make$')" == 1 ]] || { echo 'preview strip maker not linked' >&2; exit 1; }
 # r7: the picture bridge needs Apple's hardware H.264 encoder in this FFmpeg.
 grep -q -- '--enable-encoder=h264_videotoolbox' "$FF/FFMPEG-CONFIG.txt" || { echo 'FFmpeg built without h264_videotoolbox' >&2; exit 1; }
 lipo -info "$FW/KodiAirPlay"

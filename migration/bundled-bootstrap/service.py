@@ -122,6 +122,28 @@ def run():
   link_warm.watch(lambda:ios_continue.entries(ios_continue.load(read),'all'),busy,monitor.waitForAbort,log,warm_it=keep,
    allowed=lambda:cache_tune.link_kind()=='wifi')
  threading.Thread(target=link_warm_loop,daemon=True).start()
+ def thumb_strip_loop():
+  # Owner, 2026-11-23: the seek bar's card shows the real frame near the finger. The first Continue Watching titles get their preview strip made in the background
+  # (thumb_strip.py; the AirPlay framework's kodi_thumbs_make), on Wi-Fi, only while nothing plays or opens.
+  import thumb_strip,airplay,importlib.util,xbmcaddon,cache_tune
+  lib_py=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.kodi.ios.watch').getAddonInfo('path'))+'/resources/lib/ios_continue.py'
+  spec=importlib.util.spec_from_file_location('ios_continue',lib_py);ios_continue=importlib.util.module_from_spec(spec);spec.loader.exec_module(ios_continue)
+  def read(location):
+   source=xbmcvfs.File(location)
+   try:return source.read()
+   finally:source.close()
+  home=xbmcgui.Window(10000);log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
+  busy=lambda:bool(xbmc.getCondVisibility('Player.HasVideo') or home.getProperty('KodiIOS.ContinueOpening') or home.getProperty('KodiIOS.OpenWanted') and time.time()-float(home.getProperty('KodiIOS.OpenWanted') or 0)<30)
+  path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'));root=thumb_strip.root_folder();said=[]
+  def make_it(link):
+   lib=airplay.cached_load(path)
+   if not thumb_strip.available(lib):
+    if not said:said.append(1);log('preview strip: this AirPlay framework cannot make them yet')
+    return
+   thumb_strip.make(lib,link,root,log,stop=busy)
+  thumb_strip.watch(lambda:ios_continue.entries(ios_continue.load(read),'all'),busy,monitor.waitForAbort,log,make_it,root,
+   allowed=lambda:cache_tune.link_kind()=='wifi')
+ threading.Thread(target=thumb_strip_loop,daemon=True).start()
  keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
  window.setProperty('KodiIOS.Build',updates.installed_build(root))

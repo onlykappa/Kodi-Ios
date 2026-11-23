@@ -2251,6 +2251,16 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
    home=xbmcgui.Window(10000);began=home.getProperty('KodiIOS.OpenWanted')   # ios_watch_dialog.fast_copy sets it when a title is asked for: the capture then lets go of the debrid server
    resume_cache.capture_later(entry,lambda link:remote_media.Foreground(link),wifi=lambda:cache_tune.link_kind()=='wifi',log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),
                               stop=lambda:home.getProperty('KodiIOS.OpenWanted')!=began or xbmc.Player().isPlayingVideo(),idle=lambda:xbmc.getGlobalIdleTime()>=resume_cache.IDLE_SECONDS)
+  def strip_started():
+   # The seek bar's card reads the playing title's preview strip (thumb_strip.py): the folder is shown when the title has pictures, else the card stays dark.
+   try:
+    import thumb_strip,xbmcgui
+    data=module.load(read);entry=data['items'].get(data.get('current')) or {}
+    thumb_strip.show(xbmcgui.Window(10000),str((entry.get('stream') or {}).get('url') or ''),thumb_strip.root_folder())
+   except Exception as error:_quiet('portrait:strip',error)
+  def started():
+   strip_started()
+   subtitles_back()
   def subtitles_back():
    import threading
    try:xbmc.executebuiltin('Dialog.Close(busydialognocancel,true)')   # the circle a Continue Watching tap raised at once (play_now): the video is up
@@ -2303,7 +2313,7 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
     except Exception as error:xbmc.log('Kodi iOS auto subtitles: not looked at (%s)'%type(error).__name__,xbmc.LOGINFO)
    threading.Thread(target=work,daemon=True).start()
   tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic,external=lambda:airplay.health(native_player),
-                       log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),on_stop=keep_opening,on_start=subtitles_back)
+                       log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),on_stop=keep_opening,on_start=started)
  except Exception as error:xbmc.log('Kodi iOS continue watching unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  # Listing cache: check the row flags against the copies now, then fill and refresh copies in the background.
  try:

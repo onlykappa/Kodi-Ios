@@ -153,3 +153,8 @@ FFmpeg includes ffmpeg-mkv-skip-attachments.patch (LGPL-2.1+): the Matroska demu
 attached file data (fonts, cover images) instead of reading it. AirPlay never uses attachments,
 and over a network link they were read in full before the first picture. The patch is shipped
 with the framework for rebuilding/relinking.
+
+13. stb_image_write v1.19 (src/stb_image_write.h): the JPEG writer of the seek bar's preview strip (src/kr_thumbs.c)
+   https://github.com/nothings/stb, Sean Barrett and contributors. Public domain, or MIT where public domain does not apply
+   (the file's own "ALTERNATIVE A - MIT License" and "ALTERNATIVE B - Public Domain (www.unlicense.org)" at its end). Its JPEG
+   encoder is Jon Olick's public domain "Simple, Minimalistic JPEG writer". Used unmodified.
