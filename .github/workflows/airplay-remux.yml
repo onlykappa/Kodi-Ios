@@ -133,8 +133,10 @@ jobs:
       - name: Preview strip maker (kr_thumbs.c) against the host FFmpeg
         run: |
           FF="$RUNNER_TEMP/ff-host"
-          KR_THUMBS_CFLAGS="-I$FF/include" \
-          KR_THUMBS_LDLIBS="$FF/lib/libavformat.a $FF/lib/libavcodec.a $FF/lib/libdav1d.a $FF/lib/libswscale.a $FF/lib/libswresample.a $FF/lib/libavutil.a -lm -lpthread -lz -ldl" \
+          X265=""
+          if grep -q -- '--enable-libx265' "$FF/FFMPEG-CONFIG.txt"; then X265="$(pkg-config --libs x265)"; fi   # the host FFmpeg has the test-only HEVC encoder, as run_host_tests.sh links it
+          export KR_THUMBS_CFLAGS="-I$FF/include"
+          export KR_THUMBS_LDLIBS="$FF/lib/libavformat.a $FF/lib/libavcodec.a $FF/lib/libdav1d.a $FF/lib/libswscale.a $FF/lib/libswresample.a $FF/lib/libavutil.a $X265 -lm -lpthread -lz -ldl -lstdc++"
           python3 -B scripts/test_thumb_strip.py
       # Build 190 (owner: "do a full rundown audit and tests on this conversion"): the real converter and the add-on's
       # queue end to end against a local Drive stand-in: interrupted runs, killed uploads, slow lines, the read-back check.

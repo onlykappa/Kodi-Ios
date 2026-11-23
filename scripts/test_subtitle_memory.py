@@ -79,7 +79,8 @@ class Wiring(unittest.TestCase):
         self.assertIn("special://profile/addon_data/service.kodi.ios.bootstrap/subtitles/",t);self.assertNotIn("special://temp/kodiios-subtitles",t)
         self.assertIn('subtitle_memory.remember(folder,',t);self.assertIn('subtitle_memory.forget(folder,',t);self.assertIn('mp4_tracks.zero_length(raw[t[',t)
         p=(ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py').read_text()
-        self.assertIn('on_start=subtitles_back',p);self.assertIn('subtitle_memory.at_start(root,',p);self.assertIn('if on_start:',p)
+        self.assertIn('on_start=started)',p);self.assertIn('   subtitles_back()\n',p);   # started() = the preview strip's folder, then the remembered subtitle
+        self.assertIn('subtitle_memory.at_start(root,',p);self.assertIn('if on_start:',p)
 class UmbrellaKey(unittest.TestCase):   # build 646 log d8f39741: an Umbrella stream's labels say only "Episode 8"
     def label(self,**v):return lambda name:v.get(name,'')
     def test_continue_watching_gives_the_key_when_the_labels_lack_the_show(self):
