@@ -12,14 +12,15 @@ def row(n, player='umbrella', age=3600, pos=600, total=3000):
 class Recent(unittest.TestCase):
     def test_only_first_three_rows(self):
         rows = [row(i) for i in range(10)]
-        self.assertEqual([u for u, f in lw.recent_links(rows, NOW)], ['https://x.test/%d.mkv' % i for i in range(3)])
+        self.assertEqual([u for u, f, sec in lw.recent_links(rows, NOW)], ['https://x.test/%d.mkv' % i for i in range(3)])
     def test_skips_other_players_old_links_and_no_resume(self):
         rows = [row(0, player='elementum'), row(1, age=73 * 3600), row(2, pos=1), row(3, pos=2900), row(4)]
-        self.assertEqual([u for u, f in lw.recent_links(rows, NOW, limit=5)], ['https://x.test/4.mkv'])
+        self.assertEqual([u for u, f, sec in lw.recent_links(rows, NOW, limit=5)], ['https://x.test/4.mkv'])
     def test_72_hours_kept(self):
         self.assertEqual(len(lw.recent_links([row(0, age=71 * 3600)], NOW)), 1)
-    def test_fraction(self):
-        self.assertAlmostEqual(lw.recent_links([row(0, pos=600, total=3000)], NOW)[0][1], 0.2)
+    def test_fraction_and_seconds(self):
+        got = lw.recent_links([row(0, pos=600, total=3000)], NOW)[0]
+        self.assertAlmostEqual(got[1], 0.2); self.assertEqual(got[2], 600)
 
 class Warm(unittest.TestCase):
     def test_reads_start_end_and_resume_point(self):
@@ -47,7 +48,7 @@ class Warm(unittest.TestCase):
         def wait(sec):
             waits.append(sec); clock[0] += sec; return len(waits) >= 4
         busy = [True]
-        def warm_it(url, size, fraction=None): calls.append(url); return 3
+        def warm_it(url, size, fraction=None, seconds=None): calls.append(url); return 3
         lw.watch(lambda: [row(0)], lambda: busy[0], wait, lambda t: None, now=lambda: clock[0], warm_it=warm_it)
         self.assertEqual(calls, [])                     # busy: nothing warmed
         busy[0] = False; waits.clear(); clock[0] = NOW
@@ -59,6 +60,30 @@ class Warm(unittest.TestCase):
         def wait(sec): waits.append(sec); return len(waits) >= 2
         lw.watch(lambda: [row(0)], lambda: False, wait, logs.append, now=lambda: NOW, warm_it=lambda *a, **k: 3)
         self.assertTrue(logs and all('x.test' not in l for l in logs))
+
+def el(ident, payload):
+    n = len(payload)
+    return bytes.fromhex(ident) + bytes([0x80 | n]) + payload if n < 127 else bytes.fromhex(ident) + bytes([0x40 | (n >> 8), n & 255]) + payload
+def uint(v):
+    return v.to_bytes(max(1, (v.bit_length() + 7) // 8), 'big')
+def cue(t, pos):
+    return el('BB', el('B3', uint(t)) + el('B7', el('F7', uint(1)) + el('F1', uint(pos))))
+
+class ResumeOffset(unittest.TestCase):
+    """The Matroska seek Kodi makes, found from the file's start and its Cues (rig: 30.0 s went to the 28 s cue, byte 39427588 of 84556212)."""
+    SEG = 400                                   # where the Segment's data starts
+    head = b'\x1a\x45\xdf\xa3\x80' + b'\x18\x53\x80\x67\x88' + el('2AD7B1', uint(1000000))
+    def tail(self):
+        return b'\x00' * 20 + bytes.fromhex('1C53BB6B') + (lambda c: bytes([0x40 | (len(c) >> 8), len(c) & 255]) + c)(cue(0, 100) + cue(28000, 5000) + cue(30000, 7000) + cue(32000, 9000))
+    def test_the_cue_before_the_place_is_used(self):
+        head = self.head + b'\x00' * 10
+        seg = head.find(b'\x18\x53\x80\x67') + 5
+        self.assertEqual(lw.resume_offset(head, self.tail(), 10 ** 6, 30.0), seg + 5000)   # 30.0 s -> the 28 s cue, as Kodi does
+        self.assertEqual(lw.resume_offset(head, self.tail(), 10 ** 6, 30.6), seg + 7000)
+    def test_not_matroska_or_no_cues_gives_none(self):
+        self.assertIsNone(lw.resume_offset(b'\x00' * 100, self.tail(), 10 ** 6, 30.0))
+        self.assertIsNone(lw.resume_offset(self.head, b'\x00' * 100, 10 ** 6, 30.0))
+        self.assertIsNone(lw.resume_offset(b'', b'', 10 ** 6, 30.0))
 
 class Guard(unittest.TestCase):
     def mark(self, at=1000.0):
