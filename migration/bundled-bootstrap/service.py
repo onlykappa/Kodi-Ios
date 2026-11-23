@@ -563,7 +563,12 @@ def run():
     if airplay.slow_source(lines,xbmcgui.Window(10000),time.time()):
      notices.note('problem','AirPlay: this stream is too slow',airplay.SLOW_TEXT)
      xbmcgui.Dialog().notification('AirPlay',airplay.SLOW_TEXT,xbmcgui.NOTIFICATION_WARNING,10000)
-   threading.Thread(target=airplay_diagnostics.watch,args=(lib,profile,xbmcgui.Window(10000),lambda m:xbmc.log(m,xbmc.LOGINFO),monitor.waitForAbort),daemon=True).start()
+   import airplay_recover
+   def cast_stuck(position):
+    notices.note('problem','AirPlay: the TV is not receiving',airplay_recover.TEXT)
+    xbmcgui.Dialog().notification('AirPlay',airplay_recover.TEXT,xbmcgui.NOTIFICATION_WARNING,10000)
+   recover=airplay_recover.Recover(lambda position:airplay.restart(lib,xbmcgui.Window(10000),position,log=lambda m:xbmc.log('Kodi iOS '+m,xbmc.LOGINFO)),cast_stuck,lambda m:xbmc.log('Kodi iOS '+m,xbmc.LOGINFO))
+   threading.Thread(target=airplay_diagnostics.watch,args=(lib,profile,xbmcgui.Window(10000),lambda m:xbmc.log(m,xbmc.LOGINFO),monitor.waitForAbort),kwargs={'recover':recover},daemon=True).start()
    threading.Thread(target=airplay.relay,args=(lib,lambda m:xbmc.log(m,xbmc.LOGINFO),monitor.waitForAbort),
                     kwargs={'keep':lambda lines:(library_tools.note_airplay(profile,lines),airplay.activity(lines,xbmcgui.Window(10000),time.time()),
                                                   slow_note(lines))},daemon=True).start()

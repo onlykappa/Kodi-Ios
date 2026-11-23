@@ -488,6 +488,7 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
   if hasattr(lib,'kodi_airplay_start_at'):
    try:lib.kodi_airplay_start_at(float(player.getTime()))
    except Exception:lib.kodi_airplay_start_at(0.0)
+  airplay.remember_play(home,source,title)   # so a stalled cast can be started again from where the TV was (airplay_recover.py)
   lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
   # ISSUE-251: Apple's AirPlay list at once, while the stream is made (the TV starts when it is ready). The framework
   # opens the list again when the stream is ready only if no AirPlay device was chosen.
