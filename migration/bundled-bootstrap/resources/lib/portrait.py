@@ -2250,7 +2250,7 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
    import resume_cache,remote_media,cache_tune,xbmcgui
    home=xbmcgui.Window(10000);began=home.getProperty('KodiIOS.OpenWanted')   # ios_watch_dialog.fast_copy sets it when a title is asked for: the capture then lets go of the debrid server
    resume_cache.capture_later(entry,lambda link:remote_media.Foreground(link),wifi=lambda:cache_tune.link_kind()=='wifi',log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),
-                              stop=lambda:home.getProperty('KodiIOS.OpenWanted')!=began or xbmc.Player().isPlayingVideo())
+                              stop=lambda:home.getProperty('KodiIOS.OpenWanted')!=began or xbmc.Player().isPlayingVideo(),idle=lambda:xbmc.getGlobalIdleTime()>=resume_cache.IDLE_SECONDS)
   def subtitles_back():
    import threading
    try:xbmc.executebuiltin('Dialog.Close(busydialognocancel,true)')   # the circle a Continue Watching tap raised at once (play_now): the video is up

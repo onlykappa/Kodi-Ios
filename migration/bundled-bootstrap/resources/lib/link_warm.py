@@ -240,7 +240,7 @@ def watch(rows_now, busy, wait, log, now=time.time, warm_it=warm, allowed=lambda
                     began = time.time()
                     made = warm_it(url, 0, fraction=fraction, seconds=seconds)
                     count += 1
-                    log('link warm: %d reads in %.1f s' % (made, time.time() - began))
+                    log('link warm: %d blocks in %.1f s' % (made, time.time() - began))
                 for old in [u for u in done if now() - done[u] > KEEP]:
                     del done[old]
         except Exception as error:

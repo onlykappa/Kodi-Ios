@@ -19,7 +19,9 @@ AROUND = 3                    # remote_media.RESUME_BLOCKS: the block at the res
 MAX_BLOCKS = 12
 TITLES = 3                    # titles kept at once (the last three that stopped): at most TITLES x MAX_BLOCKS x 4 MiB = 144 MiB; the oldest goes when a fourth is saved
 KEEP_SECONDS = 72 * 3600      # a kept opening older than this is dropped (the link behind it is no longer remembered)
-CAPTURE_LIMIT = 90            # seconds a capture may take
+CAPTURE_LIMIT = 240           # seconds a capture may take (it waits for the person to stop touching the screen, so it can take a while)
+WORKERS = 2                   # blocks read at the same time. Owner log d78de521: ten threads reading at once took the phone's Python for ten seconds, and Sports opened in 1.2 s instead of 0.15 s, the Home list scrolled at 16 fps
+IDLE_SECONDS = 6              # a block is started only after this long without a touch (xbmc.getGlobalIdleTime)
 _lock = threading.Lock()
 _busy = [False]
 
@@ -167,11 +169,12 @@ def seed(source, link, root=None):
     return len(blocks)
 
 
-def capture(link, fraction, make_source, root=None, log=lambda text: None, clock=time.monotonic, stop=lambda: False, poll=0.2):
+def capture(link, fraction, make_source, root=None, log=lambda text: None, clock=time.monotonic, stop=lambda: False, poll=0.2, idle=lambda: True):
     """Read the plan's blocks of `link` through a cache source (`make_source(link)` -> remote_media.Foreground, several connections at once) and keep
     them. One capture at a time; returns how many blocks were kept (0: busy, nothing to keep, or it failed). `stop()` true (a new video is opening: owner, build
     639 log 9f7b4ab2, the capture's six connections were still reading the debrid server when Continue's own check of the same link timed out, and the title
-    opened the slow way in 22 s): the capture lets go at once and keeps the blocks it already has."""
+    opened the slow way in 22 s): the capture lets go at once and keeps the blocks it already has. `idle()` false (the person is touching the screen): no new block is started until it is
+    true again, and only WORKERS blocks are read at a time (owner log d78de521: the capture ran while Sports was tapped and slowed it eight-fold)."""
     with _lock:
         if _busy[0]:
             return 0
@@ -189,20 +192,42 @@ def capture(link, fraction, make_source, root=None, log=lambda text: None, clock
         if meta and meta.get('key') == key(link) and meta.get('size') == size and set(wanted) <= set(meta.get('blocks') or ()):
             return 0   # already kept (the same stream stopped again near the same place)
 
-        def one(index):
-            try:
-                cache.get('media', index)
-            except Exception:
-                pass
-        threads = [threading.Thread(target=one, args=(i,), daemon=True) for i in wanted]
+        # The start, the end and the resume point first: if the capture is cut short, those are what Continue needs most.
+        last = (size - 1) // BLOCK
+        queue = [i for i in (0, last) if i in wanted]
+        queue += [i for i in wanted if i >= HEAD_BLOCKS and i not in queue]   # the blocks around the resume point
+        queue += [i for i in wanted if i not in queue]                         # the rest of the file's start
+        gate = threading.Lock()
+        flags = {'stopped': False}
+        yielded = False
+
+        def worker():
+            while True:
+                with gate:
+                    if not queue:
+                        return
+                    index = queue.pop(0)
+                while not stop() and not idle() and clock() - began < CAPTURE_LIMIT:
+                    time.sleep(poll)
+                if stop() or clock() - began >= CAPTURE_LIMIT:
+                    if stop():
+                        flags['stopped'] = True
+                    return
+                try:
+                    cache.get('media', index)
+                except Exception:
+                    pass
+        threads = [threading.Thread(target=worker, daemon=True) for _ in range(WORKERS)]
         for thread in threads:
             thread.start()
-        yielded = False
         while any(t.is_alive() for t in threads) and clock() - began < CAPTURE_LIMIT:
             if stop():
                 yielded = True
+                with gate:
+                    del queue[:]
                 break
-            threads[0].join(poll) if threads[0].is_alive() else time.sleep(poll)
+            time.sleep(poll)
+        yielded = yielded or flags['stopped']
         with cache.lock:
             have = {i: cache.data.get(('media', i), b'') for i in wanted}
         saved = store(link, size, have, fraction, root)
@@ -221,7 +246,7 @@ def capture(link, fraction, make_source, root=None, log=lambda text: None, clock
                 pass
 
 
-def capture_later(entry, make_source, wifi=lambda: True, log=lambda text: None, root=None, stop=lambda: False):
+def capture_later(entry, make_source, wifi=lambda: True, log=lambda text: None, root=None, stop=lambda: False, idle=lambda: True):
     """From the progress tracker when a title stops: if it was an Umbrella stream with a place to resume, keep its opening, in a thread, on Wi-Fi only."""
     try:
         stream = (entry or {}).get('stream') or {}
@@ -232,7 +257,7 @@ def capture_later(entry, make_source, wifi=lambda: True, log=lambda text: None, 
         if not wifi():
             log('resume cache: not kept (not on Wi-Fi: it costs about 40 MB of data)')   # owner log 1b574ee3: on mobile data nothing was kept and nothing said why
             return None
-        thread = threading.Thread(target=capture, args=(link, position / total, make_source, root, log, time.monotonic, stop), daemon=True)
+        thread = threading.Thread(target=capture, args=(link, position / total, make_source, root, log, time.monotonic, stop, 0.2, idle), daemon=True)
         thread.start()
         return thread
     except Exception:

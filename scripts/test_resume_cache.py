@@ -84,6 +84,29 @@ class Capture(unittest.TestCase):
         kept=rc.capture(LINK,0.5,lambda link:rm.Foreground(link,open_url=slow),self.root,self.logs.append,stop=lambda:True,poll=0.01)
         release.set()
         self.assertLess(time.monotonic()-began,4);self.assertIn('stopped early',self.logs[-1]);self.assertLess(kept,6)
+    def test_the_capture_reads_two_blocks_at_a_time_the_start_and_end_first_and_only_while_the_screen_is_untouched(self):
+        """Owner log d78de521: ten blocks read at once slowed Sports from 0.15 s to 1.2 s and the Home list to 16 fps; the capture now has two readers, starts with the file's start and end,
+        and starts a block only after the person has stopped touching the screen."""
+        import threading
+        size=10*rc.BLOCK;order=[];running=[0,0];lock=threading.Lock();state={'idle':False}
+        class Stub:
+            def __init__(self):
+                self.sizes={'media':size};self.data={};self.lock=threading.RLock();self.blocks=self
+            def get(self,name,index):
+                with lock:
+                    order.append(index);running[0]+=1;running[1]=max(running[1],running[0])
+                time.sleep(0.03)
+                with self.lock:self.data[('media',index)]=bytes(min(rc.BLOCK,size-index*rc.BLOCK))
+                with lock:running[0]-=1
+            def close(self):pass
+        box={}
+        def go():box['kept']=rc.capture(LINK,0.5,lambda link:Stub(),self.root,self.logs.append,poll=0.01,idle=lambda:state['idle'])
+        t=threading.Thread(target=go);t.start();time.sleep(0.3)
+        self.assertEqual(order,[0])   # only the size probe: nothing else starts while the screen is being touched
+        state['idle']=True;t.join(10)
+        self.assertEqual(running[1],2)                       # two at a time, never more
+        self.assertEqual(sorted(order[1:3]),[0,9])           # the start and the end first
+        self.assertEqual(box['kept'],len(rc.plan(size,0.5)))
     def test_a_failure_keeps_nothing_and_never_raises(self):
         self.assertEqual(rc.capture(LINK,0.5,lambda link:rm.Foreground(link,open_url=dead),self.root,self.logs.append),0);self.assertFalse(rc.ready(LINK,self.root))
     def test_only_an_umbrella_stream_with_a_place_to_resume_on_wifi_is_kept(self):

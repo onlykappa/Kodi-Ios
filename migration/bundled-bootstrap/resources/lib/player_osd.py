@@ -111,6 +111,9 @@ FIRST_ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(
 BACKDROP=('<control type="button" id="7100"><left>0</left><top>0</top><right>0</right><bottom>0</bottom>'
           '<texturefocus /><texturenofocus /><label></label><onclick>Dialog.Close(videoosd)</onclick></control>')
 ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(videoosd),$INFO[%s,00:,],silent)'%TIMEOUT)
+SKIP_GLYPH=200   # the back/forward 10 arrows (owner, 2026-11-23: a little bigger; they were 160)
+SKIP_TAP=280
+TEN_DX=7;TEN_DY=5
 LINGER='<animation effect="fade" start="100" end="0" time="500" delay="500">Hidden</animation>'   # stays 0.5 s after the buffer is full, then fades
 PULSE='<animation effect="fade" start="100" end="30" time="700" tween="sine" easing="inout" reversible="true" loop="true" condition="true">Conditional</animation>'
 def rearm(xml):
@@ -144,14 +147,14 @@ def window():
  # Centre row in a group 1200 wide centred on the screen; the "10" sits inside the arrows ($NUMBER: a bare 10
  # would be read as a Kodi string id).
  cw=1200;cx=cw//2;cy=520;gap=420
- ten=lambda x:label(x-70,cy-36,140,72,'$NUMBER[10]','font_main_bold','FFFFFFFF','center')
+ ten=lambda x,side=1:label(x-70+side*TEN_DX,cy-36+TEN_DY,140,72,'$NUMBER[10]','font_main_bold','FFFFFFFF','center')   # TEN_DX/DY: the arrowhead sits in the circle's upper left, so the digits sit a little right and down of the circle's centre
  centre=group('centre',cw,
-  tap(7111,cx-gap,cy,240,'rotate-left.png','Seek(-10)','<onright>7112</onright><onup>7101</onup><ondown>7131</ondown>',160)+ten(cx-gap)+
+  tap(7111,cx-gap,cy,SKIP_TAP,'rotate-left.png','Seek(-10)','<onright>7112</onright><onup>7101</onup><ondown>7131</ondown>',SKIP_GLYPH)+ten(cx-gap)+
   '<control type="button" id="7112"><left>%d</left><top>%d</top><width>260</width><height>260</height><texturefocus /><texturenofocus />'
   '<onclick>PlayerControl(Play)</onclick><onleft>7111</onleft><onright>7113</onright><onup>7101</onup><ondown>7131</ondown></control>'%(cx-130,cy-130)+
   glyph(cx+10,cy,150,'play.png','<visible>Player.Paused | Player.Forwarding | Player.Rewinding</visible>')+
   glyph(cx,cy,140,'pause.png','<visible>!Player.Paused + !Player.Forwarding + !Player.Rewinding</visible>')+
-  tap(7113,cx+gap,cy,240,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',160)+ten(cx+gap)+
+  tap(7113,cx+gap,cy,SKIP_TAP,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',SKIP_GLYPH)+ten(cx+gap,-1)+
   # Build 210: the buffer percentage lives here, in the controls already on screen while seeking. Its own dialog
   # (Custom_1156) froze Kodi's main thread each time it opened (logs 34cd7aac 15:07:09, 3efdc5ca 15:53:08).
   # Owner, 2026-11-23: the bar sat at 0 and jumped to 100 when the buffer filled (the cache level arrives in bursts). The Kodi patch eases the bar up to the level;

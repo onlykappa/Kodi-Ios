@@ -103,19 +103,24 @@ def run():
    opened=lambda:bool(xbmc.getCondVisibility('Player.HasVideo')),circle=circle,probe=continue_guard.Probe(__import__('link_warm').link_answers))
  threading.Thread(target=continue_guard_loop,daemon=True).start()
  def link_warm_loop():
-  # Owner, 2026-11-23: Continue's remembered link takes 11-19 s to open (the debrid server's first reads); warm the first 3 Continue Watching links
-  # (start, end, resume point; about 1.3 MB each) every 10 minutes while nothing plays, so the tap finds the server awake (link_warm.watch)
-  import link_warm,importlib.util,xbmcaddon
+  # Owner, 2026-11-23, log d78de521 (Wi-Fi): reading 1.3 MB of a link did nothing (the first Continue took 24.4 s to a picture); the kept opening (resume_cache)
+  # made the next two 6.6 s and 7.2 s. So the first 3 Continue Watching titles get their opening kept (resume_cache.capture), on Wi-Fi, only while nothing plays
+  # and the person has not touched the screen for 6 s, two blocks at a time (link_warm.watch picks the titles).
+  import link_warm,importlib.util,xbmcaddon,resume_cache,remote_media,cache_tune
   lib=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.kodi.ios.watch').getAddonInfo('path'))+'/resources/lib/ios_continue.py'
   spec=importlib.util.spec_from_file_location('ios_continue',lib);ios_continue=importlib.util.module_from_spec(spec);spec.loader.exec_module(ios_continue)
   def read(location):
    source=xbmcvfs.File(location)
    try:return source.read()
    finally:source.close()
-  home=xbmcgui.Window(10000)
-  link_warm.watch(lambda:ios_continue.entries(ios_continue.load(read),'all'),
-   lambda:bool(xbmc.getCondVisibility('Player.HasVideo') or home.getProperty('KodiIOS.ContinueOpening')),
-   monitor.waitForAbort,lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),allowed=lambda:__import__('cache_tune').link_kind()!='cellular')
+  home=xbmcgui.Window(10000);log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
+  busy=lambda:bool(xbmc.getCondVisibility('Player.HasVideo') or home.getProperty('KodiIOS.ContinueOpening'))
+  def keep(url,size,fraction=None,seconds=None):
+   began=home.getProperty('KodiIOS.OpenWanted')
+   return resume_cache.capture(url,fraction,lambda link:remote_media.Foreground(link),log=log,stop=lambda:busy() or home.getProperty('KodiIOS.OpenWanted')!=began,
+                               idle=lambda:xbmc.getGlobalIdleTime()>=resume_cache.IDLE_SECONDS)
+  link_warm.watch(lambda:ios_continue.entries(ios_continue.load(read),'all'),busy,monitor.waitForAbort,log,warm_it=keep,
+   allowed=lambda:cache_tune.link_kind()=='wifi')
  threading.Thread(target=link_warm_loop,daemon=True).start()
  keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).

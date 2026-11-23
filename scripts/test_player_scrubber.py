@@ -92,6 +92,18 @@ class Scrubber(unittest.TestCase):
         for needle in ('else if (m_iInfoCode == PLAYER_CACHELEVEL)', 'm_fPercent = std::min(target, m_fPercent + 125.0f * seconds);', '+  long long m_easedAt{0};'):
             self.assertIn(needle, patch)
 
+    def test_the_skip_arrows_are_bigger_and_the_ten_clears_the_arrowhead(self):
+        """Owner, build 676 screenshot: the arrows a little bigger and the 10 clear of the arrowhead (which sits in the circle's upper left on the back arrow, upper right on the forward arrow;
+        rig, zoomed: the 1 touched it). Glyph 160 -> 200, touch area 240 -> 280, the digits right and down of centre on the back arrow, left and down on the forward arrow."""
+        self.assertEqual((osd.SKIP_GLYPH, osd.SKIP_TAP), (200, 280))
+        back = next(c for c in controls('button') if c.get('id') == '7111'); fwd = next(c for c in controls('button') if c.get('id') == '7113')
+        self.assertEqual((int(back.findtext('width')), int(fwd.findtext('width'))), (280, 280))
+        tens = [c for c in controls('label') if c.findtext('label') == '$NUMBER[10]']
+        self.assertEqual(len(tens), 2)
+        centres = sorted(int(c.findtext('left')) + int(c.findtext('width')) // 2 for c in tens)
+        middle = (centres[0] + centres[1]) // 2
+        self.assertEqual((centres[0] - (middle - osd.EDGE * 0 - 420), centres[1] - (middle + 420)), (osd.TEN_DX, -osd.TEN_DX))
+
 
 if __name__ == '__main__':
     unittest.main()
