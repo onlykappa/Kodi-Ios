@@ -232,10 +232,10 @@ class OpeningStages(unittest.TestCase):
   tops={c.findtext('label'):int(c.findtext('top')) for c in root.iter('control') if c.get('type')=='label' and c.findtext('top')}
   size=[int(c.findtext('top')) for c in root.iter('control') if c.get('type')=='grouplist' and 'IOSReady.Size' in ET.tostring(c,encoding='unicode')][0]
   elapsed=tops['$INFO[Window(home).Property(IOSReady.Elapsed)]'];self.assertGreater(elapsed,size)                  # under the line with the size
- def test_a_remembered_link_is_tried_for_a_day(self):
+ def test_a_remembered_link_is_tried_for_three_days(self):
   import importlib.util
   spec=importlib.util.spec_from_file_location('iwd',ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_watch_dialog.py')
-  self.assertIn('STREAM_FRESH=24*3600',(ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_watch_dialog.py').read_text())
+  self.assertIn('STREAM_FRESH=72*3600',(ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_watch_dialog.py').read_text())
  def test_no_dots_and_the_bar_follows_the_real_progress(self):
   """Owner, 2026-11-21: no "..." on the page, and the page shows real progress: the link step, then the bytes Kodi has read (0, 4, 8 of 12 MB) filling the bar,
   then "Starting the video" (published through watch(), as the service does)."""
