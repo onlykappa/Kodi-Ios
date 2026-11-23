@@ -6128,3 +6128,18 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 - **Fix:** the same pinned-line patch as ISSUE-396 (`sports_crew_patch`) now also swaps `xbmcgui.DialogProgress` and `DialogProgressBG` for a silent stand-in, but only while the Home property `KodiIOS.SportsCrewScan` holds a time in the future. A game's source search and a Sports play (`sports_loop_router.play`) set it; being a time, it can never stay on after a crash. Crew used from its own menus is unchanged.
 - **Not removed:** the 2 s wait inside Crew's downloaded code, and Crew's small "X failed, using Y" notification when a link fails over.
 - **Retest:** host tests (`test_sports_crew_patch`). On the phone, a Play should show no Crew box; the log shows "crew: scan patch applied".
+
+
+### ISSUE-398: Isolated source rig's old staged Crew lacks runtime artwork dependency
+
+- **Seen:** Source-resilience step 2 adapter batch passed 7/8; Crew failed importing
+  sources with Unknown addon id script.thecrew.artwork in a fresh profile.
+- **Cause:** Old private staging manifest omitted the artwork import but runtime
+  code still calls it. This is not evidence the current IPA has the same problem.
+- **Rig repair:** Fetch artwork 3.2.0 from the existing current lock, verify SHA256,
+  install and enable only in the isolated profile. No production fix.
+- **Retest:** Crew controlled adapter case passed 1/1. Other baseline fixture cases
+  remain recorded; reports/source-rig-baseline.json preserves initial failure.
+- **Remaining:** Step 3 must validate current clean staging/import closure; no new CI
+  test or production change in this documentation-only baseline. Existing fixture
+  scripts/rig_provider_fallback.py reproduces the missing-dependency import failure.

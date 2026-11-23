@@ -1099,3 +1099,15 @@ actual client/engine LICENSE text is MIT despite client manifest wording.
 Umbrella scratch source is partial; exact phone versions and dynamic runtime
 closure remain unverified. Step 1 available-source scope complete; steps 2–16
 unstarted. No runtime modifications or rig/playback/device claim.
+
+
+## 2026-11-23 — Source resilience step 2 controlled desktop baseline
+
+Fresh separate profile runs real Kodi 21.3 / Python 3.14.10, Arctic Fuse active.
+13 fixture scenarios pass after a rig-only missing-artwork dependency repair;
+initial 7/8 adapter batch preserved. Generated local video selected in the real
+picker starts VideoPlayer, time advances >2 seconds and stop succeeds; final media
+handoff is harness-controlled, not production provider/engine proof. See
+docs/SOURCE-RIG-BASELINE.md, reports/source-rig-baseline.json and ISSUE-398.
+Old private profiles preserved. Services disabled, null audio, no live results,
+no iPhone/native-engine or portrait visual claim. Step 3 next; no IPA/merge.

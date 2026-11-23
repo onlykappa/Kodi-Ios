@@ -1,6 +1,6 @@
 # Kodi-iOS master roadmap
 
-Source resilience planning (2026-11-23): [16-step bundled backup source roadmap](docs/SOURCE-RESILIENCE-ROADMAP.md). Step 1 available-source inventory complete (1/16 roadmap steps); phone parity gaps explicit. Owner can authorize each numbered step. No build, release or merge.
+Source resilience planning (2026-11-23): [16-step bundled backup source roadmap](docs/SOURCE-RESILIENCE-ROADMAP.md). Steps 1–2 available-source inventory and controlled rig baseline complete (2/16 roadmap steps); phone parity/production-engine gaps explicit. Owner can authorize each numbered step. No build, release or merge.
 
 Current phone checkpoint (2026-11-18): build575 shows ESPN cards but no Sports source choices in owner testing; manual Crew eventually plays. Documentation-only next task: [Sports source discovery, game-button and fallback roadmap](docs/SPORTS-PHONE-SOURCE-ROADMAP.md), branch `codex/sports-phone-source-roadmap`, stacked on PR #43. No new implementation/build/merge authorized by this roadmap request.
 

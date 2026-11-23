@@ -1,7 +1,7 @@
 # Bundled source resilience: owner-controlled backup roadmap
 
 Date: 2026-11-23. Initial baseline: main cf42c63.
-Status: step 1 available-source inventory complete; 1/16 roadmap steps complete.
+Status: steps 1–2 available-source inventory and controlled rig baseline complete; 2/16 roadmap steps complete.
 Phone parity gaps remain explicit in docs/SOURCE-DEPENDENCY-INVENTORY.md.
 
 ## Goal and authorization
@@ -82,7 +82,7 @@ experiment stays recorded. Later work can expose a need to revisit earlier steps
 
 ### 2. Establish an isolated baseline rig
 
-- [ ] Inspect scripts/kodi_rig.py and docs/design/KODI-RIG.md; preserve private profiles.
+- [x] Inspect scripts/kodi_rig.py and docs/design/KODI-RIG.md; preserve private profiles.
   Record Kodi, Python, add-on and engine versions and differences from the phone.
 - Stage copies of working files in a private profile with no account migration.
   Produce deterministic authorized search/resolve/playback fixtures plus optional
@@ -243,8 +243,9 @@ experiment stays recorded. Later work can expose a need to revisit earlier steps
 | Step | Status | Commit / evidence / blocker |
 | --- | --- | --- |
 | 1 | COMPLETE (available-source scope) | [Inventory](SOURCE-DEPENDENCY-INVENTORY.md); verified package hashes, manifest imports, dependency roles and traces. Phone version/partial Umbrella/dynamic endpoint gaps explicit. |
-| 2–16 | NOT STARTED | Next: isolated baseline rig. |
+| 2 | COMPLETE (controlled baseline) | [Rig baseline](SOURCE-RIG-BASELINE.md); 13 fixture scenarios pass after isolated artwork repair; generated-video picker/start/advancing clock/stop pass. Production engine and phone unverified. |
+| 3–16 | NOT STARTED | Next: licensed reproducible source baseline. |
 
 On completing a step, replace its row range with individual rows and record dates,
 commands, expected/observed results and links to sanitized reports. Do not renumber
-steps when adding subtasks. Next owner command: "Start 2".
+steps when adding subtasks. Next owner command: "Start 3".
