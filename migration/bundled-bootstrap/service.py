@@ -116,6 +116,19 @@ def run():
   return {key:addon.getSettingBool(key) for key in ('background_transfers','drive_upload','prepare_downloads','airplay_button')}
  threading.Thread(target=diagnostics.watch,args=(profile,lambda message:xbmc.log(message,xbmc.LOGINFO),monitor.waitForAbort),
   kwargs={'settings':diagnostic_settings},daemon=True).start()
+ # A hint whether a VPN carries the phone's traffic (vpn_hint.py), logged whenever it changes, for the torrent popup and for comparing logs: names only, no addresses.
+ def vpn_look_loop():
+  import cache_tune,vpn_hint
+  last=None
+  while not monitor.waitForAbort(3):
+   try:
+    found=vpn_hint.current(cache_tune.local_address,cache_tune.interfaces)
+    key=(found['state'],found['route'],tuple(found['tunnels']))
+    if key!=last:
+     last=key;xbmc.log('Kodi iOS '+vpn_hint.line(found),xbmc.LOGINFO)
+    window.setProperty('KodiIOS.VPNLook',found['state'])
+   except Exception as error:xbmc.log('Kodi iOS vpn check: %s'%type(error).__name__,xbmc.LOGWARNING)
+ threading.Thread(target=vpn_look_loop,daemon=True).start()
  def stage(value):
   state['stage']=value
   xbmc.log('Kodi iOS startup: %s +%.3fs'%(value,time.monotonic()-begun),xbmc.LOGINFO)
