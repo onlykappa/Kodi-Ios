@@ -1085,3 +1085,17 @@ main cf42c63; existing fallback adapters still depend on installed upstream code
 and some remote backends. No new endpoint inventory, live playback or independence
 claim. No runtime changes, IPA, publication or merge. Implementation 0/16; next is
 owner-authorized step 1.
+
+
+## 2026-11-23 — Source resilience step 1 available-source audit
+
+Added docs/SOURCE-DEPENDENCY-INVENTORY.md and reports/source-dependency-inventory.json.
+Six pinned archives downloaded and SHA256-verified, seven manifest import lists
+recorded, safe static hostname index generated, primary search/resolve/transport
+paths traced. Burst has 84 local definitions; Coco torrent directory has 27 Python
+files (not a working-provider count). Crew fetches runtime modules and falls back
+to cached code; cold installs still depend on remote availability. Elementum's
+actual client/engine LICENSE text is MIT despite client manifest wording.
+Umbrella scratch source is partial; exact phone versions and dynamic runtime
+closure remain unverified. Step 1 available-source scope complete; steps 2–16
+unstarted. No runtime modifications or rig/playback/device claim.

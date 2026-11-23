@@ -1,7 +1,8 @@
 # Bundled source resilience: owner-controlled backup roadmap
 
 Date: 2026-11-23. Initial baseline: main cf42c63.
-Status: planning only; 0/16 implementation steps complete.
+Status: step 1 available-source inventory complete; 1/16 roadmap steps complete.
+Phone parity gaps remain explicit in docs/SOURCE-DEPENDENCY-INVENTORY.md.
 
 ## Goal and authorization
 
@@ -68,7 +69,7 @@ experiment stays recorded. Later work can expose a need to revisit earlier steps
 
 ### 1. Inventory the actual working stack
 
-- [ ] Record exact app/add-on/engine versions, hashes, dependency closure, install
+- [x] Record exact app/add-on/engine versions, hashes, dependency closure, install
   locations and available source for Elementum, Burst, Umbrella, CocoScrapers, Crew,
   ResolveURL, existing fallback modules and their required services.
 - Trace each network call family and dynamic code/configuration/feed fetch. Record
@@ -241,8 +242,9 @@ experiment stays recorded. Later work can expose a need to revisit earlier steps
 
 | Step | Status | Commit / evidence / blocker |
 | --- | --- | --- |
-| 1–16 | NOT STARTED | Initial roadmap only; source observations above are preliminary. |
+| 1 | COMPLETE (available-source scope) | [Inventory](SOURCE-DEPENDENCY-INVENTORY.md); verified package hashes, manifest imports, dependency roles and traces. Phone version/partial Umbrella/dynamic endpoint gaps explicit. |
+| 2–16 | NOT STARTED | Next: isolated baseline rig. |
 
 On completing a step, replace its row range with individual rows and record dates,
 commands, expected/observed results and links to sanitized reports. Do not renumber
-steps when adding subtasks. Next owner command: "Start 1".
+steps when adding subtasks. Next owner command: "Start 2".

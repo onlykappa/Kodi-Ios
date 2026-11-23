@@ -1,0 +1,2579 @@
+{
+  "schema": 1,
+  "date": "2026-11-23",
+  "baseline": "cf42c63",
+  "scope": "Static source/package audit; no phone installation, runtime endpoint reachability or playback verification. Hostname occurrences may be inactive code, documentation or optional providers; no exhaustive runtime endpoint claim.",
+  "packages": [
+    {
+      "label": "elementum-client",
+      "id": "plugin.video.elementum",
+      "version": "0.1.114",
+      "verification": "download SHA256 matched repository lock",
+      "manifest_sha256": "0718893298f3c7ba27d1c0eb988db8f6a922fb90ebd48d0abebb44a5e811893a",
+      "source_files_scanned": 49,
+      "requires": [
+        {
+          "addon": "xbmc.addon",
+          "version": "16.0.0"
+        },
+        {
+          "addon": "repository.elementumorg",
+          "optional": "true"
+        },
+        {
+          "addon": "script.module.kodi-six"
+        },
+        {
+          "addon": "script.module.requests",
+          "version": "2.9.1"
+        }
+      ],
+      "metadata_license": "Non commercial. See https://github.com/elgatito/plugin.video.elementum/blob/master/LICENSE",
+      "license_file_sha256": "058195bb99d65c5b0816395da435ef107af588d9ab3bb8927658f68ccf4c4091",
+      "literal_hostname_occurrences": {
+        "127.0.0.1": {
+          "file": "resources/site-packages/elementum/config.py",
+          "line": 5
+        },
+        "api.github.com": {
+          "file": "resources/site-packages/elementum/util.py",
+          "line": 120
+        },
+        "aspn.activestate.com": {
+          "file": "resources/site-packages/elementum/taller.py",
+          "line": 159
+        },
+        "code.activestate.com": {
+          "file": "resources/site-packages/simplejson/ordered_dict.py",
+          "line": 3
+        },
+        "code.google.com": {
+          "file": "resources/site-packages/simplejson/ordered_dict.py",
+          "line": 9
+        },
+        "elementum.surge.sh": {
+          "file": "addon.xml",
+          "line": 33
+        },
+        "github.com": {
+          "file": "addon.xml",
+          "line": 34
+        },
+        "p.thenewone.lol": {
+          "file": "resources/settings.xml",
+          "line": 357
+        }
+      }
+    },
+    {
+      "label": "burst",
+      "id": "script.elementum.burst",
+      "version": "0.0.99",
+      "verification": "download SHA256 matched repository lock",
+      "manifest_sha256": "808c5c6b5974c8472183cbb1e86bfc4a5fe11dffbb492f060d6887d712ca3e8f",
+      "source_files_scanned": 227,
+      "requires": [
+        {
+          "addon": "xbmc.addon",
+          "version": "16.0.0"
+        },
+        {
+          "addon": "plugin.video.elementum",
+          "optional": "true"
+        },
+        {
+          "addon": "script.module.kodi-six"
+        },
+        {
+          "addon": "script.module.requests"
+        },
+        {
+          "addon": "script.module.future",
+          "version": "0.16.0.4"
+        },
+        {
+          "addon": "script.module.pycryptodome",
+          "optional": "true"
+        }
+      ],
+      "metadata_license": "WTFPL, Version 2, December 2004. See included LICENSE.",
+      "license_file_sha256": "058195bb99d65c5b0816395da435ef107af588d9ab3bb8927658f68ccf4c4091",
+      "literal_hostname_occurrences": {
+        "3d-tracker.ru": {
+          "file": "burst/providers/providers.json",
+          "line": 103
+        },
+        "animaunt.fun": {
+          "file": "burst/providers/providers.json",
+          "line": 203
+        },
+        "animelayer.ru": {
+          "file": "burst/providers/providers.json",
+          "line": 231
+        },
+        "api.anilibria.tv": {
+          "file": "burst/providers/providers.json",
+          "line": 145
+        },
+        "api.github.com": {
+          "file": "burst/burst.py",
+          "line": 802
+        },
+        "api.opennicproject.org": {
+          "file": "burst/client.py",
+          "line": 51
+        },
+        "baibako.tv": {
+          "file": "burst/providers/providers.json",
+          "line": 311
+        },
+        "bitbucket.org": {
+          "file": "resources/site-packages/antizapret.py",
+          "line": 78
+        },
+        "bithumen.be": {
+          "file": "burst/providers/providers.json",
+          "line": 354
+        },
+        "bitnova.info": {
+          "file": "burst/providers/providers.json",
+          "line": 396
+        },
+        "bitsearch.to": {
+          "file": "burst/providers/providers.json",
+          "line": 443
+        },
+        "blog.luminoso.com": {
+          "file": "burst/normalize.py",
+          "line": 210
+        },
+        "bluebird-hd.org": {
+          "file": "burst/providers/providers.json",
+          "line": 624
+        },
+        "breakingcode.wordpress.com": {
+          "file": "resources/site-packages/socks.py",
+          "line": 35
+        },
+        "bt4gprx.com": {
+          "file": "burst/providers/providers.json",
+          "line": 493
+        },
+        "bugs.python.org": {
+          "file": "resources/site-packages/requests/utils.py",
+          "line": 179
+        },
+        "classic.torrentleech.org": {
+          "file": "burst/providers/providers.json",
+          "line": 3189
+        },
+        "cloud.google.com": {
+          "file": "resources/site-packages/urllib3/contrib/_appengine_environ.py",
+          "line": 17
+        },
+        "code.google.com": {
+          "file": "resources/site-packages/urllib3/contrib/ntlmpool.py",
+          "line": 4
+        },
+        "corsaro.red": {
+          "file": "burst/providers/providers.json",
+          "line": 1320
+        },
+        "cryptography.io": {
+          "file": "resources/site-packages/urllib3/contrib/pyopenssl.py",
+          "line": 45
+        },
+        "developer.apple.com": {
+          "file": "resources/site-packages/urllib3/contrib/_securetransport/bindings.py",
+          "line": 489
+        },
+        "docs.python.org": {
+          "file": "resources/site-packages/socks.py",
+          "line": 880
+        },
+        "domain.tld": {
+          "file": "resources/site-packages/requests/sessions.py",
+          "line": 159
+        },
+        "effbot.org": {
+          "file": "burst/normalize.py",
+          "line": 447
+        },
+        "electro-torrent.pl": {
+          "file": "burst/providers/providers.json",
+          "line": 581
+        },
+        "en.wikipedia.org": {
+          "file": "resources/site-packages/urllib3/contrib/pyopenssl.py",
+          "line": 42
+        },
+        "erickt.github.io": {
+          "file": "resources/site-packages/urllib3/connectionpool.py",
+          "line": 427
+        },
+        "example.com": {
+          "file": "resources/site-packages/urllib3/util/retry.py",
+          "line": 102
+        },
+        "extranet.torrentbay.st": {
+          "file": "burst/providers/providers.json",
+          "line": 764
+        },
+        "extratorrent.st": {
+          "file": "burst/providers/providers.json",
+          "line": 812
+        },
+        "eztvx.to": {
+          "file": "burst/providers/providers.json",
+          "line": 853
+        },
+        "filelist.io": {
+          "file": "burst/providers/providers.json",
+          "line": 955
+        },
+        "filetracker.pl": {
+          "file": "burst/providers/providers.json",
+          "line": 989
+        },
+        "forums.mvgroup.org": {
+          "file": "burst/providers/providers.json",
+          "line": 1855
+        },
+        "gist.github.com": {
+          "file": "resources/site-packages/socks.py",
+          "line": 44
+        },
+        "github.com": {
+          "file": "addon.xml",
+          "line": 32
+        },
+        "glodls.to": {
+          "file": "burst/providers/providers.json",
+          "line": 1080
+        },
+        "google.com": {
+          "file": "resources/site-packages/urllib3/connectionpool.py",
+          "line": 1100
+        },
+        "hd-torrents.org": {
+          "file": "burst/providers/providers.json",
+          "line": 1128
+        },
+        "helltorrents.com": {
+          "file": "burst/providers/providers.json",
+          "line": 536
+        },
+        "hg.python.org": {
+          "file": "resources/site-packages/urllib3/connectionpool.py",
+          "line": 109
+        },
+        "host.name": {
+          "file": "resources/site-packages/requests/sessions.py",
+          "line": 356
+        },
+        "httpbin.org": {
+          "file": "resources/site-packages/requests/__init__.py",
+          "line": 25
+        },
+        "hynek.me": {
+          "file": "resources/site-packages/urllib3/util/ssl_.py",
+          "line": 98
+        },
+        "idope.se": {
+          "file": "burst/providers/providers.json",
+          "line": 1177
+        },
+        "ilcorsaroblu.org": {
+          "file": "burst/providers/providers.json",
+          "line": 1223
+        },
+        "ilcorsaronero.link": {
+          "file": "burst/providers/providers.json",
+          "line": 1266
+        },
+        "itorrent.ws": {
+          "file": "burst/providers/providers.json",
+          "line": 1410
+        },
+        "itorrents.org": {
+          "file": "burst/providers/providers.json",
+          "line": 1245
+        },
+        "kickasstorrents.to": {
+          "file": "burst/providers/providers.json",
+          "line": 1454
+        },
+        "kinozal.guru": {
+          "file": "burst/providers/providers.json",
+          "line": 1499
+        },
+        "knaben.org": {
+          "file": "burst/providers/providers.json",
+          "line": 1551
+        },
+        "le-production.tv": {
+          "file": "burst/providers/providers.json",
+          "line": 1596
+        },
+        "localhost": {
+          "file": "resources/site-packages/urllib3/poolmanager.py",
+          "line": 452
+        },
+        "megapeer.vip": {
+          "file": "burst/providers/providers.json",
+          "line": 1809
+        },
+        "motomastyle.com": {
+          "file": "resources/site-packages/socks.py",
+          "line": 32
+        },
+        "movies-api.accel.li": {
+          "file": "burst/providers/providers.json",
+          "line": 3605
+        },
+        "ncore.pro": {
+          "file": "burst/providers/providers.json",
+          "line": 1946
+        },
+        "newstudio.tv": {
+          "file": "burst/providers/providers.json",
+          "line": 1991
+        },
+        "nitro.to": {
+          "file": "burst/providers/providers.json",
+          "line": 2035
+        },
+        "nnm-club.lib": {
+          "file": "burst/providers/providers.json",
+          "line": 2112
+        },
+        "nnmclub.to": {
+          "file": "burst/providers/providers.json",
+          "line": 2082
+        },
+        "nnmclub2vvjqzjne6q4rrozkkkdmlvnrcsyes2bbkm7e5ut2aproy4id.onion": {
+          "file": "burst/providers/providers.json",
+          "line": 2123
+        },
+        "nyaa.si": {
+          "file": "burst/providers/providers.json",
+          "line": 2136
+        },
+        "p.thenewone.lol": {
+          "file": "resources/settings.xml",
+          "line": 421
+        },
+        "pirat.one": {
+          "file": "burst/providers/providers.json",
+          "line": 2180
+        },
+        "piratebayo3klnzokct3wt5yyxb2vpebbuyjl7m623iaxmqhsd52coid.onion": {
+          "file": "burst/providers/providers.json",
+          "line": 2656
+        },
+        "proxy": {
+          "file": "resources/site-packages/urllib3/connectionpool.py",
+          "line": 776
+        },
+        "pyloris.sourceforge.net": {
+          "file": "resources/site-packages/socks.py",
+          "line": 33
+        },
+        "python-requests.org": {
+          "file": "resources/site-packages/requests/__version__.py",
+          "line": 7
+        },
+        "rustorka.com": {
+          "file": "burst/providers/providers.json",
+          "line": 2279
+        },
+        "rutor.info": {
+          "file": "burst/providers/providers.json",
+          "line": 2332
+        },
+        "rutor.lib": {
+          "file": "burst/providers/providers.json",
+          "line": 2359
+        },
+        "rutor7773fwscdatlqyc5sw3egsmwjkmklafljti5p7o236mveks3rid.onion": {
+          "file": "burst/providers/providers.json",
+          "line": 2375
+        },
+        "rutracker.org": {
+          "file": "burst/providers/providers.json",
+          "line": 2392
+        },
+        "search.tfile-home.org": {
+          "file": "burst/providers/providers.json",
+          "line": 2572
+        },
+        "serialz.tv": {
+          "file": "burst/providers/providers.json",
+          "line": 2442
+        },
+        "tfile-home.org": {
+          "file": "burst/providers/providers.json",
+          "line": 2595
+        },
+        "thepiratebay10.xyz": {
+          "file": "burst/providers/providers.json",
+          "line": 2620
+        },
+        "tntvillage.scambioetico.org": {
+          "file": "burst/providers/providers.json",
+          "line": 2670
+        },
+        "toloka.to": {
+          "file": "burst/providers/providers.json",
+          "line": 2716
+        },
+        "tools.ietf.org": {
+          "file": "resources/site-packages/requests/sessions.py",
+          "line": 302
+        },
+        "torrent.ai": {
+          "file": "burst/providers/providers.json",
+          "line": 3234
+        },
+        "torrent.by": {
+          "file": "burst/providers/providers.json",
+          "line": 2907
+        },
+        "torrent3d.ru": {
+          "file": "burst/providers/providers.json",
+          "line": 2816
+        },
+        "torrentapi.org": {
+          "file": "burst/providers/providers.json",
+          "line": 2230
+        },
+        "torrentgalaxy.to": {
+          "file": "burst/providers/providers.json",
+          "line": 3100
+        },
+        "torrentio.strem.fun": {
+          "file": "burst/providers/providers.json",
+          "line": 3156
+        },
+        "torrentsru5dbmqszbdinnz7cjiubxsjngq52qij6ih3fmp3gn7hwqqd.onion": {
+          "file": "burst/providers/providers.json",
+          "line": 2430
+        },
+        "torrentz2.nz": {
+          "file": "burst/providers/providers.json",
+          "line": 3281
+        },
+        "torrentz2k.xyz": {
+          "file": "burst/providers/providers.json",
+          "line": 3329
+        },
+        "tr.anidub.com": {
+          "file": "burst/providers/providers.json",
+          "line": 175
+        },
+        "tracker.0day.community": {
+          "file": "burst/providers/providers.json",
+          "line": 7
+        },
+        "twitter.com": {
+          "file": "resources/site-packages/urllib3/poolmanager.py",
+          "line": 458
+        },
+        "uhdbits.org": {
+          "file": "burst/providers/providers.json",
+          "line": 3366
+        },
+        "uindex.org": {
+          "file": "burst/providers/providers.json",
+          "line": 3413
+        },
+        "unicode.org": {
+          "file": "resources/site-packages/dns/name.py",
+          "line": 175
+        },
+        "urllib3.readthedocs.io": {
+          "file": "resources/site-packages/urllib3/connectionpool.py",
+          "line": 788
+        },
+        "username": {
+          "file": "resources/site-packages/urllib3/util/url.py",
+          "line": 148
+        },
+        "w3c.github.io": {
+          "file": "resources/site-packages/urllib3/fields.py",
+          "line": 105
+        },
+        "wiki.mozilla.org": {
+          "file": "resources/site-packages/urllib3/util/ssl_.py",
+          "line": 96
+        },
+        "worldwidetorrents.me": {
+          "file": "burst/providers/providers.json",
+          "line": 3455
+        },
+        "www.1337x.to": {
+          "file": "burst/providers/providers.json",
+          "line": 56
+        },
+        "www.arabp2p.net": {
+          "file": "burst/providers/providers.json",
+          "line": 264
+        },
+        "www.cpasbien1.cc": {
+          "file": "burst/providers/providers.json",
+          "line": 671
+        },
+        "www.edu.tw": {
+          "file": "resources/site-packages/chardet/big5freq.py",
+          "line": 30
+        },
+        "www.ettvcentral.com": {
+          "file": "burst/providers/providers.json",
+          "line": 717
+        },
+        "www.filebase.ws": {
+          "file": "burst/providers/providers.json",
+          "line": 897
+        },
+        "www.gimmepeers.com": {
+          "file": "burst/providers/providers.json",
+          "line": 1033
+        },
+        "www.gnu.org": {
+          "file": "burst/normalize.py",
+          "line": 5
+        },
+        "www.iana.org": {
+          "file": "resources/site-packages/dns/rdtypes/ANY/AVC.py",
+          "line": 23
+        },
+        "www.iptorrents.com": {
+          "file": "burst/providers/providers.json",
+          "line": 1367
+        },
+        "www.limetorrents.lol": {
+          "file": "burst/providers/providers.json",
+          "line": 1629
+        },
+        "www.linkomanija.net": {
+          "file": "burst/providers/providers.json",
+          "line": 1675
+        },
+        "www.lostfilm.download": {
+          "file": "burst/providers/providers.json",
+          "line": 1719
+        },
+        "www.magnetdl.com": {
+          "file": "burst/providers/providers.json",
+          "line": 1764
+        },
+        "www.mozilla.org": {
+          "file": "resources/site-packages/chardet/chardistribution.py",
+          "line": 53
+        },
+        "www.myxz.eu": {
+          "file": "burst/providers/providers.json",
+          "line": 1901
+        },
+        "www.myxz.ey": {
+          "file": "burst/providers/providers.json",
+          "line": 1924
+        },
+        "www.nyaa.si": {
+          "file": "burst/providers/providers.json",
+          "line": 2162
+        },
+        "www.planetpublish.com": {
+          "file": "burst/parser/markupbase.py",
+          "line": 17
+        },
+        "www.pyopenssl.org": {
+          "file": "resources/site-packages/urllib3/contrib/pyopenssl.py",
+          "line": 44
+        },
+        "www.python.org": {
+          "file": "resources/site-packages/requests/__init__.py",
+          "line": 16
+        },
+        "www.skytorrents.lol": {
+          "file": "burst/providers/providers.json",
+          "line": 2485
+        },
+        "www.ssllabs.com": {
+          "file": "resources/site-packages/urllib3/util/ssl_.py",
+          "line": 97
+        },
+        "www.sumotorrent.sx": {
+          "file": "burst/providers/providers.json",
+          "line": 2528
+        },
+        "www.torlock.com": {
+          "file": "burst/providers/providers.json",
+          "line": 2769
+        },
+        "www.torrentday.com": {
+          "file": "burst/providers/providers.json",
+          "line": 2966
+        },
+        "www.torrentdownloads.pro": {
+          "file": "burst/providers/providers.json",
+          "line": 3011
+        },
+        "www.torrentfunk.com": {
+          "file": "burst/providers/providers.json",
+          "line": 3056
+        },
+        "www.vidlox1.cc": {
+          "file": "burst/providers/providers.json",
+          "line": 2862
+        },
+        "www.w3.org": {
+          "file": "burst/parser/HTMLParser.py",
+          "line": 26
+        },
+        "www.yggtorrent.top": {
+          "file": "burst/providers/providers.json",
+          "line": 3498
+        },
+        "yahoo.com": {
+          "file": "resources/site-packages/urllib3/poolmanager.py",
+          "line": 162
+        },
+        "yourbittorrent.com": {
+          "file": "burst/providers/providers.json",
+          "line": 3549
+        },
+        "zamunda.net": {
+          "file": "burst/providers/providers.json",
+          "line": 3645
+        },
+        "zelka.org": {
+          "file": "burst/providers/providers.json",
+          "line": 3690
+        },
+        "zooqle.com": {
+          "file": "burst/providers/providers.json",
+          "line": 3736
+        },
+        "ztracker.cc": {
+          "file": "burst/providers/providers.json",
+          "line": 3780
+        },
+        "zvujzf7v5hp4ufy2fdroyvubhmnjhh6b7g74akiwatrugxjrzdpf2eyd.onion": {
+          "file": "burst/providers/providers.json",
+          "line": 2308
+        }
+      }
+    },
+    {
+      "label": "cocoscrapers",
+      "id": "script.module.cocoscrapers",
+      "version": "1.0.45",
+      "verification": "download SHA256 matched repository lock",
+      "manifest_sha256": "494e886dda77bcc4a881d09c4422cbcdde6b080a63ed99b62cb5baba3ed78e44",
+      "source_files_scanned": 82,
+      "requires": [
+        {
+          "addon": "xbmc.python",
+          "version": "3.0.0"
+        },
+        {
+          "addon": "script.module.requests"
+        }
+      ],
+      "metadata_license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+      "license_file_sha256": null,
+      "literal_hostname_occurrences": {
+        "1337x.to": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/1337x.py",
+          "line": 21
+        },
+        "2captcha.com": {
+          "file": "lib/cocoscrapers/modules/cfscrape/captcha/2captcha.py",
+          "line": 30
+        },
+        "aiostreams.fortheweak.cloud": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/aiostreams.py",
+          "line": 23
+        },
+        "aiostreams.stremio.ru": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/aiostreams.py",
+          "line": 21
+        },
+        "aiostreams.viren070.me": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/aiostreams.py",
+          "line": 22
+        },
+        "aiostreamsfortheweebsstable.midnightignite.me": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/aiostreams.py",
+          "line": 24
+        },
+        "api.anti-captcha.com": {
+          "file": "lib/cocoscrapers/modules/cfscrape/captcha/anticaptcha.py",
+          "line": 30
+        },
+        "api.capmonster.cloud": {
+          "file": "lib/cocoscrapers/modules/cfscrape/captcha/capmonster.py",
+          "line": 30
+        },
+        "api.capsolver.com": {
+          "file": "lib/cocoscrapers/modules/cfscrape/captcha/capsolver.py",
+          "line": 29
+        },
+        "api.dbcapi.me": {
+          "file": "lib/cocoscrapers/modules/cfscrape/captcha/deathbycaptcha.py",
+          "line": 31
+        },
+        "api.github.com": {
+          "file": "lib/dump.py",
+          "line": 129
+        },
+        "api.knaben.org": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/knaben.py",
+          "line": 19
+        },
+        "apibay.org": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/piratebay.py",
+          "line": 19
+        },
+        "bitmagnetfortheweebs.midnightignite.me": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/bitmagnet.py",
+          "line": 21
+        },
+        "bitsearch.eu": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/bitsearch.py",
+          "line": 25
+        },
+        "comet.feels.legal": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/comet.py",
+          "line": 25
+        },
+        "comet.stremio.ru": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/comet.py",
+          "line": 24
+        },
+        "cometfortheweebs.midnightignite.me": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/comet.py",
+          "line": 26
+        },
+        "csrc.nist.gov": {
+          "file": "lib/cocoscrapers/modules/pyaes/aes.py",
+          "line": 102
+        },
+        "darkbyte.ru": {
+          "file": "lib/cocoscrapers/modules/cfscrape/user_agent/browsers.json",
+          "line": 378
+        },
+        "debridmediamanager.com": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/dmm.py",
+          "line": 21
+        },
+        "docs.python.org": {
+          "file": "lib/pyparsing.py",
+          "line": 1133
+        },
+        "en.wikipedia.org": {
+          "file": "lib/cocoscrapers/modules/pyaes/__init__.py",
+          "line": 26
+        },
+        "eztvx.to": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/eztv.py",
+          "line": 17
+        },
+        "github.com": {
+          "file": "lib/cocoscrapers/modules/cfscrape/captcha/9kw.py",
+          "line": 11
+        },
+        "httpbin.org": {
+          "file": "lib/dump.py",
+          "line": 173
+        },
+        "kick4ss.com": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/kickass2.py",
+          "line": 24
+        },
+        "limetorrents.proxyninja.org": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/limetorrents.py",
+          "line": 32
+        },
+        "liquidrechner.com": {
+          "file": "lib/cocoscrapers/modules/cfscrape/user_agent/browsers.json",
+          "line": 1025
+        },
+        "mediafusion.elfhosted.com": {
+          "file": "lib/cocoscrapers/modules/mediafusion.py",
+          "line": 15
+        },
+        "mediafusion.stremio.ru": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/mediafusion.py",
+          "line": 27
+        },
+        "mediafusionfortheweebs.midnightignite.me": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/mediafusion.py",
+          "line": 28
+        },
+        "meteorfortheweebs.midnightignite.me": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/meteor.py",
+          "line": 22
+        },
+        "movies-api.accel.li": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/ytsmx.py",
+          "line": 18
+        },
+        "nyaa.si": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/nyaa.py",
+          "line": 16
+        },
+        "paste.kodi.tv": {
+          "file": "lib/cocoscrapers/modules/log_utils.py",
+          "line": 152
+        },
+        "rutor.info": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/rutor.py",
+          "line": 19
+        },
+        "stackoverflow.com": {
+          "file": "lib/pyparsing.py",
+          "line": 3285
+        },
+        "stremthru.13377001.xyz": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/torz.py",
+          "line": 24
+        },
+        "stremthru.stremio.ru": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/torz.py",
+          "line": 23
+        },
+        "stremthrufortheweebs.midnightignite.me": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/torz.py",
+          "line": 25
+        },
+        "torrentgalaxy.info": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/torrentgalaxy.py",
+          "line": 26
+        },
+        "torrentgalaxy.one": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/torrentgalaxy.py",
+          "line": 24
+        },
+        "torrentgalaxy.space": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/torrentgalaxy.py",
+          "line": 25
+        },
+        "torrentio.strem.fun": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/torrentio.py",
+          "line": 23
+        },
+        "torrentproject2.com": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/torrentproject2.py",
+          "line": 21
+        },
+        "torrentsdb.com": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/torrentsdb.py",
+          "line": 22
+        },
+        "torrentz2.nz": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/torrentz2.py",
+          "line": 21
+        },
+        "torznab.com": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/bitmagnet.py",
+          "line": 35
+        },
+        "v2.sg.media-imdb.com": {
+          "file": "lib/cocoscrapers/modules/health.py",
+          "line": 14
+        },
+        "www.9kw.eu": {
+          "file": "lib/cocoscrapers/modules/cfscrape/captcha/9kw.py",
+          "line": 30
+        },
+        "www.dlitz.net": {
+          "file": "lib/cocoscrapers/modules/pyaes/__init__.py",
+          "line": 46
+        },
+        "www.github.com": {
+          "file": "lib/cocoscrapers/modules/cfscrape/interpreters/chakracore.py",
+          "line": 40
+        },
+        "www.limetorrents.lol": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/limetorrents.py",
+          "line": 31
+        },
+        "www.torlock.com": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/torlock.py",
+          "line": 19
+        },
+        "www.torrentdownload.info": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/torrentdownload.py",
+          "line": 19
+        },
+        "yts.mx": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/ytsmx.py",
+          "line": 18
+        },
+        "zilean.stremio.ru": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/zilean.py",
+          "line": 23
+        },
+        "zileanfortheweebs.midnightignite.me": {
+          "file": "lib/cocoscrapers/sources_cocoscrapers/torrents/zilean.py",
+          "line": 24
+        }
+      }
+    },
+    {
+      "label": "crew-plugin",
+      "id": "plugin.video.thecrew",
+      "version": "3.2.2",
+      "verification": "download SHA256 matched repository lock",
+      "manifest_sha256": "17b833c8752fd7c2171939294c6a05f958e82b1e50537721189868e468ae1b91",
+      "source_files_scanned": 4,
+      "requires": [
+        {
+          "addon": "xbmc.python",
+          "version": "3.0.1"
+        },
+        {
+          "addon": "script.module.thecrew",
+          "version": "3.2.9"
+        },
+        {
+          "addon": "script.thecrew.artwork"
+        },
+        {
+          "addon": "script.module.requests"
+        },
+        {
+          "addon": "script.module.resolveurl"
+        },
+        {
+          "addon": "script.module.resolveurl.xxx",
+          "version": "2.0.1"
+        },
+        {
+          "addon": "script.module.simplejson"
+        },
+        {
+          "addon": "script.module.requests"
+        },
+        {
+          "addon": "script.module.beautifulsoup4"
+        },
+        {
+          "addon": "script.module.six"
+        },
+        {
+          "addon": "plugin.video.youtube",
+          "optional": "true"
+        },
+        {
+          "addon": "script.module.inputstreamhelper",
+          "version": "0.3.3"
+        }
+      ],
+      "metadata_license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+      "license_file_sha256": null,
+      "literal_hostname_occurrences": {}
+    },
+    {
+      "label": "crew-module",
+      "id": "script.module.thecrew",
+      "version": "3.2.29",
+      "verification": "download SHA256 matched repository lock",
+      "manifest_sha256": "4f60d5e4ae7d119ef0547b9dc34e66bac303b63611d100f7e01e1a08ea15f4e7",
+      "source_files_scanned": 246,
+      "requires": [
+        {
+          "addon": "xbmc.python",
+          "version": "3.0.1"
+        },
+        {
+          "addon": "script.module.beautifulsoup4"
+        },
+        {
+          "addon": "script.module.resolveurl"
+        },
+        {
+          "addon": "script.module.resolveurl.xxx",
+          "version": "2.0.1"
+        }
+      ],
+      "metadata_license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+      "license_file_sha256": null,
+      "literal_hostname_occurrences": {
+        "123movies.to": {
+          "file": "lib/resources/lib/modules/jsunfuck.py",
+          "line": 40
+        },
+        "127.0.0.1": {
+          "file": "lib/resources/lib/modules/__segmentproxy.py",
+          "line": 103
+        },
+        "1337x.to": {
+          "file": "lib/resources/lib/scrapers/torrent_base.py",
+          "line": 50
+        },
+        "2captcha.com": {
+          "file": "lib/resources/lib/modules/cfscrape/captcha/2captcha.py",
+          "line": 30
+        },
+        "300mbfilms.co": {
+          "file": "lib/resources/lib/scrapers/300mbfilms.py",
+          "line": 27
+        },
+        "allmovies.gg": {
+          "file": "lib/resources/lib/scrapers/base.py",
+          "line": 45
+        },
+        "allmoviesforyou.co": {
+          "file": "lib/resources/lib/scrapers/allmoviesforyou.py",
+          "line": 38
+        },
+        "api.alldebrid.com": {
+          "file": "lib/resources/lib/apis/alldebrid_api.py",
+          "line": 30
+        },
+        "api.capmonster.cloud": {
+          "file": "lib/resources/lib/modules/cfscrape/captcha/capmonster.py",
+          "line": 30
+        },
+        "api.dbcapi.me": {
+          "file": "lib/resources/lib/modules/cfscrape/captcha/deathbycaptcha.py",
+          "line": 30
+        },
+        "api.github.com": {
+          "file": "lib/resources/lib/modules/cfscrape/dump.py",
+          "line": 129
+        },
+        "api.knaben.org": {
+          "file": "lib/resources/lib/scrapers/knaben.py",
+          "line": 27
+        },
+        "api.myip.com": {
+          "file": "lib/resources/lib/modules/cfscrape/captcha/python_anticaptcha/base.py",
+          "line": 106
+        },
+        "api.opensubtitles.com": {
+          "file": "lib/resources/lib/modules/subtitles.py",
+          "line": 45
+        },
+        "api.orionoid.com": {
+          "file": "lib/resources/lib/apis/orion_api.py",
+          "line": 190
+        },
+        "api.qrserver.com": {
+          "file": "lib/resources/lib/apis/orion_api.py",
+          "line": 859
+        },
+        "api.real-debrid.com": {
+          "file": "lib/resources/lib/apis/realdebrid_api.py",
+          "line": 14
+        },
+        "api.realdebrid.com": {
+          "file": "lib/resources/lib/apis/realdebrid_api.py",
+          "line": 40
+        },
+        "api.simkl.com": {
+          "file": "lib/resources/lib/apis/simkl_api.py",
+          "line": 80
+        },
+        "api.themoviedb.org": {
+          "file": "lib/resources/lib/apis/tmdb_api.py",
+          "line": 44
+        },
+        "api.thetvdb.com": {
+          "file": "lib/resources/lib/apis/tvdb_api.py",
+          "line": 43
+        },
+        "api.torbox.app": {
+          "file": "lib/resources/lib/apis/torbox_api.py",
+          "line": 14
+        },
+        "api.trakt.tv": {
+          "file": "lib/resources/lib/apis/trakt_api.py",
+          "line": 64
+        },
+        "api.tvmaze.com": {
+          "file": "lib/resources/lib/indexers/episodes.py",
+          "line": 1122
+        },
+        "apibay.org": {
+          "file": "lib/resources/lib/scrapers/piratebay.py",
+          "line": 31
+        },
+        "assets.fanart.tv": {
+          "file": "lib/resources/lib/modules/fanart.py",
+          "line": 101
+        },
+        "bitsearch.to": {
+          "file": "lib/resources/lib/scrapers/bitsearch.py",
+          "line": 38
+        },
+        "buka.link": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 95
+        },
+        "cdn.dbgo.fun": {
+          "file": "lib/resources/lib/scrapers/dbgo.py",
+          "line": 45
+        },
+        "cellardoortv.com": {
+          "file": "lib/resources/lib/indexers/lists.py",
+          "line": 104
+        },
+        "classymouse.github.io": {
+          "file": "lib/resources/lib/modules/version_announcement.py",
+          "line": 208
+        },
+        "csrc.nist.gov": {
+          "file": "lib/resources/lib/modules/pyaes/aes.py",
+          "line": 96
+        },
+        "darkbyte.ru": {
+          "file": "lib/resources/lib/modules/cfscrape/user_agent/browsers.json",
+          "line": 378
+        },
+        "data.simkl.in": {
+          "file": "lib/resources/lib/modules/simkl.py",
+          "line": 1515
+        },
+        "databasegdriveplayer.co": {
+          "file": "lib/resources/lib/scrapers/databasegdriveplayer.py",
+          "line": 35
+        },
+        "dbgo.fun": {
+          "file": "lib/resources/lib/scrapers/dbgo.py",
+          "line": 42
+        },
+        "docs.alldebrid.com": {
+          "file": "lib/resources/lib/apis/alldebrid_api.py",
+          "line": 14
+        },
+        "docs.python.org": {
+          "file": "lib/resources/lib/modules/cfscrape/pyparsing.py",
+          "line": 1125
+        },
+        "dpaste.com": {
+          "file": "lib/resources/lib/modules/log_uploader.py",
+          "line": 261
+        },
+        "drive.google.com": {
+          "file": "lib/resources/lib/modules/directstream.py",
+          "line": 48
+        },
+        "embed.st": {
+          "file": "scripts/build_ehd_direct_override.py",
+          "line": 42
+        },
+        "en.wikipedia.org": {
+          "file": "lib/resources/lib/modules/pyaes/__init__.py",
+          "line": 26
+        },
+        "eztv.ag": {
+          "file": "lib/resources/lib/scrapers/eztv.py",
+          "line": 30
+        },
+        "fanart.tv": {
+          "file": "lib/resources/lib/modules/fanart.py",
+          "line": 61
+        },
+        "fproxy.net": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 108
+        },
+        "free-proxyserver.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 84
+        },
+        "freehollandproxy.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 98
+        },
+        "github.com": {
+          "file": "lib/hpack/huffman_table.py",
+          "line": 11
+        },
+        "guard.link": {
+          "file": "lib/resources/lib/scrapers/2ddl.py",
+          "line": 103
+        },
+        "httpbin.org": {
+          "file": "lib/resources/lib/modules/cfscrape/dump.py",
+          "line": 173
+        },
+        "image.tmdb.org": {
+          "file": "lib/resources/lib/apis/tmdb_api.py",
+          "line": 45
+        },
+        "isohunt.nz": {
+          "file": "lib/resources/lib/scrapers/isohunt2.py",
+          "line": 27
+        },
+        "liquidrechner.com": {
+          "file": "lib/resources/lib/modules/cfscrape/user_agent/browsers.json",
+          "line": 1025
+        },
+        "max-rls.com": {
+          "file": "lib/resources/lib/scrapers/maxrls.py",
+          "line": 27
+        },
+        "members.easynews.com": {
+          "file": "lib/resources/lib/scrapers/easynews.py",
+          "line": 47
+        },
+        "mlproxy.science": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 106
+        },
+        "myvideolinks.org": {
+          "file": "lib/resources/lib/scrapers/myvideolinks.py",
+          "line": 29
+        },
+        "nuviostreams.hayd.uk": {
+          "file": "lib/resources/lib/scrapers/nuvio.py",
+          "line": 37
+        },
+        "oauth.net": {
+          "file": "lib/resources/lib/modules/debrid.py",
+          "line": 994
+        },
+        "ok.ru": {
+          "file": "lib/resources/lib/modules/directstream.py",
+          "line": 263
+        },
+        "old3.rlsbb.in": {
+          "file": "lib/resources/lib/scrapers/rlsbb.py",
+          "line": 34
+        },
+        "onceddl.net": {
+          "file": "lib/resources/lib/scrapers/2ddl.py",
+          "line": 27
+        },
+        "onewebproxy.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 104
+        },
+        "onlineseries.ucoz.com": {
+          "file": "lib/resources/lib/scrapers/onlineseries.py",
+          "line": 28
+        },
+        "ororo.tv": {
+          "file": "lib/resources/lib/scrapers/ororo.py",
+          "line": 46
+        },
+        "ouo.io": {
+          "file": "lib/resources/lib/scrapers/2ddl.py",
+          "line": 103
+        },
+        "paste.kodi.tv": {
+          "file": "lib/resources/lib/modules/log_utils.py",
+          "line": 281
+        },
+        "paste.ubuntu.com": {
+          "file": "lib/resources/lib/modules/log_uploader.py",
+          "line": 308
+        },
+        "pr0xii.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 105
+        },
+        "proxite.net": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 85
+        },
+        "proxy.deals": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 97
+        },
+        "proxy.discount": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 100
+        },
+        "proxy.lgbt": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 101
+        },
+        "proxy.rocks": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 99
+        },
+        "proxy.vet": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 102
+        },
+        "proxycloud.net": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 90
+        },
+        "proxydash.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 86
+        },
+        "pypi.org": {
+          "file": "lib/resources/lib/modules/segno/writers.py",
+          "line": 34
+        },
+        "raw.githubusercontent.com": {
+          "file": "lib/resources/lib/indexers/lists.py",
+          "line": 50
+        },
+        "realdebrid.com": {
+          "file": "lib/resources/lib/apis/realdebrid_api.py",
+          "line": 39
+        },
+        "regexfailed": {
+          "file": "lib/resources/lib/modules/regex.py",
+          "line": 200
+        },
+        "repo.orionoid.com": {
+          "file": "lib/resources/lib/apis/orion_api.py",
+          "line": 765
+        },
+        "research.swtch.com": {
+          "file": "lib/resources/lib/modules/segno/encoder.py",
+          "line": 413
+        },
+        "rlsbb.cc": {
+          "file": "lib/resources/lib/scrapers/rlsbb.py",
+          "line": 33
+        },
+        "scene-rls.net": {
+          "file": "lib/resources/lib/scrapers/scenerls_v2.py",
+          "line": 27
+        },
+        "scenerls.com": {
+          "file": "lib/resources/lib/scrapers/scenerls.py",
+          "line": 28
+        },
+        "securefor.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 111
+        },
+        "simkl.com": {
+          "file": "lib/resources/lib/apis/simkl_api.py",
+          "line": 74
+        },
+        "simkl.docs.apiary.io": {
+          "file": "lib/resources/lib/apis/simkl_api.py",
+          "line": 17
+        },
+        "simkl.in": {
+          "file": "lib/resources/lib/modules/simkl.py",
+          "line": 661
+        },
+        "smee.io": {
+          "file": "lib/resources/lib/modules/cfscrape/captcha/python_anticaptcha/base.py",
+          "line": 142
+        },
+        "sno9.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 91
+        },
+        "sslpro.eu": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 88
+        },
+        "stackoverflow.com": {
+          "file": "lib/resources/lib/modules/cfscrape/pyparsing.py",
+          "line": 3252
+        },
+        "strokescribe.com": {
+          "file": "lib/resources/lib/modules/segno/consts.py",
+          "line": 99
+        },
+        "technicology52263854.wordpress.com": {
+          "file": "lib/resources/lib/modules/hunter.py",
+          "line": 10
+        },
+        "tgx.rs": {
+          "file": "lib/resources/lib/scrapers/torrentgalaxy.py",
+          "line": 27
+        },
+        "thechains24.com": {
+          "file": "lib/resources/lib/indexers/lists.py",
+          "line": 55
+        },
+        "thetvdb.com": {
+          "file": "lib/resources/lib/modules/libtools.py",
+          "line": 121
+        },
+        "tools.ietf.org": {
+          "file": "lib/h2/connection.py",
+          "line": 692
+        },
+        "torrentio.strem.fun": {
+          "file": "lib/resources/lib/scrapers/torrentio.py",
+          "line": 38
+        },
+        "torrentquest.com": {
+          "file": "lib/resources/lib/scrapers/torrentquest.py",
+          "line": 27
+        },
+        "trakt.docs.apiary.io": {
+          "file": "lib/resources/lib/apis/trakt_api.py",
+          "line": 58
+        },
+        "trakt.tv": {
+          "file": "lib/resources/lib/apis/trakt_api.py",
+          "line": 220
+        },
+        "vk.com": {
+          "file": "lib/resources/lib/modules/directstream.py",
+          "line": 214
+        },
+        "webproxy.stealthy.co": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 87
+        },
+        "webservice.fanart.tv": {
+          "file": "lib/resources/lib/apis/fanart_api.py",
+          "line": 45
+        },
+        "webstreamr.hayd.uk": {
+          "file": "lib/resources/lib/scrapers/webstreamer.py",
+          "line": 38
+        },
+        "webtunnel.org": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 89
+        },
+        "wsrv.nl": {
+          "file": "lib/resources/lib/modules/simkl.py",
+          "line": 661
+        },
+        "www.3proxy.us": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 81
+        },
+        "www.4proxy.us": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 82
+        },
+        "www.9kw.eu": {
+          "file": "lib/resources/lib/modules/cfscrape/captcha/9kw.py",
+          "line": 29
+        },
+        "www.bitlordsearch.com": {
+          "file": "lib/resources/lib/scrapers/bitlord.py",
+          "line": 27
+        },
+        "www.cumlouder.com": {
+          "file": "lib/resources/lib/adult_sites/cumlouder.py",
+          "line": 29
+        },
+        "www.dlitz.net": {
+          "file": "lib/resources/lib/modules/pyaes/__init__.py",
+          "line": 46
+        },
+        "www.downloads-anymovies.com": {
+          "file": "lib/resources/lib/scrapers/anymovies.py",
+          "line": 38
+        },
+        "www.filmon.com": {
+          "file": "lib/resources/lib/modules/filmon.py",
+          "line": 26
+        },
+        "www.freeomovie.to": {
+          "file": "lib/resources/lib/adult_sites/freeomovie.py",
+          "line": 30
+        },
+        "www.github.com": {
+          "file": "lib/resources/lib/modules/cfscrape/interpreters/chakracore.py",
+          "line": 40
+        },
+        "www.gnu.org": {
+          "file": "lib/resources/lib/modules/downloader.py",
+          "line": 16
+        },
+        "www.googleapis.com": {
+          "file": "lib/resources/lib/modules/trailer.py",
+          "line": 82
+        },
+        "www.highlytrustedgroup.xyz": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 115
+        },
+        "www.homepornking.com": {
+          "file": "lib/resources/lib/adult_sites/homepornking.py",
+          "line": 34
+        },
+        "www.imdb.com": {
+          "file": "lib/resources/lib/indexers/movies.py",
+          "line": 81
+        },
+        "www.ip123a.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 94
+        },
+        "www.limetorrents.info": {
+          "file": "lib/resources/lib/scrapers/limetorrents.py",
+          "line": 30
+        },
+        "www.magnetdl.hair": {
+          "file": "lib/resources/lib/scrapers/magnetdl.py",
+          "line": 27
+        },
+        "www.medicalawaregroup.xyz": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 116
+        },
+        "www.mybriefonline.xyz": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 118
+        },
+        "www.naughtyblog.org": {
+          "file": "lib/resources/lib/indexers/lists.py",
+          "line": 1129
+        },
+        "www.navigate-online.xyz": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 119
+        },
+        "www.omdbapi.com": {
+          "file": "lib/resources/lib/indexers/lists.py",
+          "line": 84
+        },
+        "www.onlineipchanger.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 92
+        },
+        "www.pingproxy.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 93
+        },
+        "www.pornrewind.com": {
+          "file": "lib/resources/lib/adult_sites/pornrewind.py",
+          "line": 35
+        },
+        "www.premiumize.me": {
+          "file": "lib/resources/lib/apis/premiumize_api.py",
+          "line": 14
+        },
+        "www.prontoproxy.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 107
+        },
+        "www.proxywebsite.us": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 117
+        },
+        "www.python.org": {
+          "file": "lib/resources/lib/modules/keepalive.py",
+          "line": 33
+        },
+        "www.rapidmoviez.com": {
+          "file": "lib/resources/lib/scrapers/rapidmoviez.py",
+          "line": 33
+        },
+        "www.redtube.com": {
+          "file": "lib/resources/lib/adult_sites/redtube.py",
+          "line": 37
+        },
+        "www.ruby-group.xyz": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 110
+        },
+        "www.singleclick.info": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 112
+        },
+        "www.socialcommunication.xyz": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 113
+        },
+        "www.themoviedb.org": {
+          "file": "lib/resources/lib/modules/libtools.py",
+          "line": 119
+        },
+        "www.theprotected.xyz": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 114
+        },
+        "www.thetvdb.com": {
+          "file": "lib/resources/lib/apis/tvdb_api.py",
+          "line": 287
+        },
+        "www.torrentdownload.info": {
+          "file": "lib/resources/lib/scrapers/tordl.py",
+          "line": 28
+        },
+        "www.torrentdownloads.me": {
+          "file": "lib/resources/lib/scrapers/torrentdownloads.py",
+          "line": 28
+        },
+        "www.tvmaze.com": {
+          "file": "lib/resources/lib/indexers/tvshows.py",
+          "line": 77
+        },
+        "www.unblockmyweb.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 103
+        },
+        "www.w3.org": {
+          "file": "lib/resources/lib/modules/segno/writers.py",
+          "line": 172
+        },
+        "www.watchepisodes4.com": {
+          "file": "lib/resources/lib/scrapers/watchepisodes.py",
+          "line": 36
+        },
+        "www.whoreshub.com": {
+          "file": "lib/resources/lib/adult_sites/whoreshub.py",
+          "line": 28
+        },
+        "www.xxlproxy.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 83
+        },
+        "www.xxxfiles.com": {
+          "file": "lib/resources/lib/adult_sites/xxxfiles.py",
+          "line": 35
+        },
+        "www.youtube.com": {
+          "file": "lib/resources/lib/modules/trailer.py",
+          "line": 57
+        },
+        "yadi.sk": {
+          "file": "lib/resources/lib/modules/directstream.py",
+          "line": 321
+        },
+        "youtu.be": {
+          "file": "lib/resources/lib/modules/trailer.py",
+          "line": 59
+        },
+        "youtube.com": {
+          "file": "lib/resources/lib/modules/trailer.py",
+          "line": 58
+        },
+        "zend2.com": {
+          "file": "lib/resources/lib/modules/proxy.py",
+          "line": 96
+        }
+      }
+    },
+    {
+      "label": "resolveurl",
+      "id": "script.module.resolveurl",
+      "version": "5.1.212",
+      "verification": "download SHA256 matched repository lock",
+      "manifest_sha256": "60d5dad422804e1f99e341c807011fca6c9289f3b4e5ab48886214d86a1aed2b",
+      "source_files_scanned": 324,
+      "requires": [
+        {
+          "addon": "script.module.six"
+        },
+        {
+          "addon": "script.module.kodi-six"
+        },
+        {
+          "addon": "script.module.pyqrcode"
+        },
+        {
+          "addon": "script.module.cloudrequest",
+          "optional": "true"
+        },
+        {
+          "addon": "plugin.video.youtube",
+          "optional": "true"
+        },
+        {
+          "addon": "script.module.python.twitch",
+          "optional": "true"
+        },
+        {
+          "addon": "plugin.googledrive",
+          "optional": "true"
+        }
+      ],
+      "metadata_license": null,
+      "license_file_sha256": null,
+      "literal_hostname_occurrences": {
+        "123movies.to": {
+          "file": "lib/resolveurl/lib/jsunfuck.py",
+          "line": 37
+        },
+        "abysscdn.com": {
+          "file": "lib/resolveurl/plugins/abyss.py",
+          "line": 245
+        },
+        "amfphp.indavideo.hu": {
+          "file": "lib/resolveurl/plugins/indavideo.py",
+          "line": 85
+        },
+        "apbood.boodstream.com": {
+          "file": "lib/resolveurl/plugins/boodstream.py",
+          "line": 57
+        },
+        "api.2captcha.com": {
+          "file": "lib/resolveurl/lib/captcha_lib.py",
+          "line": 33
+        },
+        "api.alldebrid.com": {
+          "file": "lib/resolveurl/plugins/alldebrid.py",
+          "line": 35
+        },
+        "api.bitchute.com": {
+          "file": "lib/resolveurl/plugins/bitchute.py",
+          "line": 33
+        },
+        "api.boxbit.app": {
+          "file": "lib/resolveurl/plugins/boxbit.py",
+          "line": 42
+        },
+        "api.d.tube": {
+          "file": "lib/resolveurl/plugins/dtube.py",
+          "line": 63
+        },
+        "api.flyfile.app": {
+          "file": "lib/resolveurl/plugins/flyfile.py",
+          "line": 38
+        },
+        "api.frame.io": {
+          "file": "lib/resolveurl/plugins/frame.py",
+          "line": 43
+        },
+        "api.gofile.io": {
+          "file": "lib/resolveurl/plugins/gofile.py",
+          "line": 36
+        },
+        "api.lbry.tv": {
+          "file": "lib/resolveurl/plugins/lbry.py",
+          "line": 47
+        },
+        "api.real-debrid.com": {
+          "file": "lib/resolveurl/plugins/realdebrid.py",
+          "line": 36
+        },
+        "api.solvemedia.com": {
+          "file": "lib/resolveurl/lib/captcha_lib.py",
+          "line": 111
+        },
+        "api.torbox.app": {
+          "file": "lib/resolveurl/plugins/torbox.py",
+          "line": 41
+        },
+        "archive.org": {
+          "file": "lib/resolveurl/plugins/archiveorg.py",
+          "line": 41
+        },
+        "bestarticles.me": {
+          "file": "lib/resolveurl/plugins/tvlogy.py",
+          "line": 33
+        },
+        "bigwarp.io": {
+          "file": "lib/resolveurl/plugins/bigwarp.py",
+          "line": 64
+        },
+        "bitbucket.org": {
+          "file": "lib/resolveurl/lib/jscrypto/pyaes.py",
+          "line": 3
+        },
+        "bjoern.hoehrmann.de": {
+          "file": "lib/resolveurl/lib/websocket/_utils.py",
+          "line": 45
+        },
+        "bugs.python.org": {
+          "file": "lib/resolveurl/lib/png.py",
+          "line": 2098
+        },
+        "code.google.com": {
+          "file": "lib/resolveurl/lib/png.py",
+          "line": 1396
+        },
+        "csc.cs.utm.my": {
+          "file": "lib/resolveurl/lib/jjdecode.py",
+          "line": 4
+        },
+        "csrc.nist.gov": {
+          "file": "lib/resolveurl/lib/pyaes/aes.py",
+          "line": 97
+        },
+        "d.tube": {
+          "file": "lib/resolveurl/plugins/dtube.py",
+          "line": 32
+        },
+        "debrid-link.fr": {
+          "file": "lib/resolveurl/plugins/debrid_link.py",
+          "line": 33
+        },
+        "drive.google.com": {
+          "file": "lib/resolveurl/plugins/googlevideo.py",
+          "line": 145
+        },
+        "ebd.cda.pl": {
+          "file": "lib/resolveurl/plugins/cda.py",
+          "line": 56
+        },
+        "embed.indavideo.hu": {
+          "file": "lib/resolveurl/plugins/indavideo.py",
+          "line": 79
+        },
+        "embed.megogo.ru": {
+          "file": "lib/resolveurl/plugins/megogo.py",
+          "line": 33
+        },
+        "en.wikipedia.org": {
+          "file": "lib/resolveurl/lib/jscrypto/pyaes.py",
+          "line": 111
+        },
+        "eplayvid.net": {
+          "file": "lib/resolveurl/plugins/entervideo.py",
+          "line": 28
+        },
+        "fastplay.to": {
+          "file": "lib/resolveurl/plugins/fastplay.py",
+          "line": 39
+        },
+        "github.com": {
+          "file": "lib/resolveurl/lib/aadecode.py",
+          "line": 4
+        },
+        "golang.org": {
+          "file": "lib/resolveurl/lib/aesgcm/aesgcm.py",
+          "line": 6
+        },
+        "hdvid.tv": {
+          "file": "lib/resolveurl/plugins/hdvid.py",
+          "line": 47
+        },
+        "hyperelliptic.org": {
+          "file": "lib/resolveurl/lib/ecdsa/ellipticcurve.py",
+          "line": 761
+        },
+        "indavideo.hu": {
+          "file": "lib/resolveurl/plugins/indavideo.py",
+          "line": 44
+        },
+        "lbry.tv": {
+          "file": "lib/resolveurl/plugins/lbry.py",
+          "line": 42
+        },
+        "liiivideo.com": {
+          "file": "lib/resolveurl/plugins/liivideo.py",
+          "line": 38
+        },
+        "linksnappy.com": {
+          "file": "lib/resolveurl/plugins/linksnappy.py",
+          "line": 39
+        },
+        "localhost": {
+          "file": "lib/resolveurl/__init__.py",
+          "line": 316
+        },
+        "mail.ru": {
+          "file": "lib/resolveurl/plugins/cloudmailru.py",
+          "line": 33
+        },
+        "members.cocoleech.com": {
+          "file": "lib/resolveurl/plugins/cocoleech.py",
+          "line": 34
+        },
+        "my.mail.ru": {
+          "file": "lib/resolveurl/plugins/mailru.py",
+          "line": 56
+        },
+        "nas1.d.tube": {
+          "file": "lib/resolveurl/plugins/dtube.py",
+          "line": 49
+        },
+        "netpbm.sourceforge.net": {
+          "file": "lib/resolveurl/lib/png.py",
+          "line": 59
+        },
+        "oauth.net": {
+          "file": "lib/resolveurl/plugins/realdebrid.py",
+          "line": 300
+        },
+        "offcloud.com": {
+          "file": "lib/resolveurl/plugins/offcloud.py",
+          "line": 33
+        },
+        "player.vimeo.com": {
+          "file": "lib/resolveurl/plugins/vimeo.py",
+          "line": 69
+        },
+        "playonscripts.com": {
+          "file": "lib/resolveurl/lib/unwise.py",
+          "line": 19
+        },
+        "premium.rpnet.biz": {
+          "file": "lib/resolveurl/plugins/rpnet.py",
+          "line": 43
+        },
+        "putlocker.com": {
+          "file": "lib/resolveurl/__init__.py",
+          "line": 170
+        },
+        "rutube.ru": {
+          "file": "lib/resolveurl/plugins/rutube.py",
+          "line": 53
+        },
+        "send.now": {
+          "file": "lib/resolveurl/plugins/send.py",
+          "line": 37
+        },
+        "simply-debrid.com": {
+          "file": "lib/resolveurl/plugins/simplydebrid.py",
+          "line": 32
+        },
+        "spyderrock.com": {
+          "file": "lib/resolveurl/plugins/qiwi.py",
+          "line": 41
+        },
+        "stackoverflow.com": {
+          "file": "lib/resolveurl/lib/pyaes/openssl_aes.py",
+          "line": 75
+        },
+        "streama2z.com": {
+          "file": "lib/resolveurl/plugins/streama2z.py",
+          "line": 54
+        },
+        "streama2z.xyz": {
+          "file": "lib/resolveurl/plugins/streama2z.py",
+          "line": 32
+        },
+        "tellygossips.net": {
+          "file": "lib/resolveurl/plugins/tvlogy.py",
+          "line": 33
+        },
+        "tools.ietf.org": {
+          "file": "lib/resolveurl/lib/ecdsa/rfc6979.py",
+          "line": 6
+        },
+        "tvarticles.org": {
+          "file": "lib/resolveurl/plugins/tvlogy.py",
+          "line": 33
+        },
+        "updown.cam": {
+          "file": "lib/resolveurl/plugins/updown.py",
+          "line": 44
+        },
+        "uqload.vc": {
+          "file": "lib/resolveurl/plugins/uqload.py",
+          "line": 40
+        },
+        "user": {
+          "file": "lib/resolveurl/lib/net.py",
+          "line": 122
+        },
+        "v2.tudou.com": {
+          "file": "lib/resolveurl/plugins/tudou.py",
+          "line": 39
+        },
+        "video.sibnet.ru": {
+          "file": "lib/resolveurl/plugins/sibnet.py",
+          "line": 33
+        },
+        "vidmoly.biz": {
+          "file": "lib/resolveurl/plugins/vidmoly.py",
+          "line": 57
+        },
+        "vimeo.com": {
+          "file": "lib/resolveurl/plugins/vimeo.py",
+          "line": 34
+        },
+        "vinovo.to": {
+          "file": "lib/resolveurl/plugins/vinovo.py",
+          "line": 55
+        },
+        "vkspeed.com": {
+          "file": "lib/resolveurl/plugins/vkspeed.py",
+          "line": 36
+        },
+        "vtbe.to": {
+          "file": "lib/resolveurl/plugins/vtube.py",
+          "line": 37
+        },
+        "www.adultswim.com": {
+          "file": "lib/resolveurl/plugins/adultswim.py",
+          "line": 42
+        },
+        "www.amazon.com": {
+          "file": "lib/resolveurl/plugins/amazon.py",
+          "line": 32
+        },
+        "www.dailymotion.com": {
+          "file": "lib/resolveurl/plugins/dailymotion.py",
+          "line": 35
+        },
+        "www.dlitz.net": {
+          "file": "lib/resolveurl/lib/pyaes/__init__.py",
+          "line": 46
+        },
+        "www.facebook.com": {
+          "file": "lib/resolveurl/plugins/facebook.py",
+          "line": 74
+        },
+        "www.filepup.net": {
+          "file": "lib/resolveurl/plugins/filepup.py",
+          "line": 77
+        },
+        "www.gnu.org": {
+          "file": "lib/default.py",
+          "line": 16
+        },
+        "www.google.com": {
+          "file": "lib/resolveurl/lib/captcha_lib.py",
+          "line": 126
+        },
+        "www.linkbox.to": {
+          "file": "lib/resolveurl/plugins/linkbox.py",
+          "line": 28
+        },
+        "www.moserware.com": {
+          "file": "lib/resolveurl/lib/jscrypto/pyaes.py",
+          "line": 12
+        },
+        "www.premiumize.me": {
+          "file": "lib/resolveurl/plugins/premiumize_me.py",
+          "line": 34
+        },
+        "www.python.org": {
+          "file": "lib/resolveurl/lib/jscrypto/pyaes.py",
+          "line": 57
+        },
+        "www.tudou.com": {
+          "file": "lib/resolveurl/plugins/tudou.py",
+          "line": 56
+        },
+        "www.veoh.com": {
+          "file": "lib/resolveurl/plugins/veoh.py",
+          "line": 55
+        },
+        "www.w3.org": {
+          "file": "lib/resolveurl/lib/png.py",
+          "line": 40
+        },
+        "www.yourupload.com": {
+          "file": "lib/resolveurl/plugins/yourupload.py",
+          "line": 46
+        },
+        "www.youtube.com": {
+          "file": "lib/resolveurl/plugins/youtube.py",
+          "line": 42
+        },
+        "xbmc.org": {
+          "file": "lib/resolveurl/lib/net.py",
+          "line": 106
+        },
+        "yadi.sk": {
+          "file": "lib/resolveurl/plugins/yandex.py",
+          "line": 36
+        },
+        "youtu.be": {
+          "file": "lib/resolveurl/__init__.py",
+          "line": 169
+        },
+        "youtube.com": {
+          "file": "lib/resolveurl/hmf.py",
+          "line": 37
+        },
+        "youtube.googleapis.com": {
+          "file": "lib/resolveurl/plugins/googlephotos.py",
+          "line": 54
+        }
+      }
+    },
+    {
+      "label": "umbrella-partial-snapshot",
+      "id": "plugin.video.umbrella",
+      "version": "6.8.01",
+      "verification": "partial scratch snapshot only; no matching package lock verified",
+      "manifest_sha256": "4e59c8be57829572fa25c8282d1a8e8431a4964dd2deac3549b014be5be02424",
+      "source_files_scanned": 3,
+      "requires": [
+        {
+          "addon": "xbmc.python",
+          "version": "3.0.0"
+        },
+        {
+          "addon": "script.module.requests"
+        },
+        {
+          "addon": "plugin.video.youtube",
+          "optional": "true"
+        }
+      ],
+      "metadata_license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+      "license_file_sha256": null,
+      "literal_hostname_occurrences": {
+        "raw.githubusercontent.com": {
+          "file": "addon.xml",
+          "line": 263
+        },
+        "v2.sg.media-imdb.com": {
+          "file": "resources/lib/modules/sources.py",
+          "line": 2109
+        }
+      }
+    }
+  ],
+  "locks": {
+    "migration/elementum-ios/source-lock.json": {
+      "owner_primary": "plugin.video.elementum",
+      "owner_execution_target": "iPhone-local engine",
+      "remote_host_approved": false,
+      "native_ios_engine_built": true,
+      "native_ios_engine_functional": false,
+      "plugin_release": {
+        "version": "0.1.114",
+        "commit": "8ea802e705c28fef692aef7908e8a7cfce9a55f0",
+        "client_zip_sha256": "ab095bd39fbeacb1dcfeb38e61bda5b047e897feb5dafbb6cf906d3102801f93",
+        "client_zip_url": "https://github.com/elgatito/plugin.video.elementum/releases/download/v0.1.114/plugin.video.elementum-0.1.114.client.zip"
+      },
+      "engine_release": {
+        "commit": "cdab7e2ed69122e048be158e2ebea70dbda789ee",
+        "libtorrent_go_commit": "d8763f5e17831acd4ec0a2841074113ae571157f",
+        "go_mod": "go 1.21 / toolchain go1.21.1"
+      },
+      "master_reviewed_separately": {
+        "plugin": "20a381074530d38d699862b6260717a7bcc854d3",
+        "engine": "8ec9539599b8a66045ca994642d61a01c6320923"
+      },
+      "recorded_utc": "2026-10-29T23:40:57.583541+00:00",
+      "status": "ENGINE BUILT ON CI; DEVICE TEST PENDING",
+      "framework_release": {
+        "tag": "elementum-engine-cdab7e2-r2",
+        "asset": "elementum.framework.zip",
+        "sha256": "dfb7b3cf02124ad1abe9c0da5e7bb3803d583509e4a51fa2249597c7649b5541"
+      },
+      "modules": [
+        {
+          "repository": "xbmc/repo-scripts",
+          "branch": "matrix",
+          "commit": "6689984b17b7756396902199deb5b90626ae8f75",
+          "trees": {
+            "script.module.kodi-six": "2cbe46637d11af7183c58ec986d815d931c47af9",
+            "script.module.future": "1146a531d53140feb5d163de82a3e97fb1d88683",
+            "script.module.autocompletion": "af1f8d5843c4bb964c288a27d755d8530946774a",
+            "script.module.inputstreamhelper": "5123929a65877bc0bf56e25c24624b9730d040d1"
+          }
+        },
+        {
+          "repository": "xbmc/repo-plugins",
+          "branch": "matrix",
+          "commit": "527461c9fb06e17621283ab35bd76e160e8669b5",
+          "trees": {
+            "plugin.program.autocompletion": "28cb73d9d46ce38801e3fc1b6d677a7e904881db"
+          }
+        }
+      ],
+      "burst": {
+        "id": "script.elementum.burst",
+        "version": "0.0.99",
+        "url": "https://github.com/elgatito/script.elementum.burst/releases/download/v0.0.99/script.elementum.burst-0.0.99.zip",
+        "sha256": "e05873d2c897e0c793569891cd5c6955bd93b12032e18bdcfc5fed2d37eb938d"
+      },
+      "engine_patches": [
+        "Skip the parent-process watch in shared-library mode (Kodi hosts the engine on iOS)"
+      ],
+      "extras": {
+        "script.module.resolveurl": {
+          "version": "5.1.212",
+          "install": "app",
+          "url": "https://raw.githubusercontent.com/Gujal00/smrzips/535d4dcc42145e2bfeaa3e0c6d5ec3d91a449c94/zips/script.module.resolveurl/script.module.resolveurl-5.1.212.zip",
+          "sha256": "28fb6b2340eccfb1337ba4421b6429aa1c8f2978834853d1229b42b2a947bc59"
+        },
+        "script.module.cocoscrapers": {
+          "version": "1.0.45",
+          "install": "profile",
+          "url": "https://raw.githubusercontent.com/not-coco-joe/repository.cocoscrapers/f1772775291a432cf2a7c6e45ea038c894ea8b70/zips/script.module.cocoscrapers/script.module.cocoscrapers-1.0.45.zip",
+          "sha256": "45abbf2134b7c7f545cc9d9a1e378a64d51764aba5fe0a3e4cb1e58573b87521"
+        },
+        "repository.jurialmunkey": {
+          "version": "3.4",
+          "install": "app",
+          "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/09bef6c5af3df8789c74dd0fe49dc0416750662d/repo/zips/repository.jurialmunkey/repository.jurialmunkey-3.4.zip",
+          "sha256": "972ba8bda0dd16108a1601534e547a774522d73cd2c7919ce651a2d32af7a3fd"
+        },
+        "repository.cocoscrapers": {
+          "version": "1.0.0",
+          "install": "app",
+          "url": "https://raw.githubusercontent.com/not-coco-joe/repository.cocoscrapers/f1772775291a432cf2a7c6e45ea038c894ea8b70/zips/repository.cocoscrapers/repository.cocoscrapers-1.0.0.zip",
+          "sha256": "9f32a572818065af9fab6c2131513470dc004fe1bb23e7fc040cfef0239d6b22"
+        }
+      }
+    },
+    "migration/provider-fallback/source-lock.json": {
+      "schema": 1,
+      "purpose": "Headless fallback sources for the existing automatic movie/TV picker; no replacement UI, account state, repositories or native engines.",
+      "roots": [
+        "plugin.video.jacktook",
+        "plugin.video.pov",
+        "script.module.magneto",
+        "plugin.video.otaku",
+        "plugin.video.thecrew",
+        "plugin.video.prism"
+      ],
+      "core_dependencies": [
+        "xbmc.python",
+        "xbmc.addon"
+      ],
+      "policy": {
+        "reuse_existing_modules_if_minimum_dependencies_satisfied": true,
+        "disable_new_background_services": true,
+        "required_service_exceptions": [
+          "plugin.video.thecrew"
+        ],
+        "exclude_adult_only_crew_dependency_and_artwork": true,
+        "preserve_upstream_licences_and_headers": true,
+        "no_device_verification_claim": true
+      },
+      "packages": [
+        {
+          "id": "plugin.video.jacktook",
+          "repo": "Sam-Max/repository.jacktook",
+          "commit": "7b8a875958c42bc12831c8cc9f521e557d312a71",
+          "url": "https://raw.githubusercontent.com/Sam-Max/repository.jacktook/7b8a875958c42bc12831c8cc9f521e557d312a71/repo/zips/plugin.video.jacktook/plugin.video.jacktook-1.22.0.zip",
+          "sha256": "90218cfe4867d98cf780c7a9997c53c0062131ce5542bdfb0df2a59ad5767a20",
+          "version": "1.22.0",
+          "license": "GPL-2.0-only",
+          "install": "app",
+          "remove_services": true
+        },
+        {
+          "id": "plugin.video.pov",
+          "repo": "kodifitzwell/repo",
+          "commit": "2c8390c6e65213853a862a00044597946b946132",
+          "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/plugin.video.pov/plugin.video.pov-6.11.03.zip",
+          "sha256": "9ac93ad045910774503cbfeeb45b63bbd9b23837c9e76749885076c9b11edfba",
+          "version": "6.11.03",
+          "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+          "install": "app",
+          "remove_services": true,
+          "profile_copy": true
+        },
+        {
+          "id": "script.module.magneto",
+          "repo": "kodifitzwell/repo",
+          "commit": "2c8390c6e65213853a862a00044597946b946132",
+          "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/script.module.magneto/script.module.magneto-6.11.01.zip",
+          "sha256": "c2dabb04a1ab8eda8307f12333f747bede00e481ba7cb9ef4905d2d59ac9e418",
+          "version": "6.11.01",
+          "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "plugin.video.otaku",
+          "repo": "Goldenfreddy0703/repository.otaku",
+          "commit": "fcef5fc9673ed75e61c071b136b26663242f230d",
+          "url": "https://raw.githubusercontent.com/Goldenfreddy0703/repository.otaku/fcef5fc9673ed75e61c071b136b26663242f230d/repo/zips/plugin.video.otaku/plugin.video.otaku-5.3.4.zip",
+          "sha256": "01c780c6cc41f448322a10e1bbe4aaa9a0fc23d6ba894487d35a4724ee226287",
+          "version": "5.3.4",
+          "license": "GPL-3.0",
+          "install": "app",
+          "remove_services": true
+        },
+        {
+          "id": "context.otaku",
+          "repo": "Goldenfreddy0703/repository.otaku",
+          "commit": "fcef5fc9673ed75e61c071b136b26663242f230d",
+          "url": "https://raw.githubusercontent.com/Goldenfreddy0703/repository.otaku/fcef5fc9673ed75e61c071b136b26663242f230d/repo/zips/context.otaku/context.otaku-1.0.35.zip",
+          "sha256": "0207bff39dbbcbfe3bfad0e835d893ab525683253fa01488797ea53b4314c4c7",
+          "version": "1.0.35",
+          "license": "GPL-3.0",
+          "install": "app",
+          "remove_services": false,
+          "hide_context_menus": true
+        },
+        {
+          "id": "plugin.video.prism",
+          "repo": "Goldenfreddy0703/repository.prism",
+          "commit": "3751d9e440a24d4a13222fe84bffb779e61ec340",
+          "url": "https://raw.githubusercontent.com/Goldenfreddy0703/repository.prism/3751d9e440a24d4a13222fe84bffb779e61ec340/repo/zips/plugin.video.prism/plugin.video.prism-5.0.69.zip",
+          "sha256": "9bdcccc65576684fd498874a6e9967274d85e84473653b7069deb6ced932543b",
+          "version": "5.0.69",
+          "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+          "install": "app",
+          "remove_services": true
+        },
+        {
+          "id": "context.prism",
+          "repo": "Goldenfreddy0703/repository.prism",
+          "commit": "3751d9e440a24d4a13222fe84bffb779e61ec340",
+          "url": "https://raw.githubusercontent.com/Goldenfreddy0703/repository.prism/3751d9e440a24d4a13222fe84bffb779e61ec340/repo/zips/context.prism/context.prism-4.0.2.zip",
+          "sha256": "3fe0bded92b814a62476a96871fd5a6eaabe3a0f018206c8317dc078d1594ad4",
+          "version": "4.0.2",
+          "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+          "install": "app",
+          "remove_services": false,
+          "hide_context_menus": true
+        },
+        {
+          "id": "plugin.video.thecrew",
+          "repo": "thecrewwh/zips",
+          "commit": "68e8a45518d0ff60db0f315b87c0178edcf100d7",
+          "url": "https://raw.githubusercontent.com/thecrewwh/zips/68e8a45518d0ff60db0f315b87c0178edcf100d7/matrix/_zip/plugin.video.thecrew/plugin.video.thecrew-3.2.2.zip",
+          "sha256": "b60a2f93abf80fd528133c197bb5c7c56cf713eac4ffbf6df5d703d2a0a0f3b7",
+          "version": "3.2.2",
+          "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+          "install": "app",
+          "remove_services": false,
+          "required_services": [
+            "service.py"
+          ],
+          "remove_requires": [
+            "script.module.resolveurl.xxx"
+          ]
+        },
+        {
+          "id": "script.module.thecrew",
+          "repo": "thecrewwh/zips",
+          "commit": "68e8a45518d0ff60db0f315b87c0178edcf100d7",
+          "url": "https://raw.githubusercontent.com/thecrewwh/zips/68e8a45518d0ff60db0f315b87c0178edcf100d7/matrix/_zip/script.module.thecrew/script.module.thecrew-3.2.29.zip",
+          "sha256": "f04792b0b0b24d845fcd151a45e6baa77863b5601bafce1faa6e20d66f8282cd",
+          "version": "3.2.29",
+          "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+          "install": "app",
+          "remove_services": false,
+          "profile_copy": true,
+          "remove_requires": [
+            "script.module.resolveurl.xxx"
+          ],
+          "exclude_prefixes": [
+            "lib/resources/lib/adult_sites/"
+          ],
+          "exclude_files": [
+            "xml/xxx.xml"
+          ]
+        },
+        {
+          "version": "5.1.212",
+          "url": "https://raw.githubusercontent.com/Gujal00/smrzips/535d4dcc42145e2bfeaa3e0c6d5ec3d91a449c94/zips/script.module.resolveurl/script.module.resolveurl-5.1.212.zip",
+          "sha256": "28fb6b2340eccfb1337ba4421b6429aa1c8f2978834853d1229b42b2a947bc59",
+          "id": "script.module.resolveurl",
+          "repo": "Gujal00/smrzips",
+          "commit": "535d4dcc42145e2bfeaa3e0c6d5ec3d91a449c94",
+          "license": "GPL-3.0-or-later (retained source headers)",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.requests",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.requests/script.module.requests-2.31.0.zip",
+          "sha256": "a5704f0fd7afb4154e1beea9b5f05a002bcd75fa581a1e5fd15ece39bf2bd38a",
+          "version": "2.31.0",
+          "license": "Apache-2.0",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.routing",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.routing/script.module.routing-0.2.3+matrix.1.zip",
+          "sha256": "dc9110ffd2a5022feffafb22a710cd95aabe5722c52004f347d3a274f67d00f9",
+          "version": "0.2.3+matrix.1",
+          "license": "GPL-3.0",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.beautifulsoup4",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.beautifulsoup4/script.module.beautifulsoup4-4.12.2.zip",
+          "sha256": "20e7e56c9f2575bc3977b7d1c875a4a56163b789a4c088a561d988f4c64fd3cd",
+          "version": "4.12.2",
+          "license": "MIT",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.pyqrcode",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.pyqrcode/script.module.pyqrcode-1.2.1+matrix.4.zip",
+          "sha256": "3bd98699099b531ba8175a3822536927eeaac111d7cb9d12e1f0ed707b020899",
+          "version": "1.2.1+matrix.4",
+          "license": "BSD-3-Clause",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.unidecode",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.unidecode/script.module.unidecode-1.3.6.zip",
+          "sha256": "f66257736002b479f9e109259d691113412a7f2215139aa5534d795d8d6925a7",
+          "version": "1.3.6",
+          "license": "GPL-2.0-or-later",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.myconnpy",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.myconnpy/script.module.myconnpy-8.0.33.zip",
+          "sha256": "36370e904b9ed59dc96156e9d4d97e3de86b9b2d99880b3fac9f8c278aed249e",
+          "version": "8.0.33",
+          "license": "GPLv2",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.simplejson",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.simplejson/script.module.simplejson-3.19.1+matrix.1.zip",
+          "sha256": "7cf5d7000d9f07370f951a51e387b17ebcaf99d33341f376123dda1183858d19",
+          "version": "3.19.1+matrix.1",
+          "license": "MIT",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.six",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.six/script.module.six-1.16.0+matrix.1.zip",
+          "sha256": "4197f7773f75ab9f16b3c920195acbb8b8b151b4b3c8c3e14fc4876e764e3860",
+          "version": "1.16.0+matrix.1",
+          "license": "MIT",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.inputstreamhelper",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.inputstreamhelper/script.module.inputstreamhelper-0.8.6.zip",
+          "sha256": "326ff6182802c7fc3967df254823c84ba39eedacae03b1349eb4acafcb231801",
+          "version": "0.8.6",
+          "license": "MIT",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.kodi-six",
+          "version": "0.1.3.1",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.kodi-six/script.module.kodi-six-0.1.3.1.zip",
+          "sha256": "236a7a912641805e146b605c8c29ef413d748ef3f4ddf8aa8c414717d9831383",
+          "license": "GPL v.3",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.certifi",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.certifi/script.module.certifi-2023.5.7.zip",
+          "sha256": "c16d4cd2efe6e57dbb5e8d71a9beb3af213b1e3d717e8b0b24f0cbdc4c645070",
+          "version": "2023.5.7",
+          "license": "MPL-2.0",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.chardet",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.chardet/script.module.chardet-5.1.0.zip",
+          "sha256": "d5010fc55a9523d86a306ae9e6a8dea0e3248fe079b9ed37280fe86110cd766a",
+          "version": "5.1.0",
+          "license": "LGPL-2.1",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.idna",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.idna/script.module.idna-3.10.0.zip",
+          "sha256": "c4ff34dbfab2736e9214a374d331bd6f558d8b3fea8eb7902e210749509242b3",
+          "version": "3.10.0",
+          "license": "BSD-3-Clause",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.urllib3",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.urllib3/script.module.urllib3-2.2.3.zip",
+          "sha256": "740b2d63bb50eee9fb35f01c567ec8d3588c5bbd548e2b8d280932be30d82f53",
+          "version": "2.2.3",
+          "license": "MIT",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.module.soupsieve",
+          "repo": "xbmc/official-omega",
+          "url": "https://mirrors.kodi.tv/addons/omega/script.module.soupsieve/script.module.soupsieve-2.4.1.zip",
+          "sha256": "dd8c8f17c3c8e8a87b700d2c076f6771a81b08e3ba313bb5c64ddc1500788d8b",
+          "version": "2.4.1",
+          "license": "MIT",
+          "install": "app",
+          "remove_services": false
+        },
+        {
+          "id": "script.thecrew.artwork",
+          "repo": "thecrewwh/zips",
+          "commit": "68e8a45518d0ff60db0f315b87c0178edcf100d7",
+          "url": "https://raw.githubusercontent.com/thecrewwh/zips/68e8a45518d0ff60db0f315b87c0178edcf100d7/matrix/_zip/script.thecrew.artwork/script.thecrew.artwork-3.2.0.zip",
+          "sha256": "798883ced19cbaad6f030812f85cb34d2721162325cb5f20cac1d87d8878cd6b",
+          "version": "3.2.0",
+          "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
+          "install": "app",
+          "remove_services": true
+        },
+        {
+          "id": "repository.loop",
+          "repo": "loopaddon.uk/theloop",
+          "url": "https://loopaddon.uk/theloop/repository.loop-3.0.4.zip",
+          "sha256": "9d0addce2bf96831b3d77b85c38f6efda40eddc648b1277b89bf3bdbf20d0431",
+          "version": "3.0.4",
+          "license": "see package",
+          "install": "app",
+          "remove_services": false
+        }
+      ],
+      "provider_packages": [
+        {
+          "name": "prism-a4k",
+          "repo": "Goldenfreddy0703/a4kScrapers",
+          "commit": "3ef39b8a0a185a3c9f1127a2b44f99f830299e2a",
+          "url": "https://codeload.github.com/Goldenfreddy0703/a4kScrapers/zip/3ef39b8a0a185a3c9f1127a2b44f99f830299e2a",
+          "sha256": "fa2090e56f7820e4509086cea85c43da080de43ddec99c8766fcfd0938ca6663",
+          "root": "a4kScrapers-3ef39b8a0a185a3c9f1127a2b44f99f830299e2a/",
+          "version": "2.99.130",
+          "license": "GPL-3.0",
+          "destination": "provider-fallback/prism-a4k"
+        }
+      ],
+      "license_texts": [
+        {
+          "path": "licenses/GPL-3.0.md",
+          "url": "https://www.gnu.org/licenses/gpl-3.0.txt",
+          "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+          "purpose": "Complete GNU GPL v3 text for upstream packages which retain GPL notices but omit a separate licence file."
+        }
+      ],
+      "data_assets": [
+        {
+          "name": "otaku-mappings",
+          "repo": "Goldenfreddy0703/Otaku-Mappings",
+          "commit": "58f5e5799c3513fc047f308ce54c9c5435befed9",
+          "url": "https://raw.githubusercontent.com/Goldenfreddy0703/Otaku-Mappings/58f5e5799c3513fc047f308ce54c9c5435befed9/anime_mappings.db",
+          "sha256": "36ba8b785385787131f2f3e8ed218ddd4ceb2f9db16a2cd973db3bede9a47162",
+          "bytes": 6021120,
+          "file": "otaku-mappings.db",
+          "destination": "provider-fallback/otaku/mappings.db",
+          "purpose": "Public anime ID mappings used by upstream Otaku service; no account or watch state.",
+          "format": "sqlite",
+          "tables": {
+            "anime": [
+              "mal_id",
+              "anilist_id",
+              "themoviedb_id",
+              "thetvdb_season",
+              "thetvdb_part"
+            ],
+            "activities": [
+              "sync_id",
+              "last_updated"
+            ]
+          },
+          "licence_note": "Upstream repository has no separate licence declaration; this is the public identifier database fetched by upstream Otaku service.py, not user profile data."
+        }
+      ],
+      "sports_roots": [
+        "repository.loop"
+      ]
+    }
+  }
+}
