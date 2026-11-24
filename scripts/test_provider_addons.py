@@ -148,6 +148,41 @@ class ReviewedLock(unittest.TestCase):
   crew=specs['plugin.video.thecrew'];self.assertFalse(crew['remove_services']);self.assertEqual(crew['required_services'],['service.py'])
   self.assertTrue(all(s.get('remove_services') for s in lock['packages'] if s['id'] in lock['roots'] and s['id'].startswith('plugin.video.') and s['id']!='plugin.video.thecrew'))
 
+class PreservedBuild(unittest.TestCase):
+    """2026-11-24: POV's upstream repository began answering 404. Its archive is rebuilt from the reviewed tree in a published build, pinned by that build's digest."""
+    def fake_ipa(self):
+        buffer=io.BytesIO()
+        with zipfile.ZipFile(buffer,'w',zipfile.ZIP_DEFLATED) as archive:
+            base='Payload/Kodi.app/AppData/AppHome/addons/plugin.video.pov/'
+            archive.writestr(base+'addon.xml','<addon id="plugin.video.pov" version="6.11.03"/>')
+            archive.writestr(base+'lib/pov/__init__.py','x=1\n')
+            archive.writestr(base+'lib/pov/__pycache__/__init__.cpython-311.pyc',b'\0\0')
+            archive.writestr('Payload/Kodi.app/AppData/AppHome/addons/other/addon.xml','<addon id="other"/>')
+        return buffer.getvalue()
+    def spec(self,ipa):
+        import hashlib
+        return {'url':'https://example.invalid/build.ipa','sha256':hashlib.sha256(ipa).hexdigest(),'prefix':'Payload/Kodi.app/AppData/AppHome/addons'}
+    def test_the_archive_holds_the_tree_without_bytecode_and_is_the_same_bytes_every_time(self):
+        ipa=self.fake_ipa();spec=self.spec(ipa);providers._IPA.clear()
+        first=providers.from_ipa(spec,'plugin.video.pov',lambda url:ipa);providers._IPA.clear();second=providers.from_ipa(spec,'plugin.video.pov',lambda url:ipa)
+        self.assertEqual(first,second)
+        self.assertEqual(sorted(providers.members(first,'plugin.video.pov/')),['addon.xml','lib/pov/__init__.py'])
+        with zipfile.ZipFile(io.BytesIO(first)) as archive:self.assertTrue(all(i.date_time==(1980,1,1,0,0,0) and i.compress_type==zipfile.ZIP_STORED for i in archive.infolist()))
+    def test_a_build_that_is_not_the_pinned_one_is_refused(self):
+        ipa=self.fake_ipa();spec=self.spec(ipa);providers._IPA.clear()
+        with self.assertRaises(ValueError):providers.from_ipa(spec,'plugin.video.pov',lambda url:ipa+b'x')
+    def test_the_lock_names_the_preserved_build_for_pov_and_its_helper_and_run_uses_it(self):
+        lock=json.loads(providers.LOCK.read_text());named={p['id']:p for p in lock['packages'] if p.get('from_ipa')}
+        self.assertEqual(sorted(named),['plugin.video.pov','script.module.magneto'])
+        for package in named.values():
+            self.assertTrue(package['from_ipa']['url'].startswith('https://github.com/onlykappa/Kodi-Ios/releases/download/build-'))
+            self.assertNotEqual(package['sha256'],package['upstream_sha256'])
+        calls=[]
+        ipa=self.fake_ipa();providers._IPA.clear()
+        spec={'id':'plugin.video.pov','sha256':'0'*64,'from_ipa':self.spec(ipa)}
+        self.assertEqual(providers.source(spec,lambda url:(calls.append(url),ipa)[1])[:2],b'PK');self.assertEqual(calls,['https://example.invalid/build.ipa'])
+
+
 class SportsLock(unittest.TestCase):
     def test_the_loop_family_is_fetched_live_by_kodi_not_unzipped_in_place(self):
         # ISSUE-357 follow-up (owner, 2026-11-16): unzipping The Loop's files gave it no repository origin and it failed on the phone

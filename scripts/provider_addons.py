@@ -103,10 +103,36 @@ def validate_asset(data,spec):
     columns={row[1] for row in database.execute('PRAGMA table_info('+table+')')}
     if not set(required)<=columns:raise ValueError('Provider mapping database schema mismatch')
 
+_IPA={}
+
+def from_ipa(spec,addon,get):
+ """The archive of a pinned add-on rebuilt from the reviewed tree that shipped in an earlier published build (the IPA kept as a release asset, pinned by its own digest).
+ Bytecode is left out; the entries are written in sorted order with fixed dates and no compression, so the archive's bytes, and its digest, are the same on every machine.
+ (2026-11-24: the upstream repository of POV and its helper began answering 404; build 679's IPA is the preserved copy of what was reviewed.)"""
+ key=spec['url']
+ if key not in _IPA:
+  data=get(key)
+  if digest(data)!=spec['sha256']:raise ValueError('Preserved build digest mismatch')
+  _IPA.clear();_IPA[key]=data
+ prefix=spec['prefix'].rstrip('/')+'/'+addon+'/'
+ out=io.BytesIO()
+ with zipfile.ZipFile(io.BytesIO(_IPA[key])) as source,zipfile.ZipFile(out,'w',zipfile.ZIP_STORED) as archive:
+  for name in sorted(source.namelist()):
+   if not name.startswith(prefix) or name.endswith('/') or '__pycache__' in name or name.endswith(('.pyc','.pyo')):continue
+   info=zipfile.ZipInfo(addon+'/'+name[len(prefix):],date_time=(1980,1,1,0,0,0));info.compress_type=zipfile.ZIP_STORED;info.external_attr=0o644<<16
+   archive.writestr(info,source.read(name))
+ return out.getvalue()
+
+def source(spec,get):
+ """The bytes of a pinned package: rebuilt from a preserved build when the lock names one (`from_ipa`), else downloaded from its pinned address. The digest check that follows
+ is the same either way."""
+ if spec.get('from_ipa'):return from_ipa(spec['from_ipa'],spec['id'],get)
+ return get(spec['url'])
+
 def run(output,lock=None,get=fetch):
  lock=lock or json.loads(LOCK.read_text());output=Path(output);output.mkdir(parents=True,exist_ok=True);receipts=[]
  for spec in lock['packages']+lock.get('provider_packages',[]):
-  name=spec.get('id',spec.get('name'));data=get(spec['url'])
+  name=spec.get('id',spec.get('name'));data=source(spec,get)
   if digest(data)!=spec['sha256']:raise ValueError('Provider download digest mismatch: '+name)
   members(data,spec.get('root',name+'/'))
   if 'id' in spec:manifest(members(data,name+'/')['addon.xml'],spec)
