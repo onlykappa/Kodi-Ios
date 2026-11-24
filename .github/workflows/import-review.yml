@@ -123,6 +123,8 @@ jobs:
           python-version: '3.11'
           update-environment: false
       - name: Acquire pinned provider fixtures
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: python3 -B scripts/provider_addons.py --output "$RUNNER_TEMP/provider-inputs"
       - name: Test staged import and navigation safety
         env:

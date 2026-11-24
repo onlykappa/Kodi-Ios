@@ -16,7 +16,9 @@
   "policy": {
     "reuse_existing_modules_if_minimum_dependencies_satisfied": true,
     "disable_new_background_services": true,
-    "required_service_exceptions": ["plugin.video.thecrew"],
+    "required_service_exceptions": [
+      "plugin.video.thecrew"
+    ],
     "exclude_adult_only_crew_dependency_and_artwork": true,
     "preserve_upstream_licences_and_headers": true,
     "no_device_verification_claim": true
@@ -35,26 +37,36 @@
     },
     {
       "id": "plugin.video.pov",
-      "repo": "kodifitzwell/repo",
-      "commit": "2c8390c6e65213853a862a00044597946b946132",
-      "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/plugin.video.pov/plugin.video.pov-6.11.03.zip",
-      "sha256": "9ac93ad045910774503cbfeeb45b63bbd9b23837c9e76749885076c9b11edfba",
+      "url": "https://github.com/onlykappa/Kodi-Ios/releases/download/provider-sources-1/plugin.video.pov-6.11.03.zip",
+      "sha256": "2ec94ad0a1d4b735285d8b79e9dfbba33e11cbd1f817e07f58d1c6f630a7f71d",
       "version": "6.11.03",
       "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
       "install": "app",
       "remove_services": true,
-      "profile_copy": true
+      "profile_copy": true,
+      "original_pin": {
+        "repository": "kodifitzwell/repo",
+        "commit": "2c8390c6e65213853a862a00044597946b946132",
+        "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/plugin.video.pov/plugin.video.pov-6.11.03.zip",
+        "sha256": "9ac93ad045910774503cbfeeb45b63bbd9b23837c9e76749885076c9b11edfba"
+      },
+      "provenance": "Owner-selected private release archive; relation to original upstream tree unverified; source and redistribution review pending."
     },
     {
       "id": "script.module.magneto",
-      "repo": "kodifitzwell/repo",
-      "commit": "2c8390c6e65213853a862a00044597946b946132",
-      "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/script.module.magneto/script.module.magneto-6.11.01.zip",
-      "sha256": "c2dabb04a1ab8eda8307f12333f747bede00e481ba7cb9ef4905d2d59ac9e418",
+      "url": "https://github.com/onlykappa/Kodi-Ios/releases/download/provider-sources-1/script.module.magneto-6.11.01.zip",
+      "sha256": "815e862ed661cc0350dfccadf1b9a7a0120805f878004398fe0e3e20557958a9",
       "version": "6.11.01",
       "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
       "install": "app",
-      "remove_services": false
+      "remove_services": false,
+      "original_pin": {
+        "repository": "kodifitzwell/repo",
+        "commit": "2c8390c6e65213853a862a00044597946b946132",
+        "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/script.module.magneto/script.module.magneto-6.11.01.zip",
+        "sha256": "c2dabb04a1ab8eda8307f12333f747bede00e481ba7cb9ef4905d2d59ac9e418"
+      },
+      "provenance": "Owner-selected private release archive; relation to original upstream tree unverified; source and redistribution review pending."
     },
     {
       "id": "plugin.video.otaku",
@@ -112,7 +124,9 @@
       "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
       "install": "app",
       "remove_services": false,
-      "required_services": ["service.py"],
+      "required_services": [
+        "service.py"
+      ],
       "remove_requires": [
         "script.module.resolveurl.xxx"
       ]

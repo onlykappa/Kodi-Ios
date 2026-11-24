@@ -1,5 +1,5 @@
 """Fetch and package pinned, Python-only movie/TV fallback engines. Never reads accounts or builds an IPA."""
-import argparse,time,hashlib,io,json,re,shutil,sqlite3,stat,tempfile,urllib.request,zipfile
+import argparse,time,hashlib,io,json,re,shutil,sqlite3,stat,subprocess,tempfile,urllib.request,zipfile
 from pathlib import Path,PurePosixPath
 import xml.etree.ElementTree as ET
 
@@ -13,7 +13,14 @@ def digest(data):return hashlib.sha256(data).hexdigest()
 KODI_CLIENT='Kodi/21.3 (Linux; Android 11) App_Bitness/64 Version/21.3'
 KODI_ONLY=('https://loopaddon.uk/',)
 
+PRIVATE_RELEASE='https://github.com/onlykappa/Kodi-Ios/releases/download/provider-sources-1/'
+
 def fetch(url):
+ if url.startswith(PRIVATE_RELEASE):
+  name=url[len(PRIVATE_RELEASE):]
+  if name not in ('plugin.video.pov-6.11.03.zip','script.module.magneto-6.11.01.zip'):
+   raise ValueError('Unapproved private provider asset')
+  return subprocess.run(['gh','release','download','provider-sources-1','--repo','onlykappa/Kodi-Ios','--pattern',name,'--output','-'],check=True,stdout=subprocess.PIPE).stdout
  agent=KODI_CLIENT if url.startswith(KODI_ONLY) else 'Kodi-iOS-provider-build'
  for attempt in range(4):   # a download can fail on a passing network or proxy error; the digest check still decides what is accepted
   try:
