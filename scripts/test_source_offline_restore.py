@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import zipfile
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -42,7 +43,7 @@ class OfflineRestore(unittest.TestCase):
                 if spec['id'] == 'script.module.future':
                     import os
                     env = dict(os.environ, PYTHONPATH=str(Path(tmp) / spec['id'] / 'lib'), PYTHONDONTWRITEBYTECODE='1')
-                    subprocess.run(['python3', '-S', '-c', "import future, past, future.standard_library, future.backports.urllib.request; from future.builtins import str, bytes, range"], env=env, cwd=tmp, check=True)
+                    subprocess.run([os.environ.get('KODI_IOS_PYTHON311', sys.executable), '-S', '-c', "import future, past, future.standard_library, future.backports.urllib.request; from future.builtins import str, bytes, range"], env=env, cwd=tmp, check=True)
 
     def test_sanitized_future_is_accepted_and_tampering_rejected(self):
         root = Path(__file__).resolve().parents[1]
