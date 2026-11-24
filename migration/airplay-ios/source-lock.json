@@ -1,16 +1,16 @@
 {
  "framework_release": {
+  "tag": "kodi-airplay-r75",
+  "asset": "KodiAirPlay.framework.zip",
+  "sha256": "c6f73e807f3445720e1c528f836eee56d7f4c4f8d4dc4871c61eda4abaa9f1e9"
+ },
+ "previous": {
   "tag": "kodi-airplay-r74",
   "asset": "KodiAirPlay.framework.zip",
   "sha256": "ebfd45d41aae9285bdaefb310d433c4f5eac4e6e839701cd4a8f0a85707ebb80"
  },
- "previous": {
-  "tag": "kodi-airplay-r73",
-  "asset": "KodiAirPlay.framework.zip",
-  "sha256": "26b0b881d8f2011e073f4ac14b90d18d0a7581f37401703ae1ba81d83fb2ce60"
- },
- "source_commit": "cfa4553f9463bfc2ce24aeef87dbdb29de12a8fe",
- "pin_note": "r74 candidate for ISSUE-468 (owner, build 677: the seek card should be instant, a picture every 5 s that flips as you swipe): the preview strip is now a SESSION (remux/src/kr_thumbs.c): kodi_thumbs_open / frame / fill / stop / resume / close; one 256x144 JPEG every 5 s (grid file), built coarse first from the person's position with a per-title read allowance, one picture on request for a resting finger, reads interrupted when the buffer runs low. Run 45299533038 on cfa4553: host tests (3978 checks plus scripts/test_thumb_strip.py: 6 native tests through a shared library built from kr_thumbs.c against the project's FFmpeg 8.1.1) and the iPhoneOS framework compile with the export checks passed; the framework archive sha256 is the pin. Host evidence only: no phone result.",
- "verified_run": 45299533038,
- "verified_host_run": 45299533038
+ "source_commit": "969d82d65a4e36751279e973998cfc256fdfb7fe",
+ "pin_note": "r75 candidate for ISSUE-469 (owner, build 679 log 1841aa21: the seek card's pictures should come fast): the strip's first coarse pass is one picture a minute, then every 30 s, 15 s and 5 s; kr_source_open_tuned gives the strip 512 KB range requests (a keyframe in one request, read to its end). Run 45315979742 on 969d82d: host tests (3978 checks plus scripts/test_thumb_strip.py: native tests through a shared library built from kr_thumbs.c against the project's FFmpeg 8.1.1) and the iPhoneOS framework compile with the export checks passed; the framework archive sha256 is the pin. Host evidence only: no phone result.",
+ "verified_run": 45315979742,
+ "verified_host_run": 45315979742
 }
