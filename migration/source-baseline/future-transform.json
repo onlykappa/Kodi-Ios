@@ -1,0 +1,21 @@
+{
+  "upstream_tree": "1146a531d53140feb5d163de82a3e97fb1d88683",
+  "removed_files": [
+    "lib/future/backports/test/badcert.pem",
+    "lib/future/backports/test/badkey.pem",
+    "lib/future/backports/test/dh512.pem",
+    "lib/future/backports/test/https_svn_python_org_root.pem",
+    "lib/future/backports/test/keycert.passwd.pem",
+    "lib/future/backports/test/keycert.pem",
+    "lib/future/backports/test/keycert2.pem",
+    "lib/future/backports/test/nokia.pem",
+    "lib/future/backports/test/nullbytecert.pem",
+    "lib/future/backports/test/nullcert.pem",
+    "lib/future/backports/test/sha256.pem",
+    "lib/future/backports/test/ssl_cert.pem",
+    "lib/future/backports/test/ssl_key.passwd.pem",
+    "lib/future/backports/test/ssl_key.pem"
+  ],
+  "modified_file": "lib/future/backports/urllib/request.py",
+  "modification": "Remove six credential-shaped proxy doctest calls and their expected output lines; executable code unchanged."
+}

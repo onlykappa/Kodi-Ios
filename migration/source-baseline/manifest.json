@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "scope": "Four pinned Elementum dependency trees; future excluded due bundled test keys; engine and provider archives excluded",
+  "scope": "Four unmodified pinned Elementum dependency trees and one sanitized future runtime snapshot; engine and provider archives excluded",
   "archives": [
     {
       "path": "migration/source-baseline/script.module.kodi-six.zip",
@@ -41,6 +41,18 @@
       "sha256": "1b7bdd44db85576187ef04ab44a0affe4069afcca16692f217aa69b35f847975",
       "bytes": 333351,
       "notice": "plugin.program.autocompletion/LICENSE.txt"
+    },
+    {
+      "path": "migration/source-baseline/script.module.future.zip",
+      "id": "script.module.future",
+      "repository": "xbmc/repo-scripts",
+      "commit": "6689984b17b7756396902199deb5b90626ae8f75",
+      "git_tree": "1146a531d53140feb5d163de82a3e97fb1d88683",
+      "snapshot_tree": "27e1d34a1eec91a38964e485b8085bd39968f8b8",
+      "transform": "migration/source-baseline/future-transform.json",
+      "sha256": "26a6aab3225e6f3fbbf989234a6b9244756f4d62d35f49e4ef5d97685ce3fdf8",
+      "bytes": 476531,
+      "notice": "script.module.future/LICENSE.txt"
     }
   ]
 }

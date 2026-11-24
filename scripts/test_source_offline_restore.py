@@ -38,7 +38,32 @@ class OfflineRestore(unittest.TestCase):
                 subprocess.run(['git', 'init', '-q', tmp], check=True)
                 subprocess.run(['git', '-C', tmp, 'add', '-f', '--', spec['id']], check=True)
                 actual = subprocess.check_output(['git', '-C', tmp, 'write-tree', '--prefix=' + spec['id']], text=True).strip()
-                self.assertEqual(actual, spec['git_tree'])
+                self.assertEqual(actual, spec.get('snapshot_tree', spec['git_tree']))
+                if spec['id'] == 'script.module.future':
+                    import os
+                    env = dict(os.environ, PYTHONPATH=str(Path(tmp) / spec['id'] / 'lib'), PYTHONDONTWRITEBYTECODE='1')
+                    subprocess.run(['python3', '-S', '-c', "import future, past, future.standard_library, future.backports.urllib.request; from future.builtins import str, bytes, range"], env=env, cwd=tmp, check=True)
+
+    def test_sanitized_future_is_accepted_and_tampering_rejected(self):
+        root = Path(__file__).resolve().parents[1]
+        spec = next(x for x in json.loads((root / 'migration/source-baseline/manifest.json').read_text())['archives'] if x['id'] == 'script.module.future')
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            inputs = base / 'inputs'
+            modules = inputs / 'module-trees'
+            modules.mkdir(parents=True)
+            with zipfile.ZipFile(root / spec['path']) as z:
+                z.extractall(modules)
+            def stage(out, lock, get, modules, airplay):
+                out.mkdir()
+                modules([{'trees': {spec['id']: spec['git_tree']}}], out / 'modules')
+                return {'elementum': True, 'modules': [spec['id']], 'extras': [], 'frameworks': []}
+            with patch.object(elementum.source, 'run', side_effect=stage):
+                result = elementum.run(inputs, base / 'good')
+                self.assertEqual(result['verified_module_trees'], 1)
+                (modules / spec['id'] / 'addon.xml').write_text('tampered')
+                with self.assertRaisesRegex(ValueError, 'tree digest mismatch'):
+                    elementum.run(inputs, base / 'bad')
 
     def test_restore_missing_and_tampered_inputs(self):
         with tempfile.TemporaryDirectory() as tmp:

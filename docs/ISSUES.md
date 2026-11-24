@@ -6158,3 +6158,11 @@ Failure retained: both broad parallel and serial native scans exited the desktop
 - **Seen/cause:** `build-ios-engine.sh` pinned Go's version but fetched its checksum from the live Go metadata API, so loss of that index prevented rebuilding even with a known toolchain archive.
 - **Fix:** record the official darwin-arm64 Go 1.21.1 SHA256 and size in the existing Elementum source lock and use the fixed checksum in the build. The archive download still requires the host or a future verified mirror.
 - **Test:** shell syntax, lock/build consistency regression and 43 existing calibration tests pass. No native build claimed. Pinned engine module audit found 82 dependency version declarations; their licenses/source and the complete native toolchain still require preservation.
+
+### ISSUE-401: Future upstream test fixtures prevented source archive preservation
+
+- **Evidence:** the pinned upstream tree contains public test private keys and credential-shaped proxy doctests that the project scanner rejected; they are not owner secrets. The original archive remains excluded.
+- **Treatment:** a reproducible modified snapshot removes 14 PEM test fixtures and six doctest/output pairs, retains the MIT notice and records both upstream and transformed tree hashes. The local restorer accepts the transformed tree only as a separately identified snapshot. Exact transformations are recorded in `migration/source-baseline/future-transform.json`.
+- **Retest and limits:** byte-identical regeneration, archive scanner and isolated host imports pass; the latter emitted upstream Python invalid-escape warnings. Removed fixtures/doctests are unavailable, and real Kodi/iOS runtime remains untested. Full source-baseline closure is still open under ISSUE-399.
+
+- **Test harness correction:** the first simulated fetcher test failed because its stub omitted creation of the output directory that the real fetcher creates; the stub now creates it before invoking the module callback.

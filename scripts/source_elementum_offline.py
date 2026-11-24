@@ -47,7 +47,13 @@ def run(inputs, output):
                     subprocess.run(['git', '-C', temp, 'add', '-f', '--', name], check=True, capture_output=True)
                     actual = subprocess.check_output(['git', '-C', temp, 'write-tree', '--prefix=' + name], text=True).strip()
                     if actual != expected:
-                        raise ValueError('Module tree digest mismatch: ' + name)
+                        # The future runtime snapshot is deliberately transformed; it is
+                        # identified separately and never claimed as the upstream tree.
+                        manifest = json.loads((Path(__file__).resolve().parents[1] / 'migration/source-baseline/manifest.json').read_text())
+                        matches = [entry for entry in manifest['archives'] if entry['id'] == name
+                                   and entry.get('git_tree') == expected and entry.get('transform')]
+                        if len(matches) != 1 or actual != matches[0].get('snapshot_tree'):
+                            raise ValueError('Module tree digest mismatch: ' + name)
                     shutil.copytree(target / name, dest / name)
 
     original_socket, original_connection = socket.socket, socket.create_connection
