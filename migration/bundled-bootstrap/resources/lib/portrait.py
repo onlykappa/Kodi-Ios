@@ -770,12 +770,16 @@ def title_tap(id,title,path,visible):
          '<control type="button" id="%d"><left>%d</left><top>-129</top><width>%d</width><height>128</height><label></label>'
          '<texturefocus /><texturenofocus />%s</control></control>')%(visible,id+700,SIDE,WIDTH-2*SIDE,clicks)
 
-def play_now():
+def play_now(container=None):
  """A tap on a Continue Watching card shows the loading circle at once and plays (owner, build 646: "make it start loading when i click it ... i shouldnt have
  time to tap it again"; the first sign of life was a second or more later, when TMDb Helper had started). The row's items are all playable plugin paths, so the
  click does what Kodi did by default, after raising the circle; the service closes it when the video starts (Dialog.Close in the progress tracker) and the busy
- watchdog closes it after a few seconds if nothing opens."""
- return '<onclick>SetProperty(KodiIOS.ContinueOpening,1,home)</onclick><onclick>ActivateWindow(busydialognocancel)</onclick><onclick>PlayMedia($ESCINFO[ListItem.FileNameAndPath])</onclick>'
+ watchdog closes it after a few seconds if nothing opens.
+ The card played is the one of THIS row's list, named explicitly (Container(id).ListItem(0)): a bare ListItem is the item of whichever control has the window's focus, and a
+ tap does not always move focus into the row, so a tap on the second card played another title or nothing (owner, build 682 log 1355c1d8: Black Clover's card "glitches out
+ and doesn't load anything" while Dragon Ball was first; a tap on the first card opened Inception)."""
+ item='Container(%d).ListItem(0)'%container if container else 'ListItem'
+ return '<onclick>SetProperty(KodiIOS.ContinueOpening,1,home)</onclick><onclick>ActivateWindow(busydialognocancel)</onclick><onclick>PlayMedia($ESCINFO[%s.FileNameAndPath])</onclick>'%item
 
 def row(index,widget,last,tab='home',variables=None):
  id=5001+index;title=str(widget.get('label') or '')
@@ -796,7 +800,7 @@ def row(index,widget,last,tab='home',variables=None):
    '%s%s<scrolltime tween="cubic" easing="out">320</scrolltime><preloaditems>2</preloaditems><visible allowhiddenfocus="true">%s</visible>'
    '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
    '<content target="%s">%s</content></control>'
-   )%(id,WIDTH,h,'<ondown>9201</ondown>' if last else '',play_now() if style=='continue' else '',visible,w+GAP,h,item(False),w+GAP,h,item(True),
+   )%(id,WIDTH,h,'<ondown>9201</ondown>' if last else '',play_now(id) if style=='continue' else '',visible,w+GAP,h,item(False),w+GAP,h,item(True),
       e(widget.get('target') or 'videos'),cached_content('Portrait_Cache_Row_%s_%d'%(tab,index),widget['path'],variables,tab=tab)))
 
 def hero(spotlight,title,tab='home',variables=None):

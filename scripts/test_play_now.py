@@ -11,6 +11,10 @@ class PlayNow(unittest.TestCase):
         text=p.play_now()
         self.assertLess(text.index('ActivateWindow(busydialognocancel)'),text.index('PlayMedia('))
         self.assertIn('$ESCINFO[ListItem.FileNameAndPath]',text)
+    def test_a_row_plays_its_own_list_not_whatever_control_has_focus(self):   # build 682 log 1355c1d8
+        self.assertIn('PlayMedia($ESCINFO[Container(5001).ListItem(0).FileNameAndPath])',p.play_now(5001))
+        widget={'label':'Continue Watching','path':'plugin://x/','target':'videos','style':'continue'}
+        row=p.row(0,widget,False);self.assertIn('Container(5001).ListItem(0).FileNameAndPath',row);self.assertNotIn('$ESCINFO[ListItem.FileNameAndPath]',row)
     def test_the_tap_sets_the_flag_that_keeps_the_circle_up(self):   # build 663 log 63e92ff2
         text=p.play_now()
         self.assertLess(text.index('SetProperty(KodiIOS.ContinueOpening,1,home)'),text.index('ActivateWindow(busydialognocancel)'))

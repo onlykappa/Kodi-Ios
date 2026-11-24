@@ -335,8 +335,8 @@ def begin(home):
 
 
 SETTLE_AFTER = 10     # seconds of playback before a stream's strip starts: the player's own opening reads come first
-QUIET = 5             # seconds the buffer must have been healthy
-GIVE_UP_WAITING = 150
+QUIET = 4             # seconds the buffer must have been healthy
+GIVE_UP_WAITING = 900  # a Drive copy that is being sought through keeps buffering: the builder waits for the first calm spell (build 682 log: 150 s was never enough)
 
 
 def settled(playing, healthy, played, wait, now=time.monotonic):
