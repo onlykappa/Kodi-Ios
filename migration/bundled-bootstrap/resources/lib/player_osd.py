@@ -174,8 +174,10 @@ def window():
   image(cx-180,cy+222,52,11,MEDIA+'dot.png','FF0A84FF','<visible>Player.Caching + Integer.IsLess(Player.CacheLevel,4)</visible>'+PULSE,border='6'),
   '<visible>!%s</visible>'%PANEL)
  # Title: the film, or the show and the episode.
- title=('<control type="label"><left>%d</left><right>%d</right><top>770</top><height>90</height><font>font_title_midi</font>'
-  '<textcolor>FFFFFFFF</textcolor><align>left</align><aligny>center</aligny><label>%s</label><visible>!%s</visible></control>')%(
+ # Owner, 2026-11-24 (build 686): a long episode title above the seek bar was huge. Now 40 units (font_head_bold, was 68), and a title that does not fit wraps to a second
+ # line growing upward from the bar, never cut off.
+ title=('<control type="label"><left>%d</left><right>%d</right><top>730</top><height>130</height><font>font_head_bold</font><wrapmultiline>true</wrapmultiline>'
+  '<textcolor>FFFFFFFF</textcolor><align>left</align><aligny>bottom</aligny><label>%s</label><visible>!%s</visible></control>')%(
   left,left,e('$INFO[VideoPlayer.TVShowTitle,,  ·  ]$INFO[VideoPlayer.Title]'),PANEL)
  # Owner-approved Apple-style scrubber (docs/design/player-scrubber-mockup.html, 2026-11-23): a thin fully rounded bar with no knob at rest, thicker under the finger,
  # elapsed time under its left end and the time left under its right end (tap it for the total length). Track and fill are one progress control each; the slider on top
@@ -207,7 +209,9 @@ def window():
     ('FFFFFFFF','-$INFO[Player.TimeRemaining]','!Skin.HasSetting(ios_osd_ends) + %s'%DRAG),
     ('B3FFFFFF','Ends at $INFO[Player.FinishTime]','Skin.HasSetting(ios_osd_ends) + !%s'%DRAG),
     ('FFFFFFFF','Ends at $INFO[Window(Home).Property(KodiIOS.EndsAt)]','Skin.HasSetting(ios_osd_ends) + %s'%DRAG)))+
-  '<control type="button" id="7132"><left>-100</left><top>-10</top><width>500</width><height>70</height><texturefocus /><texturenofocus /><onclick>Skin.ToggleSetting(ios_osd_ends)</onclick>'
+  # The touch area is the whole right end under the bar (build 686 log b142eafc: taps at x 2130-2157 hit the clear button behind, which closed the controls, because this button
+  # was drawn 100 units too far left): it starts at the text's left and ends at the group's right edge, clear of the bar's own touch area above (the slider ends at 916).
+  '<control type="button" id="7132"><left>-100</left><top>0</top><width>600</width><height>100</height><texturefocus /><texturenofocus /><onclick>Skin.ToggleSetting(ios_osd_ends)</onclick>'
   '<onup>7131</onup><ondown>7141</ondown></control></control>')
 
  # The frame card of the mockup (docs/design/player-scrubber-mockup.html): rides above the finger with the time under it and the jump from where you were.
@@ -287,9 +291,11 @@ def safe_inset(original,hide_under_osd=False):
  """Fuse's landscape window with everything in <controls> moved into a group SAFE in from the left and right."""
  if not original:return original
  if INSET_MARKER in original:
-  # Already inset by an earlier build: the hide condition moves to the newer one in place (the file on the phone is read back, not regenerated).
-  old='<visible>!Window.IsVisible(videoosd)</visible>'
-  return original.replace(old,'<visible>%s</visible>'%HIDE_CONDITION) if hide_under_osd and old in original else original
+  # Already inset by an earlier build: the hide condition is set in place (the file on the phone is read back, not regenerated). Files inset before the hide existed (build 191)
+  # have none, which is why Fuse's info stayed over the controls (owner, build 686 log b142eafc); files of builds 192-685 have the older one.
+  if not hide_under_osd:return original
+  pattern=re.compile(r'(<description>%s</description><left>\d+</left><right>\d+</right><top>0</top><bottom>0</bottom>)(<visible>[^<]*</visible>)?'%re.escape(INSET_MARKER))
+  return pattern.sub(lambda m:m.group(1)+'<visible>%s</visible>'%HIDE_CONDITION,original,count=1)
  root=ET.fromstring(original);controls=root.find('controls')
  if root.tag!='window' or controls is None:return original
  group=ET.Element('control',{'type':'group'})

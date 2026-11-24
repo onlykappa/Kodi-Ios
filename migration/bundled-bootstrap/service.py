@@ -135,14 +135,21 @@ def run():
   home=xbmcgui.Window(10000);log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
   busy=lambda:bool(xbmc.getCondVisibility('Player.HasVideo') or home.getProperty('KodiIOS.ContinueOpening') or home.getProperty('KodiIOS.OpenWanted') and time.time()-float(home.getProperty('KodiIOS.OpenWanted') or 0)<30)
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'));root=thumb_strip.root_folder();said=[]
-  def make_it(link):
+  def make_it(link,total=0):
    lib=airplay.cached_load(path)
    if not thumb_strip.available(lib):
     if not said:said.append(1);log('preview strip: this AirPlay framework cannot make them yet')
     return
-   thumb_strip.make(lib,link,root,log,stop=lambda:busy() or cache_tune.link_kind()!='wifi')   # a build that began on Wi-Fi ends when the phone leaves it (build 679 log: 25 MB on mobile data)
+   thumb_strip.make(lib,link,root,log,stop=lambda:busy() or cache_tune.link_kind()!='wifi',duration=total)   # a build that began on Wi-Fi ends when the phone leaves it (build 679 log: 25 MB on mobile data)
+  def drive_link(row):
+   # A Drive copy in Continue Watching: the app's own proxy's address for it (the same name the player uses, so the strip's folder is the one the card reads).
+   import drivelibrary
+   port=home.getProperty('KodiIOS.DriveProxy')
+   path=row.get('download_path') or row.get('path') or row.get('file') or ''
+   if not port.isdigit() or not path:return ''
+   return drivelibrary.direct_url(path,xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/'),int(port),ours=True) or ''
   thumb_strip.watch(lambda:ios_continue.entries(ios_continue.load(read),'all'),busy,monitor.waitForAbort,log,make_it,root,
-   allowed=lambda:cache_tune.link_kind()=='wifi')
+   allowed=lambda:cache_tune.link_kind()=='wifi',drive_link=drive_link)
  threading.Thread(target=thumb_strip_loop,daemon=True).start()
  def ends_at_loop():
   # The video controls' "Ends at" under the finger (ends_at.py): Kodi's own end time ignores a drag until it lands.

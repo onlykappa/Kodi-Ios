@@ -32,6 +32,7 @@ typedef struct {
 struct kr_thumbs {
     pthread_mutex_t lock;          // one picture at a time: the demuxer and the decoder are shared by fill and frame
     atomic_int stopped;            // kr_thumbs_stop: reads are interrupted, a fill ends
+    atomic_int active;             // fills and frames in progress: kr_thumbs_close waits for them, so a closed session is never used by a call that is still running
     int (*cancel)(void *);
     void *cancel_context;
     thumb_io io;
@@ -122,7 +123,7 @@ static int picture_of(kr_thumbs *t) {
     return 1;
 }
 
-kr_thumbs *kr_thumbs_open(const char *url, const char *out_dir, int width, int height, int quality, int (*cancel)(void *), void *context, char *err, int errlen) {
+static kr_thumbs *open_with(const char *url, const char *out_dir, int width, int height, int quality, int (*cancel)(void *), void *context, double hint, int mfra, char *err, int errlen) {
     if (!url || !out_dir || width < 16 || height < 16 || width > 1280 || height > 720 || strlen(out_dir) > 800) { fail(err, errlen, "bad arguments"); return NULL; }
     kr_thumbs *t = calloc(1, sizeof *t);
     if (!t) { fail(err, errlen, "out of memory"); return NULL; }
@@ -148,6 +149,9 @@ kr_thumbs *kr_thumbs_open(const char *url, const char *out_dir, int width, int h
     AVDictionary *options = NULL;
     av_dict_set(&options, "probesize", "1048576", 0);
     av_dict_set(&options, "analyzeduration", "1000000", 0);
+    // A fragmented MP4 (a Drive copy) is opened by its fragment index, as the player does, not by reading every fragment: 139 s became 2.7 s in the model of a phone's network
+    // (owner log b142eafc: 72 s). Its length is then only the first fragment's, so the caller's hint is used, or, with none, the file is opened the slow way.
+    if (mfra) av_dict_set(&options, "use_mfra_for", "pts", 0);
     int r = avformat_open_input(&t->fmt, NULL, NULL, &options);
     av_dict_free(&options);
     if (r < 0) { t->fmt = NULL; fail(err, errlen, "not a video this build can open"); goto bad; }
@@ -157,6 +161,7 @@ kr_thumbs *kr_thumbs_open(const char *url, const char *out_dir, int width, int h
     AVStream *vs = t->fmt->streams[t->vi];
     for (unsigned i = 0; i < t->fmt->nb_streams; i++) if ((int)i != t->vi) t->fmt->streams[i]->discard = AVDISCARD_ALL;
     t->duration = t->fmt->duration > 0 ? t->fmt->duration / (double)AV_TIME_BASE : (vs->duration > 0 ? vs->duration * av_q2d(vs->time_base) : 0);
+    if (mfra && hint >= 5 && (t->duration < 5 || t->duration < hint * 0.5)) t->duration = hint;   // the index-opened length is the first fragment's
     if (t->duration < 5) { fail(err, errlen, "length unknown"); goto bad; }
     t->step = KR_THUMB_STEP;
     t->count = (int)(t->duration / t->step) + 1;
@@ -179,6 +184,19 @@ kr_thumbs *kr_thumbs_open(const char *url, const char *out_dir, int width, int h
 bad:
     kr_thumbs_close(t);
     return NULL;
+}
+
+kr_thumbs *kr_thumbs_open_hint(const char *url, const char *out_dir, int width, int height, int quality, double duration_hint, int (*cancel)(void *), void *context, char *err, int errlen) {
+    kr_thumbs *t = open_with(url, out_dir, width, height, quality, cancel, context, duration_hint, 1, err, errlen);
+    if (!t && duration_hint < 5 && err && errlen > 0 && strcmp(err, "length unknown") == 0) {   // no length by the quick way and none given: the slow way
+        err[0] = 0;
+        t = open_with(url, out_dir, width, height, quality, cancel, context, 0, 0, err, errlen);
+    }
+    return t;
+}
+
+kr_thumbs *kr_thumbs_open(const char *url, const char *out_dir, int width, int height, int quality, int (*cancel)(void *), void *context, char *err, int errlen) {
+    return kr_thumbs_open_hint(url, out_dir, width, height, quality, 0, cancel, context, err, errlen);
 }
 
 // The picture for one percent, with t->lock held. 1 made, 0 there already, -1 failed.
@@ -208,10 +226,12 @@ static int make_one(kr_thumbs *t, int index) {
 
 int kr_thumbs_frame(kr_thumbs *t, int index, char *err, int errlen) {
     if (!t || index < 0 || index >= t->count) { fail(err, errlen, "bad index"); return -1; }
+    atomic_fetch_add(&t->active, 1);
     pthread_mutex_lock(&t->lock);
     int r = make_one(t, index);
     pthread_mutex_unlock(&t->lock);
     if (r < 0) fail(err, errlen, interrupted(t) ? "stopped" : "no picture there");
+    atomic_fetch_sub(&t->active, 1);
     return r;
 }
 
@@ -244,12 +264,13 @@ static int held_count(kr_thumbs *t) {
 
 int kr_thumbs_fill(kr_thumbs *t, int pause_ms, int center, int budget_mb, kr_thumbs_result *result) {
     if (!t) return -1;
+    atomic_fetch_add(&t->active, 1);
 #ifdef __APPLE__
     pthread_set_qos_class_self_np(QOS_CLASS_UTILITY, 0);
 #endif
     struct timespec t0; clock_gettime(CLOCK_MONOTONIC, &t0);
     int *order = malloc(sizeof(int) * (size_t)t->count * 2), made = 0, failures = 0, listed = 0;
-    if (!order) return -1;
+    if (!order) { atomic_fetch_sub(&t->active, 1); return -1; }
     listed = make_order(center, t->count, order);
     long long budget = budget_mb > 0 ? (long long)budget_mb * 1024 * 1024 : 0;
     for (int step = 0; step < listed && !interrupted(t); step++) {
@@ -270,6 +291,7 @@ int kr_thumbs_fill(kr_thumbs *t, int pause_ms, int center, int budget_mb, kr_thu
     }
     struct timespec t1; clock_gettime(CLOCK_MONOTONIC, &t1);
     if (result) { result->made = made; result->held = have; result->count = t->count; result->bytes = atomic_load(&t->io.bytes); result->seconds = (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1e9; }
+    atomic_fetch_sub(&t->active, 1);
     return have;
 }
 
@@ -279,6 +301,12 @@ void kr_thumbs_resume(kr_thumbs *t) { if (t) atomic_store(&t->stopped, 0); }
 void kr_thumbs_close(kr_thumbs *t) {
     if (!t) return;
     atomic_store(&t->stopped, 1);
+    // A fill or a frame in another thread ends at once (its reads are interrupted); wait for it before anything is freed. About 15 s at most, then the session is leaked
+    // rather than freed under a call that is still running.
+    for (int waited = 0; atomic_load(&t->active) > 0; waited++) {
+        if (waited > 3000) return;
+        rest_ms(5);
+    }
     pthread_mutex_lock(&t->lock);
     if (t->dec) avcodec_free_context(&t->dec);
     if (t->fmt) avformat_close_input(&t->fmt);
@@ -306,6 +334,10 @@ int kr_thumbs_make(const char *url, const char *out_dir, int width, int height, 
 #define KR_EXPORT __attribute__((visibility("default")))
 KR_EXPORT int64_t kodi_thumbs_open(const char *url, const char *out_dir, int width, int height, int quality, char *err, int errlen) {
     return (int64_t)(intptr_t)kr_thumbs_open(url, out_dir, width, height, quality, NULL, NULL, err, errlen);
+}
+// With the length the player knows, in seconds (0: none): a fragmented MP4 is then opened by its fragment index (quick) and the length is taken from the hint.
+KR_EXPORT int64_t kodi_thumbs_open2(const char *url, const char *out_dir, int width, int height, int quality, int duration_hint, char *err, int errlen) {
+    return (int64_t)(intptr_t)kr_thumbs_open_hint(url, out_dir, width, height, quality, (double)duration_hint, NULL, NULL, err, errlen);
 }
 KR_EXPORT int kodi_thumbs_frame(int64_t handle, int index, char *err, int errlen) { return kr_thumbs_frame((kr_thumbs *)(intptr_t)handle, index, err, errlen); }
 KR_EXPORT int kodi_thumbs_fill(int64_t handle, int pause_ms, int center, int budget_mb, char *out, int outlen) {

@@ -36,6 +36,24 @@ class Scrubber(unittest.TestCase):
         self.assertNotIn('$INFO[Player.Duration]', labels)                              # the total length is no longer on the controls (owner, 2026-11-24: tap shows Ends at instead)
         toggle = next(c for c in controls('button') if c.get('id') == '7132')
         self.assertIn('Skin.ToggleSetting(ios_osd_ends)', [c.text for c in toggle.findall('onclick')])   # after the controls' own re-arm clicks
+    def test_the_ends_at_button_covers_the_time_where_the_owner_taps_it(self):
+        """Build 686 log b142eafc: taps at (2130-2157, 940-961) of the 2340-wide layout hit the clear button behind (control 7100) and closed the controls: the 7132 button sat 100 units
+        left of the time. The touch area now spans the whole right end under the bar, and stays clear of the bar's own touch area (the slider)."""
+        width = 2340
+        group = next(c for c in controls('group') if c.findtext('width') == '500' and c.findtext('top') == '912')
+        gx = width - int(group.findtext('right')) - int(group.findtext('width')); gy = int(group.findtext('top'))
+        button = next(c for c in controls('button') if c.get('id') == '7132')
+        x0 = gx + int(button.findtext('left')); x1 = x0 + int(button.findtext('width')); y0 = gy + int(button.findtext('top')); y1 = y0 + int(button.findtext('height'))
+        for tap in ((2130, 961), (2148, 940), (2157, 945), (2189, 930), (1700, 950)):
+            self.assertTrue(x0 <= tap[0] <= x1 and y0 <= tap[1] <= y1, tap)
+        self.assertGreaterEqual(x1, width - osd.EDGE)                                   # up to the right margin: the text ends there
+        slider = next(c for c in controls('slider') if c.get('id') == '7131')
+        slider_bottom = 862 + int(slider.findtext('top')) + int(slider.findtext('height'))
+        self.assertGreaterEqual(y0 + 4, slider_bottom)                                  # at most 4 units into the slider, so the bar keeps its touches
+    def test_the_title_above_the_bar_is_smaller_and_wraps_instead_of_running_on(self):
+        title = next(c for c in controls('label') if '$INFO[VideoPlayer.Title]' in (c.findtext('label') or ''))
+        self.assertEqual(title.findtext('font'), 'font_head_bold'); self.assertEqual(title.findtext('wrapmultiline'), 'true'); self.assertEqual(title.findtext('aligny'), 'bottom')
+        self.assertLessEqual(int(title.findtext('top')) + int(title.findtext('height')), 862)   # grows upward from the bar, never over it
     def test_each_right_time_shows_only_in_its_own_state(self):
         shown = [(c.findtext('label'), c.findtext('visible')) for c in controls('label') if c.findtext('label', '').startswith(('-$INFO[Player.TimeRem', 'Ends at'))]
         self.assertEqual(len(shown), 4)

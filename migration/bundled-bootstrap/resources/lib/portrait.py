@@ -2321,7 +2321,7 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
       healthy=lambda:local or not caching(),
       position=position,
       seeking=lambda:xbmc.getCondVisibility('Player.Seeking'),
-      wait=mon.waitForAbort,budget_mb=mb,local=local)
+      wait=mon.waitForAbort,budget_mb=mb,local=local,duration=lambda:int(player.getTotalTime() or 0))
     except Exception as error:_quiet('portrait:strip',error)
    def complete_strip(link,root):
     try:return thumb_strip.complete(os.path.join(root,thumb_strip.key(link)))

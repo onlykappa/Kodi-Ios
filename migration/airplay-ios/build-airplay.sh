@@ -1472,7 +1472,7 @@ printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airpla
 printf '_kodi_http_copy_max\n_kodi_http_copy_streams\n_kodi_http_copy\n_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
 printf '_kodi_airplay_prepare_upscale\n_kodi_airplay_upscale_support\n_kodi_airplay_upscale_model\n_kodi_device_state\n' >> "$WORK/exports"   # r48
 printf '_kodi_speech_words\n_kodi_speech_authorize\n_kodi_speech_state\n' >> "$WORK/exports"   # ISSUE-347 (r62)
-printf '_kodi_thumbs_open\n_kodi_thumbs_frame\n_kodi_thumbs_fill\n_kodi_thumbs_stop\n_kodi_thumbs_resume\n_kodi_thumbs_close\n' >> "$WORK/exports"   # r74: the seek bar's preview strip session (kr_thumbs.c)
+printf '_kodi_thumbs_open\n_kodi_thumbs_open2\n_kodi_thumbs_frame\n_kodi_thumbs_fill\n_kodi_thumbs_stop\n_kodi_thumbs_resume\n_kodi_thumbs_close\n' >> "$WORK/exports"   # r74: the seek bar's preview strip session (kr_thumbs.c)
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
   -framework VideoToolbox -framework CoreVideo -framework CoreText -framework Metal -framework Speech \
@@ -1524,8 +1524,8 @@ nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_speech_(words|authorize|state)$'
 [[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_speech_(words|authorize|state)$')" == 3 ]] || { echo 'speech check exports missing' >&2; exit 1; }
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _kr_speech_pcm$')" == 1 ]] || { echo 'speech sound reader not linked' >&2; exit 1; }
 # r74: the preview strip's session entry points are exported and its picture maker is linked (private).
-nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_thumbs_(open|frame|fill|stop|resume|close)$'
-[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_thumbs_(open|frame|fill|stop|resume|close)$')" == 6 ]] || { echo 'preview strip exports missing' >&2; exit 1; }
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_thumbs_(open|open2|frame|fill|stop|resume|close)$'
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_thumbs_(open|open2|frame|fill|stop|resume|close)$')" == 7 ]] || { echo 'preview strip exports missing' >&2; exit 1; }
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _kr_thumbs_(open|frame|fill)$')" == 3 ]] || { echo 'preview strip maker not linked' >&2; exit 1; }
 # r7: the picture bridge needs Apple's hardware H.264 encoder in this FFmpeg.
 grep -q -- '--enable-encoder=h264_videotoolbox' "$FF/FFMPEG-CONFIG.txt" || { echo 'FFmpeg built without h264_videotoolbox' >&2; exit 1; }

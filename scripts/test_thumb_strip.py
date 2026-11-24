@@ -69,13 +69,13 @@ class Rules(unittest.TestCase):
         self.fill('https://x.test/0.mkv')                                   # row 0 is done
         def wait(sec): waits.append(sec); return len(waits) >= 3
         state = {'busy': True, 'ok': True}
-        ts.watch(lambda: [row(0), row(1)], lambda: state['busy'], wait, lambda t: None, made.append, self.root, allowed=lambda: state['ok'], now=lambda: NOW)
+        ts.watch(lambda: [row(0), row(1)], lambda: state['busy'], wait, lambda t: None, lambda link, total=0: made.append(link), self.root, allowed=lambda: state['ok'], now=lambda: NOW)
         self.assertEqual(made, [])                                          # busy: nothing
         waits.clear(); state['busy'] = False; state['ok'] = False
-        ts.watch(lambda: [row(0), row(1)], lambda: state['busy'], wait, lambda t: None, made.append, self.root, allowed=lambda: state['ok'], now=lambda: NOW)
+        ts.watch(lambda: [row(0), row(1)], lambda: state['busy'], wait, lambda t: None, lambda link, total=0: made.append(link), self.root, allowed=lambda: state['ok'], now=lambda: NOW)
         self.assertEqual(made, [])                                          # mobile data: nothing
         waits.clear(); state['ok'] = True
-        ts.watch(lambda: [row(0), row(1)], lambda: state['busy'], wait, lambda t: None, made.append, self.root, allowed=lambda: state['ok'], now=lambda: NOW)
+        ts.watch(lambda: [row(0), row(1)], lambda: state['busy'], wait, lambda t: None, lambda link, total=0: made.append(link), self.root, allowed=lambda: state['ok'], now=lambda: NOW)
         self.assertEqual(made, ['https://x.test/1.mkv'])                    # row 0 is complete; row 1 once, not again on the next look (AGAIN)
     def test_make_opens_a_session_fills_it_cancels_it_when_a_video_opens_closes_it_and_logs_no_address(self):
         events, logs = [], []
@@ -269,6 +269,32 @@ class Rules(unittest.TestCase):
         self.assertEqual((ts.nearest([0, 6, 12], 5), ts.nearest([0, 6, 12], 3), ts.nearest([0, 6, 12], 4), ts.nearest([], 4), ts.nearest([6], 0), ts.nearest([6], 20)), (6, 0, 6, None, 6, 6))
         f = self.fill(LINK); self.assertEqual(ts.grid(f), (5, 25, 120)); self.assertEqual(ts.pictures(f), list(range(25)))
         os.remove(os.path.join(f, 'done')); self.assertFalse(ts.complete(f))
+    def test_a_drive_copy_is_built_for_like_an_umbrella_title_with_its_length_passed_on(self):
+        """Owner, 2026-11-24 ("fix it for the Drive"): the idle build also takes the first Continue Watching titles that are Drive copies, through the app's own proxy."""
+        drive = {'player': 'drive', 'position': 600, 'total': 8890, 'download_path': 'plugin://plugin.googledrive/?action=play&item_id=ABC'}
+        done = dict(drive, position=8500)
+        link = lambda row: 'http://127.0.0.1:49531/drive/ABC/Inception.mp4'
+        self.assertEqual(ts.recent_rows([drive, row(0), done, dict(drive, position=2)], NOW, drive_link=link), [('http://127.0.0.1:49531/drive/ABC/Inception.mp4', 8890), ('https://x.test/0.mkv', 3000)])
+        self.assertEqual(ts.recent_links([drive], NOW, drive_link=link), ['http://127.0.0.1:49531/drive/ABC/Inception.mp4'])
+        self.assertEqual(ts.recent_rows([drive], NOW), [])                                                   # no proxy yet: nothing, and never a failure
+        self.assertEqual(ts.recent_rows([drive], NOW, drive_link=lambda r: (_ for _ in ()).throw(RuntimeError('x'))), [])
+        made = []; step = [0]
+        def wait(sec): step[0] += 1; return step[0] > 2
+        ts.watch(lambda: [drive], lambda: False, wait, lambda t: None, lambda l, total=0: made.append((l, total)), self.root, now=lambda: NOW, drive_link=link)
+        self.assertEqual(made, [('http://127.0.0.1:49531/drive/ABC/Inception.mp4', 8890)])
+    def test_the_length_the_player_knows_goes_to_the_framework_when_it_can_take_it(self):
+        calls = []
+        class Lib:
+            kodi_thumbs_open = staticmethod(lambda *a: calls.append(('open',)) or 0)
+            kodi_thumbs_open2 = staticmethod(lambda url, folder, w, h, q, hint, err, n: calls.append(('open2', hint)) or 0)
+            kodi_thumbs_frame = kodi_thumbs_fill = kodi_thumbs_stop = kodi_thumbs_resume = kodi_thumbs_close = staticmethod(lambda *a: 0)
+        ts.Session.open(Lib(), 'http://127.0.0.1:1/drive/A/x.mp4', self.root, lambda t: None, duration=8890)
+        self.assertEqual(calls, [('open2', 8890)])
+        class Old:
+            kodi_thumbs_open = staticmethod(lambda *a: calls.append(('old',)) or 0)
+            kodi_thumbs_frame = kodi_thumbs_fill = kodi_thumbs_stop = kodi_thumbs_resume = kodi_thumbs_close = staticmethod(lambda *a: 0)
+        ts.Session.open(Old(), 'http://127.0.0.1:1/drive/A/x.mp4', self.root, lambda t: None, duration=8890)
+        self.assertEqual(calls[-1], ('old',))                                                                # an older framework still works
     def test_an_old_framework_or_a_local_address_makes_nothing(self):
         self.assertFalse(ts.available(object())); self.assertEqual(ts.make(object(), LINK, self.root), -1)
         class Lib:
@@ -350,6 +376,27 @@ class Native(unittest.TestCase):
         began = time.monotonic(); s.stop(); t.join(3); self.assertFalse(t.is_alive()); self.assertLess(time.monotonic() - began, 1.5)
         self.assertEqual(s.frame(23), -1)                                                    # stopped: no picture
         s.resume(); self.assertIn(s.frame(23), (0, 1)); s.close()
+    def test_closing_a_session_while_a_fill_and_a_frame_are_running_is_safe(self):
+        """Owner log b142eafc era: a heap-corruption abort in this suite. A call still running in another thread when the session is closed used the freed session; close now waits."""
+        for round_ in range(6):
+            out, s, err = self.session(self.video, 'closing%d' % round_); self.assertIsNotNone(s, err)
+            threads = [threading.Thread(target=lambda: s.fill(-1, 150, 0), daemon=True), threading.Thread(target=lambda: s.frame(17), daemon=True)]
+            for t in threads: t.start()
+            time.sleep(0.05 * (round_ % 3)); began = time.monotonic()
+            s.stop(); s.close()                                                          # no join: close is what waits
+            self.assertLess(time.monotonic() - began, 10)
+            for t in threads: t.join(10); self.assertFalse(t.is_alive())
+    def test_a_fragmented_mp4_opens_by_its_fragment_index_with_the_length_given_and_still_makes_pictures(self):
+        frag = os.path.join(self.dir, 'frag.mp4')
+        subprocess.check_call(['ffmpeg', '-loglevel', 'error', '-y', '-i', self.video, '-c', 'copy', '-an', '-movflags', 'frag_keyframe+empty_moov+default_base_moof', frag])
+        self.lib.kodi_thumbs_open2.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+        self.lib.kodi_thumbs_open2.restype = ctypes.c_int64
+        for hint in (120, 0):                                                                                # with the length, and without it (then the file is opened the slow way)
+            out = os.path.join(self.dir, 'frag_%d' % hint); os.makedirs(out, exist_ok=True); err = ctypes.create_string_buffer(200)
+            handle = self.lib.kodi_thumbs_open2(frag.encode(), out.encode(), ts.WIDTH, ts.HEIGHT, ts.QUALITY, hint, err, len(err))
+            self.assertTrue(handle, err.value); s = ts.Session(self.lib, handle)
+            self.assertEqual(ts.grid(out)[:2], (5, 25)); self.assertIn(s.frame(12), (0, 1)); s.close()
+            red = pixel(os.path.join(out, '12.jpg'), 128, 72)[0] / 255 * 120; self.assertAlmostEqual(red, 60, delta=5)   # picture 12 shows about 60 s
     def test_a_picture_with_black_bars_when_the_shape_differs(self):
         tall = os.path.join(self.dir, 'tall.mkv')
         subprocess.check_call(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=180x320:r=8:d=12', '-c:v', 'libx264', '-g', '16', '-pix_fmt', 'yuv420p', tall])
@@ -362,11 +409,11 @@ class Native(unittest.TestCase):
 
 
 class Wiring(unittest.TestCase):
-    NAMES = ('kodi_thumbs_open', 'kodi_thumbs_frame', 'kodi_thumbs_fill', 'kodi_thumbs_stop', 'kodi_thumbs_resume', 'kodi_thumbs_close')
+    NAMES = ('kodi_thumbs_open', 'kodi_thumbs_open2', 'kodi_thumbs_frame', 'kodi_thumbs_fill', 'kodi_thumbs_stop', 'kodi_thumbs_resume', 'kodi_thumbs_close')
     def test_the_framework_exports_the_strip_and_builds_it(self):
         sh = (ROOT / 'migration/airplay-ios/build-airplay.sh').read_text()
         for name in self.NAMES: self.assertIn('_' + name + '\\n', sh.replace('\\\\n', '\\n').replace('\\n', '\\n') if False else sh) if False else self.assertIn(name, sh)
-        self.assertIn('(open|frame|fill|stop|resume|close)', sh)
+        self.assertIn('(open|open2|frame|fill|stop|resume|close)', sh); self.assertIn('== 7 ]]', sh)
         c = (ROOT / 'migration/airplay-ios/remux/src/kr_thumbs.c').read_text()
         for name in self.NAMES: self.assertIn(name + '(', c.split('#define KR_EXPORT')[1])
         self.assertTrue((ROOT / 'migration/airplay-ios/remux/src/stb_image_write.h').exists())

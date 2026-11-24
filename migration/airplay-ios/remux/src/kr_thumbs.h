@@ -23,6 +23,8 @@ typedef struct {
 // Opens `url` (http(s) with Range requests, or a file) and prepares to write out_dir/N.jpg, width x height each (black bars when the shape differs), JPEG quality 1-100.
 // NULL with err filled for a file with no video, an unknown length or no decoder. `cancel` (may be NULL) is polled inside reads too.
 kr_thumbs *kr_thumbs_open(const char *url, const char *out_dir, int width, int height, int quality, int (*cancel)(void *), void *context, char *err, int errlen);
+// As kr_thumbs_open, with the length in seconds when it is known (0: not): a fragmented MP4 is then opened by its fragment index, which is quick, and the hint is its length.
+kr_thumbs *kr_thumbs_open_hint(const char *url, const char *out_dir, int width, int height, int quality, double duration_hint, int (*cancel)(void *), void *context, char *err, int errlen);
 // One picture, now: 1 when it was made, 0 when it was already there, -1 on failure. Thread-safe against kr_thumbs_fill.
 int kr_thumbs_frame(kr_thumbs *t, int index, char *err, int errlen);
 // Makes every missing picture, coarse first (every 12th, 6th, 3rd, then the rest), from picture `center` (-1: from the start) outwards, ahead first; `pause_ms` is the rest between pictures (a waiting

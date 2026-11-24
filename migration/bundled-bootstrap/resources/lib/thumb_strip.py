@@ -154,7 +154,7 @@ class Session:
             getattr(lib, name).restype = None
 
     @staticmethod
-    def open(lib, link, root, log=lambda text: None):
+    def open(lib, link, root, log=lambda text: None, duration=0):
         """The session for `link` (its folder is made), or None: an older framework, an address that is not http(s), a video this build cannot read."""
         import ctypes
         if not available(lib) or not root:
@@ -172,7 +172,13 @@ class Session:
         err = ctypes.create_string_buffer(200)
         began = time.monotonic()
         try:
-            handle = lib.kodi_thumbs_open(address.encode('utf-8'), folder.encode('utf-8'), WIDTH, HEIGHT, QUALITY, err, len(err))
+            if hasattr(lib, 'kodi_thumbs_open2'):
+                # With the length the player knows, a fragmented MP4 (a Drive copy) opens by its fragment index in about 3 s instead of reading every fragment (72 s, owner log b142eafc).
+                lib.kodi_thumbs_open2.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+                lib.kodi_thumbs_open2.restype = ctypes.c_int64
+                handle = lib.kodi_thumbs_open2(address.encode('utf-8'), folder.encode('utf-8'), WIDTH, HEIGHT, QUALITY, int(duration or 0), err, len(err))
+            else:
+                handle = lib.kodi_thumbs_open(address.encode('utf-8'), folder.encode('utf-8'), WIDTH, HEIGHT, QUALITY, err, len(err))
         except Exception as error:
             log('preview strip: failed (%s)' % type(error).__name__)
             return None
@@ -231,10 +237,10 @@ class Session:
             self.lib.kodi_thumbs_close(self.handle)
 
 
-def make(lib, link, root, log=lambda text: None, stop=lambda: False, poll=0.5, pause_ms=PAUSE_MS, center=-1, opener=None, budget_mb=WIFI_MB):
+def make(lib, link, root, log=lambda text: None, stop=lambda: False, poll=0.5, pause_ms=PAUSE_MS, center=-1, opener=None, budget_mb=WIFI_MB, duration=0):
     """Makes (or finishes) the whole strip of `link`: open a session, fill, close. Blocking: returns the pictures the folder holds, or -1. `stop()` true ends it at once
     (a video opens). The idle pre-build of Continue Watching's first titles uses this."""
-    session = (opener or Session.open)(lib, link, root, log)
+    session = opener(lib, link, root, log) if opener else Session.open(lib, link, root, log, duration=duration)
     if session is None:
         return -1
     finished = threading.Event()
@@ -257,24 +263,41 @@ def make(lib, link, root, log=lambda text: None, stop=lambda: False, poll=0.5, p
     return n
 
 
-def recent_links(rows, now, limit=RECENT):
-    """[link] of the first `limit` Continue Watching rows (ios_continue.entries order) with a remembered Umbrella link that Continue could still use."""
+def recent_rows(rows, now, limit=RECENT, drive_link=lambda row: ''):
+    """[link] of the first `limit` Continue Watching rows (ios_continue.entries order) with something to build from: a remembered Umbrella link that Continue could still use, or
+    (owner, 2026-11-24: "fix it for the drive") a Drive copy, whose address is the app's own proxy's (`drive_link(row)`, '' when unknown). A title that is finished or only just
+    begun is skipped."""
     out = []
     for row in rows[:limit]:
+        position, total = float(row.get('position') or 0), float(row.get('total') or 0)
+        if position < 5 or (total and position >= 0.92 * total):
+            continue
+        if row.get('player') == 'drive':
+            try:
+                link = str(drive_link(row) or '')
+            except Exception:
+                link = ''
+            if link.startswith('http://127.0.0.1'):
+                out.append((link, int(total)))
+            continue
         stream = row.get('stream') or {}
         link = str(stream.get('url') or '')
-        position, total = float(row.get('position') or 0), float(row.get('total') or 0)
         if row.get('player') != 'umbrella' or not link.startswith(('http://', 'https://')):
             continue
         if link.startswith(('http://127.0.0.1', 'http://localhost')):
             continue
-        if now - float(stream.get('at') or 0) > KEEP or position < 5 or (total and position >= 0.92 * total):
+        if now - float(stream.get('at') or 0) > KEEP:
             continue
-        out.append(link)
+        out.append((link, int(total)))
     return out
 
 
-def watch(rows_now, busy, wait, log, make_it, root, allowed=lambda: True, now=time.time):
+def recent_links(rows, now, limit=RECENT, drive_link=lambda row: ''):
+    """[link] of recent_rows."""
+    return [link for link, _ in recent_rows(rows, now, limit, drive_link)]
+
+
+def watch(rows_now, busy, wait, log, make_it, root, allowed=lambda: True, now=time.time, drive_link=lambda row: ''):
     """The service's loop: every EVERY seconds, for the first rows of Continue Watching whose strip is not complete, make it (Wi-Fi, nothing playing or opening).
     wait(seconds) returns True when Kodi is closing. The log never holds an address."""
     tried = {}
@@ -283,14 +306,14 @@ def watch(rows_now, busy, wait, log, make_it, root, allowed=lambda: True, now=ti
     while True:
         try:
             if root and not busy() and allowed():
-                for link in recent_links(rows_now(), now()):
+                for link, total in recent_rows(rows_now(), now(), drive_link=drive_link):
                     if busy() or not allowed():
                         break
                     folder = os.path.join(root, key(link))
                     if complete(folder) or now() - tried.get(link, 0) < AGAIN:
                         continue
                     tried[link] = now()
-                    make_it(link)
+                    make_it(link, total)
                 for old in [u for u in tried if now() - tried[u] > KEEP]:
                     del tried[old]
         except Exception as error:
@@ -320,6 +343,13 @@ def show(home, link, root):
 
 
 _generation = [0]
+
+
+def _seconds(duration):
+    try:
+        return int(duration() or 0)
+    except Exception:
+        return 0
 
 
 def begin(home):
@@ -390,7 +420,7 @@ TICK = 0.05   # how often the card's picture is chosen while a drag is on
 IDLE_TICK = 0.25
 
 
-def follow(lib, link, root, home, log, playing, healthy, position, seeking, wait, session=None, now=time.monotonic, budget_mb=WIFI_MB, local=False, tick=TICK, listing=0.4):
+def follow(lib, link, root, home, log, playing, healthy, position, seeking, wait, session=None, now=time.monotonic, budget_mb=WIFI_MB, local=False, tick=TICK, listing=0.4, duration=lambda: 0):
     """For the title that plays now. Opens one session for the playback and keeps it, then:
     - builds the strip in the background (coarse first, from where the person is) while the buffer is healthy, nobody is dragging and the data allowance `budget_mb` is not spent;
     - while a drag is on, many times a second: the card's picture (Home property KodiIOS.StripFrame, a full path) is the NEAREST picture the phone holds to the moment under the
@@ -410,7 +440,7 @@ def follow(lib, link, root, home, log, playing, healthy, position, seeking, wait
     own = session is None
     complete_now = complete(folder)
     if not complete_now:
-        session = session or Session.open(lib, link, root, log)
+        session = session or Session.open(lib, link, root, log, duration=_seconds(duration))
         if session is None or not live():
             if session is not None and own:
                 session.close()
