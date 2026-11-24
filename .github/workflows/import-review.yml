@@ -112,13 +112,13 @@ jobs:
     permissions:
       contents: write
     timeout-minutes: 25
-    env:
-      # Every verified third-party download of this run is copied here (scripts/source_mirror.py) and published as release third-party-sources-1 at the end.
-      KODI_IOS_PRESERVE_DIR: ${{ runner.temp }}/third-party-sources
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      # Every verified third-party download of this run is copied here (scripts/source_mirror.py) and published as release third-party-sources-1 at the end.
+      - name: Folder for the kept third-party copies
+        run: echo "KODI_IOS_PRESERVE_DIR=$RUNNER_TEMP/third-party-sources" >> "$GITHUB_ENV"
       # The phone runs CPython 3.11: the bundle's .pyc files must come from the same version (build_customized_ipa.precompile).
       - name: Python 3.11 for the bundle bytecode
         id: py311

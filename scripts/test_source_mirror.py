@@ -92,6 +92,8 @@ class Wiring(unittest.TestCase):
             with self.assertRaises(Exception): elementum.kept_tree(bad, Path(t) / 'out2', lambda url: buffer.getvalue())
     def test_the_workflow_keeps_and_uses_the_copies(self):
         text = (ROOT / '.github/workflows/import-review.yml').read_text()
+        self.assertIn('KODI_IOS_PRESERVE_DIR=$RUNNER_TEMP/third-party-sources', text)   # set in a step: the runner context is not allowed in a job-level env (run 695 was refused)
+        self.assertNotIn('KODI_IOS_PRESERVE_DIR: ${{', text)
         for needle in ('KODI_IOS_PRESERVE_DIR', 'third-party-sources-1', 'scripts/source_mirror.py', 'scripts/test_source_mirror.py', 'org.xbmc.kodi-ios_21.3_iphoneos-arm64.deb'):
             self.assertIn(needle, text, needle)
 
