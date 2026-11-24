@@ -80,8 +80,12 @@ class Scrubber(unittest.TestCase):
         self.assertEqual({c.findtext('textcolor'): c.findtext('visible') for c in rest}, {'B3FFFFFF': '!Player.Seeking'})
         self.assertEqual([c.findtext('textcolor') for c in drag], ['FFFFFFFF'])   # the time under the finger, white
     def test_info_and_continue_watching_moved_down_and_nothing_else_lost(self):
-        tops = {c.get('id'): int(c.findtext('top')) for c in controls('button') if c.get('id') in ('7141', '7142')}
-        self.assertEqual(tops, {'7141': 970, '7142': 970})
+        btn = {c.get('id'): c for c in controls('button') if c.get('id') in ('7141', '7142')}
+        for c in btn.values():   # text stays centred on y 997; the hit area covers where fingers landed in build 693's log (y 963-1042, x 489-519)
+            top, h = int(c.findtext('top')), int(c.findtext('height'))
+            self.assertEqual(top + h // 2, 997); self.assertLessEqual(top, 963); self.assertGreaterEqual(top + h, 1043)
+        x, w = int(btn['7142'].findtext('left')), int(btn['7142'].findtext('width'))
+        self.assertLessEqual(x, 489 - 100); self.assertGreaterEqual(x + w, 519)
         ids = {c.get('id') for c in controls() if c.get('id')}
         self.assertTrue({'7101', '7102', '7111', '7112', '7113', '7121', '7122', '7123', '7131', '7132', '7141', '7142', '7201'} <= ids)
         all_ids = [c.get('id') for c in controls() if c.get('id')]; self.assertEqual(len(all_ids), len(set(all_ids)))

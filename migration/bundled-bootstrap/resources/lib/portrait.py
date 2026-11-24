@@ -2331,7 +2331,7 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
    # The Info card's description for a title Continue played from its remembered link (info_fill.py): looked up on TMDb once it plays, kept with the Continue record.
    try:
     import info_fill,xbmcgui
-    xbmcgui.Window(10000).clearProperty(info_fill.PROPERTY)
+    xbmcgui.Window(10000).clearProperty(info_fill.PROPERTY);xbmcgui.Window(10000).clearProperty(info_fill.TIER_PROPERTY)
    except Exception as error:_quiet('portrait:info_begin',error);return
    import threading
    def work():
@@ -2339,6 +2339,8 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
      import drivelibrary,json,os,urllib.request,xbmcaddon,xbmcvfs
      mon=xbmc.Monitor()
      if mon.waitForAbort(4.0):return
+     window=xbmcgui.Window(10000);own=xbmc.getInfoLabel('VideoPlayer.Plot')
+     if own:window.setProperty(info_fill.TIER_PROPERTY,str(info_fill.tier(own)))   # the card's text size: the plot fits the card at the size its length needs
      data=module.load(read);item=data.get('current');entry=dict(data['items'].get(item) or {})
      if not entry:return
      has_plot=lambda:bool(xbmc.getInfoLabel('VideoPlayer.Plot'))
@@ -2353,7 +2355,8 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
        saved['plot']=plot[:2000];module.save(fresh,write)
       try:drivelibrary.save_json(path,cache)
       except Exception:pass
-     put=lambda text:xbmcgui.Window(10000).setProperty(info_fill.PROPERTY,text) if xbmc.Player().isPlayingVideo() else None
+     def put(text):
+      if xbmc.Player().isPlayingVideo():window.setProperty(info_fill.TIER_PROPERTY,str(info_fill.tier(text)));window.setProperty(info_fill.PROPERTY,text)
      info_fill.run(entry,has_plot,key,cache,get,drivelibrary,put,remember)
     except Exception as error:_quiet('portrait:info',error)
    threading.Thread(target=work,daemon=True).start()

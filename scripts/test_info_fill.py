@@ -73,6 +73,13 @@ class Wiring(unittest.TestCase):
         self.assertIn('Window(Home).Property(KodiIOS.Plot)', card); self.assertIn('No description for this video yet.', card)
         self.assertEqual(fill.PROPERTY, 'KodiIOS.Plot')
 
+    def test_the_plot_size_follows_its_length_so_nothing_is_cut(self):
+        self.assertEqual([fill.tier(t) for t in ('', 'x' * 230, 'x' * 231, 'x' * 420, 'x' * 421, None)], [1, 1, 2, 2, 3, 1])
+        import pages
+        card = pages.info_card()
+        self.assertEqual(card.count('<font>font_main</font>'), 2)   # normal text + the no-description line
+        self.assertIn('KodiIOS.PlotTier', card); self.assertIn('<autoscroll delay="4000"', card)
+
 
 if __name__ == '__main__':
     unittest.main()

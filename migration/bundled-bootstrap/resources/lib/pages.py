@@ -1003,12 +1003,15 @@ def info_card():
   lab(tx,82,tw-close,44,'S$INFO[VideoPlayer.Season] · E$INFO[VideoPlayer.Episode]','font_head',grey,'<visible>%s</visible>'%episode)+
   lab(tx,82,tw-close,44,'$INFO[VideoPlayer.Year]','font_head',grey,'<visible>!%s</visible>'%episode)+
   lab(tx,128,tw,66,'$INFO[VideoPlayer.Title]','font_title_main')+
-  '<control type="textbox"><left>%d</left><top>200</top><width>%d</width><height>186</height><font>font_head</font><textcolor>%s</textcolor>'
-  '<autoscroll>false</autoscroll><label>$INFO[VideoPlayer.Plot]</label><visible>%s</visible></control>'%(tx,tw,grey,has('VideoPlayer.Plot'))+
-  # A title Continue played from its remembered link has no plot of its own: the service looks it up (info_fill.py) and puts it in this Home property.
-  '<control type="textbox"><left>%d</left><top>200</top><width>%d</width><height>186</height><font>font_head</font><textcolor>%s</textcolor>'
-  '<autoscroll>false</autoscroll><label>$INFO[Window(Home).Property(KodiIOS.Plot)]</label><visible>!%s + !String.IsEmpty(Window(Home).Property(KodiIOS.Plot))</visible></control>'%(tx,tw,grey,has('VideoPlayer.Plot'))+
-  lab(tx,200,tw,52,'No description for this video yet.','font_head',grey,'<visible>!%s + String.IsEmpty(Window(Home).Property(KodiIOS.Plot))</visible>'%has('VideoPlayer.Plot')))
+  # The plot is the playing item's, or (Continue started it) the Home property: one of the two is empty. Kodi cannot shrink text to fit, so the service
+  # measures the plot once (info_fill.tier) and sets KodiIOS.PlotTier: 1 normal size, 2 smaller, 3 smaller and slowly scrolling when it is still longer.
+  ''.join('<control type="textbox"><left>%d</left><top>200</top><width>%d</width><height>232</height><font>%s</font><textcolor>%s</textcolor>%s'
+          '<label>$INFO[VideoPlayer.Plot]$INFO[Window(Home).Property(KodiIOS.Plot)]</label><visible>%s</visible></control>'
+          %(tx,tw,font,grey,scroll,cond) for font,scroll,cond in (
+   ('font_main','<autoscroll>false</autoscroll>','!String.IsEqual(Window(Home).Property(KodiIOS.PlotTier),2) + !String.IsEqual(Window(Home).Property(KodiIOS.PlotTier),3) + [%s | !String.IsEmpty(Window(Home).Property(KodiIOS.Plot))]'%has('VideoPlayer.Plot')),
+   ('font_mini','<autoscroll>false</autoscroll>','String.IsEqual(Window(Home).Property(KodiIOS.PlotTier),2) + [%s | !String.IsEmpty(Window(Home).Property(KodiIOS.Plot))]'%has('VideoPlayer.Plot')),
+   ('font_mini','<autoscroll delay="4000" time="2500" repeat="6000">true</autoscroll>','String.IsEqual(Window(Home).Property(KodiIOS.PlotTier),3) + [%s | !String.IsEmpty(Window(Home).Property(KodiIOS.Plot))]'%has('VideoPlayer.Plot'))))+
+  lab(tx,200,tw,52,'No description for this video yet.','font_main',grey,'<visible>!%s + String.IsEmpty(Window(Home).Property(KodiIOS.Plot))</visible>'%has('VideoPlayer.Plot')))
  tag=lambda id,text,cond='':('<control type="button" id="%d"><width min="120">auto</width><height>56</height><textoffsetx>22</textoffsetx>'
   '<font>font_main_bold</font><textcolor>%s</textcolor><disabledcolor>%s</disabledcolor><align>center</align><aligny>center</aligny><label>%s</label>'
   '<texturefocus border="16" colordiffuse="40EBEBF5">%stag_line.png</texturefocus><texturenofocus border="16" colordiffuse="40EBEBF5">%stag_line.png</texturenofocus>'

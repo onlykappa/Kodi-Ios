@@ -6836,3 +6836,10 @@ Build 646 is the Sports build line with the other agent's Live Now rows merged i
 - Swipe down: keymap `<videoosd><touch><swipe direction="down">Skin.Reset(ios_osd_continue)</swipe>`; the keymap is rewritten because navigation.py bytes changed.
 - Info card X: `close_button_1080(..., circle=False)` draws no disc; Play on TV keeps its disc.
 - Tests: `test_player_scrubber.py` (sheet, keymap, no disc). Not proven on the phone.
+
+## ISSUE-476: Continue Watching button ignored taps; Info plot cut off (owner, 2026-11-24, build 693, log f11c1077)
+- Log: four taps at (489-519, 963-1042) of the 2340 layout all went to control 7100 (the clear background): the Continue Watching button was only 54 units tall (970-1024) and the fingers landed above and below it. Info (7141) worked at y 1008.
+- Fix: both buttons are 100 units tall (947-1047, same text centre y 997); Continue Watching starts 170 right of the edge and is 520 wide.
+- Info plot cut mid-sentence (four-line box). Owner: "ensure there is a way that it will auto fill text". Kodi cannot shrink text to fit, so the service measures the plot once (`info_fill.tier`: up to 230 characters normal, up to 420 the smaller `font_mini`, longer the smaller size with a slow scroll) and sets Home property `KodiIOS.PlotTier`; the card has one textbox per size and shows the one that fits. Normal size is `font_main` in a 232-unit box (six lines). Desktop rig captures of all three sizes checked.
+- Tests: `test_player_scrubber.py` (hit area covers the logged taps), `test_info_fill.py` (tiers, card wiring).
+- Not proven on the phone.

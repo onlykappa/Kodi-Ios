@@ -250,8 +250,8 @@ def window():
    label(-235,274,470,56,'$INFO[Player.SeekTime]','font_midi_bold','FFFFFFFF','center')+
    label(-235,330,470,40,'$INFO[Player.SeekOffset]','font_mini','99EBEBF5','center')+'</control>')
  bubbles=('<control type="group"><left>%d</left><right>%d</right><top>862</top><height>60</height>'%(left,left)+''.join(bubble(n) for n in range(101))+'</control>')
- row=(text_button(7141,left,970,140,54,'Info',[INFO],'<onright>7142</onright><onup>7131</onup>')+
-      text_button(7142,left+200,970,460,54,'Continue Watching',['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'<onleft>7141</onleft><onup>7201</onup>'))
+ row=(text_button(7141,left,947,170,100,'Info',[INFO],'<onright>7142</onright><onup>7131</onup>')+
+      text_button(7142,left+170,947,520,100,'Continue Watching',['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'<onleft>7141</onleft><onup>7201</onup>'))
  panel=('<control type="group"><visible>%s</visible>'%PANEL+
   '<animation effect="fade" start="0" end="100" time="200">Visible</animation>'+
   label(left,520,1200,60,'Continue Watching','font_head_bold')+

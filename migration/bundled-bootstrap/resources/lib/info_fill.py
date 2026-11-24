@@ -7,6 +7,14 @@ Continue record (so the next start has it from the start) and puts it in Home pr
 Everything the phone does is injected, so the rules are tested here."""
 PROPERTY = 'KodiIOS.Plot'
 TMDB = 'https://api.themoviedb.org/3'
+TIER_PROPERTY = 'KodiIOS.PlotTier'
+FIT_NORMAL, FIT_SMALL = 230, 420   # characters the card holds at the normal size (6 lines, measured in the desktop rig) and at the smaller one
+
+
+def tier(plot):
+    """1: the plot fits at the normal size; 2: it needs the smaller size; 3: still longer, the smaller size and a slow scroll. (Kodi cannot shrink text to fit.)"""
+    size = len(str(plot or '').strip())
+    return 1 if size <= FIT_NORMAL else 2 if size <= FIT_SMALL else 3
 
 
 def lookup(entry, key, cache, get, library):
