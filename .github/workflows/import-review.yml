@@ -415,3 +415,19 @@ jobs:
           gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$SHA" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update." ||
           gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$DEFAULT" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update."
           # Preserve existing test releases; publishing a build must not delete earlier test artifacts.
+      # 2026-11-24 (ISSUE-470): POV's upstream repository began answering 404 and stopped a build. Every pinned third-party source, as this run downloaded and verified it, is
+      # kept as a release of this repository; provider_addons.py falls back to it (digest checked) when an upstream address fails.
+      - name: Keep a copy of every pinned third-party source (release provider-sources-1)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DEFAULT: ${{ github.event.repository.default_branch }}
+        run: |
+          python3 -B scripts/preserve_provider_sources.py --inputs "$RUNNER_TEMP/provider-inputs" --output "$RUNNER_TEMP/provider-sources"
+          tag=provider-sources-1
+          if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
+            gh release upload "$tag" "$RUNNER_TEMP"/provider-sources/* --clobber --repo "$REPO"
+          else
+            gh release create "$tag" "$RUNNER_TEMP"/provider-sources/* --repo "$REPO" --target "$DEFAULT" --prerelease --title "Pinned third-party sources" --notes "Copies of the archives pinned in migration/provider-fallback/source-lock.json, each checked against its sha256. Used only when the upstream address fails."
+          fi

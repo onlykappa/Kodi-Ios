@@ -183,6 +183,41 @@ class PreservedBuild(unittest.TestCase):
         self.assertEqual(providers.source(spec,lambda url:(calls.append(url),ipa)[1])[:2],b'PK');self.assertEqual(calls,['https://example.invalid/build.ipa'])
 
 
+class OwnCopy(unittest.TestCase):
+    """2026-11-24 (ISSUE-470): every pinned source has a copy in this repository's `provider-sources-1` release, used when the upstream address fails or answers other bytes."""
+    def spec(self,data):
+        import hashlib
+        return {'id':'script.module.example','version':'1.0','url':'https://upstream.invalid/example.zip','sha256':hashlib.sha256(data).hexdigest()}
+    def test_upstream_failing_or_changed_falls_back_to_the_copy_but_never_to_other_bytes(self):
+        import urllib.error
+        good=b'PK-good';lock={'mirror_base':'https://github.com/onlykappa/Kodi-Ios/releases/download/provider-sources-1'};spec=self.spec(good);seen=[]
+        def gone(url):
+            seen.append(url)
+            if 'upstream' in url:raise urllib.error.HTTPError(url,404,'Not Found',{},None)
+            return good
+        self.assertEqual(providers.source(spec,gone,lock),good)
+        self.assertEqual(seen,['https://upstream.invalid/example.zip','https://github.com/onlykappa/Kodi-Ios/releases/download/provider-sources-1/script.module.example-1.0.zip'])
+        changed=lambda url:b'changed' if 'upstream' in url else good
+        self.assertEqual(providers.source(spec,changed,lock),good)                       # upstream answers other bytes: the copy is used
+        with self.assertRaises(ValueError):providers.source(spec,lambda url:b'other',lock)  # both answer other bytes: refused
+        with self.assertRaises(OSError):providers.source(spec,gone,{})                  # no copy named: the upstream failure is reported
+    def test_the_real_lock_names_the_copy_and_every_preserved_name_is_unique(self):
+        lock=json.loads(providers.LOCK.read_text());self.assertIn('/releases/download/provider-sources-',lock['mirror_base'])
+        names=[providers.asset_name(x) for x in lock['packages']+lock.get('provider_packages',[])+lock.get('data_assets',[])]
+        self.assertEqual(len(names),len(set(names)));self.assertIn('otaku-mappings.db',names);self.assertIn('plugin.video.pov-6.11.03.zip',names)
+        self.assertTrue(all(providers.mirror_url(lock,x).startswith(lock['mirror_base']) for x in lock['packages']))
+    def test_the_preserve_script_copies_verified_inputs_under_the_mirror_names_and_refuses_a_changed_one(self):
+        import hashlib,preserve_provider_sources as preserve
+        with tempfile.TemporaryDirectory() as temp:
+            inputs=Path(temp)/'in';inputs.mkdir();data=b'PK-one';db=b'SQLite format 3\0db'
+            (inputs/'script.module.example.zip').write_bytes(data);(inputs/'map.db').write_bytes(db)
+            lock={'packages':[{'id':'script.module.example','version':'1.0','sha256':hashlib.sha256(data).hexdigest()}],'data_assets':[{'name':'map','file':'map.db','sha256':hashlib.sha256(db).hexdigest()}]}
+            names=preserve.preserve(inputs,Path(temp)/'out',lock)
+            self.assertEqual(sorted(names),['map.db','script.module.example-1.0.zip']);self.assertEqual((Path(temp)/'out'/'script.module.example-1.0.zip').read_bytes(),data)
+            (inputs/'script.module.example.zip').write_bytes(b'changed')
+            with self.assertRaises(ValueError):preserve.preserve(inputs,Path(temp)/'out2',lock)
+
+
 class SportsLock(unittest.TestCase):
     def test_the_loop_family_is_fetched_live_by_kodi_not_unzipped_in_place(self):
         # ISSUE-357 follow-up (owner, 2026-11-16): unzipping The Loop's files gave it no repository origin and it failed on the phone

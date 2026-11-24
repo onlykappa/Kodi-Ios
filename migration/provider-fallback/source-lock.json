@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "mirror_base": "https://github.com/onlykappa/Kodi-Ios/releases/download/provider-sources-1",
   "purpose": "Headless fallback sources for the existing automatic movie/TV picker; no replacement UI, account state, repositories or native engines.",
   "roots": [
     "plugin.video.jacktook",

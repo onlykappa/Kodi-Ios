@@ -1,5 +1,5 @@
 """Fetch and package pinned, Python-only movie/TV fallback engines. Never reads accounts or builds an IPA."""
-import argparse,time,hashlib,io,json,re,shutil,sqlite3,stat,tempfile,urllib.request,zipfile
+import argparse,time,hashlib,io,json,re,shutil,sqlite3,stat,tempfile,urllib.parse,urllib.request,zipfile
 from pathlib import Path,PurePosixPath
 import xml.etree.ElementTree as ET
 
@@ -123,22 +123,39 @@ def from_ipa(spec,addon,get):
    archive.writestr(info,source.read(name))
  return out.getvalue()
 
-def source(spec,get):
- """The bytes of a pinned package: rebuilt from a preserved build when the lock names one (`from_ipa`), else downloaded from its pinned address. The digest check that follows
- is the same either way."""
+def asset_name(spec):
+ """The file name a pinned package has in the project's own copy (the `provider-sources` release): data assets keep their file name, add-ons are id-version.zip."""
+ if spec.get('file'):return spec['file']
+ return '%s-%s.zip'%(spec.get('id',spec.get('name')),spec['version'])
+
+def mirror_url(lock,spec):
+ base=(lock or {}).get('mirror_base')
+ return base.rstrip('/')+'/'+urllib.parse.quote(asset_name(spec)) if base else None
+
+def source(spec,get,lock=None):
+ """The bytes of a pinned package, whose digest matches the lock: rebuilt from a preserved build when the lock names one (`from_ipa`), else downloaded from its pinned
+ address, and when that fails or answers something else, from the project's own copy (`mirror_base`, the release that scripts/preserve_provider_sources.py fills).
+ (2026-11-24: POV's upstream repository began answering 404 and stopped a build; every pinned source now has a copy that cannot go away.)"""
+ name=spec.get('id',spec.get('name'))
  if spec.get('from_ipa'):return from_ipa(spec['from_ipa'],spec['id'],get)
- return get(spec['url'])
+ mirror=mirror_url(lock,spec);failure=None
+ for address in [spec['url']]+([mirror] if mirror else []):
+  try:data=get(address)
+  except OSError as error:failure=failure or error;continue
+  if digest(data)==spec['sha256']:return data
+  failure=failure or ValueError('Provider download digest mismatch: '+name)
+ raise failure
 
 def run(output,lock=None,get=fetch):
  lock=lock or json.loads(LOCK.read_text());output=Path(output);output.mkdir(parents=True,exist_ok=True);receipts=[]
  for spec in lock['packages']+lock.get('provider_packages',[]):
-  name=spec.get('id',spec.get('name'));data=source(spec,get)
+  name=spec.get('id',spec.get('name'));data=source(spec,get,lock)
   if digest(data)!=spec['sha256']:raise ValueError('Provider download digest mismatch: '+name)
   members(data,spec.get('root',name+'/'))
   if 'id' in spec:manifest(members(data,name+'/')['addon.xml'],spec)
   (output/(name+'.zip')).write_bytes(data);receipts.append({'id':name,'sha256':spec['sha256']})
  for spec in lock.get('data_assets',[]):
-  data=get(spec['url'])
+  data=source(spec,get,lock)
   if digest(data)!=spec['sha256']:raise ValueError('Provider data asset digest mismatch: '+spec['name'])
   validate_asset(data,spec);(output/spec['file']).write_bytes(data);receipts.append({'id':spec['name'],'sha256':spec['sha256']})
  (output/'source-lock.json').write_text(json.dumps(lock,sort_keys=True)+'\n')
