@@ -13,6 +13,7 @@ from unittest.mock import patch
 import provider_addons
 import source_offline_restore as restore
 import source_elementum_offline as elementum
+import source_release_restore as release
 
 
 class OfflineRestore(unittest.TestCase):
@@ -65,6 +66,28 @@ class OfflineRestore(unittest.TestCase):
                 (modules / spec['id'] / 'addon.xml').write_text('tampered')
                 with self.assertRaisesRegex(ValueError, 'tree digest mismatch'):
                     elementum.run(inputs, base / 'bad')
+
+    def test_release_restore_matches_digest_not_filename_and_rejects_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            assets = root / 'assets'
+            assets.mkdir()
+            archive = io.BytesIO()
+            with zipfile.ZipFile(archive, 'w') as z:
+                z.writestr('plugin.fixture/addon.xml', '<addon id="plugin.fixture" version="1"/>')
+            body = archive.getvalue()
+            spec = {'id': 'plugin.fixture', 'version': '1', 'url': 'https://example.invalid/p.zip',
+                    'sha256': hashlib.sha256(body).hexdigest()}
+            lockfile = root / 'lock.json'
+            lockfile.write_text(json.dumps({'packages': [spec]}))
+            with patch.object(provider_addons, 'LOCK', lockfile):
+                with self.assertRaisesRegex(FileNotFoundError, 'Missing verified release asset'):
+                    release.run(assets, root / 'missing')
+                (assets / 'any-name.zip').write_bytes(body)
+                self.assertEqual(release.run(assets, root / 'good')['verified_inputs'], 1)
+                (assets / 'duplicate.zip').write_bytes(body)
+                with self.assertRaisesRegex(ValueError, 'Duplicate release asset digest'):
+                    release.run(assets, root / 'duplicate')
 
     def test_restore_missing_and_tampered_inputs(self):
         with tempfile.TemporaryDirectory() as tmp:

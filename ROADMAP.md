@@ -607,3 +607,5 @@ Source resilience step 3 remains open: a sanitized `future` runtime snapshot is 
 Step 3 recovery update: the pinned POV upstream commit and archive became unavailable after the earlier scratch-only retrieval; a prior CI artifact could not be downloaded in this environment. Recover and verify the exact approved source before claiming a durable baseline. See ISSUE-402; the latest review CI failure also remains undiagnosed because its logs returned HTTP 403.
 
 Step 3 follow-up: the owner selected the existing private release's POV/Magneto archives despite their different hashes; old pins remain recorded and provenance/license review is pending. Current 29-input acquisition, local guarded restoration and host staging tests passed. Full licensed closure, Kodi runtime and native rebuild evidence remain open (ISSUE-402).
+
+Provider recovery now has a tested path from 29 SHA256-matched assets in the existing private release through local socket-guarded restoration and clean staging. Retention, rights and corresponding-source review, Kodi runtime, native closure and phone evidence remain separate outstanding matters; see docs/SOURCE-PRESERVATION-STEP3.md.
