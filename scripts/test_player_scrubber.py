@@ -50,6 +50,20 @@ class Scrubber(unittest.TestCase):
         slider = next(c for c in controls('slider') if c.get('id') == '7131')
         slider_bottom = 862 + int(slider.findtext('top')) + int(slider.findtext('height'))
         self.assertGreaterEqual(y0 + 4, slider_bottom)                                  # at most 4 units into the slider, so the bar keeps its touches
+    def test_the_titles_logo_is_kept_above_the_title_and_nothing_else_of_fuses_info(self):
+        """Owner, 2026-11-24: "i loved the logos ... i just didn't want the other removed". The logo Fuse's info drew (TMDb Helper's cropped one when the skin setting is on, else the film's
+        clearlogo, else the show's) is drawn by the controls themselves; none of the other info (quality, length, episode line, plot, ratings) is."""
+        logos = [c for c in controls('image') if any(k in (c.findtext('texture') or '') for k in ('Art(clearlogo)', 'Art(tvshow.clearlogo)', 'TMDbHelper.Player.CropImage'))]
+        self.assertEqual(len(logos), 3)
+        for logo in logos:
+            self.assertEqual((int(logo.findtext('left')), int(logo.findtext('height'))), (osd.EDGE, 135)); self.assertEqual(logo.find('aspectratio').text, 'keep')
+            self.assertLessEqual(int(logo.findtext('top')) + int(logo.findtext('height')), 730)   # above the title, clear of the centre controls' left arrow (x 685)
+            self.assertLessEqual(osd.EDGE + int(logo.findtext('width')), 685)
+        conditions = ' | '.join(c.findtext('visible') for c in logos)
+        self.assertIn('Exp_TMDbHelper_IsCrop', conditions); self.assertIn('String.IsEmpty(VideoPlayer.Art(clearlogo))', conditions)
+        group = next(c for c in controls('group') if any(l in list(c) for l in logos)); self.assertEqual(group.findtext('visible'), '!' + osd.PANEL)   # not over the Continue sheet
+        for stray in ('VideoPlayer.Plot', 'VideoPlayer.Rating', 'VideoPlayer.VideoResolution', 'VideoPlayer.Duration', 'VideoPlayer.MPAA'):
+            self.assertNotIn(stray, XML)
     def test_the_title_above_the_bar_is_smaller_and_wraps_instead_of_running_on(self):
         title = next(c for c in controls('label') if '$INFO[VideoPlayer.Title]' in (c.findtext('label') or ''))
         self.assertEqual(title.findtext('font'), 'font_head_bold'); self.assertEqual(title.findtext('wrapmultiline'), 'true'); self.assertEqual(title.findtext('aligny'), 'bottom')

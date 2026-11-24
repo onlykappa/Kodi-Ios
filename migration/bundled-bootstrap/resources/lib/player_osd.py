@@ -179,6 +179,18 @@ def window():
  title=('<control type="label"><left>%d</left><right>%d</right><top>730</top><height>130</height><font>font_head_bold</font><wrapmultiline>true</wrapmultiline>'
   '<textcolor>FFFFFFFF</textcolor><align>left</align><aligny>bottom</aligny><label>%s</label><visible>!%s</visible></control>')%(
   left,left,e('$INFO[VideoPlayer.TVShowTitle,,  ·  ]$INFO[VideoPlayer.Title]'),PANEL)
+ # The title's logo (owner, 2026-11-24: "i loved the logos, i just didn't want the other [info] removed"): the one Fuse's info over the video drew, kept when that info is hidden under the
+ # controls. Same choice as Fuse's Info_Title: TMDb Helper's cropped logo when the skin setting is on, else the film's clearlogo, else the show's. Without any, the title below is all.
+ LOGO_H=135;LOGO_W=520
+ def logo_image(texture,visible):
+  return ('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><aspectratio align="left" aligny="bottom">keep</aspectratio><fadetime>0</fadetime>'
+   '<texture background="true">%s</texture><visible>%s</visible></control>')%(left,590,LOGO_W,LOGO_H,texture,e(visible))
+ CROP='!String.IsEmpty(Window(Home).Property(TMDbHelper.Player.CropImage)) + $EXP[Exp_TMDbHelper_IsCrop]'
+ logo=('<control type="group"><visible>!%s</visible>'%PANEL+
+  logo_image('$INFO[Window(Home).Property(TMDbHelper.Player.CropImage)]',CROP)+
+  logo_image('$INFO[VideoPlayer.Art(clearlogo)]','![%s] + !String.IsEmpty(VideoPlayer.Art(clearlogo))'%CROP)+
+  logo_image('$INFO[VideoPlayer.Art(tvshow.clearlogo)]','![%s] + String.IsEmpty(VideoPlayer.Art(clearlogo)) + !String.IsEmpty(VideoPlayer.Art(tvshow.clearlogo))'%CROP)+
+  '</control>')
  # Owner-approved Apple-style scrubber (docs/design/player-scrubber-mockup.html, 2026-11-23): a thin fully rounded bar with no knob at rest, thicker under the finger,
  # elapsed time under its left end and the time left under its right end (tap it for the total length). Track and fill are one progress control each; the slider on top
  # only takes the touch (its knob is clear), and the thick bar shows while the slider has focus, which is while it is dragged.
@@ -249,7 +261,7 @@ def window():
   +''.join('<onload condition="%s">%s</onload>'%(e(c),e(a)) for c,a in DEFAULT_ONLOAD)
   +''.join('<onload condition="%s">%s</onload>'%(e(ARM_WHEN),e(a)) for a in ARM)
   +''.join('<onload condition="%s">%s</onload>'%(e(FIRST_WHEN),e(a)) for a in FIRST_ARM)+
-  '<controls>%s%s</controls>\n</window>\n')%(MARKER,BACKDROP,rearm(shade+head+centre+title+bar+bubbles+row+panel))
+  '<controls>%s%s</controls>\n</window>\n')%(MARKER,BACKDROP,rearm(shade+head+centre+logo+title+bar+bubbles+row+panel))
 
 # r4: never shown. The owner does not want a bar besides the controls' own ("the old one still appears"): the
 # window stays because Kodi opens it while seeking and moves its progress control (401).
