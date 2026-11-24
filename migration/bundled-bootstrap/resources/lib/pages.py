@@ -364,13 +364,14 @@ def _airplay_flow():
  spec=importlib.util.spec_from_file_location('airplay_flow',os.path.join(os.path.dirname(os.path.abspath(__file__)),'airplay_flow.py'))
  module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 
-def close_button_1080(id,x,y,extra='',size=100,disc=None):
- """close_button (portrait.py) for the landscape sheets (Play on TV, AirPlay check), on Fuse's 1920x1080 canvas."""
- disc=disc or int(size*104/118);g=int(disc/2);d=(size-disc)//2;o=(size-g)//2
+def close_button_1080(id,x,y,extra='',size=100,disc=None,circle=True):
+ """close_button (portrait.py) for the landscape sheets (Play on TV, AirPlay check, the Info card), on Fuse's 1920x1080 canvas. circle=False: just the cross, no grey disc behind it
+ (owner, 2026-11-24, on the Info card: "remove the grey circle around the X, it can just be the X"); the cross is a little larger then and the touch area is the same."""
+ disc=disc or int(size*104/118);g=int(disc/2) if circle else int(disc*0.6);d=(size-disc)//2;o=(size-g)//2
  img=lambda x,y,s,tex,col,more='':('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
                                    '<texture colordiffuse="%s">%s%s</texture>%s</control>'%(x,y,s,s,col,'special://skin/extras/portrait/',tex,more))
  return ('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(x,y,size,size)+
-  img(d,d,disc,'close_disc.png','2EFFFFFF')+img(d,d,disc,'close_disc.png','24FFFFFF','<visible>Control.HasFocus(%d)</visible>'%id)+
+  (img(d,d,disc,'close_disc.png','2EFFFFFF')+img(d,d,disc,'close_disc.png','24FFFFFF','<visible>Control.HasFocus(%d)</visible>'%id) if circle else '')+
   img(o,o,g,'close_cross.png','FFFFFFFF')+
   '<control type="button" id="%d"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus />%s</control>'%(id,size,size,extra)+
   '</control>')
@@ -1019,7 +1020,7 @@ def info_card():
   '<animation effect="slide" start="0,24" end="0,0" time="240" tween="cubic" easing="out">WindowOpen</animation>'+
   img(0,0,w,h,M+'round_s.png','FA2C2C2E',border='26')+
   '<control type="button" id="9098"><width>%d</width><height>%d</height><texturefocus /><texturenofocus /><onfocus>SetFocus(9500)</onfocus></control>'%(w,h)+
-  still+text+meta+close_button_1080(9500,w-close,0,'<onclick>Close</onclick>',close,92)+'</control>')
+  still+text+meta+close_button_1080(9500,w-close,0,'<onclick>Close</onclick>',close,92,circle=False)+'</control>')
  body=('<control type="button" id="9099"><left>0</left><top>0</top><width>100%</width><height>100%</height><texturefocus /><texturenofocus />'
   '<onclick>Close</onclick><onfocus>SetFocus(9500)</onfocus></control>'+
   # The controls fade back behind the card (board 08); the video keeps playing.

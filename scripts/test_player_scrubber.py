@@ -154,6 +154,16 @@ class Scrubber(unittest.TestCase):
         width, height = struct.unpack('>II', data[16:24]); self.assertEqual((width, height), (160, 160))
         self.assertIn('skip_arrow.png', portrait.textures())
 
+    def test_continue_sheet_is_dark_has_a_grabber_and_swipe_down_hides_it(self):
+        self.assertIn('EB18181C', XML); self.assertIn('4DFFFFFF', XML)   # sheet and grabber
+        self.assertLess(XML.index('EB18181C'), XML.index('id="7131"'))   # behind the bar
+        nav = (ROOT / 'migration/bundled-bootstrap/resources/lib/navigation.py').read_text()
+        self.assertIn('<videoosd><touch><swipe direction="down">Skin.Reset(ios_osd_continue)</swipe>', nav)
+    def test_info_card_close_is_a_bare_cross_without_a_disc(self):
+        import pages
+        card = pages.info_card()
+        self.assertIn('close_cross', card); self.assertNotIn('close_disc', card)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -191,6 +191,15 @@ def window():
   logo_image('$INFO[VideoPlayer.Art(clearlogo)]','![%s] + !String.IsEmpty(VideoPlayer.Art(clearlogo))'%CROP)+
   logo_image('$INFO[VideoPlayer.Art(tvshow.clearlogo)]','![%s] + String.IsEmpty(VideoPlayer.Art(clearlogo)) + !String.IsEmpty(VideoPlayer.Art(tvshow.clearlogo))'%CROP)+
   '</control>')
+ # The Continue Watching sheet (owner, 2026-11-24, mockup A of docs/design/player-continue-panel-mockup.html): the row, the bar and the times sit on a nearly black rounded sheet
+ # (a flat translucent texture, not a blur: Kodi cannot blur what is behind it) with a grabber; a swipe down hides it again (the touch keymap's <videoosd> swipe: navigation.TOUCH).
+ SHEET_TOP=470
+ sheet=('<control type="group"><visible>%s</visible>'%PANEL+
+  '<animation effect="slide" start="0,260" end="0,0" time="260" tween="cubic" easing="out">Visible</animation>'
+  '<animation effect="slide" start="0,0" end="0,260" time="200" tween="cubic" easing="in">Hidden</animation>'+
+  '<control type="image"><left>-60</left><right>-60</right><top>%d</top><height>720</height><texture border="42" colordiffuse="EB18181C">%sround.png</texture></control>'%(SHEET_TOP,MEDIA)+
+  '<control type="image"><centerleft>50%%</centerleft><top>%d</top><width>90</width><height>8</height><texture border="4" colordiffuse="4DFFFFFF">%sdot.png</texture></control>'%(SHEET_TOP+14,MEDIA)+
+  '</control>')
  # Owner-approved Apple-style scrubber (docs/design/player-scrubber-mockup.html, 2026-11-23): a thin fully rounded bar with no knob at rest, thicker under the finger,
  # elapsed time under its left end and the time left under its right end (tap it for the total length). Track and fill are one progress control each; the slider on top
  # only takes the touch (its knob is clear), and the thick bar shows while the slider has focus, which is while it is dragged.
@@ -261,7 +270,7 @@ def window():
   +''.join('<onload condition="%s">%s</onload>'%(e(c),e(a)) for c,a in DEFAULT_ONLOAD)
   +''.join('<onload condition="%s">%s</onload>'%(e(ARM_WHEN),e(a)) for a in ARM)
   +''.join('<onload condition="%s">%s</onload>'%(e(FIRST_WHEN),e(a)) for a in FIRST_ARM)+
-  '<controls>%s%s</controls>\n</window>\n')%(MARKER,BACKDROP,rearm(shade+head+centre+logo+title+bar+bubbles+row+panel))
+  '<controls>%s%s</controls>\n</window>\n')%(MARKER,BACKDROP,rearm(shade+head+centre+logo+title+sheet+bar+bubbles+row+panel))
 
 # r4: never shown. The owner does not want a bar besides the controls' own ("the old one still appears"): the
 # window stays because Kodi opens it while seeking and moves its progress control (401).
