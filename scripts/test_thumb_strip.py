@@ -222,6 +222,48 @@ class Rules(unittest.TestCase):
         def wait(sec): step[0] += 1; time.sleep(0.002); return step[0] > 30
         done = ts.follow(None, 'https://x.test/finished.mkv', self.root, home, lambda t: None, lambda: step[0] < 30, lambda: True, lambda: step[0] * 4, lambda: step[0] > 2, wait, session=None, now=lambda: step[0] * 0.05)
         self.assertTrue(done); self.assertTrue(len(self.frames_shown(home)) >= 5)
+    def test_a_new_video_ends_the_last_builder_and_clears_the_card(self):
+        folder = self.folder_of()
+        for n in (0, 6, 12): Path(folder, '%d.jpg' % n).write_bytes(b'x')
+        home = self.Home(); home.props[ts.FRAME] = 'special://old/3.jpg'; home.props[ts.BUILDING] = '1'; home.props[ts.PROPERTY] = 'special://old/'
+        out = {}
+        step = [0]
+        def wait(sec): step[0] += 1; time.sleep(0.01); return step[0] > 400
+        thread = threading.Thread(target=lambda: out.setdefault('done', ts.follow(None, LINK, self.root, home, lambda t: None, lambda: True, lambda: True, lambda: 20, lambda: True, wait,
+                                                                      session=self.fake_session(folder))), daemon=True)
+        thread.start(); time.sleep(0.3)
+        self.assertIn(ts.FRAME, home.props)                                   # the old video's builder was showing its pictures
+        ts.begin(home)                                                         # a new video begins (a downloaded movie after an Umbrella episode)
+        thread.join(3); self.assertFalse(thread.is_alive())                    # the old builder ended by itself
+        self.assertEqual([k for k in (ts.FRAME, ts.BUILDING, ts.PROPERTY) if k in home.props], [])
+    def test_the_source_is_the_playing_file_never_another_titles_remembered_link(self):
+        umbrella = 'https://dl.example.invalid/abc/Episode.mkv|User-Agent=Kodi'
+        isfile = lambda p: p == '/var/mobile/Downloads/Film.mkv'
+        self.assertEqual(ts.source_of('/var/mobile/Downloads/Film.mkv', umbrella, isfile=isfile), ('/var/mobile/Downloads/Film.mkv', 'local'))
+        self.assertEqual(ts.source_of('special://profile/dl/Film.mkv', '', translate=lambda p: '/var/mobile/Downloads/Film.mkv', isfile=isfile), ('/var/mobile/Downloads/Film.mkv', 'local'))
+        # a Drive copy through the app's proxy is its own source, even with an Umbrella link remembered from the title before
+        self.assertEqual(ts.source_of('http://127.0.0.1:49531/drive/1NWw2JhI/Inception.mp4', umbrella), ('http://127.0.0.1:49531/drive/1NWw2JhI/Inception.mp4', 'drive'))
+        # Umbrella plays through a local cache address: the remembered debrid link is the source
+        self.assertEqual(ts.source_of('http://127.0.0.1:50000/cache/x', umbrella), (umbrella, 'stream'))
+        self.assertEqual(ts.source_of('plugin://plugin.video.themoviedb.helper/?x', umbrella), (umbrella, 'stream'))
+        self.assertEqual(ts.source_of('http://127.0.0.1:50000/cache/x', ''), (None, None))
+        self.assertEqual(ts.source_of('/var/mobile/missing.mkv', ''), (None, None))
+        self.assertEqual(ts.source_of('https://dl.example.invalid/direct.mkv', ''), ('https://dl.example.invalid/direct.mkv', 'stream'))
+    def test_a_drive_copy_has_the_same_folder_whatever_the_proxys_port(self):
+        self.assertEqual(ts.key('http://127.0.0.1:49531/drive/1NWw2JhI/Inception.mp4'), ts.key('http://127.0.0.1:50111/drive/1NWw2JhI/Inception.mp4'))
+        self.assertNotEqual(ts.key('http://127.0.0.1:49531/drive/1NWw2JhI/Inception.mp4'), ts.key('http://127.0.0.1:49531/drive/OTHER/Inception.mp4'))
+    def test_a_stream_waits_for_the_player_to_settle_and_gives_up_when_it_never_does(self):
+        clock = [0.0]
+        def wait(sec): clock[0] += sec; return False
+        now = lambda: clock[0]
+        # healthy from the start, played time follows the clock: ready after SETTLE_AFTER
+        self.assertTrue(ts.settled(lambda: True, lambda: True, lambda: clock[0], wait, now=now)); self.assertGreaterEqual(clock[0], ts.SETTLE_AFTER)
+        clock[0] = 0.0     # buffering for 30 s, then healthy: the quiet time starts when it recovers
+        self.assertTrue(ts.settled(lambda: True, lambda: clock[0] > 30, lambda: clock[0], wait, now=now)); self.assertGreaterEqual(clock[0], 30 + ts.QUIET)
+        clock[0] = 0.0     # never healthy: gives up
+        self.assertFalse(ts.settled(lambda: True, lambda: False, lambda: clock[0], wait, now=now)); self.assertGreater(clock[0], ts.GIVE_UP_WAITING)
+        clock[0] = 0.0     # the video stops
+        self.assertFalse(ts.settled(lambda: clock[0] < 3, lambda: True, lambda: 0, wait, now=now))
     def test_position_labels_and_the_nearest_picture(self):
         self.assertEqual((ts.clock_seconds('1:02:03'), ts.clock_seconds('12:34'), ts.clock_seconds('45'), ts.clock_seconds(''), ts.clock_seconds('x')), (3723, 754, 45, None, None))
         self.assertEqual((ts.nearest([0, 6, 12], 5), ts.nearest([0, 6, 12], 3), ts.nearest([0, 6, 12], 4), ts.nearest([], 4), ts.nearest([6], 0), ts.nearest([6], 20)), (6, 0, 6, None, 6, 6))
@@ -290,7 +332,7 @@ class Native(unittest.TestCase):
         done = threading.Event()
         threading.Thread(target=lambda: (s.fill(12, 500, 0), done.set()), daemon=True).start()
         time.sleep(0.8); s.stop(); done.wait(5); made = ts.pictures(out)
-        self.assertTrue(made and 12 in made and set(made) <= {0, 6, 12, 18, 24}, made)       # the thirty-second pictures first, the centre one first of them
+        self.assertTrue(made and 12 in made and set(made) <= {0, 12, 24, 6, 18}, made)       # the one-a-minute pictures first (0, 12, 24), the centre one first of them
         s.resume(); s.close()
         out, s, err = self.session(self.video, 'budget'); s.fill(-1, 0, 0)
         self.assertGreater(s.spent_mb, 0); s.close()
@@ -334,7 +376,7 @@ class Wiring(unittest.TestCase):
     def test_the_service_and_the_player_use_it(self):
         self.assertIn('thumb_strip.watch(', (ROOT / 'migration/bundled-bootstrap/service.py').read_text())
         p = (ROOT / 'migration/bundled-bootstrap/resources/lib/portrait.py').read_text()
-        self.assertIn('thumb_strip.follow(', p); self.assertIn('thumb_strip.show(', p); self.assertIn('on_start=started)', p)
+        self.assertIn('thumb_strip.follow(', p); self.assertIn('thumb_strip.show(', p); self.assertIn('thumb_strip.begin(', p); self.assertIn('thumb_strip.source_of(', p); self.assertIn('thumb_strip.settled(', p); self.assertIn('on_start=started)', p)
         self.assertIn("'Player.Caching'", p); self.assertIn("'Player.SeekTime'", p); self.assertIn('local=local', p)   # the buffer's health; the finger's second; downloads
     def test_the_card_shows_the_picture_the_phone_chose_and_a_big_ring_when_there_is_none(self):
         sys.path.insert(0, str(ROOT / 'migration/bundled-bootstrap/resources/lib'))

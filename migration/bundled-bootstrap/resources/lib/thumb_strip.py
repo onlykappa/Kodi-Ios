@@ -38,8 +38,11 @@ GIVE_UP = 4                 # rounds in a row that added no picture (the file ca
 
 
 def key(link):
-    """A name for a link that gives nothing of it away."""
-    return hashlib.sha256(('kodi-ios-strip:' + str(link or '').partition('|')[0]).encode()).hexdigest()[:24]
+    """A name for a link that gives nothing of it away. The app's own loopback proxy (a Drive copy) is named by its path, not its port, which changes at every launch."""
+    address = str(link or '').partition('|')[0]
+    if address.startswith(('http://127.0.0.1', 'http://localhost')):
+        address = 'loopback:' + address.split('/', 3)[-1].split('?')[0]
+    return hashlib.sha256(('kodi-ios-strip:' + address).encode()).hexdigest()[:24]
 
 
 def root_folder(translate=None):
@@ -317,6 +320,71 @@ def show(home, link, root):
 
 
 _generation = [0]
+
+
+def begin(home):
+    """A new video began: whatever the last one was building ends (its follow() sees a newer generation) and the card is cleared at once, so it can never show another
+    title's picture (owner, build 679 log 1841aa21: a downloaded movie's card showed the Umbrella episode's frames)."""
+    _generation[0] += 1
+    for name in (PROPERTY, FRAME, BUILDING):
+        try:
+            home.clearProperty(name)
+        except Exception:
+            pass
+    return _generation[0]
+
+
+SETTLE_AFTER = 10     # seconds of playback before a stream's strip starts: the player's own opening reads come first
+QUIET = 5             # seconds the buffer must have been healthy
+GIVE_UP_WAITING = 150
+
+
+def settled(playing, healthy, played, wait, now=time.monotonic):
+    """True once the video has played SETTLE_AFTER seconds and its buffer has been healthy for QUIET seconds; False when it stops, Kodi closes or it never settles within
+    GIVE_UP_WAITING seconds. (Owner, build 679 log 1841aa21: the strip's own connection, opened the moment playback began on mobile data, took 27 s to open and shared a
+    1 MB/s link with the player: the first picture came after 13.5 s and a seek landed after 6 s.)"""
+    began, calm = now(), None
+    while playing():
+        if now() - began > GIVE_UP_WAITING:
+            return False
+        if healthy():
+            calm = calm if calm is not None else now()
+            if now() - calm >= QUIET and (played() or 0) >= SETTLE_AFTER:
+                return True
+        else:
+            calm = None
+        if wait(1.0):
+            return False
+    return False
+
+
+def source_of(playing_file, remembered, translate=lambda p: p, isfile=os.path.isfile):
+    """(address, kind) the strip is made from, or (None, None). The PLAYING file is the truth: a downloaded file on the phone ('local'), a Drive copy through the app's own proxy
+    ('drive': read like a stream, over the network), else the remembered debrid link of an Umbrella title ('stream'). A remembered link of another title is never used for a
+    file that is playing from somewhere else."""
+    name = str(playing_file or '')
+    try:
+        if name.startswith('special://'):
+            name = translate(name)
+    except Exception:
+        pass
+    if name.startswith('/') and isfile(name):
+        return name, 'local'
+    if name.startswith(('http://127.0.0.1', 'http://localhost')):
+        if '/drive/' in name:
+            return name, 'drive'
+        remembered = str(remembered or '')
+        if remembered.startswith(('http://', 'https://')) and not remembered.startswith(('http://127.0.0.1', 'http://localhost')):
+            return remembered, 'stream'
+        return None, None
+    if name.startswith(('http://', 'https://')):
+        return name, 'stream'
+    remembered = str(remembered or '')
+    if remembered.startswith(('http://', 'https://')) and not remembered.startswith(('http://127.0.0.1', 'http://localhost')):
+        return remembered, 'stream'
+    return None, None
+
+
 REST = 0.2    # seconds the finger rests on a moment before its own picture is asked for
 TICK = 0.05   # how often the card's picture is chosen while a drag is on
 IDLE_TICK = 0.25

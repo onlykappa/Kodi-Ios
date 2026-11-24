@@ -25,7 +25,7 @@ typedef struct {
 kr_thumbs *kr_thumbs_open(const char *url, const char *out_dir, int width, int height, int quality, int (*cancel)(void *), void *context, char *err, int errlen);
 // One picture, now: 1 when it was made, 0 when it was already there, -1 on failure. Thread-safe against kr_thumbs_fill.
 int kr_thumbs_frame(kr_thumbs *t, int index, char *err, int errlen);
-// Makes every missing picture, coarse first (every 6th, then every 3rd, then the rest), from picture `center` (-1: from the start) outwards, ahead first; `pause_ms` is the rest between pictures (a waiting
+// Makes every missing picture, coarse first (every 12th, 6th, 3rd, then the rest), from picture `center` (-1: from the start) outwards, ahead first; `pause_ms` is the rest between pictures (a waiting
 // kr_thumbs_frame gets its turn in it). `budget_mb` (0: none) ends it once the session has read that much from the source. Writes out_dir/done when all are there. Returns the pictures held, or -1 when stopped before the first one could be made.
 int kr_thumbs_fill(kr_thumbs *t, int pause_ms, int center, int budget_mb, kr_thumbs_result *result);
 // Stops a running fill and interrupts reads at once (the buffer is running low): the session stays usable after kr_thumbs_resume.

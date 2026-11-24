@@ -140,7 +140,7 @@ def run():
    if not thumb_strip.available(lib):
     if not said:said.append(1);log('preview strip: this AirPlay framework cannot make them yet')
     return
-   thumb_strip.make(lib,link,root,log,stop=busy)
+   thumb_strip.make(lib,link,root,log,stop=lambda:busy() or cache_tune.link_kind()!='wifi')   # a build that began on Wi-Fi ends when the phone leaves it (build 679 log: 25 MB on mobile data)
   thumb_strip.watch(lambda:ios_continue.entries(ios_continue.load(read),'all'),busy,monitor.waitForAbort,log,make_it,root,
    allowed=lambda:cache_tune.link_kind()=='wifi')
  threading.Thread(target=thumb_strip_loop,daemon=True).start()

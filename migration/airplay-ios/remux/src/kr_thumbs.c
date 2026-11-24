@@ -21,6 +21,7 @@
 #endif
 
 #define KR_THUMB_IO 32768
+#define KR_THUMB_REQUEST (512 * 1024)   // one range request holds a typical keyframe and is read to its end: the connection is reused for the next picture
 
 typedef struct {
     kr_source *source;
@@ -135,7 +136,7 @@ kr_thumbs *kr_thumbs_open(const char *url, const char *out_dir, int width, int h
     t->frame = av_frame_alloc();
     t->rgb = malloc((size_t)width * height * 3);
     if (!t->pkt || !t->frame || !t->rgb) { fail(err, errlen, "out of memory"); goto bad; }
-    t->src = kr_source_open_interruptible(url, 12, interrupted, t, what, sizeof what);
+    t->src = kr_source_open_tuned(url, 12, interrupted, t, KR_THUMB_REQUEST, what, sizeof what);
     if (!t->src) { fail(err, errlen, what[0] ? what : "cannot open the source"); goto bad; }
     t->io.source = t->src; t->io.size = kr_source_size(t->src);
     uint8_t *iobuf = av_malloc(KR_THUMB_IO);
@@ -214,17 +215,18 @@ int kr_thumbs_frame(kr_thumbs *t, int index, char *err, int errlen) {
     return r;
 }
 
-// The order the pictures are made in. Coarse first, so the whole film has a picture within 30 s of any point as early as possible (a drag then always has something
-// near to show): every 6th picture, then every 3rd, then the rest; inside a round the one at `center` first, then one ahead, one behind, two ahead ... (ahead first: that is
-// where a drag usually goes). Returns how many are listed.
+// The order the pictures are made in. Coarse first, so the whole film has a picture within a minute of any point as early as possible (a drag then always has something
+// near to show): every 12th picture (one a minute), then every 6th, every 3rd, then the rest; inside a round the one at `center` first, then one ahead, one behind, two
+// ahead ... (ahead first: that is where a drag usually goes). Returns how many are listed.
+static int level_of(int i) { return i % 12 == 0 ? 0 : i % 6 == 0 ? 1 : i % 3 == 0 ? 2 : 3; }
 static int make_order(int center, int count, int *order) {
     int n = 0;
     if (center < 0 || center >= count) center = 0;
-    for (int level = 0; level < 3; level++) {
+    for (int level = 0; level < 4; level++) {
         for (int d = 0; d < count; d++) {
             int a = center + d, b = center - d;
-            if (a < count && ((level == 0 && a % 6 == 0) || (level == 1 && a % 6 && a % 3 == 0) || (level == 2 && a % 3))) order[n++] = a;
-            if (d && b >= 0 && ((level == 0 && b % 6 == 0) || (level == 1 && b % 6 && b % 3 == 0) || (level == 2 && b % 3))) order[n++] = b;
+            if (a < count && level_of(a) == level) order[n++] = a;
+            if (d && b >= 0 && level_of(b) == level) order[n++] = b;
         }
     }
     return n;

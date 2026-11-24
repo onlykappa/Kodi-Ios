@@ -75,7 +75,7 @@
 # 0.jpg ... 100.jpg, the keyframe at or before each whole percent of the video (software decode of one keyframe per picture over the remuxer's own HTTP Range
 # source, remux/src/kr_thumbs.c; JPEG by the public-domain stb_image_write.h). r74 is a SESSION: kodi_thumbs_open(url, dir, w, h, quality, err, len) keeps one video
 # open (its container probed once) and returns a handle; one picture every 5 s (index i = the keyframe at or before i*5 s; the grid is written to dir/grid);
-# kodi_thumbs_fill(handle, pause_ms, center, budget_mb, out, len) makes the strip in the background, coarse first (every 6th, 3rd, then all) from picture `center`
+# kodi_thumbs_fill(handle, pause_ms, center, budget_mb, out, len) makes the strip in the background, coarse first (every 12th, 6th, 3rd, then all) from picture `center`
 # outwards, until budget_mb is read (0: no limit); kodi_thumbs_frame(handle, index, err, len) makes ONE picture now, from another thread (a seek and a keyframe);
 # kodi_thumbs_stop/resume interrupt and release the reads; kodi_thumbs_close.
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh, REMUX_LIBASS=DIR

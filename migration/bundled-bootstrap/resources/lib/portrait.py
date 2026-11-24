@@ -2252,46 +2252,54 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
    resume_cache.capture_later(entry,lambda link:remote_media.Foreground(link),wifi=lambda:cache_tune.link_kind()=='wifi',log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),
                               stop=lambda:home.getProperty('KodiIOS.OpenWanted')!=began or xbmc.Player().isPlayingVideo(),idle=lambda:xbmc.getGlobalIdleTime()>=resume_cache.IDLE_SECONDS)
   def strip_started():
-   # The seek bar's card reads the playing title's preview strip (thumb_strip.py). The title's remembered link is known once the progress tracker has saved it (a first watch:
-   # a few seconds in), so a thread waits for it, shows the folder, and builds what is missing from where the person is outwards (thumb_strip.follow).
+   # The seek bar's card reads the playing title's preview strip (thumb_strip.py). The card is cleared the moment a video begins (the last video's builder ends), the source is
+   # chosen from the PLAYING file (a downloaded file, a Drive copy through the app's proxy, or the Umbrella title's remembered link), and a stream's strip waits until the
+   # player has settled so it never shares a slow link with the player's own opening (thumb_strip.settled).
    import threading
+   try:
+    import thumb_strip,xbmcgui
+    thumb_strip.begin(xbmcgui.Window(10000))
+   except Exception as error:_quiet('portrait:strip_begin',error);return
    def work():
     try:
-     import thumb_strip,xbmcgui,xbmcvfs
+     import xbmcvfs
      mon=xbmc.Monitor();player=xbmc.Player();home=xbmcgui.Window(10000);root=thumb_strip.root_folder()
-     def link_now():
+     def remembered():
       data=module.load(read);entry=data['items'].get(data.get('current')) or {}
-      url=str((entry.get('stream') or {}).get('url') or '')
-      return url if url.startswith(('http://','https://')) and not url.startswith(('http://127.0.0.1','http://localhost')) else ''
-     def local_file():
-      # A downloaded video plays from a file on the phone: its strip is made from that file (no network, no allowance).
-      try:
-       name=player.getPlayingFile()
-       if name.startswith('special://'):name=xbmcvfs.translatePath(name)
-       return name if name.startswith('/') and os.path.isfile(name) else ''
+      return str((entry.get('stream') or {}).get('url') or '') if entry.get('player')=='umbrella' else ''
+     def playing_file():
+      try:return str(player.getPlayingFile() or '')
       except Exception:return ''
-     link=local_file();local=bool(link)
-     for _ in range(0 if local else 30):   # a stream: up to a minute for the saved link
+     link,kind=thumb_strip.source_of(playing_file(),remembered(),xbmcvfs.translatePath)
+     for _ in range(0 if kind else 30):   # an Umbrella title: up to a minute for the saved link
       if not player.isPlayingVideo():return
-      link=link_now()
-      if link:break
       if mon.waitForAbort(2.0):return
-     thumb_strip.show(home,link,root)
-     if not link:return
+      link,kind=thumb_strip.source_of(playing_file(),remembered(),xbmcvfs.translatePath)
+      if kind:break
+     if not kind:return
+     local=kind=='local'
      lib=native_player
      if not thumb_strip.available(lib):return
      import cache_tune
-     mb=thumb_strip.WIFI_MB if cache_tune.link_kind()=='wifi' else thumb_strip.MOBILE_MB
+     log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
+     caching=lambda:xbmc.getCondVisibility('Player.Caching')
      def position():
       label=xbmc.getInfoLabel('Player.SeekTime' if xbmc.getCondVisibility('Player.Seeking') else 'Player.Time')
       return thumb_strip.clock_seconds(label)
-     thumb_strip.follow(lib,link,root,home,lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),
+     if not local and not complete_strip(link,root):
+      if not thumb_strip.settled(lambda:player.isPlayingVideo(),lambda:not caching(),lambda:thumb_strip.clock_seconds(xbmc.getInfoLabel('Player.Time')),mon.waitForAbort):return
+     thumb_strip.show(home,link,root)
+     mb=thumb_strip.WIFI_MB if cache_tune.link_kind()=='wifi' else thumb_strip.MOBILE_MB
+     thumb_strip.follow(lib,link,root,home,log,
       playing=lambda:player.isPlayingVideo(),
-      healthy=lambda:local or not xbmc.getCondVisibility('Player.Caching'),
+      healthy=lambda:local or not caching(),
       position=position,
       seeking=lambda:xbmc.getCondVisibility('Player.Seeking'),
       wait=mon.waitForAbort,budget_mb=mb,local=local)
     except Exception as error:_quiet('portrait:strip',error)
+   def complete_strip(link,root):
+    try:return thumb_strip.complete(os.path.join(root,thumb_strip.key(link)))
+    except Exception:return False
    threading.Thread(target=work,daemon=True).start()
   def started():
    strip_started()

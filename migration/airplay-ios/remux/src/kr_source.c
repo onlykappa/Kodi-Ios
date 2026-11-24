@@ -66,6 +66,7 @@ struct kr_source {
     int64_t progress_ns, last_bytes, last_block;
     int64_t rate_bytes, rate_ns;   // decaying recent throughput of this cursor's own reads
     int helper;
+    int request_bytes;   // 0: the defaults below; the preview strip asks for one request that holds a whole keyframe (kr_source_open_tuned)
     atomic_llong cache_wait_ns;
 };
 
@@ -104,8 +105,11 @@ static int open_at(kr_source *s, int64_t offset) {
     if (http) {
         // Bound speculative upstream fetching: the Drive proxy grows open-ended reads to 8 MiB.
         // Keep probing small, then use 1 MiB requests; FFmpeg advances across range boundaries.
-        av_dict_set(&o, "initial_request_size", "262144", 0);
-        av_dict_set(&o, "request_size", "1048576", 0);
+        char rs[16];
+        snprintf(rs, sizeof rs, "%d", s->request_bytes ? s->request_bytes : 262144);
+        av_dict_set(&o, "initial_request_size", rs, 0);
+        snprintf(rs, sizeof rs, "%d", s->request_bytes ? s->request_bytes : 1048576);
+        av_dict_set(&o, "request_size", rs, 0);
         av_dict_set(&o, "short_seek_size", "65536", 0);
         av_dict_set(&o, "multiple_requests", "1", 0);
         snprintf(t, sizeof t, "%lld", (long long)offset);
@@ -127,10 +131,20 @@ static int open_at(kr_source *s, int64_t offset) {
     return r;
 }
 
+static kr_source *open_with(const char *url, int timeout_s, int (*interrupt)(void *), void *context, int request_bytes, char *err, int errlen);
 kr_source *kr_source_open_interruptible(const char *url, int timeout_s, int (*interrupt)(void *), void *context, char *err, int errlen) {
+    return open_with(url, timeout_s, interrupt, context, 0, err, errlen);
+}
+// Every HTTP range request is `request_bytes` long (the preview strip: one keyframe per request, read to its end, so the connection is reused for the next jump instead of being
+// dropped with most of a 1 MiB answer unread and set up again, which costs a TCP and TLS handshake on every picture over a phone's network).
+kr_source *kr_source_open_tuned(const char *url, int timeout_s, int (*interrupt)(void *), void *context, int request_bytes, char *err, int errlen) {
+    return open_with(url, timeout_s, interrupt, context, request_bytes, err, errlen);
+}
+static kr_source *open_with(const char *url, int timeout_s, int (*interrupt)(void *), void *context, int request_bytes, char *err, int errlen) {
     if (!url) return NULL;
     kr_source *s = calloc(1, sizeof *s);
     if (!s) return NULL;
+    s->request_bytes = request_bytes;
     s->url = strdup(url);
     s->timeout_s = timeout_s > 0 ? timeout_s : 30;
     s->extra_interrupt=interrupt;s->interrupt_context=context;
@@ -163,7 +177,7 @@ kr_source *kr_source_clone(kr_source *root,int timeout_s,int (*interrupt)(void *
     s->url=strdup(root->url);if(!s->url){free(s);return NULL;}
     s->timeout_s=timeout_s>0?timeout_s:root->timeout_s;
     s->extra_interrupt=interrupt;s->interrupt_context=context;s->cache=root->cache;
-    s->stall_check=root->stall_check;s->last_block=-1;
+    s->stall_check=root->stall_check;s->last_block=-1;s->request_bytes=root->request_bytes;
     pthread_mutex_lock(&s->cache->lock);s->cache->refs++;pthread_mutex_unlock(&s->cache->lock);
     return s;
 }
@@ -277,7 +291,7 @@ static void read_ahead(kr_source *s,int64_t base) {
         for(int h=0;h<AHEAD_HELPERS;h++) {
             kr_source *k=calloc(1,sizeof *k);
             if(!k || !(k->url=strdup(s->url))){free(k);break;}
-            k->timeout_s=s->timeout_s;k->cache=c;k->helper=1;k->stall_check=1;k->last_block=-1;
+            k->timeout_s=s->timeout_s;k->request_bytes=s->request_bytes;k->cache=c;k->helper=1;k->stall_check=1;k->last_block=-1;
             k->extra_interrupt=ahead_stopping;k->interrupt_context=c;
             if(pthread_create(&c->ahead_thread[h],NULL,ahead_worker,k)){free(k->url);free(k);break;}
             c->ahead_src[h]=k;
