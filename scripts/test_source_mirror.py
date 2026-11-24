@@ -1,5 +1,5 @@
 """Kept copies of third-party downloads (scripts/source_mirror.py): used only when the upstream address fails and only after the pin check passes; every verified download is kept."""
-import hashlib, io, json, os, sys, tarfile, tempfile, unittest
+import hashlib, io, json, os, sys, tarfile, tempfile, unittest, unittest.mock
 from pathlib import Path
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,7 +39,9 @@ class Kept(unittest.TestCase):
         with self.assertRaises(RuntimeError): mirror.fetch('https://x/b-1.zip', broken, lambda url: manifest if url.endswith('MANIFEST.json') else b'old')   # not listed
     def test_keep_writes_files_and_refuses_two_downloads_under_one_name(self):
         with tempfile.TemporaryDirectory() as t:
-            self.assertIsNone(mirror.keep('a.zip', b'1', directory=''))
+            with unittest.mock.patch.dict(os.environ):
+                os.environ.pop(mirror.ENV, None)   # CI sets it for the whole job
+                self.assertIsNone(mirror.keep('a.zip', b'1', directory=''))
             mirror.keep('a.zip', b'1', t); mirror.keep('a.zip', b'1', t)
             with self.assertRaises(ValueError): mirror.keep('a.zip', b'2', t)
             mirror.keep('b.zip', b'22', t)
