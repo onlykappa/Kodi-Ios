@@ -28,11 +28,19 @@ class Scrubber(unittest.TestCase):
         for tag in ('textureslidernib', 'textureslidernibfocus'):
             self.assertTrue(slider.findtext(tag).endswith('clear48.png'))
         self.assertNotIn('knob.png', XML)
-    def test_elapsed_left_and_remaining_or_total_right_and_the_right_one_toggles(self):
+    def test_elapsed_left_and_remaining_or_ends_at_right_and_the_right_one_toggles(self):
         labels = [c.findtext('label') for c in controls('label')]
-        self.assertIn('$INFO[Player.Time]', labels); self.assertIn('-$INFO[Player.TimeRemaining]', labels); self.assertIn('$INFO[Player.Duration]', labels)
+        self.assertIn('$INFO[Player.Time]', labels); self.assertIn('-$INFO[Player.TimeRemaining]', labels)
+        self.assertIn('Ends at $INFO[Player.FinishTime]', labels)                       # Kodi's own value: it is worked out again at every draw, so it follows a pause, a skip and a speed change
+        self.assertIn('Ends at $INFO[Window(Home).Property(KodiIOS.EndsAt)]', labels)  # under the finger: ends_at.py
+        self.assertNotIn('$INFO[Player.Duration]', labels)                              # the total length is no longer on the controls (owner, 2026-11-24: tap shows Ends at instead)
         toggle = next(c for c in controls('button') if c.get('id') == '7132')
-        self.assertIn('Skin.ToggleSetting(ios_osd_total)', [c.text for c in toggle.findall('onclick')])   # after the controls' own re-arm clicks
+        self.assertIn('Skin.ToggleSetting(ios_osd_ends)', [c.text for c in toggle.findall('onclick')])   # after the controls' own re-arm clicks
+    def test_each_right_time_shows_only_in_its_own_state(self):
+        shown = [(c.findtext('label'), c.findtext('visible')) for c in controls('label') if c.findtext('label', '').startswith(('-$INFO[Player.TimeRem', 'Ends at'))]
+        self.assertEqual(len(shown), 4)
+        rest = [v for k, v in shown if k.startswith('-')]; ends = [v for k, v in shown if k.startswith('Ends')]
+        self.assertTrue(all('!Skin.HasSetting(ios_osd_ends)' in v for v in rest)); self.assertTrue(all(v.startswith('Skin.HasSetting(ios_osd_ends)') for v in ends))
     def test_the_times_turn_white_while_dragging(self):
         rest = [c for c in controls('label') if c.findtext('label') == '$INFO[Player.Time]']
         drag = [c for c in controls('label') if c.findtext('label') == '$INFO[Player.SeekTime]' and c.findtext('visible') == 'Player.Seeking']
@@ -92,17 +100,26 @@ class Scrubber(unittest.TestCase):
         for needle in ('else if (m_iInfoCode == PLAYER_CACHELEVEL)', 'm_fPercent = std::min(target, m_fPercent + 125.0f * seconds);', '+  long long m_easedAt{0};'):
             self.assertIn(needle, patch)
 
-    def test_the_skip_arrows_are_bigger_and_the_ten_clears_the_arrowhead(self):
-        """Owner, build 676 screenshot: the arrows a little bigger and the 10 clear of the arrowhead (which sits in the circle's upper left on the back arrow, upper right on the forward arrow;
-        rig, zoomed: the 1 touched it). Glyph 160 -> 200, touch area 240 -> 280, the digits right and down of centre on the back arrow, left and down on the forward arrow."""
-        self.assertEqual((osd.SKIP_GLYPH, osd.SKIP_TAP), (200, 280))
+    def test_the_skip_arrows_are_smaller_go_all_the_way_round_the_ten_and_keep_their_touch_area(self):
+        """Owner, 2026-11-24 (mockup round 2): a little smaller, clear of the title (200 -> 130 units), the circle all the way round the 10 (skip_arrow.png, flipped for forward);
+        the touch area stays 280, so they are as easy to hit."""
+        self.assertEqual((osd.SKIP_GLYPH, osd.SKIP_TAP), (130, 280))
         back = next(c for c in controls('button') if c.get('id') == '7111'); fwd = next(c for c in controls('button') if c.get('id') == '7113')
         self.assertEqual((int(back.findtext('width')), int(fwd.findtext('width'))), (280, 280))
+        self.assertIn('skip_arrow.png', XML); self.assertEqual(XML.count('flipx="true"'), 1)   # forward is the same picture flipped
+        arrows = [c for c in controls('image') if (c.findtext('texture') or '').endswith('skip_arrow.png')]
+        self.assertEqual(sorted((int(c.findtext('width')), c.find('texture').get('flipx') or '') for c in arrows), [(130, ''), (130, 'true')])
         tens = [c for c in controls('label') if c.findtext('label') == '$NUMBER[10]']
         self.assertEqual(len(tens), 2)
         centres = sorted(int(c.findtext('left')) + int(c.findtext('width')) // 2 for c in tens)
         middle = (centres[0] + centres[1]) // 2
-        self.assertEqual((centres[0] - (middle - osd.EDGE * 0 - 420), centres[1] - (middle + 420)), (osd.TEN_DX, -osd.TEN_DX))
+        self.assertEqual((centres[0] - (middle - 420), centres[1] - (middle + 420)), (osd.TEN_DX, -osd.TEN_DX))   # the 10 in the middle of each circle
+    def test_the_arrow_picture_is_a_ring_with_a_head_and_a_gap_at_the_top(self):
+        import struct
+        import portrait
+        data = portrait.skip_arrow(160, 8); self.assertTrue(data.startswith(b'\x89PNG'))
+        width, height = struct.unpack('>II', data[16:24]); self.assertEqual((width, height), (160, 160))
+        self.assertIn('skip_arrow.png', portrait.textures())
 
 
 if __name__ == '__main__':

@@ -222,6 +222,28 @@ def scrub_card(width,height,radius,stroke):
   return (mix(0x1B,255),mix(0x24,255),mix(0x30,255),int(255*min(outer,1)))
  return png(width,height,pixel)
 
+def skip_arrow(size,stroke):
+ """The back-10 arrow (player-controls-mockup-r2.html): a circle that goes all the way round, open at the top where the arrowhead sits, pointing against the clock. The 10 is a label
+ in the middle; the forward arrow is this picture flipped (flipx). The mockup's 100-unit drawing, scaled to `size`."""
+ import math
+ u=size/100.0;c=size/2.0;r=38*u;half=stroke/2.0
+ gap=(math.radians(-115)%(2*math.pi),math.radians(-65)%(2*math.pi))   # no ring between 11 and 1 o'clock, apart from the rounded ends
+ tip=(54.28*u,10.07*u);b1=(73.00*u,7.77*u);b2=(64.55*u,25.89*u)
+ def in_head(px,py):
+  def side(p,q):return (q[0]-p[0])*(py-p[1])-(q[1]-p[1])*(px-p[0])
+  d1,d2,d3=side(tip,b1),side(b1,b2),side(b2,tip)
+  return (d1>=0 and d2>=0 and d3>=0) or (d1<=0 and d2<=0 and d3<=0)
+ def pixel(x,y):
+  hit=0
+  for i in range(4):
+   for j in range(4):
+    px,py=x+(i+.5)/4,y+(j+.5)/4
+    dx,dy=px-c,py-c;dist=math.hypot(dx,dy);ang=math.atan2(dy,dx)%(2*math.pi)
+    on_ring=abs(dist-r)<=half and not (gap[0]<ang<gap[1] if gap[0]<gap[1] else (ang>gap[0] or ang<gap[1]))
+    if on_ring or in_head(px,py):hit+=1
+  return (255,255,255,int(255*hit/16))
+ return png(size,size,pixel)
+
 def glass(size,radius,fill,stroke):
  """Frosted surface: translucent fill with a hairline light edge (iOS materials)."""
  def pixel(x,y):
@@ -363,7 +385,7 @@ def textures():
          'fade_down.png':fade(lambda t:(1-t)**1.6*0.85),'fade_up.png':fade(lambda t:t**1.5),
          'hero_fade.png':fade(lambda t:0 if t<0.3 else ((t-0.3)/0.7)**1.25),
          'poster_mask.png':rounded(POSTER[0],POSTER[1],RADIUS),'card_mask.png':rounded(CARD[0],CARD[1],RADIUS),
-         'thumb_mask.png':rounded(400,225,20),'tile_mask.png':rounded(80,80,18),'dot.png':rounded(24,24,12),'scrub_card.png':scrub_card(470,264,26,5),'knob.png':rounded(48,48,24),'clear48.png':png(4,48,lambda x,y:(0,0,0,0)),
+         'thumb_mask.png':rounded(400,225,20),'tile_mask.png':rounded(80,80,18),'dot.png':rounded(24,24,12),'scrub_card.png':scrub_card(470,264,26,5),'skip_arrow.png':skip_arrow(160,8),'knob.png':rounded(48,48,24),'clear48.png':png(4,48,lambda x,y:(0,0,0,0)),
          'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),'airplay.png':player_osd.airplay_png(png),'ring.png':ring(132,7),'circle_line.png':circle_line(132,12),
          # Capsules per height: 9-slice borders of h/2 keep the ends perfectly round at any width.
          **{'pill_%d.png'%h:rounded(h,h,h/2) for h in CAPSULES},

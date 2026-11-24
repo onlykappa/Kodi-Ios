@@ -144,6 +144,18 @@ def run():
   thumb_strip.watch(lambda:ios_continue.entries(ios_continue.load(read),'all'),busy,monitor.waitForAbort,log,make_it,root,
    allowed=lambda:cache_tune.link_kind()=='wifi')
  threading.Thread(target=thumb_strip_loop,daemon=True).start()
+ def ends_at_loop():
+  # The video controls' "Ends at" under the finger (ends_at.py): Kodi's own end time ignores a drag until it lands.
+  import ends_at,json
+  home=xbmcgui.Window(10000);player=xbmc.Player()
+  def tempo():
+   try:
+    answer=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Player.GetProperties','params':{'playerid':1,'properties':['tempo']}})))
+    return float(answer['result']['tempo'])
+   except Exception:return 1.0
+  ends_at.run(lambda:player.isPlayingVideo(),lambda:xbmc.getCondVisibility('Player.Seeking'),lambda:xbmc.getInfoLabel('Player.SeekTime'),
+   lambda:player.getTotalTime(),tempo,lambda:xbmc.getRegion('time'),lambda text:home.setProperty(ends_at.PROPERTY,text),monitor.waitForAbort)
+ threading.Thread(target=ends_at_loop,daemon=True).start()
  keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
  window.setProperty('KodiIOS.Build',updates.installed_build(root))

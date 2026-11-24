@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Player controls round 2</title>
+<style>
+/* MOCKUP (evidence class: mockup, APPLE-UI-POLICY §9). Not a render of Kodi. Geometry in Kodi units of the 2340 x 1080 landscape canvas (--k = 1 unit). The BEFORE frame is drawn
+   from the owner's phone screenshot of build 682 (Inception: logo, "4K . 2 hr 28 mins", plot, ratings, "Ends at"); the AFTER frames follow the owner's list of 2026-11-24. */
+:root{--grey:rgba(235,235,245,.6);--blue:#4fa8ff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,-apple-system,sans-serif;padding:28px 16px 60px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto}
+.tag{display:inline-block;background:#3a2a00;color:#ffd60a;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:30px;font-weight:800;margin-bottom:8px}p.lead{color:#b4b4ba;line-height:1.5;max-width:780px;margin-bottom:22px}
+.cap{font-size:12px;font-weight:700;letter-spacing:.06em;margin:28px 0 6px}.cap.b{color:#ff9f0a}.cap.a{color:var(--blue)}
+.note{color:var(--grey);font-size:13px;line-height:1.45;margin:10px 0 0;max-width:860px}
+.frame{width:100%;max-width:934px;aspect-ratio:934/462;border-radius:56px;padding:30px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 2px #4a4a4e}
+.screen{position:relative;width:100%;height:100%;border-radius:30px;overflow:hidden;background:#000;container-type:inline-size}
+.k{position:absolute;inset:0;--k:calc(100cqw / 2340)}
+.video{position:absolute;inset:0;background:radial-gradient(120% 90% at 62% 40%,#6c7f8d 0%,#46535e 38%,#1a2026 75%,#07090b 100%)}
+.video::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,0) 30%,rgba(0,0,0,0) 45%,rgba(0,0,0,.78))}
+.ic{position:absolute;width:calc(110*var(--k));height:calc(110*var(--k));display:flex;align-items:center;justify-content:center}
+.ic svg{width:calc(70*var(--k));height:calc(70*var(--k))}
+.title{position:absolute;left:calc(140*var(--k));top:calc(770*var(--k));height:calc(90*var(--k));display:flex;align-items:center;font-size:calc(52*var(--k));font-weight:700}
+.btn{position:absolute;height:calc(54*var(--k));display:flex;align-items:center;font-size:calc(38*var(--k));font-weight:600;color:rgba(255,255,255,.85)}
+.time{position:absolute;display:flex;align-items:center;gap:calc(26*var(--k));font-size:calc(38*var(--k));font-weight:700;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.7);white-space:nowrap}
+.time em{font-style:normal;font-weight:500;color:var(--grey)}
+.track{position:absolute;left:calc(140*var(--k));right:calc(140*var(--k));border-radius:999px;background:rgba(255,255,255,.3)}
+.track i{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;background:#fff}
+/* skip arrows: the arrow is a circle that goes all the way round the 10 */
+.skip{position:absolute;width:calc(var(--s)*var(--k));height:calc(var(--s)*var(--k));transform:translate(-50%,-50%)}
+.skip svg{width:100%;height:100%;overflow:visible}
+.skip b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:calc(var(--s)*.34*var(--k));font-weight:800;padding-top:calc(var(--s)*.02*var(--k))}
+.play{position:absolute;transform:translate(-50%,-50%)}
+/* old info block (before) */
+.info{position:absolute;left:calc(190*var(--k));top:calc(330*var(--k));width:calc(1100*var(--k));color:#fff}
+.info .logo{font-size:calc(150*var(--k));font-weight:900;color:#c3262c;letter-spacing:.02em;line-height:1}
+.info .meta{margin-top:calc(34*var(--k));font-size:calc(36*var(--k));color:var(--grey)}
+.info .plot{margin-top:calc(26*var(--k));font-size:calc(38*var(--k));line-height:1.5;color:rgba(255,255,255,.75)}
+.info .rate{margin-top:calc(20*var(--k));font-size:calc(34*var(--k));color:var(--grey)}
+/* card */
+.bubble{position:absolute;transform:translateX(-50%);text-align:center}
+.thumb{width:calc(470*var(--k));height:calc(264*var(--k));border-radius:calc(26*var(--k));border:calc(5*var(--k)) solid #fff;background:#1c2230;box-shadow:0 18px 50px rgba(0,0,0,.6);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.thumb.pic{background:radial-gradient(90% 90% at 40% 35%,#7fd3b8 0%,#1b6b5a 40%,#0b1f1d 100%)}
+.thumb .ring{width:calc(96*var(--k));height:calc(96*var(--k));border:calc(6*var(--k)) solid rgba(255,255,255,.85);border-right-color:transparent;border-radius:50%}
+.bubble b{display:block;margin-top:calc(14*var(--k));font-size:calc(42*var(--k));font-weight:700}.bubble small{display:block;font-size:calc(30*var(--k));color:var(--grey);margin-top:2px}
+.diff{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;max-width:900px}.diff div{background:#17171a;border-radius:10px;padding:10px 12px;font-size:13px;color:#c8c8ce;line-height:1.4}.diff b{display:block;color:#fff;margin-bottom:2px}
+</style></head><body><div class="wrap">
+<span class="tag">MOCKUP · not Kodi</span>
+<h1>Player controls, round 2</h1>
+<p class="lead">Your list: take the film information off the controls (the Info button already shows it), drop the ratings, show "Ends at" when you tap the time left, make the 10-second arrow go all the way round its 10, and make the arrows a little smaller so they stay clear of the title. The seek card keeps its picture on cellular and on Wi-Fi.</p>
+
+<div class="cap b">BEFORE · BUILD 682 (from your screenshot)</div>
+<div class="frame"><div class="screen"><div class="k"><div class="video"></div>
+<div class="info"><div class="logo">INCEPTION</div><div class="meta">4K · 2 hr 28 mins</div><div class="plot">Cobb, a skilled thief who commits corporate espionage by infiltrating the subconscious of his targets is offered a chance to regain his old life as payment for a task considered to be impossible: "inception", the implantation of another</div><div class="rate">8.7 &nbsp; 74% &nbsp; Ends at 10:11 PM</div></div>
+<div class="ic" style="left:calc(140*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></div>
+<div class="ic" style="left:calc(1250*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 15 9M14 5l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 12l.7 1.3 1.3.7-1.3.7L19 16l-.7-1.3L17 14l1.3-.7z"/></svg></div>
+<div class="ic" style="left:calc(1430*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 16a8 8 0 1 1 16 0M12 16l4-5"/></svg></div>
+<div class="ic" style="left:calc(1610*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6zM9 14h2l1-3 2 5 1-2h1"/></svg></div>
+<div class="ic" style="left:calc(1790*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M10 10.5c-1-1-3-.6-3 1.5s2 2.5 3 1.5M17 10.5c-1-1-3-.6-3 1.5s2 2.5 3 1.5" stroke-linecap="round"/></svg></div>
+<div class="ic" style="left:calc(1970*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><path d="M7 17H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M12 14l5 6H7z" fill="#fff"/></svg></div>
+<div class="skip" style="--s:200;left:calc(780*var(--k));top:calc(520*var(--k))"><svg viewBox="0 0 100 100" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"><path d="M50 14a36 36 0 1 0 36 36"/><path d="M50 2v24l-16-12z" fill="#fff" stroke="none"/></svg><b style="margin-left:calc(14*var(--k));margin-top:calc(10*var(--k))">10</b></div>
+<div class="play" style="left:50%;top:calc(520*var(--k))"><svg width="calc(100*var(--k))" viewBox="0 0 24 24" fill="#fff" style="width:calc(150*var(--k));height:calc(150*var(--k))"><rect x="6" y="4" width="4" height="16" rx="1.2"/><rect x="14" y="4" width="4" height="16" rx="1.2"/></svg></div>
+<div class="title">Inception</div>
+<div class="track" style="top:calc(878*var(--k));height:calc(16*var(--k))"><i style="width:50%"></i></div>
+<div class="time" style="left:calc(140*var(--k));top:calc(912*var(--k));height:calc(50*var(--k))">01:28:54</div><div class="time" style="right:calc(140*var(--k));top:calc(912*var(--k));height:calc(50*var(--k))">−00:59:14</div>
+<div class="btn" style="left:calc(140*var(--k));top:calc(970*var(--k))">Info</div><div class="btn" style="left:calc(340*var(--k));top:calc(970*var(--k))">Continue Watching</div></div></div></div>
+<p class="note">Today the film's logo, "4K · 2 hr 28 mins", the plot, the two ratings and "Ends at" are all drawn over the picture, and the left arrow's head sits at the top left of its circle, away from the 10, which is why it does not look as if it goes around it.</p>
+
+<div class="cap a">AFTER · CONTROLS SHOWN</div>
+<div class="frame"><div class="screen"><div class="k"><div class="video"></div>
+<div class="ic" style="left:calc(140*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></div>
+<div class="ic" style="left:calc(1250*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 15 9M14 5l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 12l.7 1.3 1.3.7-1.3.7L19 16l-.7-1.3L17 14l1.3-.7z"/></svg></div>
+<div class="ic" style="left:calc(1430*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 16a8 8 0 1 1 16 0M12 16l4-5"/></svg></div>
+<div class="ic" style="left:calc(1610*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6zM9 14h2l1-3 2 5 1-2h1"/></svg></div>
+<div class="ic" style="left:calc(1790*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M10 10.5c-1-1-3-.6-3 1.5s2 2.5 3 1.5M17 10.5c-1-1-3-.6-3 1.5s2 2.5 3 1.5" stroke-linecap="round"/></svg></div>
+<div class="ic" style="left:calc(1970*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><path d="M7 17H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M12 14l5 6H7z" fill="#fff"/></svg></div>
+<div class="skip" style="--s:130;left:calc(780*var(--k));top:calc(520*var(--k))"><svg viewBox="0 0 100 100" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"><path d="M33.94 15.56 A38 38 0 1 0 66.06 15.56"/><path d="M54.28 10.07 L73.00 7.77 L64.55 25.89 Z" fill="#fff" stroke="#fff" stroke-width="2"/></svg><b>10</b></div>
+<div class="play" style="left:50%;top:calc(520*var(--k))"><svg viewBox="0 0 24 24" fill="#fff" style="width:calc(150*var(--k));height:calc(150*var(--k))"><rect x="6" y="4" width="4" height="16" rx="1.2"/><rect x="14" y="4" width="4" height="16" rx="1.2"/></svg></div>
+<div class="skip" style="--s:130;left:calc(1560*var(--k));top:calc(520*var(--k));transform:translate(-50%,-50%) scaleX(-1)"><svg viewBox="0 0 100 100" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"><path d="M33.94 15.56 A38 38 0 1 0 66.06 15.56"/><path d="M54.28 10.07 L73.00 7.77 L64.55 25.89 Z" fill="#fff" stroke="#fff" stroke-width="2"/></svg><b style="transform:scaleX(-1)">10</b></div>
+<div class="title">Inception</div>
+<div class="track" style="top:calc(878*var(--k));height:calc(16*var(--k))"><i style="width:50%"></i></div>
+<div class="time" style="left:calc(140*var(--k));top:calc(912*var(--k));height:calc(50*var(--k))">01:28:54</div><div class="time" style="right:calc(140*var(--k));top:calc(912*var(--k));height:calc(50*var(--k))">−00:59:14</div>
+<div class="btn" style="left:calc(140*var(--k));top:calc(970*var(--k))">Info</div><div class="btn" style="left:calc(340*var(--k));top:calc(970*var(--k))">Continue Watching</div></div></div></div>
+<div class="diff"><div><b>Film information</b>Logo, "4K · 2 hr 28 mins", plot and both ratings are gone from the controls. Info (bottom left) opens the card with all of it.</div><div><b>Ends at</b>Tap the time left (bottom right) and it becomes "Ends at 10:11 PM"; tap again to go back. It stays live: it moves on while paused and follows skips, seeks, speed changes and your finger while you drag.</div><div><b>Arrows</b>The circle now goes all the way round the 10, with the head at the top. 130 units across instead of 200, so they sit clear of the title. The tap area stays 280.</div></div>
+
+<div class="cap a">AFTER · AFTER A TAP ON THE TIME LEFT</div>
+<div class="frame"><div class="screen"><div class="k"><div class="video"></div>
+<div class="ic" style="left:calc(140*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></div>
+<div class="ic" style="left:calc(1250*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 15 9M14 5l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 12l.7 1.3 1.3.7-1.3.7L19 16l-.7-1.3L17 14l1.3-.7z"/></svg></div>
+<div class="ic" style="left:calc(1430*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 16a8 8 0 1 1 16 0M12 16l4-5"/></svg></div>
+<div class="ic" style="left:calc(1610*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6zM9 14h2l1-3 2 5 1-2h1"/></svg></div>
+<div class="ic" style="left:calc(1790*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M10 10.5c-1-1-3-.6-3 1.5s2 2.5 3 1.5M17 10.5c-1-1-3-.6-3 1.5s2 2.5 3 1.5" stroke-linecap="round"/></svg></div>
+<div class="ic" style="left:calc(1970*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><path d="M7 17H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M12 14l5 6H7z" fill="#fff"/></svg></div>
+<div class="skip" style="--s:130;left:calc(780*var(--k));top:calc(520*var(--k))"><svg viewBox="0 0 100 100" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"><path d="M33.94 15.56 A38 38 0 1 0 66.06 15.56"/><path d="M54.28 10.07 L73.00 7.77 L64.55 25.89 Z" fill="#fff" stroke="#fff" stroke-width="2"/></svg><b>10</b></div>
+<div class="play" style="left:50%;top:calc(520*var(--k))"><svg viewBox="0 0 24 24" fill="#fff" style="width:calc(150*var(--k));height:calc(150*var(--k))"><rect x="6" y="4" width="4" height="16" rx="1.2"/><rect x="14" y="4" width="4" height="16" rx="1.2"/></svg></div>
+<div class="skip" style="--s:130;left:calc(1560*var(--k));top:calc(520*var(--k));transform:translate(-50%,-50%) scaleX(-1)"><svg viewBox="0 0 100 100" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"><path d="M33.94 15.56 A38 38 0 1 0 66.06 15.56"/><path d="M54.28 10.07 L73.00 7.77 L64.55 25.89 Z" fill="#fff" stroke="#fff" stroke-width="2"/></svg><b style="transform:scaleX(-1)">10</b></div>
+<div class="title">Inception</div>
+<div class="track" style="top:calc(878*var(--k));height:calc(16*var(--k))"><i style="width:50%"></i></div>
+<div class="time" style="left:calc(140*var(--k));top:calc(912*var(--k));height:calc(50*var(--k))">01:28:54</div><div class="time" style="right:calc(140*var(--k));top:calc(912*var(--k));height:calc(50*var(--k))">Ends at 10:11 PM</div>
+<div class="btn" style="left:calc(140*var(--k));top:calc(970*var(--k))">Info</div><div class="btn" style="left:calc(340*var(--k));top:calc(970*var(--k))">Continue Watching</div></div></div></div>
+<p class="note">One tap on the time left (bottom right) shows when the video ends; another tap goes back. It follows the clock while paused, a skip of 10 seconds, a seek and a change of speed, and under your finger while you drag.</p>
+
+<div class="cap a">AFTER · SEEKING A STREAM, PICTURE READY (cellular or Wi-Fi)</div>
+<div class="frame"><div class="screen"><div class="k"><div class="video"></div>
+<div class="bubble" style="left:50%;top:calc(470*var(--k))"><div class="thumb pic"></div><b>01:28:54</b><small>−12:01</small></div>
+<div class="track" style="top:calc(870*var(--k));height:calc(32*var(--k))"><i style="width:50%"></i></div>
+<div class="time" style="left:calc(140*var(--k));top:calc(924*var(--k));height:calc(50*var(--k));color:#fff">01:28:54</div><div class="time" style="right:calc(140*var(--k));top:calc(924*var(--k));height:calc(50*var(--k));color:#fff">−00:59:14</div></div></div></div>
+
+<div class="cap a">AFTER · SEEKING A STREAM, PICTURE NOT BUILT YET</div>
+<div class="frame"><div class="screen"><div class="k"><div class="video"></div>
+<div class="bubble" style="left:50%;top:calc(470*var(--k))"><div class="thumb"><div class="ring"></div></div><b>01:28:54</b><small>−12:01</small></div>
+<div class="track" style="top:calc(870*var(--k));height:calc(32*var(--k))"><i style="width:50%"></i></div>
+<div class="time" style="left:calc(140*var(--k));top:calc(924*var(--k));height:calc(50*var(--k));color:#fff">01:28:54</div><div class="time" style="right:calc(140*var(--k));top:calc(924*var(--k));height:calc(50*var(--k));color:#fff">−00:59:14</div></div></div></div>
+<p class="note">The picture comes from the pictures built for this title (every 5 s). On cellular as well as Wi-Fi, the card shows the nearest one while you drag and the big ring only before the first picture exists. Speed of the building is the next thing to tune, as you said; the layout above does not change.</p>
+</div></body></html>
