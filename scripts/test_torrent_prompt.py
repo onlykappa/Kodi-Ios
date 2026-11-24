@@ -77,5 +77,23 @@ class Gate(unittest.TestCase):
         self.assertLess(src.index('(gate or _torrent_gate)()'), src.index('if engine is not None:engine()'))
 
 
+class Background(unittest.TestCase):
+    """Owner, build 677 log 94a6a00c: Filters -> Done on the Leagues page, and the torrent dialog came up over it: a followed show's automatic download. Only a download the
+    person started may ask; the automatic one is skipped without a word."""
+    def test_the_background_gate_never_asks_and_never_goes_on(self):
+        with self.assertRaises(ed.Canceled): ed.background_gate()
+    def test_an_automatic_download_that_alldebrid_does_not_take_starts_nothing(self):
+        started = []
+        opener = type('O', (), {'open': lambda self, *a, **k: started.append(a) or (_ for _ in ()).throw(AssertionError('a request reached the engine'))})()
+        with self.assertRaises(ed.Canceled):
+            ed.follow('plugin://plugin.video.elementum/library/play/show/1/season/1/episode/1', opener=opener, route=lambda url: False, engine=lambda: started.append('engine'), gate=ed.background_gate)
+        self.assertEqual(started, [])
+    def test_the_followed_shows_job_uses_it_and_the_download_button_still_asks(self):
+        run = (ROOT / 'migration/bundled-bootstrap/resources/lib/episode_watch_runtime.py').read_text()
+        self.assertIn('gate=elementum_download.background_gate', run)
+        dl = (ROOT / 'migration/bundled-bootstrap/download.py').read_text()
+        self.assertIn('return dl.follow(url)', dl)   # no gate argument: the person's own download keeps the question
+
+
 if __name__ == '__main__':
     unittest.main()

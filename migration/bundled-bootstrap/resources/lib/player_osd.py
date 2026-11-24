@@ -114,6 +114,7 @@ ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(videoo
 SKIP_GLYPH=200   # the back/forward 10 arrows (owner, 2026-11-23: a little bigger; they were 160)
 SKIP_TAP=280
 TEN_DX=7;TEN_DY=5
+STRIP_SPIN='<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'   # the card's ring while the strip is still being made
 LINGER='<animation effect="fade" start="100" end="0" time="500" delay="500">Hidden</animation>'   # stays 0.5 s after the buffer is full, then fades
 PULSE='<animation effect="fade" start="100" end="30" time="700" tween="sine" easing="inout" reversible="true" loop="true" condition="true">Conditional</animation>'
 def rearm(xml):
@@ -205,13 +206,16 @@ def window():
 
  # The frame card of the mockup (docs/design/player-scrubber-mockup.html): rides above the finger with the time under it and the jump from where you were.
  # Kodi cannot place a control by a value, so there is one copy per whole percent (each shown only at its own Player.Progress, a share of the bar's width).
- # Its picture is the real frame near that moment: thumb_strip.py makes 0.jpg ... 100.jpg per title (the AirPlay framework's kodi_thumbs_make) and the service sets
- # Home property KodiIOS.Strip to the playing title's folder; with no strip the card stays dark with the time and the jump.
+ # Its picture is the real frame near that moment: thumb_strip.py keeps one small picture every 5 s per title (the AirPlay framework's kodi_thumbs_*) and, while a drag
+ # is on, sets Home property KodiIOS.StripFrame to the nearest picture the phone holds (so the card flips through the film as fast as the finger moves); with none yet the big ring turns.
  def bubble(n):
   at=min(88,max(12,n))
   return ('<control type="group"><left>%d%%</left><top>-392</top><width>470</width><height>400</height><visible>%s + Integer.IsEqual(Player.Progress,%d)</visible>'%(at,DRAG,n)+
    image(-235,0,470,264,MEDIA+'scrub_card.png','FFFFFFFF')+
-   image(-213,12,427,240,'$INFO[Window(Home).Property(KodiIOS.Strip)]%d.jpg'%n,'FFFFFFFF','<aspectratio>stretch</aspectratio><fadetime>150</fadetime><visible>!String.IsEmpty(Window(Home).Property(KodiIOS.Strip))</visible>')+
+   # The turning ring sits in the middle of the card, UNDER the picture: it shows while the picture is not there yet (the strip is still being made, or the file is loading) and the
+   # picture fades in over it. 96 units across, so it reads from an arm's length.
+   image(-48,84,96,96,MEDIA+'ring.png','D9FFFFFF','<visible>String.IsEmpty(Window(Home).Property(KodiIOS.StripFrame)) + !String.IsEmpty(Window(Home).Property(KodiIOS.StripBuilding))</visible>'+STRIP_SPIN)+
+   image(-213,12,427,240,'$INFO[Window(Home).Property(KodiIOS.StripFrame)]','FFFFFFFF','<aspectratio>stretch</aspectratio><fadetime>50</fadetime><visible>!String.IsEmpty(Window(Home).Property(KodiIOS.StripFrame))</visible>')+
    label(-235,274,470,56,'$INFO[Player.SeekTime]','font_midi_bold','FFFFFFFF','center')+
    label(-235,330,470,40,'$INFO[Player.SeekOffset]','font_mini','99EBEBF5','center')+'</control>')
  bubbles=('<control type="group"><left>%d</left><right>%d</right><top>862</top><height>60</height>'%(left,left)+''.join(bubble(n) for n in range(101))+'</control>')

@@ -25,8 +25,8 @@ class Disk(unittest.TestCase):
         self.dir=tempfile.mkdtemp();self.root=os.path.join(self.dir,'o');calls.clear()
         self.addCleanup(__import__('shutil').rmtree,self.dir,True)
     def test_the_plan_is_the_start_the_end_and_the_blocks_around_the_resume_point(self):
-        self.assertEqual(rc.plan(len(DATA),0.5),[0,1,2,3,4,5,7])   # 8 blocks: 0-5 the opening | 2,3,4 around block 3 (half of 30 MiB) | 7 last
-        self.assertEqual(rc.plan(len(DATA),None),[0,1,2,3,4,5,7]);self.assertEqual(rc.plan(len(DATA),0.02),[0,1,2,3,4,5,7]);self.assertEqual(rc.plan(0,.5),[])
+        self.assertEqual(rc.plan(len(DATA),0.5),[0,1,2,3,4,5,6,7])   # 8 blocks: 0-7 the opening (build 677 log: Kodi read blocks 6 and 7), 2,3,4 around block 3, 7 last
+        self.assertEqual(rc.plan(len(DATA),None),[0,1,2,3,4,5,6,7]);self.assertEqual(rc.plan(len(DATA),0.02),[0,1,2,3,4,5,6,7]);self.assertEqual(rc.plan(0,.5),[])
         self.assertLessEqual(len(rc.plan(10**12,0.5)),rc.MAX_BLOCKS)
     def test_store_load_ready_round_trip_and_nothing_of_the_link_is_written(self):
         blocks={0:DATA[:rc.BLOCK],7:DATA[7*rc.BLOCK:]}
@@ -69,8 +69,8 @@ class Capture(unittest.TestCase):
         self.addCleanup(__import__('shutil').rmtree,self.dir,True)
     def test_a_stopped_stream_keeps_its_start_its_end_and_the_blocks_around_where_it_stopped(self):
         kept=rc.capture(LINK,0.5,lambda link:rm.Foreground(link,open_url=opener),self.root,self.logs.append)
-        self.assertEqual(kept,7);self.assertTrue(rc.ready(LINK,self.root));self.assertIn('kept 7 of 7 blocks',self.logs[0])
-        size,found=rc.load(LINK,self.root);self.assertEqual(sorted(found),[0,1,2,3,4,5,7]);self.assertEqual(found[4],DATA[4*rc.BLOCK:5*rc.BLOCK])
+        self.assertEqual(kept,8);self.assertTrue(rc.ready(LINK,self.root));self.assertIn('kept 8 of 8 blocks',self.logs[0])
+        size,found=rc.load(LINK,self.root);self.assertEqual(sorted(found),[0,1,2,3,4,5,6,7]);self.assertEqual(found[4],DATA[4*rc.BLOCK:5*rc.BLOCK])
         before=len(calls);self.assertEqual(rc.capture(LINK,0.5,lambda link:rm.Foreground(link,open_url=opener),self.root),0)   # the same stop again: already kept
     def test_a_capture_lets_go_at_once_when_a_video_is_opening(self):
         # build 639 log 9f7b4ab2: six connections to the debrid server were still reading when Continue asked for the title
@@ -119,6 +119,50 @@ class Capture(unittest.TestCase):
         self.assertIsNone(go(dict(good,player='elementum')));self.assertIsNone(go(dict(good,position=2)));self.assertIsNone(go(dict(good,position=1350)))
         self.assertIsNone(go(dict(good,stream={'url':'http://127.0.0.1:1/x'})));self.assertIsNone(go({}));self.assertIsNone(go(good,wifi=False));self.assertEqual(made,[])
         self.assertIsNotNone(go(good));self.assertEqual(made,[LINK]);self.assertTrue(rc.ready(LINK,self.root))
+
+class Planning(unittest.TestCase):
+    """Owner log 94a6a00c: Kodi read blocks 6 and 7 of the file's start and block 97 at the resume point; 6 head blocks and a percentage guess had kept others."""
+    def test_eight_head_blocks_and_the_resume_point_and_the_end_come_first_within_the_cap(self):
+        size = 1826589681; last = (size - 1) // rc.BLOCK
+        kept = rc.plan(size, 0.2246, cue_offset=410245402)
+        self.assertLessEqual(len(kept), rc.MAX_BLOCKS)
+        self.assertTrue({0, 1, 2, 3, 4, 5, 6, 7} <= set(kept)); self.assertIn(last, kept)
+        self.assertTrue({410245402 // rc.BLOCK, 410245402 // rc.BLOCK + 1} <= set(kept))        # block 97 and the one after it
+        self.assertEqual(kept, sorted(kept))
+    def test_without_the_index_the_guess_keeps_three_blocks_around_it_and_the_cap_never_drops_the_resume_point_or_the_end(self):
+        size = 30 * rc.BLOCK; kept = rc.plan(size, 0.5)
+        self.assertTrue({14, 15, 16} <= set(kept)); self.assertIn(29, kept)
+        self.assertEqual(len(rc.plan(size, 0.5)), len(set(rc.plan(size, 0.5))))
+        small = rc.plan(3 * rc.BLOCK, 0.5); self.assertEqual(small, [0, 1, 2])
+    def test_the_worst_case_is_still_144_mib_for_three_titles(self):
+        self.assertEqual(rc.TITLES * rc.MAX_BLOCKS * rc.BLOCK // (1024 * 1024), 144)
+    def test_capture_keeps_the_block_kodi_seeks_to_found_from_the_files_own_index(self):
+        """A real Matroska file (made here with ffmpeg: about 75 MB, a keyframe every 2 s): the block Kodi reads at the resume time is found from the file's own Cues.
+        In the rig an 81 MiB file resumed at 30 s was read from byte 39427588 while the percentage guess said 42.2 MB (3 blocks away)."""
+        import shutil, subprocess, threading
+        if not shutil.which('ffmpeg'):
+            self.skipTest('needs ffmpeg')
+        folder = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, folder, True)
+        video = os.path.join(folder, 'v.mkv')
+        subprocess.check_call(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=24:d=60', '-c:v', 'libx264', '-preset', 'ultrafast', '-b:v', '10M', '-minrate', '10M', '-maxrate', '10M', '-bufsize', '20M', '-x264-params', 'nal-hrd=cbr', '-g', '48', '-pix_fmt', 'yuv420p', video])
+        data = Path(video).read_bytes(); size = len(data)
+        self.assertGreater(size, 12 * rc.BLOCK)                       # enough blocks for the resume point to be away from the start
+        import link_warm
+        want = link_warm.resume_offset(data[:rc.BLOCK], data[-rc.BLOCK:], size, 30.0)
+        self.assertIsNotNone(want)
+        class Stub:
+            def __init__(self):
+                self.sizes = {'media': size}; self.data = {}; self.lock = threading.RLock(); self.blocks = self
+            def get(self, name, index):
+                chunk = data[index * rc.BLOCK:(index + 1) * rc.BLOCK]
+                with self.lock: self.data[('media', index)] = chunk
+            def close(self): pass
+        root = os.path.join(folder, 'kept')
+        kept = rc.capture('https://x.invalid/a.mkv', 30.0 / 60.0, lambda link: Stub(), root, poll=0.01, seconds=30.0)
+        _, blocks = rc.load('https://x.invalid/a.mkv', root)
+        self.assertIn(want // rc.BLOCK, blocks); self.assertIn(want // rc.BLOCK + 1, blocks)    # where Kodi seeks, and the block after it
+        self.assertLessEqual(kept, rc.MAX_BLOCKS)
+
 
 class Serving(unittest.TestCase):
     def setUp(self):

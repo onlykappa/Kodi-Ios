@@ -118,7 +118,7 @@ def run():
   def keep(url,size,fraction=None,seconds=None):
    began=home.getProperty('KodiIOS.OpenWanted')
    return resume_cache.capture(url,fraction,lambda link:remote_media.Foreground(link),log=log,stop=lambda:busy() or home.getProperty('KodiIOS.OpenWanted')!=began,
-                               idle=lambda:xbmc.getGlobalIdleTime()>=resume_cache.IDLE_SECONDS)
+                               idle=lambda:xbmc.getGlobalIdleTime()>=resume_cache.IDLE_SECONDS,seconds=seconds)
   link_warm.watch(lambda:ios_continue.entries(ios_continue.load(read),'all'),busy,monitor.waitForAbort,log,warm_it=keep,
    allowed=lambda:cache_tune.link_kind()=='wifi')
  threading.Thread(target=link_warm_loop,daemon=True).start()

@@ -71,7 +71,7 @@ def pass_once(profile,window,keep_going,log,auto_allowed=True):
   queued=False
   try:
    url=elementum_download.plugin_url('episode',show['tmdb'],target['season'],target['episode'])
-   elementum_download.follow(url,timeout=120,route=lambda url:elementum_cloud.route(url,quiet=True,request_id=ident) if allowed() else True)
+   elementum_download.follow(url,timeout=120,route=lambda url:elementum_cloud.route(url,quiet=True,request_id=ident) if allowed() else True,gate=elementum_download.background_gate)
    result=json.loads(window.getProperty('KodiIOS.AutoPick.Queued') or '{}')
    queued=result.get('request_id')==ident and result.get('queued') is True
    return queued

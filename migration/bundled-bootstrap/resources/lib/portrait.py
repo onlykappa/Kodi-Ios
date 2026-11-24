@@ -2252,12 +2252,47 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
    resume_cache.capture_later(entry,lambda link:remote_media.Foreground(link),wifi=lambda:cache_tune.link_kind()=='wifi',log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),
                               stop=lambda:home.getProperty('KodiIOS.OpenWanted')!=began or xbmc.Player().isPlayingVideo(),idle=lambda:xbmc.getGlobalIdleTime()>=resume_cache.IDLE_SECONDS)
   def strip_started():
-   # The seek bar's card reads the playing title's preview strip (thumb_strip.py): the folder is shown when the title has pictures, else the card stays dark.
-   try:
-    import thumb_strip,xbmcgui
-    data=module.load(read);entry=data['items'].get(data.get('current')) or {}
-    thumb_strip.show(xbmcgui.Window(10000),str((entry.get('stream') or {}).get('url') or ''),thumb_strip.root_folder())
-   except Exception as error:_quiet('portrait:strip',error)
+   # The seek bar's card reads the playing title's preview strip (thumb_strip.py). The title's remembered link is known once the progress tracker has saved it (a first watch:
+   # a few seconds in), so a thread waits for it, shows the folder, and builds what is missing from where the person is outwards (thumb_strip.follow).
+   import threading
+   def work():
+    try:
+     import thumb_strip,xbmcgui,xbmcvfs
+     mon=xbmc.Monitor();player=xbmc.Player();home=xbmcgui.Window(10000);root=thumb_strip.root_folder()
+     def link_now():
+      data=module.load(read);entry=data['items'].get(data.get('current')) or {}
+      url=str((entry.get('stream') or {}).get('url') or '')
+      return url if url.startswith(('http://','https://')) and not url.startswith(('http://127.0.0.1','http://localhost')) else ''
+     def local_file():
+      # A downloaded video plays from a file on the phone: its strip is made from that file (no network, no allowance).
+      try:
+       name=player.getPlayingFile()
+       if name.startswith('special://'):name=xbmcvfs.translatePath(name)
+       return name if name.startswith('/') and os.path.isfile(name) else ''
+      except Exception:return ''
+     link=local_file();local=bool(link)
+     for _ in range(0 if local else 30):   # a stream: up to a minute for the saved link
+      if not player.isPlayingVideo():return
+      link=link_now()
+      if link:break
+      if mon.waitForAbort(2.0):return
+     thumb_strip.show(home,link,root)
+     if not link:return
+     lib=native_player
+     if not thumb_strip.available(lib):return
+     import cache_tune
+     mb=thumb_strip.WIFI_MB if cache_tune.link_kind()=='wifi' else thumb_strip.MOBILE_MB
+     def position():
+      label=xbmc.getInfoLabel('Player.SeekTime' if xbmc.getCondVisibility('Player.Seeking') else 'Player.Time')
+      return thumb_strip.clock_seconds(label)
+     thumb_strip.follow(lib,link,root,home,lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),
+      playing=lambda:player.isPlayingVideo(),
+      healthy=lambda:local or not xbmc.getCondVisibility('Player.Caching'),
+      position=position,
+      seeking=lambda:xbmc.getCondVisibility('Player.Seeking'),
+      wait=mon.waitForAbort,budget_mb=mb,local=local)
+    except Exception as error:_quiet('portrait:strip',error)
+   threading.Thread(target=work,daemon=True).start()
   def started():
    strip_started()
    subtitles_back()

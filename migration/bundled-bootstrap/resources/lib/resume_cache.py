@@ -14,7 +14,7 @@ import threading
 import time
 
 BLOCK = 4 * 1024 * 1024        # remote_media.BLOCK: blocks are saved as that cache holds them
-HEAD_BLOCKS = 6               # what Kodi's open of an MKV reads: build 639 log aec66fce had it read blocks 0, 2, 3 and 5 (offsets 0, 9 MB, 13 MB, 22 MB) before the first picture; two kept blocks left it waiting 2.9 s on the server for the rest
+HEAD_BLOCKS = 8               # what Kodi's open of an MKV reads: build 639 log aec66fce had it read blocks 0, 2, 3 and 5 (offsets 0, 9 MB, 13 MB, 22 MB) before the first picture; two kept blocks left it waiting 2.9 s on the server for the rest
 AROUND = 3                    # remote_media.RESUME_BLOCKS: the block at the resume point and its neighbours
 MAX_BLOCKS = 12
 TITLES = 3                    # titles kept at once (the last three that stopped): at most TITLES x MAX_BLOCKS x 4 MiB = 144 MiB; the oldest goes when a fourth is saved
@@ -43,21 +43,31 @@ def key(link):
     return hashlib.sha256(('kodi-ios-opening:' + str(link or '')).encode()).hexdigest()[:24]
 
 
-def plan(size, fraction, block=BLOCK):
-    """The block indexes worth keeping for a file of `size` bytes resumed at `fraction`: its start, its last block and the blocks around the resume point
-    (a guess from time: the bitrate varies). Never more than MAX_BLOCKS."""
+def plan(size, fraction, block=BLOCK, cue_offset=None):
+    """The block indexes worth keeping for a file of `size` bytes resumed at `fraction`: its start, its last block and the blocks at the resume point. `cue_offset` is the byte Kodi
+    will seek to (link_warm.resume_offset reads it from the Matroska Cues); without it the point is a guess from time, which a variable bitrate throws a few blocks off (owner log
+    94a6a00c: Kodi read block 97, the guess had kept others, and the first picture waited 3 s for it). Never more than MAX_BLOCKS: the resume point and the end are kept first."""
     if size <= 0:
         return []
     last = (size - 1) // block
-    wanted = set(range(min(HEAD_BLOCKS, last + 1))) | {last}
-    try:
-        fraction = float(fraction)
-    except (TypeError, ValueError):
-        fraction = 0.0
-    if 0 < fraction < 1:
-        at = int(fraction * size) // block
-        wanted |= {i for i in range(at - 1, at - 1 + AROUND) if 0 <= i <= last}
-    return sorted(wanted)[:MAX_BLOCKS]
+    head = list(range(min(HEAD_BLOCKS, last + 1)))
+    resume = []
+    if cue_offset is not None and 0 <= cue_offset < size:
+        at = int(cue_offset) // block
+        resume = [i for i in (at, at + 1) if 0 <= i <= last]
+    else:
+        try:
+            fraction = float(fraction)
+        except (TypeError, ValueError):
+            fraction = 0.0
+        if 0 < fraction < 1:
+            at = int(fraction * size) // block
+            resume = [i for i in range(at - 1, at - 1 + AROUND) if 0 <= i <= last]
+    order = []
+    for i in [0, last] + resume + head:
+        if i not in order:
+            order.append(i)
+    return sorted(order[:MAX_BLOCKS])
 
 
 def _meta(path):
@@ -169,7 +179,7 @@ def seed(source, link, root=None):
     return len(blocks)
 
 
-def capture(link, fraction, make_source, root=None, log=lambda text: None, clock=time.monotonic, stop=lambda: False, poll=0.2, idle=lambda: True):
+def capture(link, fraction, make_source, root=None, log=lambda text: None, clock=time.monotonic, stop=lambda: False, poll=0.2, idle=lambda: True, seconds=None):
     """Read the plan's blocks of `link` through a cache source (`make_source(link)` -> remote_media.Foreground, several connections at once) and keep
     them. One capture at a time; returns how many blocks were kept (0: busy, nothing to keep, or it failed). `stop()` true (a new video is opening: owner, build
     639 log 9f7b4ab2, the capture's six connections were still reading the debrid server when Continue's own check of the same link timed out, and the title
@@ -186,7 +196,19 @@ def capture(link, fraction, make_source, root=None, log=lambda text: None, clock
         cache = source.blocks
         cache.get('media', 0)
         size = int(cache.sizes.get('media') or 0)
-        wanted = plan(size, fraction)
+        cue = None
+        if seconds and size > 0:
+            # Kodi seeks to the cue before the resume time: found from the file's own index (start and end of the file), so the right block is kept
+            try:
+                import link_warm
+                last_index = (size - 1) // BLOCK
+                cache.get('media', last_index)
+                with cache.lock:
+                    head, tail = cache.data.get(('media', 0), b''), cache.data.get(('media', last_index), b'')
+                cue = link_warm.resume_offset(head, tail, size, float(seconds))
+            except Exception:
+                cue = None
+        wanted = plan(size, fraction, cue_offset=cue)
         base = root or folder()
         meta = _meta(_dir(base, link)) if base else None
         if meta and meta.get('key') == key(link) and meta.get('size') == size and set(wanted) <= set(meta.get('blocks') or ()):
@@ -257,7 +279,7 @@ def capture_later(entry, make_source, wifi=lambda: True, log=lambda text: None, 
         if not wifi():
             log('resume cache: not kept (not on Wi-Fi: it costs about 40 MB of data)')   # owner log 1b574ee3: on mobile data nothing was kept and nothing said why
             return None
-        thread = threading.Thread(target=capture, args=(link, position / total, make_source, root, log, time.monotonic, stop, 0.2, idle), daemon=True)
+        thread = threading.Thread(target=capture, args=(link, position / total, make_source, root, log, time.monotonic, stop, 0.2, idle, position), daemon=True)
         thread.start()
         return thread
     except Exception:
