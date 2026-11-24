@@ -2327,8 +2327,39 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
     try:return thumb_strip.complete(os.path.join(root,thumb_strip.key(link)))
     except Exception:return False
    threading.Thread(target=work,daemon=True).start()
+  def info_started():
+   # The Info card's description for a title Continue played from its remembered link (info_fill.py): looked up on TMDb once it plays, kept with the Continue record.
+   try:
+    import info_fill,xbmcgui
+    xbmcgui.Window(10000).clearProperty(info_fill.PROPERTY)
+   except Exception as error:_quiet('portrait:info_begin',error);return
+   import threading
+   def work():
+    try:
+     import drivelibrary,json,os,urllib.request,xbmcaddon,xbmcvfs
+     mon=xbmc.Monitor()
+     if mon.waitForAbort(4.0):return
+     data=module.load(read);item=data.get('current');entry=dict(data['items'].get(item) or {})
+     if not entry:return
+     has_plot=lambda:bool(xbmc.getInfoLabel('VideoPlayer.Plot'))
+     state=xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/')
+     path=os.path.join(state,'drive-library-art.json');cache=drivelibrary.load_json(path,{})
+     key=drivelibrary.tmdb_key(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.themoviedb.helper').getAddonInfo('path'))) if not has_plot() else ''
+     def get(url):
+      with urllib.request.urlopen(url,timeout=8) as answer:return answer.read().decode('utf-8','replace')
+     def remember(plot):
+      fresh=module.load(read);saved=fresh['items'].get(item)
+      if saved is not None and not saved.get('plot'):
+       saved['plot']=plot[:2000];module.save(fresh,write)
+      try:drivelibrary.save_json(path,cache)
+      except Exception:pass
+     put=lambda text:xbmcgui.Window(10000).setProperty(info_fill.PROPERTY,text) if xbmc.Player().isPlayingVideo() else None
+     info_fill.run(entry,has_plot,key,cache,get,drivelibrary,put,remember)
+    except Exception as error:_quiet('portrait:info',error)
+   threading.Thread(target=work,daemon=True).start()
   def started():
    strip_started()
+   info_started()
    subtitles_back()
   def subtitles_back():
    import threading

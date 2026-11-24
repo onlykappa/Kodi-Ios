@@ -492,6 +492,7 @@ def play_stream(handle,entry,url,position,total):
   if str(entry.get('episode') or '').isdigit():tag.setEpisode(int(entry['episode']))
  elif str(entry.get('year') or '').isdigit():tag.setYear(int(entry['year']))
  if entry.get('art'):li.setArt(entry['art'])
+ if entry.get('plot'):tag.setPlot(entry['plot'])   # the Info card's description (ios_continue.record keeps it)
  tag.setResumePoint(position,total);li.setProperty('StartOffset',str(position))
  mark_open('umbrella')
  mark_resolved()

@@ -1004,7 +1004,10 @@ def info_card():
   lab(tx,128,tw,66,'$INFO[VideoPlayer.Title]','font_title_main')+
   '<control type="textbox"><left>%d</left><top>200</top><width>%d</width><height>186</height><font>font_head</font><textcolor>%s</textcolor>'
   '<autoscroll>false</autoscroll><label>$INFO[VideoPlayer.Plot]</label><visible>%s</visible></control>'%(tx,tw,grey,has('VideoPlayer.Plot'))+
-  lab(tx,200,tw,52,'No description for this video yet.','font_head',grey,'<visible>!%s</visible>'%has('VideoPlayer.Plot')))
+  # A title Continue played from its remembered link has no plot of its own: the service looks it up (info_fill.py) and puts it in this Home property.
+  '<control type="textbox"><left>%d</left><top>200</top><width>%d</width><height>186</height><font>font_head</font><textcolor>%s</textcolor>'
+  '<autoscroll>false</autoscroll><label>$INFO[Window(Home).Property(KodiIOS.Plot)]</label><visible>!%s + !String.IsEmpty(Window(Home).Property(KodiIOS.Plot))</visible></control>'%(tx,tw,grey,has('VideoPlayer.Plot'))+
+  lab(tx,200,tw,52,'No description for this video yet.','font_head',grey,'<visible>!%s + String.IsEmpty(Window(Home).Property(KodiIOS.Plot))</visible>'%has('VideoPlayer.Plot')))
  tag=lambda id,text,cond='':('<control type="button" id="%d"><width min="120">auto</width><height>56</height><textoffsetx>22</textoffsetx>'
   '<font>font_main_bold</font><textcolor>%s</textcolor><disabledcolor>%s</disabledcolor><align>center</align><aligny>center</aligny><label>%s</label>'
   '<texturefocus border="16" colordiffuse="40EBEBF5">%stag_line.png</texturefocus><texturenofocus border="16" colordiffuse="40EBEBF5">%stag_line.png</texturenofocus>'

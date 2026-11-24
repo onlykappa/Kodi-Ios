@@ -51,6 +51,7 @@ def record(player,read,write,now=time.time,choice=None,preserve_player=False):
  entry={'kind':kind,'tmdb_id':str(getattr(player,'tmdb_id','') or ''),'title':str(info.get('title') or ''),
         'tvshowtitle':str(info.get('tvshowtitle') or ''),'year':str(info.get('year') or ''),
         'art':{k:v for k,v in art.items() if k in ('poster','fanart','landscape','thumb','clearlogo','tvshow.poster','tvshow.fanart','tvshow.landscape','tvshow.clearlogo') and v}}
+ if info.get('plot'):entry['plot']=str(info['plot'])[:2000]   # the Info card's description when Continue plays the title from its remembered link (no TMDb Helper then)
  if kind=='episode':entry.update(season=str(getattr(player,'season','') or ''),episode=str(getattr(player,'episode','') or ''))
  if not entry['tmdb_id']:return None
  data=load(read);old=data['items'].get(key(entry),{})
@@ -61,6 +62,7 @@ def record(player,read,write,now=time.time,choice=None,preserve_player=False):
  if choice:entry['playback_source']=choice
  if old.get('version') and entry['player']==old.get('player'):entry['version']=old['version']
  if old.get('stream') and entry['player']==old.get('player'):entry['stream']=old['stream']
+ if not entry.get('plot') and old.get('plot'):entry['plot']=old['plot']
  if not entry['player']:del entry['player']
  data['items'][key(entry)]=entry;data['current']=key(entry);save(data,write)
  return key(entry)
@@ -82,12 +84,13 @@ def record_downloaded_movie(params,path,position,total,read,write,now=time.time,
  if art:entry['art']={k:v for k,v in art.items() if k in ('poster','fanart','landscape','thumb','clearlogo') and v}
  data['items'][item_key]=entry;data['current']=item_key;save(data,write);return item_key
 
-def update(read,write,position,total,now=time.time,stream=None):
+def update(read,write,position,total,now=time.time,stream=None,plot=''):
  """Progress of the title the chooser last started (bootstrap service, while video plays). `stream` is the address the video is playing from when it is
  a remote link (never the phone's own proxy): kept for Umbrella titles so Continue can resume from it without asking Umbrella again (fast_stream)."""
  data=load(read);entry=data['items'].get(data.get('current'))
  if not entry or total<=0:return None
  entry.update(position=round(position),total=round(total),played=now())
+ if plot and not entry.get('plot'):entry['plot']=str(plot)[:2000]
  if stream and entry.get('player')=='umbrella' and str(stream).startswith(('http://','https://')) and not str(stream).startswith(('http://127.0.0.1','http://localhost')):
   if (entry.get('stream') or {}).get('url')!=stream:entry['stream']={'url':str(stream),'at':now()}   # when this link was first seen: it is the link's age that matters
  save(data,write)

@@ -57,7 +57,7 @@ class Scrubber(unittest.TestCase):
         self.assertEqual(len(logos), 3)
         for logo in logos:
             self.assertEqual((int(logo.findtext('left')), int(logo.findtext('height'))), (osd.EDGE, 135)); self.assertEqual(logo.find('aspectratio').text, 'keep')
-            self.assertLessEqual(int(logo.findtext('top')) + int(logo.findtext('height')), 730)   # above the title, clear of the centre controls' left arrow (x 685)
+            self.assertEqual(int(logo.findtext('top')) + int(logo.findtext('height')), 760)   # its bottom meets the title's top; clear of the centre controls' left arrow (x 685)
             self.assertLessEqual(osd.EDGE + int(logo.findtext('width')), 685)
         conditions = ' | '.join(c.findtext('visible') for c in logos)
         self.assertIn('Exp_TMDbHelper_IsCrop', conditions); self.assertIn('String.IsEmpty(VideoPlayer.Art(clearlogo))', conditions)
@@ -66,8 +66,9 @@ class Scrubber(unittest.TestCase):
             self.assertNotIn(stray, XML)
     def test_the_title_above_the_bar_is_smaller_and_wraps_instead_of_running_on(self):
         title = next(c for c in controls('label') if '$INFO[VideoPlayer.Title]' in (c.findtext('label') or ''))
-        self.assertEqual(title.findtext('font'), 'font_head_bold'); self.assertEqual(title.findtext('wrapmultiline'), 'true'); self.assertEqual(title.findtext('aligny'), 'bottom')
-        self.assertLessEqual(int(title.findtext('top')) + int(title.findtext('height')), 862)   # grows upward from the bar, never over it
+        self.assertEqual(title.findtext('font'), 'font_head_bold'); self.assertEqual(title.findtext('wrapmultiline'), 'true'); self.assertEqual(title.findtext('aligny'), 'center')
+        self.assertEqual((int(title.findtext('top')), int(title.findtext('height'))), (760, 100))      # centred on 810, the bar is at 862: low, close to the bar
+        self.assertLessEqual(int(title.findtext('top')) + int(title.findtext('height')), 862)   # never over the bar
     def test_each_right_time_shows_only_in_its_own_state(self):
         shown = [(c.findtext('label'), c.findtext('visible')) for c in controls('label') if c.findtext('label', '').startswith(('-$INFO[Player.TimeRem', 'Ends at'))]
         self.assertEqual(len(shown), 4)

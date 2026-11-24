@@ -174,17 +174,17 @@ def window():
   image(cx-180,cy+222,52,11,MEDIA+'dot.png','FF0A84FF','<visible>Player.Caching + Integer.IsLess(Player.CacheLevel,4)</visible>'+PULSE,border='6'),
   '<visible>!%s</visible>'%PANEL)
  # Title: the film, or the show and the episode.
- # Owner, 2026-11-24 (build 686): a long episode title above the seek bar was huge. Now 40 units (font_head_bold, was 68), and a title that does not fit wraps to a second
- # line growing upward from the bar, never cut off.
- title=('<control type="label"><left>%d</left><right>%d</right><top>730</top><height>130</height><font>font_head_bold</font><wrapmultiline>true</wrapmultiline>'
-  '<textcolor>FFFFFFFF</textcolor><align>left</align><aligny>bottom</aligny><label>%s</label><visible>!%s</visible></control>')%(
+ # Owner, 2026-11-24 (build 686): a long episode title above the seek bar was huge. Now 40 units (font_head_bold, was 68). Build 688: "the logo and title are too high above the seek bar":
+ # the box is 100 units, centred on y 810 (the bar is at 862), and a title that does not fit wraps to a second line inside it, never cut off. (Kodi's aligny has no "bottom".)
+ title=('<control type="label"><left>%d</left><right>%d</right><top>760</top><height>100</height><font>font_head_bold</font><wrapmultiline>true</wrapmultiline>'
+  '<textcolor>FFFFFFFF</textcolor><align>left</align><aligny>center</aligny><label>%s</label><visible>!%s</visible></control>')%(
   left,left,e('$INFO[VideoPlayer.TVShowTitle,,  ·  ]$INFO[VideoPlayer.Title]'),PANEL)
  # The title's logo (owner, 2026-11-24: "i loved the logos, i just didn't want the other [info] removed"): the one Fuse's info over the video drew, kept when that info is hidden under the
  # controls. Same choice as Fuse's Info_Title: TMDb Helper's cropped logo when the skin setting is on, else the film's clearlogo, else the show's. Without any, the title below is all.
  LOGO_H=135;LOGO_W=520
  def logo_image(texture,visible):
   return ('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><aspectratio align="left" aligny="bottom">keep</aspectratio><fadetime>0</fadetime>'
-   '<texture background="true">%s</texture><visible>%s</visible></control>')%(left,590,LOGO_W,LOGO_H,texture,e(visible))
+   '<texture background="true">%s</texture><visible>%s</visible></control>')%(left,625,LOGO_W,LOGO_H,texture,e(visible))
  CROP='!String.IsEmpty(Window(Home).Property(TMDbHelper.Player.CropImage)) + $EXP[Exp_TMDbHelper_IsCrop]'
  logo=('<control type="group"><visible>!%s</visible>'%PANEL+
   logo_image('$INFO[Window(Home).Property(TMDbHelper.Player.CropImage)]',CROP)+
