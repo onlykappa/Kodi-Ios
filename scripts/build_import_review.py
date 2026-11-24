@@ -28,16 +28,29 @@ def fetch(url,attempts=4,wait=time.sleep):
    if attempt==attempts-1:raise
    wait(5*2**attempt)
 
-def acquire(source):
- data=fetch(source['url'])
- if source.get('git_blob_sha'):
-  actual=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest();assert actual==source['git_blob_sha'],'Public Git blob mismatch'
- elif source.get('sha256'):assert digest(data)==source['sha256'],'Published digest mismatch'
- else:
-  html=fetch(source['url']+'?mirrorlist').decode()
-  flat=re.sub('<[^>]*>',' ',html)
-  match=re.search(r'SHA256\s*([0-9a-f]{64})',flat,re.I)
-  assert match and digest(data)==match[1].lower(),'Publisher mirror digest missing/mismatched'
+def acquire(source,primary=None,get=None):
+ """The archive of `source`, verified by its own pin (Git blob, sha256, or the publisher's mirror digest). When the upstream address fails, the kept copy
+ (source_mirror, release third-party-sources-1) is used instead and must pass the same check; every verified download is kept for the next emergency."""
+ import source_mirror as mirror
+ primary=primary or fetch;get=get or fetch
+ def check(data):
+  if source.get('git_blob_sha'):
+   actual=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest();assert actual==source['git_blob_sha'],'Public Git blob mismatch'
+  elif source.get('sha256'):assert digest(data)==source['sha256'],'Published digest mismatch'
+  else:
+   # Kodi's official mirror publishes a digest beside each archive; a kept copy is checked against the table kept with it instead.
+   html=primary(source['url']+'?mirrorlist').decode()
+   flat=re.sub('<[^>]*>',' ',html)
+   match=re.search(r'SHA256\s*([0-9a-f]{64})',flat,re.I)
+   assert match and digest(data)==match[1].lower(),'Publisher mirror digest missing/mismatched'
+ pinned=bool(source.get('git_blob_sha') or source.get('sha256'))
+ def fresh(url):
+  data=primary(url);check(data);return data
+ try:data=fresh(source['url']);kept=False
+ except Exception as upstream:
+  print('source %s: upstream failed (%s: %s); trying the kept copy'%(source['id'],type(upstream).__name__,str(upstream)[:100]),flush=True)
+  data=mirror.mirrored(source['url'],get,check if pinned else None);kept=True
+ if not kept:mirror.keep(mirror.asset_name(source['url']),data)
  return data
 
 def patch_listitem_tools(files,prefix):

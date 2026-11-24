@@ -490,6 +490,7 @@ def run():
  def _credit(ok,via):
   if via!='umbrella':return
   done=source_speed.settle(xbmcgui.Window(10000),_speed,ok)
+  if done:xbmcgui.Window(10000).setProperty(open_timing.SOURCE,done[0])
   if done:xbmc.log('Kodi iOS Umbrella source %s: %s'%(done[0],'opened in %.1f s from the choice to the streams being ready'%done[1] if done[1] is not None else 'did not open'),xbmc.LOGINFO)
  open_timing.LISTENERS.append(_credit)
  import cache_tune   # roadmap 1B.3: Kodi's cache read factor follows Wi-Fi / cellular, set as a video is about to open

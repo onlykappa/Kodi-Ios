@@ -31,7 +31,10 @@ KODI_CAP=30*60
 # ISSUE-281 (owner, build 442: an Umbrella episode sat at "Opening the video · 0 of 12 MB", then the app crashed on Resume):
 # ISSUE-303: Kodi is handed the cache only after all opening blocks are complete within FIRST_ANSWER seconds;
 # a size or one split piece is not enough. Otherwise cancel its reads and preserve the original direct source.
-FIRST_ANSWER=5.0
+# ISSUE-477 (owner, 2026-11-24: Umbrella openings are inconsistent). 21 Umbrella opens in the logs of builds 640-693: with the opening blocks in (cache 3/3, wait 0-240 ms) the open took 0.2-3.2 s; when the
+# cache gave up at about 2 s (`direct 0-2/3 wait 2.0 s`: hopeless() projected a finish just past the 5 s budget) the direct open then took 6-8 s more, 10-18 s to the first picture, and nothing was
+# kept for the next time. Giving the blocks up to 8 s is cheaper than that fallback; a server that is dead or really slow (0.2 MB/s needs 60 s) is still dropped after EARLY_LOOK by hopeless().
+FIRST_ANSWER=8.0
 _BROKER=[None]   # ISSUE-281: one cache per service run; a restarted Drive loop reuses it
 # ISSUE-302 (owner, build 470, log 2979ea67: an Umbrella episode sat at "Opening the video · 4 of 12 MB, 33 %", AllDebrid
 # "sending it slowly (0.2 MB/s)", no picture after 126 s, on Wi-Fi with nothing else copying): a 4 MiB block came over ONE
@@ -670,7 +673,7 @@ def acquire(source,home):
  except Exception:return source,None
 
 
-SLOW_SKIP=6*3600   # seconds a server family that did not answer the cache's opening in time is played directly without asking again (build 639 log aec66fce: the
+SLOW_SKIP=30*60   # seconds a server family that did not answer the cache's opening in time is played directly without asking again (build 639 log aec66fce: the
                    # first open after each launch still paid 2 s and, with 28 requests in flight, left the debrid server refusing Kodi's own range read: "Requested range was not delivered")
 SLOW_PROPERTY='KodiIOS.CacheSlowHost'
 
@@ -790,7 +793,9 @@ def preflight(source,home,limit=PREFLIGHT,check=None,renew=None,log=None):
 def for_kodi(source,home,wait=None,clock=time.monotonic,resume=None):
  """ISSUE-280: the address Kodi's own player should open for a link Umbrella just resolved: the service's cache when
  the link is a remote MKV / AVI / WebM and the service answers, else the link itself (nothing changes then)."""
- if not KODI_PLAYBACK or not eligible(source):return source
+ if not KODI_PLAYBACK:return source
+ if not eligible(source):
+  _note_route(home,source);return source   # the open record names why this open did not use the cache (an .mp4 link, for one)
  began=clock();sample={}
  try:
   endpoint=_endpoint(home)
@@ -829,6 +834,15 @@ def for_kodi(source,home,wait=None,clock=time.monotonic,resume=None):
  except Exception:return source
 
 
+def _note_route(home,source):
+ """The open record's route field for a link the cache does not take: its file type only (never the address)."""
+ try:
+  import os
+  ext=os.path.splitext(urllib.parse.urlsplit(source.partition('|')[0]).path.lower())[1].lstrip('.')[:8] or 'none'
+  home.setProperty('KodiIOS.OpenRoute','not cached (.%s)'%ext)
+ except Exception:pass
+
+
 def _direct(source,home):
  """The link for a direct open, checked first (preflight), with the failover logged."""
  try:import xbmc
@@ -844,6 +858,10 @@ def opening_log(route,elapsed,stats,reason=''):
    int(stats.get('opening_blocks') or 0),int(stats.get('pending_blocks') or 0),int(stats.get('read_bytes') or 0),
    int(stats.get('http_requests') or 0),int(stats.get('http_errors') or 0),int(stats.get('last_status') or 0))
    +(' served=%d'%int(stats.get('served') or 0))+((' reason=%s'%reason) if reason else '')+(' origin_answered=%s'%('yes' if int(stats.get('size') or 0)>0 else 'no')),xbmc.LOGINFO)   # origin_answered=no: the debrid server had not even said the file size, so the wait was its slow start, not ours
+ except Exception:pass
+ try:   # the one open record line (open_timing.record) names the route this open took
+  import xbmcgui
+  xbmcgui.Window(10000).setProperty('KodiIOS.OpenRoute','%s %d/%d wait %.1f s%s'%(route,int(stats.get('opening_complete') or 0),int(stats.get('opening_blocks') or 0),max(0.0,elapsed),(' ('+reason+')') if reason else ''))
  except Exception:pass
 
 

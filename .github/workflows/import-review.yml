@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/import-review.yml'
       - 'scripts/build_import_review.py'
+      - 'scripts/source_mirror.py'
       - 'scripts/build_customized_ipa.py'
       - 'scripts/fetch_elementum_inputs.py'
       - 'scripts/provider_addons.py'
@@ -53,6 +54,7 @@ on:
     paths:
       - '.github/workflows/import-review.yml'
       - 'scripts/build_import_review.py'
+      - 'scripts/source_mirror.py'
       - 'scripts/build_customized_ipa.py'
       - 'scripts/fetch_elementum_inputs.py'
       - 'scripts/provider_addons.py'
@@ -110,6 +112,9 @@ jobs:
     permissions:
       contents: write
     timeout-minutes: 25
+    env:
+      # Every verified third-party download of this run is copied here (scripts/source_mirror.py) and published as release third-party-sources-1 at the end.
+      KODI_IOS_PRESERVE_DIR: ${{ runner.temp }}/third-party-sources
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -367,6 +372,8 @@ jobs:
           python3 -B scripts/test_activation.py
           python3 -B scripts/test_ios.py
           python3 -B scripts/test_review_low_items.py
+          python3 -B scripts/test_source_mirror.py
+          python3 -B scripts/test_open_budget.py
       - name: Acquire public pinned sources and build review ZIP
         run: |
           python3 -B scripts/build_import_review.py --foundation-report reports/ios-foundation-addon-audit.json --output "$RUNNER_TEMP/kodi-import-review"
@@ -384,8 +391,16 @@ jobs:
         if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'build-ipa')
         run: |
           mkdir -p "$RUNNER_TEMP/customized-foundation"
-          curl --fail --location --proto '=https' --proto-redir '=https' --max-time 120 --output "$RUNNER_TEMP/customized-foundation/foundation.deb" https://mirrors.kodi.tv/releases/darwin/ios-arm64/org.xbmc.kodi-ios_21.3_iphoneos-arm64.deb
-          printf '%s  %s\n' c80e2e4eded0b3be9f9c8cd19a73e3f3ac7171575dd6f08cfddf14312ca81eb8 "$RUNNER_TEMP/customized-foundation/foundation.deb" | sha256sum --check
+          deb=org.xbmc.kodi-ios_21.3_iphoneos-arm64.deb
+          fetch() { curl --fail --location --proto '=https' --proto-redir '=https' --max-time 120 --output "$RUNNER_TEMP/customized-foundation/foundation.deb" "$1"; }
+          want=c80e2e4eded0b3be9f9c8cd19a73e3f3ac7171575dd6f08cfddf14312ca81eb8
+          # Kodi's mirror first; if it fails, the kept copy in release third-party-sources-1 (accepted only if it has the same pinned digest).
+          if ! { fetch "https://mirrors.kodi.tv/releases/darwin/ios-arm64/$deb" && printf '%s  %s\n' "$want" "$RUNNER_TEMP/customized-foundation/foundation.deb" | sha256sum --check; }; then
+            echo "Kodi's mirror failed or differed; trying the kept copy"
+            fetch "https://github.com/${{ github.repository }}/releases/download/third-party-sources-1/$deb"
+          fi
+          printf '%s  %s\n' "$want" "$RUNNER_TEMP/customized-foundation/foundation.deb" | sha256sum --check
+          mkdir -p "$KODI_IOS_PRESERVE_DIR" && cp "$RUNNER_TEMP/customized-foundation/foundation.deb" "$KODI_IOS_PRESERVE_DIR/$deb"
           dpkg-deb --extract "$RUNNER_TEMP/customized-foundation/foundation.deb" "$RUNNER_TEMP/customized-foundation/unpacked"
       - name: Acquire pinned portrait pieces (rotation-aware Kodi executable, Liquid Glass tab bar)
         if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'build-ipa')
@@ -432,4 +447,22 @@ jobs:
             gh release upload "$tag" "$RUNNER_TEMP"/provider-sources/* --clobber --repo "$REPO"
           else
             gh release create "$tag" "$RUNNER_TEMP"/provider-sources/* --repo "$REPO" --target "$DEFAULT" --prerelease --title "Pinned third-party sources" --notes "Copies of the archives pinned in migration/provider-fallback/source-lock.json, each checked against its sha256. Used only when the upstream address fails."
+          fi
+      # 2026-11-24: the same for every other third-party download (official Kodi add-on archives, jurialmunkey's, Elementum client and Burst, CocoScrapers, kodi-six modules, the Kodi 21.3 package).
+      - name: Keep a copy of every third-party download (release third-party-sources-1)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DEFAULT: ${{ github.event.repository.default_branch }}
+        run: |
+          tag=third-party-sources-1
+          ls -la "$KODI_IOS_PRESERVE_DIR"
+          if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
+            gh release download "$tag" --repo "$REPO" --pattern MANIFEST.json --dir "$RUNNER_TEMP/earlier" || true
+            python3 -B scripts/source_mirror.py --directory "$KODI_IOS_PRESERVE_DIR" --previous "$RUNNER_TEMP/earlier/MANIFEST.json"
+            gh release upload "$tag" "$KODI_IOS_PRESERVE_DIR"/* --clobber --repo "$REPO"
+          else
+            python3 -B scripts/source_mirror.py --directory "$KODI_IOS_PRESERVE_DIR"
+            gh release create "$tag" "$KODI_IOS_PRESERVE_DIR"/* --repo "$REPO" --target "$DEFAULT" --prerelease --title "Third-party sources (kept copies)" --notes "Copies of every third-party file a build downloads, each already checked against the pin in this repository's lock files. MANIFEST.json lists each file's sha256. Used only when an upstream address fails (scripts/source_mirror.py)."
           fi

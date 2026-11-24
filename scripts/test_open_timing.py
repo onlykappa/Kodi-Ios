@@ -23,8 +23,28 @@ class OpenTiming(unittest.TestCase):
         ot.check(home,lambda:True,lines.append,now=101.3)
         self.assertFalse(ot.check_moving(lines.append,lambda:False,now=103.0))
         self.assertTrue(ot.check_moving(lines.append,lambda:True,now=104.4))
-        self.assertIn('first picture (playback clock moving) 4.4 s after the tap via library, 3.1 s after streams ready',lines[-1])
+        self.assertIn('first picture (playback clock moving) 4.4 s after the tap via library, 3.1 s after streams ready',lines[-2])
+        self.assertEqual(lines[-1],'Kodi iOS open record: via=library | source=- | route=- | streams ready 1.3 s | stages - | first picture 4.4 s')
         self.assertFalse(ot.check_moving(lines.append,lambda:True,now=105.0))   # logged once
+    def test_one_record_line_has_the_same_fields_for_every_open(self):
+        home,lines=Home(),[];ot.WAITING.clear();ot.DETAIL.clear()
+        ot.mark(home,'umbrella',now=200.0)
+        home.setProperty(ot.ROUTE,'cache 3/3 wait 0.1 s');home.setProperty(ot.SOURCE,'alldebrid|torrentio')
+        ot.check(home,lambda:True,lines.append,now=201.3,probe=lambda:{'media':True,'video':True})
+        ot.check_moving(lines.append,lambda:True,now=203.2,home=home)
+        record=lines[-1]
+        self.assertTrue(record.startswith('Kodi iOS open record: via=umbrella | source=alldebrid|torrentio | route=cache 3/3 wait 0.1 s | streams ready 1.3 s | stages '))
+        self.assertTrue(record.endswith('| first picture 3.2 s'))
+        self.assertEqual(record.count(' | '),5)
+        self.assertEqual(ot.DETAIL,{})   # nothing left behind
+        home2,lines2=Home(),[]
+        ot.mark(home2,'umbrella',now=300.0)   # a new open clears the earlier route and source
+        self.assertEqual((home2.getProperty(ot.ROUTE),home2.getProperty(ot.SOURCE)),('',''))
+    def test_a_clock_that_never_moves_leaves_no_record_behind(self):
+        home,lines=Home(),[];ot.WAITING.clear();ot.DETAIL.clear()
+        ot.mark(home,'library',now=100.0);ot.check(home,lambda:True,lines.append,now=101.0)
+        ot.check_moving(lines.append,lambda:False,now=140.0)
+        self.assertEqual((ot.WAITING,ot.DETAIL),({},{}));self.assertFalse(any('open record' in l for l in lines))
     def test_a_clock_that_never_moves_is_reported_then_forgotten(self):
         home,lines=Home(),[];ot.WAITING.clear()
         ot.mark(home,'library',now=100.0);ot.check(home,lambda:True,lines.append,now=101.0)
