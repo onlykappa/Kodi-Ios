@@ -603,3 +603,5 @@ Step 3 checkpoint (ISSUE-370): Live Now's native dispatch is now staged after mo
 6. **Full regression — host and native checks passed:** progress records the full CI run, local 180-command run and Python 3.11 retest, plus unresolved empty-segment reproduction and artifact access. The native candidate is not pinned; an owner-authorized testing IPA and iPhone/Apple TV playback, buffering and resume measurements remain open.
 
 Source resilience step 3 remains open: a sanitized `future` runtime snapshot is now recorded alongside four unmodified module trees, with reproducible transformations and host import checks. Durable provider/native closure and real Kodi 21.3 runtime evidence remain outstanding; see docs/SOURCE-PRESERVATION-STEP3.md and ISSUE-399/401. Steps 4–16 remain unstarted.
+
+Step 3 recovery update: the pinned POV upstream commit and archive became unavailable after the earlier scratch-only retrieval; a prior CI artifact could not be downloaded in this environment. Recover and verify the exact approved source before claiming a durable baseline. See ISSUE-402; the latest review CI failure also remains undiagnosed because its logs returned HTTP 403.
