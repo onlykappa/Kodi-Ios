@@ -1831,6 +1831,25 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     return 5
 
 
+SLOW_CELL_RATE = 0.25 * 1048576   # ISSUE-484 (owner log 9ba9b5b5: 10 min on cellular copied 30 MB at 0.03-0.2 MB/s): below this ...
+SLOW_CELL_AFTER = 180             # ... for this long on cellular, the copy waits for Wi-Fi (it carries on from what Drive has)
+
+
+def slow_cellular(state, link, rate, now):
+    """True while a copy should wait for Wi-Fi because cellular is too slow to be worth it. Decided once per stay on
+    cellular (state['cell_since'], state['cell_slow']); a different link clears it. `rate` is bytes/s of the copies now."""
+    if link != 'cellular':
+        state.pop('cell_since', None)
+        state.pop('cell_slow', None)
+        return False
+    since = state.setdefault('cell_since', now)
+    if state.get('cell_slow'):
+        return True
+    if now - since >= SLOW_CELL_AFTER and 0 < float(rate or 0) < SLOW_CELL_RATE:
+        state['cell_slow'] = True
+    return bool(state.get('cell_slow'))
+
+
 def hold(profile, reason):
     """Why copies wait outside the queue's own rules ('wifi': Copy only on Wi-Fi while on cellular), or '' to go on.
     Kept in the state for the pages (work_state shows "Waiting for Wi-Fi")."""

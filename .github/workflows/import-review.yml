@@ -348,6 +348,7 @@ jobs:
           python3 -B scripts/test_downloaded_play.py
           python3 -B scripts/test_choose_source.py
           python3 -B scripts/test_resume_now.py
+          python3 -B scripts/test_slow_copy.py
           python3 -B scripts/test_signin_server.py
           python3 -B scripts/test_library_scan.py
           python3 -B scripts/test_library_refresh.py

@@ -767,6 +767,14 @@ def drive_uploads(monitor,home,profile):
    if time.time()-link_seen[0]>15:link_seen[:]=[time.time(),cache_tune.link_kind()]
    return link_seen[1]=='cellular'
   except Exception:return False
+ cell_state={}
+ def slow_cell_hold():
+  """ISSUE-484: on cellular the copy crawled (0.03-0.2 MB/s) and used mobile data for nothing: it waits for Wi-Fi."""
+  try:
+   import cache_tune,debrid_drive
+   rate=sum(float(l.get('rate_own') or l.get('rate') or 0) for l in debrid_drive.uploads(profile))
+   return debrid_drive.slow_cellular(cell_state,cache_tune.link_kind(),rate,time.time())
+  except Exception:return False
  def debrid_loop():
   import alldebrid,debrid_drive,prepare_downloads,transfer_control
   delay=10
@@ -837,6 +845,8 @@ def drive_uploads(monitor,home,profile):
    # E15: Copy only on Wi-Fi (Transfer settings): on cellular the copies wait, the card says so.
    if wifi_only_hold():
     debrid_drive.hold(profile,'wifi');delay=60;continue
+   if slow_cell_hold():
+    debrid_drive.hold(profile,'slow_cell');delay=30;continue
    debrid_drive.hold(profile,'')
    try:
     def done(job):
@@ -862,7 +872,7 @@ def drive_uploads(monitor,home,profile):
                               log=lambda text:xbmc.log('Kodi iOS AllDebrid: '+diagnostics.redact(text),xbmc.LOGINFO),hold=slowdown.holding,
                               quality=quality)
     delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text,group='':notices.add(profile,kind,title,text,group=group),ready_copy=ready_copy,
-                            keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not wifi_only_hold(),on_done=done,
+                            keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not wifi_only_hold() and not slow_cell_hold(),on_done=done,
                             cancelled=lambda:transfer_control.cancelled_copies(profile),
                             forget=lambda h:transfer_control.clear_cancelled(profile,h),
                             log=lambda text:xbmc.log('Kodi iOS AllDebrid: '+text,xbmc.LOGWARNING)) or 20

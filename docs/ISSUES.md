@@ -6892,3 +6892,7 @@ Build 646 is the Sports build line with the other agent's Live Now rows merged i
 - Cause: the service's two `slowdown.configure` lines gained `forced=` (ISSUE-483 Resume now); test_airplay_room still asserted the old exact text.
 - Fix: test updated to the new wiring. Retest: every test in the CI step run locally, all pass.
 - Protection: the wiring assertion now covers the Resume now argument.
+
+## ISSUE-485: One-hour copy looked stuck (owner log 9ba9b5b5)
+- Finding: not stuck. A 1 GB AllDebrid to Drive copy ran at ~0.42 MB/s on Wi-Fi (the phone's upload line), 22% to 97% in 34 min with no stall; 8 timed-out pieces cost ~3.6 min. After a Wi-Fi to cellular switch the last 3% took 10 min at 0.03-0.2 MB/s. Resume across the switch worked.
+- Fix: a copy under 1 MB/s with over 15 min left says "slow upload line, still working"; a copy under 0.25 MB/s for 3 min on cellular waits for Wi-Fi ("Waiting for Wi-Fi · cellular is too slow...") and carries on from what Drive has. Retest: test_slow_copy (host). Device behaviour unverified.
