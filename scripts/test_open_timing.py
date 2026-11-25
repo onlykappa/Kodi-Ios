@@ -24,18 +24,18 @@ class OpenTiming(unittest.TestCase):
         self.assertFalse(ot.check_moving(lines.append,lambda:False,now=103.0))
         self.assertTrue(ot.check_moving(lines.append,lambda:True,now=104.4))
         self.assertIn('first picture (playback clock moving) 4.4 s after the tap via library, 3.1 s after streams ready',lines[-2])
-        self.assertEqual(lines[-1],'Kodi iOS open record: via=library | source=- | route=- | streams ready 1.3 s | stages - | first picture 4.4 s')
+        self.assertEqual(lines[-1],'Kodi iOS open record: via=library | source=- | route=- | tap=- | streams ready 1.3 s | stages - | first picture 4.4 s')
         self.assertFalse(ot.check_moving(lines.append,lambda:True,now=105.0))   # logged once
     def test_one_record_line_has_the_same_fields_for_every_open(self):
         home,lines=Home(),[];ot.WAITING.clear();ot.DETAIL.clear()
         ot.mark(home,'umbrella',now=200.0)
-        home.setProperty(ot.ROUTE,'cache 3/3 wait 0.1 s');home.setProperty(ot.SOURCE,'alldebrid|torrentio')
+        home.setProperty(ot.ROUTE,'cache 3/3 wait 0.1 s');home.setProperty(ot.SOURCE,'alldebrid|torrentio');home.setProperty(ot.TAP,'S4E8 Heavy y=2/8')
         ot.check(home,lambda:True,lines.append,now=201.3,probe=lambda:{'media':True,'video':True})
         ot.check_moving(lines.append,lambda:True,now=203.2,home=home)
         record=lines[-1]
-        self.assertTrue(record.startswith('Kodi iOS open record: via=umbrella | source=alldebrid|torrentio | route=cache 3/3 wait 0.1 s | streams ready 1.3 s | stages '))
+        self.assertTrue(record.startswith('Kodi iOS open record: via=umbrella | source=alldebrid|torrentio | route=cache 3/3 wait 0.1 s | tap=S4E8 Heavy y=2/8 | streams ready 1.3 s | stages '))
         self.assertTrue(record.endswith('| first picture 3.2 s'))
-        self.assertEqual(record.count(' | '),5)
+        self.assertEqual(record.count(' | '),6);self.assertEqual(home.getProperty(ot.TAP),'')   # the tap is named once, then cleared
         self.assertEqual(ot.DETAIL,{})   # nothing left behind
         home2,lines2=Home(),[]
         ot.mark(home2,'umbrella',now=300.0)   # a new open clears the earlier route and source

@@ -11,6 +11,7 @@ import time
 PROPERTY = 'KodiIOS.Open'
 RESOLVED = 'KodiIOS.OpenResolved'
 ROUTE = 'KodiIOS.OpenRoute'     # set by remote_media.opening_log: 'cache 3/3 wait 0.1 s' or 'direct 1/3 wait 2.0 s (reason)'
+TAP = 'KodiIOS.EpisodeTap'      # set by the show page's episode lists on a tap: season, episode, title, row; named in the open record, then cleared
 SOURCE = 'KodiIOS.OpenSource'   # set by the service when an Umbrella source was credited: 'alldebrid|torrentio'
 DETAIL = {}     # mark time -> (seconds to streams ready, stages text): kept for the one record line written at the first picture
 GIVE_UP = 120.0
@@ -125,8 +126,14 @@ def record(started, via, picture, ready_after, home=None):
         except Exception:
             return '-'
     took, stages = DETAIL.pop(started, (None, ''))
-    return ('Kodi iOS open record: via=%s | source=%s | route=%s | streams ready %s | stages %s | first picture %.1f s' % (
-        via, prop(SOURCE), prop(ROUTE), '%.1f s' % took if took is not None else '-', stages or '-', picture))
+    tap = prop(TAP)
+    try:
+        if home is not None:
+            home.clearProperty(TAP)
+    except Exception:
+        pass
+    return ('Kodi iOS open record: via=%s | source=%s | route=%s | tap=%s | streams ready %s | stages %s | first picture %.1f s' % (
+        via, prop(SOURCE), prop(ROUTE), tap, '%.1f s' % took if took is not None else '-', stages or '-', picture))
 
 
 def check_moving(log, moving, now=None, home=None):

@@ -1156,7 +1156,7 @@ SHOW_CONTINUE=('String.IsEqual(ListItem.Season,Window(Home).Property(KodiIOS.Sho
 EPISODE_H=440   # one episode card in the show page's list (was 420: two lines of plot)
 def episode_item(focused):
  thumb_w,thumb_h=400,225
- bg=surface(SIDE-18,4,WIDTH-2*SIDE+36,thumb_h+196,'round_s.png','14FFFFFF',26) if focused else ''
+ bg=''   # Owner (2026-11-25): "the highlight stays as I scroll" and it looked like the row a tap would open. A phone has no hover: no row is drawn as chosen.
  return ('<control type="group"><visible>String.IsEqual(ListItem.DBType,episode)</visible>'+bg+image(SIDE,18,thumb_w,thumb_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'thumb_mask.png')+
   image(SIDE,18,thumb_w,thumb_h,'$VAR[Portrait_Thumb]',WHITE,'','>scale',MEDIA+'thumb_mask.png',background=True)+
   image(SIDE+thumb_w//2-48,18+thumb_h//2-48,96,96,MEDIA+'glass_96.png')+icon(SIDE+thumb_w//2-18,18+thumb_h//2-20,40,MEDIA+'play.png')+
@@ -1192,6 +1192,7 @@ def video_nav(original):
   '</control>')%(SIDE,WIDTH-SIDE,SEASON_EPISODES_LIBRARY,season_chip(False),season_chip(True))
  episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
+  '<onclick>SetProperty(KodiIOS.EpisodeTap,&quot;S$INFO[ListItem.Season]E$INFO[ListItem.Episode] $ESCINFO[ListItem.Label] row $INFO[Container.CurrentItem]&quot;,home)</onclick>'
   '<itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>%s</control>')
  gen_item=lambda focused:((surface(SIDE-18,6,WIDTH-2*SIDE+36,198,'round_s.png','14FFFFFF',26) if focused else '')+
   image(SIDE,18,116,174,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'tile_mask.png')+
@@ -1553,7 +1554,7 @@ def context_menu(original):
  # Without one the dialog is the full screen, so the card and menu stay where this layout puts them.
  body=('<controls><control type="image"><width>%d</width><height>%d</height><texture colordiffuse="80000000">%swhite.png</texture>'
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation></control>'
-  '<control type="button" id="9099"><width>%d</width><height>%d</height><texturefocus /><texturenofocus /><onclick>Close</onclick><onfocus>SetFocus(996)</onfocus></control>'
+  '<control type="button" id="9099"><width>%d</width><height>%d</height><texturefocus /><texturenofocus /><onclick>Dialog.Close(contextmenu)</onclick><onfocus>SetFocus(996)</onfocus></control>'
   '%s%s</controls>')%(WIDTH,HEIGHT,MEDIA,WIDTH,HEIGHT,card,menu)
  return window(original,body,'996')
 

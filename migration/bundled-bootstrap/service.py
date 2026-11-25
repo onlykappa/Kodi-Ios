@@ -868,6 +868,7 @@ def drive_uploads(monitor,home,profile):
     if not accounts.get_accounts():continue
     done=drivelibrary.refresh_stale(state_dir)
     if done:log('Library lists refreshed from Google Drive: %s'%', '.join(done))
+    if done:xbmcgui.Window(10000).setProperty('KodiIOS.LibRefreshedAt',repr(time.time()))   # page_watch names a folder change that follows a refresh
     if any(slot.startswith('tv:') for slot in done):   # ISSUE-329: Drive problems reach Notifications
      try:
       import library_delete
@@ -882,6 +883,21 @@ def drive_uploads(monitor,home,profile):
     drive_health.update(ok=False,error="Can't reach Google Drive")
     diagnostics.log_exception(xbmc,'library_lists',error)
  threading.Thread(target=library_lists,daemon=True).start()
+ # Owner (2026-11-25): tapping outside the Resume / Play from beginning menu took them out of the show. One line whenever the page's folder changes, with what was going on (page_watch.py).
+ def page_watch_loop():
+  import page_watch
+  state={};home=xbmcgui.Window(10000)
+  while not monitor.waitForAbort(0.5):
+   try:
+    if not xbmc.getCondVisibility('Window.IsActive(videos)'):
+     state['path']=None;continue   # the first reading after coming back is only remembered
+    try:refreshed=float(home.getProperty('KodiIOS.LibRefreshedAt') or 0)
+    except ValueError:refreshed=0.0
+    line=page_watch.step(state,time.time(),xbmc.getInfoLabel('Container.FolderPath'),xbmc.getCondVisibility('Window.IsVisible(contextmenu)'),
+                         xbmc.getInfoLabel('Container.Content'),refreshed)
+    if line:xbmc.log(line,xbmc.LOGINFO)
+   except Exception as error:diagnostics.log_exception(xbmc,'page_watch',error)
+ threading.Thread(target=page_watch_loop,daemon=True).start()
  # DEC-052 (PR #27): one Library index every screen reads, rebuilt when its inputs change; the counter property makes
  # open pages redraw at once.
  import library_index
