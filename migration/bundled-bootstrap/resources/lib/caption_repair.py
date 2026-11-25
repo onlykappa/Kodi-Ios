@@ -43,3 +43,12 @@ def due(url, key, tried, installed=None, probe=None):
         return False
     tried[key] = installed
     return True
+
+
+def carry(prior, probe):
+    """ISSUE-486 (owner log 0d8c75c0: Iron Man showed "preparing", 18 s later was "kept unchanged", no notice, never made again):
+    due() answers True once per copy (it records the try), so the second look, when the video is opened to be made, found
+    nothing to do and dropped the repack the first look had asked for. A repack the caption check asked for stays asked."""
+    if (prior or {}).get('layout_reason') == REASON and prior.get('fast_open') is False and probe.get('fast_open') is not False:
+        probe.update(fast_open=False, layout_reason=REASON)
+    return probe

@@ -31,4 +31,13 @@ class Repair(unittest.TestCase):
         text=(LIB/'prepare_downloads.py').read_text()
         self.assertIn("elif streamable_video(probe) and probe.get('fast_open') is not False and ready(item):",text)
         self.assertIn("caption_repair.due(source,key(item),self.state.setdefault('captions',{}))",text)
+    def test_a_repack_the_caption_check_asked_for_survives_the_second_look(self):
+        # ISSUE-486 (owner log 0d8c75c0, Iron Man): the run's own inspection finds due() already answered, so it must keep the ask
+        asked={'fast_open':False,'layout_reason':cr.REASON}
+        again={'fast_open':True,'codec':'h264'}
+        self.assertEqual(cr.carry(asked,dict(again))['fast_open'],False)
+        self.assertEqual(cr.carry(asked,dict(again))['layout_reason'],cr.REASON)
+        self.assertTrue(cr.carry({'fast_open':False,'layout_reason':'fragment_index'},dict(again))['fast_open'])   # other reasons are re-judged
+        self.assertTrue(cr.carry(None,dict(again))['fast_open'])
+        self.assertIn("caption_repair.carry(job.get('probe'),q.inspect_source(item,keep_going))",(LIB/'prepare_cloud.py').read_text())
 if __name__=='__main__':unittest.main()

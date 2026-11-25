@@ -255,7 +255,8 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
                         drivelibrary.display_title(item['name']),checkpoint['offset']+len(checkpoint['tail'])-checkpoint.get('skip',0),checkpoint.get('skip',0)))
                 else:
                     progress('Inspecting video and track index',None)
-                    before=q.inspect_source(item,keep_going);job['probe']=before
+                    import caption_repair
+                    before=caption_repair.carry(job.get('probe'),q.inspect_source(item,keep_going));job['probe']=before
                     # Keep a contradictory old prepared marker from bypassing this repair after a pause/failure.
                     if prep.streamable_video(before):job.pop('audit',None)
                     else:job['audit']=True
