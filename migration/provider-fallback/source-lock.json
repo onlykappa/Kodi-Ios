@@ -360,6 +360,12 @@
       "url": "https://raw.githubusercontent.com/heuer/segno/9b67a3f2914be966c35dd8f00bef19d01b9ec68e/LICENSE",
       "sha256": "de6c85fccf5d52902aa13dfe2dc6d2a2a106fc3419ed438f3460f0d4b76a6935",
       "purpose": "Upstream Segno 1.6.6 BSD notice for vendored Jacktook files; packaged files differ from this upstream tag and require further provenance review."
+    },
+    {
+      "path": "licenses/cloudscraper-1.2.60-MIT.md",
+      "url": "https://raw.githubusercontent.com/VeNoMouS/cloudscraper/d54abb0fac5743eb7122debe9807eec541613a0b/LICENSE",
+      "sha256": "96e0bd3493c45f42404142969335a500e69a13af5f34a9d6d6e22e0ca9961117",
+      "purpose": "Upstream cloudscraper 1.2.60 MIT notice for the a4kScrapers vendored subtree; differences and additional files require further provenance review."
     }
   ],
   "data_assets": [

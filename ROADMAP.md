@@ -611,3 +611,5 @@ Step 3 follow-up: the owner selected the existing private release's POV/Magneto 
 Provider recovery now has a tested path from 29 SHA256-matched assets in the existing private release through local socket-guarded restoration and clean staging. Retention, rights and corresponding-source review, Kodi runtime, native closure and phone evidence remain separate outstanding matters; see docs/SOURCE-PRESERVATION-STEP3.md.
 
 Step 3 rights review has an archive-by-archive inventory and a staged Segno BSD notice; image provenance, selected POV/Magneto source provenance, third-party notices and corresponding source remain to be resolved (ISSUE-404).
+
+Source step 3 Go graph audit: 179 module versions downloaded into scratch, with 62 selected in readonly ios/arm64 package resolution; selected napping declares GPL v3. Sources and licenses still require review and durable preservation; see ISSUE-405. The cloudscraper MIT notice is now staged, with vendored differences still under review.
