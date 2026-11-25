@@ -1192,8 +1192,10 @@ def video_nav(original):
   '</control>')%(SIDE,WIDTH-SIDE,SEASON_EPISODES_LIBRARY,season_chip(False),season_chip(True))
  episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
-  '<onclick>SetProperty(KodiIOS.EpisodeTap,&quot;S$INFO[ListItem.Season]E$INFO[ListItem.Episode] $ESCINFO[ListItem.Label] row $INFO[Container.CurrentItem]&quot;,home)</onclick>'
-  '<itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>%s</control>')
+  '%s<itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>%s</control>')
+ # ISSUE-487 (owner log f8c6f27b, build 705: "I tap and tap but nothing shows"): a list that loads its items from a <content> source runs its own
+ # <onclick> INSTEAD of opening the item, so the tap-naming onclick (ISSUE-478) made every episode of list 60 dead. Only the list with no <content> (52) names taps.
+ episode_tap=('<onclick>SetProperty(KodiIOS.EpisodeTap,&quot;S$INFO[ListItem.Season]E$INFO[ListItem.Episode] $ESCINFO[ListItem.Label] row $INFO[Container.CurrentItem]&quot;,home)</onclick>')
  gen_item=lambda focused:((surface(SIDE-18,6,WIDTH-2*SIDE+36,198,'round_s.png','14FFFFFF',26) if focused else '')+
   image(SIDE,18,116,174,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'tile_mask.png')+
   image(SIDE,18,116,174,'$INFO[ListItem.Art(poster)]',WHITE,'<visible>!String.IsEmpty(ListItem.Art(poster))</visible>','>scale',MEDIA+'tile_mask.png',background=True)+
@@ -1215,8 +1217,8 @@ def video_nav(original):
   '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'
   '%s%s%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,episode_chips,library_chips,
-  episodes%(60,0,WIDTH,HEIGHT,'50','Container.Content(seasons)',EPISODE_H,episode_item(False),EPISODE_H,episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'),
-  episodes%(52,0,WIDTH,HEIGHT,'9002','Container.Content(episodes)',EPISODE_H,episode_item(False),EPISODE_H,episode_item(True),''))
+  episodes%(60,0,WIDTH,HEIGHT,'50','Container.Content(seasons)','',EPISODE_H,episode_item(False),EPISODE_H,episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'),
+  episodes%(52,0,WIDTH,HEIGHT,'9002','Container.Content(episodes)',episode_tap,EPISODE_H,episode_item(False),EPISODE_H,episode_item(True),''))
  # Owner (build 229): "If i scroll down after i select a season the season selecter disappears". Once the page has
  # scrolled, the same seasons (the folder's own listing, cached by the add-on) stay pinned under the Back button. A tap
  # selects that season in the page's own row (SetFocus absolute takes a 0-based index; CurrentItem is 1-based).
