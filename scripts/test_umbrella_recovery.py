@@ -124,4 +124,31 @@ class ExpiredLink(unittest.TestCase):
   self.assertNotIn(OLD,json.dumps(status));self.assertNotIn(NEW,json.dumps(status))
   self.assertEqual(renewals,[1]);lease.close()
 
+class OneCheckPerPick(unittest.TestCase):
+ # ISSUE-490 (owner log f155938b): a movie pick unlocks one link, an episode pick 3-20, each checked for 1.3 s
+ def want(self,**k):return json.dumps(dict({'t':100.0},**k))
+ def test_episode_names(self):
+  for name in ('Show.S01E01.1080p.WEB.mkv','show s1 e1 720p.mkv','Show.1x01.avi','Show Season 1 Episode 1.mkv','show.s01.e01.mkv','Show.S01E01E02.mkv'):
+   self.assertTrue(recovery.episode_named(name,1,1),name)
+  for name in ('Show.S01E02.mkv','Show.S01E10.mkv','Show.S02E01.mkv','Show.S01.Complete.mkv','Show.S01E011.mkv'):
+   self.assertFalse(recovery.episode_named(name,1,1),name)
+  self.assertTrue(recovery.episode_named('',1,1))   # no name: cannot say
+ def test_only_the_file_that_names_the_episode_is_checked_and_only_once(self):
+  state={};want=self.want(season=1,episode=1)
+  self.assertFalse(recovery.worth_checking(want,'Show.S01E07.mkv',state))     # another file of a pack: handed back untouched
+  self.assertFalse(recovery.worth_checking(want,'Show.S01.Complete.mkv',state))
+  self.assertTrue(recovery.worth_checking(want,'Show.S01E01.1080p.mkv',state))
+  self.assertFalse(recovery.worth_checking(want,'Show.S01E01.720p.mkv',state))  # a second one of the same pick: no second check
+ def test_a_movie_pick_is_checked_once_and_a_new_pick_checks_again(self):
+  state={}
+  self.assertTrue(recovery.worth_checking(self.want(),'Movie.2026.1080p.mkv',state))
+  self.assertFalse(recovery.worth_checking(self.want(),'Movie.2026.2160p.mkv',state))
+  self.assertTrue(recovery.worth_checking(json.dumps({'t':200.0}),'Movie.2026.1080p.mkv',state))
+ def test_no_pick_note_checks_as_before(self):
+  for note in ('',None,'not json','{}'):self.assertTrue(recovery.worth_checking(note,'x.mkv',{}))
+ def test_the_picker_leaves_the_note_and_the_hook_reads_it(self):
+  lib=Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'
+  self.assertIn('umbrella_recovery.WANT',(lib/'umbrella_picker.py').read_text())
+  self.assertIn("worth_checking(home.getProperty(WANT),record['filename'],_CHECKED)",(lib/'umbrella_recovery.py').read_text())
+
 if __name__=='__main__':unittest.main()

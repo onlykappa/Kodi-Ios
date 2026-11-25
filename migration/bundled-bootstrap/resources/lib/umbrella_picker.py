@@ -152,6 +152,12 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
   import source_speed,xbmcgui as _g
   source_speed.picked(_g.Window(10000),item)
  except Exception:pass
+ try:   # what Umbrella is about to unlock for: umbrella_recovery.worth_checking checks one file of this pick, and for an episode only the one that names it
+  import xbmcgui as _w,umbrella_recovery
+  m=meta or {};note={'t':time.time()}
+  if m.get('tvshowtitle') and str(m.get('season') or '').isdigit() and str(m.get('episode') or '').isdigit():note.update(season=int(m['season']),episode=int(m['episode']))
+  _w.Window(10000).setProperty(umbrella_recovery.WANT,json.dumps(note))
+ except Exception:pass
  if make_item is None:
   import xbmcgui
   make_item=xbmcgui.ListItem
