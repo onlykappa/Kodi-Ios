@@ -1153,9 +1153,10 @@ def bell_button():
 # condition; String.IsEqual compares with another infolabel when its second argument is a bare infolabel.
 SHOW_CONTINUE=('String.IsEqual(ListItem.Season,Window(Home).Property(KodiIOS.ShowContinueSeason)) + String.IsEqual(ListItem.Episode,Window(Home).Property(KodiIOS.ShowContinueEpisode)) + '
  'String.IsEqual(ListItem.Property(tvshow.tmdb_id),Window(Home).Property(KodiIOS.ShowContinueTmdb)) + !String.IsEmpty(Window(Home).Property(KodiIOS.ShowContinueLeft))')
+EPISODE_H=440   # one episode card in the show page's list (was 420: two lines of plot)
 def episode_item(focused):
  thumb_w,thumb_h=400,225
- bg=surface(SIDE-18,4,WIDTH-2*SIDE+36,thumb_h+176,'round_s.png','14FFFFFF',26) if focused else ''
+ bg=surface(SIDE-18,4,WIDTH-2*SIDE+36,thumb_h+196,'round_s.png','14FFFFFF',26) if focused else ''
  return ('<control type="group"><visible>String.IsEqual(ListItem.DBType,episode)</visible>'+bg+image(SIDE,18,thumb_w,thumb_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'thumb_mask.png')+
   image(SIDE,18,thumb_w,thumb_h,'$VAR[Portrait_Thumb]',WHITE,'','>scale',MEDIA+'thumb_mask.png',background=True)+
   image(SIDE+thumb_w//2-48,18+thumb_h//2-48,96,96,MEDIA+'glass_96.png')+icon(SIDE+thumb_w//2-18,18+thumb_h//2-20,40,MEDIA+'play.png')+
@@ -1163,7 +1164,8 @@ def episode_item(focused):
   textbox(SIDE+thumb_w+30,30,WIDTH-2*SIDE-thumb_w-30,116,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE)+
   label(SIDE+thumb_w+30,160,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
   label(SIDE+thumb_w+30,206,WIDTH-2*SIDE-thumb_w-30,40,'$INFO[Window(Home).Property(KodiIOS.ShowContinueLeft)]','p_cap',ACCENT,'left','<visible>%s</visible>'%SHOW_CONTINUE)+
-  textbox(SIDE,thumb_h+36,WIDTH-2*SIDE,84,'$INFO[ListItem.Plot]','p_cap',GREY)+'</control>')
+  # Owner (build 698 screenshot): the description was cut after two lines. Four lines fit (about 36 units each) and the card is 20 units taller to hold them.
+  textbox(SIDE,thumb_h+30,WIDTH-2*SIDE,150,'$INFO[ListItem.Plot]','p_cap',GREY)+'</control>')
 
 def video_nav(original):
  chip=lambda on:('<control type="group"><visible>String.IsEqual(ListItem.DBType,season)</visible>'+surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
@@ -1190,7 +1192,7 @@ def video_nav(original):
   '</control>')%(SIDE,WIDTH-SIDE,SEASON_EPISODES_LIBRARY,season_chip(False),season_chip(True))
  episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
-  '<itemlayout height="420">%s</itemlayout><focusedlayout height="420">%s</focusedlayout>%s</control>')
+  '<itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>%s</control>')
  gen_item=lambda focused:((surface(SIDE-18,6,WIDTH-2*SIDE+36,198,'round_s.png','14FFFFFF',26) if focused else '')+
   image(SIDE,18,116,174,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'tile_mask.png')+
   image(SIDE,18,116,174,'$INFO[ListItem.Art(poster)]',WHITE,'<visible>!String.IsEmpty(ListItem.Art(poster))</visible>','>scale',MEDIA+'tile_mask.png',background=True)+
@@ -1212,8 +1214,8 @@ def video_nav(original):
   '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'
   '%s%s%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,episode_chips,library_chips,
-  episodes%(60,0,WIDTH,HEIGHT,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'),
-  episodes%(52,0,WIDTH,HEIGHT,'9002','Container.Content(episodes)',episode_item(False),episode_item(True),''))
+  episodes%(60,0,WIDTH,HEIGHT,'50','Container.Content(seasons)',EPISODE_H,episode_item(False),EPISODE_H,episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'),
+  episodes%(52,0,WIDTH,HEIGHT,'9002','Container.Content(episodes)',EPISODE_H,episode_item(False),EPISODE_H,episode_item(True),''))
  # Owner (build 229): "If i scroll down after i select a season the season selecter disappears". Once the page has
  # scrolled, the same seasons (the folder's own listing, cached by the add-on) stay pinned under the Back button. A tap
  # selects that season in the page's own row (SetFocus absolute takes a 0-based index; CurrentItem is 1-based).
