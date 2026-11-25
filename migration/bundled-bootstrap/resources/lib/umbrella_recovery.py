@@ -27,7 +27,11 @@ def remember(link,response,home=None,warm=None,route=None):
  # connections, its start and end already asked for). The record above keeps the real link for renewal and Play on TV.
  if route is None and real:
   try:
-   import remote_media;route=remote_media.for_kodi
+   import remote_media,time
+   # ISSUE-488: an Umbrella that unlocks link after link (owner log ff742bd7: 1,571 in 7 minutes) gets no cache attempt, direct check or warm-up for them.
+   route=None if remote_media.cycling(time.monotonic()) else remote_media.for_kodi
+   if route is None:warm=None
+   else:_note(home,record)
   except Exception:route=None
  if route:
   try:
@@ -39,6 +43,17 @@ def remember(link,response,home=None,warm=None,route=None):
  if warm:
   try:warm(response['link'],record['size'])
   except Exception:pass
+
+def _note(home,record):
+ """ISSUE-488: one line per unlock Umbrella hands over (the first few of a cycle), so a slow open shows how many files Umbrella went through between the pick and Kodi,
+ which file each was, how big, and how long after the tap. Release name and size only, never the address."""
+ try:
+  import json as _j,time,xbmc
+  mark=_j.loads(home.getProperty('KodiIOS.Open') or '{}')
+  since=time.time()-float(mark['t']) if mark.get('t') else -1
+  xbmc.log('Kodi iOS Umbrella unlock: %s, %.0f MB, %s'%(str(record.get('filename') or '?')[:90],int(record.get('size') or 0)/1048576.0,
+           '%.1f s after the tap'%since if since>=0 else 'no open mark'),xbmc.LOGINFO)
+ except Exception:pass
 
 def selected(source,home):
  try:

@@ -521,7 +521,7 @@ def run():
  import cache_tune   # roadmap 1B.3: Kodi's cache read factor follows Wi-Fi / cellular, set as a video is about to open
  threading.Thread(target=open_timing.watch,args=(xbmcgui.Window(10000),lambda:xbmc.getCondVisibility('Player.HasVideo + Player.Playing'),
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),
-                  kwargs={'moving':lambda:xbmc.getCondVisibility('Player.Playing + !Player.Caching') and xbmc.Player().getTime()>0.4,'on_open':lambda:cache_tune.apply(xbmc,str(profile),lambda text:xbmc.log(text,xbmc.LOGINFO)),
+                  kwargs={'moving':lambda:xbmc.getCondVisibility('Player.Playing + !Player.Caching') and xbmc.Player().getTime()>0.4,'alive':lambda:xbmc.getCondVisibility('Player.HasVideo'),'on_open':lambda:cache_tune.apply(xbmc,str(profile),lambda text:xbmc.log(text,xbmc.LOGINFO)),
                           'probe':lambda:{'media':xbmc.getCondVisibility('Player.HasMedia'),'video':xbmc.getCondVisibility('Player.HasVideo')}},daemon=True).start()
  # DEC-039 V2: each video starts with its own Saturation (Picture menu: this video, its show, or the default).
  def saturation_loop():

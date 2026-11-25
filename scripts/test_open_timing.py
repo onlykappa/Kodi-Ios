@@ -119,5 +119,19 @@ class Wiring(unittest.TestCase):
         self.assertEqual(ot.RESOLVED,'KodiIOS.OpenResolved')
         service=(root/'migration/bundled-bootstrap/service.py').read_text()
         self.assertIn("Player.HasMedia",service);self.assertIn("Player.HasVideo'",service)
+    def test_a_player_closed_before_the_picture_gives_no_verdict(self):
+        # ISSUE-488 (owner log ff742bd7): closed 3 s after "streams ready", 12 s later "still not moving" ranked a good source last
+        ot.WAITING.clear(); told = []; ot.LATE.append(lambda ok, via, seconds: told.append(ok))
+        try:
+            ot.WAITING[100.0] = (103.0, 'umbrella'); lines = []
+            self.assertTrue(ot.check_moving(lines.append, lambda: False, now=140.0, alive=lambda: False))
+            self.assertEqual(told, [])
+            self.assertIn('no verdict', lines[0])
+            ot.WAITING[200.0] = (203.0, 'umbrella')   # a video still there that never gets going is still judged
+            self.assertTrue(ot.check_moving(lines.append, lambda: False, now=240.0, alive=lambda: True))
+            self.assertEqual(told, [False])
+        finally:
+            ot.LATE.pop(); ot.WAITING.clear()
+
 
 if __name__=='__main__':unittest.main()
