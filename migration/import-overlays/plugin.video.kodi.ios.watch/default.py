@@ -86,6 +86,12 @@ def run(argv):
    finally:f.close()
   from ios_continue import entry_for,choose_url
   key=params.get('key','');entry=entry_for(read,key)
+  # Long press > Choose source on a TV show page or a movie (bundled choose_source.py): a title given by its TMDb ids; if it is in Continue Watching its place to resume is offered.
+  if not entry and params.get('tmdb_id','').isdigit() and params.get('tmdb_type') in ('movie','tv'):
+   from ios_continue import key as continue_key
+   kind='movie' if params['tmdb_type']=='movie' else 'episode'
+   ids={'kind':kind,'tmdb_id':params['tmdb_id'],'season':params.get('season',''),'episode':params.get('episode','')}
+   key=continue_key(ids);entry=entry_for(read,key) or dict(ids,title='',art={},position=0)
   forget_choice(read,write,key)
   if not entry:xbmcgui.Dialog().notification('Choose source','This title is no longer in Continue Watching');return
   # Owner bug: a simulated tap on the focused control hit whatever had focus after the menu closed and Kodi's resume

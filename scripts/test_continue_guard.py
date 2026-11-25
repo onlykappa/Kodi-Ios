@@ -115,4 +115,22 @@ class ForgetsTheSavedVersion(unittest.TestCase):
         self.assertLess(picker.index(' share(meta)\n close_circle()'),picker.index('choice=deck.run('))   # closed before the list opens
         self.assertIn("clearProperty('KodiIOS.ContinueOpening')",picker)
 
+class SmarterLimits(unittest.TestCase):
+    """The guard needs to work (owner 2026-11-25): 30 s of nothing is too long, a slow open that has begun still gets its time."""
+    def test_a_continue_whose_open_never_began_is_given_up_after_ten_seconds(self):
+        mark=g.note(PARAMS,lambda:1000.0)
+        self.assertEqual(g.decide(mark,1000+g.NOTHING-1,False,False,opened=False,has_media=False),'wait')
+        self.assertEqual(g.decide(mark,1000+g.NOTHING,False,False,opened=False,has_media=False),'fallback')
+        self.assertEqual(g.decide(mark,1000+g.NOTHING,False,False,opened=False,has_media=True),'wait')    # Kodi is opening: the longer limit
+        self.assertEqual(g.decide(mark,1000+g.NOTHING,False,False,opened=True,has_media=False),'wait')
+    def test_the_plain_limit_is_twenty_seconds_and_an_open_with_streams_keeps_its_longer_one(self):
+        mark=g.note(PARAMS,lambda:1000.0)
+        self.assertEqual((g.LIMIT,g.NOTHING,g.LIMIT_OPENED),(20.0,10.0,45.0))
+        self.assertEqual(g.decide(mark,1000+g.LIMIT,False,False,opened=False,has_media=True),'fallback')
+        self.assertEqual(g.decide(mark,1000+g.LIMIT,False,False,opened=True,has_media=True),'wait')
+    def test_step_asks_kodi_whether_it_has_media(self):
+        home=Home();home.p[g.MARK]=g.note(PARAMS,lambda:1000.0);played=[]
+        verdict=g.step(home,lambda:False,lambda:False,lambda:None,lambda:None,played.append,lambda t:None,now=lambda:1000+g.NOTHING,opened=lambda:False,has_media=lambda:False)
+        self.assertEqual(verdict,'fallback');self.assertEqual(len(played),1)
+
 if __name__=='__main__':unittest.main()

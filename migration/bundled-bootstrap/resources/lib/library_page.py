@@ -4,6 +4,7 @@ ITEM = 'IOSLibraryItem.xml'
 FILTERS = (('ready', 'Ready'), ('working', 'Working'), ('waiting', 'Up next'), ('kept', 'Kept'))   # buttons 9101-9104
 LIST, BACK, CHECK = 9300, 9001, 9002
 EDIT = 9003   # Waiting › Edit order (the Queue)
+RESUME = 9007   # Working now › Resume now: shown while work waits for a play that is not there (slowdown.force_run)
 VIEW_QUEUE = 9006   # One current download, before there are any Up next rows
 HIT = 118
 PURPLE = 'FFBF5AF2'
@@ -163,7 +164,9 @@ def _running(p, u):
     """The WORKING NOW card: its heading with the count, every slot's slim row, and the old bars (the page script still
     fills them; DEC-051 shows rings) kept hidden."""
     S, w = p.SIDE, p.WIDTH - 2 * p.SIDE
-    out = _header(p, u, u.P('run.heading'), u.has('run.heading'))
+    resume = ('<control type="group"><visible>%s + !Player.HasVideo</visible>%s</control>' %
+              (u.has('run.resume'), u.link(p, RESUME, p.WIDTH - S - 300, -18, 290, HIT, 'Resume now')))
+    out = _header(p, u, u.P('run.heading'), u.has('run.heading'), resume)
     for k, ident in RUN_SLOTS:
         out += _slim(p, u, k, ident)
     hidden = ''.join(u.id_bar(p, i, S, 0, 10, 4, u.BLUE) for i in

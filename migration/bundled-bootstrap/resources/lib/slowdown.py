@@ -45,10 +45,34 @@ STRAIN_CAP = 0.25 * 1024 * 1024   # then a background download keeps under this 
 # now counts as 'buffering' (background downloads wait) until the video has played SETTLE seconds, OPENING_LIMIT at most.
 OPENING_LIMIT = 120.0
 SETTLE = 15.0
+# Owner, 2026-11-25 (build 698 log 8e545f74): Library status said "Paused for playback" for a download while nothing played: choosing Download left the "a play is opening" mark (KodiIOS.Open,
+# via elementum) up for its 120 s, and background work waited the whole time with no way to say "go on". Resume now (Library status) sets KodiIOS.ForceRun for FORCE_SECONDS: while nothing is
+# playing, caching or casting, the opening mark does not hold work.
+FORCE_PROPERTY = 'KodiIOS.ForceRun'
+FORCE_SECONDS = 180.0
+MARKS = ('KodiIOS.Open', 'KodiIOS.OpenResolved', 'KodiIOS.OpenWanted')
 _play = {'video_since': None, 'asked': 0.0}
 
 
-def play_reason(airplay, caching, has_video, open_raw, now=None):
+def force_run(window, now=None, seconds=FORCE_SECONDS):
+    """Resume now: work that waits only for an opening that never became a video goes on. Returns the time the release ends."""
+    now = time.time() if now is None else now
+    for name in MARKS:
+        window.clearProperty(name)
+    until = now + seconds
+    window.setProperty(FORCE_PROPERTY, repr(until))
+    _play['asked'] = 0.0
+    return until
+
+
+def forced_until(raw):
+    try:
+        return float(raw or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def play_reason(airplay, caching, has_video, open_raw, now=None, forced=0.0):
     """reason() for the service: 'airplay' | 'buffering' | 'video' | ''. open_raw is the KodiIOS.Open property
     ({"t": time the play was asked for, "via": ...}); the opening and the first SETTLE s of the video hold downloads."""
     now = time.time() if now is None else now
@@ -61,6 +85,9 @@ def play_reason(airplay, caching, has_video, open_raw, now=None):
         return 'airplay'
     if caching:
         return 'buffering'
+    if forced and now < forced and not has_video:
+        _play['asked'] = 0.0
+        return ''           # Resume now: nothing is playing, caching or casting; an opening mark that never became a video holds nothing
     asked = 0.0
     try:
         import json

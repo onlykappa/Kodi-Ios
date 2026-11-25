@@ -99,7 +99,7 @@ class Guard(unittest.TestCase):
         self.assertEqual(cg.decide(m, 1008.5, False, False, refused=True), 'fallback')
     def test_slow_link_keeps_waiting(self):
         m = self.mark()
-        self.assertEqual(cg.decide(m, 1020.0, False, False, refused=False), 'wait')
+        self.assertEqual(cg.decide(m, 1000.0 + cg.LIMIT - 1, False, False, refused=False), 'wait')   # LIMIT 20 s since 2026-11-25 (was 30)
         self.assertEqual(cg.decide(m, 1000.0 + cg.LIMIT, False, False), 'fallback')
     def test_opened_streams_are_never_cut_early(self):
         self.assertEqual(cg.decide(self.mark(), 1012.0, False, False, opened=True, refused=True), 'wait')

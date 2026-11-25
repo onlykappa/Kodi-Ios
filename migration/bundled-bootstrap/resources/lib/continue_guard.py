@@ -10,8 +10,9 @@ import json
 import time
 
 MARK = 'KodiIOS.ContinueFast'
-LIMIT = 30.0      # seconds the remembered link gets to put a picture up (a good open takes 3-12 s; Kodi itself gave up at 30; build 660 log bbd44482: 25 s of waiting, then 17 s more the normal way)
+LIMIT = 20.0      # seconds the remembered link gets to put a picture up (a good open takes 3-12 s; Kodi itself gave up at 30; build 660 log bbd44482: 25 s of waiting, then 17 s more the normal way)
 LIMIT_OPENED = 45.0   # when Kodi has opened the streams (a video stream is there) but no picture yet - it is seeking to the resume point - the open is not cut off (build 663 log 63e92ff2: cut 3 s after the streams opened)
+NOTHING = 10.0   # seconds before a Continue whose open Kodi never even began (no media at all: the play did not start) is given up on. Owner 2026-11-25 (build 698 log f12dfcdd): 30 s of nothing, then the second try
 EARLY = 8.0   # seconds before a link that the server itself refuses (gone, or no connection) is given up on; slow is not dead, so a link that still answers keeps its LIMIT
 STEP = 0.5
 OPENING = 'KodiIOS.ContinueOpening'   # set when a Continue/Next Episode tap starts an open (skin play_now, fast_stream): the loading circle stays up while it is set
@@ -34,7 +35,7 @@ def note(params, now=time.time, url='', key=''):
     return json.dumps({'at': now(), 'retry': retry_url(params), 'url': url or '', 'key': key or ''})
 
 
-def decide(mark, now, playing, failure_box, opened=False, refused=False):
+def decide(mark, now, playing, failure_box, opened=False, refused=False, has_media=True):
     """'none' (no note), 'ok' (a picture is up: note done), 'wait', or 'fallback' (failure box up, or LIMIT seconds with no picture)."""
     try:
         data = json.loads(mark or '')
@@ -48,12 +49,14 @@ def decide(mark, now, playing, failure_box, opened=False, refused=False):
         return 'ok'
     if failure_box or now - started >= (LIMIT_OPENED if opened else LIMIT):
         return 'fallback'
+    if not has_media and not opened and now - started >= NOTHING:
+        return 'fallback'   # Kodi has nothing at all (not even an opening): waiting longer cannot help
     if refused and not opened and now - started >= EARLY:
         return 'fallback'   # the server refuses the link (twice): waiting longer cannot help
     return 'wait'
 
 
-def step(home, playing, failure_box, stop, close_boxes, play, log, now=time.time, opened=lambda: False, probe=None, forget=None):
+def step(home, playing, failure_box, stop, close_boxes, play, log, now=time.time, opened=lambda: False, probe=None, forget=None, has_media=lambda: True):
     """One look. Returns what was decided."""
     mark = home.getProperty(MARK)
     refused = False
@@ -62,7 +65,7 @@ def step(home, playing, failure_box, stop, close_boxes, play, log, now=time.time
             refused = bool(probe(json.loads(mark).get('url') or ''))
         except Exception:
             refused = False
-    verdict = decide(mark, now(), playing(), failure_box(), opened(), refused)
+    verdict = decide(mark, now(), playing(), failure_box(), opened(), refused, bool(has_media()))
     if verdict == 'ok':
         home.clearProperty(MARK)
     elif verdict == 'fallback':
@@ -85,12 +88,12 @@ def step(home, playing, failure_box, stop, close_boxes, play, log, now=time.time
     return verdict
 
 
-def watch(home, playing, failure_box, stop, close_boxes, play, log, wait, now=time.time, opened=lambda: False, circle=None, probe=None, forget=None):
+def watch(home, playing, failure_box, stop, close_boxes, play, log, wait, now=time.time, opened=lambda: False, circle=None, probe=None, forget=None, has_media=lambda: True):
     """The service's loop: wait(STEP) returns True when Kodi is closing."""
     while not wait(STEP):
         try:
             if home.getProperty(MARK):
-                step(home, playing, failure_box, stop, close_boxes, play, log, now, opened, probe, forget)
+                step(home, playing, failure_box, stop, close_boxes, play, log, now, opened, probe, forget, has_media)
             if circle is not None:
                 circle.tick()
         except Exception as error:

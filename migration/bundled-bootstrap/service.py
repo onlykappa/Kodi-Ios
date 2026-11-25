@@ -113,7 +113,7 @@ def run():
    return ios_continue.forget_choice(read,write,item_key)
   continue_guard.watch(home,playing,box,
    lambda:player.stop(),close_boxes,lambda url:xbmc.executebuiltin('PlayMedia(%s)'%url),lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),monitor.waitForAbort,
-   opened=lambda:bool(xbmc.getCondVisibility('Player.HasVideo')),circle=circle,probe=continue_guard.Probe(__import__('link_warm').link_answers),forget=forget)
+   opened=lambda:bool(xbmc.getCondVisibility('Player.HasVideo')),circle=circle,probe=continue_guard.Probe(__import__('link_warm').link_answers),forget=forget,has_media=lambda:bool(xbmc.getCondVisibility('Player.HasMedia')))
  threading.Thread(target=continue_guard_loop,daemon=True).start()
  def link_warm_loop():
   # Owner, 2026-11-23, log d78de521 (Wi-Fi): reading 1.3 MB of a link did nothing (the first Continue took 24.4 s to a picture); the kept opening (resume_cache)
@@ -361,7 +361,7 @@ def run():
   threading.Thread(target=later,daemon=True).start()
  import slowdown
  playback_lib=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
- slowdown.configure(lambda:slowdown.play_reason(airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time()),xbmc.getCondVisibility('Player.Caching'),xbmc.getCondVisibility('Player.HasVideo'),xbmcgui.Window(10000).getProperty('KodiIOS.Open')))   # ISSUE-309: an opening holds downloads too
+ slowdown.configure(lambda:slowdown.play_reason(airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time()),xbmc.getCondVisibility('Player.Caching'),xbmc.getCondVisibility('Player.HasVideo'),xbmcgui.Window(10000).getProperty('KodiIOS.Open'),forced=slowdown.forced_until(xbmcgui.Window(10000).getProperty(slowdown.FORCE_PROPERTY))))   # ISSUE-309: an opening holds downloads too; Resume now (ISSUE-483) releases a mark that never became a video
  # Build 207: one thread asks Kodi; the downloads only read its answer (slowdown.reason).
  threading.Thread(target=slowdown.watch,args=(monitor.waitForAbort,),kwargs={'log':lambda m:xbmc.log(m,xbmc.LOGINFO)},daemon=True).start()
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs. Each message also gets
@@ -703,7 +703,7 @@ def drive_uploads(monitor,home,profile):
  playback_lib=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
  airplay_busy=lambda:airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time())
  import slowdown
- slowdown.configure(lambda:slowdown.play_reason(airplay_busy(),xbmc.getCondVisibility('Player.Caching'),xbmc.getCondVisibility('Player.HasVideo'),xbmcgui.Window(10000).getProperty('KodiIOS.Open')))   # ISSUE-309
+ slowdown.configure(lambda:slowdown.play_reason(airplay_busy(),xbmc.getCondVisibility('Player.Caching'),xbmc.getCondVisibility('Player.HasVideo'),xbmcgui.Window(10000).getProperty('KodiIOS.Open'),forced=slowdown.forced_until(xbmcgui.Window(10000).getProperty(slowdown.FORCE_PROPERTY))))   # ISSUE-309
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
  # ISSUE-267 / ISSUE-270: the app's patched copy first, whatever Kodi resolved, and nothing left from a moved copy.
  import pinned_addons;pinned_addons.use_clouddrive(xbmcaddon,xbmcvfs)
