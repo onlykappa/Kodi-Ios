@@ -178,14 +178,25 @@ def seasons(details,show,today):
   if isinstance(n,int) and n>=show['floor'][0]:wanted.add(n)
  return sorted(wanted)[:4]
 
+RETRY_DEFERRED=120        # seconds before a pass that was interrupted (a video started, the app left) is tried again
+RETRY_UNRESOLVED=COOLDOWN  # seconds before an episode that aired but could not be found yet is looked for again
+MAX_RETRIES=12             # unresolved retries per launch: about six hours
+
+def interrupted(error):
+ """True for what an interrupted pass raises (a video started, the app left, Drive listing stopped): the show is simply not checked yet, which is not a result."""
+ name=type(error).__name__
+ return name in ('Stop','Canceled') or 'deferred' in str(error).lower() or 'still being checked' in str(error).lower()
+
 def sweep(profile,get_show,get_season,existing,download,clock=time.time,keep_going=lambda:True,log=lambda *args,**kwargs:None,notify=None,auto_allowed=True):
  """One bounded opening pass. Dependencies allow future release dates and restarts to be tested now."""
  now=clock();today=datetime.datetime.fromtimestamp(now,datetime.timezone.utc).date();started=now;attempted=queued=0
+ sweep.last={'deferred':False,'unresolved':0,'checked':0}   # read by the runtime to decide whether to look again
  shows=sorted(load(profile)['shows'].values(),key=lambda s:s.get('last_check',0))[:MAX_SHOWS]
  for show in shows:
-  if not keep_going() or clock()-started>=180 or attempted>=MAX_EPISODES:break
+  if not keep_going():sweep.last['deferred']=True;break   # not checked: the app left or a video started
+  if clock()-started>=180 or attempted>=MAX_EPISODES:break
   if now-show.get('last_check',0)<COOLDOWN:continue
-  ident=show['tmdb'];since=datetime.datetime.fromtimestamp(show['since'],datetime.timezone.utc).date()
+  ident=show['tmdb'];since=datetime.datetime.fromtimestamp(show['since'],datetime.timezone.utc).date();cooldown=True
   try:
    details=get_show(ident)
    if not isinstance(details,dict) or str(details.get('id'))!=ident:raise ValueError('Show metadata unavailable')
@@ -225,31 +236,48 @@ def sweep(profile,get_show,get_season,existing,download,clock=time.time,keep_goi
     else:
      attempted+=1
      wanted=dict(show,preference={'quality':prior['quality'],'strict_quality':True}) if key in planned else show
-     status='queued' if download(wanted,row) else 'not_found'
+     try:status='queued' if download(wanted,row) else 'not_found'
+     except Exception as error:
+      if interrupted(error) and not keep_going():raise      # interrupted: the pass ends, the show is looked at again soon
+      status='not_found'                                    # a download that found nothing (AllDebrid had not taken it yet) is a result for THIS episode only
+      log('episode_not_taken',season=row['season_number'],episode=row['episode_number'],error=type(error).__name__)
      if status=='queued':queued+=1
+     else:sweep.last['unresolved']+=1
     def record(state):
      target=state['shows'].get(ident)
      if target:
       target.setdefault('episodes',{}).setdefault(key,{}).update(status=status,checked=clock())
       if key in target.get('planned',{}):target['planned'][key].update(status=status,checked=clock())
     update(profile,record)
-    log('episode_checked',status=status,season=row['season_number'],episode=row['episode_number'])
+    log('episode_checked',status=status,season=row['season_number'],episode=row['episode_number'],title=show.get('title',''))
+   sweep.last['checked']+=1
   except Exception as error:
    # A failed ownership/metadata check never becomes permission for a duplicate download.
-   log('check_deferred',error=type(error).__name__)
+   log('check_deferred',error=type(error).__name__,title=show.get('title',''))
+   if interrupted(error):sweep.last['deferred']=True;cooldown=False   # build 698 logs: "Stop"/"Canceled" ended the pass and the 30 minute cooldown then hid the show
+   else:sweep.last['unresolved']+=1
   finally:
    def checked(state):
     if ident in state['shows']:state['shows'][ident]['last_check']=clock()
-   update(profile,checked)
+   if cooldown:update(profile,checked)
  return queued
 
-def run_open_checks(monitor,ready,foreground,busy,enabled,check):
- """Only a launch/foreground transition schedules a pass. Busy UI defers it; no periodic episode scraping."""
- previous=False;pending=True
+def run_open_checks(monitor,ready,foreground,busy,enabled,check,clock=time.monotonic,today=lambda:time.strftime('%Y-%m-%d')):
+ """A launch/foreground transition schedules a pass, and so does a new day while the app stays open. Busy UI defers it. `check()` may return the seconds after which to look again:
+ an interrupted pass (a video started) soon, an episode that aired but was not found (AllDebrid had not taken it yet) every half hour, six hours at most. Owner 2026-11-25: an
+ episode of Phony came out and was never fetched or alerted; build 698's log shows the one pass of the launch ending in "Stop" / "Canceled" and nothing looking again."""
+ previous=False;pending=True;retry_at=None;retries=0;day=today()
  while not monitor.waitForAbort(15):
   active=foreground()
-  if active and not previous:pending=True
+  if active and not previous:pending=True;retries=0
   previous=active
+  if today()!=day:day=today();pending=True;retries=0
+  if retry_at is not None and clock()>=retry_at:pending=True;retry_at=None
   if not pending or not active or not ready() or not enabled() or busy():continue
   pending=False
-  check()
+  delay=check()
+  if isinstance(delay,(int,float)) and delay>0:
+   if delay>=RETRY_UNRESOLVED:
+    retries+=1
+    if retries>MAX_RETRIES:continue
+   retry_at=clock()+delay
