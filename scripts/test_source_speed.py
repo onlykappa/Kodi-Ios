@@ -80,4 +80,27 @@ class Wiring(unittest.TestCase):
    finally:S.open_store=orig
    self.assertIn('Fast.release',seen['labels'][0]);self.assertIn('Slow.release',seen['labels'][1])
 
+class LateVerdict(unittest.TestCase):
+    """Owner 2026-11-25 (build 698 log f12dfcdd): a source that was "ready" in 12.8 s but stalled for minutes kept ranking first: only the time to streams-ready counted."""
+    def store(self,clock=None):
+        self.now=[1000.0];return S.Speed(None,lambda:self.now[0])
+    def test_a_file_that_never_put_a_picture_up_goes_last_and_the_fingerprint_is_not_the_name(self):
+        slow={'debrid':'alldebrid','provider':'torrentio','source':'CACHED','name':'Phony.S01E07.2160p.HEVC-GRP'};other={'debrid':'alldebrid','provider':'torrentio','source':'CACHED','name':'Phony.S01E07.1080p.x265-OTH'}
+        fp=S.fingerprint(slow);self.assertEqual(len(fp),10);self.assertNotIn('phony',fp.lower());self.assertEqual(fp,S.fingerprint(dict(slow,name='PHONY.s01e07.2160p.hevc-grp ')))
+        st=self.store();order=lambda:[p[0] for p in st.order([(0,slow),(1,other)],lambda it:True)]
+        self.assertEqual(order(),[0,1]);st.bad(fp);self.assertEqual(order(),[1,0])
+        self.now[0]+=S.BAD_FOR+1;self.assertEqual(order(),[0,1])          # six hours later it gets another chance
+    def test_the_bad_marks_survive_trimming_and_the_file(self):
+        with tempfile.TemporaryDirectory() as t:
+            path=os.path.join(t,'s.json');st=S.Speed(path,lambda:1000.0);st.bad('abc');
+            for n in range(S.KEEP+5):st.ok('k%d'%n,2.0)
+            again=S.Speed(path,lambda:1000.0);self.assertTrue(again.is_bad('abc'));self.assertFalse(again.is_bad('zzz'));self.assertFalse(again.is_bad(''))
+    def test_settle_leaves_the_file_fingerprint_for_the_late_verdict(self):
+        home=NS(p={},getProperty=lambda k:home.p.get(k,''),setProperty=lambda k,v:home.p.__setitem__(k,v),clearProperty=lambda k:home.p.pop(k,None))
+        it={'debrid':'alldebrid','provider':'torrentio','source':'CACHED','name':'A.B.C'};S.picked(home,it,now=1000.0);S.settle(home,S.Speed(None,lambda:1010.0),True,now=1010.0)
+        self.assertEqual(home.getProperty(S.PICK_FILE),S.fingerprint(it))
+    def test_the_service_judges_by_the_first_picture(self):
+        svc=(ROOT/'migration/bundled-bootstrap/service.py').read_text() if 'ROOT' in globals() else ''
+        self.assertIn('open_timing.LATE.append(_late)',svc);self.assertIn('_speed.bad(fp)',svc);self.assertIn('source_speed.LATE_SLOW',svc)
+
 if __name__=='__main__':unittest.main()

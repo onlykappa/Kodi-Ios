@@ -20,7 +20,7 @@ class Scrubber(unittest.TestCase):
         bars = [c for c in controls('progress') if c.findtext('info') == 'Player.Progress']
         heights = {c.findtext('visible'): int(c.findtext('height')) for c in bars}
         self.assertEqual(sorted(heights.values()), [16, 32])
-        self.assertEqual(heights['!Player.Seeking'], 16); self.assertEqual(heights['Player.Seeking'], 32)   # Player.Seeking: Kodi iOS patch (IOSScrub), true under the finger
+        self.assertEqual(heights['![Player.Seeking + Control.HasFocus(7131)]'], 16); self.assertEqual(heights['Player.Seeking + Control.HasFocus(7131)'], 32)   # Player.Seeking: Kodi iOS patch (IOSScrub), true under the finger
         for c in bars:
             h = int(c.findtext('height')); self.assertEqual(int(c.find('texturebg').get('border')), h // 2)   # fully rounded ends
     def test_there_is_no_knob_at_rest_or_while_dragging(self):
@@ -76,8 +76,8 @@ class Scrubber(unittest.TestCase):
         self.assertTrue(all('!Skin.HasSetting(ios_osd_ends)' in v for v in rest)); self.assertTrue(all(v.startswith('Skin.HasSetting(ios_osd_ends)') for v in ends))
     def test_the_times_turn_white_while_dragging(self):
         rest = [c for c in controls('label') if c.findtext('label') == '$INFO[Player.Time]']
-        drag = [c for c in controls('label') if c.findtext('label') == '$INFO[Player.SeekTime]' and c.findtext('visible') == 'Player.Seeking']
-        self.assertEqual({c.findtext('textcolor'): c.findtext('visible') for c in rest}, {'B3FFFFFF': '!Player.Seeking'})
+        drag = [c for c in controls('label') if c.findtext('label') == '$INFO[Player.SeekTime]' and c.findtext('visible') == 'Player.Seeking + Control.HasFocus(7131)']
+        self.assertEqual({c.findtext('textcolor'): c.findtext('visible') for c in rest}, {'B3FFFFFF': '![Player.Seeking + Control.HasFocus(7131)]'})
         self.assertEqual([c.findtext('textcolor') for c in drag], ['FFFFFFFF'])   # the time under the finger, white
     def test_info_and_continue_watching_moved_down_and_nothing_else_lost(self):
         btn = {c.get('id'): c for c in controls('button') if c.get('id') in ('7141', '7142')}
@@ -140,12 +140,12 @@ class Scrubber(unittest.TestCase):
     def test_the_skip_arrows_are_smaller_go_all_the_way_round_the_ten_and_keep_their_touch_area(self):
         """Owner, 2026-11-24 (mockup round 2): a little smaller, clear of the title (200 -> 130 units), the circle all the way round the 10 (skip_arrow.png, flipped for forward);
         the touch area stays 280, so they are as easy to hit."""
-        self.assertEqual((osd.SKIP_GLYPH, osd.SKIP_TAP), (130, 280))
+        self.assertEqual((osd.SKIP_GLYPH, osd.SKIP_TAP), (112, 280))   # 112: owner 2026-11-25 "a little smaller" (130 before)
         back = next(c for c in controls('button') if c.get('id') == '7111'); fwd = next(c for c in controls('button') if c.get('id') == '7113')
         self.assertEqual((int(back.findtext('width')), int(fwd.findtext('width'))), (280, 280))
         self.assertIn('skip_arrow.png', XML); self.assertEqual(XML.count('flipx="true"'), 1)   # forward is the same picture flipped
         arrows = [c for c in controls('image') if (c.findtext('texture') or '').endswith('skip_arrow.png')]
-        self.assertEqual(sorted((int(c.findtext('width')), c.find('texture').get('flipx') or '') for c in arrows), [(130, ''), (130, 'true')])
+        self.assertEqual(sorted((int(c.findtext('width')), c.find('texture').get('flipx') or '') for c in arrows), [(112, ''), (112, 'true')])
         tens = [c for c in controls('label') if c.findtext('label') == '$NUMBER[10]']
         self.assertEqual(len(tens), 2)
         centres = sorted(int(c.findtext('left')) + int(c.findtext('width')) // 2 for c in tens)
@@ -167,6 +167,25 @@ class Scrubber(unittest.TestCase):
         import pages
         card = pages.info_card()
         self.assertIn('close_cross', card); self.assertNotIn('close_disc', card)
+
+    def test_the_seek_card_and_thick_bar_are_for_dragging_the_bar_only(self):
+        """Owner 2026-11-25: pressing the 10 second buttons must not show the seek box. Player.Seeking is also true while Kodi carries out Seek(+-10); the slider has focus only under the finger."""
+        drag = 'Player.Seeking + Control.HasFocus(7131)'
+        self.assertIn("DRAG='Player.Seeking + Control.HasFocus(7131)'", (ROOT / 'migration/bundled-bootstrap/resources/lib/player_osd.py').read_text())
+        card = [c for c in controls('group') if drag in (c.findtext('visible') or '')]
+        self.assertTrue(card)                                                       # the seek card (and its picture) wait for the drag
+        for node in ROOT_EL.iter('visible'):
+            text = node.text or ''
+            if 'Player.Seeking' in text:                                            # every use of Player.Seeking is tied to the slider's focus
+                self.assertIn('Control.HasFocus(7131)', text)
+        slider = next(c for c in controls('slider') if c.get('id') == '7131')
+        self.assertEqual(slider.findtext('action'), 'seek')
+        for number in ('7111', '7113'):
+            self.assertNotEqual(number, '7131')                                     # the skip buttons are other controls: pressing one focuses it, not the slider
+        import re as _re
+        src = (ROOT / 'migration/bundled-bootstrap/service.py').read_text() + (ROOT / 'migration/bundled-bootstrap/resources/lib/portrait.py').read_text()
+        self.assertEqual(len(_re.findall(r"getCondVisibility\('Player\.Seeking'\)", src)), 0)   # the strip and the ends-at loop follow the same rule
+        self.assertGreaterEqual(src.count("Player.Seeking + Control.HasFocus(7131)"), 3)
 
 
 if __name__ == '__main__':

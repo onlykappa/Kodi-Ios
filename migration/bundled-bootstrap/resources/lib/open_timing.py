@@ -19,6 +19,7 @@ NAMES = (('resolved', 'resolve'), ('media', 'handoff'), ('video', 'open'))
 _seen = {}      # mark time -> {'armed': {flag: True}, 'at': {flag: time}}
 WAITING = {}    # mark time -> (when streams were ready, route): videos whose playback clock has not moved yet (first picture)
 MOVING_GIVE_UP = 30.0
+LATE = []       # fn(ok, via, seconds): told when the first picture came (ok, seconds after the tap) or never came (not ok); the source's real speed is judged here
 LISTENERS = []  # fn(ok, via): told once per open that finished (streams ready) or gave up; source_speed credits the Umbrella source just chosen
 RECENT = []     # roadmap 3.5: (seconds, route, stages text) of the opens since perf_summary last asked
 
@@ -151,14 +152,24 @@ def check_moving(log, moving, now=None, home=None):
         if running:
             log('Kodi iOS open timing: first picture (playback clock moving) %.1f s after the tap via %s, %.1f s after streams ready' % (now - started, via, now - ready))
             log(record(started, via, now - started, now - ready, home))
+            _tell_late(True, via, now - started)
             del WAITING[started]
             done = True
         elif now - started > MOVING_GIVE_UP:
             log('Kodi iOS open timing: playback clock still not moving %d s after the tap via %s' % (int(now - started), via))
             DETAIL.pop(started, None)
+            _tell_late(False, via, now - started)
             del WAITING[started]
             done = True
     return done
+
+
+def _tell_late(ok, via, seconds):
+    for listener in list(LATE):
+        try:
+            listener(ok, via, seconds)
+        except Exception:
+            pass
 
 
 def _tell(ok, via):

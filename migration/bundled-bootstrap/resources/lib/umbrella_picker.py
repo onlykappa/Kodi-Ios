@@ -99,6 +99,15 @@ def verify_list(results,exp,sm,ask=None):
   return True
  return bool((ask or ask_reveal)('All %d sources look like a different title (%s).'%(len(hidden),sm.reasons_text(hidden))))
 
+def close_circle():
+ """The version list is about to open: the loading circle of a Continue open (continue_guard.OPENING, the modal busy dialog it keeps raised) must not sit over it.
+ Owner 2026-11-25 (build 698 log f12dfcdd): after the guard's second try, taps went to "DialogBusy control 0 (not handled)" while the sources were listed."""
+ try:
+  import xbmc,xbmcgui
+  xbmcgui.Window(10000).clearProperty('KodiIOS.ContinueOpening')
+  for name in ('busydialognocancel','busydialog'):xbmc.executebuiltin('Dialog.Close(%s,true)'%name)
+ except Exception:pass
+
 def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
  """What Umbrella's source window should return, or None to show Umbrella's own list (which run() has left with
  only the sources of this title, source_match.py)."""
@@ -128,6 +137,7 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
  except Exception:pass
  deck=deck or load()
  share(meta)
+ close_circle()
  title=(meta or {}).get('tvshowtitle') or (meta or {}).get('title') or ''
  labels=[label(item) for _,item in playable_items]
  # Umbrella is live playback (owner): versions AirPlay can send as they are come first.

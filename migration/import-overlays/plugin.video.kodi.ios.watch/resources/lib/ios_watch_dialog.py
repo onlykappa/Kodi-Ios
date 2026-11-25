@@ -456,7 +456,7 @@ def fast_stream(handle,params,read=None,alive=None,play=None,now=None,route=None
   try:   # leave a note for the continue guard (service): if this link does not open it plays the title the normal way (continue_guard.py)
    import xbmcgui,xbmcvfs,ios_library
    ios_library.boot_path(xbmcvfs);import continue_guard
-   xbmcgui.Window(10000).setProperty(continue_guard.MARK,continue_guard.note(params,now,remembered));xbmcgui.Window(10000).setProperty(continue_guard.OPENING,'1')
+   xbmcgui.Window(10000).setProperty(continue_guard.MARK,continue_guard.note(params,now,remembered,item_key));xbmcgui.Window(10000).setProperty(continue_guard.OPENING,'1')
   except Exception:pass
   try:
    import xbmc,xbmcvfs

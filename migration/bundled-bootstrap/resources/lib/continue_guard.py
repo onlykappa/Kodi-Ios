@@ -28,9 +28,10 @@ def retry_url(params):
     return 'plugin://plugin.video.themoviedb.helper/?' + urllib.parse.urlencode(keep)
 
 
-def note(params, now=time.time, url=''):
-    """The text fast_stream leaves in MARK. `url` is the remembered link, kept only so the guard can ask the server whether it still answers (never logged)."""
-    return json.dumps({'at': now(), 'retry': retry_url(params), 'url': url or ''})
+def note(params, now=time.time, url='', key=''):
+    """The text fast_stream leaves in MARK. `url` is the remembered link, kept only so the guard can ask the server whether it still answers (never logged). `key` is the title's
+    Continue Watching key, so a dead link also makes the guard forget the saved version (owner, 2026-11-25: the second try replayed the same slow version without asking)."""
+    return json.dumps({'at': now(), 'retry': retry_url(params), 'url': url or '', 'key': key or ''})
 
 
 def decide(mark, now, playing, failure_box, opened=False, refused=False):
@@ -52,7 +53,7 @@ def decide(mark, now, playing, failure_box, opened=False, refused=False):
     return 'wait'
 
 
-def step(home, playing, failure_box, stop, close_boxes, play, log, now=time.time, opened=lambda: False, probe=None):
+def step(home, playing, failure_box, stop, close_boxes, play, log, now=time.time, opened=lambda: False, probe=None, forget=None):
     """One look. Returns what was decided."""
     mark = home.getProperty(MARK)
     refused = False
@@ -69,19 +70,27 @@ def step(home, playing, failure_box, stop, close_boxes, play, log, now=time.time
         home.clearProperty(MARK)
         log('continue guard: the remembered link did not open (%d s%s); asking Umbrella for a fresh one' % (
             now() - float(data['at']), ', failure box up' if failure_box() else ''))
-        home.setProperty(OPENING, '1')   # the circle stays up through the second try
+        home.setProperty(OPENING, '1')   # the circle stays up through the second try (it is closed again when the version list opens: umbrella_picker.run)
+        # The saved player and version are forgotten for this title, so the second try asks (the Download / Stream sheet, then the version list) and cannot replay the same
+        # version, which is what did not open. The place to resume is kept (it lives in the Continue entry, not in the saved pick).
+        if forget is not None and data.get('key'):
+            try:
+                forget(str(data['key']))
+                log('continue guard: the saved version is forgotten; the list will be shown')
+            except Exception as error:
+                log('continue guard: could not forget the saved version (%s)' % type(error).__name__)
         stop()
         close_boxes()
         play(data['retry'])
     return verdict
 
 
-def watch(home, playing, failure_box, stop, close_boxes, play, log, wait, now=time.time, opened=lambda: False, circle=None, probe=None):
+def watch(home, playing, failure_box, stop, close_boxes, play, log, wait, now=time.time, opened=lambda: False, circle=None, probe=None, forget=None):
     """The service's loop: wait(STEP) returns True when Kodi is closing."""
     while not wait(STEP):
         try:
             if home.getProperty(MARK):
-                step(home, playing, failure_box, stop, close_boxes, play, log, now, opened, probe)
+                step(home, playing, failure_box, stop, close_boxes, play, log, now, opened, probe, forget)
             if circle is not None:
                 circle.tick()
         except Exception as error:

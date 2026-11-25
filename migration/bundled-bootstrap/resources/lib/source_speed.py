@@ -12,9 +12,21 @@ import tempfile
 import time
 
 PICK = 'KodiIOS.UmbrellaPick'
+PICK_FILE = 'KodiIOS.OpenSourceFile'   # the picked source's file fingerprint, left by settle() for the late verdict (first picture, or none)
+BAD_FOR = 6 * 3600.0                  # a file that never put a picture up, or took 25 s or more, is ranked last for this long
+LATE_SLOW = 25.0
 FRESH = 6 * 3600.0
 KEEP = 60
 SAMPLES = 5
+
+
+import hashlib
+
+
+def fingerprint(item):
+    """A short fingerprint of the source's file name (the same file on the same service has the same name): '' when it has none. Never the name itself."""
+    name = str((item or {}).get('name') or '').strip().lower()
+    return hashlib.sha1(name.encode('utf-8')).hexdigest()[:10] if name else ''
 
 
 def key(item):
@@ -41,8 +53,11 @@ class Speed:
         if not self.path:
             return
         if len(self.data) > KEEP:
+            bad = self.data.pop('_bad', None)
             newest = sorted(self.data, key=lambda k: -max(self.data[k].get('ok_at', 0), self.data[k].get('fail_at', 0)))
             self.data = {k: self.data[k] for k in newest[:KEEP]}
+            if bad:
+                self.data['_bad'] = bad
         try:
             folder = os.path.dirname(self.path) or '.'
             os.makedirs(folder, exist_ok=True)
@@ -69,6 +84,21 @@ class Speed:
         item['fail_at'] = self.clock()
         self._save()
 
+    def bad(self, fp):
+        """This file (fingerprint) did not put a picture up in time, or took LATE_SLOW seconds or more: it goes last in the version list for BAD_FOR. Owner, 2026-11-25 (build 698
+        log f12dfcdd: one file read at 0.8 MB/s, stalled for minutes, and its source kept ranking first because the speed was only measured up to "streams ready")."""
+        if not fp:
+            return
+        marks = self.data.setdefault('_bad', {})
+        marks[fp] = self.clock()
+        if len(marks) > KEEP:
+            self.data['_bad'] = dict(sorted(marks.items(), key=lambda kv: -kv[1])[:KEEP])
+        self._save()
+
+    def is_bad(self, fp):
+        at = (self.data.get('_bad') or {}).get(fp) if fp else None
+        return at is not None and 0 <= self.clock() - float(at) < BAD_FOR
+
     def score(self, name, cached=False):
         """Higher is better. Fast and recent beats slow; a recent failure outweighs a good past; unknown is 0 (a cached one 0.5)."""
         item = self.data.get(name) or {}
@@ -84,7 +114,7 @@ class Speed:
 
     def order(self, pairs, cached=lambda item: False):
         """Source items fastest first; stable, so equal scores keep Umbrella's order. `pairs` is [(position, item)]."""
-        return sorted(pairs, key=lambda pair: -self.score(key(pair[1]), cached(pair[1])))
+        return sorted(pairs, key=lambda pair: -(self.score(key(pair[1]), cached(pair[1])) - (10.0 if self.is_bad(fingerprint(pair[1])) else 0.0)))
 
 
 def open_store(translate=None, clock=time.time):
@@ -102,7 +132,7 @@ def picked(window, item, now=None):
     try:
         name = key(item)
         if name:
-            window.setProperty(PICK, json.dumps({'k': name, 't': time.time() if now is None else now}))
+            window.setProperty(PICK, json.dumps({'k': name, 'f': fingerprint(item), 't': time.time() if now is None else now}))
     except Exception:
         pass
 
@@ -115,6 +145,7 @@ def settle(window, store, ok, now=None, within=180.0):
             return None
         window.clearProperty(PICK)
         info = json.loads(raw)
+        window.setProperty(PICK_FILE, str(info.get('f') or ''))
         now = time.time() if now is None else now
         seconds = now - float(info['t'])
         if seconds < 0 or seconds > within:

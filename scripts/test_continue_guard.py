@@ -89,7 +89,30 @@ class Wiring(unittest.TestCase):
         played=[];self.assertTrue(m.fast_stream(7,PARAMS,read,alive=lambda u:True,play=lambda *a:played.append(a),now=lambda:1500.0));self.assertEqual(len(played),1)
     def test_the_service_runs_the_guard_and_the_plugin_leaves_the_note(self):
         svc=(ROOT/'migration/bundled-bootstrap/service.py').read_text();self.assertIn('continue_guard.watch(home,',svc);self.assertIn("Window.IsActive(yesnodialog) | Window.IsActive(okdialog)",svc)
-        self.assertIn('continue_guard.note(params,now,remembered)',(WATCH/'ios_watch_dialog.py').read_text())
+        self.assertIn('continue_guard.note(params,now,remembered,item_key)',(WATCH/'ios_watch_dialog.py').read_text())
     def test_the_source_search_waits_three_seconds_for_a_page_that_is_opening(self):
         svc=(ROOT/'migration/bundled-bootstrap/service.py').read_text();self.assertIn('if opened<3:return False',svc)
+class ForgetsTheSavedVersion(unittest.TestCase):
+    """Owner 2026-11-25 (build 698 log f12dfcdd): the guard's second try replayed the same saved version through Umbrella at once, no list, the same slow server; and the loading circle sat over the list."""
+    def run_fallback(self,key='episode:73223:2:8',forget=None):
+        home=Home();home.p[g.MARK]=g.note(PARAMS,lambda:1000.0,'https://x/y.mkv',key);played=[];logs=[];calls=[]
+        g.step(home,lambda:False,lambda:False,lambda:calls.append('stop'),lambda:calls.append('close'),lambda url:(calls.append('play'),played.append(url)),logs.append,
+               now=lambda:1000+g.LIMIT,opened=lambda:False,forget=forget);return home,played,logs,calls
+    def test_the_note_carries_the_title_key(self):
+        self.assertEqual(json.loads(g.note(PARAMS,lambda:1.0,'u','k1'))['key'],'k1');self.assertEqual(json.loads(g.note(PARAMS,lambda:1.0))['key'],'')
+    def test_a_dead_link_makes_the_guard_forget_the_saved_version_before_the_second_try(self):
+        forgotten=[];home,played,logs,calls=self.run_fallback(forget=forgotten.append)
+        self.assertEqual(forgotten,['episode:73223:2:8']);self.assertEqual(len(played),1);self.assertIn('ios_fast=0',played[0])
+        self.assertLess(calls.index('stop'),calls.index('play'));self.assertTrue(any('saved version is forgotten' in l for l in logs))
+    def test_nothing_is_forgotten_without_a_key_and_a_failure_never_blocks_the_second_try(self):
+        forgotten=[];self.run_fallback(key='',forget=forgotten.append);self.assertEqual(forgotten,[])
+        def broken(key):raise OSError('disk')
+        home,played,logs,calls=self.run_fallback(forget=broken);self.assertEqual(len(played),1);self.assertTrue(any('could not forget' in l for l in logs))
+    def test_the_overlay_passes_the_key_and_the_service_wires_forget_and_the_picker_closes_the_circle(self):
+        overlay=(WATCH/'ios_watch_dialog.py').read_text();service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
+        picker=(ROOT/'migration/bundled-bootstrap/resources/lib/umbrella_picker.py').read_text()
+        self.assertIn('continue_guard.note(params,now,remembered,item_key)',overlay);self.assertIn('forget=forget',service);self.assertIn('ios_continue.forget_choice(read,write,item_key)',service)
+        self.assertLess(picker.index(' share(meta)\n close_circle()'),picker.index('choice=deck.run('))   # closed before the list opens
+        self.assertIn("clearProperty('KodiIOS.ContinueOpening')",picker)
+
 if __name__=='__main__':unittest.main()

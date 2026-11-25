@@ -2313,7 +2313,7 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
      log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
      caching=lambda:xbmc.getCondVisibility('Player.Caching')
      def position():
-      label=xbmc.getInfoLabel('Player.SeekTime' if xbmc.getCondVisibility('Player.Seeking') else 'Player.Time')
+      label=xbmc.getInfoLabel('Player.SeekTime' if xbmc.getCondVisibility('Player.Seeking + Control.HasFocus(7131)') else 'Player.Time')
       return thumb_strip.clock_seconds(label)
      if not local and not complete_strip(link,root):
       if not thumb_strip.settled(lambda:player.isPlayingVideo(),lambda:not caching(),lambda:thumb_strip.clock_seconds(xbmc.getInfoLabel('Player.Time')),mon.waitForAbort):return
@@ -2323,7 +2323,7 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
       playing=lambda:player.isPlayingVideo(),
       healthy=lambda:local or not caching(),
       position=position,
-      seeking=lambda:xbmc.getCondVisibility('Player.Seeking'),
+      seeking=lambda:xbmc.getCondVisibility('Player.Seeking + Control.HasFocus(7131)'),
       wait=mon.waitForAbort,budget_mb=mb,local=local,duration=lambda:int(player.getTotalTime() or 0))
     except Exception as error:_quiet('portrait:strip',error)
    def complete_strip(link,root):

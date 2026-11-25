@@ -98,9 +98,22 @@ def run():
   playing=lambda:bool(player.isPlayingVideo()) and xbmc.getCondVisibility('Player.HasVideo') and player.getTime()>0.5
   circle=continue_guard.Circle(home,playing,box,lambda:xbmc.getCondVisibility('Window.IsVisible(busydialognocancel)'),
    lambda:xbmc.executebuiltin('ActivateWindow(busydialognocancel)'),lambda:xbmc.executebuiltin('Dialog.Close(busydialognocancel,true)'),lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+  def forget(item_key):
+   import importlib.util,xbmcaddon
+   lib=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.kodi.ios.watch').getAddonInfo('path'))+'/resources/lib/ios_continue.py'
+   spec=importlib.util.spec_from_file_location('ios_continue',lib);ios_continue=importlib.util.module_from_spec(spec);spec.loader.exec_module(ios_continue)
+   def read(location):
+    source=xbmcvfs.File(location)
+    try:return source.read()
+    finally:source.close()
+   def write(location,text):
+    target=xbmcvfs.File(location,'w')
+    try:target.write(text)
+    finally:target.close()
+   return ios_continue.forget_choice(read,write,item_key)
   continue_guard.watch(home,playing,box,
    lambda:player.stop(),close_boxes,lambda url:xbmc.executebuiltin('PlayMedia(%s)'%url),lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),monitor.waitForAbort,
-   opened=lambda:bool(xbmc.getCondVisibility('Player.HasVideo')),circle=circle,probe=continue_guard.Probe(__import__('link_warm').link_answers))
+   opened=lambda:bool(xbmc.getCondVisibility('Player.HasVideo')),circle=circle,probe=continue_guard.Probe(__import__('link_warm').link_answers),forget=forget)
  threading.Thread(target=continue_guard_loop,daemon=True).start()
  def link_warm_loop():
   # Owner, 2026-11-23, log d78de521 (Wi-Fi): reading 1.3 MB of a link did nothing (the first Continue took 24.4 s to a picture); the kept opening (resume_cache)
@@ -160,7 +173,7 @@ def run():
     answer=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Player.GetProperties','params':{'playerid':1,'properties':['tempo']}})))
     return float(answer['result']['tempo'])
    except Exception:return 1.0
-  ends_at.run(lambda:player.isPlayingVideo(),lambda:xbmc.getCondVisibility('Player.Seeking'),lambda:xbmc.getInfoLabel('Player.SeekTime'),
+  ends_at.run(lambda:player.isPlayingVideo(),lambda:xbmc.getCondVisibility('Player.Seeking + Control.HasFocus(7131)'),lambda:xbmc.getInfoLabel('Player.SeekTime'),
    lambda:player.getTotalTime(),tempo,lambda:xbmc.getRegion('time'),lambda text:home.setProperty(ends_at.PROPERTY,text),monitor.waitForAbort)
  threading.Thread(target=ends_at_loop,daemon=True).start()
  keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
@@ -493,6 +506,18 @@ def run():
   if done:xbmcgui.Window(10000).setProperty(open_timing.SOURCE,done[0])
   if done:xbmc.log('Kodi iOS Umbrella source %s: %s'%(done[0],'opened in %.1f s from the choice to the streams being ready'%done[1] if done[1] is not None else 'did not open'),xbmc.LOGINFO)
  open_timing.LISTENERS.append(_credit)
+ def _late(ok,via,seconds):
+  # The speed was only measured up to "streams ready"; the picture is what counts (build 698 log f12dfcdd: 12.8 s to ready, then stalls and no picture for 30 s).
+  if via!='umbrella':return
+  home=xbmcgui.Window(10000);name=home.getProperty(open_timing.SOURCE);fp=home.getProperty(source_speed.PICK_FILE)
+  if not name:return
+  if ok:
+   _speed.ok(name,seconds)
+   if seconds>=source_speed.LATE_SLOW:_speed.bad(fp)
+  else:
+   _speed.fail(name);_speed.bad(fp)
+  xbmc.log('Kodi iOS Umbrella source %s: %s'%(name,'first picture after %.1f s%s'%(seconds,' (slow: ranked last for a while)' if ok and seconds>=source_speed.LATE_SLOW else '') if ok else 'no picture (ranked last for a while)'),xbmc.LOGINFO)
+ open_timing.LATE.append(_late)
  import cache_tune   # roadmap 1B.3: Kodi's cache read factor follows Wi-Fi / cellular, set as a video is about to open
  threading.Thread(target=open_timing.watch,args=(xbmcgui.Window(10000),lambda:xbmc.getCondVisibility('Player.HasVideo + Player.Playing'),
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),

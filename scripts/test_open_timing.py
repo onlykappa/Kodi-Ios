@@ -45,6 +45,15 @@ class OpenTiming(unittest.TestCase):
         ot.mark(home,'library',now=100.0);ot.check(home,lambda:True,lines.append,now=101.0)
         ot.check_moving(lines.append,lambda:False,now=140.0)
         self.assertEqual((ot.WAITING,ot.DETAIL),({},{}));self.assertFalse(any('open record' in l for l in lines))
+    def test_the_late_verdict_comes_with_the_first_picture_or_when_none_came(self):
+        home,lines,told=Home(),[],[];ot.WAITING.clear();ot.DETAIL.clear();ot.LATE[:]=[lambda ok,via,seconds:told.append((ok,via,round(seconds,1)))]
+        try:
+            ot.mark(home,'umbrella',now=100.0);ot.check(home,lambda:True,lines.append,now=104.5)
+            ot.check_moving(lines.append,lambda:True,now=108.5,home=home)
+            ot.mark(home,'umbrella',now=200.0);ot.check(home,lambda:True,lines.append,now=203.0)
+            ot.check_moving(lines.append,lambda:False,now=240.0,home=home)
+        finally:ot.LATE[:]=[]
+        self.assertEqual(told,[(True,'umbrella',8.5),(False,'umbrella',40.0)])
     def test_a_clock_that_never_moves_is_reported_then_forgotten(self):
         home,lines=Home(),[];ot.WAITING.clear()
         ot.mark(home,'library',now=100.0);ot.check(home,lambda:True,lines.append,now=101.0)

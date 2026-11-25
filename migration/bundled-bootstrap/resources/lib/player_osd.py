@@ -117,7 +117,7 @@ FIRST_ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(
 BACKDROP=('<control type="button" id="7100"><left>0</left><top>0</top><right>0</right><bottom>0</bottom>'
           '<texturefocus /><texturenofocus /><label></label><onclick>Dialog.Close(videoosd)</onclick></control>')
 ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(videoosd),$INFO[%s,00:,],silent)'%TIMEOUT)
-SKIP_GLYPH=130   # the back/forward 10 arrows: 130 units (owner, 2026-11-24, mockup round 2: smaller, clear of the title; they were 200); the touch area stays SKIP_TAP
+SKIP_GLYPH=112   # the back/forward 10 arrows: 112 units (owner, 2026-11-25: "a little smaller"; 130 on 2026-11-24, 200 before); the touch area stays SKIP_TAP
 SKIP_TAP=280
 TEN_DX=0;TEN_DY=2   # the circle goes all the way round now, so the 10 sits in its middle
 STRIP_SPIN='<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'   # the card's ring while the strip is still being made
@@ -203,13 +203,17 @@ def window():
  # Owner-approved Apple-style scrubber (docs/design/player-scrubber-mockup.html, 2026-11-23): a thin fully rounded bar with no knob at rest, thicker under the finger,
  # elapsed time under its left end and the time left under its right end (tap it for the total length). Track and fill are one progress control each; the slider on top
  # only takes the touch (its knob is clear), and the thick bar shows while the slider has focus, which is while it is dragged.
- DRAG='Player.Seeking'   # Kodi iOS patch (IOSScrub): true under the finger and until the seek lands; Player.Progress, SeekTime, SeekOffset and TimeRemaining follow the finger then
+ # Player.Seeking (Kodi iOS patch, IOSScrub) is true under the finger and until the seek lands, but also while Kodi carries out a Seek(+-10) from the skip buttons. Owner 2026-11-25:
+ # "when someone presses the seek button 10 +/- the seek box shouldn't appear, only when someone drags the bar". The slider has focus only while it is touched, a skip button has focus
+ # when it is pressed, so the drag is Player.Seeking while the slider has focus; Player.Progress, SeekTime, SeekOffset and TimeRemaining follow the finger then.
+ DRAG='Player.Seeking + Control.HasFocus(7131)'
+ NOTDRAG='![%s]'%DRAG
  def fill(top,height,border,visible):
   return ('<control type="progress"><left>0</left><right>0</right><top>%d</top><height>%d</height><info>Player.Progress</info><visible>%s</visible>'
    '<texturebg border="%d" colordiffuse="4DFFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="%d" colordiffuse="FFFFFFFF">%sdot.png</midtexture><righttexture /></control>'
    )%(top,height,visible,border,MEDIA,border,MEDIA)
  bar=('<control type="group"><left>%d</left><right>%d</right><top>862</top><height>60</height>'%(left,left)+
-  fill(22,16,8,'!'+DRAG)+fill(14,32,16,DRAG)+
+  fill(22,16,8,NOTDRAG)+fill(14,32,16,DRAG)+
   '<control type="slider" id="7131"><left>0</left><right>0</right><top>6</top><height>48</height><action>seek</action><texturesliderbar>%sclear48.png</texturesliderbar>'%MEDIA+
   '<textureslidernib>%sclear48.png</textureslidernib><textureslidernibfocus>%sclear48.png</textureslidernibfocus>'
   '<onup>7112</onup><ondown>7141</ondown>'%(MEDIA,MEDIA)+
@@ -221,14 +225,14 @@ def window():
   # Times: 70 % white at rest, white while dragging. The right one is a button too: a tap switches between the time left and the time the video ends at (owner, 2026-11-24:
   # "if someone taps the end time it will show the ends at time"). Ends at is Kodi's Player.FinishTime (the clock plus the time left, so it moves on while paused and follows a
   # skip or a speed change) and, under the finger, the Home property KodiIOS.EndsAt (ends_at.py), because Kodi's own value ignores a drag until it lands.
-  label(left,912,400,50,'$INFO[Player.Time]','font_midi_bold','B3FFFFFF','left','<visible>!%s</visible>'%DRAG)+
+  label(left,912,400,50,'$INFO[Player.Time]','font_midi_bold','B3FFFFFF','left','<visible>%s</visible>'%NOTDRAG)+
   label(left,912,400,50,'$INFO[Player.SeekTime]','font_midi_bold','FFFFFFFF','left','<visible>%s</visible>'%DRAG)+
   '<control type="group"><right>%d</right><width>500</width><top>912</top><height>50</height>'%left+
   ''.join('<control type="label"><right>0</right><width>500</width><top>0</top><height>50</height><font>font_midi_bold</font><textcolor>%s</textcolor><align>right</align><aligny>center</aligny>'
    '<label>%s</label><visible>%s</visible></control>'%(color,text,e(visible)) for color,text,visible in (
-    ('B3FFFFFF','-$INFO[Player.TimeRemaining]','!Skin.HasSetting(ios_osd_ends) + !%s'%DRAG),
+    ('B3FFFFFF','-$INFO[Player.TimeRemaining]','!Skin.HasSetting(ios_osd_ends) + %s'%NOTDRAG),
     ('FFFFFFFF','-$INFO[Player.TimeRemaining]','!Skin.HasSetting(ios_osd_ends) + %s'%DRAG),
-    ('B3FFFFFF','Ends at $INFO[Player.FinishTime]','Skin.HasSetting(ios_osd_ends) + !%s'%DRAG),
+    ('B3FFFFFF','Ends at $INFO[Player.FinishTime]','Skin.HasSetting(ios_osd_ends) + %s'%NOTDRAG),
     ('FFFFFFFF','Ends at $INFO[Window(Home).Property(KodiIOS.EndsAt)]','Skin.HasSetting(ios_osd_ends) + %s'%DRAG)))+
   # The touch area is the whole right end under the bar (build 686 log b142eafc: taps at x 2130-2157 hit the clear button behind, which closed the controls, because this button
   # was drawn 100 units too far left): it starts at the text's left and ends at the group's right edge, clear of the bar's own touch area above (the slider ends at 916).
