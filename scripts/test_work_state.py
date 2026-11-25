@@ -338,7 +338,7 @@ class WifiOnly(unittest.TestCase):
    self.assertEqual(len(debrid_drive.load(p)['jobs']),1)               # the queue is untouched
   root=Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap'
   self.assertIn('id="copy_wifi_only"',(root/'resources/settings.xml').read_text())
-  self.assertIn("and not wifi_only_hold(),on_done=done,",(root/'service.py').read_text())
+  self.assertIn("and not wifi_only_hold() and not slow_cell_hold(),on_done=done,",(root/'service.py').read_text())
 
 class WifiHoldsPreparation(unittest.TestCase):
  def test_videos_wait_for_wifi_and_the_status_says_so(self):

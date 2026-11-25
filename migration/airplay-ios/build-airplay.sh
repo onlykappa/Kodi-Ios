@@ -71,6 +71,13 @@
 # r57 (ISSUE-278, owner's build-430 log: Naruto S1 E1, a prepared H.264 file; the Roku took the sound only and Apple's
 # player stopped "Cannot Complete Action" 1.5 s in): a prepared file the TV turns down restarts once, also when the
 # picture is already H.264; an H.264 picture is kept as it is in 6-s segments (KR_COMPAT_SEGMENTED), not converted.
+# r73/r74 (owner, 2026-11-23/24: "the photo doesn't match where the film is going ... the frame must load within 3 seconds"): the seek bar's preview strip,
+# 0.jpg ... 100.jpg, the keyframe at or before each whole percent of the video (software decode of one keyframe per picture over the remuxer's own HTTP Range
+# source, remux/src/kr_thumbs.c; JPEG by the public-domain stb_image_write.h). r74 is a SESSION: kodi_thumbs_open(url, dir, w, h, quality, err, len) keeps one video
+# open (its container probed once) and returns a handle; one picture every 5 s (index i = the keyframe at or before i*5 s; the grid is written to dir/grid);
+# kodi_thumbs_fill(handle, pause_ms, center, budget_mb, out, len) makes the strip in the background, coarse first (every 12th, 6th, 3rd, then all) from picture `center`
+# outwards, until budget_mb is read (0: no limit); kodi_thumbs_frame(handle, index, err, len) makes ONE picture now, from another thread (a seek and a keyframe);
+# kodi_thumbs_stop/resume interrupt and release the reads; kodi_thumbs_close.
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh, REMUX_LIBASS=DIR
 # one of build-libass.sh ios)
 set -euo pipefail
@@ -769,12 +776,20 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                     } else {
                         NSURL *url = [item.asset isKindOfClass:AVURLAsset.class] ? ((AVURLAsset *)item.asset).URL : nil;
                         if (url) {
-                            playerNote(@"still stuck at %.1f s after a source stall: reloading the stream there", here);
+                            // Build611 (owner phone log): a seek asks the TV for a segment far ahead; until it arrives the player's clock keeps
+                            // its old value, so reloading "where the player is" restarted near the beginning. Resume at the place the viewer
+                            // chose (the latest jump the TV made, if recent) and have the new stream's playlists start there, so the TV does
+                            // not first fetch segment 0.
+                            double jump = kr_remux_recent_seek_target(60);
+                            double target = jump >= 0 ? jump : here;
+                            playerNote(@"still stuck at %.1f s after a source stall: reloading the stream there (resuming at %.1f s%s)", here,
+                                       isfinite(target) && target > 0 ? target : 0.0, jump >= 0 ? ", the seek the viewer made" : "");
+                            kr_remux_set_resume(isfinite(target) && target > 0 ? target : 0);
                             AVPlayerItem *next = [AVPlayerItem playerItemWithURL:url];
                             [player pause];
                             watchPlayback(player, next, generation);
                             [player replaceCurrentItemWithPlayerItem:next];
-                            resumeAt = isfinite(here) && here > 0 ? here : 0; errorsSeen = 0;
+                            resumeAt = isfinite(target) && target > 0 ? target : 0; errorsSeen = 0;
                             initialSeekAllowed = NO;recoveryDeadline = ticks + 30;
                         }
                     }
@@ -1457,6 +1472,7 @@ printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airpla
 printf '_kodi_http_copy_max\n_kodi_http_copy_streams\n_kodi_http_copy\n_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
 printf '_kodi_airplay_prepare_upscale\n_kodi_airplay_upscale_support\n_kodi_airplay_upscale_model\n_kodi_device_state\n' >> "$WORK/exports"   # r48
 printf '_kodi_speech_words\n_kodi_speech_authorize\n_kodi_speech_state\n' >> "$WORK/exports"   # ISSUE-347 (r62)
+printf '_kodi_thumbs_open\n_kodi_thumbs_open2\n_kodi_thumbs_frame\n_kodi_thumbs_fill\n_kodi_thumbs_stop\n_kodi_thumbs_resume\n_kodi_thumbs_close\n' >> "$WORK/exports"   # r74: the seek bar's preview strip session (kr_thumbs.c)
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
   -framework VideoToolbox -framework CoreVideo -framework CoreText -framework Metal -framework Speech \
@@ -1507,6 +1523,10 @@ nm -m "$FW/KodiAirPlay" | grep -E '_OBJC_CLASS_\$_VT(LowLatency)?SuperResolution
 nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_speech_(words|authorize|state)$'
 [[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_speech_(words|authorize|state)$')" == 3 ]] || { echo 'speech check exports missing' >&2; exit 1; }
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _kr_speech_pcm$')" == 1 ]] || { echo 'speech sound reader not linked' >&2; exit 1; }
+# r74: the preview strip's session entry points are exported and its picture maker is linked (private).
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_thumbs_(open|open2|frame|fill|stop|resume|close)$'
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_thumbs_(open|open2|frame|fill|stop|resume|close)$')" == 7 ]] || { echo 'preview strip exports missing' >&2; exit 1; }
+[[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _kr_thumbs_(open|frame|fill)$')" == 3 ]] || { echo 'preview strip maker not linked' >&2; exit 1; }
 # r7: the picture bridge needs Apple's hardware H.264 encoder in this FFmpeg.
 grep -q -- '--enable-encoder=h264_videotoolbox' "$FF/FFMPEG-CONFIG.txt" || { echo 'FFmpeg built without h264_videotoolbox' >&2; exit 1; }
 lipo -info "$FW/KodiAirPlay"

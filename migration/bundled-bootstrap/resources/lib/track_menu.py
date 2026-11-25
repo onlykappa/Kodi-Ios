@@ -42,18 +42,59 @@ def _words(text):
     return str(text or '').lower()
 
 
+def _impaired(s):
+    name = _words(s.get('name'))
+    return bool(s.get('isimpaired') or 'sdh' in name or 'hearing' in name or ' cc' in ' ' + name or 'caption' in name)
+
+
+def _forced(s):
+    return bool(s.get('isforced') or 'forced' in _words(s.get('name')))
+
+
+def pick(streams, video=None):
+    """The subtitle streams worth showing: one per language, never a broken one (owner, 2026-11-20: "there should never be more than
+    one English ... I just want the CC version of English", "stop having them show broken subtitles").
+
+    - a stream whose language is unknown (UND) is dropped when any stream names its language;
+    - a stream the matcher refused (empty, wrong timing, wrong episode) is dropped;
+    - of the rest, each language keeps one: a subtitle the viewer downloaded or added first, then the closed-caption / SDH version, then a full track before a forced (foreign
+      parts only) one, then the matcher's order (best first). A language with only a forced track keeps it.
+    Each stream keeps its own Kodi index, so choosing a row still selects the right stream."""
+    ranked = subtitle_match.rank(streams or [], video) if video is not None else [dict(s) for s in streams or []]
+    # A track the matcher found broken goes; one that is merely another language stays (Spanish is Spanish).
+    ranked = [s for s in ranked if not s.get('match_rejected') or s.get('match_reason') == 'Different language']
+    def lang(s):   # the stream's language, or the one a file name carries ("Show.S01E05.en.srt"), else ''
+        return subtitle_match.language(s.get('language')) or subtitle_match._file_language(s.get('filename') or s.get('name') or '') or ''
+    known = [s for s in ranked if lang(s)]
+    if known:
+        ranked = known
+    best = {}
+    for n, s in enumerate(ranked):
+        key = lang(s) or str(s.get('language') or '').lower()
+        rank = (not (s.get('downloaded') or s.get('removable')), not _impaired(s), _forced(s), n)   # a subtitle the viewer added wins its language
+        if key not in best or rank < best[key][0]:
+            best[key] = (rank, s)
+    keep = {id(entry[1]) for entry in best.values()}
+    return [s for s in ranked if id(s) in keep]
+
+
 def subtitle_rows(streams, current, enabled, video=None):
-    """[{'label', 'tag', 'on', 'index'}]: Off first, then each subtitle stream. index None is Off."""
+    """[{'label', 'tag', 'on', 'index'}]: Off first, then one row per language (pick). index None is Off. The closed-caption version
+    of a language is tagged CC."""
+    all_streams = list(streams or [])
+    streams = pick(all_streams, video)
+    # The stream Kodi has on may be one the menu hides (the plain English when CC is shown): its language's row is the one that is on.
+    playing = next((s for s in all_streams if s.get('index') == current), None) if current is not None else None
+    on_language = (subtitle_match.language(playing.get('language')) if playing else '') or None
+    on_index = current if any(s.get('index') == current for s in streams) else next(
+        (s.get('index') for s in streams if on_language and subtitle_match.language(s.get('language')) == on_language), None)
     out = [{'label': 'Off', 'tag': '', 'on': not enabled or not streams, 'index': None}]
-    streams = subtitle_match.rank(streams or [], video) if video is not None else streams or []
     for s in streams:
-        name = _words(s.get('name'))
-        tag = 'FORCED' if s.get('isforced') or 'forced' in name else \
-              'SDH' if s.get('isimpaired') or 'sdh' in name or 'hearing' in name or ' cc' in ' ' + name else ''
+        tag = 'FORCED' if _forced(s) else 'CC' if _impaired(s) else ''
         if not tag and s.get('downloaded'):
             tag = 'NEW'
         row = {'label': language_name(s.get('language'), s.get('name')), 'tag': tag,
-               'on': bool(enabled and current is not None and s.get('index') == current), 'index': s.get('index'),
+               'on': bool(enabled and on_index is not None and s.get('index') == on_index), 'index': s.get('index'),
                'language': s.get('language') or '', 'removable': bool(s.get('removable'))}
         row.update({k: v for k, v in s.items() if k.startswith('match_')})
         row.setdefault('match_reason', 'Timing not checked')
@@ -168,22 +209,32 @@ def rank(results, filename, dubbed=False):
     return sorted(results, key=score, reverse=True)
 
 
-def subtitle_from_zip(blob, season=None, episode=None):
+ZIP_NAMES = []   # the subtitle files of the last zip that gave nothing, for the log (no addresses): build 645 log d8f39741, "No subtitle file for this episode" five times
+
+
+def subtitle_from_zip(blob, season=None, episode=None, loose=False):
     """The .srt (or .ass / .ssa / .sub / .vtt) inside a subtitle zip: (name, bytes) or None. A season pack's zip
-    (SubDL) gives the file of this episode (S01E05, 1x05)."""
+    (SubDL) gives the file of this episode (S01E05, 1x05). `loose`: the provider itself says this zip is for this episode (SubDL's own episode field), so a
+    file named for the same episode number in another season (a long-running show the sites number differently from TMDb) is taken when it is the only one."""
     try:
         z = zipfile.ZipFile(io.BytesIO(blob))
     except zipfile.BadZipFile:
         return None
     names = [n for n in z.namelist() if n.lower().endswith(('.srt', '.ass', '.ssa', '.vtt', '.sub'))]
+    every = list(names)
     if season is not None and episode:
         mark = re.compile(r'(?i)(?:s0*%d[ ._-]?e0*%d|\b0*%dx0*%d)(?!\d)' % (int(season), int(episode), int(season), int(episode)))
         matching = [n for n in names if mark.search(n.rsplit('/', 1)[-1])]
+        if not matching and loose:
+            same = [n for n in names if (subtitle_match.episode_identity(n) or (0, -1))[1] == int(episode)]
+            matching = same if len(same) == 1 else []
         # Even a zip with one file may be the wrong episode. An unnumbered single file remains a candidate.
         if len(names) == 1:
             names = matching or [n for n in names if not subtitle_match.episode_identity(n)]
         else:
             names = matching
+    if not names:
+        ZIP_NAMES[:] = [n.rsplit('/', 1)[-1][:70] for n in every[:6]]
     names.sort(key=lambda n: (not n.lower().endswith('.srt'), len(n)))
     return (names[0].rsplit('/', 1)[-1], z.read(names[0])) if names else None
 

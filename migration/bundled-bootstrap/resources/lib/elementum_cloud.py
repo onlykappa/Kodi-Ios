@@ -144,6 +144,10 @@ def route(url,quiet=False,request_id=None):
             elif mode==2:mode=0
         else:
             mode = auto.get('mode', 0) if auto is not None else ask(dialog, 'Save to Google Drive', [('Download only', 'Saved to Google Drive · watch any time'), ('Download and watch', 'Plays as soon as it is ready on Drive')])
+        if mode != 1 and home is not None:   # a download that is not watched is no play opening: the mark would hold downloads for 120 s ("Paused for playback" with nothing playing)
+            for name in ('KodiIOS.Open','KodiIOS.OpenResolved'):
+                try:home.clearProperty(name)
+                except Exception:pass
         if mode < 0:return True
         if auto is None and home is not None:
             try:home.setProperty('KodiIOS.LastSaveMode', str(mode))   # the rest of a season reuses it

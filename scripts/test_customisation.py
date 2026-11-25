@@ -289,7 +289,10 @@ class Dialogs(unittest.TestCase):
   self.assertTrue({pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}<=portrait.OWN_1080I)
  def test_fuse_overlay_hides_under_our_controls(self):
   osd=portrait.player_osd;src='<window><controls><control type="label" /></controls></window>'
-  self.assertIn('<visible>!Window.IsVisible(videoosd)</visible>',osd.safe_inset(src,True));self.assertNotIn('videoosd',osd.safe_inset(src))
+  self.assertIn('<visible>%s</visible>'%osd.HIDE_CONDITION,osd.safe_inset(src,True));self.assertNotIn('videoosd',osd.safe_inset(src))
+  # the controls say they are up (Home property KodiIOS.OsdOpen) and the overlay hides under that too; a file inset by an earlier build moves to it in place
+  self.assertIn('Window(Home).Property(KodiIOS.OsdOpen)',osd.HIDE_CONDITION);self.assertIn('SetProperty(KodiIOS.OsdOpen,1,home)',osd.window());self.assertIn('ClearProperty(KodiIOS.OsdOpen,home)',osd.window())
+  old=osd.safe_inset(src,True).replace(osd.HIDE_CONDITION,'!Window.IsVisible(videoosd)');self.assertIn(osd.HIDE_CONDITION,osd.safe_inset(old,True))
   self.assertEqual(set(osd.HIDE_UNDER_OSD),{'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml'})
 
 class Badges(unittest.TestCase):

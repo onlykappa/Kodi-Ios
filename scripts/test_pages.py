@@ -118,7 +118,8 @@ class Pages(unittest.TestCase):
   self.assertNotIn('!(',(self.skin/'1080i/IOSPlayOnTV.xml').read_text())
  def test_umbrella_page_reads_the_published_fields(self):
   xml=(self.skin/'portrait/source_progress.xml').read_text()
-  for key in ('Provider','Via','Quality','Size','Badges','File','Text','Ready'):self.assertIn('IOSReady.'+key,xml)
+  for key in ('Provider','Via','Size','Text','Ready','Head','Sub'):self.assertIn('IOSReady.'+key,xml)
+  for gone in ('Quality','Badges','File'):self.assertNotIn('IOSReady.'+gone,xml)   # owner, 2026-11-21: no tags, no file name, no umbrella tile on the opening page
   self.assertIn('Window.Property(umbrella.fanart)',xml);self.assertIn('Integer.IsGreaterOrEqual(Window.Property(percent),100)',xml)
  def test_settings_dialog_has_no_empty_category_pill(self):
   root,_=self.ids('portrait/DialogSettings.xml')
@@ -193,15 +194,82 @@ class OpeningStages(unittest.TestCase):
  MB=1024*1024
  def test_three_stages(self):
   s=ready.stage
-  self.assertEqual(s('AllDebrid',3,False,{}),{'Line':'Getting the link from AllDebrid\u2026','Right':'3 s','Fill':'','Slow':''})
+  self.assertEqual(s('AllDebrid',3,False,{}),{'Line':'Getting the link from AllDebrid','Right':'3 s','Fill':'','Slow':'','Head':'Getting the link','Sub':''})   # the service is in the capitals line above, so a long name never runs out of the headline
   cache={'kodi':True,'block_size':4*self.MB,'cached_blocks':2}
-  self.assertEqual(s('AllDebrid',6,True,cache,3),{'Line':'Opening the video \u00b7 8 of 12 MB','Right':'66%','Fill':'66','Slow':''})
+  self.assertEqual(s('AllDebrid',6,True,cache,3),{'Line':'Opening the video \u00b7 8 of 12 MB','Right':'66%','Fill':'66','Slow':'','Head':'Opening the video','Sub':'8 of 12 MB'})
   done=s('AllDebrid',14,True,dict(cache,cached_blocks=3),12)
-  self.assertEqual((done['Line'],done['Right'],done['Fill']),('Starting the video\u2026','14 s',''))
+  self.assertEqual((done['Line'],done['Right'],done['Fill']),('Starting the video','14 s',''))
   self.assertEqual(done['Slow'],'AllDebrid is sending it slowly right now (1.0 MB/s).')   # only after 10 s, real speed
   self.assertEqual(s('AllDebrid',14,True,dict(cache,cached_blocks=3),3)['Slow'],'')          # 4 MB/s: no note
-  self.assertEqual(s('AllDebrid',5,True,{})['Line'],'Starting the video\u2026')             # an MP4: no cache, no made-up %
+  self.assertEqual(s('AllDebrid',5,True,{})['Line'],'Starting the video')             # an MP4: no cache, no made-up %
   self.assertEqual(s('AllDebrid',5,True,{'kodi':False,'block_size':4*self.MB,'cached_blocks':3})['Fill'],'')   # a TV's source
+ def test_the_centred_opening_page(self):
+  """Owner, 2026-11-21 (chosen from the mockups of that day): no card, no umbrella tile, no tags, no file name; the source in small capitals, a large
+  headline, one thin bar, the numbers under it, and Cancel as a blue text button."""
+  import pages
+  xml=pages.umbrella_ready(portrait);root=ET.fromstring(xml.split('\n',2)[2])
+  for gone in ('umbrella.png','tile100.png','pill_56.png','glass_card.png','IOSReady.Quality','IOSReady.Badges','IOSReady.File'):self.assertNotIn(gone,xml)
+  self.assertIn('[UPPERCASE]$INFO[Window(home).Property(IOSReady.Provider)][/UPPERCASE]',xml)
+  self.assertIn('<font>p_h2</font>',xml)
+  cancel=[c for c in root.iter('control') if c.get('id')=='9001'][0]
+  self.assertGreaterEqual(int(cancel.findtext('height')),118);self.assertGreaterEqual(int(cancel.findtext('width')),118)   # a 44 pt hit area
+  self.assertEqual(cancel.findtext('textcolor'),portrait.ACCENT)                                                          # the text blue, not a third blue
+  self.assertEqual(cancel.findtext('onclick'),'Action(Back)')
+  self.assertIn('IOSReady.Size),, file]',xml)                                                                            # "2.56 GB file" under the bar
+  for c in root.iter('control'):                                                                                         # a headline is never cut off
+   if c.get('type')=='label' and c.findtext('font')=='p_h2':self.assertEqual(c.findtext('scroll'),'false')
+ def test_the_elapsed_time_is_published_and_drawn_under_the_size(self):
+  """Owner, 2026-11-21: "id like the elapsed time to show under the size of file so i know how long it takes to load video"."""
+  self.assertEqual([ready.elapsed_text(n) for n in (0,7,59,60,65,3599,-3)],['0 s','7 s','59 s','1:00','1:05','59:59','0 s'])
+  props={};now=[0.0];ticks=iter(range(8));seen=[]
+  def wait(_):
+   n=next(ticks,None);now[0]+=1;seen.append(props.get('IOSReady.Elapsed'));return n is None
+  ready.watch(lambda:True,lambda:'',props.__setitem__,lambda k:props.pop(k,None),wait,clock=lambda:now[0])
+  self.assertEqual([x for x in dict.fromkeys(seen) if x][:4],['0 s','1 s','2 s','3 s'])                           # it counts from when the window appears
+  import pages
+  xml=pages.umbrella_ready(portrait);root=ET.fromstring(xml.split('\n',2)[2])
+  self.assertIn('$INFO[Window(home).Property(IOSReady.Elapsed)]',xml)
+  tops={c.findtext('label'):int(c.findtext('top')) for c in root.iter('control') if c.get('type')=='label' and c.findtext('top')}
+  size=[int(c.findtext('top')) for c in root.iter('control') if c.get('type')=='grouplist' and 'IOSReady.Size' in ET.tostring(c,encoding='unicode')][0]
+  elapsed=tops['$INFO[Window(home).Property(IOSReady.Elapsed)]'];self.assertGreater(elapsed,size)                  # under the line with the size
+ def test_a_remembered_link_is_tried_for_three_days(self):
+  import importlib.util
+  spec=importlib.util.spec_from_file_location('iwd',ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_watch_dialog.py')
+  self.assertIn('STREAM_FRESH=72*3600',(ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_watch_dialog.py').read_text())
+ def test_no_dots_and_the_bar_follows_the_real_progress(self):
+  """Owner, 2026-11-21: no "..." on the page, and the page shows real progress: the link step, then the bytes Kodi has read (0, 4, 8 of 12 MB) filling the bar,
+  then "Starting the video" (published through watch(), as the service does)."""
+  import pages
+  xml=pages.umbrella_ready(portrait);self.assertNotIn('\u2026',xml);self.assertNotIn('...',xml)
+  for value in ready.stage('AllDebrid',3,False,{}).values():self.assertNotIn('\u2026',value)
+  props={};now=[0.0];ticks=iter(range(14));link=['old'];log=[]
+  text='[COLOR x]ALLDEBRID[/COLOR][CR]TORRENTIO[CR]1080P[CR]AVC WEB 2.56 GB[CR]01 - Dragon.Ball.Super.mkv'
+  cache={'kodi':True,'block_size':4*self.MB,'cached_blocks':0}
+  def wait(_):
+   n=next(ticks,None);now[0]+=1
+   if n==2:link[0]='new'
+   if n is not None and n>=4:cache['cached_blocks']=min(3,n-3)
+   log.append((props.get('IOSReady.Head'),props.get('IOSReady.Sub'),props.get('IOSReady.Fill')))
+   return n is None
+  ready.watch(lambda:True,lambda:text,props.__setitem__,lambda k:props.pop(k,None),wait,linked=lambda:link[0],cache=lambda:dict(cache),clock=lambda:now[0])
+  steps=list(dict.fromkeys(log))
+  self.assertEqual(steps[1:],[('Getting the link','',''),('Opening the video','0 of 12 MB','0'),('Opening the video','4 of 12 MB','33'),
+                              ('Opening the video','8 of 12 MB','66'),('Starting the video','','')])
+ def test_the_bar_follows_the_bytes_read_not_only_whole_blocks(self):
+  """Owner, 2026-11-21: "why does the bar not load 1 at a time": the 4 MB blocks alone moved it 0, 33, 66. The source's read_bytes (every chunk) fills it
+  smoothly; only the blocks all being in memory says Starting, and the bar never reads full before that."""
+  def at(blocks,read):
+   return ready.stage('AllDebrid',4,True,{'kodi':True,'block_size':4*self.MB,'cached_blocks':blocks,'read_bytes':read},2)
+  steps=[(at(0,0),'0 of 12 MB','0'),(at(0,300000),'0.2 of 12 MB','2'),(at(0,2300000),'2.1 of 12 MB','18'),(at(1,5700000),'5.4 of 12 MB','45'),
+         (at(2,9100000),'8.6 of 12 MB','72'),(at(2,13000000),'11.9 of 12 MB','99')]
+  for out,sub,fill in steps:self.assertEqual((out['Head'],out['Sub'],out['Fill']),('Opening the video',sub,fill),sub)
+  fills=[int(o['Fill']) for o,_,_ in steps];self.assertEqual(fills,sorted(fills))
+  done=at(3,13000000);self.assertEqual((done['Head'],done['Fill']),('Starting the video',''))
+  self.assertEqual(at(1,0)['Sub'],'4 of 12 MB')   # a source with no byte count (a TV's, an older service) still moves by blocks
+  self.assertIn('range(1,51)',(ROOT/'migration/bundled-bootstrap/resources/lib/pages.py').read_text().replace(' ',''))   # a 2 % step bar, not 5 %
+ def test_the_getting_the_link_headline_never_carries_a_long_service_name(self):
+  for name in ('AllDebrid','Real-Debrid','Premiumize','Debrid-Link'):
+   self.assertEqual(ready.stage(name,3,False,{})['Head'],'Getting the link')
  def test_watch_follows_the_link_and_the_cache(self):
   props={};now=[0.0];link=['old'];ticks=iter(range(40))
   text='[COLOR x]ALLDEBRID[/COLOR][CR]TORRENTIO[CR]1080P[CR]AVC WEB 1.70 GB[CR]01 - Black.Clover.S02E07.mkv'
@@ -213,14 +281,15 @@ class OpeningStages(unittest.TestCase):
    seen.append(props.get('IOSReady.Line'))
    return n is None
   ready.watch(lambda:True,lambda:text,props.__setitem__,lambda k:props.pop(k,None),wait,linked=lambda:link[0],cache=lambda:cache,clock=lambda:now[0])
-  self.assertIn('Getting the link from AllDebrid\u2026',seen);self.assertIn('Opening the video \u00b7 4 of 12 MB',seen)
+  self.assertIn('Getting the link from AllDebrid',seen);self.assertIn('Opening the video \u00b7 4 of 12 MB',seen)
   self.assertEqual(props['IOSReady.Provider'],'AllDebrid')
  def test_card_shows_the_line_and_keeps_umbrellas_percent_as_fallback(self):
   import pages
   xml=pages.umbrella_ready(portrait);ET.fromstring(xml.split('\n',2)[2])
-  self.assertIn('$INFO[Window(home).Property(IOSReady.Line)]',xml);self.assertIn('$INFO[Window(home).Property(IOSReady.Slow)]',xml)
+  self.assertIn('$INFO[Window(home).Property(IOSReady.Head)]',xml);self.assertIn('$INFO[Window(home).Property(IOSReady.Slow)]',xml)
+  self.assertIn('IOSReady.Line',xml)   # the staged/unstaged switch still reads it
   self.assertIn('Integer.IsGreaterOrEqual(Window(home).Property(IOSReady.Fill),50)',xml)
-  self.assertIn('Getting ready to play\u2026',xml);self.assertNotIn('!!',xml)
+  self.assertIn('Getting ready to play',xml);self.assertNotIn('!!',xml)
   service=(BOOT/'service.py').read_text()
   self.assertIn("'linked':lambda:window.getProperty('KodiIOS.UmbrellaRenewal')",service)
 

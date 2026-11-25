@@ -1,0 +1,192 @@
+"""The Apple-style scrubber of the video controls (owner-approved mockup docs/design/player-scrubber-mockup.html, 2026-11-23): what the generated VideoOSD holds."""
+import re, sys, unittest
+import xml.etree.ElementTree as ET
+from pathlib import Path
+sys.dont_write_bytecode = True
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'migration/bundled-bootstrap/resources/lib'))
+import player_osd as osd
+
+XML = osd.window()
+ROOT_EL = ET.fromstring(XML.split('\n', 2)[2] if XML.startswith('<?xml') else XML)
+
+
+def controls(kind=None):
+    return [c for c in ROOT_EL.iter('control') if kind is None or c.get('type') == kind]
+
+
+class Scrubber(unittest.TestCase):
+    def test_two_thin_rounded_bars_one_thick_while_the_slider_is_dragged(self):
+        bars = [c for c in controls('progress') if c.findtext('info') == 'Player.Progress']
+        heights = {c.findtext('visible'): int(c.findtext('height')) for c in bars}
+        self.assertEqual(sorted(heights.values()), [16, 32])
+        self.assertEqual(heights['![Player.Seeking + Control.HasFocus(7131)]'], 16); self.assertEqual(heights['Player.Seeking + Control.HasFocus(7131)'], 32)   # Player.Seeking: Kodi iOS patch (IOSScrub), true under the finger
+        for c in bars:
+            h = int(c.findtext('height')); self.assertEqual(int(c.find('texturebg').get('border')), h // 2)   # fully rounded ends
+    def test_there_is_no_knob_at_rest_or_while_dragging(self):
+        slider = next(c for c in controls('slider') if c.get('id') == '7131')
+        for tag in ('textureslidernib', 'textureslidernibfocus'):
+            self.assertTrue(slider.findtext(tag).endswith('clear48.png'))
+        self.assertNotIn('knob.png', XML)
+    def test_elapsed_left_and_remaining_or_ends_at_right_and_the_right_one_toggles(self):
+        labels = [c.findtext('label') for c in controls('label')]
+        self.assertIn('$INFO[Player.Time]', labels); self.assertIn('-$INFO[Player.TimeRemaining]', labels)
+        self.assertIn('Ends at $INFO[Player.FinishTime]', labels)                       # Kodi's own value: it is worked out again at every draw, so it follows a pause, a skip and a speed change
+        self.assertIn('Ends at $INFO[Window(Home).Property(KodiIOS.EndsAt)]', labels)  # under the finger: ends_at.py
+        self.assertNotIn('$INFO[Player.Duration]', labels)                              # the total length is no longer on the controls (owner, 2026-11-24: tap shows Ends at instead)
+        toggle = next(c for c in controls('button') if c.get('id') == '7132')
+        self.assertIn('Skin.ToggleSetting(ios_osd_ends)', [c.text for c in toggle.findall('onclick')])   # after the controls' own re-arm clicks
+    def test_the_ends_at_button_covers_the_time_where_the_owner_taps_it(self):
+        """Build 686 log b142eafc: taps at (2130-2157, 940-961) of the 2340-wide layout hit the clear button behind (control 7100) and closed the controls: the 7132 button sat 100 units
+        left of the time. The touch area now spans the whole right end under the bar, and stays clear of the bar's own touch area (the slider)."""
+        width = 2340
+        group = next(c for c in controls('group') if c.findtext('width') == '500' and c.findtext('top') == '912')
+        gx = width - int(group.findtext('right')) - int(group.findtext('width')); gy = int(group.findtext('top'))
+        button = next(c for c in controls('button') if c.get('id') == '7132')
+        x0 = gx + int(button.findtext('left')); x1 = x0 + int(button.findtext('width')); y0 = gy + int(button.findtext('top')); y1 = y0 + int(button.findtext('height'))
+        for tap in ((2130, 961), (2148, 940), (2157, 945), (2189, 930), (1700, 950)):
+            self.assertTrue(x0 <= tap[0] <= x1 and y0 <= tap[1] <= y1, tap)
+        self.assertGreaterEqual(x1, width - osd.EDGE)                                   # up to the right margin: the text ends there
+        slider = next(c for c in controls('slider') if c.get('id') == '7131')
+        slider_bottom = 862 + int(slider.findtext('top')) + int(slider.findtext('height'))
+        self.assertGreaterEqual(y0 + 4, slider_bottom)                                  # at most 4 units into the slider, so the bar keeps its touches
+    def test_the_titles_logo_is_kept_above_the_title_and_nothing_else_of_fuses_info(self):
+        """Owner, 2026-11-24: "i loved the logos ... i just didn't want the other removed". The logo Fuse's info drew (TMDb Helper's cropped one when the skin setting is on, else the film's
+        clearlogo, else the show's) is drawn by the controls themselves; none of the other info (quality, length, episode line, plot, ratings) is."""
+        logos = [c for c in controls('image') if any(k in (c.findtext('texture') or '') for k in ('Art(clearlogo)', 'Art(tvshow.clearlogo)', 'TMDbHelper.Player.CropImage'))]
+        self.assertEqual(len(logos), 3)
+        for logo in logos:
+            self.assertEqual((int(logo.findtext('left')), int(logo.findtext('height'))), (osd.EDGE, 135)); self.assertEqual(logo.find('aspectratio').text, 'keep')
+            self.assertEqual(int(logo.findtext('top')) + int(logo.findtext('height')), 760)   # its bottom meets the title's top; clear of the centre controls' left arrow (x 685)
+            self.assertLessEqual(osd.EDGE + int(logo.findtext('width')), 685)
+        conditions = ' | '.join(c.findtext('visible') for c in logos)
+        self.assertIn('Exp_TMDbHelper_IsCrop', conditions); self.assertIn('String.IsEmpty(VideoPlayer.Art(clearlogo))', conditions)
+        group = next(c for c in controls('group') if any(l in list(c) for l in logos)); self.assertEqual(group.findtext('visible'), '!' + osd.PANEL)   # not over the Continue sheet
+        for stray in ('VideoPlayer.Plot', 'VideoPlayer.Rating', 'VideoPlayer.VideoResolution', 'VideoPlayer.Duration', 'VideoPlayer.MPAA'):
+            self.assertNotIn(stray, XML)
+    def test_the_title_above_the_bar_is_smaller_and_wraps_instead_of_running_on(self):
+        title = next(c for c in controls('label') if '$INFO[VideoPlayer.Title]' in (c.findtext('label') or ''))
+        self.assertEqual(title.findtext('font'), 'font_head_bold'); self.assertEqual(title.findtext('wrapmultiline'), 'true'); self.assertEqual(title.findtext('aligny'), 'center')
+        self.assertEqual((int(title.findtext('top')), int(title.findtext('height'))), (760, 100))      # centred on 810, the bar is at 862: low, close to the bar
+        self.assertLessEqual(int(title.findtext('top')) + int(title.findtext('height')), 862)   # never over the bar
+    def test_each_right_time_shows_only_in_its_own_state(self):
+        shown = [(c.findtext('label'), c.findtext('visible')) for c in controls('label') if c.findtext('label', '').startswith(('-$INFO[Player.TimeRem', 'Ends at'))]
+        self.assertEqual(len(shown), 4)
+        rest = [v for k, v in shown if k.startswith('-')]; ends = [v for k, v in shown if k.startswith('Ends')]
+        self.assertTrue(all('!Skin.HasSetting(ios_osd_ends)' in v for v in rest)); self.assertTrue(all(v.startswith('Skin.HasSetting(ios_osd_ends)') for v in ends))
+    def test_the_times_turn_white_while_dragging(self):
+        rest = [c for c in controls('label') if c.findtext('label') == '$INFO[Player.Time]']
+        drag = [c for c in controls('label') if c.findtext('label') == '$INFO[Player.SeekTime]' and c.findtext('visible') == 'Player.Seeking + Control.HasFocus(7131)']
+        self.assertEqual({c.findtext('textcolor'): c.findtext('visible') for c in rest}, {'B3FFFFFF': '![Player.Seeking + Control.HasFocus(7131)]'})
+        self.assertEqual([c.findtext('textcolor') for c in drag], ['FFFFFFFF'])   # the time under the finger, white
+    def test_info_and_continue_watching_moved_down_and_nothing_else_lost(self):
+        btn = {c.get('id'): c for c in controls('button') if c.get('id') in ('7141', '7142')}
+        for c in btn.values():   # text stays centred on y 997; the hit area covers where fingers landed in build 693's log (y 963-1042, x 489-519)
+            top, h = int(c.findtext('top')), int(c.findtext('height'))
+            self.assertEqual(top + h // 2, 997); self.assertLessEqual(top, 963); self.assertGreaterEqual(top + h, 1043)
+        x, w = int(btn['7142'].findtext('left')), int(btn['7142'].findtext('width'))
+        self.assertLessEqual(x, 489 - 100); self.assertGreaterEqual(x + w, 519)
+        ids = {c.get('id') for c in controls() if c.get('id')}
+        self.assertTrue({'7101', '7102', '7111', '7112', '7113', '7121', '7122', '7123', '7131', '7132', '7141', '7142', '7201'} <= ids)
+        all_ids = [c.get('id') for c in controls() if c.get('id')]; self.assertEqual(len(all_ids), len(set(all_ids)))
+    def test_kodi_condition_rules(self):
+        for cond in re.findall(r'<visible>(.*?)</visible>', XML):
+            self.assertNotIn('$INFO', cond); self.assertNotIn('!(', cond)
+    def test_the_times_clear_the_bar_and_the_bottom_edge(self):
+        for c in controls('label'):
+            if c.findtext('label') in ('$INFO[Player.Time]',):
+                self.assertGreaterEqual(int(c.findtext('top')), 906)   # under the bar (bar group 862 + thick bar ends at 862+46)
+        self.assertLessEqual(970 + 54, 1080 - 21 * 2.68 // 1 + 0.5 or 1080)   # the row ends above the home indicator's strip (about 56 units)
+
+    def test_the_frame_card_rides_above_the_finger_one_copy_per_percent(self):
+        """Mockup 'while dragging': a card with the time under the finger and the jump from where you were. Kodi cannot place a control by a value, so each whole percent has
+        its own copy at that share of the bar's width, shown only while Player.Seeking and Player.Progress is that percent (verified in the desktop rig with real mouse drags)."""
+        groups = [g for g in controls('group') if 'Integer.IsEqual(Player.Progress,' in (g.findtext('visible') or '')]
+        self.assertEqual(len(groups), 101)
+        shown = {int(re.search(r'Progress,(\d+)', g.findtext('visible')).group(1)): g for g in groups}
+        self.assertEqual(sorted(shown), list(range(101)))
+        for n, g in shown.items():
+            self.assertTrue(g.findtext('visible').startswith('Player.Seeking + '))
+            self.assertEqual(g.findtext('left'), '%d%%' % min(88, max(12, n)))   # a share of the bar, kept 12-88 % so the card stays on the screen
+            labels = [c.findtext('label') for c in g.iter('control') if c.get('type') == 'label']
+            self.assertEqual(labels, ['$INFO[Player.SeekTime]', '$INFO[Player.SeekOffset]'])
+        card = shown[50]
+        self.assertTrue(any((c.findtext('texture') or '').endswith('scrub_card.png') for c in card.iter('control')))
+    def test_the_card_picture_is_generated_at_its_own_size(self):
+        import portrait
+        self.assertIn("'scrub_card.png':scrub_card(470,264,26,5)", Path(portrait.__file__).read_text())
+    def test_the_native_patch_carries_the_scrub_state(self):
+        patch = (ROOT / 'migration/ios-portrait/kodi-21.3-portrait.patch').read_text()
+        for needle in ('+++ b/xbmc/guilib/IOSScrub.h', 'IOSScrub::percent = GetPercentage();', 'IOSScrub::Active() ? IOSScrub::percent.load()',
+                       'value = IOSScrub::Active() || m_appPlayer->GetSeekHandler().InProgress();', 'm_fPercent = std::max(0.0f, std::min(IOSScrub::percent.load(), 100.0f));'):
+            self.assertIn(needle, patch)
+
+    def test_the_buffer_bar_eases_pulses_and_lingers(self):
+        """Owner 2026-11-23: the buffer bar sat at 0 and jumped to 100. Rig (a server that held new regions back 5 s): level 15 -> 71 -> 98 in 0.3 s, the bar 11 -> 22 -> 36 -> 56 -> 74 -> 95 -> 98 over 0.7 s;
+        empty, the pulse shows; after the buffer is full the bar stays about 0.5 s and fades (Hidden animation)."""
+        bar = next(c for c in controls('progress') if c.findtext('info') == 'Player.CacheLevel')
+        self.assertEqual(bar.findtext('visible'), 'Player.Caching')
+        self.assertEqual([(a.text, a.get('delay'), a.get('time')) for a in bar.findall('animation')], [('Hidden', '500', '500')])
+        words = next(c for c in controls('label') if (c.findtext('label') or '').startswith('Buffering'))
+        self.assertEqual(words.findtext('label'), 'Buffering')   # no percentage: it jumped the same way
+        pulse = [c for c in controls('image') if 'IsLess(Player.CacheLevel,4)' in (c.findtext('visible') or '')]
+        self.assertEqual(len(pulse), 1)
+        self.assertEqual(pulse[0].find('animation').get('loop'), 'true')
+    def test_the_patch_eases_the_cache_level_bar(self):
+        patch = (ROOT / 'migration/ios-portrait/kodi-21.3-portrait.patch').read_text()
+        for needle in ('else if (m_iInfoCode == PLAYER_CACHELEVEL)', 'm_fPercent = std::min(target, m_fPercent + 125.0f * seconds);', '+  long long m_easedAt{0};'):
+            self.assertIn(needle, patch)
+
+    def test_the_skip_arrows_are_smaller_go_all_the_way_round_the_ten_and_keep_their_touch_area(self):
+        """Owner, 2026-11-24 (mockup round 2): a little smaller, clear of the title (200 -> 130 units), the circle all the way round the 10 (skip_arrow.png, flipped for forward);
+        the touch area stays 280, so they are as easy to hit."""
+        self.assertEqual((osd.SKIP_GLYPH, osd.SKIP_TAP), (112, 280))   # 112: owner 2026-11-25 "a little smaller" (130 before)
+        back = next(c for c in controls('button') if c.get('id') == '7111'); fwd = next(c for c in controls('button') if c.get('id') == '7113')
+        self.assertEqual((int(back.findtext('width')), int(fwd.findtext('width'))), (280, 280))
+        self.assertIn('skip_arrow.png', XML); self.assertEqual(XML.count('flipx="true"'), 1)   # forward is the same picture flipped
+        arrows = [c for c in controls('image') if (c.findtext('texture') or '').endswith('skip_arrow.png')]
+        self.assertEqual(sorted((int(c.findtext('width')), c.find('texture').get('flipx') or '') for c in arrows), [(112, ''), (112, 'true')])
+        tens = [c for c in controls('label') if c.findtext('label') == '$NUMBER[10]']
+        self.assertEqual(len(tens), 2)
+        centres = sorted(int(c.findtext('left')) + int(c.findtext('width')) // 2 for c in tens)
+        middle = (centres[0] + centres[1]) // 2
+        self.assertEqual((centres[0] - (middle - 420), centres[1] - (middle + 420)), (osd.TEN_DX, -osd.TEN_DX))   # the 10 in the middle of each circle
+    def test_the_arrow_picture_is_a_ring_with_a_head_and_a_gap_at_the_top(self):
+        import struct
+        import portrait
+        data = portrait.skip_arrow(160, 8); self.assertTrue(data.startswith(b'\x89PNG'))
+        width, height = struct.unpack('>II', data[16:24]); self.assertEqual((width, height), (160, 160))
+        self.assertIn('skip_arrow.png', portrait.textures())
+
+    def test_continue_sheet_is_dark_has_a_grabber_and_swipe_down_hides_it(self):
+        self.assertIn('EB18181C', XML); self.assertIn('4DFFFFFF', XML)   # sheet and grabber
+        self.assertLess(XML.index('EB18181C'), XML.index('id="7131"'))   # behind the bar
+        nav = (ROOT / 'migration/bundled-bootstrap/resources/lib/navigation.py').read_text()
+        self.assertIn('<videoosd><touch><swipe direction="down">Skin.Reset(ios_osd_continue)</swipe>', nav)
+    def test_info_card_close_is_a_bare_cross_without_a_disc(self):
+        import pages
+        card = pages.info_card()
+        self.assertIn('close_cross', card); self.assertNotIn('close_disc', card)
+
+    def test_the_seek_card_and_thick_bar_are_for_dragging_the_bar_only(self):
+        """Owner 2026-11-25: pressing the 10 second buttons must not show the seek box. Player.Seeking is also true while Kodi carries out Seek(+-10); the slider has focus only under the finger."""
+        drag = 'Player.Seeking + Control.HasFocus(7131)'
+        self.assertIn("DRAG='Player.Seeking + Control.HasFocus(7131)'", (ROOT / 'migration/bundled-bootstrap/resources/lib/player_osd.py').read_text())
+        card = [c for c in controls('group') if drag in (c.findtext('visible') or '')]
+        self.assertTrue(card)                                                       # the seek card (and its picture) wait for the drag
+        for node in ROOT_EL.iter('visible'):
+            text = node.text or ''
+            if 'Player.Seeking' in text:                                            # every use of Player.Seeking is tied to the slider's focus
+                self.assertIn('Control.HasFocus(7131)', text)
+        slider = next(c for c in controls('slider') if c.get('id') == '7131')
+        self.assertEqual(slider.findtext('action'), 'seek')
+        for number in ('7111', '7113'):
+            self.assertNotEqual(number, '7131')                                     # the skip buttons are other controls: pressing one focuses it, not the slider
+        import re as _re
+        src = (ROOT / 'migration/bundled-bootstrap/service.py').read_text() + (ROOT / 'migration/bundled-bootstrap/resources/lib/portrait.py').read_text()
+        self.assertEqual(len(_re.findall(r"getCondVisibility\('Player\.Seeking'\)", src)), 0)   # the strip and the ends-at loop follow the same rule
+        self.assertGreaterEqual(src.count("Player.Seeking + Control.HasFocus(7131)"), 3)
+
+
+if __name__ == '__main__':
+    unittest.main()

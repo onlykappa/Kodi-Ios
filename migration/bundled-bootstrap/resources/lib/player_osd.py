@@ -39,9 +39,9 @@ SIZES=(112,170,246) # glass circles drawn by portrait.textures()
 
 def e(text):return escape(str(text),{'"':'&quot;'})
 
-def image(x,y,w,h,texture,color='FFFFFFFF',extra='',border=''):
+def image(x,y,w,h,texture,color='FFFFFFFF',extra='',border='',flipx=False):
  return ('<control type="image"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>'
-         '<texture%s colordiffuse="%s">%s</texture>%s</control>')%(x,y,w,h,' border="%s"'%border if border else '',color,texture,extra)
+         '<texture%s%s colordiffuse="%s">%s</texture>%s</control>')%(x,y,w,h,' border="%s"'%border if border else '',' flipx="true"' if flipx else '',color,texture,extra)
 
 def label(x,y,w,h,text,font,color='FFFFFFFF',align='left',extra=''):
  return ('<control type="label"><left>%s</left><top>%s</top><width>%s</width><height>%s</height><font>%s</font>'
@@ -57,20 +57,20 @@ def button(id,x,y,w,h,actions,text='',font='font_midi_bold',extra=''):
          '<texturefocus border="%d" colordiffuse="FFFFFFFF">%s</texturefocus><texturenofocus border="%d" colordiffuse="E6FFFFFF">%s</texturenofocus>'
          '%s%s</control>')%(id,x,y,w,h,e(text),font,h//2,tex,h//2,tex,clicks,extra)
 
-def glyph(cx,cy,size,name,extra=''):
- return image(cx-size//2,cy-size//2,size,size,name if '://' in name else ICONS+name,'FFFFFFFF','<aspectratio>keep</aspectratio>'+extra)
+def glyph(cx,cy,size,name,extra='',flipx=False):
+ return image(cx-size//2,cy-size//2,size,size,name if '://' in name else ICONS+name,'FFFFFFFF','<aspectratio>keep</aspectratio>'+extra,flipx=flipx)
 
 def circle(id,x,y,size,name,action,glyph_size=None,extra='',over=''):
  g=glyph_size or size*44//100
  return button(id,x,y,size,size,[action],extra=extra)+glyph(x+size//2,y+size//2,g,name)+over
 
-def tap(id,cx,cy,size,name,action,nav='',glyph_size=None,extra=''):
+def tap(id,cx,cy,size,name,action,nav='',glyph_size=None,extra='',flipx=False):
  """A plain white glyph with an invisible touch area around it (the Apple TV player has no button shapes);
  the glyph dims slightly when the control has focus, so a tap still shows."""
  g=glyph_size or size*6//10
  return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
          '<texturefocus /><texturenofocus /><onclick>%s</onclick>%s%s</control>')%(id,cx-size//2,cy-size//2,size,size,e(action),nav,extra)+\
-        glyph(cx,cy,g,name,'<animation effect="fade" start="100" end="70" time="0" condition="Control.HasFocus(%d)">Conditional</animation>'%id)
+        glyph(cx,cy,g,name,'<animation effect="fade" start="100" end="70" time="0" condition="Control.HasFocus(%d)">Conditional</animation>'%id,flipx)
 
 def text_button(id,x,y,w,h,label_text,actions,nav=''):
  clicks=''.join('<onclick>%s</onclick>'%e(a) for a in actions)
@@ -95,10 +95,16 @@ DEFAULT_TIMEOUT=3   # ISSUE-283 (owner, build 442): 3 s, not 5
 DEFAULTED='Skin.HasSetting(ios_osd_timeout_default)'
 # ISSUE-283: installs that got the earlier 5 s default move to 3 s once (ios_osd_timeout_3); a later choice of 5 stays.
 MOVED='Skin.HasSetting(ios_osd_timeout_3)'
+# Owner, 2026-11-24: no film information or ratings on the controls (Info has them). Fuse's pause and start info stops showing the plot and the ratings once, by default
+# (the Customisation page still turns them back on).
+OPEN='KodiIOS.OsdOpen'   # set while these controls are open: Fuse's info over the video hides under it (safe_inset)
+INFO_DEFAULTED='Skin.HasSetting(ios_osd_info_default)'
 DEFAULT_ONLOAD=(('String.IsEmpty(%s) + !%s'%(TIMEOUT,DEFAULTED),'Skin.SetString(OSD_Timeout,%d)'%DEFAULT_TIMEOUT),
                 ('!%s'%DEFAULTED,'Skin.SetBool(ios_osd_timeout_default)'),
                 ('String.IsEqual(%s,5) + !%s'%(TIMEOUT,MOVED),'Skin.SetString(OSD_Timeout,%d)'%DEFAULT_TIMEOUT),
-                ('!%s'%MOVED,'Skin.SetBool(ios_osd_timeout_3)'))
+                ('!%s'%MOVED,'Skin.SetBool(ios_osd_timeout_3)'),
+                ('!%s'%INFO_DEFAULTED,'Skin.SetBool(OSD.InfoOverlay.DisablePlotRatingsOnInfo)'),('!%s'%INFO_DEFAULTED,'Skin.SetBool(ios_osd_info_default)'),
+                ('true','SetProperty(%s,1,home)'%OPEN))   # the controls say they are up (Fuse's info over the video hides under it)
 ARM_WHEN='!String.IsEmpty(%s) + !String.IsEqual(%s,0) + !Player.Paused + !Skin.HasSetting(ios_osd_continue)'%(TIMEOUT,TIMEOUT)
 # ISSUE-298 (review): Kodi evaluates every onload condition before it runs the actions, so on the open that sets or
 # moves the timer, ARM still saw the old value (none, or 5 s). That open is re-armed with the new value written out.
@@ -111,6 +117,12 @@ FIRST_ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(
 BACKDROP=('<control type="button" id="7100"><left>0</left><top>0</top><right>0</right><bottom>0</bottom>'
           '<texturefocus /><texturenofocus /><label></label><onclick>Dialog.Close(videoosd)</onclick></control>')
 ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(videoosd),$INFO[%s,00:,],silent)'%TIMEOUT)
+SKIP_GLYPH=112   # the back/forward 10 arrows: 112 units (owner, 2026-11-25: "a little smaller"; 130 on 2026-11-24, 200 before); the touch area stays SKIP_TAP
+SKIP_TAP=280
+TEN_DX=0;TEN_DY=2   # the circle goes all the way round now, so the 10 sits in its middle
+STRIP_SPIN='<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'   # the card's ring while the strip is still being made
+LINGER='<animation effect="fade" start="100" end="0" time="500" delay="500">Hidden</animation>'   # stays 0.5 s after the buffer is full, then fades
+PULSE='<animation effect="fade" start="100" end="30" time="700" tween="sine" easing="inout" reversible="true" loop="true" condition="true">Conditional</animation>'
 def rearm(xml):
  tags=''.join('<onclick condition="%s">%s</onclick>'%(e(ARM_WHEN),e(a)) for a in ARM)
  return re.sub(r'(<control type="button" id="\d+">)',lambda m:m.group(1)+tags,xml)
@@ -142,40 +154,108 @@ def window():
  # Centre row in a group 1200 wide centred on the screen; the "10" sits inside the arrows ($NUMBER: a bare 10
  # would be read as a Kodi string id).
  cw=1200;cx=cw//2;cy=520;gap=420
- ten=lambda x:label(x-70,cy-36,140,72,'$NUMBER[10]','font_main_bold','FFFFFFFF','center')
+ ten=lambda x,side=1:label(x-70+side*TEN_DX,cy-36+TEN_DY,140,72,'$NUMBER[10]','font_main_bold','FFFFFFFF','center')   # the 10 in the middle of the circle (TEN_DX/DY nudge it)
  centre=group('centre',cw,
-  tap(7111,cx-gap,cy,240,'rotate-left.png','Seek(-10)','<onright>7112</onright><onup>7101</onup><ondown>7131</ondown>',160)+ten(cx-gap)+
+  tap(7111,cx-gap,cy,SKIP_TAP,MEDIA+'skip_arrow.png','Seek(-10)','<onright>7112</onright><onup>7101</onup><ondown>7131</ondown>',SKIP_GLYPH)+ten(cx-gap)+
   '<control type="button" id="7112"><left>%d</left><top>%d</top><width>260</width><height>260</height><texturefocus /><texturenofocus />'
   '<onclick>PlayerControl(Play)</onclick><onleft>7111</onleft><onright>7113</onright><onup>7101</onup><ondown>7131</ondown></control>'%(cx-130,cy-130)+
   glyph(cx+10,cy,150,'play.png','<visible>Player.Paused | Player.Forwarding | Player.Rewinding</visible>')+
   glyph(cx,cy,140,'pause.png','<visible>!Player.Paused + !Player.Forwarding + !Player.Rewinding</visible>')+
-  tap(7113,cx+gap,cy,240,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',160)+ten(cx+gap)+
+  tap(7113,cx+gap,cy,SKIP_TAP,MEDIA+'skip_arrow.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',SKIP_GLYPH,flipx=True)+ten(cx+gap,-1)+
   # Build 210: the buffer percentage lives here, in the controls already on screen while seeking. Its own dialog
   # (Custom_1156) froze Kodi's main thread each time it opened (logs 34cd7aac 15:07:09, 3efdc5ca 15:53:08).
-  label(cx-300,cy+150,600,64,'Buffering $INFO[Player.CacheLevel]%','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>')+
+  # Owner, 2026-11-23: the bar sat at 0 and jumped to 100 when the buffer filled (the cache level arrives in bursts). The Kodi patch eases the bar up to the level;
+  # no percentage is written (it jumped the same way); a pulse at the bar's start shows it is working while it is still empty; and the words and the bar stay
+  # for a moment after the buffer is full (a Hidden animation) so the fill is seen finishing.
+  label(cx-300,cy+150,600,64,'Buffering','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>'+LINGER)+
   # Board 05 (DEC-036): the buffer fill as a thin bar under the words (the cache level is the only number Kodi has).
-  '<control type="progress"><left>%d</left><top>%d</top><width>360</width><height>11</height><info>Player.CacheLevel</info><visible>Player.Caching</visible>'
-  '<texturebg border="6" colordiffuse="33FFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="6" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>'%(cx-180,cy+222,MEDIA,MEDIA),
+  ('<control type="progress"><left>%d</left><top>%d</top><width>360</width><height>11</height><info>Player.CacheLevel</info><visible>Player.Caching</visible>%s'
+  '<texturebg border="6" colordiffuse="33FFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="6" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>')%(cx-180,cy+222,LINGER,MEDIA,MEDIA)+
+  image(cx-180,cy+222,52,11,MEDIA+'dot.png','FF0A84FF','<visible>Player.Caching + Integer.IsLess(Player.CacheLevel,4)</visible>'+PULSE,border='6'),
   '<visible>!%s</visible>'%PANEL)
  # Title: the film, or the show and the episode.
- title=('<control type="label"><left>%d</left><right>%d</right><top>770</top><height>90</height><font>font_title_midi</font>'
+ # Owner, 2026-11-24 (build 686): a long episode title above the seek bar was huge. Now 40 units (font_head_bold, was 68). Build 688: "the logo and title are too high above the seek bar":
+ # the box is 100 units, centred on y 810 (the bar is at 862), and a title that does not fit wraps to a second line inside it, never cut off. (Kodi's aligny has no "bottom".)
+ title=('<control type="label"><left>%d</left><right>%d</right><top>760</top><height>100</height><font>font_head_bold</font><wrapmultiline>true</wrapmultiline>'
   '<textcolor>FFFFFFFF</textcolor><align>left</align><aligny>center</aligny><label>%s</label><visible>!%s</visible></control>')%(
   left,left,e('$INFO[VideoPlayer.TVShowTitle,,  ·  ]$INFO[VideoPlayer.Title]'),PANEL)
- # Thin bar with a white knob (drag to seek), time left under its right end.
+ # The title's logo (owner, 2026-11-24: "i loved the logos, i just didn't want the other [info] removed"): the one Fuse's info over the video drew, kept when that info is hidden under the
+ # controls. Same choice as Fuse's Info_Title: TMDb Helper's cropped logo when the skin setting is on, else the film's clearlogo, else the show's. Without any, the title below is all.
+ LOGO_H=135;LOGO_W=520
+ def logo_image(texture,visible):
+  return ('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><aspectratio align="left" aligny="bottom">keep</aspectratio><fadetime>0</fadetime>'
+   '<texture background="true">%s</texture><visible>%s</visible></control>')%(left,625,LOGO_W,LOGO_H,texture,e(visible))
+ CROP='!String.IsEmpty(Window(Home).Property(TMDbHelper.Player.CropImage)) + $EXP[Exp_TMDbHelper_IsCrop]'
+ logo=('<control type="group"><visible>!%s</visible>'%PANEL+
+  logo_image('$INFO[Window(Home).Property(TMDbHelper.Player.CropImage)]',CROP)+
+  logo_image('$INFO[VideoPlayer.Art(clearlogo)]','![%s] + !String.IsEmpty(VideoPlayer.Art(clearlogo))'%CROP)+
+  logo_image('$INFO[VideoPlayer.Art(tvshow.clearlogo)]','![%s] + String.IsEmpty(VideoPlayer.Art(clearlogo)) + !String.IsEmpty(VideoPlayer.Art(tvshow.clearlogo))'%CROP)+
+  '</control>')
+ # The Continue Watching sheet (owner, 2026-11-24, mockup A of docs/design/player-continue-panel-mockup.html): the row, the bar and the times sit on a nearly black rounded sheet
+ # (a flat translucent texture, not a blur: Kodi cannot blur what is behind it) with a grabber; a swipe down hides it again (the touch keymap's <videoosd> swipe: navigation.TOUCH).
+ SHEET_TOP=470
+ sheet=('<control type="group"><visible>%s</visible>'%PANEL+
+  '<animation effect="slide" start="0,260" end="0,0" time="260" tween="cubic" easing="out">Visible</animation>'
+  '<animation effect="slide" start="0,0" end="0,260" time="200" tween="cubic" easing="in">Hidden</animation>'+
+  '<control type="image"><left>-60</left><right>-60</right><top>%d</top><height>720</height><texture border="42" colordiffuse="EB18181C">%sround.png</texture></control>'%(SHEET_TOP,MEDIA)+
+  '<control type="image"><centerleft>50%%</centerleft><top>%d</top><width>90</width><height>8</height><texture border="4" colordiffuse="4DFFFFFF">%sdot.png</texture></control>'%(SHEET_TOP+14,MEDIA)+
+  '</control>')
+ # Owner-approved Apple-style scrubber (docs/design/player-scrubber-mockup.html, 2026-11-23): a thin fully rounded bar with no knob at rest, thicker under the finger,
+ # elapsed time under its left end and the time left under its right end (tap it for the total length). Track and fill are one progress control each; the slider on top
+ # only takes the touch (its knob is clear), and the thick bar shows while the slider has focus, which is while it is dragged.
+ # Player.Seeking (Kodi iOS patch, IOSScrub) is true under the finger and until the seek lands, but also while Kodi carries out a Seek(+-10) from the skip buttons. Owner 2026-11-25:
+ # "when someone presses the seek button 10 +/- the seek box shouldn't appear, only when someone drags the bar". The slider has focus only while it is touched, a skip button has focus
+ # when it is pressed, so the drag is Player.Seeking while the slider has focus; Player.Progress, SeekTime, SeekOffset and TimeRemaining follow the finger then.
+ DRAG='Player.Seeking + Control.HasFocus(7131)'
+ NOTDRAG='![%s]'%DRAG
+ def fill(top,height,border,visible):
+  return ('<control type="progress"><left>0</left><right>0</right><top>%d</top><height>%d</height><info>Player.Progress</info><visible>%s</visible>'
+   '<texturebg border="%d" colordiffuse="4DFFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="%d" colordiffuse="FFFFFFFF">%sdot.png</midtexture><righttexture /></control>'
+   )%(top,height,visible,border,MEDIA,border,MEDIA)
  bar=('<control type="group"><left>%d</left><right>%d</right><top>862</top><height>60</height>'%(left,left)+
-  # Track and fill in one control (same height and place), the knob from a slider whose bar is an invisible
-  # picture of the slider's height (Kodi sizes the knob from the bar picture).
-  '<control type="progress"><left>0</left><right>0</right><top>25</top><height>10</height><info>Player.Progress</info>'
-  '<texturebg border="4" colordiffuse="59FFFFFF">%sdot.png</texturebg><lefttexture />'
-  '<midtexture border="4" colordiffuse="FFFFFFFF">%sdot.png</midtexture><righttexture /></control>'%(MEDIA,MEDIA)+
+  fill(22,16,8,NOTDRAG)+fill(14,32,16,DRAG)+
   '<control type="slider" id="7131"><left>0</left><right>0</right><top>6</top><height>48</height><action>seek</action><texturesliderbar>%sclear48.png</texturesliderbar>'%MEDIA+
-  '<textureslidernib colordiffuse="FFFFFFFF">%sknob.png</textureslidernib><textureslidernibfocus colordiffuse="FFFFFFFF">%sknob.png</textureslidernibfocus>'
-  '<onup>7112</onup><ondown>7141</ondown></control>'%(MEDIA,MEDIA)+
+  '<textureslidernib>%sclear48.png</textureslidernib><textureslidernibfocus>%sclear48.png</textureslidernibfocus>'
+  '<onup>7112</onup><ondown>7141</ondown>'%(MEDIA,MEDIA)+
+  # Dragging must not let the 3 s timer close the controls under the finger (build 669: taps right after a drag hit the closing animation and were ignored).
+  ('<onfocus condition="%s">CancelAlarm(osd_timeout,true)</onfocus><onfocus condition="%s">AlarmClock(osd_timeout,Dialog.Close(videoosd),00:15,silent)</onfocus>'
+   '<onunfocus condition="%s">CancelAlarm(osd_timeout,true)</onunfocus><onunfocus condition="%s">AlarmClock(osd_timeout,Dialog.Close(videoosd),$INFO[%s,00:,],silent)</onunfocus></control>')%(
+   e(ARM_WHEN),e(ARM_WHEN),e(ARM_WHEN),e(ARM_WHEN),TIMEOUT)+
   '</control>'+
-  '<control type="label"><right>%d</right><width>400</width><top>936</top><height>60</height><font>font_midi</font><textcolor>D9FFFFFF</textcolor>'
-  '<align>right</align><aligny>center</aligny><label>-$INFO[Player.TimeRemaining]</label></control>'%left)
- row=(text_button(7141,left,936,140,60,'Info',[INFO],'<onright>7142</onright><onup>7131</onup>')+
-      text_button(7142,left+200,936,460,60,'Continue Watching',['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'<onleft>7141</onleft><onup>7201</onup>'))
+  # Times: 70 % white at rest, white while dragging. The right one is a button too: a tap switches between the time left and the time the video ends at (owner, 2026-11-24:
+  # "if someone taps the end time it will show the ends at time"). Ends at is Kodi's Player.FinishTime (the clock plus the time left, so it moves on while paused and follows a
+  # skip or a speed change) and, under the finger, the Home property KodiIOS.EndsAt (ends_at.py), because Kodi's own value ignores a drag until it lands.
+  label(left,912,400,50,'$INFO[Player.Time]','font_midi_bold','B3FFFFFF','left','<visible>%s</visible>'%NOTDRAG)+
+  label(left,912,400,50,'$INFO[Player.SeekTime]','font_midi_bold','FFFFFFFF','left','<visible>%s</visible>'%DRAG)+
+  '<control type="group"><right>%d</right><width>500</width><top>912</top><height>50</height>'%left+
+  ''.join('<control type="label"><right>0</right><width>500</width><top>0</top><height>50</height><font>font_midi_bold</font><textcolor>%s</textcolor><align>right</align><aligny>center</aligny>'
+   '<label>%s</label><visible>%s</visible></control>'%(color,text,e(visible)) for color,text,visible in (
+    ('B3FFFFFF','-$INFO[Player.TimeRemaining]','!Skin.HasSetting(ios_osd_ends) + %s'%NOTDRAG),
+    ('FFFFFFFF','-$INFO[Player.TimeRemaining]','!Skin.HasSetting(ios_osd_ends) + %s'%DRAG),
+    ('B3FFFFFF','Ends at $INFO[Player.FinishTime]','Skin.HasSetting(ios_osd_ends) + %s'%NOTDRAG),
+    ('FFFFFFFF','Ends at $INFO[Window(Home).Property(KodiIOS.EndsAt)]','Skin.HasSetting(ios_osd_ends) + %s'%DRAG)))+
+  # The touch area is the whole right end under the bar (build 686 log b142eafc: taps at x 2130-2157 hit the clear button behind, which closed the controls, because this button
+  # was drawn 100 units too far left): it starts at the text's left and ends at the group's right edge, clear of the bar's own touch area above (the slider ends at 916).
+  '<control type="button" id="7132"><left>-100</left><top>0</top><width>600</width><height>100</height><texturefocus /><texturenofocus /><onclick>Skin.ToggleSetting(ios_osd_ends)</onclick>'
+  '<onup>7131</onup><ondown>7141</ondown></control></control>')
+
+ # The frame card of the mockup (docs/design/player-scrubber-mockup.html): rides above the finger with the time under it and the jump from where you were.
+ # Kodi cannot place a control by a value, so there is one copy per whole percent (each shown only at its own Player.Progress, a share of the bar's width).
+ # Its picture is the real frame near that moment: thumb_strip.py keeps one small picture every 5 s per title (the AirPlay framework's kodi_thumbs_*) and, while a drag
+ # is on, sets Home property KodiIOS.StripFrame to the nearest picture the phone holds (so the card flips through the film as fast as the finger moves); with none yet the big ring turns.
+ def bubble(n):
+  at=min(88,max(12,n))
+  return ('<control type="group"><left>%d%%</left><top>-392</top><width>470</width><height>400</height><visible>%s + Integer.IsEqual(Player.Progress,%d)</visible>'%(at,DRAG,n)+
+   image(-235,0,470,264,MEDIA+'scrub_card.png','FFFFFFFF')+
+   # The turning ring sits in the middle of the card, UNDER the picture: it shows while the picture is not there yet (the strip is still being made, or the file is loading) and the
+   # picture fades in over it. 96 units across, so it reads from an arm's length.
+   image(-48,84,96,96,MEDIA+'ring.png','D9FFFFFF','<visible>String.IsEmpty(Window(Home).Property(KodiIOS.StripFrame)) + !String.IsEmpty(Window(Home).Property(KodiIOS.StripBuilding))</visible>'+STRIP_SPIN)+
+   image(-213,12,427,240,'$INFO[Window(Home).Property(KodiIOS.StripFrame)]','FFFFFFFF','<aspectratio>stretch</aspectratio><fadetime>50</fadetime><visible>!String.IsEmpty(Window(Home).Property(KodiIOS.StripFrame))</visible>')+
+   label(-235,274,470,56,'$INFO[Player.SeekTime]','font_midi_bold','FFFFFFFF','center')+
+   label(-235,330,470,40,'$INFO[Player.SeekOffset]','font_mini','99EBEBF5','center')+'</control>')
+ bubbles=('<control type="group"><left>%d</left><right>%d</right><top>862</top><height>60</height>'%(left,left)+''.join(bubble(n) for n in range(101))+'</control>')
+ row=(text_button(7141,left,947,170,100,'Info',[INFO],'<onright>7142</onright><onup>7131</onup>')+
+      text_button(7142,left+170,947,520,100,'Continue Watching',['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'<onleft>7141</onleft><onup>7201</onup>'))
  panel=('<control type="group"><visible>%s</visible>'%PANEL+
   '<animation effect="fade" start="0" end="100" time="200">Visible</animation>'+
   label(left,520,1200,60,'Continue Watching','font_head_bold')+
@@ -183,17 +263,18 @@ def window():
   '<control type="list" id="7201"><left>%d</left><right>%d</right><top>590</top><height>270</height><orientation>horizontal</orientation>'%(left,left)+
   '<ondown>7131</ondown><onup>7101</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
   '<itemlayout width="420" height="270">%s</itemlayout><focusedlayout width="420" height="270">%s</focusedlayout>'
-  '<content target="videos">$INFO[Skin.String(ios_osd_continue_path)]'+CONTINUE_STAMP.replace('&','&amp;')+'</content></control></control>')%(card(False),card(True))
+  '<content target="videos">$VAR[Portrait_Osd_Continue]</content></control></control>')%(card(False),card(True))
  shade=('<control type="image"><left>0</left><top>0</top><right>0</right><bottom>0</bottom><texture colordiffuse="59000000">%swhite.png</texture></control>'
   '<control type="image"><left>0</left><top>0</top><right>0</right><height>360</height><texture colordiffuse="B3FFFFFF">%sfade_down.png</texture></control>'
   '<control type="image"><left>0</left><bottom>0</bottom><right>0</right><height>520</height><texture colordiffuse="E6FFFFFF">%sfade_up.png</texture></control>')%(MEDIA,MEDIA,MEDIA)
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window>\n<defaultcontrol always="true">7112</defaultcontrol>'
   '<animation effect="fade" start="0" end="100" time="150">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
+  '<onunload>ClearProperty(KodiIOS.OsdOpen,home)</onunload>'
   '<onunload>Skin.Reset(ios_osd_continue)</onunload><onunload>Skin.Reset(ios_osd_continue_path)</onunload><onunload>CancelAlarm(osd_timeout,true)</onunload>'
   +''.join('<onload condition="%s">%s</onload>'%(e(c),e(a)) for c,a in DEFAULT_ONLOAD)
   +''.join('<onload condition="%s">%s</onload>'%(e(ARM_WHEN),e(a)) for a in ARM)
   +''.join('<onload condition="%s">%s</onload>'%(e(FIRST_WHEN),e(a)) for a in FIRST_ARM)+
-  '<controls>%s%s</controls>\n</window>\n')%(MARKER,BACKDROP,rearm(shade+head+centre+title+bar+row+panel))
+  '<controls>%s%s</controls>\n</window>\n')%(MARKER,BACKDROP,rearm(shade+head+centre+logo+title+sheet+bar+bubbles+row+panel))
 
 # r4: never shown. The owner does not want a bar besides the controls' own ("the old one still appears"): the
 # window stays because Kodi opens it while seeking and moves its progress control (401).
@@ -230,14 +311,21 @@ INSET_MARKER='Kodi-iOS player controls: safe-area inset'   # navigation.patch_sk
 # Build 192 (quick win): Fuse's info over the video repeated the title our controls already show, so it hides while
 # the controls are up.
 HIDE_UNDER_OSD=('Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml')
+HIDE_CONDITION='!Window.IsVisible(videoosd) + String.IsEmpty(Window(Home).Property(%s))'%OPEN   # either way of knowing that the controls are up
 def safe_inset(original,hide_under_osd=False):
  """Fuse's landscape window with everything in <controls> moved into a group SAFE in from the left and right."""
- if not original or INSET_MARKER in original:return original
+ if not original:return original
+ if INSET_MARKER in original:
+  # Already inset by an earlier build: the hide condition is set in place (the file on the phone is read back, not regenerated). Files inset before the hide existed (build 191)
+  # have none, which is why Fuse's info stayed over the controls (owner, build 686 log b142eafc); files of builds 192-685 have the older one.
+  if not hide_under_osd:return original
+  pattern=re.compile(r'(<description>%s</description><left>\d+</left><right>\d+</right><top>0</top><bottom>0</bottom>)(<visible>[^<]*</visible>)?'%re.escape(INSET_MARKER))
+  return pattern.sub(lambda m:m.group(1)+'<visible>%s</visible>'%HIDE_CONDITION,original,count=1)
  root=ET.fromstring(original);controls=root.find('controls')
  if root.tag!='window' or controls is None:return original
  group=ET.Element('control',{'type':'group'})
  for key,value in (('description',INSET_MARKER),('left',SAFE),('right',SAFE),('top',0),('bottom',0)):ET.SubElement(group,key).text=str(value)
- if hide_under_osd:ET.SubElement(group,'visible').text='!Window.IsVisible(videoosd)'
+ if hide_under_osd:ET.SubElement(group,'visible').text=HIDE_CONDITION
  for child in list(controls):
   if child.tag=='control' and child.get('id')=='98400':continue
   controls.remove(child);group.append(child)

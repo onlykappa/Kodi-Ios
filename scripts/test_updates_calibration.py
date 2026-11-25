@@ -370,16 +370,17 @@ class Elementum(unittest.TestCase):
    settings={'disable_upnp':'false'};calls=[]
    api=lambda method,params:calls.append((method,params)) or {'result':'OK'}
    done=bootstrap.phone_housekeeping(profile,(lambda k:settings.get(k,''),settings.__setitem__),api)
-   self.assertEqual(sorted(done),['elementum_always_ask','elementum_network','embuary_service','media_folders','tmdbhelper_players','versioncheck','wsdiscovery','zeroconf'])
+   self.assertEqual(sorted(done),['elementum_always_ask','elementum_dht','elementum_network','embuary_service','media_folders','tmdbhelper_players','versioncheck','wsdiscovery','zeroconf'])
    # Downloads (and every play) show Elementum's version list and wait for an answer.
    self.assertEqual([settings[k] for k in ('use_cache_selection','smart_episode_choose','autoyes_enabled','silent_stream_start')],['false']*4)
    self.assertTrue((profile/'media/local_media_root_04').is_dir());self.assertFalse((profile/'escape').exists())
    self.assertTrue((profile/'addon_data/plugin.video.themoviedb.helper/reconfigured_players').is_dir())
    self.assertEqual([settings[k] for k in ('disable_upnp','disable_natpmp','disable_lsd')],['true']*3)
+   self.assertEqual(settings['disable_dht'],'true')   # AllDebrid does the torrenting; the phone does not announce itself to the DHT
    self.assertEqual(calls,[('Addons.SetAddonEnabled',{'addonid':'service.xbmc.versioncheck','enabled':False}),('Settings.SetSettingValue',{'setting':'services.zeroconf','value':False}),('Settings.SetSettingValue',{'setting':'services.wsdiscovery','value':False})])
    # Once: the owner turning UPnP back on is left alone.
-   settings['disable_upnp']='false';self.assertEqual(bootstrap.phone_housekeeping(profile,(lambda k:settings.get(k,''),settings.__setitem__),api),[])
-   self.assertEqual(settings['disable_upnp'],'false');self.assertEqual(len(calls),3)
+   settings['disable_upnp']='false';settings['disable_dht']='false';self.assertEqual(bootstrap.phone_housekeeping(profile,(lambda k:settings.get(k,''),settings.__setitem__),api),[])
+   self.assertEqual(settings['disable_upnp'],'false');self.assertEqual(settings['disable_dht'],'false');self.assertEqual(len(calls),3)
 
  def test_embuary_helper_service_is_switched_off_once_and_keeps_other_settings(self):
   """Roadmap 1E.3: Embuary Helper's service loop and player monitor feed nothing the portrait skin reads."""

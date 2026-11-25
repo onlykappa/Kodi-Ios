@@ -14,6 +14,8 @@ import importlib.util as _iu
 for _name in ('status_ui','notifications_skin','sports_edit_button','sports_upcoming_page','sports_hero'):   # sports_edit_button: the Edit capsule on the three Sports pages; sports_upcoming_page: the hub reuses its game rows
  _shared=_iu.spec_from_file_location(_name,os.path.join(os.path.dirname(os.path.abspath(__file__)),_name+'.py'))
  _module=_iu.module_from_spec(_shared);sys.modules[_name]=_module;_shared.loader.exec_module(_module)
+_spec=_iu.spec_from_file_location('score_font',os.path.join(os.path.dirname(os.path.abspath(__file__)),'score_font.py'))
+score_font=_iu.module_from_spec(_spec);_spec.loader.exec_module(score_font)   # Live Now's score font, as text
 _spec=_iu.spec_from_file_location('player_osd',os.path.join(os.path.dirname(os.path.abspath(__file__)),'player_osd.py'))
 player_osd=_iu.module_from_spec(_spec);_spec.loader.exec_module(player_osd)
 _spec=_iu.spec_from_file_location('settings_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'settings_page.py'))
@@ -166,6 +168,10 @@ FONTS=[('p_large','Inter-Bold.ttf',92),('p_title','Inter-Bold.ttf',78),('p_h2','
        ('p_pill','Inter-Bold.ttf',40),('p_pill_s','Inter-Regular.ttf',35)]   # Notifications' rows
 # Approved Sports states (boards 14–15) use a 20 pt headline; the neighbouring tokens are 17 and 22 pt.
 FONTS.append(('p_state_title','Inter-Bold.ttf',54))
+# Live Now's scores (owner, 2026-11-21): a condensed bold like the ESPN app's. Barlow Condensed ExtraBold, SIL Open Font License (resources/fonts/OFL-BarlowCondensed.md),
+# the digits only, 7 KB. It keeps its own file even where every other style uses the phone's San Francisco. 107 units = a 28 pt digit height.
+SCORE_FONT='BarlowCondensed-ExtraBold.ttf'
+FONTS.append(('p_score',SCORE_FONT,107))
 SIDE=54                      # 20 pt margins
 POSTER=(300,450);CARD=(640,360);GAP=26;RADIUS=26
 HERO=1420
@@ -182,6 +188,23 @@ def png(width,height,pixel):
  chunk=lambda tag,data:struct.pack('>I',len(data))+tag+data+struct.pack('>I',zlib.crc32(tag+data)&0xffffffff)
  return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',width,height,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(rows,9))+chunk(b'IEND',b'')
 
+def football(size=96):
+ """The little football beside the clock on Live Now (owner, 2026-11-21): a grey tilted ball with laces and end seams, drawn here (the repository takes no
+ images). Geometry in a 24-unit box: an ellipse 11 by 6.8 turned 40 degrees, a lace line with three ticks, a seam near each end."""
+ import math
+ cos,sin=math.cos(math.radians(40)),math.sin(math.radians(40))
+ def sample(px,py):
+  x,y=px*24/size-12,py*24/size-12;u,v=x*cos-y*sin,x*sin+y*cos   # back into the ball's own axes
+  if (u/11)**2+(v/6.8)**2>1:return None
+  lace=abs(v)<0.6 and abs(u)<3 or any(abs(u-t)<0.5 and abs(v)<1.5 for t in (-1.6,0,1.6))
+  seam=abs(v)<3.6 and abs(abs(u)-(5.6+0.7*(1-(v/3.6)**2)))<0.55
+  return (44,44,46) if lace or seam else (161,161,166)
+ def pixel(x,y):
+  hits=[sample(x+(i+.5)/4,y+(j+.5)/4) for i in range(4) for j in range(4)];seen=[h for h in hits if h]
+  if not seen:return (0,0,0,0)
+  return tuple(sum(h[c] for h in seen)//len(seen) for c in range(3))+(255*len(seen)//16,)
+ return png(size,size,pixel)
+
 def coverage(x,y,width,height,radius,inset=0):
  """Anti-aliased coverage of a rounded rectangle (inset shrinks it, for strokes)."""
  r=max(radius-inset,0.01);cx=min(max(x+0.5,inset+r),width-inset-r);cy=min(max(y+0.5,inset+r),height-inset-r)
@@ -189,6 +212,37 @@ def coverage(x,y,width,height,radius,inset=0):
 
 def rounded(width,height,radius):
  return png(width,height,lambda x,y:(255,255,255,int(255*coverage(x,y,width,height,radius))))
+
+def scrub_card(width,height,radius,stroke):
+ """The seek preview card (player-scrubber-mockup.html): one picture, a white outline `stroke` wide around a dark blue-grey face, so nothing has to line up."""
+ def pixel(x,y):
+  outer=coverage(x,y,width,height,radius);inner=coverage(x,y,width,height,radius,stroke)
+  edge=max(outer-inner,0)
+  mix=lambda face,line:int((face*inner+line*edge)/outer) if outer>0 else 0
+  return (mix(0x1B,255),mix(0x24,255),mix(0x30,255),int(255*min(outer,1)))
+ return png(width,height,pixel)
+
+def skip_arrow(size,stroke):
+ """The back-10 arrow (player-controls-mockup-r2.html): a circle that goes all the way round, open at the top where the arrowhead sits, pointing against the clock. The 10 is a label
+ in the middle; the forward arrow is this picture flipped (flipx). The mockup's 100-unit drawing, scaled to `size`."""
+ import math
+ u=size/100.0;c=size/2.0;r=38*u;half=stroke/2.0
+ gap=(math.radians(-115)%(2*math.pi),math.radians(-65)%(2*math.pi))   # no ring between 11 and 1 o'clock, apart from the rounded ends
+ tip=(54.28*u,10.07*u);b1=(73.00*u,7.77*u);b2=(64.55*u,25.89*u)
+ def in_head(px,py):
+  def side(p,q):return (q[0]-p[0])*(py-p[1])-(q[1]-p[1])*(px-p[0])
+  d1,d2,d3=side(tip,b1),side(b1,b2),side(b2,tip)
+  return (d1>=0 and d2>=0 and d3>=0) or (d1<=0 and d2<=0 and d3<=0)
+ def pixel(x,y):
+  hit=0
+  for i in range(4):
+   for j in range(4):
+    px,py=x+(i+.5)/4,y+(j+.5)/4
+    dx,dy=px-c,py-c;dist=math.hypot(dx,dy);ang=math.atan2(dy,dx)%(2*math.pi)
+    on_ring=abs(dist-r)<=half and not (gap[0]<ang<gap[1] if gap[0]<gap[1] else (ang>gap[0] or ang<gap[1]))
+    if on_ring or in_head(px,py):hit+=1
+  return (255,255,255,int(255*hit/16))
+ return png(size,size,pixel)
 
 def glass(size,radius,fill,stroke):
  """Frosted surface: translucent fill with a hairline light edge (iOS materials)."""
@@ -331,7 +385,7 @@ def textures():
          'fade_down.png':fade(lambda t:(1-t)**1.6*0.85),'fade_up.png':fade(lambda t:t**1.5),
          'hero_fade.png':fade(lambda t:0 if t<0.3 else ((t-0.3)/0.7)**1.25),
          'poster_mask.png':rounded(POSTER[0],POSTER[1],RADIUS),'card_mask.png':rounded(CARD[0],CARD[1],RADIUS),
-         'thumb_mask.png':rounded(400,225,20),'tile_mask.png':rounded(80,80,18),'dot.png':rounded(24,24,12),'knob.png':rounded(48,48,24),'clear48.png':png(4,48,lambda x,y:(0,0,0,0)),
+         'thumb_mask.png':rounded(400,225,20),'tile_mask.png':rounded(80,80,18),'dot.png':rounded(24,24,12),'scrub_card.png':scrub_card(470,264,26,5),'skip_arrow.png':skip_arrow(160,8),'knob.png':rounded(48,48,24),'clear48.png':png(4,48,lambda x,y:(0,0,0,0)),
          'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),'airplay.png':player_osd.airplay_png(png),'ring.png':ring(132,7),'circle_line.png':circle_line(132,12),
          # Capsules per height: 9-slice borders of h/2 keep the ends perfectly round at any width.
          **{'pill_%d.png'%h:rounded(h,h,h/2) for h in CAPSULES},
@@ -510,6 +564,16 @@ def header_buttons(y,tab=None,down=''):
  if tab:xml=refresh_button(rx,y,tab,down+'<onright>9207</onright>')+xml
  return xml
 def header_width(tab=None):return WIDTH-2*SIDE-(3 if tab else 2)*(HDR+HDR_GAP)
+
+# Opaque full-screen pages (page_cover.py) list themselves in KodiIOS.Covered while open: a full window under them stops drawing then. Only while a
+# modal dialog is open too, so a page that died never leaves a window blank (owner, 2026-11-21: Sports pages scrolled at 21-34 fps against Home's 60;
+# in the desktop rig the window under Upcoming took 60 % of the drawing time).
+COVERED_CONDITION='![!String.IsEmpty(Window(Home).Property(KodiIOS.Covered)) + System.HasActiveModalDialog]'
+
+def covered(body):
+ """A full window's controls inside one group that hides while an opaque page covers the window."""
+ if not body.startswith('<controls>') or not body.endswith('</controls>'):return body
+ return '<controls><control type="group"><visible>%s</visible>%s</control></controls>'%(COVERED_CONDITION,body[len('<controls>'):-len('</controls>')])
 
 def window(original,body,default,extra_root=''):
  # Pages with the tab bar forget the title of the last category or library page.
@@ -728,6 +792,17 @@ def title_tap(id,title,path,visible):
          '<control type="button" id="%d"><left>%d</left><top>-129</top><width>%d</width><height>128</height><label></label>'
          '<texturefocus /><texturenofocus />%s</control></control>')%(visible,id+700,SIDE,WIDTH-2*SIDE,clicks)
 
+def play_now(container=None):
+ """A tap on a Continue Watching card shows the loading circle at once and plays (owner, build 646: "make it start loading when i click it ... i shouldnt have
+ time to tap it again"; the first sign of life was a second or more later, when TMDb Helper had started). The row's items are all playable plugin paths, so the
+ click does what Kodi did by default, after raising the circle; the service closes it when the video starts (Dialog.Close in the progress tracker) and the busy
+ watchdog closes it after a few seconds if nothing opens.
+ The card played is the one of THIS row's list, named explicitly (Container(id).ListItem(0)): a bare ListItem is the item of whichever control has the window's focus, and a
+ tap does not always move focus into the row, so a tap on the second card played another title or nothing (owner, build 682 log 1355c1d8: Black Clover's card "glitches out
+ and doesn't load anything" while Dragon Ball was first; a tap on the first card opened Inception)."""
+ item='Container(%d).ListItem(0)'%container if container else 'ListItem'
+ return '<onclick>SetProperty(KodiIOS.ContinueOpening,1,home)</onclick><onclick>ActivateWindow(busydialognocancel)</onclick><onclick>PlayMedia($ESCINFO[%s.FileNameAndPath])</onclick>'%item
+
 def row(index,widget,last,tab='home',variables=None):
  id=5001+index;title=str(widget.get('label') or '')
  style=widget.get('style') or ('poster' if str(widget.get('widget_style') or '').lower()=='poster' else 'card')
@@ -744,10 +819,10 @@ def row(index,widget,last,tab='home',variables=None):
    ''.join(image(SIDE+k*(w+GAP),14,w,POSTER[1] if style=='poster' else CARD[1],MEDIA+'white.png',SURFACE,
                  diffuse=MEDIA+('poster_mask.png' if style=='poster' else 'card_mask.png')) for k in range(4 if style=='poster' else 2))+'</control>')+
   ('<control type="list" id="%d"><left>0</left><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
-   '%s<scrolltime tween="cubic" easing="out">320</scrolltime><preloaditems>2</preloaditems><visible allowhiddenfocus="true">%s</visible>'
+   '%s%s<scrolltime tween="cubic" easing="out">320</scrolltime><preloaditems>2</preloaditems><visible allowhiddenfocus="true">%s</visible>'
    '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
    '<content target="%s">%s</content></control>'
-   )%(id,WIDTH,h,'<ondown>9201</ondown>' if last else '',visible,w+GAP,h,item(False),w+GAP,h,item(True),
+   )%(id,WIDTH,h,'<ondown>9201</ondown>' if last else '',play_now(id) if style=='continue' else '',visible,w+GAP,h,item(False),w+GAP,h,item(True),
       e(widget.get('target') or 'videos'),cached_content('Portrait_Cache_Row_%s_%d'%(tab,index),widget['path'],variables,tab=tab)))
 
 def hero(spotlight,title,tab='home',variables=None):
@@ -821,7 +896,7 @@ def hub_body(title,widgets,tab,spotlight,resume='all',variables=None):
 
 def hub_window(original,title,widgets,tab,spotlight,resume='all'):
  """One hub alone in its window (kept for tests and tools; the phone uses hubs_window)."""
- return window(original,'<controls>%s%s</controls>'%(backdrop(),hub_body(title,widgets,tab,spotlight,resume)),'4000')
+ return window(original,covered('<controls>%s%s</controls>'%(backdrop(),hub_body(title,widgets,tab,spotlight,resume))),'4000')
 
 def hubs_window(original,hubs,variables=None):
  """Home, Movies and TV in one window: a group per hub, shown by Portrait.Tab. Every row of all three hubs
@@ -829,7 +904,7 @@ def hubs_window(original,hubs,variables=None):
  groups=''.join('<control type="group" id="%d"><visible>%s</visible>%s</control>'%(3900+HUB_OFFSET[tab],tab_visible(tab),hub_body(*args,variables=variables))
                 for tab,args in hubs)
  focus=''.join('<onload condition="%s">SetFocus(%d)</onload>'%(e(tab_visible(tab)),4000+HUB_OFFSET[tab]) for tab,_ in hubs if HUB_OFFSET[tab])
- return window(strip_fuse_onloads(original),'<controls>%s%s</controls>'%(backdrop(),groups),'4000',focus)
+ return window(strip_fuse_onloads(original),covered('<controls>%s%s</controls>'%(backdrop(),groups)),'4000',focus)
 
 def forward_window(original,tab):
  """Movies/TV windows (opened by Fuse menus or older shortcuts) show that hub in Home instead."""
@@ -853,7 +928,7 @@ def library_window(original):
       '<itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout><content>%s</content></control>'
       )%(WIDTH,row_h*len(LIBRARY),row_h,item(False),row_h,item(True),items)
  body='<controls>%s%s%s%s</controls>'%(backdrop(),page_header('Library'),lst,tabbar('library'))
- return window(original,body,'5000')
+ return window(original,covered(body),'5000')
 
 # r3 glass bar framework: the field is a native iOS search field in a dark band at the top (searchbar.py), and the results
 # of what is typed show in a poster grid under it; Portrait.SearchBar marks a phone that has it.
@@ -1009,12 +1084,18 @@ def search_window(original):
  root=ET.fromstring(original) if original else ET.Element('window')
  bare='<window%s />'%''.join(' %s="%s"'%(k,e(v)) for k,v in root.attrib.items())
  body='<controls>%s%s%s%s<control type="image"><height>2</height><texture /></control>%s</controls>'%(backdrop(),panel,results,old,tabbar('search'))
- return window(bare,body,'5100')
+ return window(bare,covered(body),'5100')
 
 VARIABLES=('<variable name="Portrait_Hero_Art"><value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value>'
            '<value>$INFO[ListItem.Art(poster)]</value></variable>'
            '<variable name="Portrait_Card_Art"><value condition="!String.IsEmpty(ListItem.Art(landscape))">$INFO[ListItem.Art(landscape)]</value>'
-           '<value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value><value>$INFO[ListItem.Art(thumb)]</value></variable>')
+           '<value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value><value>$INFO[ListItem.Art(thumb)]</value></variable>'
+           # The player panel's Continue Watching list reads its path from a skin string that is empty until the button is tapped; with the stamp
+           # appended it asked Kodi for the folder "&stamp=" every time the player opened (build 615 log: `GetDirectory - Error getting &stamp=`, 6 times).
+           # The season row of a TMDb Helper episodes page asked for `...&tmdb_id=` with no id on a downloaded show's page (build 615 log:
+           # `GetDirectory - Error getting plugin://plugin.video.themoviedb.helper/?info=seasons&tmdb_type=tv&tmdb_id=`): no id, no request.
+           '<variable name="Portrait_Season_Chips_Path"><value condition="!String.IsEmpty(Container(52).ListItem.Property(tvshow.tmdb_id))">plugin://plugin.video.themoviedb.helper/?info=seasons&amp;tmdb_type=tv&amp;tmdb_id=$INFO[Container(52).ListItem.Property(tvshow.tmdb_id)]</value><value></value></variable>'
+           '<variable name="Portrait_Osd_Continue"><value condition="!String.IsEmpty(Skin.String(ios_osd_continue_path))">$INFO[Skin.String(ios_osd_continue_path)]&amp;stamp=$INFO[Window(Home).Property(KodiIOS.ContinueStamp)]</value><value></value></variable>')
 
 # --- show page (seasons as chips, episodes below), episode lists and plain folders ------------------------
 DL_GAP=20;DL_H=108;DL_SHIFT=DL_GAP+DL_H   # the Download button under Play pushes the seasons page down by this
@@ -1072,9 +1153,10 @@ def bell_button():
 # condition; String.IsEqual compares with another infolabel when its second argument is a bare infolabel.
 SHOW_CONTINUE=('String.IsEqual(ListItem.Season,Window(Home).Property(KodiIOS.ShowContinueSeason)) + String.IsEqual(ListItem.Episode,Window(Home).Property(KodiIOS.ShowContinueEpisode)) + '
  'String.IsEqual(ListItem.Property(tvshow.tmdb_id),Window(Home).Property(KodiIOS.ShowContinueTmdb)) + !String.IsEmpty(Window(Home).Property(KodiIOS.ShowContinueLeft))')
+EPISODE_H=440   # one episode card in the show page's list (was 420: two lines of plot)
 def episode_item(focused):
  thumb_w,thumb_h=400,225
- bg=surface(SIDE-18,4,WIDTH-2*SIDE+36,thumb_h+176,'round_s.png','14FFFFFF',26) if focused else ''
+ bg=''   # Owner (2026-11-25): "the highlight stays as I scroll" and it looked like the row a tap would open. A phone has no hover: no row is drawn as chosen.
  return ('<control type="group"><visible>String.IsEqual(ListItem.DBType,episode)</visible>'+bg+image(SIDE,18,thumb_w,thumb_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'thumb_mask.png')+
   image(SIDE,18,thumb_w,thumb_h,'$VAR[Portrait_Thumb]',WHITE,'','>scale',MEDIA+'thumb_mask.png',background=True)+
   image(SIDE+thumb_w//2-48,18+thumb_h//2-48,96,96,MEDIA+'glass_96.png')+icon(SIDE+thumb_w//2-18,18+thumb_h//2-20,40,MEDIA+'play.png')+
@@ -1082,7 +1164,8 @@ def episode_item(focused):
   textbox(SIDE+thumb_w+30,30,WIDTH-2*SIDE-thumb_w-30,116,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE)+
   label(SIDE+thumb_w+30,160,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
   label(SIDE+thumb_w+30,206,WIDTH-2*SIDE-thumb_w-30,40,'$INFO[Window(Home).Property(KodiIOS.ShowContinueLeft)]','p_cap',ACCENT,'left','<visible>%s</visible>'%SHOW_CONTINUE)+
-  textbox(SIDE,thumb_h+36,WIDTH-2*SIDE,84,'$INFO[ListItem.Plot]','p_cap',GREY)+'</control>')
+  # Owner (build 698 screenshot): the description was cut after two lines. Four lines fit (about 36 units each) and the card is 20 units taller to hold them.
+  textbox(SIDE,thumb_h+30,WIDTH-2*SIDE,150,'$INFO[ListItem.Plot]','p_cap',GREY)+'</control>')
 
 def video_nav(original):
  chip=lambda on:('<control type="group"><visible>String.IsEqual(ListItem.DBType,season)</visible>'+surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
@@ -1099,11 +1182,20 @@ def video_nav(original):
   '<ondown>52</ondown><onup>9001</onup><scrolltime tween="cubic">250</scrolltime><visible>%s</visible>'
   '<onclick>Action(ParentDir)</onclick><onclick>Container.Update($INFO[ListItem.FolderPath])</onclick>'
   '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout>'
-  '<content>plugin://plugin.video.themoviedb.helper/?info=seasons&amp;tmdb_type=tv&amp;tmdb_id=$INFO[Container(52).ListItem.Property(tvshow.tmdb_id)]</content>'
+  '<content>$VAR[Portrait_Season_Chips_Path]</content>'
   '</control>')%(SIDE,WIDTH-SIDE,SEASON_EPISODES,season_chip(False),season_chip(True))
+ library_chips=('<control type="list" id="47"><left>%d</left><top>0</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
+  '<ondown>52</ondown><onup>9001</onup><scrolltime tween="cubic">250</scrolltime><visible>%s</visible>'
+  '<onclick>Action(ParentDir)</onclick><onclick>Container.Update($INFO[ListItem.FolderPath])</onclick>'
+  '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout>'
+  '<content>$INFO[Container(52).ListItem.Property(KodiIOS.SeasonsPath)]</content>'
+  '</control>')%(SIDE,WIDTH-SIDE,SEASON_EPISODES_LIBRARY,season_chip(False),season_chip(True))
  episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
-  '<itemlayout height="420">%s</itemlayout><focusedlayout height="420">%s</focusedlayout>%s</control>')
+  '%s<itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>%s</control>')
+ # ISSUE-487 (owner log f8c6f27b, build 705: "I tap and tap but nothing shows"): a list that loads its items from a <content> source runs its own
+ # <onclick> INSTEAD of opening the item, so the tap-naming onclick (ISSUE-478) made every episode of list 60 dead. Only the list with no <content> (52) names taps.
+ episode_tap=('<onclick>SetProperty(KodiIOS.EpisodeTap,&quot;S$INFO[ListItem.Season]E$INFO[ListItem.Episode] $ESCINFO[ListItem.Label] row $INFO[Container.CurrentItem]&quot;,home)</onclick>')
  gen_item=lambda focused:((surface(SIDE-18,6,WIDTH-2*SIDE+36,198,'round_s.png','14FFFFFF',26) if focused else '')+
   image(SIDE,18,116,174,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'tile_mask.png')+
   image(SIDE,18,116,174,'$INFO[ListItem.Art(poster)]',WHITE,'<visible>!String.IsEmpty(ListItem.Art(poster))</visible>','>scale',MEDIA+'tile_mask.png',background=True)+
@@ -1124,9 +1216,9 @@ def video_nav(original):
  show_page=('<control type="grouplist" id="9900"><left>0</left><top>0</top><width>%d</width><height>%d</height>'
   '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'
-  '%s%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,episode_chips,
-  episodes%(60,0,WIDTH,HEIGHT,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'),
-  episodes%(52,0,WIDTH,HEIGHT,'9002','Container.Content(episodes)',episode_item(False),episode_item(True),''))
+  '%s%s%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,episode_chips,library_chips,
+  episodes%(60,0,WIDTH,HEIGHT,'50','Container.Content(seasons)','',EPISODE_H,episode_item(False),EPISODE_H,episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'),
+  episodes%(52,0,WIDTH,HEIGHT,'9002','Container.Content(episodes)',episode_tap,EPISODE_H,episode_item(False),EPISODE_H,episode_item(True),''))
  # Owner (build 229): "If i scroll down after i select a season the season selecter disappears". Once the page has
  # scrolled, the same seasons (the folder's own listing, cached by the add-on) stay pinned under the Back button. A tap
  # selects that season in the page's own row (SetFocus absolute takes a 0-based index; CurrentItem is 1-based).
@@ -1144,6 +1236,8 @@ def video_nav(original):
 
 SEASON_EPISODES=('Container.Content(episodes) + String.StartsWith(Container.FolderPath,plugin://plugin.video.themoviedb.helper/) + '
                  '!String.IsEmpty(Container(52).ListItem.Property(tvshow.tmdb_id))')   # ISSUE-334
+# A downloaded (library) show carries its own season list on every episode (KodiIOS.SeasonsPath, set by ios_library), so its season row is a second list.
+SEASON_EPISODES_LIBRARY='Container.Content(episodes) + !String.IsEmpty(Container(52).ListItem.Property(KodiIOS.SeasonsPath))'
 def season_chip(focused):
  """ISSUE-334: a season on an episodes page: white for the season the page shows."""
  on='String.IsEqual(ListItem.Season,Container(52).ListItem.Season)'
@@ -1462,7 +1556,7 @@ def context_menu(original):
  # Without one the dialog is the full screen, so the card and menu stay where this layout puts them.
  body=('<controls><control type="image"><width>%d</width><height>%d</height><texture colordiffuse="80000000">%swhite.png</texture>'
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation></control>'
-  '<control type="button" id="9099"><width>%d</width><height>%d</height><texturefocus /><texturenofocus /><onclick>Close</onclick><onfocus>SetFocus(996)</onfocus></control>'
+  '<control type="button" id="9099"><width>%d</width><height>%d</height><texturefocus /><texturenofocus /><onclick>Dialog.Close(contextmenu)</onclick><onfocus>SetFocus(996)</onfocus></control>'
   '%s%s</controls>')%(WIDTH,HEIGHT,MEDIA,WIDTH,HEIGHT,card,menu)
  return window(original,body,'996')
 
@@ -1623,8 +1717,8 @@ def fonts(original,sf=None):
  root=ET.fromstring(original)
  for fontset in root.findall('fontset'):
   for name,filename,size in FONTS:
-   f=ET.SubElement(fontset,'font');ET.SubElement(f,'name').text=name;ET.SubElement(f,'filename').text=sf or filename;ET.SubElement(f,'size').text=str(size)
-   if sf and sf_bold(name,filename):ET.SubElement(f,'style').text='bold'
+   f=ET.SubElement(fontset,'font');ET.SubElement(f,'name').text=name;ET.SubElement(f,'filename').text=filename if filename==SCORE_FONT else sf or filename;ET.SubElement(f,'size').text=str(size)
+   if sf and filename!=SCORE_FONT and sf_bold(name,filename):ET.SubElement(f,'style').text='bold'
  return b'<?xml version="1.0" encoding="UTF-8"?>\n'+ET.tostring(root,encoding='utf-8')+b'\n'
 
 def with_variables(xml):return xml
@@ -1711,6 +1805,8 @@ def portrait_files(skin,profile):
  files.update(library_files_page.files(ns))
  # Library › Sports, the landing page (DEC-054, DEC-057; sports_page.py, filled by sports.py).
  files.update(sports_page.files(ns))
+ files['fonts/'+SCORE_FONT]=score_font.data()   # Live Now's score font and football (sports_live_page.py): text in the repository, a TrueType file on the phone
+ files['extras/portrait/football.png']=football()
  files.update(sports_live_page.files(ns))   # Library › Sports › Live Now (DEC-055; sports_live_page.py, filled by sports_live.py)
  files.update(sports_upcoming_page.files(ns))
  files.update(sports_game_page.files(ns))
@@ -1914,7 +2010,12 @@ def first_feed_publisher(info,log,clock,timeout=60,started=None):
   finished=not pending
  return tick
 
-def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{},log=None):
+def playing_link(player):
+  """The address the playing video was opened from ('' when unknown): kept for Umbrella titles (ios_continue.update) so Continue can resume from it."""
+  try:return str(player.getPlayingFile() or '')
+  except Exception:return ''
+
+def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{},log=None,on_stop=None,on_start=None):
  """Continue Watching: save the position of what the chooser started, and drop it once finished."""
  state={'playing':False,'saved':float('-inf'),'position':0,'total':0,'started':0,'seed':0,'remote':False,'handoff':False,'remote_file':'','generation':None,'ignored_generation':None}
  # ISSUE-299 (owner, build 442: "continue watching is only tracking the downloaded things"): one line per playback
@@ -1940,6 +2041,9 @@ def progress_tracker(player,continue_module,read,write,clock,every=10,external=l
     now=clock()
     if not state['playing']:
      state.update(playing=True,started=now,seed=0)
+     if on_start:
+      try:on_start()   # a video began: its remembered subtitle goes back on (subtitle_memory)
+      except Exception as error:_quiet('portrait:on_start',error)
      try:
       data=continue_module.load(read);entry=data.get('items',{}).get(data.get('current')) or {}
       state.update(seed=float(entry.get('position') or 0),position=float(entry.get('position') or 0),total=float(entry.get('total') or 0))
@@ -1981,9 +2085,12 @@ def progress_tracker(player,continue_module,read,write,clock,every=10,external=l
     # Opening/initial seek can briefly report zero. Do not erase a real resume point during that interval.
     if state['seed']>=10 and position<10 and now-state['started']<20:return
     state.update(position=position,total=total)
-    if now-state['saved']>=every:continue_module.update(read,write,state['position'],state['total']);state['saved']=now
+    if now-state['saved']>=every:continue_module.update(read,write,state['position'],state['total'],stream=playing_link(player));state['saved']=now
    elif state['playing']:
-    state['playing']=False;continue_module.update(read,write,state['position'],state['total']);continue_module.stopped(read,write)
+    state['playing']=False;entry=continue_module.update(read,write,state['position'],state['total']);continue_module.stopped(read,write)
+    if on_stop and entry:
+     try:on_stop(entry)   # an Umbrella stream that stopped: its opening is kept for the next Continue (resume_cache)
+     except Exception as error:_quiet('portrait:on_stop',error)
   except Exception as error:_quiet('portrait:1179',error)
  return tick
 
@@ -2170,8 +2277,151 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
   import airplay
   try:native_player=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
   except Exception:native_player=None
+  def keep_opening(entry):
+   import resume_cache,remote_media,cache_tune,xbmcgui
+   home=xbmcgui.Window(10000);began=home.getProperty('KodiIOS.OpenWanted')   # ios_watch_dialog.fast_copy sets it when a title is asked for: the capture then lets go of the debrid server
+   resume_cache.capture_later(entry,lambda link:remote_media.Foreground(link),wifi=lambda:cache_tune.link_kind()=='wifi',log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),
+                              stop=lambda:home.getProperty('KodiIOS.OpenWanted')!=began or xbmc.Player().isPlayingVideo(),idle=lambda:xbmc.getGlobalIdleTime()>=resume_cache.IDLE_SECONDS)
+  def strip_started():
+   # The seek bar's card reads the playing title's preview strip (thumb_strip.py). The card is cleared the moment a video begins (the last video's builder ends), the source is
+   # chosen from the PLAYING file (a downloaded file, a Drive copy through the app's proxy, or the Umbrella title's remembered link), and a stream's strip waits until the
+   # player has settled so it never shares a slow link with the player's own opening (thumb_strip.settled).
+   import threading
+   try:
+    import thumb_strip,xbmcgui
+    thumb_strip.begin(xbmcgui.Window(10000))
+   except Exception as error:_quiet('portrait:strip_begin',error);return
+   def work():
+    try:
+     import xbmcvfs
+     mon=xbmc.Monitor();player=xbmc.Player();home=xbmcgui.Window(10000);root=thumb_strip.root_folder()
+     def remembered():
+      data=module.load(read);entry=data['items'].get(data.get('current')) or {}
+      return str((entry.get('stream') or {}).get('url') or '') if entry.get('player')=='umbrella' else ''
+     def playing_file():
+      try:return str(player.getPlayingFile() or '')
+      except Exception:return ''
+     link,kind=thumb_strip.source_of(playing_file(),remembered(),xbmcvfs.translatePath)
+     for _ in range(0 if kind else 30):   # an Umbrella title: up to a minute for the saved link
+      if not player.isPlayingVideo():return
+      if mon.waitForAbort(2.0):return
+      link,kind=thumb_strip.source_of(playing_file(),remembered(),xbmcvfs.translatePath)
+      if kind:break
+     if not kind:return
+     local=kind=='local'
+     lib=native_player
+     if not thumb_strip.available(lib):return
+     import cache_tune
+     log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
+     caching=lambda:xbmc.getCondVisibility('Player.Caching')
+     def position():
+      label=xbmc.getInfoLabel('Player.SeekTime' if xbmc.getCondVisibility('Player.Seeking + Control.HasFocus(7131)') else 'Player.Time')
+      return thumb_strip.clock_seconds(label)
+     if not local and not complete_strip(link,root):
+      if not thumb_strip.settled(lambda:player.isPlayingVideo(),lambda:not caching(),lambda:thumb_strip.clock_seconds(xbmc.getInfoLabel('Player.Time')),mon.waitForAbort):return
+     thumb_strip.show(home,link,root)
+     mb=thumb_strip.WIFI_MB if cache_tune.link_kind()=='wifi' else thumb_strip.MOBILE_MB
+     thumb_strip.follow(lib,link,root,home,log,
+      playing=lambda:player.isPlayingVideo(),
+      healthy=lambda:local or not caching(),
+      position=position,
+      seeking=lambda:xbmc.getCondVisibility('Player.Seeking + Control.HasFocus(7131)'),
+      wait=mon.waitForAbort,budget_mb=mb,local=local,duration=lambda:int(player.getTotalTime() or 0))
+    except Exception as error:_quiet('portrait:strip',error)
+   def complete_strip(link,root):
+    try:return thumb_strip.complete(os.path.join(root,thumb_strip.key(link)))
+    except Exception:return False
+   threading.Thread(target=work,daemon=True).start()
+  def info_started():
+   # The Info card's description for a title Continue played from its remembered link (info_fill.py): looked up on TMDb once it plays, kept with the Continue record.
+   try:
+    import info_fill,xbmcgui
+    xbmcgui.Window(10000).clearProperty(info_fill.PROPERTY);xbmcgui.Window(10000).clearProperty(info_fill.TIER_PROPERTY)
+   except Exception as error:_quiet('portrait:info_begin',error);return
+   import threading
+   def work():
+    try:
+     import drivelibrary,json,os,urllib.request,xbmcaddon,xbmcvfs
+     mon=xbmc.Monitor()
+     if mon.waitForAbort(4.0):return
+     window=xbmcgui.Window(10000);own=xbmc.getInfoLabel('VideoPlayer.Plot')
+     if own:window.setProperty(info_fill.TIER_PROPERTY,str(info_fill.tier(own)))   # the card's text size: the plot fits the card at the size its length needs
+     data=module.load(read);item=data.get('current');entry=dict(data['items'].get(item) or {})
+     if not entry:return
+     has_plot=lambda:bool(xbmc.getInfoLabel('VideoPlayer.Plot'))
+     state=xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/')
+     path=os.path.join(state,'drive-library-art.json');cache=drivelibrary.load_json(path,{})
+     key=drivelibrary.tmdb_key(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.themoviedb.helper').getAddonInfo('path'))) if not has_plot() else ''
+     def get(url):
+      with urllib.request.urlopen(url,timeout=8) as answer:return answer.read().decode('utf-8','replace')
+     def remember(plot):
+      fresh=module.load(read);saved=fresh['items'].get(item)
+      if saved is not None and not saved.get('plot'):
+       saved['plot']=plot[:2000];module.save(fresh,write)
+      try:drivelibrary.save_json(path,cache)
+      except Exception:pass
+     def put(text):
+      if xbmc.Player().isPlayingVideo():window.setProperty(info_fill.TIER_PROPERTY,str(info_fill.tier(text)));window.setProperty(info_fill.PROPERTY,text)
+     info_fill.run(entry,has_plot,key,cache,get,drivelibrary,put,remember)
+    except Exception as error:_quiet('portrait:info',error)
+   threading.Thread(target=work,daemon=True).start()
+  def started():
+   strip_started()
+   info_started()
+   subtitles_back()
+  def subtitles_back():
+   import threading
+   try:xbmc.executebuiltin('Dialog.Close(busydialognocancel,true)')   # the circle a Continue Watching tap raised at once (play_now): the video is up
+   except Exception:pass
+   def work():
+    import subtitle_memory,mp4_tracks
+    if xbmc.Monitor().waitForAbort(3.0):return   # Kodi has its streams by then
+    player=xbmc.Player()
+    if not player.isPlayingVideo():return
+    root=xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/subtitles/')
+    def rpc(method,params):
+     return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result') or {}
+    def streams():
+     pid=next((p['playerid'] for p in rpc('Player.GetActivePlayers',{}) if p.get('type')=='video'),None)
+     return pid,rpc('Player.GetProperties',{'playerid':pid,'properties':['subtitleenabled','currentsubtitle','subtitles']}) if pid is not None else {}
+    def current():
+     pid,p=streams();c=p.get('currentsubtitle') or {}
+     return bool(p.get('subtitleenabled')),c.get('index'),str(c.get('name') or '').rstrip().endswith('(External)')
+    def zero(index):
+     url=str(player.getPlayingFile() or '').split('|')[0]
+     if not url.startswith('http://127.0.0.1:'):return None
+     found=mp4_tracks.probe(url)
+     if not found:return None
+     pid,p=streams()
+     embedded=sorted((s for s in p.get('subtitles') or [] if not str(s.get('name') or '').rstrip().endswith('(External)')),key=lambda s:s.get('index') or 0)
+     flags=[t['zero_length'] for t in found['tracks']]
+     if len(embedded)!=len(flags):return None
+     return next((flags[n] for n,s in enumerate(embedded) if s.get('index')==index),None)
+    said=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
+    try:
+     import remote_media
+     link=remote_media.original(player.getPlayingFile(),xbmcgui.Window(10000))
+    except Exception:link=None
+    known=subtitle_memory.known_from(read,xbmc.getInfoLabel('VideoPlayer.Title'),link=link)
+    result=subtitle_memory.at_start(root,xbmc.getInfoLabel,player.getPlayingFile(),lambda path:player.setSubtitles(path),lambda on:player.showSubtitles(on),current,zero,said,known)
+    if result=='remembered':return   # the viewer's own subtitle is on again
+    # No usable subtitle in the viewer's language (none, only a forced track, or cues with no length) and one is wanted: fetch it as the menu's button does (auto_subtitles.py).
+    try:
+     import auto_subtitles
+     pid,p=streams()
+     audio=(rpc('Player.GetProperties',{'playerid':pid,'properties':['currentaudiostream']}).get('currentaudiostream') or {}) if pid is not None else {}
+     names=(rpc('Settings.GetSettingValue',{'setting':'subtitles.languages'}).get('value') or ['English'])
+     try:code=xbmc.convertLanguage(names[0],xbmc.ISO_639_1) or 'en'
+     except Exception:code='en'
+     chosen=str((rpc('Settings.GetSettingValue',{'setting':'locale.subtitlelanguage'}) or {}).get('value') or '')
+     always=chosen not in ('','default','original','none','forced_only')
+     key=subtitle_memory.identity(xbmc.getInfoLabel,player.getPlayingFile(),known)
+     auto_subtitles.consider(root,key,player.getTotalTime(),p.get('subtitles') or [],code,audio.get('language'),always,zero,
+                             lambda:xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,tracks,auto)'),said)
+    except Exception as error:xbmc.log('Kodi iOS auto subtitles: not looked at (%s)'%type(error).__name__,xbmc.LOGINFO)
+   threading.Thread(target=work,daemon=True).start()
   tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic,external=lambda:airplay.health(native_player),
-                       log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+                       log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),on_stop=keep_opening,on_start=started)
  except Exception as error:xbmc.log('Kodi iOS continue watching unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  # Listing cache: check the row flags against the copies now, then fill and refresh copies in the background.
  try:

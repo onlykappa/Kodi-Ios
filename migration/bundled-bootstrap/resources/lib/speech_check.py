@@ -22,8 +22,9 @@ ALIGNED = .30           # at least this share: the subtitle matches, and its bes
 SHIFT_FROM = .4         # seconds; smaller shifts are left alone
 SEARCH = 120            # seconds either way
 SLACK = .6              # a word may be heard this long before or after its cue
-STRETCH = 45            # seconds of sound per sample (the recognizer takes up to a minute)
-BYTE_BUDGET = 48 * 1024 * 1024   # per sample: a 4K stream is not read for long
+STRETCH = 30            # seconds of sound per sample (build 616 log: 45 s over Drive took 20-38 s and heard 7 and 2 words; the recognizer needs far less)
+RETRY_BUDGET = 4          # a place that gave no sound is read again with this many times the budget (a 4K file's bytes are mostly picture)
+BYTE_BUDGET = 24 * 1024 * 1024   # per sample: a 4K stream is not read for long (was 48 MB: two samples read 96 MB of a 4K file)
 LOCALES = {'en': 'en-US', 'es': 'es-ES', 'fr': 'fr-FR', 'de': 'de-DE', 'it': 'it-IT', 'pt': 'pt-BR', 'ja': 'ja-JP',
            'ko': 'ko-KR', 'zh': 'zh-CN', 'nl': 'nl-NL', 'ru': 'ru-RU', 'ar': 'ar-SA', 'sv': 'sv-SE', 'da': 'da-DK',
            'no': 'nb-NO', 'fi': 'fi-FI', 'pl': 'pl-PL', 'tr': 'tr-TR', 'el': 'el-GR', 'he': 'he-IL', 'hi': 'hi-IN',
@@ -224,19 +225,32 @@ def listen(lib, url, audio, lang, duration, log=lambda m: None):
         return []
     source = str(url or '').split('|')[0].encode('utf-8')
     results = []
-    for at in places(duration):
+
+    def one(at, budget):
         out = ctypes.create_string_buffer(256 * 1024)
-        n = lib.kodi_speech_words(source, int(audio if audio is not None else -1), at, float(STRETCH), BYTE_BUDGET,
+        n = lib.kodi_speech_words(source, int(audio if audio is not None else -1), at, float(STRETCH), budget,
                                   LOCALES[lang].encode('ascii'), out, len(out))
         try:
             result = json.loads(out.value.decode('utf-8')) if n >= 0 else {'status': 'failed', 'why': 'answer too long'}
         except ValueError:
             result = {'status': 'failed', 'why': 'unreadable answer'}
-        log('speech check: %s at %d s: %s' % (result.get('status'), at, result.get('why') or '%d words' % len(result.get('words') or [])))
+        log('speech check: %s at %d s%s: %s' % (result.get('status'), at, '' if budget == BYTE_BUDGET else ' (%d MB)' % (budget // (1024 * 1024)),
+                                              result.get('why') or '%d words' % len(result.get('words') or [])))
+        return result
+    # Build 639 log 9f7b4ab2: a 4K Drive episode (about 25 Mb/s) gave "less than a second of sound" at both places, three times: 24 MB of its bytes are about
+    # 8 s of mostly picture. A place that gave no sound is tried again once with a bigger byte budget, and when nothing was heard at all one more place is tried.
+    for at in places(duration):
+        result = one(at, BYTE_BUDGET)
+        if result.get('status') == 'no_sound':
+            result = one(at, BYTE_BUDGET * RETRY_BUDGET)
         if result.get('status') == 'ok':
             results.append(result)
         elif result.get('status') in ('denied', 'not_on_device', 'unavailable'):
-            break
+            return heard(results)
+    if not results and float(duration or 0) >= 8 * STRETCH:
+        result = one(float(duration) * .45, BYTE_BUDGET * RETRY_BUDGET)
+        if result.get('status') == 'ok':
+            results.append(result)
     return heard(results)
 
 
@@ -301,3 +315,45 @@ def apply(original, tested, data, name, heard):
         tested['match_score'] = min(100, tested['match_score'] + 10)
         original['match_score'] = tested['match_score']
     return data, None
+
+
+def best_fit(heard, files):
+    """Of several downloaded subtitles, [(selected, name, data)], the one the heard words support best: (selected, name, data, how, seconds_to_add) where how is
+    'fits' or 'shift', or None when none of them is established. Build 623 (owner: "download and apply ... they dont match and timing is off"): the first of
+    13 results was applied and the check could not decide ('unknown'); the next few are now tried and the best supported one kept."""
+    best = None
+    for selected, name, data in files:
+        try:
+            fit = compare(heard, cues(data, name))
+        except Exception:
+            continue
+        how, seconds = verdict(fit)
+        if how in ('fits', 'shift') and (best is None or fit['agreement'] > best[0]):
+            best = (fit['agreement'], selected, name, data, how, seconds)
+    return best[1:] if best else None
+
+
+def describe(selected):
+    """The log words for what a check found (set on the result by apply): 'unknown (agreement 0.21, shift 0.0 s)'."""
+    how = selected.get('match_speech')
+    if not how:
+        return 'no verdict'
+    agreement = selected.get('match_speech_agreement')
+    return '%s (agreement %s, shift %.1f s)' % (how, 'n/a' if agreement is None else '%.2f' % agreement, float(selected.get('match_speech_shift') or 0))
+
+
+
+def sync_result(heard, data, name):
+    """What Auto sync (Subtitles > More) does with the subtitle that is on, given the words heard: (state, line shown, new file data or None). state: done | fail.
+    Pure; tracks.py listens and applies."""
+    if len(heard or []) < MIN_WORDS:
+        return 'fail', 'Not enough speech heard. Try during dialogue', None
+    fit = compare(heard, cues(data, name))
+    how, seconds = verdict(fit)
+    if how == 'mismatch':
+        return 'fail', 'These subtitles are for another video. Try Find another', None
+    if how == 'shift':
+        return 'done', 'Moved %.1f s %s' % (abs(seconds), 'later' if seconds > 0 else 'earlier'), shift_file(data, name, seconds)
+    if how == 'fits':
+        return 'done', 'Already in sync', None
+    return 'fail', 'Could not tell. Try again during dialogue', None

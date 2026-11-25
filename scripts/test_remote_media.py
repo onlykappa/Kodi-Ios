@@ -337,4 +337,74 @@ class Controller(Broker):
    if result==2:self.assertTrue(served);self.assertIsNotNone(self.broker.current)
    else:self.assertIsNone(self.broker.current)
 
+class Preflight(unittest.TestCase):
+ """Owner, build 659 (log 4a05fc8f): Kodi waited 27.6 s for the first bytes of a link whose server was not answering, then read an empty file. A link played
+ directly is asked for one byte first; a server that does not answer within the limit gets the file unlocked again (another node)."""
+ LINK='https://node7.example-debrid.test/dl/abc/file.mkv'
+ def fake(self,delays):
+  """An opener that answers (200/206) after the given delays in turn, or never (None); the requests it saw are kept."""
+  seen=[];order=iter(delays)
+  def opener(request,timeout):
+   seen.append((request.full_url,dict(request.header_items())));delay=next(order,None)
+   if delay is None:time.sleep(timeout+0.2);raise TimeoutError('no answer')
+   time.sleep(delay)
+   class Answer:
+    status=206;left=1<<20
+    def getcode(self):return 206
+    def read(self,n=-1):
+     n=self.left if n is None or n<0 else min(n,self.left);self.left-=n;return b'x'*n
+    def __enter__(self):return self
+    def __exit__(self,*a):return False
+   return Answer()
+  opener.seen=seen;return opener
+ def home(self,link=LINK,fresh_ok=True):
+  return types.SimpleNamespace(getProperty=lambda key:json.dumps({'source':link,'link':'https://debrid.example/locked/abc','size':1,'filename':'f.mkv'}))
+ def test_the_first_answer_of_several_connections_counts(self):
+  opener=self.fake([None,0.05])
+  waited=remote.first_byte(self.LINK,limit=1.0,tries=2,open_url=opener)
+  self.assertIsNotNone(waited);self.assertLess(waited,0.5);self.assertEqual(len(opener.seen),2)
+  self.assertEqual(opener.seen[0][1].get('Range'),'bytes=0-65535')
+ def test_headers_without_data_do_not_count(self):
+  # build 660 (log bbd44482): the server answered at once, then sat on the real read for 28 s
+  def opener(request,timeout):
+   class Slow:
+    status=206
+    def getcode(self):return 206
+    def __enter__(self):return self
+    def __exit__(self,*a):return False
+    def read(self,n=-1):time.sleep(timeout+0.2);raise TimeoutError('stalled')
+   return Slow()
+  started=time.monotonic();self.assertIsNone(remote.first_byte(self.LINK,limit=0.3,tries=2,open_url=opener));self.assertLess(time.monotonic()-started,1.5)
+ def test_a_server_that_never_answers_gives_none_at_the_limit(self):
+  started=time.monotonic();self.assertIsNone(remote.first_byte(self.LINK,limit=0.3,tries=2,open_url=self.fake([None,None])));self.assertLess(time.monotonic()-started,1.5)
+ def test_kodis_header_suffix_is_sent(self):
+  opener=self.fake([0.0]);remote.first_byte(self.LINK+'|User-Agent=Kodi%2F21',limit=1.0,tries=1,open_url=opener)
+  self.assertEqual(opener.seen[0][0],self.LINK);self.assertEqual(opener.seen[0][1].get('User-agent'),'Kodi/21')
+ def test_a_server_that_answers_keeps_its_link_and_nothing_is_unlocked(self):
+  renewed=[];lines=[]
+  got=remote.preflight(self.LINK,self.home(),check=lambda url,limit:0.4,renew=lambda record:renewed.append(1) or 'x',log=lines.append)
+  self.assertEqual((got,renewed),(self.LINK,[]));self.assertIn('answered in 400 ms',lines[0])
+ def test_a_silent_server_gets_the_file_unlocked_again_and_the_new_link_is_used(self):
+  fresh='https://node2.example-debrid.test/dl/xyz/file.mkv';lines=[];asked=[]
+  def check(url,limit):asked.append(url);return None if url==self.LINK else 0.6
+  got=remote.preflight(self.LINK,self.home(),check=check,renew=lambda record:fresh,log=lines.append)
+  self.assertEqual(got,fresh);self.assertEqual(asked,[self.LINK,fresh]);self.assertIn('unlocked again answered in 600 ms',lines[0])
+ def test_if_the_new_link_is_silent_too_the_old_one_is_played_as_before(self):
+  lines=[];got=remote.preflight(self.LINK,self.home(),check=lambda url,limit:None,renew=lambda record:'https://node2.example-debrid.test/x.mkv',log=lines.append)
+  self.assertEqual(got,self.LINK);self.assertIn('did not answer either',lines[0])
+ def test_no_unlock_possible_or_a_failing_unlock_never_blocks_the_open(self):
+  none=types.SimpleNamespace(getProperty=lambda key:'')
+  self.assertEqual(remote.preflight(self.LINK,none,check=lambda url,limit:None,renew=lambda r:'y'),self.LINK)
+  def boom(record):raise RuntimeError('unlock refused')
+  lines=[];self.assertEqual(remote.preflight(self.LINK,self.home(),check=lambda url,limit:None,renew=boom,log=lines.append),self.LINK);self.assertIn('preflight failed',lines[0])
+  same=remote.preflight(self.LINK,self.home(),check=lambda url,limit:None,renew=lambda r:self.LINK);self.assertEqual(same,self.LINK)   # the same address again is not another node
+ def test_the_log_lines_carry_no_address(self):
+  lines=[];remote.preflight(self.LINK,self.home(),check=lambda url,limit:None,renew=lambda r:'https://node2.example-debrid.test/x.mkv',log=lines.append)
+  remote.preflight(self.LINK,self.home(),check=lambda url,limit:0.1,log=lines.append)
+  for text in lines:self.assertNotIn('http',text);self.assertNotIn('example-debrid',text)
+ def test_the_direct_routes_of_for_kodi_go_through_the_check(self):
+  text=(ROOT/'migration/bundled-bootstrap/resources/lib/remote_media.py').read_text()
+  self.assertEqual(text.count('return _direct(source,home)'),2)         # the slow-server shortcut and the cache that did not answer
+  self.assertIn('except ImportError:return source',text)                  # outside Kodi nothing is asked of the network
+
 if __name__=='__main__':unittest.main()

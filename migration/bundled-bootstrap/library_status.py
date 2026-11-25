@@ -101,6 +101,7 @@ def slim_rows(slots):
  for k,_ in slots:
   out[k+'pos']='' if k not in live else 'only' if len(live)==1 else 'first' if k==live[0] else 'last' if k==live[-1] else 'mid'
  out['run.heading']='WORKING NOW \u00b7 %d'%len(live) if live else ''
+ out['run.resume']='true' if any('for playback' in str(out.get(k+'status','')) for k in live) else ''   # Resume now (ISSUE-483)
  return out
 
 def run(args=()):
@@ -442,6 +443,11 @@ def run(args=()):
   def onClick(self,control):
    if control==library_page.BACK:self.go_back()
    elif control==library_page.CHECK:self.check()
+   elif control==library_page.RESUME:
+    import slowdown
+    slowdown.force_run(xbmcgui.Window(10000))
+    xbmc.log('Kodi iOS Library status: Resume now pressed; work that waited for a play goes on',xbmc.LOGINFO)
+    dialog.notification('Kodi iOS','Downloads and uploads go on',xbmcgui.NOTIFICATION_INFO,3000);self.refresh(force=True)
    elif control in (library_page.EDIT,library_page.VIEW_QUEUE):
     # Waiting › Edit order: the Queue page (▲ ▼); this page shows the new order when it comes back.
     tool_windows.open_queue(profile);self.refresh(force=True)

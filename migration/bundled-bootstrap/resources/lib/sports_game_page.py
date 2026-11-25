@@ -54,7 +54,7 @@ def _sources(p):
 
 def page(p):
     header = p.nav_button(BACK, 32, 5, 'chevron-left.png', 'noop')
-    header += p.nav_button(REFRESH, 940, 5, p.MEDIA + 'hdr_refresh.png', 'noop', glyph_size=60).replace(p.WHITE, p.ACCENT)
+    # No refresh button: ESPN's answer is kept fresh by the service (sports_data loop), so nothing needs refreshing by hand (owner, build 619)
     content = u.group(p, 134, header) + hero.hero(p)
     auto = p.pill_button(AUTO, PILL_X, 27, PILL_W, 128, 'Play', [('', 'noop')], 'primary', 'play.png', inline=True)
     content += u.group(p, 182, auto, u.has('sources.count'))

@@ -35,6 +35,13 @@ if [[ ! -f "$WORK/fixtures/coalesced.mp4" ]]; then
     -c:a aac -b:a 64k -c:s mov_text -metadata kodi_airplay_prepared=1 \
     -movflags empty_moov+default_base_moof+frag_keyframe+use_metadata_tags -min_frag_duration 30000000 "$WORK/fixtures/coalesced.mp4"
 fi
+if [[ ! -f "$WORK/fixtures/two_aac.mkv" ]]; then
+  # Two copied AAC tracks (one shared audio lane in the remuxer): the TV can pick the track that priming did not.
+  ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=128x72:rate=24:duration=40' \
+    -f lavfi -i 'sine=frequency=440:duration=40' -f lavfi -i 'sine=frequency=660:duration=40' \
+    -map 0:v -map 1:a -map 2:a -c:v libx264 -preset ultrafast -g 48 -sc_threshold 0 -c:a aac -b:a 64k \
+    -metadata:s:a:0 language=eng -metadata:s:a:1 language=spa "$WORK/fixtures/two_aac.mkv"
+fi
 if [[ ! -f "$WORK/fixtures/coalesced-b.mp4" ]]; then
   ffmpeg -hide_banner -loglevel error -y -i "$WORK/fixtures/coalesced.mp4" -map 0 \
     -c:v libx264 -preset veryfast -g 48 -bf 3 -sc_threshold 0 -fps_mode passthrough -c:a copy -c:s copy \
@@ -90,6 +97,36 @@ if [[ ! -f "$WORK/fixtures/long_big.mkv" ]]; then
     -c:v libx264 -preset ultrafast -g 20 -b:v 600k -c:a aac -b:a 64k "$WORK/fixtures/long_big.mkv"
 fi
 # A cue seek far into a large movie must obey the whole-request subtitle deadline.
+for layout in indexed fragmented; do
+  if [[ ! -f "$WORK/fixtures/audio_replay_$layout.mp4" ]]; then
+    flags=+faststart
+    [[ "$layout" == fragmented ]] && flags=empty_moov+default_base_moof+frag_keyframe
+    ffmpeg -hide_banner -loglevel error -y -i "$WORK/fixtures/long_big.mkv" \
+      -map 0:v -map 0:a -c copy -movflags "$flags" "$WORK/fixtures/audio_replay_$layout.mp4"
+  fi
+done
+# empty_moov leaves duration zero: advertise the finite synthetic movie duration,
+# as the app's prepared writer does, rather than probing only the first fragment.
+python3 -B - "$WORK/fixtures/audio_replay_fragmented.mp4" <<'PY'
+import struct,sys
+from pathlib import Path
+p=Path(sys.argv[1]);data=bytearray(p.read_bytes())
+def walk(start,end):
+    at=start
+    while at+8<=end:
+        size,kind=struct.unpack_from('>I4s',data,at)
+        if size<8 or at+size>end:break
+        if kind in (b'moov',b'trak',b'mdia'):walk(at+8,at+size)
+        if kind in (b'mvhd',b'mdhd'):
+            assert data[at+8]==0,'fixture expects version-zero duration fields'
+            scale=struct.unpack_from('>I',data,at+20)[0]
+            struct.pack_into('>I',data,at+24,round(1300*scale))
+        if kind==b'tkhd':
+            assert data[at+8]==0
+            struct.pack_into('>I',data,at+28,1300000)
+        at+=size
+walk(0,len(data));p.write_bytes(data)
+PY
 if [[ ! -f "$WORK/fixtures/long_sub.mkv" ]]; then
   ffmpeg -hide_banner -loglevel error -y -i "$WORK/fixtures/long_big.mkv" -i "$WORK/fixtures/subs.srt" \
     -map 0:v -map 0:a -map 1:s -c copy "$WORK/fixtures/long_sub.mkv"
@@ -112,7 +149,7 @@ if grep -q -- '--enable-libx265' "$FF/FFMPEG-CONFIG.txt"; then
   read -r -a X265_LIBS <<< "$(pkg-config --libs x265)";EXTRA+=("${X265_LIBS[@]}")
 fi
 [[ "$(uname -s)" == Darwin ]] && EXTRA+=(-framework Security -framework CoreFoundation -liconv) || EXTRA+=(-ldl)
-cc -std=gnu11 -O1 -g -Wall -Wextra -Wno-format-truncation -Wno-unused-parameter -Wno-sign-compare -I"$FF/include" -I"$ASS/include" \
+cc -std=gnu11 -DKR_REMUX_TEST -O1 -g -Wall -Wextra -Wno-format-truncation -Wno-unused-parameter -Wno-sign-compare -I"$FF/include" -I"$ASS/include" \
   "$HERE/test_remux.c" "$R"/src/*.c "$R"/gmplayer/*.c "${LIBS[@]}" "${EXTRA[@]}" -o "$WORK/test_remux"
 : > "$WORK/port"
 python3 -B "$HERE/range_server.py" "$WORK/fixtures" > "$WORK/port" & SERVER=$!

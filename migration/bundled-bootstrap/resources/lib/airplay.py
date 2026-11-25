@@ -192,6 +192,32 @@ def log_text(line):
   return '[URL redacted]'
  return diagnostics.redact(re.sub(r'https?://[^\s\"\']+',stream,str(line)))
 ENDED=('player: closed','player: stopped')
+def cast_ended():
+ try:
+  import cast_cache;cast_cache.SEEK.disarm()   # a TV seek no longer starts the fill (the cast is over)
+ except Exception:pass
+ try:
+  import xbmcgui;xbmcgui.Window(10000).setProperty(PLAY_ARGS,'')   # nothing to start again once the cast is over
+ except Exception:pass
+PLAY_ARGS='KodiIOS.AirPlayPlayArgs'   # what kodi_airplay_play was given (in memory only, never logged: the source can hold a private address)
+def remember_play(window,source,title):
+ import json
+ window.setProperty(PLAY_ARGS,json.dumps({'source':source,'title':title or ''}))
+def restart(lib,window,position,now=None,log=lambda text:None):
+ """Starts the same stream again on the TV from `position` (a stalled cast, airplay_recover.py): Apple's player closed, the start moved to where the TV was, the stream
+ played again. False when there is nothing to play again. The route the owner chose stays; the native side opens its list again only if no device is chosen."""
+ import json,time
+ try:args=json.loads(window.getProperty(PLAY_ARGS) or '{}')
+ except ValueError:args={}
+ if not args.get('source') or not hasattr(lib,'kodi_airplay_play'):return False
+ mark_busy(window,time.time() if now is None else now)   # busy, not 'starting': the Drive read-ahead hold of a start is not wanted here
+ try:
+  lib.kodi_airplay_close()
+  if hasattr(lib,'kodi_airplay_start_at'):lib.kodi_airplay_start_at(float(position))
+  lib.kodi_airplay_play(args['source'].encode('utf-8'),args.get('title','').encode('utf-8'))
+ except Exception as error:
+  log('airplay recover: restart failed (%s)'%type(error).__name__);return False
+ return True
 def mark_busy(window,now):window.setProperty(BUSY,'%.0f'%now)
 def clear_busy(window):window.setProperty(BUSY,'')
 # Roadmap 1G.3: Play on TV has paused Kodi and is starting. Kodi's file cache keeps reading ahead of a paused video
@@ -242,7 +268,10 @@ def activity(lines,window,now):
  try:
   import slowdown;slowdown.note_served(lines,now)
  except Exception:pass
- if any(end in line for line in lines for end in ENDED) and not any('start:' in line for line in lines):clear_busy(window);clear_serve(window)
+ try:
+  import cast_cache;cast_cache.DIAG.feed(lines);cast_cache.SEEK.feed(lines)   # the 30 s line of the cast diagnostics (no URL, id or token); a TV seek starts the fill there
+ except Exception:pass
+ if any(end in line for line in lines for end in ENDED) and not any('start:' in line for line in lines):clear_busy(window);clear_serve(window);window.setProperty('KodiIOS.CastCushion','');cast_ended()
  else:
   mark_busy(window,now)
   # A TV fed by the phone's server keeps its mark while it asks for the video (its GET lines).

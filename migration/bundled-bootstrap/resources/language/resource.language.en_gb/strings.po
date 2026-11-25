@@ -83,3 +83,7 @@ msgstr ""
 msgctxt "#32030"
 msgid "Make downloads ready while they copy"
 msgstr ""
+
+msgctxt "#32031"
+msgid "Pause The Loop's background work"
+msgstr ""

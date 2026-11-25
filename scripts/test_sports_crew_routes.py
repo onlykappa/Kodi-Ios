@@ -168,6 +168,33 @@ class Tests(unittest.TestCase):
   self.assertEqual([x.name for x in found],['Crew NBA','Crew NHL','Crew Live sites'])   # no filter: as before
   with patch.object(crew,'_home',lambda:Home('MLB')):
    self.assertEqual(crew.discover(lambda route:self.fail('no MLB game is live'),schedule=[nba,nhl]),[])
+ def test_soccer_and_leagues_without_a_crew_menu_still_get_a_search(self):
+  # Build 615 log: a Bundesliga game on for 25 minutes found no sources: the schedule given to Crew held only American leagues ("0 live"), so
+  # nothing was looked for. Soccer of every league uses Crew's soccer menu; a league with no menu of its own uses the all-sites menu.
+  from unittest.mock import patch
+  class Home:
+   def __init__(self,league):self.league=league
+   def getProperty(self,key):return self.league if key==crew.ONLY_LEAGUE else ''
+  entries=[entry('Soccer','?action=fifa'),entry('NBA','?action=nba'),entry('Live sites','?action=fullsites')]
+  for code in ('BUN','EPL','UCL','LIG1','MLS'):
+   game=dict(GAME,league=code,league_name=code,state='live')
+   with patch.object(crew,'_home',lambda c=code:Home(c)):
+    found=crew.discover(lambda route:entries,schedule=[game])
+   self.assertEqual([x.name for x in found],['Crew Soccer'],code)   # its own league menu, not the all-sites menu
+  lpga=dict(GAME,league='LPGA',league_name='LPGA',state='live')
+  with patch.object(crew,'_home',lambda:Home('LPGA')):
+   found=crew.discover(lambda route:entries,schedule=[lpga])
+  self.assertEqual([x.name for x in found],['Crew Live sites'])   # no menu of its own: the all-sites menu is the only way to find it
+ def test_the_schedule_for_crew_covers_every_league_or_just_the_games(self):
+  from unittest.mock import patch
+  import sports_espn
+  seen=[]
+  class Fake:
+   def __init__(self,fetch=None,leagues=None):seen.append(leagues)
+   def _load(self):return {'live':[],'upcoming':[]}
+  with patch.object(sports_espn,'EspnProvider',Fake):
+   crew.schedule();crew.schedule('BUN')
+  self.assertEqual(seen,[None,{'BUN'}])
  def test_crews_ufc_f1_and_pga_menus_are_scanned_for_their_leagues(self):
   from unittest.mock import patch
   class Home:
@@ -429,7 +456,20 @@ class Tests(unittest.TestCase):
    with patch.object(crew,'_home',return_value=home),patch.dict(sys.modules,{'xbmc':xbmc}):
     self.assertEqual(crew.listing(ROOT+'?action=nba',session='open:fixture'),[])
    self.assertEqual(bool(calls),not bool(owner))
-   self.assertTrue(all(x=='Dialog.Close(busydialognocancel)' for x in calls))
+   self.assertTrue(all(x in ('Dialog.Close(busydialognocancel)','Dialog.Close(busydialog)') for x in calls))
+ def test_a_background_search_never_leaves_crews_busy_dialog_up(self):
+  # Build 616 log: the prefetch search listed Crew's menus with no game page open (no valid session), so nothing closed the modal busy dialog.
+  import time
+  props={};calls=[]
+  home=NS(getProperty=lambda k:props.get(k,''),setProperty=lambda k,v:props.__setitem__(k,v),clearProperty=lambda k:props.pop(k,None))
+  def rpc(payload):
+   time.sleep(.3)
+   return json.dumps({'result':{'files':[]}})
+  xbmc=NS(executeJSONRPC=rpc,getCondVisibility=lambda x:'busydialog' in x,executebuiltin=lambda x:calls.append(x),Player=lambda:NS(isPlayingVideo=lambda:False))
+  with patch.object(crew,'_home',return_value=home),patch.dict(sys.modules,{'xbmc':xbmc}):
+   crew.listing(ROOT+'?action=fifa')           # no session at all
+  self.assertTrue(len(calls)>=4)
+  self.assertEqual(set(calls),{'Dialog.Close(busydialognocancel)','Dialog.Close(busydialog)'})
  def test_reopens_native_menu_chain_after_another_league_clears_regex_cache(self):
   old=ROOT+'?action=play&url=%24doregex%5Bmakelist2%5D%7Cregex%3Dold'
   fresh=ROOT+'?action=play&url=%24doregex%5Bmakelist2%5D%7Cregex%3Dfresh&content=0'
@@ -441,8 +481,35 @@ class Tests(unittest.TestCase):
    if route==parent:return [entry('Alpha vs Beta',fresh.removeprefix(ROOT),False)]
    self.fail('old cached folder used')
   link=crew.CrewLink(old,[{'address':root,'label':'Crew NBA'},{'address':ROOT+'?action=xdirectory&url=expired-parent','label':'NBA LIVE (CS)'}],GAME).to_dict()
+  link['at']-=crew.DIRECT_FOR+1   # found long ago: its folder address may have expired, so the whole chain is reopened
   self.assertEqual(crew.refresh_link(link,read),fresh)
   self.assertEqual(calls,[root,parent]);self.assertEqual(link['address'],old)
+ def test_a_recent_link_opens_its_own_folder_directly(self):   # bug 1 (owner 2026-11-21): about 1 s of every Sports tap reopened Crew's root
+  fresh=ROOT+'?action=play&url=%24doregex%5Bmakelist2%5D%7Cregex%3Dfresh&content=0'
+  root=ROOT+'?action=nba';parent=ROOT+'?action=xdirectory&url=parent'
+  calls=[]
+  def read(route):
+   calls.append(route)
+   return [entry('Alpha vs Beta',fresh.removeprefix(ROOT),False)] if route==parent else [entry('NBA LIVE (CS)','?action=xdirectory&url=parent')]
+  link=crew.CrewLink(ROOT+'?action=play&url=old',[{'address':root,'label':'Crew NBA'},{'address':parent,'label':'NBA LIVE (CS)'}],GAME).to_dict()
+  self.assertEqual(crew.refresh_link(link,read),fresh);self.assertEqual(calls,[parent])   # one listing instead of two
+ def test_a_recent_link_whose_folder_lost_it_reopens_the_chain(self):
+  fresh=ROOT+'?action=play&url=fresh';root=ROOT+'?action=nba';parent=ROOT+'?action=xdirectory&url=parent'
+  calls=[];state={'n':0}
+  def read(route):
+   calls.append(route)
+   if route==root:return [entry('NBA LIVE (CS)','?action=xdirectory&url=parent')]
+   state['n']+=1
+   return [] if state['n']==1 else [entry('Alpha vs Beta',fresh.removeprefix(ROOT),False)]   # first direct look: gone; after the root: there
+  link=crew.CrewLink(ROOT+'?action=play&url=old',[{'address':root,'label':'Crew NBA'},{'address':parent,'label':'NBA LIVE (CS)'}],GAME).to_dict()
+  self.assertEqual(crew.refresh_link(link,read),fresh);self.assertEqual(calls,[parent,root,parent])
+ def test_a_folder_address_built_by_a_parent_rule_is_never_opened_alone(self):
+  root=ROOT+'?action=nba';parent=ROOT+'?action=xdirectory&url=%24doregex%5Bp%5D';calls=[]
+  def read(route):
+   calls.append(route)
+   return [entry('NBA LIVE (CS)',parent.removeprefix(ROOT))] if route==root else [entry('Alpha vs Beta','?action=play&url=x',False)]
+  link=crew.CrewLink(ROOT+'?action=play&url=x',[{'address':root,'label':'Crew NBA'},{'address':parent,'label':'NBA LIVE (CS)'}],GAME).to_dict()
+  crew.refresh_link(link,read);self.assertEqual(calls[0],root)
  def test_unresolved_legacy_expression_is_rejected_without_menu_provenance(self):
   with self.assertRaises(RuntimeError):crew.refresh_link({'address':ROOT+'?action=play&url=%24doregex%5Bmakelist2%5D%7Cregex%3Dmissing'})
  def test_refresh_refuses_missing_ambiguous_or_wrong_game(self):

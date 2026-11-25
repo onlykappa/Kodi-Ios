@@ -131,6 +131,7 @@ class BundleTests(unittest.TestCase):
   # Kodi's splash off for every install: special://xbmc/system/advancedsettings.xml, read before the profile's file.
   self.assertEqual(ET.parse(base/'system/advancedsettings.xml').getroot().findtext('splash'),'false')
   self.assertEqual(ET.parse(base/'system/advancedsettings.xml').getroot().findtext('playlisttimeout'),'0')
+  self.assertEqual(ET.parse(base/'system/advancedsettings.xml').getroot().findtext('network/curllowspeedtime'),'8')   # a stalled loopback read no longer holds a stop for 26 s (build 634 logs)
   self.assertEqual(receipt['splash']['path'],'advancedsettings.xml');self.assertFalse((self.app/'AppData/AppHome/system/advancedsettings.xml').exists())
  def elementum_inputs(self):
   inputs=self.root/'elementum';inputs.mkdir();files={}

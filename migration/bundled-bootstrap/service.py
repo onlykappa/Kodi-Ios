@@ -1,5 +1,9 @@
 import json,os,sys,time,threading
 _IMPORT_STARTED=time.monotonic()
+sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
+try:   # first thing: every add-on builds its SSL contexts later, and the phone's default has no CA roots (tls_roots.py: Crew's streamers failed TLS, build 623)
+ import tls_roots;_TLS_ROOTS=tls_roots.apply()
+except Exception:_TLS_ROOTS=''
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
 # Request the navigation UI before importing the setup/generator/provider stack. Recovery runs beside the existing
@@ -11,10 +15,15 @@ if __name__=='__main__' and not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
   import native_ui
   threading.Thread(target=native_ui.run,args=(xbmc,xbmcvfs,xbmc.Monitor()),daemon=True).start()
   _EARLY_UI_STARTED=True
+_PARTS=[('start',time.monotonic())]   # build 623 log f5848994: imports took 2.06 s on the phone (0.08 s on a computer) and a Sports tap in that time waited for them; this says which line
 from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,elementum_upload_cap,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
+_PARTS.append(('bootstrap',time.monotonic()))
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
+_PARTS.append(('navigation',time.monotonic()))
 from startup import generate,failure,LOCK,FUSE
+_PARTS.append(('startup',time.monotonic()))
 import airplay,notices,updates,threading,diagnostics,transfer_control
+_PARTS.append(('airplay..transfer_control',time.monotonic()))
 class _Late:
  """A module imported on first use (performance 1E.4: 1.74 s of imports before the service ran; portrait.py alone is
  147 KB). Each of these is first used in a worker thread or well after start-up, so the import leaves the main path."""
@@ -30,16 +39,147 @@ def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
  if not xbmc.getCondVisibility('System.Platform.IOS'):return
  begun=time.monotonic()
- xbmc.log('Kodi iOS startup: bootstrap entered (imports %.3fs)'%_IMPORT_SECONDS,xbmc.LOGINFO)
+ xbmc.log('Kodi iOS startup: TLS roots %s'%('set from certifi for every add-on' if _TLS_ROOTS else 'left as they were (SSL_CERT_FILE %s)'%('is a file' if os.path.isfile(os.environ.get('SSL_CERT_FILE','')) else 'is not set; certifi not found')),xbmc.LOGINFO)
+ xbmc.log('Kodi iOS startup: bootstrap entered (imports %.3fs: %s)'%(_IMPORT_SECONDS,', '.join('%s %.2f'%(b[0],b[1]-a[1]) for a,b in zip(_PARTS,_PARTS[1:]))),xbmc.LOGINFO)
  monitor=xbmc.Monitor()
  root=Path(__file__).resolve().parent;profile=Path(xbmcvfs.translatePath('special://profile/')).resolve()
  diagnostics.configure(root,profile)
  diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'startup','installed_build',
   kodi=xbmc.getInfoLabel('System.BuildVersion'),os=xbmc.getInfoLabel('System.OSVersion'),python=sys.version.split()[0])
  window=xbmcgui.Window(10000);state={'stage':'prepare'};generated=False
+ # ESPN's games, scores and times are fetched here and kept on the phone, so every Sports page opens on a current answer without asking ESPN itself
+ # (owner, build 619: "it should always know what is live and upcoming ... load instantly ... never need to refresh"). Faster while Sports is in use.
+ def sports_data_loop():
+  import sports_provider,cache_tune
+  home=xbmcgui.Window(10000)
+  # Build 623 (owner: the Sports hub must be instant after a force-quit): this thread starts first thing, loads the hub's modules so the first page open
+  # finds them ready, and asks ESPN at once (build 622 waited 0.5 s, and the thread itself only started at the end of set-up).
+  try:
+   import sports,sports_upcoming,sports_live,sports_leagues,sports_rows,sports_filter,sports_hybrid,sports_espn
+  except Exception:pass
+  said=[False,False]
+  while True:
+   live=False
+   try:
+    if xbmc.Player().isPlayingVideo():raise RuntimeError('video playing')
+    provider=sports_provider.real()
+    began=time.time();provider.refresh(block=True)
+    live=bool(provider.live_games())
+    if not said[1]:   # build 620 log had no sign of this loop: say once that it saved an answer, and how long ESPN took
+     said[1]=True;xbmc.log('Kodi iOS Sports: background refresh: ESPN saved in %.1f s (%d live)'%(time.time()-began,len(provider.live_games())),xbmc.LOGINFO)
+   except Exception as error:
+    if not said[0]:said[0]=True;xbmc.log('Kodi iOS Sports: background refresh: %s'%type(error).__name__,xbmc.LOGINFO)
+   try:idle=time.time()-float(home.getProperty('KodiIOS.SportsSeen') or 0)
+   except ValueError:idle=1e9
+   wait=(10 if live else 30) if idle<900 else 60 if idle<6*3600 else 300
+   try:
+    if cache_tune.link_kind()=='cellular':wait*=3   # cellular: a third of the requests
+    if xbmc.Player().isPlayingVideo():wait=max(wait,60)   # never competes with a video for the connection
+   except Exception:pass
+   if monitor.waitForAbort(wait):return
+ threading.Thread(target=sports_data_loop,daemon=True).start()
+ def dns_override_loop():
+  # Build 634 log 89646295: the phone's DNS gives Crew's embedsports host addresses that fail TLS, DNS over HTTPS gives one that works (dns_override.py)
+  import dns_override,sports_crew_patch
+  log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
+  try:sports_crew_patch.ensure(lambda text:log('Sports: '+text))   # Crew's module gets the lookup wrapper before the first game, not at it
+  except Exception:pass
+  file=dns_override.path()
+  if file:dns_override.watch(file,monitor.waitForAbort,log)
+ threading.Thread(target=dns_override_loop,daemon=True).start()
+ def continue_guard_loop():
+  # Build 634 log 4b37fc5b: Continue's remembered Umbrella link did not open (30 s, then "could not open file") and the person was left with nothing: when the
+  # link has not put a picture up in 25 s, or Kodi shows its failure box, play the title the normal way (continue_guard.py)
+  import continue_guard
+  home=xbmcgui.Window(10000);player=xbmc.Player()
+  box=lambda:xbmc.getCondVisibility('Window.IsActive(yesnodialog) | Window.IsActive(okdialog)')
+  def close_boxes():
+   for name in ('yesnodialog','okdialog'):xbmc.executebuiltin('Dialog.Close(%s,true)'%name)
+  playing=lambda:bool(player.isPlayingVideo()) and xbmc.getCondVisibility('Player.HasVideo') and player.getTime()>0.5
+  circle=continue_guard.Circle(home,playing,box,lambda:xbmc.getCondVisibility('Window.IsVisible(busydialognocancel)'),
+   lambda:xbmc.executebuiltin('ActivateWindow(busydialognocancel)'),lambda:xbmc.executebuiltin('Dialog.Close(busydialognocancel,true)'),lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+  def forget(item_key):
+   import importlib.util,xbmcaddon
+   lib=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.kodi.ios.watch').getAddonInfo('path'))+'/resources/lib/ios_continue.py'
+   spec=importlib.util.spec_from_file_location('ios_continue',lib);ios_continue=importlib.util.module_from_spec(spec);spec.loader.exec_module(ios_continue)
+   def read(location):
+    source=xbmcvfs.File(location)
+    try:return source.read()
+    finally:source.close()
+   def write(location,text):
+    target=xbmcvfs.File(location,'w')
+    try:target.write(text)
+    finally:target.close()
+   return ios_continue.forget_choice(read,write,item_key)
+  continue_guard.watch(home,playing,box,
+   lambda:player.stop(),close_boxes,lambda url:xbmc.executebuiltin('PlayMedia(%s)'%url),lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO),monitor.waitForAbort,
+   opened=lambda:bool(xbmc.getCondVisibility('Player.HasVideo')),circle=circle,probe=continue_guard.Probe(__import__('link_warm').link_answers),forget=forget,has_media=lambda:bool(xbmc.getCondVisibility('Player.HasMedia')))
+ threading.Thread(target=continue_guard_loop,daemon=True).start()
+ def link_warm_loop():
+  # Owner, 2026-11-23, log d78de521 (Wi-Fi): reading 1.3 MB of a link did nothing (the first Continue took 24.4 s to a picture); the kept opening (resume_cache)
+  # made the next two 6.6 s and 7.2 s. So the first 3 Continue Watching titles get their opening kept (resume_cache.capture), on Wi-Fi, only while nothing plays
+  # and the person has not touched the screen for 6 s, two blocks at a time (link_warm.watch picks the titles).
+  import link_warm,importlib.util,xbmcaddon,resume_cache,remote_media,cache_tune
+  lib=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.kodi.ios.watch').getAddonInfo('path'))+'/resources/lib/ios_continue.py'
+  spec=importlib.util.spec_from_file_location('ios_continue',lib);ios_continue=importlib.util.module_from_spec(spec);spec.loader.exec_module(ios_continue)
+  def read(location):
+   source=xbmcvfs.File(location)
+   try:return source.read()
+   finally:source.close()
+  home=xbmcgui.Window(10000);log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
+  busy=lambda:bool(xbmc.getCondVisibility('Player.HasVideo') or home.getProperty('KodiIOS.ContinueOpening'))
+  def keep(url,size,fraction=None,seconds=None):
+   began=home.getProperty('KodiIOS.OpenWanted')
+   return resume_cache.capture(url,fraction,lambda link:remote_media.Foreground(link),log=log,stop=lambda:busy() or home.getProperty('KodiIOS.OpenWanted')!=began,
+                               idle=lambda:xbmc.getGlobalIdleTime()>=resume_cache.IDLE_SECONDS,seconds=seconds)
+  link_warm.watch(lambda:ios_continue.entries(ios_continue.load(read),'all'),busy,monitor.waitForAbort,log,warm_it=keep,
+   allowed=lambda:cache_tune.link_kind()=='wifi')
+ threading.Thread(target=link_warm_loop,daemon=True).start()
+ def thumb_strip_loop():
+  # Owner, 2026-11-23: the seek bar's card shows the real frame near the finger. The first Continue Watching titles get their preview strip made in the background
+  # (thumb_strip.py; the AirPlay framework's kodi_thumbs_make), on Wi-Fi, only while nothing plays or opens.
+  import thumb_strip,airplay,importlib.util,xbmcaddon,cache_tune
+  lib_py=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.kodi.ios.watch').getAddonInfo('path'))+'/resources/lib/ios_continue.py'
+  spec=importlib.util.spec_from_file_location('ios_continue',lib_py);ios_continue=importlib.util.module_from_spec(spec);spec.loader.exec_module(ios_continue)
+  def read(location):
+   source=xbmcvfs.File(location)
+   try:return source.read()
+   finally:source.close()
+  home=xbmcgui.Window(10000);log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
+  busy=lambda:bool(xbmc.getCondVisibility('Player.HasVideo') or home.getProperty('KodiIOS.ContinueOpening') or home.getProperty('KodiIOS.OpenWanted') and time.time()-float(home.getProperty('KodiIOS.OpenWanted') or 0)<30)
+  path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'));root=thumb_strip.root_folder();said=[]
+  def make_it(link,total=0):
+   lib=airplay.cached_load(path)
+   if not thumb_strip.available(lib):
+    if not said:said.append(1);log('preview strip: this AirPlay framework cannot make them yet')
+    return
+   thumb_strip.make(lib,link,root,log,stop=lambda:busy() or cache_tune.link_kind()!='wifi',duration=total)   # a build that began on Wi-Fi ends when the phone leaves it (build 679 log: 25 MB on mobile data)
+  def drive_link(row):
+   # A Drive copy in Continue Watching: the app's own proxy's address for it (the same name the player uses, so the strip's folder is the one the card reads).
+   import drivelibrary
+   port=home.getProperty('KodiIOS.DriveProxy')
+   path=row.get('download_path') or row.get('path') or row.get('file') or ''
+   if not port.isdigit() or not path:return ''
+   return drivelibrary.direct_url(path,xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/'),int(port),ours=True) or ''
+  thumb_strip.watch(lambda:ios_continue.entries(ios_continue.load(read),'all'),busy,monitor.waitForAbort,log,make_it,root,
+   allowed=lambda:cache_tune.link_kind()=='wifi',drive_link=drive_link)
+ threading.Thread(target=thumb_strip_loop,daemon=True).start()
+ def ends_at_loop():
+  # The video controls' "Ends at" under the finger (ends_at.py): Kodi's own end time ignores a drag until it lands.
+  import ends_at,json
+  home=xbmcgui.Window(10000);player=xbmc.Player()
+  def tempo():
+   try:
+    answer=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Player.GetProperties','params':{'playerid':1,'properties':['tempo']}})))
+    return float(answer['result']['tempo'])
+   except Exception:return 1.0
+  ends_at.run(lambda:player.isPlayingVideo(),lambda:xbmc.getCondVisibility('Player.Seeking + Control.HasFocus(7131)'),lambda:xbmc.getInfoLabel('Player.SeekTime'),
+   lambda:player.getTotalTime(),tempo,lambda:xbmc.getRegion('time'),lambda text:home.setProperty(ends_at.PROPERTY,text),monitor.waitForAbort)
+ threading.Thread(target=ends_at_loop,daemon=True).start()
  keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
  window.setProperty('KodiIOS.Build',updates.installed_build(root))
+ window.setProperty('KodiIOS.ServiceStart',str(time.time()))   # library plays in the first seconds wait for the Drive proxy (ios_library.live_proxy_port)
  # Settings › AI Upscale's row: "On · 4K" or "Off" (the page updates it after each change).
  try:
   import picture,upscale_page,upscale_queue
@@ -50,6 +190,19 @@ def run():
   return {key:addon.getSettingBool(key) for key in ('background_transfers','drive_upload','prepare_downloads','airplay_button')}
  threading.Thread(target=diagnostics.watch,args=(profile,lambda message:xbmc.log(message,xbmc.LOGINFO),monitor.waitForAbort),
   kwargs={'settings':diagnostic_settings},daemon=True).start()
+ # A hint whether a VPN carries the phone's traffic (vpn_hint.py), logged whenever it changes, for the torrent popup and for comparing logs: names only, no addresses.
+ def vpn_look_loop():
+  import cache_tune,vpn_hint
+  last=None
+  while not monitor.waitForAbort(3):
+   try:
+    found=vpn_hint.current(cache_tune.local_address,cache_tune.interfaces)
+    key=(found['state'],found['route'],tuple(found['tunnels']))
+    if key!=last:
+     last=key;xbmc.log('Kodi iOS '+vpn_hint.line(found),xbmc.LOGINFO)
+    window.setProperty('KodiIOS.VPNLook',found['state'])
+   except Exception as error:xbmc.log('Kodi iOS vpn check: %s'%type(error).__name__,xbmc.LOGWARNING)
+ threading.Thread(target=vpn_look_loop,daemon=True).start()
  def stage(value):
   state['stage']=value
   xbmc.log('Kodi iOS startup: %s +%.3fs'%(value,time.monotonic()-begun),xbmc.LOGINFO)
@@ -208,7 +361,7 @@ def run():
   threading.Thread(target=later,daemon=True).start()
  import slowdown
  playback_lib=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
- slowdown.configure(lambda:slowdown.play_reason(airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time()),xbmc.getCondVisibility('Player.Caching'),xbmc.getCondVisibility('Player.HasVideo'),xbmcgui.Window(10000).getProperty('KodiIOS.Open')))   # ISSUE-309: an opening holds downloads too
+ slowdown.configure(lambda:slowdown.play_reason(airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time()),xbmc.getCondVisibility('Player.Caching'),xbmc.getCondVisibility('Player.HasVideo'),xbmcgui.Window(10000).getProperty('KodiIOS.Open'),forced=slowdown.forced_until(xbmcgui.Window(10000).getProperty(slowdown.FORCE_PROPERTY))))   # ISSUE-309: an opening holds downloads too; Resume now (ISSUE-483) releases a mark that never became a video
  # Build 207: one thread asks Kodi; the downloads only read its answer (slowdown.reason).
  threading.Thread(target=slowdown.watch,args=(monitor.waitForAbort,),kwargs={'log':lambda m:xbmc.log(m,xbmc.LOGINFO)},daemon=True).start()
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs. Each message also gets
@@ -235,8 +388,37 @@ def run():
      def publish(port):
       if port:home_window.setProperty(drive_proxy.PROPERTY,str(port))
       else:home_window.clearProperty(drive_proxy.PROPERTY)
+     # Playback cache (owner, 2026-11-20): Drive video blocks on the phone's temporary folder while it plays, filled in the background on Wi-Fi only,
+     # wiped the moment playback stops (and at every start, so a crash leaves nothing).
+     link=[0.0,'other']
+     def wifi_ok():
+      if time.time()-link[0]>15:
+       try:
+        import cache_tune
+        link[:]=[time.time(),cache_tune.link_kind()]
+       except Exception:link[:]=[time.time(),'other']
+      return link[1]!='cellular'
+     # owner log f93a3233 (build 657): Play on TV stops Kodi's player, and this wiped the cache and the filler exactly when the converter began reading the
+     # same Drive file. cast_cache.Keep keeps them while a TV is being fed and clears them once when it is over.
+     import cast_cache
+     def casting():
+      now=time.time();return airplay.starting(home_window,now) or airplay.busy(home_window,now) or airplay.serve_busy(home_window,now)
+     def clear_playback_cache():
+      try:drive_proxy.clear_cache()
+      except Exception as error:xbmc.log('Kodi iOS Drive cache: clear failed (%s)'%type(error).__name__,xbmc.LOGWARNING)
+     keep=cast_cache.Keep(casting,lambda:xbmc.Player().isPlaying(),clear_playback_cache,lambda text:xbmc.log(text,xbmc.LOGINFO))
+     class CacheCleaner(xbmc.Monitor):
+      def onNotification(self,sender,method,data):
+       if method=='Player.OnStop':keep.stopped()
+     cleaner=CacheCleaner()   # kept referenced for the life of the service
+     def cast_cache_loop():
+      while not monitor.waitForAbort(cast_cache.RECHECK):keep.tick()
+     threading.Thread(target=cast_cache_loop,daemon=True).start()
+     cast_cache.DIAG.log=lambda text:xbmc.log(text,xbmc.LOGINFO);cast_cache.DIAG.state=drive_proxy.filler_state   # one line every 30 s while a TV is fed
+     pacing=cast_cache.Pacing(casting,lambda:int(home_window.getProperty(cast_cache.CUSHION_PROPERTY) or 0),lambda text:xbmc.log(text,xbmc.LOGINFO))
      drive_proxy.supervise(lambda port:drive_proxy.start(drive.token,port=port,hold=lambda:airplay.starting(home_window),   # roadmap 1G.3
-                                   state_dir=profile/'addon_data/service.kodi.ios.bootstrap',log=lambda text:xbmc.log(text,xbmc.LOGINFO)),   # 1A.3
+                                   state_dir=profile/'addon_data/service.kodi.ios.bootstrap',log=lambda text:xbmc.log(text,xbmc.LOGINFO),   # 1A.3
+                                   cache_dir=str(Path(xbmcvfs.translatePath('special://temp/'))/'drive-playback-cache'),wifi_ok=wifi_ok,pace=pacing),
                            monitor.waitForAbort,publish,lambda text:xbmc.log(text,xbmc.LOGINFO),
                            nudge=lambda port:home_window.getProperty(drive_proxy.DEAD)==str(port) and (home_window.clearProperty(drive_proxy.DEAD) or True))
      return
@@ -259,12 +441,87 @@ def run():
   sports_reminders.watch(xbmcvfs.translatePath('special://profile/'),sports_provider.get,notify,monitor.waitForAbort,
                          log=lambda text:xbmc.log('Kodi iOS Sports '+text,xbmc.LOGINFO))
  threading.Thread(target=sports_reminder_loop,daemon=True).start()
+ # Sources for live games are looked for ahead of time (owner, 2026-11-20), one search at a time, never while a video plays or a game page searches.
+ def sports_prefetch_loop():
+  import sports_provider,sports_sources_prefetch
+  home=xbmcgui.Window(10000)
+  launched=time.time()
+  def busy():
+   # Not while a video plays or a game page searches, and not until the owner has opened Sports this session (build 616: the search began 30 s after
+   # launch, on the Home screen, and Crew's busy dialog covered it). Then for 3 hours.
+   if xbmc.Player().isPlayingVideo() or home.getProperty('KodiIOS.SportsCrewOnlyLeague'):return True
+   # Before Sports has been opened: from 30 s after launch, on Wi-Fi, so the first game's sources are ready when the owner gets there (sports_sources_prefetch.idle_for_search).
+   try:
+    import cache_tune
+    wifi=cache_tune.link_kind()=='wifi'
+   except Exception:wifi=False
+   if xbmc.getCondVisibility('System.HasModalDialog'):return True   # a dialog (Crew's, a chooser) is up: not now
+   if not xbmc.getCondVisibility('System.IdleTime(5)'):return True   # a finger touched the screen in the last 5 s: the pages draw first (owner, 2026-11-22, log 71e31b26: Sports pages took 2-5 s while the search ran back to back)
+   try:moving=float(xbmc.getInfoLabel('System.FPS') or 0)>=15   # the screen is animating or being scrolled: the look waits for it to settle
+   except ValueError:moving=False
+   return moving or sports_sources_prefetch.idle_for_search(home.getProperty('KodiIOS.SportsSeen'),launched,time.time(),wifi)
+  def poke():
+   if home.getProperty('KodiIOS.SportsPoke'):
+    try:opened=time.time()-float(home.getProperty('KodiIOS.SportsSeen') or 0)
+    except ValueError:opened=99
+    if opened<3:return False   # a Sports page is opening: it draws first (build 634 log: the hub's first frame took 1.6-1.9 s while the source search started with it)
+    home.clearProperty('KodiIOS.SportsPoke');return True
+   return False
+  sports_sources_prefetch.watch(sports_provider.get,busy,monitor.waitForAbort,log=lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO),poke=poke,first=sports_sources_prefetch.WARM_AFTER)
+ threading.Thread(target=sports_prefetch_loop,daemon=True).start()
+ # Safety net: a modal busy dialog nobody lowers is closed after 4 s unless a video is opening or playing (busy_watchdog.py).
+ def busy_watchdog_loop():
+  import busy_watchdog
+  busy_watchdog.watch(lambda name:xbmc.getCondVisibility('Window.IsVisible(%s)'%name),
+                      lambda:xbmc.getCondVisibility('Player.HasMedia') or xbmc.getCondVisibility('Player.Caching') or bool(xbmcgui.Window(10000).getProperty('KodiIOS.ContinueOpening')),
+                      lambda name:xbmc.executebuiltin('Dialog.Close(%s,true)'%name),monitor.waitForAbort,
+                      log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+ threading.Thread(target=busy_watchdog_loop,daemon=True).start()
+ # The Loop's background work stays off (owner, 2026-11-20; loop_quiet.py): checked at start and every 15 minutes, in case an update switched it on.
+ def loop_quiet_loop():
+  import loop_quiet
+  def rpc(method,params):
+   return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result') or {}
+  if monitor.waitForAbort(2):return   # before the Loop's own service has imported its scrapers (build 616 log: 45 failing imports at launch)
+  while True:
+   try:loop_quiet.apply(xbmcaddon.Addon().getSettingBool('loop_quiet'),rpc,str(profile/'addon_data/service.kodi.ios.bootstrap/loop-quiet.json'),log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+   except Exception as error:xbmc.log('Kodi iOS loop: check failed (%s)'%type(error).__name__,xbmc.LOGWARNING)
+   if monitor.waitForAbort(900):return
+ threading.Thread(target=loop_quiet_loop,daemon=True).start()
+ # Crew's client lacks the parseDOM name its own downloaded streamers call (build 616 log: "Streamer [generic] failed"): added once at start, for Movies and TV too.
+ def crew_alias():
+  try:
+   import sports_crew_patch
+   sports_crew_patch.ensure(lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+  except Exception as error:xbmc.log('Kodi iOS crew: alias check failed (%s)'%type(error).__name__,xbmc.LOGWARNING)
+ threading.Thread(target=crew_alias,daemon=True).start()
  # Roadmap 1C.1: "open timing" log line per video (tap to picture).
  import open_timing
+ # Owner, 2026-11-20 (a stream took 20 s to open): remember how fast each Umbrella source opened, so the version page lists the fast ones first.
+ import source_speed
+ _speed=source_speed.open_store()
+ def _credit(ok,via):
+  if via!='umbrella':return
+  done=source_speed.settle(xbmcgui.Window(10000),_speed,ok)
+  if done:xbmcgui.Window(10000).setProperty(open_timing.SOURCE,done[0])
+  if done:xbmc.log('Kodi iOS Umbrella source %s: %s'%(done[0],'opened in %.1f s from the choice to the streams being ready'%done[1] if done[1] is not None else 'did not open'),xbmc.LOGINFO)
+ open_timing.LISTENERS.append(_credit)
+ def _late(ok,via,seconds):
+  # The speed was only measured up to "streams ready"; the picture is what counts (build 698 log f12dfcdd: 12.8 s to ready, then stalls and no picture for 30 s).
+  if via!='umbrella':return
+  home=xbmcgui.Window(10000);name=home.getProperty(open_timing.SOURCE);fp=home.getProperty(source_speed.PICK_FILE)
+  if not name:return
+  if ok:
+   _speed.ok(name,seconds)
+   if seconds>=source_speed.LATE_SLOW:_speed.bad(fp)
+  else:
+   _speed.fail(name);_speed.bad(fp)
+  xbmc.log('Kodi iOS Umbrella source %s: %s'%(name,'first picture after %.1f s%s'%(seconds,' (slow: ranked last for a while)' if ok and seconds>=source_speed.LATE_SLOW else '') if ok else 'no picture (ranked last for a while)'),xbmc.LOGINFO)
+ open_timing.LATE.append(_late)
  import cache_tune   # roadmap 1B.3: Kodi's cache read factor follows Wi-Fi / cellular, set as a video is about to open
  threading.Thread(target=open_timing.watch,args=(xbmcgui.Window(10000),lambda:xbmc.getCondVisibility('Player.HasVideo + Player.Playing'),
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),
-                  kwargs={'on_open':lambda:cache_tune.apply(xbmc,str(profile),lambda text:xbmc.log(text,xbmc.LOGINFO)),
+                  kwargs={'moving':lambda:xbmc.getCondVisibility('Player.Playing + !Player.Caching') and xbmc.Player().getTime()>0.4,'on_open':lambda:cache_tune.apply(xbmc,str(profile),lambda text:xbmc.log(text,xbmc.LOGINFO)),
                           'probe':lambda:{'media':xbmc.getCondVisibility('Player.HasMedia'),'video':xbmc.getCondVisibility('Player.HasVideo')}},daemon=True).start()
  # DEC-039 V2: each video starts with its own Saturation (Picture menu: this video, its show, or the default).
  def saturation_loop():
@@ -285,6 +542,20 @@ def run():
  threading.Thread(target=perf_summary.watch,args=(xbmcgui.Window(10000),open_timing.take,
                   lambda:drive_proxy.CURRENT[0].stats.take() if drive_proxy.CURRENT else {},
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),daemon=True).start()
+ # Owner, 2026-11-20 (Sports Upcoming and Favourites flick choppily): the frame rate while a finger is on the screen, per window, one line a minute.
+ import scroll_probe
+ _probe=scroll_probe.Probe(lambda:xbmc.getInfoLabel('System.FPS'),lambda:not xbmc.getCondVisibility('System.IdleTime(1)'),
+                           lambda:scroll_probe.page(xbmcgui.getCurrentWindowId(),xbmcgui.getCurrentWindowDialogId(),xbmc.getInfoLabel),lambda text:xbmc.log(text,xbmc.LOGINFO),
+                           lambda:xbmc.getCondVisibility('Player.HasVideo'))
+ threading.Thread(target=scroll_probe.watch,args=(_probe,monitor.waitForAbort),daemon=True).start()
+ # page_cover: a covering page that died leaves its token behind; with no modal dialog open nothing covers, so the list is cleared (every 2 s).
+ def cover_tidy():
+  import page_cover
+  home=xbmcgui.Window(10000)
+  while not monitor.waitForAbort(2):
+   try:page_cover.tidy(home,xbmc.getCondVisibility('System.HasActiveModalDialog'))
+   except Exception:pass
+ threading.Thread(target=cover_tidy,daemon=True).start()
  # Build 193: one status model for every page and the bell (work_state.py), every 2 s, with the reason stored.
  import work_state,slowdown
  # ISSUE-228 (owner: "cancel all upscaling isn't working"): the page's cancel / cancel all / order requests were applied only
@@ -379,7 +650,12 @@ def run():
     if airplay.slow_source(lines,xbmcgui.Window(10000),time.time()):
      notices.note('problem','AirPlay: this stream is too slow',airplay.SLOW_TEXT)
      xbmcgui.Dialog().notification('AirPlay',airplay.SLOW_TEXT,xbmcgui.NOTIFICATION_WARNING,10000)
-   threading.Thread(target=airplay_diagnostics.watch,args=(lib,profile,xbmcgui.Window(10000),lambda m:xbmc.log(m,xbmc.LOGINFO),monitor.waitForAbort),daemon=True).start()
+   import airplay_recover
+   def cast_stuck(position):
+    notices.note('problem','AirPlay: the TV is not receiving',airplay_recover.TEXT)
+    xbmcgui.Dialog().notification('AirPlay',airplay_recover.TEXT,xbmcgui.NOTIFICATION_WARNING,10000)
+   recover=airplay_recover.Recover(lambda position:airplay.restart(lib,xbmcgui.Window(10000),position,log=lambda m:xbmc.log('Kodi iOS '+m,xbmc.LOGINFO)),cast_stuck,lambda m:xbmc.log('Kodi iOS '+m,xbmc.LOGINFO))
+   threading.Thread(target=airplay_diagnostics.watch,args=(lib,profile,xbmcgui.Window(10000),lambda m:xbmc.log(m,xbmc.LOGINFO),monitor.waitForAbort),kwargs={'recover':recover},daemon=True).start()
    threading.Thread(target=airplay.relay,args=(lib,lambda m:xbmc.log(m,xbmc.LOGINFO),monitor.waitForAbort),
                     kwargs={'keep':lambda lines:(library_tools.note_airplay(profile,lines),airplay.activity(lines,xbmcgui.Window(10000),time.time()),
                                                   slow_note(lines))},daemon=True).start()
@@ -427,7 +703,7 @@ def drive_uploads(monitor,home,profile):
  playback_lib=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
  airplay_busy=lambda:airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time())
  import slowdown
- slowdown.configure(lambda:slowdown.play_reason(airplay_busy(),xbmc.getCondVisibility('Player.Caching'),xbmc.getCondVisibility('Player.HasVideo'),xbmcgui.Window(10000).getProperty('KodiIOS.Open')))   # ISSUE-309
+ slowdown.configure(lambda:slowdown.play_reason(airplay_busy(),xbmc.getCondVisibility('Player.Caching'),xbmc.getCondVisibility('Player.HasVideo'),xbmcgui.Window(10000).getProperty('KodiIOS.Open'),forced=slowdown.forced_until(xbmcgui.Window(10000).getProperty(slowdown.FORCE_PROPERTY))))   # ISSUE-309
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
  # ISSUE-267 / ISSUE-270: the app's patched copy first, whatever Kodi resolved, and nothing left from a moved copy.
  import pinned_addons;pinned_addons.use_clouddrive(xbmcaddon,xbmcvfs)
@@ -491,6 +767,14 @@ def drive_uploads(monitor,home,profile):
    if time.time()-link_seen[0]>15:link_seen[:]=[time.time(),cache_tune.link_kind()]
    return link_seen[1]=='cellular'
   except Exception:return False
+ cell_state={}
+ def slow_cell_hold():
+  """ISSUE-484: on cellular the copy crawled (0.03-0.2 MB/s) and used mobile data for nothing: it waits for Wi-Fi."""
+  try:
+   import cache_tune,debrid_drive
+   rate=sum(float(l.get('rate_own') or l.get('rate') or 0) for l in debrid_drive.uploads(profile))
+   return debrid_drive.slow_cellular(cell_state,cache_tune.link_kind(),rate,time.time())
+  except Exception:return False
  def debrid_loop():
   import alldebrid,debrid_drive,prepare_downloads,transfer_control
   delay=10
@@ -511,6 +795,7 @@ def drive_uploads(monitor,home,profile):
     notices.note('info','Downloads resumed','Uploads to Google Drive were paused from an earlier build; they are running again.')
   except Exception as error:xbmc.log('Kodi iOS transfers: pause reset skipped: %s'%diagnostics.error_text(error),xbmc.LOGWARNING)
   quiet=[None]
+  elementum_down=[0]
   def nap(seconds):
    # ISSUE-208: a Cancel or Cancel All wakes the copier within a second instead of after its wait (20-300 s).
    end=time.time()+seconds
@@ -539,7 +824,14 @@ def drive_uploads(monitor,home,profile):
     try:
      for tid in debrid_drive.adopt(profile,notices.torrent_list(),xbmc.Player().isPlayingVideo()):
       driveupload.remove_torrent(tid);xbmc.log('Kodi iOS AllDebrid to Drive: took %s from Elementum'%tid,xbmc.LOGINFO)
-    except Exception as error:xbmc.log('Kodi iOS AllDebrid to Drive: Elementum list unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
+     elementum_down[0]=0
+    except Exception as error:
+     # Build 615 log: Elementum's list was asked for every 20 s and failed every time. Ask less and less often while it does not answer
+     # (20 s, 40, 80 ... at most 5 minutes) and log the failure once, then every tenth time.
+     elementum_down[0]+=1
+     delay=min(300,20*2**min(elementum_down[0],4))
+     if elementum_down[0]==1 or elementum_down[0]%10==0:
+      xbmc.log('Kodi iOS AllDebrid to Drive: Elementum list unavailable (%s), asking again in %d s'%(type(error).__name__,delay),xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
    try:
     def ready_to_watch(item_id):return prepare_downloads.playback_ready(profile,prepare_downloads.metadata(drive,item_id))
     item_id=debrid_drive.next_watch(profile,ready_to_watch,xbmc.Player().isPlayingVideo())
@@ -553,6 +845,8 @@ def drive_uploads(monitor,home,profile):
    # E15: Copy only on Wi-Fi (Transfer settings): on cellular the copies wait, the card says so.
    if wifi_only_hold():
     debrid_drive.hold(profile,'wifi');delay=60;continue
+   if slow_cell_hold():
+    debrid_drive.hold(profile,'slow_cell');delay=30;continue
    debrid_drive.hold(profile,'')
    try:
     def done(job):
@@ -578,7 +872,7 @@ def drive_uploads(monitor,home,profile):
                               log=lambda text:xbmc.log('Kodi iOS AllDebrid: '+diagnostics.redact(text),xbmc.LOGINFO),hold=slowdown.holding,
                               quality=quality)
     delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text,group='':notices.add(profile,kind,title,text,group=group),ready_copy=ready_copy,
-                            keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not wifi_only_hold(),on_done=done,
+                            keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not wifi_only_hold() and not slow_cell_hold(),on_done=done,
                             cancelled=lambda:transfer_control.cancelled_copies(profile),
                             forget=lambda h:transfer_control.clear_cancelled(profile,h),
                             log=lambda text:xbmc.log('Kodi iOS AllDebrid: '+text,xbmc.LOGWARNING)) or 20
@@ -609,6 +903,7 @@ def drive_uploads(monitor,home,profile):
     if not accounts.get_accounts():continue
     done=drivelibrary.refresh_stale(state_dir)
     if done:log('Library lists refreshed from Google Drive: %s'%', '.join(done))
+    if done:xbmcgui.Window(10000).setProperty('KodiIOS.LibRefreshedAt',repr(time.time()))   # page_watch names a folder change that follows a refresh
     if any(slot.startswith('tv:') for slot in done):   # ISSUE-329: Drive problems reach Notifications
      try:
       import library_delete
@@ -623,6 +918,21 @@ def drive_uploads(monitor,home,profile):
     drive_health.update(ok=False,error="Can't reach Google Drive")
     diagnostics.log_exception(xbmc,'library_lists',error)
  threading.Thread(target=library_lists,daemon=True).start()
+ # Owner (2026-11-25): tapping outside the Resume / Play from beginning menu took them out of the show. One line whenever the page's folder changes, with what was going on (page_watch.py).
+ def page_watch_loop():
+  import page_watch
+  state={};home=xbmcgui.Window(10000)
+  while not monitor.waitForAbort(0.5):
+   try:
+    if not xbmc.getCondVisibility('Window.IsActive(videos)'):
+     state['path']=None;continue   # the first reading after coming back is only remembered
+    try:refreshed=float(home.getProperty('KodiIOS.LibRefreshedAt') or 0)
+    except ValueError:refreshed=0.0
+    line=page_watch.step(state,time.time(),xbmc.getInfoLabel('Container.FolderPath'),xbmc.getCondVisibility('Window.IsVisible(contextmenu)'),
+                         xbmc.getInfoLabel('Container.Content'),refreshed)
+    if line:xbmc.log(line,xbmc.LOGINFO)
+   except Exception as error:diagnostics.log_exception(xbmc,'page_watch',error)
+ threading.Thread(target=page_watch_loop,daemon=True).start()
  # DEC-052 (PR #27): one Library index every screen reads, rebuilt when its inputs change; the counter property makes
  # open pages redraw at once.
  import library_index

@@ -307,6 +307,15 @@ def continue_position(kind,tmdb_id,season,episode,read=None):
   return 0,0
 
 def fast_copy(handle,params,read_art=None,find=None,play=None,resume=None):
+ """A copy on the phone or Drive plays first (_fast_local); failing that, an Umbrella title being continued resumes from the link it was playing (fast_stream)."""
+ try:   # a title is being asked for: the service's background reading of the last stream's opening (resume_cache) lets go of the debrid server
+  import time,xbmcgui
+  xbmcgui.Window(10000).setProperty('KodiIOS.OpenWanted',str(time.time()))
+ except Exception:pass
+ if _fast_local(handle,params,read_art,find,play,resume):return True
+ return fast_stream(handle,params)
+
+def _fast_local(handle,params,read_art=None,find=None,play=None,resume=None):
  """Roadmap 1C.2 (owner logs: 1.4-2.1 s in TMDb Helper before a downloaded copy played): Next Episode, spotlight
  Play, show pages and Continue Watching play a copy already on the phone or Drive before TMDb Helper fetches details
  and builds its players. Only from saved data (art cache, saved Drive listing). Owner log 20b1ca76 (build 284): a
@@ -348,4 +357,117 @@ def fast_copy(handle,params,read_art=None,find=None,play=None,resume=None):
   return True
  except Exception as error:
   _quiet('ios_watch_dialog:fast_copy',error)
+  return False
+
+STREAM_FRESH=72*3600   # seconds a remembered Umbrella link is tried again (a debrid link lives for hours; _link_alive says when it does not). Owner, build 659 (log 4a05fc8f): a show watched 4+ hours earlier went the normal way (TMDb Helper 4.7 s, Umbrella 3 s, a slow server 28 s) instead of the remembered link; 4 h was too short
+
+def _link_alive(url,timeout=6):
+ """False only when the remembered link was refused or cannot be reached. A debrid server that is slow to answer (2-3 s to connect; build 639 log 9f7b4ab2:
+ the check timed out while the last stream's opening was still being kept from the same server, and Continue took the 22 s way through Umbrella) is not a
+ dead link: the continue guard plays the title the normal way when the link really does not open. Nothing of the address reaches the log."""
+ import socket,urllib.error,urllib.request,urllib.parse
+ address,_,tail=url.partition('|');headers={'Range':'bytes=0-0'}
+ headers.update({k:v for k,v in urllib.parse.parse_qsl(tail)})   # Kodi's own `|Header=value` suffix
+ try:
+  with urllib.request.urlopen(urllib.request.Request(address,headers=headers),timeout=timeout) as answer:
+   return answer.status in (200,206)
+ except urllib.error.HTTPError as error:
+  # 429 and 5xx say "busy", not "gone" (build 639 log aec66fce: a second Continue tapped while the first was still reading was "refused" and took the 10 s way through Umbrella)
+  return error.code==429 or error.code>=500
+ except (socket.timeout,TimeoutError):return True
+ except urllib.error.URLError as error:return isinstance(getattr(error,'reason',None),(socket.timeout,TimeoutError))
+ except Exception:return False
+
+def _opening_kept(url):
+ """True when the service has this link's opening on the phone."""
+ try:
+  import xbmcvfs,ios_library
+  ios_library.boot_path(xbmcvfs)
+  import resume_cache
+  return resume_cache.ready(url)
+ except Exception:return False
+
+def _cache_route(url,resume=None):
+ """The service's cache address for a remembered Umbrella link, or the link itself."""
+ try:
+  import xbmcgui,xbmcvfs,ios_library
+  ios_library.boot_path(xbmcvfs)
+  import remote_media
+  return remote_media.for_kodi(url,xbmcgui.Window(10000),resume=resume)
+ except Exception as error:
+  _quiet('ios_watch_dialog:cache_route',error)
+  return url
+
+def _declined(reason):
+ """Continue went the normal way: say why in the log (build 639 log 9f7b4ab2 showed the normal way with no reason). Always False."""
+ try:
+  import xbmc
+  xbmc.log('Kodi iOS watch: Continue did not use the remembered link: '+reason,xbmc.LOGINFO)
+ except Exception:pass
+ return False
+
+def fast_stream(handle,params,read=None,alive=None,play=None,now=None,route=None):
+ """Continue an Umbrella title from the link it was playing, without asking TMDb Helper or Umbrella again (owner, build 618: continuing a show still took
+ 15 s: details 2 s, Umbrella 3 s, resolving 2 s, the cache wait 2 s and the server's slow start). Only when Continue started it (ios_continue), the video was
+ last played through Umbrella within STREAM_FRESH, there is a place to resume and the link still answers; otherwise the normal way runs, as before."""
+ # Owner, 2026-11-21: "same logic ... to make umbrella streams open faster after it has been opened the first time". Not only Continue: a title streamed through Umbrella
+ # in the last STREAM_FRESH seconds, with a place to resume, reopens from its remembered link from anywhere (a show page, Next Episode) - never with ios_choose
+ # (the viewer wants another version) and never on the continue guard's second try (ios_fast=0: the normal way).
+ if params.get('ios_choose')=='1' or params.get('ios_fast')=='0':return False
+ tmdb_type=params.get('tmdb_type');tmdb_id=str(params.get('tmdb_id') or '')
+ if tmdb_type not in ('movie','tv') or not tmdb_id.isdigit():return False
+ season,episode=str(params.get('season') or ''),str(params.get('episode') or '')
+ if tmdb_type=='tv' and not (season.isdigit() and episode.isdigit()):return False
+ try:
+  import time,ios_continue
+  now=now or time.time
+  if read is None:
+   import xbmcvfs
+   def read(location):
+    source=xbmcvfs.File(location)
+    try:return source.read()
+    finally:source.close()
+  kind='movie' if tmdb_type=='movie' else 'episode'
+  data=ios_continue.load(read);item_key=ios_continue.key({'kind':kind,'tmdb_id':tmdb_id,'season':season,'episode':episode})
+  entry=data['items'].get(item_key) or {}
+  stream=entry.get('stream') or {};url=str(stream.get('url') or '')
+  if entry.get('player')!='umbrella' or not url.startswith(('http://','https://')):return _declined('no remembered Umbrella link (player %s)'%(entry.get('player') or 'none'))
+  if now()-float(stream.get('at') or 0)>STREAM_FRESH:return _declined('the remembered link is older than %d h'%(STREAM_FRESH//3600))
+  position,total=float(entry.get('position') or 0),float(entry.get('total') or 0)
+  if position<5 or (total and position>=0.92*total):return _declined('no place to resume (%d of %d s)'%(position,total))   # nothing to resume: the normal way finds a fresh link
+  if not (alive or _link_alive)(url):return _declined('the remembered link was refused')
+  # Step 2 (owner, build 620 log 80ea6c76: Continue took 12.3 s to the first picture; Kodi read the debrid link itself over one connection: 2.8 s to
+  # connect, 5.1 s for the file's start, 3.6 s for the resume seek). Umbrella's own path hands Kodi the service's cache (several connections, the
+  # start, the end and now the resume point asked for at once: remote_media.for_kodi); Continue skipped Umbrella and with it the cache. It uses it
+  # too now; when the cache does not answer in time the link itself is played, as before.
+  # Build 622 (log ac85bba1) undid this by default: on that debrid link the cache had 1 of its 3 opening blocks after 2 s, handed Kodi the link with
+  # 9 of its 40 reads still running, and the server then refused Kodi's own range request ("Requested range was not delivered"): the open failed.
+  # Continue plays the remembered link directly again (build 620: 12.3 s, and it played). `route` stays for tests and a later, safer try.
+  # Build 623 log 8c570737 (a second Continue took as long as the first, 10.7 s against 11.3 s): when the opening of this very link is already on the phone
+  # (resume_cache, saved when the stream last stopped) the cache route is used: Kodi's open and its resume seek are answered from disk. Otherwise the link
+  # plays directly, as in build 620 (the cache's race against a slow debrid server is what failed in build 622).
+  if route is None and _opening_kept(url):route=_cache_route
+  remembered=url
+  if route is not None:url=route(url,position/total if total else None)
+  if play is None:
+   import ios_library
+   play=ios_library.play_stream
+  play(handle if handle is not None else -1,entry,url,position,total)
+  try:   # leave a note for the continue guard (service): if this link does not open it plays the title the normal way (continue_guard.py)
+   import xbmcgui,xbmcvfs,ios_library
+   ios_library.boot_path(xbmcvfs);import continue_guard
+   xbmcgui.Window(10000).setProperty(continue_guard.MARK,continue_guard.note(params,now,remembered,item_key));xbmcgui.Window(10000).setProperty(continue_guard.OPENING,'1')
+  except Exception:pass
+  try:
+   import xbmc,xbmcvfs
+   xbmc.log('Kodi iOS watch: continued %s from its last Umbrella link (Umbrella skipped)'%kind,xbmc.LOGINFO)
+   def write(location,text):
+    target=xbmcvfs.File(location,'w')
+    try:target.write(text)
+    finally:target.close()
+   data['current']=item_key;ios_continue.save(data,write)   # the progress tracker follows this title
+  except ImportError:pass
+  return True
+ except Exception as error:
+  _quiet('ios_watch_dialog:fast_stream',error)
   return False

@@ -306,49 +306,44 @@ def umbrella_ready(p):
  plot=('<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>200</height><font>p_foot</font><textcolor>%s</textcolor>'
        '<label>$INFO[Window.Property(umbrella.plot)]</label></control>')%(p.SIDE,card_y-400,w,p.GREY)
  tv=p.label(p.SIDE,card_y-460,w,56,'$INFO[Window.Property(umbrella.tvtitle)]','p_foot_b','FFFF6B6B')
- # Source card
+ # Owner, 2026-11-21 (chosen from the mockups of the same day): no card. The source in small capitals, a large stage headline, one thin bar, the
+ # numbers under it, and Cancel as a blue text button. Same properties as before (umbrella_ready.stage adds Head and Sub: "Opening the video" / "0 of 12 MB").
+ X0,BW=100,w-200;BY=250
+ has=lambda k:'!String.IsEmpty(Window(home).Property(IOSReady.%s))'%k
+ caps=lambda text,cond:p.label(0,40,w,50,text,'p_cap',p.GREY,'center','<visible>%s</visible>'%cond)
+ head=lambda text,cond:p.label(0,100,w,100,text,'p_h2',p.WHITE,'center','<scroll>false</scroll><visible>%s</visible>'%cond)
+ grey=lambda value,extra='':('<control type="label"><width>auto</width><height>60</height><font>p_foot</font><textcolor>%s</textcolor><aligny>center</aligny>'
+                              '<scroll>false</scroll>%s<label>%s</label></control>')%(p.GREY,extra,value)
+ numbers=('<control type="grouplist"><left>0</left><top>%d</top><width>%d</width><height>60</height><orientation>horizontal</orientation><align>center</align>'
+          '<itemgap>12</itemgap><usecontrolcoords>true</usecontrolcoords><visible>%s + %s</visible>%s%s%s</control>')%(
+          BY+40,w,ready,STAGED,grey(R('Sub'),'<visible>%s</visible>'%has('Sub')),
+          grey('\u00b7','<visible>%s + %s</visible>'%(has('Sub'),has('Size'))),
+          grey('$INFO[Window(home).Property(IOSReady.Size),, file]','<visible>%s</visible>'%has('Size')))
  card=('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(p.SIDE,card_y,w,card_h)+
-  p.image(0,0,w,card_h,M+'glass_card.png',p.WHITE,border=44)+
-  '<control type="group"><visible>%s</visible>'%ready+
-  p.surface(40,40,100,100,'tile100.png','FF7D3CFF',28)+p.icon(55,55,70,'umbrella.png',p.WHITE)+
-  p.label(170,40,w-460,56,R('Provider'),'p_body',p.WHITE)+
-  p.label(170,96,w-460,46,'$INFO[Window(home).Property(IOSReady.Via),via ,]','p_foot',p.GREY)+
-  p.label(w-330,40,290,100,R('Size'),'p_h3',p.WHITE,'right')+
-  '<control type="group"><visible>!String.IsEmpty(Window(home).Property(IOSReady.Quality))</visible>'+
-  p.surface(40,178,120,64,'pill_56.png','FFFFFFFF',28)+p.label(40,178,120,64,R('Quality'),'p_foot_b','FF000000','center')+'</control>'+
-  '<control type="textbox"><left>180</left><top>184</top><width>%d</width><height>110</height><font>p_foot_b</font><textcolor>%s</textcolor>'
-  '<label>%s</label></control>'%(w-220,p.WHITE,R('Badges'))+
-  p.label(40,290,w-80,50,R('File'),'p_cap',p.GREY,'left','<scroll>true</scroll>')+'</control>'+
-  # Board 10, before a source is known: the Umbrella tile, "Looking for a source" and where it looks, then
-  # Umbrella's own words (IOSReady.Text) under them.
-  '<control type="group"><visible>!%s</visible>'%ready+
-  p.surface(40,40,100,100,'tile100.png','FF7D3CFF',28)+p.icon(55,55,70,'umbrella.png',p.WHITE)+
-  p.label(170,40,w-210,56,'Looking for a source','p_body',p.WHITE)+
-  p.label(170,96,w-210,46,'Umbrella · your accounts','p_foot',p.GREY)+
-  '<control type="textbox"><left>40</left><top>178</top><width>%d</width><height>170</height><font>p_foot</font><textcolor>%s</textcolor>'
-  '<label>%s</label></control></control>'%(w-80,'FFD1D1D6',R('Text'))+
-  # Kodi's progress control cannot read a window property, so the bar is 20 segments shown by Umbrella's percent.
-  # DEC-036 / board 10: one thin bar (11 units). It follows Umbrella's percent once a source is known, and slides
-  # while Umbrella is still looking.
-  # ISSUE-280 (owner-approved board S1, stream-opening-mockups.html): once the source is known the line says the step
-  # (umbrella_ready.stage: IOSReady.Line / Right / Fill / Slow). The bar fills by a real amount (Fill) or slides while
-  # nothing is measurable; Umbrella's own percent stays the fallback for a service that sets no line.
-  p.image(40,368,w-80,11,M+'dot.png','33FFFFFF',border=6,extra='<visible>%s + %s</visible>'%(ready,NO_SLIDE))+
-  ''.join(p.image(40,368,max(11,(w-80)*k//20),11,M+'dot.png',BLUE,
+  caps('[UPPERCASE]$INFO[Window(home).Property(IOSReady.Provider)][/UPPERCASE][UPPERCASE]$INFO[Window(home).Property(IOSReady.Via), \u00b7 ,][/UPPERCASE]',ready)+
+  head('$INFO[Window(home).Property(IOSReady.Head)]','%s + %s'%(ready,STAGED))+
+  head('Getting ready to play','%s + %s'%(ready,UNSTAGED))+
+  # Before a source is known (board 10): where it looks, then Umbrella's own words under the bar.
+  caps('UMBRELLA \u00b7 YOUR ACCOUNTS','!%s'%ready)+head('Looking for a source','!%s'%ready)+
+  '<control type="textbox"><left>60</left><top>%d</top><width>%d</width><height>170</height><font>p_foot</font><textcolor>%s</textcolor><aligny>top</aligny>'
+  '<align>center</align><label>%s</label><visible>!%s</visible></control>'%(BY+110,w-120,'FFD1D1D6',R('Text'),ready)+
+  # Kodi's progress control cannot read a window property, so the bar is 50 segments (2 % each: owner, 2026-11-21, a smooth fill) shown by Umbrella's percent.
+  # DEC-036: one thin bar (11 units). It follows Umbrella's percent once a source is known, and slides while Umbrella is still looking.
+  # ISSUE-280 (board S1): once the source is known the stage's real numbers fill it (IOSReady.Fill) or it slides while nothing is measurable.
+  p.image(X0,BY,BW,11,M+'dot.png','33FFFFFF',border=6,extra='<visible>%s + %s</visible>'%(ready,NO_SLIDE))+
+  ''.join(p.image(X0,BY,max(11,BW*k//50),11,M+'dot.png',BLUE,
                   '<visible>%s + [[%s + Integer.IsGreaterOrEqual(Window.Property(percent),%d)] | Integer.IsGreaterOrEqual(Window(home).Property(IOSReady.Fill),%d)]</visible>'%(
-                   ready,UNSTAGED,k*5,k*5),border=6) for k in range(1,21))+
-  slide_bar(M,40,368,w-80,extra='<visible>!%s | %s</visible>'%(ready,STAGED_SLIDE))+
-  p.label(40,390,w-300,60,'Getting ready to play…','p_foot','FFD1D1D6','left','<visible>%s</visible>'%UNSTAGED)+
-  p.label(w-260,390,220,60,'$INFO[Window.Property(percent)]%','p_foot','FFD1D1D6','right','<visible>%s + %s</visible>'%(ready,UNSTAGED))+
-  '<control type="textbox"><left>40</left><top>390</top><width>%d</width><height>60</height><font>p_foot</font><textcolor>FFD1D1D6</textcolor>'
-  '<label>$INFO[Window(home).Property(IOSReady.Line)]</label><visible>%s</visible></control>'%(w-300,STAGED)+
-  p.label(w-260,390,220,60,'$INFO[Window(home).Property(IOSReady.Right)]','p_foot','FFD1D1D6','right','<visible>%s</visible>'%STAGED)+
-  '<control type="textbox"><left>40</left><top>446</top><width>%d</width><height>70</height><font>p_cap</font><textcolor>%s</textcolor>'
-  '<label>$INFO[Window(home).Property(IOSReady.Slow)]</label><visible>%s</visible></control>'%(w-80,p.GREY,STAGED)+'</control>')
+                   ready,UNSTAGED,k*2,k*2),border=6) for k in range(1,51))+
+  slide_bar(M,X0,BY,BW,extra='<visible>!%s | %s</visible>'%(ready,STAGED_SLIDE))+
+  p.label(0,BY+40,w,60,'$INFO[Window.Property(percent)]%','p_foot',p.GREY,'center','<visible>%s + %s</visible>'%(ready,UNSTAGED))+
+  numbers+
+  p.label(0,BY+100,w,50,R('Elapsed'),'p_foot',p.GREY,'center','<scroll>false</scroll><visible>%s</visible>'%has('Elapsed'))+   # how long the open has taken, under the size (owner, 2026-11-21)
+  '<control type="textbox"><left>60</left><top>%d</top><width>%d</width><height>90</height><font>p_cap</font><textcolor>%s</textcolor><align>center</align>'
+  '<label>$INFO[Window(home).Property(IOSReady.Slow)]</label><visible>%s</visible></control>'%(BY+160,w-120,p.GREY,STAGED)+'</control>')
  cancel=('<control type="button" id="9001"><left>%d</left><top>%d</top><width>%d</width><height>140</height><label>Cancel</label>'
          '<font>p_btn</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
-         '<texturefocus border="70" colordiffuse="FFFFFFFF">%sglass_150.png</texturefocus><texturenofocus border="70" colordiffuse="FFFFFFFF">%sglass_150.png</texturenofocus>'
-         '<onclick>Action(Back)</onclick></control>')%(p.SIDE,p.HEIGHT-200,w,p.WHITE,p.WHITE,M,M)
+         '<texturefocus border="70" colordiffuse="14FFFFFF">%sglass_150.png</texturefocus><texturenofocus />'
+         '<onclick>Action(Back)</onclick></control>')%((W-460)//2,p.HEIGHT-200,460,p.ACCENT,p.ACCENT,M)
  # Umbrella's "icon only" setting: just a small spinner in the corner, as Umbrella draws it.
  small=('<control type="group"><visible>String.IsEqual(Window.Property(umbrella.icononly),true) + !String.IsEqual(Window.Property(umbrella.isHidden),true)</visible>'+
         slide_bar(M,W-p.SIDE-240,90,240)+'</control>')
@@ -369,13 +364,14 @@ def _airplay_flow():
  spec=importlib.util.spec_from_file_location('airplay_flow',os.path.join(os.path.dirname(os.path.abspath(__file__)),'airplay_flow.py'))
  module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 
-def close_button_1080(id,x,y,extra='',size=100,disc=None):
- """close_button (portrait.py) for the landscape sheets (Play on TV, AirPlay check), on Fuse's 1920x1080 canvas."""
- disc=disc or int(size*104/118);g=int(disc/2);d=(size-disc)//2;o=(size-g)//2
+def close_button_1080(id,x,y,extra='',size=100,disc=None,circle=True):
+ """close_button (portrait.py) for the landscape sheets (Play on TV, AirPlay check, the Info card), on Fuse's 1920x1080 canvas. circle=False: just the cross, no grey disc behind it
+ (owner, 2026-11-24, on the Info card: "remove the grey circle around the X, it can just be the X"); the cross is a little larger then and the touch area is the same."""
+ disc=disc or int(size*104/118);g=int(disc/2) if circle else int(disc*0.6);d=(size-disc)//2;o=(size-g)//2
  img=lambda x,y,s,tex,col,more='':('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
                                    '<texture colordiffuse="%s">%s%s</texture>%s</control>'%(x,y,s,s,col,'special://skin/extras/portrait/',tex,more))
  return ('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(x,y,size,size)+
-  img(d,d,disc,'close_disc.png','2EFFFFFF')+img(d,d,disc,'close_disc.png','24FFFFFF','<visible>Control.HasFocus(%d)</visible>'%id)+
+  (img(d,d,disc,'close_disc.png','2EFFFFFF')+img(d,d,disc,'close_disc.png','24FFFFFF','<visible>Control.HasFocus(%d)</visible>'%id) if circle else '')+
   img(o,o,g,'close_cross.png','FFFFFFFF')+
   '<control type="button" id="%d"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus />%s</control>'%(id,size,size,extra)+
   '</control>')
@@ -439,7 +435,7 @@ def play_on_tv():
 TRACK_MENU='IOSTrackMenu.xml'
 TRACK_ROWS=3   # rows shown before the list scrolls
 # Subtitles is a full-height drawer (owner, 2026-11-16, option C): up to five rows, its own list and controls.
-SUBS_LIST=9312;SUBS_ROWS=5;T_MINUS_S=9405;T_PLUS_S=9406
+SUBS_LIST=9312;SUBS_ROWS=5;T_MINUS_S=9405;T_PLUS_S=9406;SYNC=9407
 HOLD_FIND=9601;HOLD_REMOVE=9602;HOLD_SCRIM=9690;SURE_SCRIM=9691;SURE_CANCEL=9611;SURE_REMOVE=9612
 # Board 02: Playback speed shows every speed Kodi plays (0.8x-1.5x) in its own list, so none scrolls away.
 SPEED_LIST=9311;SPEED_ROWS=6
@@ -549,9 +545,26 @@ def track_menu():
   img(w-pad-70,y_more+(row-56)//2,40,56,ICONS+'chevron-right.png','80EBEBF5')+
   '<control type="button" id="9501"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus /><texturenofocus />'
   '<onup>%d</onup></control></control>'%(pad,y_more,w-2*pad,row,SUBS_LIST))
+ # Auto sync (owner, 2026-11-22; docs/design/subtitles-autosync-mockup.html): under Timing. Window properties sync (the line under the title) and
+ # sync_state (busy | done | fail; empty = ready). 9407 is the button; tracks.py listens to the video and moves the subtitle.
+ sst=lambda v:isp('sync_state',v)
+ y_sy=y_tm+row
  subs_timing=('<control type="group"><visible>String.IsEqual(Window().Property(page),more)</visible>'+
-  img(pad,y_tm,w-2*pad,row,MEDIA+'round_s.png','47000000','','26')+
-  lab(pad+36,y_tm,300,row,'Timing','font_main')+stepper(w-pad-372,y_tm,T_MINUS_S,T_PLUS_S,'timing','<onup>%d</onup>'%SUBS_LIST)+'</control>')
+  img(pad,y_tm,w-2*pad,2*row,MEDIA+'round_s.png','47000000','','26')+
+  lab(pad+36,y_tm,300,row,'Timing','font_main')+stepper(w-pad-372,y_tm,T_MINUS_S,T_PLUS_S,'timing','<onup>%d</onup><ondown>%d</ondown>'%(SUBS_LIST,SYNC))+
+  img(pad+36,y_tm+row-1,w-2*pad-36,2,MEDIA+'white.png','1FEBEBF5')+
+  img(pad,y_sy,w-2*pad,row,MEDIA+'round_s.png','1AFFFFFF','<visible>Control.HasFocus(%d)</visible>'%SYNC,'26')+
+  lab(pad+36,y_sy+8,w-2*pad-200,64,'Auto sync','font_main')+
+  lab(pad+36,y_sy+66,w-2*pad-200,40,'$INFO[Window().Property(sync)]','font_mini','99EBEBF5','left','<visible>!%s + !%s + !%s</visible>'%(sst('busy'),sst('done'),sst('fail')))+
+  lab(pad+36,y_sy+66,w-2*pad-200,40,'$INFO[Window().Property(sync)]','font_mini','FFFFFFFF','left','<visible>%s</visible>'%sst('busy'))+
+  lab(pad+36,y_sy+66,w-2*pad-200,40,'$INFO[Window().Property(sync)]','font_mini','FF30D158','left','<visible>%s</visible>'%sst('done'))+
+  lab(pad+36,y_sy+66,w-2*pad-200,40,'$INFO[Window().Property(sync)]','font_mini','FFFF453A','left','<visible>%s</visible>'%sst('fail'))+
+  img(w-pad-78,y_sy+(row-44)//2,44,44,MEDIA+'ring.png','FFFFFFFF','<visible>%s</visible>'
+      '<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'%sst('busy'))+
+  img(w-pad-76,y_sy+(row-40)//2,40,40,ICONS+'check.png','FF30D158','<visible>%s</visible>'%sst('done'))+
+  img(w-pad-70,y_sy+(row-56)//2,40,56,ICONS+'chevron-right.png','80EBEBF5','<visible>!%s + !%s</visible>'%(sst('busy'),sst('done')))+
+  '<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus /><texturenofocus />'
+  '<onup>%d</onup></control>'%(SYNC,pad,y_sy,w-2*pad,row,T_MINUS_S)+'</control>')
  # The hold menu sits left of the drawer, level with the held row (ctx.row 0-4); a scrim over the drawer ends it with one tap.
  hold_w=640;hold_x=-(hold_w+24)
  hold_item=lambda y,id,prop,color:(
@@ -990,9 +1003,15 @@ def info_card():
   lab(tx,82,tw-close,44,'S$INFO[VideoPlayer.Season] · E$INFO[VideoPlayer.Episode]','font_head',grey,'<visible>%s</visible>'%episode)+
   lab(tx,82,tw-close,44,'$INFO[VideoPlayer.Year]','font_head',grey,'<visible>!%s</visible>'%episode)+
   lab(tx,128,tw,66,'$INFO[VideoPlayer.Title]','font_title_main')+
-  '<control type="textbox"><left>%d</left><top>200</top><width>%d</width><height>186</height><font>font_head</font><textcolor>%s</textcolor>'
-  '<autoscroll>false</autoscroll><label>$INFO[VideoPlayer.Plot]</label><visible>%s</visible></control>'%(tx,tw,grey,has('VideoPlayer.Plot'))+
-  lab(tx,200,tw,52,'No description for this video yet.','font_head',grey,'<visible>!%s</visible>'%has('VideoPlayer.Plot')))
+  # The plot is the playing item's, or (Continue started it) the Home property: one of the two is empty. Kodi cannot shrink text to fit, so the service
+  # measures the plot once (info_fill.tier) and sets KodiIOS.PlotTier: 1 normal size, 2 smaller, 3 smaller and slowly scrolling when it is still longer.
+  ''.join('<control type="textbox"><left>%d</left><top>200</top><width>%d</width><height>232</height><font>%s</font><textcolor>%s</textcolor>%s'
+          '<label>$INFO[VideoPlayer.Plot]$INFO[Window(Home).Property(KodiIOS.Plot)]</label><visible>%s</visible></control>'
+          %(tx,tw,font,grey,scroll,cond) for font,scroll,cond in (
+   ('font_main','<autoscroll>false</autoscroll>','!String.IsEqual(Window(Home).Property(KodiIOS.PlotTier),2) + !String.IsEqual(Window(Home).Property(KodiIOS.PlotTier),3) + [%s | !String.IsEmpty(Window(Home).Property(KodiIOS.Plot))]'%has('VideoPlayer.Plot')),
+   ('font_mini','<autoscroll>false</autoscroll>','String.IsEqual(Window(Home).Property(KodiIOS.PlotTier),2) + [%s | !String.IsEmpty(Window(Home).Property(KodiIOS.Plot))]'%has('VideoPlayer.Plot')),
+   ('font_mini','<autoscroll delay="4000" time="2500" repeat="6000">true</autoscroll>','String.IsEqual(Window(Home).Property(KodiIOS.PlotTier),3) + [%s | !String.IsEmpty(Window(Home).Property(KodiIOS.Plot))]'%has('VideoPlayer.Plot'))))+
+  lab(tx,200,tw,52,'No description for this video yet.','font_main',grey,'<visible>!%s + String.IsEmpty(Window(Home).Property(KodiIOS.Plot))</visible>'%has('VideoPlayer.Plot')))
  tag=lambda id,text,cond='':('<control type="button" id="%d"><width min="120">auto</width><height>56</height><textoffsetx>22</textoffsetx>'
   '<font>font_main_bold</font><textcolor>%s</textcolor><disabledcolor>%s</disabledcolor><align>center</align><aligny>center</aligny><label>%s</label>'
   '<texturefocus border="16" colordiffuse="40EBEBF5">%stag_line.png</texturefocus><texturenofocus border="16" colordiffuse="40EBEBF5">%stag_line.png</texturenofocus>'
@@ -1004,7 +1023,7 @@ def info_card():
   '<animation effect="slide" start="0,24" end="0,0" time="240" tween="cubic" easing="out">WindowOpen</animation>'+
   img(0,0,w,h,M+'round_s.png','FA2C2C2E',border='26')+
   '<control type="button" id="9098"><width>%d</width><height>%d</height><texturefocus /><texturenofocus /><onfocus>SetFocus(9500)</onfocus></control>'%(w,h)+
-  still+text+meta+close_button_1080(9500,w-close,0,'<onclick>Close</onclick>',close,92)+'</control>')
+  still+text+meta+close_button_1080(9500,w-close,0,'<onclick>Close</onclick>',close,92,circle=False)+'</control>')
  body=('<control type="button" id="9099"><left>0</left><top>0</top><width>100%</width><height>100%</height><texturefocus /><texturenofocus />'
   '<onclick>Close</onclick><onfocus>SetFocus(9500)</onfocus></control>'+
   # The controls fade back behind the card (board 08); the video keeps playing.

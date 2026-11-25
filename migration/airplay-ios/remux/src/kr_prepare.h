@@ -2,9 +2,12 @@
 #ifndef KR_PREPARE_H
 #define KR_PREPARE_H
 #include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
 typedef int (*kr_prepare_progress)(int stage, double done, double total, void *context);
 // Returns 1 only for a portable MP4 with original video resolution/HDR and AAC audio.
 int kr_prepare_ready(AVFormatContext *format);
+// r56: how long a text cue with no duration of its own stays up (ms), from its text (host tests)
+int64_t kr_cue_reading_ms(const AVSubtitle *sub);
 // JSON describes the file, without paths. Negative on invalid input.
 int kodi_airplay_probe(const char *input, char *json, int size);
 int kodi_airplay_probe_ex(const char *input,char *json,int size,kr_prepare_progress progress,void *context);

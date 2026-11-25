@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/import-review.yml'
       - 'scripts/build_import_review.py'
+      - 'scripts/source_mirror.py'
       - 'scripts/build_customized_ipa.py'
       - 'scripts/fetch_elementum_inputs.py'
       - 'scripts/provider_addons.py'
@@ -53,6 +54,7 @@ on:
     paths:
       - '.github/workflows/import-review.yml'
       - 'scripts/build_import_review.py'
+      - 'scripts/source_mirror.py'
       - 'scripts/build_customized_ipa.py'
       - 'scripts/fetch_elementum_inputs.py'
       - 'scripts/provider_addons.py'
@@ -114,6 +116,9 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      # Every verified third-party download of this run is copied here (scripts/source_mirror.py) and published as release third-party-sources-1 at the end.
+      - name: Folder for the kept third-party copies
+        run: echo "KODI_IOS_PRESERVE_DIR=$RUNNER_TEMP/third-party-sources" >> "$GITHUB_ENV"
       # The phone runs CPython 3.11: the bundle's .pyc files must come from the same version (build_customized_ipa.precompile).
       - name: Python 3.11 for the bundle bytecode
         id: py311
@@ -146,6 +151,18 @@ jobs:
           python3 -B scripts/test_open_timing.py
           python3 -B scripts/test_cast_ready.py
           python3 -B scripts/test_drive_proxy.py
+          python3 -B scripts/test_drive_cache.py
+          python3 -B scripts/test_cast_cache.py
+          python3 -B scripts/test_torrent_prompt.py
+          python3 -B scripts/test_airplay_recover.py
+          python3 -B scripts/test_player_scrubber.py
+          python3 -B scripts/test_page_clock.py
+          python3 -B scripts/test_sports_nonblocking.py
+          python3 -B scripts/test_link_warm_recent.py
+          python3 -B scripts/test_thumb_strip.py
+          python3 -B scripts/test_ends_at.py
+          python3 -B scripts/test_info_fill.py
+          python3 -B scripts/test_prefetch_copy.py
           python3 -B scripts/test_drive_index.py
           python3 -B scripts/test_settings_search.py
           python3 -B scripts/test_deck_picker.py
@@ -163,6 +180,10 @@ jobs:
           python3 -B scripts/test_sports_game_info.py
           python3 -B scripts/test_header_icons.py
           python3 -B scripts/test_sports_hybrid.py
+          python3 -B scripts/test_sports_sources_prefetch.py
+          python3 -B scripts/test_loop_quiet.py
+          python3 -B scripts/test_busy_watchdog.py
+          python3 -B scripts/test_mp4_tracks.py
           python3 -B scripts/test_sports_crew_patch.py
           python3 -B scripts/test_sports_landing.py
           python3 -B scripts/test_sports_live.py
@@ -185,6 +206,33 @@ jobs:
           python3 -B scripts/test_sports_crew_routes.py
           python3 -B scripts/test_sports_loop_routes.py
           python3 -B scripts/test_sports_loop_router.py
+          python3 -B scripts/test_sports_stream_health.py
+          python3 -B scripts/test_scroll_probe.py
+          python3 -B scripts/test_page_cover.py
+          python3 -B scripts/test_gesture_note.py
+          python3 -B scripts/test_source_speed.py
+          python3 -B scripts/test_fast_stream.py
+          python3 -B scripts/test_sports_fresh.py
+          python3 -B scripts/test_sports_instant.py
+          python3 -B scripts/test_resume_cache.py
+          python3 -B scripts/test_drive_abort.py
+          python3 -B scripts/test_scroll_test.py
+          python3 -B scripts/test_host_check.py
+          python3 -B scripts/test_sports_opening_card.py
+          python3 -B scripts/test_tls_roots.py
+          python3 -B scripts/test_continue_guard.py
+          python3 -B scripts/test_dns_override.py
+          python3 -B scripts/test_subtitle_memory.py
+          python3 -B scripts/test_cue_length.py
+          python3 -B scripts/test_continue_known.py
+          python3 -B scripts/test_caption_repair.py
+          python3 -B scripts/test_cache_skip.py
+          python3 -B scripts/test_crew_warm.py
+          python3 -B scripts/test_zip_loose.py
+          python3 -B scripts/test_play_now.py
+          python3 -B scripts/test_crew_memory.py
+          python3 -B scripts/test_relay_tail.py
+          python3 -B scripts/test_auto_subtitles.py
           python3 -B scripts/test_sports_loop_proxy_compat.py
           python3 -B scripts/test_sports_playback_repair.py
           python3 -B scripts/test_sports_dialogs.py
@@ -276,6 +324,10 @@ jobs:
           python3 -B scripts/test_notice_log.py
           python3 -B scripts/test_pages.py
           python3 -B scripts/test_airplay_remux.py
+          # Native receiver resume regression gate (also part of the full native run):
+          # airplay-remux.yml receiver_handoff_only=true -> run_host_tests.sh --receiver-handoff.
+          # Executes test_receiver_resume_handoff against real HTTP/cache/converter; no device claim.
+          bash -n migration/airplay-ios/remux/tests/run_host_tests.sh
           python3 -B scripts/test_airplay_long_fragments.py
           python3 -B scripts/test_airplay_source_stall.py
           python3 -B scripts/test_umbrella_early_exit.py
@@ -295,6 +347,8 @@ jobs:
           python3 -B scripts/test_library_status.py
           python3 -B scripts/test_downloaded_play.py
           python3 -B scripts/test_choose_source.py
+          python3 -B scripts/test_resume_now.py
+          python3 -B scripts/test_slow_copy.py
           python3 -B scripts/test_signin_server.py
           python3 -B scripts/test_library_scan.py
           python3 -B scripts/test_library_refresh.py
@@ -302,6 +356,7 @@ jobs:
           python3 -B scripts/test_library_pages.py
           python3 -B scripts/test_downloaded_show.py
           python3 -B scripts/test_show_scrolling.py
+          python3 -B scripts/test_show_season_row.py
           python3 -B scripts/test_show_parent_navigation.py
           python3 -B scripts/test_settings_page.py
           python3 -B scripts/test_genre_photos.py
@@ -319,6 +374,11 @@ jobs:
           python3 -B scripts/test_activation.py
           python3 -B scripts/test_ios.py
           python3 -B scripts/test_review_low_items.py
+          python3 -B scripts/test_source_mirror.py
+          python3 -B scripts/test_open_budget.py
+          python3 -B scripts/test_episode_card.py
+          python3 -B scripts/test_page_watch.py
+          python3 -B scripts/test_choose_source.py
       - name: Acquire public pinned sources and build review ZIP
         run: |
           python3 -B scripts/build_import_review.py --foundation-report reports/ios-foundation-addon-audit.json --output "$RUNNER_TEMP/kodi-import-review"
@@ -336,8 +396,16 @@ jobs:
         if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'build-ipa')
         run: |
           mkdir -p "$RUNNER_TEMP/customized-foundation"
-          curl --fail --location --proto '=https' --proto-redir '=https' --max-time 120 --output "$RUNNER_TEMP/customized-foundation/foundation.deb" https://mirrors.kodi.tv/releases/darwin/ios-arm64/org.xbmc.kodi-ios_21.3_iphoneos-arm64.deb
-          printf '%s  %s\n' c80e2e4eded0b3be9f9c8cd19a73e3f3ac7171575dd6f08cfddf14312ca81eb8 "$RUNNER_TEMP/customized-foundation/foundation.deb" | sha256sum --check
+          deb=org.xbmc.kodi-ios_21.3_iphoneos-arm64.deb
+          fetch() { curl --fail --location --proto '=https' --proto-redir '=https' --max-time 120 --output "$RUNNER_TEMP/customized-foundation/foundation.deb" "$1"; }
+          want=c80e2e4eded0b3be9f9c8cd19a73e3f3ac7171575dd6f08cfddf14312ca81eb8
+          # Kodi's mirror first; if it fails, the kept copy in release third-party-sources-1 (accepted only if it has the same pinned digest).
+          if ! { fetch "https://mirrors.kodi.tv/releases/darwin/ios-arm64/$deb" && printf '%s  %s\n' "$want" "$RUNNER_TEMP/customized-foundation/foundation.deb" | sha256sum --check; }; then
+            echo "Kodi's mirror failed or differed; trying the kept copy"
+            fetch "https://github.com/${{ github.repository }}/releases/download/third-party-sources-1/$deb"
+          fi
+          printf '%s  %s\n' "$want" "$RUNNER_TEMP/customized-foundation/foundation.deb" | sha256sum --check
+          mkdir -p "$KODI_IOS_PRESERVE_DIR" && cp "$RUNNER_TEMP/customized-foundation/foundation.deb" "$KODI_IOS_PRESERVE_DIR/$deb"
           dpkg-deb --extract "$RUNNER_TEMP/customized-foundation/foundation.deb" "$RUNNER_TEMP/customized-foundation/unpacked"
       - name: Acquire pinned portrait pieces (rotation-aware Kodi executable, Liquid Glass tab bar)
         if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'build-ipa')
@@ -369,3 +437,37 @@ jobs:
           gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$SHA" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update." ||
           gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$DEFAULT" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update."
           # Preserve existing test releases; publishing a build must not delete earlier test artifacts.
+      # 2026-11-24 (ISSUE-470): POV's upstream repository began answering 404 and stopped a build. Every pinned third-party source, as this run downloaded and verified it, is
+      # kept as a release of this repository; provider_addons.py falls back to it (digest checked) when an upstream address fails.
+      - name: Keep a copy of every pinned third-party source (release provider-sources-1)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DEFAULT: ${{ github.event.repository.default_branch }}
+        run: |
+          python3 -B scripts/preserve_provider_sources.py --inputs "$RUNNER_TEMP/provider-inputs" --output "$RUNNER_TEMP/provider-sources"
+          tag=provider-sources-1
+          if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
+            gh release upload "$tag" "$RUNNER_TEMP"/provider-sources/* --clobber --repo "$REPO"
+          else
+            gh release create "$tag" "$RUNNER_TEMP"/provider-sources/* --repo "$REPO" --target "$DEFAULT" --prerelease --title "Pinned third-party sources" --notes "Copies of the archives pinned in migration/provider-fallback/source-lock.json, each checked against its sha256. Used only when the upstream address fails."
+          fi
+      # 2026-11-24: the same for every other third-party download (official Kodi add-on archives, jurialmunkey's, Elementum client and Burst, CocoScrapers, kodi-six modules, the Kodi 21.3 package).
+      - name: Keep a copy of every third-party download (release third-party-sources-1)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DEFAULT: ${{ github.event.repository.default_branch }}
+        run: |
+          tag=third-party-sources-1
+          ls -la "$KODI_IOS_PRESERVE_DIR"
+          if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
+            gh release download "$tag" --repo "$REPO" --pattern MANIFEST.json --dir "$RUNNER_TEMP/earlier" || true
+            python3 -B scripts/source_mirror.py --directory "$KODI_IOS_PRESERVE_DIR" --previous "$RUNNER_TEMP/earlier/MANIFEST.json"
+            gh release upload "$tag" "$KODI_IOS_PRESERVE_DIR"/* --clobber --repo "$REPO"
+          else
+            python3 -B scripts/source_mirror.py --directory "$KODI_IOS_PRESERVE_DIR"
+            gh release create "$tag" "$KODI_IOS_PRESERVE_DIR"/* --repo "$REPO" --target "$DEFAULT" --prerelease --title "Third-party sources (kept copies)" --notes "Copies of every third-party file a build downloads, each already checked against the pin in this repository's lock files. MANIFEST.json lists each file's sha256. Used only when an upstream address fails (scripts/source_mirror.py)."
+          fi

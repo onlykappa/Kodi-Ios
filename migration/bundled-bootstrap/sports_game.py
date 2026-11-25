@@ -32,6 +32,28 @@ def lighten(color, amount=.3):
     return ''.join('%02X' % round(int(color[i:i+2],16)+(255-int(color[i:i+2],16))*amount) for i in (0,2,4))
 
 
+MAX_GLOW = .62   # the brightest a glow may be (relative luminance): above it the hero washes out to white
+
+
+def _luminance(rgb):
+    return (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255
+
+
+def glow(color):
+    """The tint of a team's glow behind its crest: its colour, lightened a little, but never bright. Owner, 2026-11-20: "the colors seem to flash white
+    ... then goes to all white": a team whose ESPN colour is white or very light (Cologne's is ffffff) lit the hero up white at 72 % opacity, and two
+    light teams washed the whole hero out. A light colour is pulled down to MAX_GLOW and a colour that is nearly white gets the soft grey of a team with
+    no colour at all."""
+    rgb = [int(color[i:i + 2], 16) for i in (0, 2, 4)]
+    if _luminance(rgb) > .85:
+        return NEUTRAL
+    mixed = [round(c + (255 - c) * .3) for c in rgb]
+    light = _luminance(mixed)
+    if light > MAX_GLOW:
+        mixed = [round(c * MAX_GLOW / light) for c in mixed]
+    return TINT + ''.join('%02X' % c for c in mixed)
+
+
 def checked_text(checked, now):
     """'Checked just now' / 'Checked 2 minutes ago' / 'Checked 1 hour ago' for the Sources card."""
     if checked is None:return ''
@@ -58,7 +80,7 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
             props[side+'.name'] = game[side].get('short') or game[side].get('name','')
             props[side+'.record'] = game[side].get('record','')
             color = str(game[side].get('color') or '')
-            if len(color) == 6 and all(c in '0123456789abcdefABCDEF' for c in color):props[side+'.tint'] = TINT + lighten(color)
+            if len(color) == 6 and all(c in '0123456789abcdefABCDEF' for c in color):props[side+'.tint'] = glow(color)
         else:props[side+'.name'] = ''
     if game:
         until = sm.until_text(game['start'],now)
@@ -111,6 +133,47 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
     return props,sources
 
 
+AUTO_SEARCH = 180   # seconds a live game's page keeps looking for sources by itself
+AUTO_EVERY = 5      # seconds between those looks: a cheap read of what the service's own search has found (the page asks the provider for the game again)
+AUTO_ASK = 90       # seconds between real searches while it waits: a search makes Crew walk its menus again, so one is not started every few seconds
+
+
+def auto_wanted(live, has_sources, now, until, failed=False):
+    """True while a live game's page should be looking for sources without being asked: it is live, has none, has not given up and was opened less than AUTO_SEARCH
+    ago. Owner, build 646 log 317cd411: a live game tapped right after launch said "None yet" while Crew's first scan was still running; the sources came a
+    moment later but only after "Check now"."""
+    return bool(live and not has_sources and not failed and now < until)
+
+
+def auto_due(now, last, searching, every=AUTO_EVERY):
+    """True when another look is due (none running and `every` seconds since the last)."""
+    return not searching and now - last >= every
+
+
+def warm_best(sources, warm=None):
+    """The best source is a Crew link: do Crew's folder listing for it now, while the page is open, so the Play tap does not (owner, build 639 log fd1d028c: two
+    folder listings, 2.7 s, after every tap). Off the main thread; never raises. True when a link was warmed."""
+    try:
+        import json
+        import sports_loop_router
+        best = sports_loop_router.automatic_source(sources)
+        value = json.loads(best['play'])
+        if value.get('e') != 'TheCrewRoute':
+            return False
+        try:
+            import xbmc
+            if xbmc.Player().isPlayingVideo():
+                return False
+        except Exception:
+            pass
+        if warm is None:
+            import sports_crew_routes
+            warm = sports_crew_routes.warm
+        return bool(warm(value['l']))
+    except Exception:
+        return False
+
+
 def run(game, provider=None, clock=time.time, search=False):
     import xbmc
     import xbmcgui
@@ -131,6 +194,10 @@ def run(game, provider=None, clock=time.time, search=False):
             self.search_token = None
             self.search_failed = False
             self.checked = clock()   # when the sources were last looked for (the Sources card says so)
+            self.auto_until = clock() + AUTO_SEARCH   # a live game keeps looking for sources by itself for this long (auto_wanted)
+            self.auto_last = 0.0
+            self.auto_asked = time.monotonic()   # the page's own first search (find_sources at open) counts as the first ask
+            self.sources = []
             self.crests = {}
             threading.Thread(target=self.load_crests,daemon=True).start()
             if search:
@@ -152,6 +219,13 @@ def run(game, provider=None, clock=time.time, search=False):
                             except Exception:self.search_failed = True
                             self.search_token = None
                         self.refresh(reload=False)
+                    if auto_wanted((self.data or {}).get('state') == 'live', bool(self.sources), clock(), self.auto_until, self.search_failed):
+                        if auto_due(time.monotonic(), self.auto_asked, bool(self.search_token), AUTO_ASK):
+                            self.auto_asked = self.auto_last = time.monotonic()
+                            self.find_sources()   # a real search: Crew walks its menus
+                        elif auto_due(time.monotonic(), self.auto_last, bool(self.search_token)):
+                            self.auto_last = time.monotonic()
+                            self.refresh(reload=False)   # only reads what the service's search has published for this game
                     # Every second: the clock and "in 1 h 14 min" are worked out again (only what changed is written). A live game asks for fresh
                     # scores every 5 s, any other every 30 s (owner: scores and times must be live).
                     with self.lock:
@@ -165,6 +239,8 @@ def run(game, provider=None, clock=time.time, search=False):
 
         def draw(self,error=False):
             searching = bool(self.search_token and getattr(provider,'searching_game',lambda *args:False)(game_id,self.search_token))
+            # A live game with no source yet is still being looked for: "Searching for sources", not "None yet" (auto_wanted).
+            searching = searching or auto_wanted((self.data or {}).get('state') == 'live', bool(self.sources), clock(), self.auto_until, self.search_failed)
             props,self.sources = model(self.data,clock(),sm.device_offset(clock()),'error' if error else 'ready',searching,
                                        sr.get(xbmcvfs.translatePath('special://profile/'),game_id),self.checked,self.crests)
             if self.search_failed and not self.sources:
@@ -173,6 +249,11 @@ def run(game, provider=None, clock=time.time, search=False):
                 # The tap handler also writes play.error; a refresh must still clear it.
                 if key=='play.error' or getattr(self,'_shown',{}).get(key)!=value:self.setProperty(key,value)
             self._shown = props.copy()
+            if self.sources:   # the best source's Crew folder is listed now, not at the tap
+                best = str((self.sources[0] if self.sources else {}).get('play') or '')
+                if getattr(self, '_warmed', None) != best:
+                    self._warmed = best
+                    threading.Thread(target=warm_best, args=(list(self.sources),), daemon=True).start()
 
         def load_crests(self):
             """The teams' real crests, downloaded once and kept on the phone; the page draws first (a ring with the code) and gains them a moment later."""
@@ -211,11 +292,11 @@ def run(game, provider=None, clock=time.time, search=False):
         def onClick(self,ident):
             if ident==page.BACK:self.finish()
             elif ident==page.RETRY and self.search_failed:
-                self.find_sources()
+                self.find_sources(fresh=True)
                 self.draw()
             elif ident in (page.REFRESH,page.RETRY):self.refresh()
             elif ident==page.SEARCH_RETRY:
-                self.find_sources()
+                self.find_sources(fresh=True)   # "Check now": Crew's menus are walked again
                 self.draw()
             elif ident in (page.REMIND,page.REMIND_ON):
                 import sports_remind
@@ -243,8 +324,11 @@ def run(game, provider=None, clock=time.time, search=False):
                     self.start_play(sports_loop_router.automatic_source(sources))
             elif page.SOURCE<=ident<page.SOURCE+page.SLOTS*len(page.FORMS):
                 n=(ident-page.SOURCE)//len(page.FORMS)
-                with self.lock:source=self.sources[n] if n<len(self.sources) else None
-                if source is not None:self.start_play(source)
+                with self.lock:source=self.sources[n] if n<len(self.sources) else None;every=list(self.sources)
+                if source is not None:
+                    import sports_loop_router
+                    # A tap opens that source and, if it is dead or freezes, goes on to the game's other sources by itself (owner, 2026-11-20).
+                    self.start_play(sports_loop_router.tapped_source(source,every))
 
         def start_play(self,source):
             self.setProperty('play.error','')
@@ -270,10 +354,13 @@ def run(game, provider=None, clock=time.time, search=False):
                         except Exception:pass
                 threading.Thread(target=handoff,daemon=True).start()
 
-        def find_sources(self):
+        def find_sources(self, fresh=False):
             self.checked = clock()
             try:
-                self.search_token = provider.request_game(game_id)
+                try:
+                    self.search_token = provider.request_game(game_id, fresh=True) if fresh else provider.request_game(game_id)
+                except TypeError:   # a provider that has no such option (the sample one)
+                    self.search_token = provider.request_game(game_id)
                 self.search_failed = False
             except Exception as error:
                 self.search_token = None
@@ -283,6 +370,9 @@ def run(game, provider=None, clock=time.time, search=False):
                 except Exception:pass
 
         def onAction(self,action):
+            import gesture_note
+            if not hasattr(self,'_gestures'):self._gestures=gesture_note.Tracker(lambda text:__import__('xbmc').log(text,__import__('xbmc').LOGINFO))
+            self._gestures.feed(action)
             if action.getId() in BACK_KEYS:self.finish()
 
         def finish(self):
@@ -297,7 +387,9 @@ def run(game, provider=None, clock=time.time, search=False):
     except RuntimeError:
         xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'portrait')+'/')
         window=Game(page.WINDOW,HERE,'Default','1080i')
-    window.doModal()
+    import page_cover
+    with page_cover.covering():   # the window under this opaque page stops drawing while it is open
+        window.doModal()
     if hasattr(window,'stop'):window.stop.set()
     del window
 

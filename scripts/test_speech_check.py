@@ -101,6 +101,37 @@ class Shifting(unittest.TestCase):
         self.assertIn(b'00:00:00,000 --> 00:00:01,000', sc.shift_file(b'1\n00:00:02,000 --> 00:00:05,000\nHi\n', 'a.srt', -4))
 
 
+class AutoSync(unittest.TestCase):
+    """Subtitles > More > Auto sync (owner, 2026-11-22): the subtitle that is on is moved by what the speech says, at once."""
+    def test_a_late_subtitle_is_moved_and_says_so(self):
+        data, said = scene(3.0)
+        state, text, fixed = sc.sync_result(sc.heard(said), data, 'a.srt')
+        self.assertEqual(state, 'done');self.assertRegex(text, r'^Moved 3\.[01] s later$')
+        again = sc.verdict(sc.compare(sc.heard(said), sc.cues(fixed, 'a.srt')))
+        self.assertEqual(again, ('fits', 0.0))
+
+    def test_an_early_one_moves_the_other_way(self):
+        data, said = scene(-7.5)
+        state, text, fixed = sc.sync_result(sc.heard(said), data, 'a.srt')
+        self.assertEqual(state, 'done');self.assertRegex(text, r'^Moved 7\.[45] s earlier$')
+
+    def test_one_in_time_is_left_alone(self):
+        data, said = scene()
+        self.assertEqual(sc.sync_result(sc.heard(said), data, 'a.srt'), ('done', 'Already in sync', None))
+
+    def test_another_video_is_named_and_not_moved(self):
+        _, said = scene(seed=1)
+        data = '\n'.join('%d\n%s --> %s\nSpaceship engines failing number %d\n' % (i, sc._fmt_srt(100 + 4 * i), sc._fmt_srt(102 + 4 * i), i) for i in range(60)).encode()
+        state, text, fixed = sc.sync_result(sc.heard(said), data, 'b.srt')
+        self.assertEqual((state, fixed), ('fail', None));self.assertIn('another video', text)
+
+    def test_too_few_words_say_so(self):
+        data, said = scene()
+        few = sc.heard(said)[:5]
+        self.assertEqual(sc.sync_result(few, data, 'a.srt'), ('fail', 'Not enough speech heard. Try during dialogue', None))
+        self.assertEqual(sc.sync_result([], data, 'a.srt')[0], 'fail')
+
+
 class Download(unittest.TestCase):
     video = {'duration': 3000, 'language': 'en', 'season': None, 'episode': None}
 
@@ -174,6 +205,16 @@ class Listening(unittest.TestCase):
         self.assertEqual(lib.calls[0][0], b'http://127.0.0.1:1/v.mkv')   # Kodi's header suffix is not part of the link
         self.assertEqual((lib.calls[0][1], lib.calls[0][4], lib.calls[0][5]), (1, sc.BYTE_BUDGET, b'en-US'))
 
+    def test_a_place_with_no_sound_is_read_again_with_a_bigger_budget_and_a_third_place_is_tried(self):   # build 639 log 9f7b4ab2: 4K Drive episode, 'less than a second of sound'
+        quiet = {'status': 'no_sound', 'why': 'speech sample: less than a second of sound'}
+        lib = FakeLib([quiet, quiet, quiet, quiet, {'status': 'ok', 'words': [{'w': 'lantern', 't': 1350.0, 'd': .4}]}])
+        heard = sc.listen(lib, 'u', 0, 'en', 3000)
+        self.assertEqual(heard, [(1350.2, 'lantern')])
+        self.assertEqual([c[4] for c in lib.calls], [sc.BYTE_BUDGET, sc.BYTE_BUDGET * sc.RETRY_BUDGET] * 2 + [sc.BYTE_BUDGET * sc.RETRY_BUDGET])
+        self.assertEqual([c[2] for c in lib.calls], [900.0, 900.0, 1800.0, 1800.0, 1350.0])
+        lib = FakeLib([quiet, {'status': 'ok', 'words': [{'w': 'river', 't': 900.0, 'd': .2}]}, {'status': 'ok', 'words': []}])
+        sc.listen(lib, 'u', 0, 'en', 3000);self.assertEqual(len(lib.calls), 3)   # a retry that hears something is kept; no third place once words are heard
+
     def test_a_language_the_phone_cannot_recognise_stops_at_once(self):
         lib = FakeLib([{'status': 'not_on_device', 'why': 'no'}, {'status': 'ok', 'words': []}])
         self.assertEqual(sc.listen(lib, 'u', 0, 'en', 3000), [])
@@ -189,9 +230,33 @@ class Wiring(unittest.TestCase):
         self.assertIn('int kr_speech_pcm(', (ROOT / 'migration/airplay-ios/remux/src/kr_speech.h').read_text())
         self.assertIn('test_speech_sound(', (ROOT / 'migration/airplay-ios/remux/tests/test_remux.c').read_text())
         tracks = (ROOT / 'migration/bundled-bootstrap/tracks.py').read_text()
-        self.assertEqual(tracks.count('self.checked_video())'), 2)
+        self.assertEqual(tracks.count('self.checked_video()'), 2)   # Choose-another (apply) and the check that now runs after Download and apply has put the subtitle on
         self.assertIn('speech_check.for_playing(', (LIB / 'dub_captions.py').read_text())
         self.assertIn("NSSpeechRecognitionUsageDescription", (ROOT / 'scripts/build_customized_ipa.py').read_text())
+
+class Choosing(unittest.TestCase):
+    """Build 623 (owner: "download and apply ... they dont match and timing is off"): the first of 13 results was applied and the check could not decide."""
+    def test_the_best_supported_of_several_is_kept(self):
+        right, said = scene(0.0, seed=1);other, _ = scene(0.0, seed=7);shifted, said2 = scene(6.0, seed=1)
+        heard = sc.heard(said)
+        self.assertEqual(sc.compare(heard, sc.cues(other, 'o.srt'))['agreement'] < sc.MISMATCH + .1, True)
+        best = sc.best_fit(heard, [({'id': 'a'}, 'a.srt', other), ({'id': 'b'}, 'b.srt', right)])
+        self.assertEqual((best[0]['id'], best[3]), ('b', 'fits'))
+        best = sc.best_fit(sc.heard(said2), [({'id': 'a'}, 'a.srt', other), ({'id': 'c'}, 'c.srt', right)])
+        self.assertEqual(best[0]['id'], 'c');self.assertEqual(best[3], 'shift');self.assertAlmostEqual(best[4], 6.0, delta=.6)   # its cues are 6 s early: take that out
+    def test_nothing_established_gives_none_and_bad_files_are_skipped(self):
+        other, _ = scene(0.0, seed=7);_, said = scene(0.0, seed=1)
+        self.assertIsNone(sc.best_fit(sc.heard(said), [({'id': 'a'}, 'a.srt', other), ({'id': 'x'}, 'x.srt', b'not a subtitle')]))
+        self.assertIsNone(sc.best_fit([], []));self.assertIsNone(sc.best_fit(sc.heard(said)[:3], [({'id': 'a'}, 'a.srt', scene(0.0, seed=1)[0])]))   # too few words: no claim
+    def test_the_verdict_is_worded_for_the_log(self):
+        self.assertEqual(sc.describe({}), 'no verdict')
+        self.assertEqual(sc.describe({'match_speech': 'unknown', 'match_speech_agreement': .213, 'match_speech_shift': 0.0}), 'unknown (agreement 0.21, shift 0.0 s)')
+        self.assertEqual(sc.describe({'match_speech': 'shift', 'match_speech_agreement': None, 'match_speech_shift': -3.5}), 'shift (agreement n/a, shift -3.5 s)')
+    def test_the_menu_tries_the_next_results_when_the_check_cannot_decide(self):
+        text = (ROOT / 'migration/bundled-bootstrap/tracks.py').read_text()
+        self.assertIn("log('speech check: %d words heard, this subtitle: %s' % (len(heard), speech_check.describe(selected)))", text)
+        self.assertIn("selected.get('match_speech') == 'unknown'", text)
+        self.assertIn('best = speech_check.best_fit(heard, files)', text)
 
 
 if __name__ == '__main__':

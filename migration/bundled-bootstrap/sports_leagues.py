@@ -76,7 +76,10 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
     import xbmcvfs
     import diagnostics
     global _CACHE
+    import page_clock
+    clock_now = page_clock.Clock('leagues', lambda text: xbmc.log('Kodi iOS Sports: ' + text, xbmc.LOGINFO))
     provider = provider or sports_provider.get()
+    clock_now.lap('provider')
     on_league = on_league or open_league
     log = lambda text:xbmc.log(text,xbmc.LOGINFO)
 
@@ -90,7 +93,11 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
             self.data = seed if seed is not None else _CACHE
             self.logos = {}
             self.draw()
+            clock_now.lap('rows drawn')
+            clock_now.done('first frame' if self.data is not None else 'opened empty (nothing saved to draw)')
             self.refresh(reload=False)
+            import sports_fresh
+            sports_fresh.start(provider,self.stop,lambda:self.refresh(reload=False))
             def tick():
                 monitor=xbmc.Monitor()
                 last=clock()
@@ -154,6 +161,9 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
                 if league is not None:on_league(league['code'],log)
 
         def onAction(self,action):
+            import gesture_note
+            if not hasattr(self,'_gestures'):self._gestures=gesture_note.Tracker(lambda text:__import__('xbmc').log(text,__import__('xbmc').LOGINFO))
+            self._gestures.feed(action)
             if action.getId() in BACK_KEYS:self.finish()
 
         def finish(self):
@@ -165,7 +175,9 @@ def run(args=(), provider=None, clock=time.time, on_league=None, seed=None):
     except RuntimeError:
         xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'portrait')+'/')
         window=Leagues(page.WINDOW,HERE,'Default','1080i')
-    window.doModal()
+    import page_cover
+    with page_cover.covering():   # the window under this opaque page stops drawing while it is open
+        window.doModal()
     if hasattr(window,'stop'):window.stop.set()
     del window
 

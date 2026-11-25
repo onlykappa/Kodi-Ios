@@ -52,6 +52,15 @@ class Projection(unittest.TestCase):
         props,_=game_page.model(self.game,NOW,0)
         self.assertEqual(props['source.0.detail'],'Quality not reported')
 
+    def test_a_white_or_light_team_colour_never_washes_the_hero_out(self):
+        # Owner, 2026-11-20: "the colors seem to flash white ... then goes to all white". Cologne's ESPN colour is ffffff.
+        self.assertEqual(game_page.glow('ffffff'),game_page.NEUTRAL)          # white: the soft grey of a team with no colour
+        self.assertEqual(game_page.glow('f8f8f8'),game_page.NEUTRAL)
+        for color in ('ffd100','a0d8f0','e6e6e6','00ff00'):
+            tint=game_page.glow(color);rgb=[int(tint[2+i:4+i],16) for i in (0,2,4)]
+            self.assertLessEqual(game_page._luminance(rgb),game_page.MAX_GLOW+.01,color)
+        self.assertEqual(game_page.glow('0c2340'),TINT_B8+game_page.lighten('0c2340'))   # a dark colour is only lightened, as before
+        self.assertEqual(game_page.glow('dc052d')[:2],'B8')
     def test_board13_is_empty_not_a_provider_failure(self):
         self.game['sources']=[]
         props,sources=game_page.model(self.game,NOW,0)

@@ -138,4 +138,8 @@ def merge(records, addon_order=(), language='English'):
                     'away': away, 'home': home, 'joiner': lead.get('joiner') or 'vs', 'start': min(m.get('start') or 0 for m in members),
                     'clock': next((m.get('clock') for m in members if m.get('clock')), ''), 'left': left,
                     'sources': _sources([m for m in members if m.get('play')], addon_order, language)})
+        for key in ('detail', 'yard', 'redzone', 'ball'):   # football's situation, yard line, red zone and who has the ball (ESPN), for the Live Now rows
+            value = next((m.get(key) for m in members if m.get(key)), '')
+            if value:
+                out[-1][key] = value
     return out

@@ -290,7 +290,9 @@ def run():
     try:transfer_artwork.hydrate(profile,list(self.artnames),self.artkey,get,lambda:not self.stop.is_set(),self.attempted)
     except Exception as error:_quiet('notifications:artwork',error)
   def onAction(self,action):
-   import time
+   import time,gesture_note
+   if not hasattr(self,'_gestures'):self._gestures=gesture_note.Tracker(lambda text:__import__('xbmc').log(text,__import__('xbmc').LOGINFO))
+   self._gestures.feed(action)
    code=action.getId()
    if code in LONG or code==10:
     card=transfer_control.card_of(self.getFocusId(),SLOTS)
@@ -404,7 +406,10 @@ def run():
     self.run_fix(item,chosen)
 
  page=Page('IOSNotifications.xml',home,'Default','1080i')
- page.doModal();page.stop.set() if hasattr(page,'stop') else None
+ import page_cover
+ with page_cover.covering():   # the window under this opaque page stops drawing while it is open
+     page.doModal()
+ page.stop.set() if hasattr(page,'stop') else None
  del page
 
 def _quiet(where,error,_seen=set()):
