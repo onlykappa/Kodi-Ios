@@ -6887,3 +6887,8 @@ Build 646 is the Sports build line with the other agent's Live Now rows merged i
 - **Fix (host-tested):** (1) a download that is not watched (mode 0 Download only, or a cancel) clears the mark at once (`elementum_cloud`), so nothing is held; (2) Library status > WORKING NOW has a "Resume now" link (top right of the card, `library_page.RESUME` = 9007), visible only while a row says "for playback" and nothing plays (`!Player.HasVideo`): it sets `KodiIOS.ForceRun` for 180 s and clears the open marks (`slowdown.force_run`); while nothing is playing, caching or casting, `play_reason` ignores the opening mark. A real video, a stalled buffer or a cast hold work as before. Log: `Library status: Resume now pressed`.
 - **Evidence class for the link:** desktop Kodi rig capture (the link forced on for the picture), not the phone. Style: the page's own `u.link` (the same as "Edit order").
 - **Tests:** `test_resume_now.py` (new, in the CI list). `test_build193_pages.py` fails the same 9 ways on a clean tree and is not in the CI list.
+
+## ISSUE-484: Build 702 failed CI at test_airplay_room
+- Cause: the service's two `slowdown.configure` lines gained `forced=` (ISSUE-483 Resume now); test_airplay_room still asserted the old exact text.
+- Fix: test updated to the new wiring. Retest: every test in the CI step run locally, all pass.
+- Protection: the wiring assertion now covers the Resume now argument.
