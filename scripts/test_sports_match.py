@@ -70,6 +70,18 @@ class Start(unittest.TestCase):
   with self.assertRaises(RuntimeError):L.start(game(),[listing()],NOW-10,boom,NOW)
   seen=[];L.start(game(),[listing()],NOW-10,seen.append,NOW);self.assertEqual(len(seen),1)
 
+import source_health as sh
+class HealthWiring(unittest.TestCase):
+ def test_failed_launch_cools_its_family_and_a_cooling_family_goes_last(self):
+  hl=sh.Health('',lambda:float(NOW))
+  def boom(s):raise ConnectionError('https://x.invalid?token=SECRET')
+  with self.assertRaises(ConnectionError):m.Launcher().start(game(),[listing()],NOW-10,boom,NOW,health=hl)
+  self.assertEqual(hl.state('sports:thecrew'),'cooldown');self.assertNotIn('SECRET',repr(hl.data))
+  seen=[];l=listing(sources=[src('a'),dict(src('b'),addon='Loop')]);m.Launcher().start(game(),[l],NOW-10,seen.append,NOW,health=hl);self.assertEqual(seen[0]['id'],'b')
+  seen=[];m.Launcher().start(game(),[l],NOW-10,seen.append,NOW,health=hl,source_id='a');self.assertEqual(seen[0]['id'],'a','a source the person picked is not reordered')
+ def test_cancel_is_not_recorded(self):
+  hl=sh.Health('',lambda:float(NOW));self.assertEqual(kind(m.Launcher().start,game(),[listing()],NOW-10,lambda s:None,NOW,cancel=lambda:True,health=hl),c.CANCELED);self.assertEqual(hl.data,{})
+
 from test_fresh_resolve import Site
 import backup_playback as bp
 class Player:
@@ -80,6 +92,12 @@ class Player:
   return s.t if s.running else 0.0
  def stop(s):s.stops+=1;s.running=False
 class Independent(unittest.TestCase):
+ def test_independent_outcomes_feed_health(self):
+  self.setUp();hl=sh.Health('',lambda:float(NOW))
+  self.assertEqual(m.start_independent(game(),'a',self.pb,self.resolve,NOW,health=hl),'playing');self.assertEqual(hl.state('sports:independent'),'recent')
+  self.site.mode='429';self.pb.stop();hl.record('sports:independent',c.OK)
+  with self.assertRaises(c.Outcome):m.start_independent(game(),'a',bp.Playback(Player()),self.resolve,NOW,health=hl)
+  self.assertEqual(hl.state('sports:independent'),'cooldown');self.tearDown()
  def setUp(self):
   self.site=Site();self.p=Player();self.pb=bp.Playback(self.p,sleep=lambda d:None)
   self.resolve=lambda address:(self.site.url(),{'X-Token':'t1'})

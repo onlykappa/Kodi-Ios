@@ -325,7 +325,7 @@ def search_all(request, fetch=independent_search.default_fetch, cancel=None, tim
     cooling = {a.name for a in SIMPLE + (Leet(),) if health is not None and health.state(a.name) == 'cooldown'}
     disabled = tuple(disabled) + tuple(cooling)            # a source cooling down is not asked again until its cooldown ends
     adapters = [a for a in SIMPLE if a.name not in disabled and a.applies(request)]
-    report, found = {}, []
+    report, found, waits = {}, [], {}
     pool = ThreadPoolExecutor(max_workers=MAX_WORKERS)
     try:
         jobs = {pool.submit(_one, a, request, fetch, deadline, clock): a for a in adapters}
@@ -341,6 +341,11 @@ def search_all(request, fetch=independent_search.default_fetch, cancel=None, tim
                 result = job.result()
             except Exception as error:
                 report[adapter.name] = source_contract.classify(error)
+                try:
+                    import source_health
+                    waits[adapter.name] = source_health.retry_after(error)
+                except Exception:
+                    pass
                 continue
             if adapter.name == '1337x':
                 outcome, items = result
@@ -359,7 +364,7 @@ def search_all(request, fetch=independent_search.default_fetch, cancel=None, tim
         return source_contract.CANCELED, [], report
     if health is not None:
         for site, outcome in report.items():
-            health.record(site, outcome)
+            health.record(site, outcome, waits.get(site, 0))
     best = {}
     for item in found:
         key = str(item.get('torrent_hash') or '').lower()

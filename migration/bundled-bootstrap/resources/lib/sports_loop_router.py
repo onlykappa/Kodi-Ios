@@ -6,6 +6,7 @@ import uuid
 import sports_native_routes as routes
 import sports_merge
 import sports_stream_health as health_mod
+import source_health
 
 MAX_CHOICES = 32
 OWNER = "KodiIOS.SportsNativeOwner"
@@ -61,7 +62,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
     if backend is None:
         import xbmc as backend
     if health is None:
-        health = health_mod.open_health()
+        health = source_health.FamilyHealth(health_mod.open_health(), source_health.default())   # per-stream health plus a cooldown per source family
     if info is None:
         info = getattr(backend, 'getInfoLabel', None)
     choices, seen = [], set()

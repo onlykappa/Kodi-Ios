@@ -72,7 +72,7 @@ class Launcher:
         self.lock = threading.Lock()
         self.opening = set()
 
-    def start(self, game, listings, listed_at, launch, now=None, cancel=None, current=None, source_id=None):
+    def start(self, game, listings, listed_at, launch, now=None, cancel=None, current=None, source_id=None, health=None):
         """Returns the persistable record of what was started. Raises Outcome: empty, unsupported (stale/ambiguous), expired, canceled."""
         now = time.time() if now is None else now
         key = game.get('id') or ''
@@ -85,6 +85,9 @@ class Launcher:
             if not fresh(listed_at, now):
                 raise source_contract.Outcome(source_contract.EXPIRED)
             sources = listing['sources']
+            if health is not None and not source_id:      # a family cooling down goes behind the others, never away
+                cool = [x for x in sources if health.state('sports:' + str(x.get('addon', '')).split(' ')[0].lower()) == 'cooldown']
+                sources = [x for x in sources if x not in cool] + cool
             source = next((s for s in sources if s.get('id') == source_id), None) if source_id else sources[0]
             if source is None:
                 raise source_contract.Outcome(source_contract.UNSUPPORTED)
@@ -94,8 +97,14 @@ class Launcher:
                 latest = current(key)
                 if latest is None or status(latest, now) == 'stale':
                     raise source_contract.Outcome(source_contract.UNSUPPORTED)
-            launch(source)
-            return persistable(game, source)
+            family = 'sports:' + str(source.get('addon', '')).split(' ')[0].lower()
+            try:
+                launch(source)
+            except Exception as error:
+                if health is not None:
+                    health.record(family, source_contract.classify(error))
+                raise
+            return persistable(game, source)       # a successful start is recorded by the router once the picture really moves
         finally:
             with self.lock:
                 self.opening.discard(key)
@@ -118,7 +127,7 @@ def independent_resolver(address, resolve, now=time.time, verify=None):
     return go
 
 
-def start_independent(game, address, playback, resolve, now=None, cancel=None, current=None, verify=None):
+def start_independent(game, address, playback, resolve, now=None, cancel=None, current=None, verify=None, health=None):
     """Game -> fresh embed playlist -> player, with the same stale, cancel and duplicate rules as native Crew starts."""
     now = time.time() if now is None else now
     if status(game, now) == 'stale':
@@ -129,4 +138,12 @@ def start_independent(game, address, playback, resolve, now=None, cancel=None, c
         latest = current(game.get('id') or '')
         if latest is None or status(latest, now) == 'stale':
             raise source_contract.Outcome(source_contract.UNSUPPORTED)
-    return playback.start_resolved((game.get('id') or '', 'independent'), independent_resolver(address, resolve, verify=verify), cancel=cancel)
+    try:
+        result = playback.start_resolved((game.get('id') or '', 'independent'), independent_resolver(address, resolve, verify=verify), cancel=cancel)
+    except source_contract.Outcome as outcome:
+        if health is not None:
+            health.record('sports:independent', outcome.kind)       # canceled is ignored by Health.record
+        raise
+    if health is not None and result == 'playing':
+        health.record('sports:independent', source_contract.OK)
+    return result

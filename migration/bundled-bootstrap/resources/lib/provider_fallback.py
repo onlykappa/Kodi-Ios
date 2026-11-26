@@ -199,7 +199,8 @@ def search(request, primary='elementum', cancel=None, timeout=TOTAL_SECONDS, tra
             # One typed outcome per failure (source_contract.classify never reads the message, so no link can leak).
             outcome = source_contract.classify(error)
             if health is not None:
-                health.record(provider, outcome)
+                import source_health
+                health.record(provider, outcome, source_health.retry_after(error))
             note(provider, outcome)
             continue
         if health is not None:
