@@ -23,7 +23,7 @@ def make_media(folder):
     folder=Path(folder);folder.mkdir(parents=True,exist_ok=True)
     mp4=folder/'clip.mp4'
     base=['ffmpeg','-v','error','-y','-f','lavfi','-i','testsrc2=size=320x180:rate=25','-f','lavfi','-i','sine=frequency=440:sample_rate=44100','-t','20','-c:v','libx264','-pix_fmt','yuv420p','-g','50','-c:a','aac']
-    subprocess.run(base+[str(mp4)],check=True)
+    subprocess.run(base+['-movflags','+faststart',str(mp4)],check=True)
     hls=folder/'hls';hls.mkdir(exist_ok=True)
     subprocess.run(base+['-f','hls','-hls_time','2','-hls_playlist_type','vod','-hls_segment_filename',str(hls/'seg%d.ts'),str(hls/'index.m3u8')],check=True)
     (folder/'master.m3u8').write_text('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=400000,RESOLUTION=320x180\nhls/index.m3u8\n')
@@ -46,7 +46,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if path.startswith('/guarded/hls/') and COOKIE not in (self.headers.get('Cookie') or ''):self.send_error(403);return False
         return True
     def do_GET(self):
-        if self.guard():super().do_GET()
+        if not self.guard():return
+        rng=self.headers.get('Range')
+        path=Path(self.translate_path(self.path))
+        if rng and rng.startswith('bytes=') and path.is_file():       # Kodi probes media with ranges: answer them like a real file server
+            size=path.stat().st_size;a,_,b=rng[6:].partition('-');start=int(a) if a else max(0,size-int(b));end=min(size-1,int(b)) if a and b else size-1
+            self.send_response(206);self.send_header('Content-Range','bytes %d-%d/%d'%(start,end,size));self.send_header('Content-Length',str(end-start+1));self.send_header('Accept-Ranges','bytes');self.send_header('Content-Type','video/mp4' if path.suffix=='.mp4' else 'application/octet-stream');self.end_headers()
+            with open(path,'rb') as f:
+                f.seek(start);self.wfile.write(f.read(end-start+1))
+            return
+        super().do_GET()
     def do_HEAD(self):
         if self.guard():super().do_HEAD()
     def end_headers(self):
