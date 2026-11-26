@@ -783,7 +783,7 @@ class Wiring(unittest.TestCase):
   self.assertIn('watch=mode == 1',hook)
  def test_service_runs_the_queue(self):
   src=(BOOT/'service.py').read_text()
-  self.assertIn('debrid_drive.step(profile,alldebrid.AllDebrid(token),drive',src);self.assertIn('threading.Thread(target=debrid_loop,daemon=True).start()',src)
+  self.assertIn('debrid_drive.step(profile,alldebrid.AllDebrid(token,observe=debrid_account.observer()),drive',src);self.assertIn('threading.Thread(target=debrid_loop,daemon=True).start()',src)
   self.assertIn('prepare_downloads.request_check(profile)',src[src.index('def debrid_loop'):])
 
 class PlayedVersions(unittest.TestCase):

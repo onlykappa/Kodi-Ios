@@ -8,6 +8,7 @@ import os
 import tempfile
 
 NAME = 'alldebrid.token'
+OWN = 'alldebrid.own'          # present when the key was obtained by the app's own sign-in: it then wins over Umbrella's setting
 UMBRELLA = 'plugin.video.umbrella'
 SETTING = 'alldebridtoken'
 
@@ -62,9 +63,40 @@ def _write(path, token):
         return False
 
 
+def save_own(token, profile=None):
+    """Store a key from the app's own sign-in (owner-only file plus a marker that it outranks Umbrella's setting)."""
+    path = _path(profile)
+    token = str(token or '').strip()
+    if not path or not token or not _write(path, token):
+        return False
+    return _write(os.path.join(os.path.dirname(path), OWN), '1')
+
+
+def clear(profile=None):
+    """Sign out: remove the stored key and the marker (Umbrella's own setting is never touched)."""
+    path = _path(profile)
+    if not path:
+        return False
+    for name in (path, os.path.join(os.path.dirname(path), OWN)):
+        try:
+            os.unlink(name)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            return False
+    return True
+
+
+def own(profile=None):
+    path = _path(profile)
+    return bool(path) and os.path.exists(os.path.join(os.path.dirname(path), OWN)) and bool(_read(path))
+
+
 def get(profile=None, umbrella=None):
     """The current AllDebrid key, or ''. `umbrella` is a function returning Umbrella's setting (tests pass one)."""
     path = _path(profile)
+    if own(profile):
+        return _read(path)               # the app's own sign-in outranks Umbrella's setting
     live = (umbrella or _umbrella)()
     if live:
         if _read(path) != live:
