@@ -54,11 +54,12 @@ def real():
         else:
             import sports_hybrid
             espn.ttl = sports_hybrid.TTL
-            _real[0] = sports_hybrid.HybridProvider(espn, crew_sources)
+            _real[0] = sports_hybrid.HybridProvider(espn, all_sources)
     return _real[0]
 
 
 _scans = [0]
+LOOP_SECONDS = 60      # the longest one game's search keeps reading what The Loop's routes list (after The Crew found nothing)
 SEARCH_SECONDS = 150   # the longest one game's source search keeps reading what Crew's collector publishes
 
 
@@ -157,6 +158,45 @@ def crew_sources(game, sleep=time.sleep, clock=time.monotonic, fresh=False):
             _scans[0] -= 1
             if _scans[0] <= 0:   # another game's search may still be reading
                 home.clearProperty('KodiIOS.SportsCrewOnlyLeague')
+
+
+def loop_sources(game, sleep=time.sleep, clock=time.monotonic, make=None):
+    """The sources The Loop's routes list for this one game: the second place to look when The Crew has none (owner, 2026-11-26: the Crew's one site had no feed for a live game
+    while The Loop's many sites did). The Loop must be installed from its repository (Kodi records where it came from, and The Loop refuses to run without that). Its routes
+    are read through Kodi's own directory listing (nothing of its code is imported or bypassed), only this game's league and teams are matched, and the same strict one-listing
+    rule as Crew applies. No match, no Loop, or an error is an empty list."""
+    import sports_jet
+    try:
+        if not sports_jet._folder('plugin.video.the-loop'):
+            return []
+        jet = make() if make else sports_jet.JetProvider(loop_only=True, loop_schedule=[game], wait=2)
+        began = clock()
+        while True:
+            try:
+                games = list(jet.live_games()) + list(jet.upcoming_games())
+            except sm_unavailable():
+                games = []
+            found = _match(game, games)
+            if found:
+                return found
+            if clock() - began > LOOP_SECONDS or not jet_busy(jet):
+                return []
+            sleep(1)
+    except Exception as error:
+        sports_jet.log('sports: Loop search ended (%s)' % type(error).__name__)
+        return []
+
+
+def jet_busy(jet):
+    """True while The Loop's source workers are still answering."""
+    running = getattr(jet, 'running', None)
+    return running is not None and not running.is_set()
+
+
+def all_sources(game, fresh=False, **kwargs):
+    """Crew first; The Loop only when Crew had nothing for the game (Crew's sites answer faster and are the ones the page already knows)."""
+    found = crew_sources(game, fresh=fresh, **kwargs)
+    return found if found else loop_sources(game)
 
 
 def sm_unavailable():

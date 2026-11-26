@@ -327,8 +327,9 @@ def annotate_clocks(values, previous, now=None):
 class JetProvider:
     """The shared contract provider; real pages select Crew-only collection. `loader()` -> (extractors, how) and `clock` are injectable (tests)."""
 
-    def __init__(self, loader=None, clock=time.time, wait=LOAD_SECONDS, remote=False, publish=None, window=None, launch=None, score_loader=None, crew_only=False, crew_session=None):
+    def __init__(self, loader=None, clock=time.time, wait=LOAD_SECONDS, remote=False, publish=None, window=None, launch=None, score_loader=None, crew_only=False, crew_session=None, loop_only=False, loop_schedule=None):
         self.loader, self.clock, self.wait = loader, clock, wait
+        self.loop_only, self.loop_schedule = loop_only, loop_schedule   # loop_only: read The Loop's routes even when The Crew is installed (the second source for one game)
         self.crew_session = crew_session
         self.crew_only = crew_only
         self.remote, self.publish, self.launch = remote, publish, launch   # remote: a page asks the script (run_script) and reads its answer
@@ -372,8 +373,9 @@ class JetProvider:
         else:
             import sports_independent
             import sports_fawa
-            extractors = [] if (self.crew_only or _folder('plugin.video.thecrew')) else ([sports_fawa.FawaNews()] if _folder('plugin.video.the-loop') else [sports_independent.StreamsCenter(), sports_fawa.FawaNews()])
-            how = 'Crew routes' if (self.crew_only or _folder('plugin.video.thecrew')) else ('Loop routes' if _folder('plugin.video.the-loop') else 'independent')
+            crew = (self.crew_only or _folder('plugin.video.thecrew')) and not (self.loop_only and _folder('plugin.video.the-loop'))
+            extractors = [] if (crew or self.loop_only) else ([sports_fawa.FawaNews()] if _folder('plugin.video.the-loop') else [sports_independent.StreamsCenter(), sports_fawa.FawaNews()])
+            how = 'Crew routes' if crew else ('Loop routes' if _folder('plugin.video.the-loop') else 'independent')
             discover_jet = True
         done = threading.Event()
         pending = [len(extractors) + int(discover_jet)]
@@ -431,7 +433,7 @@ class JetProvider:
             def discover():
                 try:
                     home = None
-                    if _folder('plugin.video.thecrew'):
+                    if _folder('plugin.video.thecrew') and how == 'Crew routes':
                         import sports_crew_routes
                         schedule_began = time.monotonic()
                         try:
@@ -461,7 +463,7 @@ class JetProvider:
                         return
                     elif _folder('plugin.video.the-loop'):
                         import sports_loop_routes
-                        others = sports_loop_routes.discover()
+                        others = sports_loop_routes.discover(schedule=self.loop_schedule) if self.loop_schedule else sports_loop_routes.discover()
                         log('jet: %d Loop source routes discovered' % len(others))
                     else:
                         try:
