@@ -25,6 +25,12 @@ if [[ ! -f "$WORK/fixtures/h264_dvdsub.mkv" || ! -f "$WORK/fixtures/h264_second_
     -c:v:0 copy -c:a copy -c:v:1 libx264 -preset ultrafast -g 48 -pix_fmt yuv420p "$WORK/fixtures/h264_bigger_second_video.mkv"
 fi
 ASS="$(cd "${3:-$FF/../asshost}" && pwd)"
+if [[ ! -f "$WORK/fixtures/hevc_open_gop.mkv" ]]; then
+  # ISSUE-495: open-GOP HEVC with several frames shown before each keyframe and decoded after it.
+  ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=320x160:rate=24000/1001:duration=40' \
+    -f lavfi -i 'sine=frequency=440:sample_rate=48000:duration=40' -map 0:v -map 1:a -vf format=yuv420p10le -c:v libx265 -preset veryfast \
+    -x265-params 'bframes=8:b-adapt=0:b-pyramid=1:open-gop=1:keyint=96:min-keyint=96:scenecut=0:log-level=error' -c:a aac "$WORK/fixtures/hevc_open_gop.mkv"
+fi
 if [[ ! -f "$WORK/fixtures/coalesced.mp4" ]]; then
   # A prepared movie's storage fragment can contain many short GOPs. Filler makes socket backpressure and
   # caption reads realistic without a large picture or expensive encoder. Keep this fixture private.

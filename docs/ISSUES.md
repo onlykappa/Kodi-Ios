@@ -5495,9 +5495,15 @@ Framework rebuild needed (owner to be told first, not started): airplay-remux.ym
 Build: import-review run 725 on 4ac6b2f succeeded (its test step included), IPA in prerelease build-725; framework still r76, so no native counters.
 Retest: scripts/test_airplay_diagnostics.py (host). Regression protection: its counter, sample-line and native-key tests. Device unverified. Owner test: replay the same two spots (a repeat at the same spot points to the file/stream), same spots on the phone itself, an 8-bit H.264 episode cast to the TV, note clock times and any frame-rate/HDR switch.
 Host run 2026-11-25 of the import-review test step on Python 3.13 (not the CI's 3.11 and provider fixtures): 241 of 242 commands passed; scripts/test_seek_release.py could not run here (it downloads Kodi source from raw.githubusercontent.com, refused by the network; it fails the same way on a clean copy of 6788558).
+Fix, 2026-11-26 (owner approved a test rebuild, not publication): gm_stream.c video_lead() gives HEVC a 16-frame ladder in both ts_init_for and metadata_edit; other codecs unchanged. Local real-muxer check (system FFmpeg 6.1.1 movenc, timestamps set with the setts filter to imitate gm_ts, not our code path): lead 4 wrote 287 of 1439 and 169 of 1439 wrong picture times on two open-GOP samples and 210 of 960 on the new fixture; lead 16 wrote none on any sample. Not fixed: decode-time overlap or gap of a few frames where two segments have different leading-frame counts; EXT-X-INDEPENDENT-SEGMENTS on open GOP. Regression protection: test_remux.c test_open_gop_times (fixture hevc_open_gop.mkv) compares every served picture time with the source; check_rendition now measures a video rendition's start and end by picture time. CI result: pending. Framework not published, IPA unchanged, device unverified.
 
 ## ISSUE-496: check_project.py failed on the branch: docs/ISSUES.md over 1,000,000 bytes (2026-11-25)
 - Seen: `oversized-file` for docs/ISSUES.md on a clean copy of 6788558 (1,004,083 bytes), before any change of this session. The import-review workflow does not run check_project.py, so the build did not show it.
 - Cause: the register grew past the limit with 8e76faf, the ISSUE-491/492 commit (1,001,686 bytes; 998,497 one commit earlier).
 - Fix: ISSUE-001 to ISSUE-138 moved verbatim to docs/ISSUES-ARCHIVE.md, with a pointer here.
 - Retest: python3 -B scripts/check_project.py (host). Regression protection: the same check, which must pass before committing.
+
+## ISSUE-497: test_conversion_speed.py has one stale source-text check (2026-11-26) - open
+- Seen: AirPlayGetsTheLine.test_read_ahead_while_a_video_plays fails on a clean copy of 6788558 as well as here. The import-review workflow does not run this file.
+- Cause: the test expects the read-ahead loop in drive_stream.py without the later `or getattr(stream, 'serial', False)` condition.
+- Fix: not made (unrelated to ISSUE-495). Retest and protection: python3 -B scripts/test_conversion_speed.py.

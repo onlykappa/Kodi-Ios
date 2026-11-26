@@ -304,6 +304,16 @@ static void close_output(AVFormatContext *oc, AVIOContext *avio, out_ctx *octx) 
     free(octx);
 }
 
+// Kodi iOS (ISSUE-495): how many frames the video decode ladder leads the pictures. Open-GOP HEVC shows frames before a
+// keyframe that are decoded after it; a lead of video_delay + 2 was too small for them, so gm_ts raised their picture
+// times (up to 4 frames, some shared with another frame) for the rest of the segment. HEVC takes the ladder's maximum.
+// One value per file: the muxer's edit list is this lead, and metadata_edit must write the same one into the init.
+static int video_lead(const AVCodecParameters *p) {
+    if (p->codec_id == AV_CODEC_ID_HEVC) return 16;
+    int lead = (p->video_delay > 0 ? p->video_delay : 1) + 2;
+    return lead > 16 ? 16 : lead;
+}
+
 static void ts_init_for(gm_stream *s, AVFormatContext *oc, int vout, gm_ts_state *ts) {
     for (int k = 0; k < (int)oc->nb_streams; k++) {
         AVStream *ost = oc->streams[k];
@@ -315,8 +325,7 @@ static void ts_init_for(gm_stream *s, AVFormatContext *oc, int vout, gm_ts_state
             AVRational fr = av_guess_frame_rate(s->in,iv,NULL);
             if (fr.num <= 0 || fr.den <= 0) fr = iv->r_frame_rate;
             if (fr.num > 0 && fr.den > 0) { fn = fr.num; fd = fr.den; }
-            int vd = iv->codecpar->video_delay;
-            lead = (vd > 0 ? vd : 1) + 2; if (lead > 16) lead = 16;
+            lead = video_lead(iv->codecpar);
         }
         gm_ts_init(&ts[k], fn, fd, ost->time_base.num, ost->time_base.den, lead);
     }
@@ -1138,13 +1147,13 @@ AVFormatContext *gm_stream_format_context(gm_stream *s) { return s ? s->in : NUL
 // split in *moov_end, so the server caches the init and the media segment from one pass (the init request no longer
 // muxes segment 0 a second time). Same windows and output as gm_stream_video_segment / gm_stream_audio_segment.
 // Match delay_moov's edit list without reading media: gm_ts leads video DTS by a fixed number of frames.
-// Omitting this edit shifts copied video by that lead (about 167 ms), breaking alignment with converted video.
+// Omitting this edit shifts copied video by that lead (the lead: 167 ms for most H.264, 667 ms for HEVC at 24 fps), breaking alignment with converted video.
 static int metadata_edit(gm_stream *s,int src,AVFormatContext *oc,gm_buf *out) {
     AVStream *input=s->in->streams[src],*output=oc->streams[0];int64_t lead_ticks=0;
     if(input->codecpar->codec_type==AVMEDIA_TYPE_VIDEO) {
         AVRational fps=av_guess_frame_rate(s->in,input,NULL);if(fps.num<=0 || fps.den<=0)fps=input->avg_frame_rate;
         if(fps.num<=0 || fps.den<=0)return -1;
-        int lead=(input->codecpar->video_delay>0?input->codecpar->video_delay:1)+2;if(lead>16)lead=16;
+        int lead=video_lead(input->codecpar);
         int64_t num=(int64_t)lead*fps.den*output->time_base.den,den=(int64_t)fps.num*output->time_base.num;
         lead_ticks=(num+den-1)/den;if(lead_ticks>INT32_MAX)return -1;
     }

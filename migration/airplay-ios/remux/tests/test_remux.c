@@ -115,13 +115,14 @@ static void check_rendition(int port, const char *prefix, int nseg, double durat
     if (r) return;
     avformat_find_stream_info(in, NULL);
     AVPacket *pkt = av_packet_alloc();
-    double tb = av_q2d(in->streams[0]->time_base), last_end = -1, first = -1, worst = 0;
+    double tb = av_q2d(in->streams[0]->time_base), last_end = -1, first = -1, worst = 0, shown_end = -1;
     int packets = 0;
     while (av_read_frame(in, pkt) == 0) {
-        double t = pkt->dts * tb, d = pkt->duration * tb;
-        if (first < 0) first = t;
+        double t = pkt->dts * tb, d = pkt->duration * tb, shown = pkt->pts * tb;
+        if (first < 0) first = is_audio ? t : shown;   // the video's first packet is its opening keyframe
         if (last_end >= 0 && fabs(t - last_end) > worst) worst = fabs(t - last_end);
         last_end = t + d; packets++;
+        if (!is_audio && shown + d > shown_end) shown_end = shown + d;
         av_packet_unref(pkt);
     }
     av_packet_free(&pkt);
@@ -133,6 +134,7 @@ static void check_rendition(int port, const char *prefix, int nseg, double durat
         // B-frames: decode times jump by up to the reorder depth (GMPlayer gm_ts lead) where segments meet.
         CHECK(worst < 0.17, "%s: video timeline gap %.3f s", outfile, worst);
     }
+    if (!is_audio) last_end = shown_end;   // ISSUE-495: decode times end a lead early (HEVC: 16 frames)
     CHECK(first >= start_offset - 0.15 && first < start_offset + 0.15, "%s starts at %.2f (%.3f)", outfile, start_offset, first);
     CHECK(fabs(last_end - duration) < 0.25, "%s covers the file: ends %.3f, file %.3f", outfile, last_end, duration);
     CHECK(packets > 10, "%s has packets (%d)", outfile, packets);
@@ -664,6 +666,67 @@ static double segment_first(const reply *init, const reply *seg, const char *tmp
     if (av_read_frame(in, p) == 0) { t = p->pts * av_q2d(in->streams[0]->time_base); *key = (p->flags & AV_PKT_FLAG_KEY) != 0; }
     av_packet_free(&p); avformat_close_input(&in);
     return t;
+}
+
+// ISSUE-495: every copied picture keeps its source time in open-GOP HEVC (frames shown before a keyframe, decoded after it).
+static int by_time(const void *a, const void *b) { double d = *(const double *)a - *(const double *)b; return d < 0 ? -1 : d > 0; }
+static int picture_times(const char *file, double *out, int max, int *leading) {
+    AVFormatContext *in = NULL;
+    if (avformat_open_input(&in, file, NULL, NULL) < 0) return -1;
+    avformat_find_stream_info(in, NULL);
+    int v = av_find_best_stream(in, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0), n = 0, since = 0, here = 0;
+    double key = 0;
+    AVPacket *p = av_packet_alloc();
+    while (v >= 0 && av_read_frame(in, p) == 0) {
+        if (p->stream_index == v && n < max) {
+            double t = p->pts * av_q2d(in->streams[v]->time_base);
+            if (p->flags & AV_PKT_FLAG_KEY) { key = t; since = 1; here = 0; }
+            else if (since && t < key && leading && ++here > *leading) *leading = here;
+            out[n++] = t;
+        }
+        av_packet_unref(p);
+    }
+    av_packet_free(&p); avformat_close_input(&in);
+    return n;
+}
+static void test_open_gop_times(const char *http_base, const char *work) {
+    enum { MAX = 2000 };
+    static double source[MAX], served[MAX];
+    char path[1200], url[1200], m3u8[256], tmp[1200], name[64];
+    int leading = 0;
+    snprintf(path, sizeof path, "%s/hevc_open_gop.mkv", fixture_dir);
+    int frames = picture_times(path, source, MAX, &leading);
+    CHECK(frames > 900 && leading >= 4, "open-GOP fixture has frames shown before their keyframe (frames %d, leading %d)", frames, leading);
+    snprintf(url, sizeof url, "%s/hevc_open_gop.mkv", http_base);
+    int st = start_session(url, 0, m3u8, sizeof m3u8);
+    CHECK(st == KR_READY, "open-GOP start %d (%s)", st, kr_remux_message());
+    if (st != KR_READY) return;
+    int port = kr_remux_port(), total = 0;
+    reply video = http_get(port, "/video/index.m3u8", NULL), init = http_get(port, "/video/init.mp4", NULL);
+    double sum, maxd; int target, nseg = playlist_segments(video.body ? video.body : "", &sum, &maxd, &target);
+    CHECK(nseg >= 5 && init.status == 200, "open-GOP segments %d, init %d", nseg, init.status);
+    // Each segment on its own after the init, as a player that seeks there gets it.
+    for (int i = 0; i < nseg && init.status == 200; i++) {
+        snprintf(name, sizeof name, "/video/seg%d.m4s", i);
+        reply seg = http_get(port, name, NULL);
+        snprintf(tmp, sizeof tmp, "%s/open-gop-seg.mp4", work);
+        FILE *f = fopen(tmp, "wb"); fwrite(init.body, 1, init.len, f); fwrite(seg.body, 1, seg.len, f); fclose(f);
+        int n = picture_times(tmp, served + total, MAX - total, NULL);
+        CHECK(seg.status == 200 && n > 0, "open-GOP segment %d: status %d, frames %d", i, seg.status, n);
+        if (n > 0) total += n;
+        free(seg.body);
+    }
+    CHECK(total == frames, "open-GOP: every source frame served once (%d of %d)", total, frames);
+    qsort(source, (size_t)(frames > 0 ? frames : 0), sizeof *source, by_time);
+    qsort(served, (size_t)total, sizeof *served, by_time);
+    int wrong = 0, at = -1; double worst = 0;
+    for (int i = 0; i < total && i < frames; i++) {
+        double off = fabs(served[i] - source[i]);
+        if (off > 0.004) { wrong++; if (at < 0) at = i; }
+        if (off > worst) worst = off;
+    }
+    CHECK(!wrong, "open-GOP: %d picture times differ from the source (first at frame %d, worst %.3f s)", wrong, at, worst);
+    free(video.body); free(init.body); kr_remux_stop();
 }
 
 // compat=1 asked for (HEVC 10-bit PQ, H.264 TS starting at 1.4 s), or chosen by itself (MPEG-2: not an AirPlay codec).
@@ -2935,6 +2998,7 @@ int main(int argc, char **argv) {
     }
     if (argc > 2) {
         printf("-- over HTTP (%s)\n", argv[2]);
+        test_open_gop_times(argv[2], work);
         test_range_source(argv[2]);
         test_source_transport(argv[2]);test_shared_source(argv[2]);test_metadata_init(argv[2]);test_audio_seek_replay(argv[2]);
         char url[1024]; snprintf(url, sizeof url, "%s/h264_ac3_dts_srt.mkv", argv[2]);
