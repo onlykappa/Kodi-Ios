@@ -1,6 +1,6 @@
 # Kodi-iOS master roadmap
 
-AirPlay stutter checkpoint (2026-11-25): ISSUE-495 in [issues](docs/ISSUES.md). The open-GOP timestamp fix and TV counters pass the framework tests (run 45838061070, 2026-11-26). Next: owner approval to publish that framework and build an IPA, then phone/Apple TV tests. Host evidence only; nothing merged.
+AirPlay stutter checkpoint (2026-11-25): ISSUE-495 in [issues](docs/ISSUES.md). The open-GOP timestamp fix and TV counters pass the framework tests (run 45838061070, 2026-11-26). Published as r77 in build 730 with owner approval. Next: owner phone/Apple TV tests. Host evidence only; nothing merged.
 
 AirPlay TV handoff step1 complete (2026-11-20): [native reproduction](docs/AIRPLAY-TV-HANDOFF-REPRO.md) passes19 observation checks and rejects current behavior in exactly four desired-contract assertions. Step2 (source, 2026-11-20): the master handler now prepares the receiver's converted init and resume window through the converted plan's grid instead of segment0, and the contract is a normal passing gate; native run result pending (see docs/AIRPLAY-TV-HANDOFF-REPRO.md). Native host evidence does not prove receiver playback. No new IPA/merge is authorized by the step1 request.
 
