@@ -168,14 +168,18 @@ def verified(candidates, request, provider):
     return kept
 
 
-def search(request, primary='elementum', cancel=None, timeout=TOTAL_SECONDS, transport=None, exclude=(), clock=time.monotonic, independent=None):
+def search(request, primary='elementum', cancel=None, timeout=TOTAL_SECONDS, transport=None, exclude=(), clock=time.monotonic, independent=None, health=None):
     """Called only after primary failure/empty results. First usable backup wins; success remains lazy."""
     if not eligible(request):
         return []
     transport = transport or KodiTransport()
+    if health is None and isinstance(transport, KodiTransport):
+        import source_health
+        health = source_health.default()
     deadline = clock() + max(0, float(timeout))
     skipped = set(exclude) | {primary}
-    for provider in PROVIDERS:
+    order = health.order(PROVIDERS) if health is not None else PROVIDERS   # cooling-down providers are skipped; recent winners go first
+    for provider in order:
         _check(cancel, deadline, clock)
         if provider in skipped or (provider == 'otaku' and request.get('media_type') != 'episode'):
             continue
@@ -189,12 +193,17 @@ def search(request, primary='elementum', cancel=None, timeout=TOTAL_SECONDS, tra
             found = verified(values, request, provider)
         except Canceled:
             note(provider, 'canceled')
-            raise
+            raise                                   # a cancel is never recorded: it neither penalises nor advances
         except Exception as error:
             _check(cancel, deadline, clock)
             # One typed outcome per failure (source_contract.classify never reads the message, so no link can leak).
-            note(provider, source_contract.classify(error))
+            outcome = source_contract.classify(error)
+            if health is not None:
+                health.record(provider, outcome)
+            note(provider, outcome)
             continue
+        if health is not None:
+            health.record(provider, source_contract.OK if found else source_contract.EMPTY)
         note(provider, 'ready' if found else 'empty', len(found))
         if found:
             return found
@@ -206,7 +215,9 @@ def _independent(request, search_fn, transport, cancel, deadline, skipped, clock
     Only with the real transport unless a function is given, so tests never touch the network."""
     if search_fn is None and isinstance(transport, KodiTransport):
         import independent_sites
-        search_fn = lambda request, cancel=None, timeout=0: independent_sites.search_all(request, cancel=cancel, timeout=timeout)[:2]
+        import source_health
+        shared = source_health.default()
+        search_fn = lambda request, cancel=None, timeout=0: independent_sites.search_all(request, cancel=cancel, timeout=timeout, health=shared)[:2]
     if search_fn is None or 'local' in skipped:
         return []
     _check(cancel, deadline, clock)

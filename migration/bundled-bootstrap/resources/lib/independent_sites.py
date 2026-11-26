@@ -317,11 +317,13 @@ def _one(adapter, request, fetch, deadline, clock):
 
 
 def search_all(request, fetch=independent_search.default_fetch, cancel=None, timeout=independent_search.TOTAL_SECONDS,
-               clock=time.monotonic, disabled=()):
+               clock=time.monotonic, disabled=(), health=None):
     """-> (outcome, candidates, {site: outcome}). `disabled` skips a site entirely (used by tests and a future setting)."""
     if not provider_fallback.eligible(request):
         return source_contract.UNSUPPORTED, [], {}
     deadline = clock() + max(0, float(timeout))
+    cooling = {a.name for a in SIMPLE + (Leet(),) if health is not None and health.state(a.name) == 'cooldown'}
+    disabled = tuple(disabled) + tuple(cooling)            # a source cooling down is not asked again until its cooldown ends
     adapters = [a for a in SIMPLE if a.name not in disabled and a.applies(request)]
     report, found = {}, []
     pool = ThreadPoolExecutor(max_workers=MAX_WORKERS)
@@ -355,6 +357,9 @@ def search_all(request, fetch=independent_search.default_fetch, cancel=None, tim
         pool.shutdown(wait=False, cancel_futures=True)
     if cancel and cancel():
         return source_contract.CANCELED, [], report
+    if health is not None:
+        for site, outcome in report.items():
+            health.record(site, outcome)
     best = {}
     for item in found:
         key = str(item.get('torrent_hash') or '').lower()
