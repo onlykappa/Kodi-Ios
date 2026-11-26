@@ -1,7 +1,7 @@
 """Deck-style "How would you like to watch?" chooser inside TMDb Helper's movie/episode resolver; no autoplay."""
 # Owner (build 224): "Download or Stream" in place of the add-on names. The second line says what each one does.
 ICON_DIR='special://skin/extras/icons/'
-ROW_TILE={'elementum':('FF1F6FEB','cloud-arrow-down.png'),'umbrella':('FF7D3CFF','circle-play.png')}
+ROW_TILE={'elementum':('FF1F6FEB','cloud-arrow-down.png'),'umbrella':('FF7D3CFF','circle-play.png'),'backup':('FF7D3CFF','circle-play.png')}
 ROW_DETAIL={'play':{False:''},'elementum':{True:'Not available on this iPhone yet'},'umbrella':{True:'Coming soon'}}
 NOT_READY={'elementum':('Elementum not available','Elementum is not installed or is switched off in this build. Check Add-ons > Video add-ons > Elementum.'),
            'umbrella':('Umbrella not available yet','Umbrella has not been ported to this iPhone build yet. It will appear here once it is.')}
@@ -113,7 +113,7 @@ def choose_player(player):
  # Any TMDb Helper player for Umbrella is offered once the add-on is installed, as on the Deck.
  umbrella=next((p for p in candidates if 'umbrella' in str(p.file).lower()),None)
  if umbrella and installed('plugin.video.umbrella'):rows.append(('Stream','play',umbrella))
- else:rows.append(('Stream — coming soon','umbrella',None))
+ else:rows.append(('Stream','backup',None))   # no Umbrella (switched off or gone): the app's own search finds a source (backup_stream)
  # Google Drive is not offered here: Elementum plays Drive-backed sources itself.
  for p in candidates:
   if p.is_local and p.kodi_file and xbmcvfs.exists(p.kodi_file):rows.append(('Local library file','play',p))
@@ -202,6 +202,9 @@ def choose_player(player):
  if lookup_failed and kind_of(item)=='elementum':
   xbmcgui.Dialog().ok('Check downloaded copy','Completed downloads could not be checked. Try again before starting another download.')
   return None
+ if action=='backup':
+  log('Umbrella is not available: streaming through the app\'s own source search')
+  backup_stream(player,info,log);return None
  if action in NOT_READY:
   log('%s is not available here'%action);xbmcgui.Dialog().ok(*NOT_READY[action]);return None
  if resume:player._ios_resume_selected=True
@@ -221,8 +224,32 @@ def choose_player(player):
  except Exception as error:_quiet('ios_watch_dialog:mark',error)
  return item
 
-SHEET_DETAIL={'elementum':'Saved to Google Drive \u00b7 watch any time','umbrella':'Plays now from your AllDebrid account',
+SHEET_DETAIL={'backup':'Finds a source for you','elementum':'Saved to Google Drive \u00b7 watch any time','umbrella':'Plays now from your AllDebrid account',
               'drive':'Already on your Google Drive','local':'Already on this iPhone'}
+def backup_stream(player,info,log,load=None):
+ """Stream without Umbrella: the app's own search (add-on providers, then the independent sites) and the same Deck "Choose a version" page.
+ True once something was started or the viewer backed out; False (and a plain message) when nothing was found."""
+ import xbmcgui
+ try:
+  import sys,xbmcvfs
+  boot=xbmcvfs.translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')
+  if boot not in sys.path:sys.path.insert(0,boot)
+  import source_match,umbrella_picker,provider_fallback_hooks as hooks
+  tv=bool(info.get('tvshowtitle')) and info.get('mediatype')!='movie'
+  meta={'imdb':info.get('imdbnumber') or info.get('imdb_id') or '','tmdb':str(getattr(player,'tmdb_id','') or ''),'year':info.get('year'),
+        'premiered':info.get('premiered') or '','title':info.get('title') or '','originaltitle':info.get('originaltitle') or ''}
+  if tv:meta.update({'tvshowtitle':info.get('tvshowtitle'),'season':getattr(player,'season',None) or info.get('season'),
+                     'episode':getattr(player,'episode',None) or info.get('episode')})
+  exp=source_match.from_meta(meta)
+  if not exp:raise ValueError('title not understood')
+  exp=source_match.enrich(exp);deck=(load or umbrella_picker.load)();umbrella_picker.share(meta)
+  title=meta.get('tvshowtitle') or meta.get('title') or ''
+  if hooks.deck_fallback(deck,exp,title,'stream'):return True
+ except Exception as error:
+  log('backup stream failed (%s)'%type(error).__name__)
+ xbmcgui.Dialog().ok('No source found',"Nothing playable was found for this title right now. Try again in a minute.")
+ return False
+
 def sheet_choice(rows,kind_of,art,info,name):
  """Owner-approved choice sheet (mockup board 13): the title's art with its kind and name, then Download and Stream
  as rows with their tiles and what each does. None when the sheet is not available (Kodi's box is used)."""

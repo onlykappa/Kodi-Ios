@@ -7043,3 +7043,10 @@ Build 646 is the Sports build line with the other agent's Live Now rows merged i
 - Fix: Kodi add-on updates notify-only and Umbrella's own check off, once (`bootstrap.phone_housekeeping`); Umbrella 6.8.02, the Loop/Jet set and Crew's modules pinned by commit and digest and preserved in Git LFS behind a verifying scanner (`preserve_addons.py`, `check_project.py`); the IPA's 125 add-ons locked per add-on; Crew's pinned modules staged by the build and seeded as its fallback where none exists.
 - Retest: test_preserve_addons, test_fetch_umbrella, test_loop_addons_lock, test_ipa_addon_lock, test_crew_remote, test_updates_calibration. Host only: no IPA was built and nothing ran on the phone.
 - Open: the reviewed third-party keys inside the preserved archives; Elementum's native build inputs; a rebuild drill.
+
+## ISSUE-497: Stream did nothing when Umbrella was switched off (owner phone test of build 762, 2026-11-26)
+- Seen: with Umbrella disabled, the Download/Stream sheet showed "Stream — coming soon" and tapping it opened the old "Umbrella not available yet" box; no source search ran. The source-resilience chain only started from inside Umbrella, so it never helped in exactly the case it was built for.
+- Root cause: `ios_watch_dialog.choose_player` offered Stream only when Umbrella was installed and enabled, and otherwise a placeholder row.
+- Fix: without Umbrella the row is a working "Stream" that runs `backup_stream`: the app's own search (add-on providers, then the independent sites) and the Deck "Choose a version" page, through `provider_fallback_hooks.deck_fallback`. A plain message says so when nothing is found.
+- Retest: `scripts/test_watch_dialog.py` (16 tests). Host only; no desktop-rig run and no phone run yet.
+- Open: Download still needs Elementum (a torrent engine saved to Drive); the owner's log also shows Umbrella opens of 20-45 s (about 15 s of that gathering sources inside Umbrella), which this change does not touch.

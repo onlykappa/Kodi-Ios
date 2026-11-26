@@ -29,16 +29,32 @@ class DialogTests(unittest.TestCase):
   self.assertIs(module.choose_player(self.player),self.engine)
  def test_deck_style_question_with_umbrella_slot(self):
   module.choose_player(self.player);title=self.dialog.select.call_args[0][0];self.assertTrue(title.startswith('How would you like to watch'))
-  labels=[c.kwargs.get('label') for c in self.mods['xbmcgui'].ListItem.call_args_list];self.assertEqual(labels[:2],['Download — not available on iPhone yet','Stream — coming soon'])
+  labels=[c.kwargs.get('label') for c in self.mods['xbmcgui'].ListItem.call_args_list];self.assertEqual(labels[:2],['Download — not available on iPhone yet','Stream'])
  def test_umbrella_offered_once_installed(self):
   umbrella=SimpleNamespace(file='ios.umbrella.json',is_local=False,kodi_file=None);self.player.player_items.items_play=[self.engine,umbrella]
   self.xbmc.getCondVisibility.side_effect=lambda cond:'umbrella' in cond;self.dialog.select.return_value=1
   self.assertIs(module.choose_player(self.player),umbrella)
- def test_umbrella_placeholder_shows_status_only(self):
-  self.dialog.select.return_value=1;self.assertIsNone(module.choose_player(self.player));self.dialog.ok.assert_called_once();self.xbmc.executebuiltin.assert_not_called()
+ def test_stream_without_umbrella_uses_the_apps_own_source_search(self):
+  # Owner phone test, 2026-11-26: Umbrella off, Stream said "coming soon" and nothing opened. Now the app's own search runs.
+  self.dialog.select.return_value=1
+  with mock.patch.object(module,'backup_stream',return_value=True) as backup:
+   self.assertIsNone(module.choose_player(self.player))
+  backup.assert_called_once();self.dialog.ok.assert_not_called();self.xbmc.executebuiltin.assert_not_called()
+  self.assertTrue(any('own source search' in t for t in self.logged))
+ def test_backup_stream_runs_the_deck_fallback_and_says_so_when_nothing_is_found(self):
+  info={'title':'Film','year':2020,'imdbnumber':'tt1234567'};self.player.tmdb_id='7'
+  fake=SimpleNamespace(deck_fallback=mock.Mock(return_value=True),from_meta=lambda m:{'kind':'movie','meta':m},enrich=lambda e:e,
+                       load=lambda:'deck',share=mock.Mock())
+  mods={'source_match':fake,'umbrella_picker':fake,'provider_fallback_hooks':fake,'xbmcvfs':SimpleNamespace(translatePath=lambda p:'/x')}
+  with mock.patch.dict(sys.modules,mods):
+   self.assertTrue(module.backup_stream(self.player,info,lambda t:None))
+   self.assertEqual(fake.deck_fallback.call_args.args[0:2],('deck',{'kind':'movie','meta':{'imdb':'tt1234567','tmdb':'7','year':2020,'premiered':'','title':'Film','originaltitle':''}}))
+   self.assertEqual(fake.deck_fallback.call_args.args[3],'stream')
+   fake.deck_fallback.return_value=None
+   self.assertFalse(module.backup_stream(self.player,info,lambda t:None));self.dialog.ok.assert_called_once()
  def test_no_google_drive_rows(self):
   module.choose_player(self.player);labels=[c.kwargs.get('label') for c in self.mods['xbmcgui'].ListItem.call_args_list]
-  self.assertEqual(labels,['Download — not available on iPhone yet','Stream — coming soon'])
+  self.assertEqual(labels,['Download — not available on iPhone yet','Stream'])
  def test_other_backend_not_substituted(self):
   other=SimpleNamespace(file='some-other-player.json',is_local=False,kodi_file=None);self.player.player_items.items_play=[other];self.dialog.select.return_value=0
   self.assertIsNone(module.choose_player(self.player));self.dialog.ok.assert_called_once()
