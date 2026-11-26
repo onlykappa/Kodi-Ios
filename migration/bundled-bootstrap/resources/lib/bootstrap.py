@@ -170,6 +170,19 @@ def embuary_service_off(profile):
  tmp=path.with_name(path.name+'.tmp');tmp.write_bytes(b'<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n'+ET.tostring(root,encoding='utf-8'));os.replace(tmp,path)
  return True
 
+def umbrella_update_check_off(profile):
+ """Umbrella checks its own repository for updates at every start (`general.checkAddonUpdates`). Set it false in its settings file, only when that file exists
+ (a phone without Umbrella is left alone). Other settings are kept. True once the file says false."""
+ path=Path(profile)/'addon_data/plugin.video.umbrella/settings.xml'
+ if not path.exists():return False
+ root=ET.fromstring(path.read_bytes())
+ if root.tag!='settings':raise ValueError('Unexpected Umbrella settings file')
+ node=next((x for x in root.findall('setting') if x.get('id')=='general.checkAddonUpdates'),None)
+ if node is None:node=ET.SubElement(root,'setting',{'id':'general.checkAddonUpdates'})
+ node.attrib.pop('default',None);node.text='false'
+ tmp=path.with_name(path.name+'.tmp');tmp.write_bytes(b'<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n'+ET.tostring(root,encoding='utf-8'));os.replace(tmp,path)
+ return True
+
 def phone_housekeeping(profile,elementum_setting=None,api=None):
  """Once per phone (owner's logs, ISSUE-070): errors Kodi logged at every start, each harmless but each costing time.
  - sources.xml and a home row from the Deck point at special://profile/media/... folders that do not exist here:
@@ -235,6 +248,15 @@ def phone_housekeeping(profile,elementum_setting=None,api=None):
  # uses SMB; switching the setting off stops the listener at once.
  if 'wsdiscovery' not in done and api:
   if 'error' not in api('Settings.SetSettingValue',{'setting':'services.wsdiscovery','value':False}):now.append('wsdiscovery')
+ # Owner, 2026-11-26 (source resilience): add-ons stay as they are. The owner's build 722 log shows eight add-ons updated from repositories, and Umbrella also
+ # checks its own repository at every start; either could swap a known-good copy for an upstream one. Kodi is set to "notify, do not install" (Settings > Add-ons >
+ # Updates changes it) and Umbrella's own check goes off. Once each; a choice the owner makes later stays.
+ if 'addon_updates' not in done and api:
+  if 'error' not in api('Settings.SetSettingValue',{'setting':'general.addonupdates','value':1}):now.append('addon_updates')
+ if 'umbrella_update_check' not in done:
+  try:
+   if umbrella_update_check_off(profile):now.append('umbrella_update_check')
+  except (OSError,ValueError,ET.ParseError):pass
  if now:
   marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps({'done':sorted(done|set(now))})+'\n')
  return now
