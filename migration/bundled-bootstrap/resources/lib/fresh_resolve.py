@@ -91,9 +91,16 @@ def _uris(playlist):
     return [line.strip() for line in playlist.splitlines() if line.strip() and not line.startswith('#')]
 
 
-def _key(playlist):
-    found = re.search(r'#EXT-X-KEY:[^\n]*URI="([^"]+)"', playlist)
-    return found.group(1) if found else ''
+MAX_KEYS = 4
+
+
+def _keys(playlist):
+    """Distinct key URIs, in order (a playlist may rotate keys); only the first few are checked."""
+    seen = []
+    for uri in re.findall(r'#EXT-X-KEY:[^\n]*URI="([^"]+)"', playlist):
+        if uri not in seen:
+            seen.append(uri)
+    return seen[:MAX_KEYS]
 
 
 def verify_chain(resolved, session=None, clock=time.monotonic, timeout=CHAIN_SECONDS):
@@ -123,12 +130,16 @@ def verify_chain(resolved, session=None, clock=time.monotonic, timeout=CHAIN_SEC
     segments = _uris(page)
     if not segments:
         raise source_contract.Outcome(source_contract.EMPTY)
-    key = _key(page)
-    if key:
-        session.get(urllib.parse.urljoin(base, key), left(), limit=64)
+    keys = _keys(page)
+    for uri in keys:
+        session.get(urllib.parse.urljoin(base, uri), left(), limit=64)
+        requests += 1
+    init = re.search(r'#EXT-X-MAP:[^\n]*URI="([^"]+)"', page)
+    if init:                                        # fMP4: the init segment comes before any media segment
+        session.get(urllib.parse.urljoin(base, init.group(1)), left(), limit=1, byte_range='bytes=0-0')
         requests += 1
     session.get(urllib.parse.urljoin(base, segments[0]), left(), limit=1, byte_range='bytes=0-0')
-    return {'kind': 'hls', 'requests': requests + 1, 'keyed': bool(key)}
+    return {'kind': 'hls', 'requests': requests + 1, 'keyed': bool(keys), 'mapped': bool(init)}
 
 
 def resolve_fresh(candidate, request, transport, cancel=None, clock=time.monotonic, now=time.time):

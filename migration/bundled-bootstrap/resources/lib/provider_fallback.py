@@ -15,6 +15,8 @@ import threading
 import time
 import urllib.parse
 
+import source_contract
+
 PROVIDERS = ('jacktook', 'pov', 'otaku', 'thecrew', 'prism')
 ADDONS = {'jacktook': 'plugin.video.jacktook', 'pov': 'plugin.video.pov',
           'otaku': 'plugin.video.otaku', 'thecrew': 'plugin.video.thecrew', 'prism': 'plugin.video.prism'}
@@ -47,7 +49,7 @@ def note(provider, status, count=0):
         import xbmc
         if provider not in PROVIDERS:
             provider = 'primary'
-        if status not in ('search', 'ready', 'empty', 'offline', 'timeout', 'unconfigured', 'resolve', 'resolved', 'canceled'):
+        if status not in ('search', 'ready', 'unconfigured', 'resolve', 'resolved') + source_contract.OUTCOMES:
             status = 'offline'
         xbmc.log('Kodi iOS provider fallback: provider=%s status=%s count=%d' %
                  (provider, status, max(0, int(count))), xbmc.LOGINFO)
@@ -188,12 +190,10 @@ def search(request, primary='elementum', cancel=None, timeout=TOTAL_SECONDS, tra
         except Canceled:
             note(provider, 'canceled')
             raise
-        except TimeoutError:
-            note(provider, 'timeout')
-            continue
-        except Exception:
+        except Exception as error:
             _check(cancel, deadline, clock)
-            note(provider, 'offline')
+            # One typed outcome per failure (source_contract.classify never reads the message, so no link can leak).
+            note(provider, source_contract.classify(error))
             continue
         note(provider, 'ready' if found else 'empty', len(found))
         if found:

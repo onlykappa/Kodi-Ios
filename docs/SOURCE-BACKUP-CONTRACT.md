@@ -12,4 +12,4 @@ Code: `migration/bundled-bootstrap/resources/lib/source_contract.py`, on top of 
 
 **Secrets.** `redact(candidate)` is the only form for logs and disk: id, provider, name, quality, size, seeders, cached, capabilities and expiry. Links, headers, resolver payloads and tokens are never in it.
 
-**Not done in step 4.** No adapter yet calls `classify` or `check_usable`; `provider_fallback.search` still logs its older status words (it has no `unsupported`, `account-required`, `refused` or `expired`). Wiring that, and any live provider, belongs to steps 5 onward. No device evidence.
+**Wired.** `provider_fallback.search` now logs one typed status per provider failure through `source_contract.classify` (refused, account-required, expired, unsupported, timeout, offline; plus ready, empty, canceled, unconfigured), never a message or link; `scripts/test_provider_fallback.py` checks this with a fake log. `check_usable` is the gate for later steps (picker, playback); no live provider; no device evidence.

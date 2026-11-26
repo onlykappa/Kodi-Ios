@@ -10,4 +10,4 @@ Code: `migration/bundled-bootstrap/resources/lib/fresh_resolve.py`, on `provider
 
 **Secrets.** `Resolved` hides its link and headers from `repr`/`str`; `scrub()` removes URLs, magnets and token/key/sig/session/cookie parameters from any text that is logged. Nothing is written to disk.
 
-**Not done.** Only a loopback server was used: no real provider, ResolveURL host, debrid account or CDN, and no authorized live check. HLS behaviour on the phone (inputstream, AirPlay, resume) is step 7's work. The module is not called from the playback loop yet. Simple master/variant playlists only: no byte-range maps, multi-key playlists or encrypted init segments. No device evidence.
+**Not done.** Only a loopback server was used: no real provider, ResolveURL host, debrid account or CDN, and no authorized live check. HLS behaviour on the phone (inputstream, AirPlay, resume) is step 7's work. The module is not called from the playback loop yet. Playlists: master/variant, `EXT-X-MAP` init segments and up to four rotating keys are checked; byte-range maps, multi-variant switching and encrypted init segments are not. No device evidence.

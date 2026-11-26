@@ -54,4 +54,22 @@ class Fallback(unittest.TestCase):
   with self.assertRaises(ValueError):f.safe_url('https://fixture.invalid/x|Cookie=a%0D%0Ab')
  def test_header_preservation(self):
   self.assertEqual(f.safe_url({'url':'https://fixture.invalid/x','headers':{'User-Agent':'A B'}}),'https://fixture.invalid/x|User-Agent=A+B')
+class Typed(unittest.TestCase):
+ def test_search_notes_one_typed_status_per_failure_without_a_link(self):
+  import types
+  logs=[];fake=types.SimpleNamespace(LOGINFO=1,log=lambda m,l:logs.append(m));sys.modules['xbmc']=fake
+  try:
+   class H(Exception):
+    def __init__(s,code):super().__init__('https://private.invalid/?token=SECRET');s.code=code
+   src={'name':'Example.Film.2024.1080p.WEB-DL.mkv','quality':'1080p','url':'https://fixture.invalid/m.mkv','size':1,'seeders':0}
+   t=Transport({'jacktook':H(403),'pov':H(401),'otaku':ValueError('x'),'thecrew':TimeoutError(),'prism':[src]})
+   req={'media_type':'episode','title':'Example Film','show_title':'Example Film','year':2024,'season':1,'episode':1,'profile':{}}
+   t.answers['prism']=[dict(src,name='Example.Film.S01E01.1080p.WEB.mkv')]
+   f.search(req,transport=t)
+  finally:sys.modules.pop('xbmc',None)
+  text='\n'.join(logs)
+  for want in ('provider=jacktook status=refused','provider=pov status=account-required','provider=otaku status=unsupported','provider=thecrew status=timeout','provider=prism status=ready'):
+   self.assertIn(want,text)
+  self.assertNotIn('SECRET',text);self.assertNotIn('private.invalid',text)
+
 if __name__=='__main__':unittest.main()

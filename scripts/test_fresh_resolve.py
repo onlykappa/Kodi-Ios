@@ -25,9 +25,10 @@ class Site:
     if p=='/v/var.m3u8':
      key=b'#EXT-X-KEY:METHOD=%s,URI="k.bin"\n'%(b'SAMPLE-AES' if site.mode=='drm' else b'AES-128')
      return self.send(200,b'#EXTM3U\n'+key+b'#EXTINF:6,\nseg0.ts\n#EXT-X-ENDLIST\n')
+    if p=='/v/rot.m3u8':return self.send(200,b'#EXTM3U\n#EXT-X-MAP:URI="init.mp4"\n#EXT-X-KEY:METHOD=AES-128,URI="k.bin"\n#EXTINF:6,\nseg0.ts\n#EXT-X-KEY:METHOD=AES-128,URI="k2.bin"\n#EXTINF:6,\nseg1.ts\n#EXT-X-ENDLIST\n')
     if p=='/v/empty.m3u8':return self.send(200,b'#EXTM3U\n#EXT-X-ENDLIST\n')
     if p=='/plain.mp4':return self.send(200,b'x')
-    if p in('/v/k.bin','/v/seg0.ts'):return self.send(200,b'\x00'*16)
+    if p in('/v/k.bin','/v/k2.bin','/v/init.mp4','/v/seg0.ts'):return self.send(200,b'\x00'*16)
     self.send(404,b'')
    def send(self,code,body,cookie=None):
     self.send_response(code)
@@ -96,6 +97,15 @@ class Fresh(unittest.TestCase):
   t=Transport(self.site)
   with self.assertRaises(c.Outcome):r.play_ready(dict(CAND,name='Other.Film.2024.1080p'),MOVIE,t)
   self.assertEqual(t.calls,0)
+
+class Rotation(unittest.TestCase):
+ def test_init_segment_and_rotating_keys_are_each_fetched_once(self):
+  site=Site();site.mode='nocookie'
+  try:
+   res=r.Resolved(site.url('/v/rot.m3u8'),{'X-Token':'t1'},0);report=r.verify_chain(res)
+   self.assertEqual([h[0] for h in site.hits],['/v/rot.m3u8','/v/k.bin','/v/k2.bin','/v/init.mp4','/v/seg0.ts'])
+   self.assertTrue(report['keyed'] and report['mapped'])
+  finally:site.srv.shutdown();site.srv.server_close()
 
 class Secrets(unittest.TestCase):
  def test_repr_and_scrub_hide_links_and_tokens(self):
