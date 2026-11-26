@@ -1157,3 +1157,4 @@ Build 622 flicks and captions (ISSUE-424/425, branch claude/library-playback-fix
 
 - 2026-11-25 (build 722 logs 51880851, f63176b1, 6d593313): ISSUE-495 AirPlay stutter: cause not proven; open-GOP picture-time defect reproduced on the host (scripts/airplay_ladder_check.py), not fixed; 5 s AirPlay samples added; native counters written but need a framework rebuild awaiting the owner. ISSUE-496: older issues moved to ISSUES-ARCHIVE.md. Host tests only.
 - 2026-11-25: build 725 (4ac6b2f) passed the import-review workflow; device unverified.
+- 2026-11-26: ISSUE-495 HEVC 16-frame lead and native counters pass AirPlay run 45838061070 (62b3656); candidate not published. Awaiting owner approval to publish a framework and build an IPA.
