@@ -114,11 +114,32 @@ def stream_url(url,request=None):
  raise ValueError('This source requires the torrent download route')
 
 
+def direct_wanted():
+ """Only once debrid has been failing (three service-level failures in a row, still cooling down): then a torrent Stream may go to peers, behind the
+ torrent prompt. A working debrid or an unknown state keeps the old refusal."""
+ try:
+  import debrid_account
+  return debrid_account.is_unavailable()
+ except Exception:return False
+
+
+def direct(selected,request,cancel=None):
+ """Step 18: stream the chosen torrent from peers with the bundled Elementum engine. True when playing; False when declined, canceled or no peers."""
+ import xbmcgui,elementum_download,backup_playback,direct_stream,debrid_account,source_contract
+ try:
+  direct_stream.stream(selected['candidate'],request,backup_playback.Playback(backup_playback.KodiPlayer()),xbmcgui.Window(10000),
+                       elementum_download._torrent_gate,health=debrid_account.shared_health(),cancel=cancel)
+  return True
+ except source_contract.Outcome:return False
+
+
 def dispatch(selected,auto=None,cancel=None):
  pf=broker();cancel=cancel_callback(cancel)
  if cancel():raise pf.Canceled('Source search canceled')
  url=selected['url'];request=selected['request']
  if request['purpose']=='stream':
+  if urllib.parse.urlsplit(url).scheme=='magnet' and direct_wanted():
+   return direct(selected,request,cancel)
   import xbmc
   xbmc.Player().play(stream_url(url,request))
   return True

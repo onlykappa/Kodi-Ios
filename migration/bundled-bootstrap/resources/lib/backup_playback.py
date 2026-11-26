@@ -151,14 +151,14 @@ class Playback:
             self._finish(session)
             raise
 
-    def start_resolved(self, key, resolve, cancel=None, resume=0):
+    def start_resolved(self, key, resolve, cancel=None, resume=0, wait=None):
         """Same hand-off for a source with its own resolver (live sports): `resolve()` returns a fresh fresh_resolve.Resolved, already verified."""
         session = self._open(('resolved',) + tuple(key))
         if session is None:
             return 'duplicate'
         stopped = lambda: session['stop'].is_set() or (cancel is not None and cancel())
         try:
-            return self._play(resolve, stopped, session, resume)
+            return self._play(resolve, stopped, session, resume, wait)
         except provider_fallback.Canceled:
             self._finish(session)
             raise source_contract.Outcome(source_contract.CANCELED)
@@ -189,7 +189,7 @@ class Playback:
             raise source_contract.Outcome(source_contract.REFUSED)       # declined at the app's own prompt, or the route refused
         return 'sent'
 
-    def _play(self, resolve, stopped, session, resume):
+    def _play(self, resolve, stopped, session, resume, wait=None):
         resolved = resolve()
         if stopped():                                                       # cancel or stop while resolving: nothing started
             raise source_contract.Outcome(source_contract.CANCELED)
@@ -202,7 +202,7 @@ class Playback:
             now = self.player.time()
             if now - base >= ADVANCE:
                 return 'playing'
-            if self.clock() - begin > START_SECONDS:
+            if self.clock() - begin > (wait or START_SECONDS):
                 raise source_contract.Outcome(source_contract.TIMEOUT)
             self.sleep(POLL)
 

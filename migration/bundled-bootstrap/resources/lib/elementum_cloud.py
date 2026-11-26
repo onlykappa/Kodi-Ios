@@ -112,6 +112,10 @@ def route(url,quiet=False,request_id=None):
     try:
         choice = selected(url)
         if choice is None:return False
+        import direct_stream
+        try:granted = xbmcgui.Window(10000)
+        except Exception:granted = None
+        if direct_stream.consume(granted, choice['hash']):return False   # the person approved streaming this one torrent from peers (step 18): Elementum plays it itself
         import debrid_token
         if not debrid_token.has():
             raise RuntimeError('Sign in to AllDebrid in Umbrella › Accounts first.')

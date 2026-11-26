@@ -297,8 +297,9 @@ profile (`debrid_token.py`, commit 4914392), so removing Umbrella no longer remo
 | 12 | PACKAGING DONE (host tests, network-less) | [SOURCE-PACKAGING.md](SOURCE-PACKAGING.md): preserved inputs used by digest before any download (`--preserved` / `KODI_IOS_PRESERVED_INPUTS`), tampering refused, a staged bundle restarts and searches with no network; runtime never runs downloaded code. Unavoidable external build tools listed. |
 | 13–16 | NOT STARTED | Do not start until separately authorized. |
 | 17 | ACCOUNT + FAILURE DETECTION DONE (host tests, fake service) | [SOURCE-DEBRID-ACCOUNT.md](SOURCE-DEBRID-ACCOUNT.md): PIN sign-in into the app's own store, every documented error code typed, a 3-strike "debrid unavailable" state wired to the download queue. No sign-in screen yet; real AllDebrid not contacted. |
-| 18–20 | ADDED, NOT STARTED | Extension for self-reliance (own debrid account and failure detection, peer-to-peer fallback, health rules, metadata snapshot). Prerequisite done: debrid key mirrored into the app profile (4914392). Each needs separate authorization. |
+| 18 | DIRECT ROUTE DONE (host tests) | [SOURCE-DIRECT-STREAM.md](SOURCE-DIRECT-STREAM.md): verified torrent, prompt, one-time grant, Elementum plays from peers, wait and cancel rules. Reached only when debrid is marked unavailable; no on-screen choice yet; engine and swarms untested. |
+| 19–20 | ADDED, NOT STARTED | Extension for self-reliance (own debrid account and failure detection, peer-to-peer fallback, health rules, metadata snapshot). Prerequisite done: debrid key mirrored into the app profile (4914392). Each needs separate authorization. |
 
 On completing a step, replace its row range with individual rows and record dates,
 commands, expected/observed results and links to sanitized reports. Do not renumber
-steps when adding subtasks. Next owner commands: "Start 18" (13–16 are the end-of-project testing steps).
+steps when adding subtasks. Next owner commands: "Start 19" (13–16 are the end-of-project testing steps).
