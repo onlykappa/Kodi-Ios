@@ -1394,8 +1394,11 @@ def select_dialog(original):
   label(150,0,w-260,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>%s + !%s</visible>'%(tile,two))+
   label(150,72,w-260,48,'$INFO[ListItem.Label2]','p_foot',GREY,'left','<scroll>false</scroll><visible>%s + %s</visible>'%(tile,two))+
   # two lines, no tile: left-aligned name over its detail
-  label(40,10,w-130,70,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>!%s + %s</visible>'%(tile,two))+
-  label(40,72,w-130,48,'$INFO[ListItem.Label2]','p_foot',GREY,'left','<scroll>false</scroll><visible>!%s + %s</visible>'%(tile,two))+
+  label(40,10,w-130,70,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>!%s + %s + ![%s]</visible>'%(tile,two,icon_row))+
+  label(40,72,w-130,48,'$INFO[ListItem.Label2]','p_foot',GREY,'left','<scroll>false</scroll><visible>!%s + %s + ![%s]</visible>'%(tile,two,icon_row))+
+  # ... and beside the add-on's own icon when it has one (Dependencies: the icon sat on top of the name and its versions)
+  label(140,10,w-230,70,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>!%s + %s + %s</visible>'%(tile,two,icon_row))+
+  label(140,72,w-230,48,'$INFO[ListItem.Label2]','p_foot',GREY,'left','<scroll>false</scroll><visible>!%s + %s + %s</visible>'%(tile,two,icon_row))+
   icon(w-90,(row_h-44)//2,44,'check.png',ACCENT,'<visible>ListItem.IsSelected</visible>'))
  lists=''.join(('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><onup>%d</onup><ondown>9050</ondown>'
   '<scrolltime tween="cubic">250</scrolltime><itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>%s</control>'

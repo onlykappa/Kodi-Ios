@@ -20,7 +20,7 @@ PAD = 43
 UNINSTALL = 'String.IsEqual(Control.GetLabel(6),$LOCALIZE[24037])'
 INSTALLED = UNINSTALL
 ENABLED = 'String.IsEqual(Control.GetLabel(7),$LOCALIZE[24021])'
-UPDATE = 'Control.IsEnabled(8)'
+UPDATE = 'Control.IsVisible(8)'   # Kodi shows button 8 only when the add-on has an update (and hides 14, Versions, then)
 HAS_DATE = '!String.IsEmpty(ListItem.AddonLastUpdated) | !String.IsEmpty(ListItem.AddonInstallDate)'
 VERSION = '$INFO[ListItem.AddonVersion]'
 
@@ -126,7 +126,7 @@ def page_body(p):
                primary(9118, 'Update', 'SendClick(8)', '%s + Control.IsEnabled(9)' % UPDATE, 0, half, 'primary') +
                primary(9112, '$INFO[Control.GetLabel(12)]', 'SendClick(12)', '%s + !Control.IsEnabled(9)' % open_cond, 0, w, 'primary') +
                primary(9122, '$INFO[Control.GetLabel(12)]', 'SendClick(12)', '%s + Control.IsEnabled(9)' % open_cond, 0, half, 'primary') +
-               primary(9106, 'Install', 'SendClick(6)', install_cond, 0, w, 'primary') +
+               primary(9106, '$INFO[Control.GetLabel(6)]', 'SendClick(6)', install_cond, 0, w, 'primary') +
                primary(9109, 'Settings', 'SendClick(9)', settings_here, half + 20, half, 'glass') +
                primary(9119, 'Settings', 'SendClick(9)', 'Control.IsEnabled(9) + ![%s] + ![Control.IsEnabled(12)] + ![%s]' % (UPDATE, install_cond), 0, w, 'primary') +
                '</control></control>')
@@ -142,9 +142,11 @@ def page_body(p):
              '<textureradioonfocus>%stoggle_on.png</textureradioonfocus><textureradioonnofocus>%stoggle_on.png</textureradioonnofocus>'
              '<textureradioofffocus>%stoggle_off.png</textureradioofffocus><textureradiooffnofocus>%stoggle_off.png</textureradiooffnofocus>'
              '</control></control></control>') % (w, ROW, p.WHITE, p.WHITE, PAD, w - PAD - 130, (ROW - 58) // 2, M, M, M, M, M)
-    rows += card_row(p, 9114, 'Versions', 'chevron', 'Control.IsEnabled(14)', 'SendClick(14)', glyph='code-branch.png', tint=p.ACCENT,
+    rows += card_row(p, 9114, 'Versions', 'chevron', 'Control.IsEnabled(14) + Control.IsVisible(14)', 'SendClick(14)', glyph='code-branch.png', tint=p.ACCENT,
                      value='$INFO[ListItem.AddonVersion]')
     rows += card_row(p, 9110, 'Dependencies', 'chevron', 'Control.IsEnabled(10)', 'SendClick(10)', glyph='dependencies.png', tint='FFBF5AF2')
+    rows += card_row(p, 9115, 'Changelog', 'chevron', '!String.IsEmpty(ListItem.AddonNews)', 'RunScript(service.kodi.ios.bootstrap,addon_changelog)',
+                     glyph='file-lines.png', tint='FFFF9F0A')
     rows += card_row(p, 9132, '$INFO[Control.GetLabel(12)]', 'chevron', '%s + Control.IsEnabled(12)' % UPDATE, 'SendClick(12)',
                      glyph='play3.png', tint='FF30D158')
     about = [('Author', '$INFO[ListItem.AddonCreator]'), ('Category', '$INFO[ListItem.AddonType]'), ('Version', VERSION)]
@@ -155,10 +157,9 @@ def page_body(p):
     uninstall = card_row(p, 9161, 'Uninstall', 'plain', '%s + Control.IsEnabled(6)' % UNINSTALL, 'SendClick(6)', red=True)
     controls = ''.join(carrier(i) for i in (6, 7, 8, 9, 10, 12, 14))
     lst = ('<control type="grouplist" id="9400"><left>0</left><top>0</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
-           '<itemgap>0</itemgap><usecontrolcoords>false</usecontrolcoords>' % p.WIDTH +
+           '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>' % p.WIDTH +
            spacer(200) + hero + actions + spacer(30) + rows + about_xml +
            spacer(30) + text_block(p, 'Description', '$INFO[ListItem.AddonDescription]', '!String.IsEmpty(ListItem.AddonDescription)') +
-           text_block(p, 'What\'s new', '$INFO[ListItem.AddonNews]', '!String.IsEmpty(ListItem.AddonNews)') +
            spacer(20) + uninstall + spacer(260) + '</control>')
     return controls, lst
 
