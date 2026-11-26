@@ -205,8 +205,8 @@ def _independent(request, search_fn, transport, cancel, deadline, skipped, clock
     """Last resort once every add-on backup came back empty or failed: the first-party site search (independent_search).
     Only with the real transport unless a function is given, so tests never touch the network."""
     if search_fn is None and isinstance(transport, KodiTransport):
-        import independent_search
-        search_fn = independent_search.search
+        import independent_sites
+        search_fn = lambda request, cancel=None, timeout=0: independent_sites.search_all(request, cancel=cancel, timeout=timeout)[:2]
     if search_fn is None or 'local' in skipped:
         return []
     _check(cancel, deadline, clock)
