@@ -38,7 +38,7 @@ def child(lib):
     out['three backups fail, fourth answers']=timed(chain({'jacktook':ConnectionError(),'pov':TimeoutError(),'otaku':ConnectionError(),'thecrew':[SRC]}))
     out['every add-on backup empty']=timed(chain({'jacktook':[],'pov':[],'thecrew':[],'prism':[]}))
     try:
-        import independent_sites as s,test_independent_sites_fixture as fx
+        import independent_sites as s,fixtures_independent_sites as fx
     except ImportError:s=None
     if s is not None:
         def sites_run():

@@ -104,7 +104,7 @@ class Independent(unittest.TestCase):
  def tearDown(self):self.site.srv.shutdown();self.site.srv.server_close()
  def test_controlled_game_to_advancing_playback_with_header_continuity(self):
   self.assertEqual(m.start_independent(game(),'https://embed.invalid/watch/x',self.pb,self.resolve,NOW),'playing')
-  self.assertEqual(len(self.p.calls),1);self.assertEqual(self.p.calls[0][1],{'X-Token':'t1'});self.assertTrue(all(h[1]=='t1' for h in self.site.hits))
+  self.assertEqual(len(self.p.calls),1);self.assertEqual(self.p.calls[0][1],{},'guarded HLS plays through the local proxy, which sends the header upstream');self.assertTrue(all(h[1]=='t1' for h in self.site.hits))
   self.assertEqual(m.start_independent(game(),'https://embed.invalid/watch/x',self.pb,self.resolve,NOW),'duplicate');self.assertEqual(len(self.p.calls),1)
  def test_stale_ended_and_cancelled_games_never_reach_the_player(self):
   for kw in (dict(g=game(NOW-9*3600)),dict(current=lambda i:dict(game(),state='post')),dict(current=lambda i:None),dict(cancel=lambda:True)):

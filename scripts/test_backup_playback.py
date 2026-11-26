@@ -26,7 +26,8 @@ class Direct(unittest.TestCase):
  def test_hls_starts_and_time_advances(self):
   p=Player();play=pb(p);self.assertEqual(play.start(CAND,MOVIE,self.tr,resume=42),'playing')
   self.assertEqual(len(p.calls),1);url,headers,resume=p.calls[0]
-  self.assertTrue(url.endswith('/master.m3u8'));self.assertEqual((headers,resume),({'X-Token':'t1'},42));self.assertGreaterEqual(p.t,b.ADVANCE)
+  self.assertTrue(url.startswith('http://127.0.0.1:') and url.endswith('.m3u8') and url!=self.site.url(),'guarded HLS goes through the local proxy (ISSUE-489)');self.assertEqual((headers,resume),({},42));self.assertGreaterEqual(p.t,b.ADVANCE)
+  self.assertTrue(all(h[1]=='t1' for h in self.site.hits));play.stop()
  def test_no_time_advance_times_out_and_stops_player(self):
   p=Player(advance=False);play=pb(p)
   with self.assertRaises(c.Outcome) as cm:play.start(CAND,MOVIE,self.tr)

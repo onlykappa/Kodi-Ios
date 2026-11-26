@@ -6994,3 +6994,46 @@ Build 646 is the Sports build line with the other agent's Live Now rows merged i
 - Root cause: ISSUE-478 (build 699) added an `<onclick>` that names the tapped episode to both episode lists. List 60 loads its items through `<content>` (a list provider). In Kodi 21.3 `CGUIBaseContainer::OnClick` runs the container's own click actions INSTEAD of `m_listProvider->OnClick(item)` when it has any, so the item was never opened. Only list 52 (no content) goes through the window's click message.
 - Fix: the tap-naming onclick is only on list 52; list 60 keeps the default open. Retest: test_episode_card (fails on the old code at list 60, passes now). Rig/device unverified. Regression: the test forbids an onclick on any episode list that has `<content>`.
 - Cost: taps on list 60 no longer appear as `tap=` in the open record (the Click log line still names the control).
+
+## ISSUE-488: AllDebrid key lived only in Umbrella's settings (source-resilience steps 12 and 17, 2026-11-26)
+- Seen: five places (service queue, Elementum route, episode watcher, link renewal, provider worker) read `plugin.video.umbrella`'s `alldebridtoken` directly. Removing or breaking Umbrella would remove the key and every debrid download with it; a fresh install had no way to sign in without Umbrella.
+- Cause: the key's only home was another add-on's settings.
+- Fix: `debrid_token.py` reads Umbrella's value first (a new sign-in is seen at once), mirrors it into an owner-only file in the app profile, and uses the copy when Umbrella is missing or empty; `debrid_account.py` adds the app's own PIN sign-in (AllDebrid's documented flow) that outranks Umbrella's value, plus sign-out. Typed error codes and a three-failure "debrid unavailable" state feed from every client call.
+- Retest: test_debrid_token (8), test_debrid_account (16), test_debrid_drive, test_elementum_cloud, test_undefined_names. Host tests only; real AllDebrid not contacted. There is no sign-in screen yet.
+- Regression: the key never reaches Git, the IPA, a log or the health file (tested). Sharing an IPA does not share a key.
+
+## ISSUE-489: A header-guarded HLS stream never started in Kodi (rig, 2026-11-26)
+- Seen: on the desktop rig a stream that needs a header and a cookie timed out; the server log showed the master fetched with the header and nothing after it.
+- Cause: Kodi's player forwards `url|Header=value` only to the first request, so variants, keys and segments were refused. The playlist-chain check in `fresh_resolve` passed because it used its own session.
+- Fix: `hls_bridge.py` gives the app's existing loopback HLS proxy (`sports_hls_proxy`) a standard-library session; `Playback` routes HLS that comes with headers through it and closes it on stop. Plain files and unguarded HLS are unchanged.
+- Retest: test_hls_bridge (5) and the rig run: guarded file and guarded HLS play with the clock advancing (6.3 s, 6.6 s). Device unverified.
+
+## ISSUE-490: One slow site held up the whole site search (rig timing, 2026-11-26)
+- Seen: the five-film check took 8.4 s for one film because one site hit the 7 s request limit and the search waited for it, with 84 candidates already in hand.
+- Cause: `search_all` waited for every site until its deadline.
+- Fix: once 5 verified candidates are in, the rest get 1.5 s and are then abandoned; they are reported `pending` and are not penalised in source health.
+- Retest: three tests in test_independent_sites; rig re-run: 1.0 to 1.6 s for all five films.
+
+## ISSUE-491: Contract gaps found by the first tests (source-resilience steps 4 and 5)
+- Seen: an expiry stamp of NaN counted as not expired; a request with no year or id was never rejected by the pre-playback gate; the apibay query builder called `.strip()` on a tuple and failed on every search; with every site failing the typed result varied from run to run.
+- Fix: NaN counts as expired; `check_usable` rejects an ineligible request; the query is built correctly; the most actionable failure wins in a fixed order (account-required, refused, unsupported, expired, timeout, offline).
+- Retest: test_source_contract, test_independent_sites. Host tests only.
+
+## ISSUE-492: Backup picker dropped alternatives after a failed link (source-resilience step 8)
+- Seen: while adding de-duplication, a failed provider's same-named release from another provider disappeared, so the next round had nothing to try (caught by test_provider_fallback_hooks).
+- Fix: duplicates are collapsed only inside one picker round (same info hash, or same name and size), keeping the best-seeded row; a failed origin is excluded for the next round, never remembered as "seen".
+- Retest: test_provider_fallback_hooks (20).
+
+## ISSUE-493: Debrid circuit wiring broke `service.py` names (source-resilience step 17)
+- Seen: test_undefined_names reported `debrid_account` unused in `debrid_loop`; the import had been added inside a nested closure.
+- Fix: imported where it is used. Retest: test_undefined_names, test_debrid_drive (which pins the call text).
+
+## ISSUE-494: Sports could match a stale or ambiguous game (source-resilience step 10 and 20)
+- Seen: the existing crew matching returned the first listing that looked like the game, whatever its age, and a remembered "live" ESPN answer stayed live for up to 48 h.
+- Fix: `sports_match.py` accepts exactly one current listing (two different matches are ambiguous and rejected), rejects finished or stale games, expires listings after 5 minutes, and treats a remembered live game older than 15 minutes as stale. The Sports screens do not call it yet.
+- Retest: test_sports_match (21), test_metadata_snapshot (8). Host tests only.
+
+## ISSUE-495: Metadata outages had no defined behaviour (source-resilience step 20)
+- Seen: TMDb answers older than a week were dropped even while TMDb was unreachable, so strict matching lost its aliases and release years in an outage.
+- Fix: answers up to 90 days old are used when TMDb cannot be reached and the result says so (`metadata`: live, cached, stale, none); a title never seen fails safe.
+- Retest: test_metadata_snapshot. Host tests only.
