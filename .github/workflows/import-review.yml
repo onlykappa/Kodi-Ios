@@ -270,6 +270,7 @@ jobs:
           python3 -B scripts/test_hls_bridge.py
           python3 -B scripts/test_signin_screens.py
           python3 -B scripts/test_fetch_umbrella.py
+          python3 -B scripts/test_loop_addons_lock.py
           python3 -B scripts/test_provider_probe.py
           python3 -B scripts/test_provider_queue_bridge.py
           python3 -B scripts/test_provider_worker.py

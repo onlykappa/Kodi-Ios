@@ -1,0 +1,241 @@
+{
+ "schema": 1,
+ "note": "Add-ons the owner phone has beyond the IPA that the app needs: the Loop family (Sports fallback route when Crew is absent) and the Jet framework the Sports code imports. Sources: loopaddon.uk (answers Kodi's client only, fetched as Kodi does, owner approved 2026-11-15) and Kodi's official repository mirror. Pinned only: no preserved copy is stored yet and rights are unreviewed. Not part of the IPA build.",
+ "packages": [
+  {
+   "id": "plugin.video.dailymotion_com",
+   "version": "2.4.5",
+   "url": "https://mirrors.kodi.tv/addons/omega/plugin.video.dailymotion_com/plugin.video.dailymotion_com-2.4.5.zip",
+   "sha256": "952085f320df8f7d2b1f31af52b1ce73197cf62bc01a9c150ea178906b21ad79",
+   "size": 273132,
+   "license": "GPL-2.0-or-later",
+   "requires": [
+    "xbmc.python",
+    "script.module.six",
+    "script.module.kodi-six"
+   ],
+   "install": "profile",
+   "phone_version": "2.4.5",
+   "files": 40
+  },
+  {
+   "id": "plugin.video.jetproxy",
+   "version": "1.1.0",
+   "url": "https://loopaddon.uk/zips19/plugin.video.jetproxy/plugin.video.jetproxy-1.1.0.zip",
+   "sha256": "e4a0c7d4512bd826df91b8cfd8d3bd85f65e1969b644e017226a2d395fe31d31",
+   "size": 78702,
+   "license": "",
+   "requires": [
+    "xbmc.python",
+    "script.module.routing",
+    "script.module.requests"
+   ],
+   "install": "profile",
+   "phone_version": "1.1.0",
+   "files": 10
+  },
+  {
+   "id": "plugin.video.loopguide",
+   "version": "3.8.4",
+   "url": "https://loopaddon.uk/zips19/plugin.video.loopguide/plugin.video.loopguide-3.8.4.zip",
+   "sha256": "626d5936cc9e6a21c79867d44a1b9d681d96fafa358cf5f22a3250627229ba12",
+   "size": 3632889,
+   "license": "GPL-3.0",
+   "requires": [
+    "xbmc.python",
+    "script.module.requests"
+   ],
+   "install": "profile",
+   "phone_version": "3.8.4",
+   "files": 60
+  },
+  {
+   "id": "plugin.video.looptv",
+   "version": "26+matrix.2",
+   "url": "https://loopaddon.uk/zips19/plugin.video.looptv/plugin.video.looptv-26+matrix.2.zip",
+   "sha256": "d7a00cd9c16d36595ec69887146c1ce33eba3f814da57339d2d1167ea67b1fee",
+   "size": 1256300,
+   "license": "GPL-3.0",
+   "requires": [
+    "xbmc.python",
+    "script.module.pycryptodome",
+    "script.module.pyamf",
+    "script.module.kodi-six",
+    "script.module.future",
+    "script.module.requests",
+    "script.module.routing"
+   ],
+   "install": "profile",
+   "phone_version": "26+matrix.2",
+   "files": 9
+  },
+  {
+   "id": "plugin.video.the-loop",
+   "version": "8.4",
+   "url": "https://loopaddon.uk/zips19/plugin.video.the-loop/plugin.video.the-loop-8.4.zip",
+   "sha256": "01288f0b06358797eeaffa843324e90872cbab83819abc49dcc248979bde5bb1",
+   "size": 1255294,
+   "license": "GPL-2.0-or-later",
+   "requires": [
+    "xbmc.python",
+    "script.module.requests",
+    "script.module.routing",
+    "script.module.unidecode",
+    "script.module.tzlocal",
+    "script.module.jetextractors",
+    "script.module.inputstreamhelper",
+    "script.module.resolveurl",
+    "script.module.pytz",
+    "script.module.pyamf",
+    "script.module.pycryptodome (optional)",
+    "script.module.microjenscrapers (optional)",
+    "plugin.video.looptv",
+    "plugin.video.dailymotion_com",
+    "plugin.video.loopguide"
+   ],
+   "install": "profile",
+   "phone_version": "8.4",
+   "files": 85
+  },
+  {
+   "id": "script.module.backports.zoneinfo",
+   "version": "0.2.1",
+   "url": "https://mirrors.kodi.tv/addons/omega/script.module.backports.zoneinfo/script.module.backports.zoneinfo-0.2.1.zip",
+   "sha256": "e9f2a4ad3fb491c9165025b24cf36d0722044686e37ea3521e316eb13d77f8b9",
+   "size": 24349,
+   "license": "Apache-2.0",
+   "requires": [
+    "xbmc.python",
+    "script.module.tzdata"
+   ],
+   "install": "profile",
+   "phone_version": "0.2.1",
+   "files": 12
+  },
+  {
+   "id": "script.module.defusedxml",
+   "version": "0.6.0+matrix.1",
+   "url": "https://mirrors.kodi.tv/addons/omega/script.module.defusedxml/script.module.defusedxml-0.6.0+matrix.1.zip",
+   "sha256": "11ca2fcf2791d5192ee7e529e3015952c12b5527637c0501da8f4ad63de522cc",
+   "size": 32993,
+   "license": "PSF",
+   "requires": [
+    "xbmc.python"
+   ],
+   "install": "profile",
+   "phone_version": "0.6.0+matrix.1",
+   "files": 16
+  },
+  {
+   "id": "script.module.go",
+   "version": "1.0.5.1",
+   "url": "https://loopaddon.uk/zips19/script.module.go/script.module.go-1.0.5.1.zip",
+   "sha256": "4046137c06337628d85be53e1a59381ef85b9a6370fecc760a5d139e345ebd34",
+   "size": 34200,
+   "license": "See upstream github.com/bogdanfinn/tls-client and its dependencies",
+   "requires": [
+    "xbmc.python",
+    "script.module.requests"
+   ],
+   "install": "profile",
+   "phone_version": "1.0.5.1",
+   "files": 13
+  },
+  {
+   "id": "script.module.jetextractors",
+   "version": "3.3.34",
+   "url": "https://loopaddon.uk/zips19/script.module.jetextractors/script.module.jetextractors-3.3.34.zip",
+   "sha256": "05933f04681ee65b8fbd5d6968394d8bb271c3a670f04546104218763aae0f53",
+   "size": 535344,
+   "license": "MIT",
+   "requires": [
+    "script.module.requests",
+    "script.module.beautifulsoup4",
+    "script.module.dateutil",
+    "script.module.soupsieve",
+    "script.module.pyamf",
+    "script.module.pycryptodome (optional)",
+    "script.module.pyjsparser",
+    "script.module.go"
+   ],
+   "install": "profile",
+   "phone_version": "3.3.34",
+   "files": 120
+  },
+  {
+   "id": "script.module.pyamf",
+   "version": "0.8.10+matrix.4",
+   "url": "https://mirrors.kodi.tv/addons/omega/script.module.pyamf/script.module.pyamf-0.8.10+matrix.4.zip",
+   "sha256": "1eb3a6d50d0c7e2a81432c304d9e105343a66e13aaca5bacadd7b9b7e41a3b94",
+   "size": 204097,
+   "license": "MIT",
+   "requires": [
+    "xbmc.python",
+    "script.module.defusedxml"
+   ],
+   "install": "profile",
+   "phone_version": "0.8.10+matrix.4",
+   "files": 99
+  },
+  {
+   "id": "script.module.pyjsparser",
+   "version": "3.0.0",
+   "url": "https://loopaddon.uk/zips19/script.module.pyjsparser/script.module.pyjsparser-3.0.0.zip",
+   "sha256": "3d1643e63938a90527f6addf0f465914fbcc711d7dddaccffc10cf9c9efe7989",
+   "size": 39235,
+   "license": "MIT",
+   "requires": [],
+   "install": "profile",
+   "phone_version": "3.0.0",
+   "files": 11
+  },
+  {
+   "id": "script.module.pytz",
+   "version": "2023.3.0+matrix.1",
+   "url": "https://mirrors.kodi.tv/addons/omega/script.module.pytz/script.module.pytz-2023.3.0+matrix.1.zip",
+   "sha256": "ac770594355682d2b9c7c9d5a9ad468e14f7fd08ba05ea6ecfaea5333495babe",
+   "size": 510726,
+   "license": "MIT",
+   "requires": [
+    "xbmc.python"
+   ],
+   "install": "profile",
+   "phone_version": "2023.3.0+matrix.1",
+   "files": 611
+  },
+  {
+   "id": "script.module.tzdata",
+   "version": "2023.3.0+matrix.1",
+   "url": "https://mirrors.kodi.tv/addons/omega/script.module.tzdata/script.module.tzdata-2023.3.0+matrix.1.zip",
+   "sha256": "d7e744b11598a1403768debafbfcfc4ad6248f9027573517a42fd810f19ecd13",
+   "size": 356151,
+   "license": "Apache-2.0",
+   "requires": [
+    "xbmc.python"
+   ],
+   "install": "profile",
+   "phone_version": "2023.3.0+matrix.1",
+   "files": 628
+  },
+  {
+   "id": "script.module.tzlocal",
+   "version": "5.0.1",
+   "url": "https://mirrors.kodi.tv/addons/omega/script.module.tzlocal/script.module.tzlocal-5.0.1.zip",
+   "sha256": "8e1e660ba10b629bff21cb125ede8deb2b604442e67741d37f3a6f306a49a668",
+   "size": 21259,
+   "license": "MIT",
+   "requires": [
+    "xbmc.python",
+    "script.module.tzdata",
+    "script.module.backports.zoneinfo"
+   ],
+   "install": "profile",
+   "phone_version": "5.0.1",
+   "files": 8
+  }
+ ],
+ "provider_packages": [],
+ "core_dependencies": [
+  "xbmc.python"
+ ]
+}

@@ -12,8 +12,8 @@ LOCK=ROOT/'migration/umbrella/source-lock.json'
 def git(args,cwd,run=subprocess.run):
     return run(['git']+args,cwd=cwd,check=True,capture_output=True).stdout
 
-def fetch(lock=None,remote=None,run=subprocess.run,preserved=None):
-    lock=lock or json.loads(LOCK.read_text());pkg=lock['package']
+def fetch(lock=None,remote=None,run=subprocess.run,preserved=None,which='package'):
+    lock=lock or json.loads(LOCK.read_text());pkg=lock[which]
     if preserved:
         import provider_addons
         store=provider_addons.preserved_store(preserved)
@@ -32,8 +32,9 @@ def fetch(lock=None,remote=None,run=subprocess.run,preserved=None):
 def main():
     sys.path.insert(0,str(ROOT/'scripts'))
     p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True);p.add_argument('--preserved',type=Path,default=os.environ.get('KODI_IOS_PRESERVED_INPUTS') or None)
-    a=p.parse_args();lock=json.loads(LOCK.read_text());data=fetch(lock,preserved=a.preserved)
-    a.output.mkdir(parents=True,exist_ok=True);name='%s-%s.zip'%(lock['package']['id'],lock['package']['version']);(a.output/name).write_bytes(data)
-    print(json.dumps({'file':name,'sha256':lock['package']['sha256'],'size':len(data)}))
+    a=p.parse_args();lock=json.loads(LOCK.read_text());a.output.mkdir(parents=True,exist_ok=True)
+    for which in ('package','repository'):
+        data=fetch(lock,preserved=a.preserved,which=which);name='%s-%s.zip'%(lock[which]['id'],lock[which]['version']);(a.output/name).write_bytes(data)
+        print(json.dumps({'file':name,'sha256':lock[which]['sha256'],'size':len(data)}))
 
 if __name__=='__main__':main()

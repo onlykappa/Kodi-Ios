@@ -29,5 +29,6 @@ class Fetch(unittest.TestCase):
  def test_the_real_lock_is_well_formed(self):
   p=json.loads((ROOT/'migration/umbrella/source-lock.json').read_text())['package']
   self.assertEqual((p['id'],p['version'],len(p['sha256']),len(p['commit']),len(p['git_blob'])),('plugin.video.umbrella','6.8.02',64,40,40));self.assertFalse(p['native_code'])
+  r=json.loads((ROOT/'migration/umbrella/source-lock.json').read_text())['repository'];self.assertEqual((r['id'],r['version'],r['commit']),('repository.umbrella','2.2.6',p['commit']))
 
 if __name__=='__main__':unittest.main()

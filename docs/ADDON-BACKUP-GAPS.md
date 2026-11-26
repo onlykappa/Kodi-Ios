@@ -22,3 +22,17 @@ Facts come from the owner's phone log (build 722, 2026-11-26: 143 installed add-
 
 ## What I need from you
 Which of the Loop, Jet, YouTube and Dailymotion add-ons you actually use; whether you want add-on and Umbrella auto-updates turned off; and permission to store the preserved zips in the private release (or tell me to use Git LFS in the repository instead, which I can do from here).
+
+
+## Update 2026-11-26 (later): what you actually use, from your logs
+Seventeen uploaded phone logs, counted by add-on activity (not just the startup list):
+* **In real use:** Umbrella, Elementum (thousands of lines), Crew (Sports: "Crew NCAAF 19 games, 19 streams" and similar), Google Drive, CocoScrapers.
+* **YouTube: not used.** Its only log lines are its background service starting and a warning; there is no playback. It is only an *optional* dependency of Umbrella, so it is not pinned.
+* **The Loop family: no activity in the logs, but the Sports code needs it.** `sports_jet.py` plays through Crew when Crew is installed, and falls back to The Loop's routes when it is not; it also imports `script.module.jetextractors` and plays through `plugin.video.jetproxy`. The Loop 8.4 hard-requires looptv, loopguide and dailymotion_com (that is why those three are installed), plus jetextractors and the helper modules. So these are kept as the Sports fallback, not as things you use by hand.
+* **Not pinned on purpose:** YouTube, and the log uploader (Kodi's own component).
+
+Pinned now, `migration/loop-addons/source-lock.json`: 14 add-ons (The Loop 8.4, Loop TV, Loop Guide, Dailymotion 2.4.5, JetExtractors 3.3.34, JetProxy 1.1.0 and eight helper modules), 8.25 MB. Every version is identical to your phone's. All 14 were downloaded live and passed the digest, manifest and safe-archive checks of the existing provider fetcher; every non-optional dependency is pinned in one of the locks or ships in the IPA (a test checks it). Sources: loopaddon.uk (it answers Kodi's client only, fetched the way Kodi does, as you approved on 2026-11-15) and Kodi's official add-on mirror.
+
+`migration/umbrella/source-lock.json` now also pins repository.umbrella 2.2.6 (its address list follows the upstream `master` branch, a moving target; the package pin is by commit).
+
+Still to do: store preserved copies (Umbrella 14.2 MB, repository 0.2 MB, Loop/Jet set 8.3 MB: about 23 MB), review rights, stop silent updates (the Loop and Umbrella repositories both feed Kodi's updater), and the Loop repository itself remains a third-party host that serves only Kodi's client.
