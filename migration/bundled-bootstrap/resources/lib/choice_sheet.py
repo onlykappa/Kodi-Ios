@@ -78,6 +78,8 @@ def properties(spec):
                       'row.%d.tint' % n: row.get('tint') or '', 'row.%d.glyph' % n: glyph_path(row.get('glyph')),
                       # G3 (owner-approved bell sheet): a real switch instead of the chevron; 'on' / 'off', '' for none
                       'row.%d.switch' % n: '' if row.get('switch') is None else ('on' if row.get('switch') else 'off'),
+                      # a read-only row (the sign-in code): no chevron, and a tap does nothing
+                      'row.%d.inert' % n: 'true' if row.get('inert') else '',
                       # the coverage bar in tenths (0-10); '' hides it
                       'row.%d.cover' % n: '' if cover is None else str(max(0, min(10, int(round(float(cover) / 10.0)))))})
     return props
@@ -130,6 +132,8 @@ def choose(spec, xbmcgui=None, xbmc=None, path=None, toggle=None):
 
         def onClick(self, control):
             index = result(control, rows, link)
+            if 0 <= index < rows and props.get('row.%d.inert' % (index + 1)):
+                return                      # a read-only row: the sheet stays as it is
             if toggle is not None and 0 <= index < rows and props.get('row.%d.switch' % (index + 1)):
                 # A switch row flips in place: the sheet stays open and only the switch moves (G3).
                 try:
@@ -228,7 +232,7 @@ def window(p):
         on, off = is_(k + 'switch', 'on'), is_(k + 'switch', 'off')
         tw, th, kd = 112, 56, 46
         x, y = W - 48 - tw, (h - th) // 2
-        chevron = '<control type="group"><visible>!%s + !%s</visible>%s</control>' % (on, off, p.icon(W - 72, (h - 34) // 2, 34, 'chevron-right.png', p.GREY))
+        chevron = '<control type="group"><visible>!%s + !%s + String.IsEmpty(Window().Property(%sinert))</visible>%s</control>' % (on, off, k, p.icon(W - 72, (h - 34) // 2, 34, 'chevron-right.png', p.GREY))
         track = lambda cond, color: p.image(x, y, tw, th, p.MEDIA + 'pill_56.png', color, '<visible>%s</visible>' % cond, border=28)
         knob = lambda cond, kx: p.image(kx, y + (th - kd) // 2, kd, kd, p.MEDIA + 'avatar_s.png', p.WHITE, '<visible>%s</visible>' % cond)
         return chevron + track(on, p.GREEN) + track(off, 'FF39393D') + knob(on, x + tw - 5 - kd) + knob(off, x + 5)

@@ -5,18 +5,19 @@ to the engine itself. It says what would happen, says whether a VPN looks active
 import vpn_hint
 
 HEADING = 'Download this torrent directly?'
-HEAD = 'This one is not coming through AllDebrid. It would download from other people over BitTorrent, and they can see '
+HEAD = 'Not via AllDebrid. Downloads from other people over BitTorrent; they can see '
+# Kodi's question box shows about three lines of body and clips the rest (seen on the desktop rig, 2026-11-26): the text is kept short and the button is one word.
 STATUS = {
-    'direct': ('No VPN detected', 'your IP address. Turn your VPN on first.', 'Download anyway'),
-    'unknown': ('Cannot tell if a VPN is on', 'your IP address, unless a VPN is on. Turn your VPN on first.', 'Download anyway'),
-    'tunnel': ('A VPN looks active. Not verified: keep your VPN\'s kill switch on', 'the address your VPN gives them.', 'Download'),
+    'direct': ('No VPN detected', 'your IP address.', 'Download'),
+    'unknown': ('Cannot tell if a VPN is on', 'your IP address.', 'Download'),
+    'tunnel': ('A VPN looks active (not verified)', "your VPN's address.", 'Download'),
 }
 DECLINED = ('Not downloaded', 'Nothing was started. Pick another source to use AllDebrid.')
 # The same question for a stream from peers (step 18): the wording says Stream, not Download.
 STREAM_HEADING = 'Stream this torrent directly?'
-STREAM_HEAD = 'This streams from other people, and they can see '
-STREAM_TAIL = {'direct': 'your IP address.', 'unknown': 'your IP address, unless a VPN is on.', 'tunnel': 'the address your VPN gives them.'}   # short: Kodi\'s question box shows about three lines
-STREAM_YES = {'direct': 'Stream anyway', 'unknown': 'Stream anyway', 'tunnel': 'Stream'}
+STREAM_HEAD = 'This streams from other people over BitTorrent; they can see '
+STREAM_TAIL = {'direct': 'your IP address.', 'unknown': 'your IP address.', 'tunnel': "your VPN's address."}   # short: Kodi\'s question box shows about three lines
+STREAM_YES = {'direct': 'Stream', 'unknown': 'Stream', 'tunnel': 'Stream'}
 STREAM_DECLINED = ('Not streamed', 'Nothing was started. Try again when AllDebrid answers.')
 
 

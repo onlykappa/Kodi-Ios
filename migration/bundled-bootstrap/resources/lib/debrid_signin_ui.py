@@ -23,7 +23,7 @@ def pin_spec(pin, url=''):
     """The sheet for a pending sign-in: the code is the first row; Cancel is the button."""
     page = 'alldebrid.com/pin'
     return {'heading': HEADING, 'sub': 'Waiting for you to enter the code',
-            'rows': [{'label': ' '.join(str(pin)), 'detail': 'Enter it at %s on any device. It works for 10 minutes.' % page}],
+            'rows': [{'label': ' '.join(str(pin)), 'detail': 'Enter it at %s on any device. It works for 10 minutes.' % page, 'inert': True}],
             'button': 'Cancel'}
 
 

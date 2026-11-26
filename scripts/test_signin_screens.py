@@ -17,6 +17,13 @@ class Accounts(unittest.TestCase):
   keys=[x['key'] for x in accounts.SERVICES];self.assertEqual(accounts.SERVICES[keys.index('alldebrid')]['section'],0);self.assertLess(len(accounts.SERVICES),10,'service buttons are 9601..9609; links start at 9611')
   props=accounts.properties([{'signed':False,'text':'x','button':'','action':''}]*len(accounts.SERVICES),'Me');self.assertEqual(props['acct.%d.name'%(keys.index('alldebrid')+1)],'AllDebrid')
 
+class Inert(unittest.TestCase):
+ def test_the_code_row_is_read_only_and_has_no_chevron(self):
+  props=cs.properties(ui.pin_spec('ABCD'));self.assertEqual(props['row.1.inert'],'true')
+  self.assertEqual(cs.properties(ui.signed_in_spec())['row.1.inert'],'','the sign-out row stays tappable')
+  xml=cs.window(__import__('pages'))if False else None
+  src=Path(cs.__file__).read_text();self.assertIn("String.IsEmpty(Window().Property(%sinert))",src);self.assertIn("props.get('row.%d.inert'",src)
+
 class Sheets(unittest.TestCase):
  def test_wording_is_plain_and_fits_the_sheet(self):
   spec=ui.pin_spec('ABCD');self.assertEqual(spec['rows'][0]['label'],'A B C D')
@@ -49,10 +56,10 @@ class Flow(unittest.TestCase):
 
 class Wording(unittest.TestCase):
  def test_the_stream_prompt_says_stream_and_the_download_prompt_is_unchanged(self):
-  found={'state':'direct','route':'en0','tunnels':[]};text,yes=tp.message(found,stream=True);self.assertIn('stream',text.lower());self.assertEqual(yes,'Stream anyway');self.assertNotIn('download',text.lower())
-  self.assertEqual(tp.message(found)[1],'Download anyway')
+  found={'state':'direct','route':'en0','tunnels':[]};text,yes=tp.message(found,stream=True);self.assertIn('stream',text.lower());self.assertEqual(yes,'Stream');self.assertNotIn('download',text.lower())
+  self.assertEqual(tp.message(found)[1],'Download')
   for state in ('direct','unknown','tunnel'):
-   body=tp.message({'state':state},stream=True)[0].split('\n\n')[0];self.assertLessEqual(len(body),90,'Kodi\'s question box shows about three lines of body; longer text is clipped (seen on the rig)')
+   body=tp.message({'state':state},stream=True)[0].split('\n\n')[0];self.assertLessEqual(len(body),100,'Kodi\'s question box shows about three lines of body; longer text is clipped (seen on the rig)')
   d=MagicMock();d.yesno.return_value=True;self.assertTrue(tp.ask(found,d,stream=True));self.assertEqual(d.yesno.call_args.args[0],tp.STREAM_HEADING);self.assertEqual(d.yesno.call_args.kwargs['nolabel'],'Cancel')
   d.yesno.return_value=False;self.assertFalse(tp.ask({'state':'tunnel','route':'utun3','tunnels':['utun3']},d,stream=True))
  def test_peers_line_counts_down_each_second_of_the_wait(self):

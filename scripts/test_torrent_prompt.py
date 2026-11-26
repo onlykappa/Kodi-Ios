@@ -37,13 +37,18 @@ class Prompt(unittest.TestCase):
         def __init__(self, answer): self.answer, self.shown = answer, []
         def yesno(self, heading, message, nolabel='', yeslabel=''): self.shown.append((heading, message, nolabel, yeslabel)); return self.answer
     def test_the_words_follow_the_hint_and_cancel_is_the_first_choice(self):
-        for state, status, yes in (('direct', 'No VPN detected', 'Download anyway'), ('unknown', 'Cannot tell if a VPN is on', 'Download anyway'), ('tunnel', 'A VPN looks active', 'Download')):
+        for state, status, yes in (('direct', 'No VPN detected', 'Download'), ('unknown', 'Cannot tell if a VPN is on', 'Download'), ('tunnel', 'A VPN looks active', 'Download')):
             dialog = self.Dialog(False); torrent_prompt.ask({'state': state, 'route': 'x', 'tunnels': []}, dialog)
             heading, text, no, yes_label = dialog.shown[0]
             self.assertEqual((heading, no, yes_label), ('Download this torrent directly?', 'Cancel', yes)); self.assertIn(status, text); self.assertIn('BitTorrent', text); self.assertIn('AllDebrid', text)
+    def test_the_body_fits_kodis_question_box(self):
+        for state in ('direct', 'unknown', 'tunnel'):
+            for stream in (False, True):
+                body = torrent_prompt.message({'state': state}, stream)[0].split('\n\n')[0]
+                self.assertLessEqual(len(body), 100, body)   # about three lines; the rig clipped the old 170-character text
     def test_a_vpn_look_is_never_called_protected_or_verified_as_true(self):
         text = torrent_prompt.message({'state': 'tunnel', 'route': 'utun4', 'tunnels': ['utun4']})[0]
-        self.assertIn('Not verified', text); self.assertNotIn('protected', text.lower())
+        self.assertIn('not verified', text.lower()); self.assertNotIn('protected', text.lower())
     def test_the_answer_is_returned_and_logged_without_addresses(self):
         lines = []; self.assertTrue(torrent_prompt.ask({'state': 'direct', 'route': 'en0', 'tunnels': []}, self.Dialog(True), lines.append))
         self.assertFalse(torrent_prompt.ask({'state': 'direct', 'route': 'en0', 'tunnels': []}, self.Dialog(False), lines.append))
