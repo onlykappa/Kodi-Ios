@@ -94,6 +94,17 @@ def walk_reusable(jet, league, now=time.time, window=REUSE_WALK):
     return 0 <= now() - float(data.get('at') or 0) < window and walked in ('', str(league or ''))
 
 
+def _match(game, listings):
+    """The sources of the ONE current listing that is this game (sports_match.unique_match), else []. Two different matching listings (a doubleheader) or a game
+    ESPN says is over match nothing: the closest one is never guessed. A game record without ESPN's state and start is judged by teams and time only, as before."""
+    import source_contract
+    import sports_match
+    try:
+        return sports_match.unique_match(game, listings, strict=False)['sources']
+    except source_contract.Outcome:
+        return []
+
+
 def crew_sources(game, sleep=time.sleep, clock=time.monotonic, fresh=False):
     """The sources Crew has for this one game (its page asked). Crew's collector runs only now; a list never starts it. Matching is by league,
     start and team names (sports_merge.same_game). The collector publishes as it walks Crew's menus (a minute or two on a phone), so this keeps
@@ -117,9 +128,9 @@ def crew_sources(game, sleep=time.sleep, clock=time.monotonic, fresh=False):
         began, asked = clock(), time.time()
         if not fresh and walk_reusable(jet, game.get('league')):   # the walk that just ended did not list it: say so now ("Check now" asks again: fresh)
             try:
-                for other in list(jet.live_games()) + list(jet.upcoming_games()):
-                    if other.get('sources') and sports_merge.same_game(game, other):
-                        return other['sources']
+                found = _match(game, list(jet.live_games()) + list(jet.upcoming_games()))
+                if found:
+                    return found
             except sm_unavailable():
                 pass
             return []
@@ -130,9 +141,9 @@ def crew_sources(game, sleep=time.sleep, clock=time.monotonic, fresh=False):
                     games = list(jet.live_games()) + list(jet.upcoming_games())
                 except sm_unavailable():
                     games = []
-                for other in games:
-                    if other.get('sources') and sports_merge.same_game(game, other):
-                        return other['sources']
+                found = _match(game, games)
+                if found:
+                    return found
                 finished, at = _scan_state(jet)
                 if finished or clock() - began > SEARCH_SECONDS:
                     break

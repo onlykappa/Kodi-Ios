@@ -18,6 +18,7 @@ BOOST_VERSION=1.72.0; BOOST_SHA256=59c9b274bc451cf91a9ba1dd2c7fdcaf5d60b1b3aa83f
 OPENSSL_VERSION=1.1.1f; OPENSSL_SHA256=186c6bfe6ecfba7a5b48c47f8a1673d0f3b0e5ba2e25602dd23b629975da3f35
 SWIG_COMMIT=77323a0f07562b7d90d36181697a72a909b9519a
 GO_VERSION=1.21.1
+GO_SHA256=ffd40391a1e995855488b008ad9326ff8c2e81803a6e80894401003bae47fcf1
 
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 CLANG="$(xcrun --sdk iphoneos --find clang)"; CLANGXX="$(xcrun --sdk iphoneos --find clang++)"
@@ -41,11 +42,6 @@ command -v glibtoolize >/dev/null || brew install libtool
 end
 
 step "Go $GO_VERSION"
-GO_SHA256="$(curl --fail -sSL 'https://go.dev/dl/?mode=json&include=all' | python3 -c "
-import json,sys
-for r in json.load(sys.stdin):
-  if r['version']=='go$GO_VERSION':
-    print(next(f['sha256'] for f in r['files'] if f['os']=='darwin' and f['arch']=='arm64' and f['kind']=='archive'))")"
 fetch "https://go.dev/dl/go$GO_VERSION.darwin-arm64.tar.gz" "$GO_SHA256" "$SRC/go.tgz"
 tar -xzf "$SRC/go.tgz" -C "$HOST"; export PATH="$HOST/go/bin:$HOST/bin:$PATH"; go version
 end

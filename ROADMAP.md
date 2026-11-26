@@ -1,5 +1,7 @@
 # Kodi-iOS master roadmap
 
+Source resilience planning (2026-11-23): [16-step bundled backup source roadmap](docs/SOURCE-RESILIENCE-ROADMAP.md). Steps 1–2 available-source inventory and controlled rig baseline complete (2/16 roadmap steps); phone parity/production-engine gaps explicit. Owner can authorize each numbered step. No build, release or merge.
+
 AirPlay TV handoff step1 complete (2026-11-20): [native reproduction](docs/AIRPLAY-TV-HANDOFF-REPRO.md) passes19 observation checks and rejects current behavior in exactly four desired-contract assertions. Step2 (source, 2026-11-20): the master handler now prepares the receiver's converted init and resume window through the converted plan's grid instead of segment0, and the contract is a normal passing gate; native run result pending (see docs/AIRPLAY-TV-HANDOFF-REPRO.md). Native host evidence does not prove receiver playback. No new IPA/merge is authorized by the step1 request.
 
 Current AirPlay follow-up (2026-11-19): PR49 merged with owner approval. Build600 still fails owner seeking tests. [Build600 roadmap](docs/AIRPLAY-BUILD600-ROADMAP.md) separates slow MKV delivery from repeated empty MP4 audio at a successful video target. Prioritize audio-reader/seek reproduction, then latency; phone acceptance remains open. No new release authorized.
@@ -603,3 +605,17 @@ Step 3 checkpoint (ISSUE-370): Live Now's native dispatch is now staged after mo
 4. **Stall recovery — source candidate:** seek the replacement before playing and bound the wait (ISSUE-380). Native framework compilation and real AVPlayer/iPhone validation remain open.
 5. **Position and watch history — host candidate:** latest snapshot, rewind, same-file ownership and completion have controlled history tests (ISSUE-377); validate real iPhone, Kodi library and provider-specific resume on device.
 6. **Full regression — host and native checks passed:** progress records the full CI run, local 180-command run and Python 3.11 retest, plus unresolved empty-segment reproduction and artifact access. The native candidate is not pinned; an owner-authorized testing IPA and iPhone/Apple TV playback, buffering and resume measurements remain open.
+
+Source resilience step 3 remains open: a sanitized `future` runtime snapshot is now recorded alongside four unmodified module trees, with reproducible transformations and host import checks. Durable provider/native closure and real Kodi 21.3 runtime evidence remain outstanding; see docs/SOURCE-PRESERVATION-STEP3.md and ISSUE-399/401. Steps 4–16 remain unstarted.
+
+Step 3 recovery update: the pinned POV upstream commit and archive became unavailable after the earlier scratch-only retrieval; a prior CI artifact could not be downloaded in this environment. Recover and verify the exact approved source before claiming a durable baseline. See ISSUE-402; the latest review CI failure also remains undiagnosed because its logs returned HTTP 403.
+
+Step 3 follow-up: the owner selected the existing private release's POV/Magneto archives despite their different hashes; old pins remain recorded and provenance/license review is pending. Current 29-input acquisition, local guarded restoration and host staging tests passed. Full licensed closure, Kodi runtime and native rebuild evidence remain open (ISSUE-402).
+
+Provider recovery now has a tested path from 29 SHA256-matched assets in the existing private release through local socket-guarded restoration and clean staging. Retention, rights and corresponding-source review, Kodi runtime, native closure and phone evidence remain separate outstanding matters; see docs/SOURCE-PRESERVATION-STEP3.md.
+
+Step 3 rights review has an archive-by-archive inventory and a staged Segno BSD notice; image provenance, selected POV/Magneto source provenance, third-party notices and corresponding source remain to be resolved (ISSUE-404).
+
+Source step 3 Go graph audit: 179 module versions downloaded into scratch, with 62 selected in readonly ios/arm64 package resolution; selected napping declares GPL v3. Sources and licenses still require review and durable preservation; see ISSUE-405. The cloudscraper MIT notice is now staged, with vendored differences still under review.
+
+Source step 3 rig: rebuilt and ran desktop Kodi 21.3; the controlled Crew adapter passed after adding the missing locked soupsieve dependency. Crew's service opened a local proxy but logged an unresolved buffer-write exception. This mixed-source rig does not prove complete clean lock-only staging, live playback, offline runtime or phone behavior (ISSUE-407).

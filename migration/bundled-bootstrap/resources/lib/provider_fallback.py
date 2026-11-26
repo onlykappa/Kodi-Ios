@@ -15,9 +15,12 @@ import threading
 import time
 import urllib.parse
 
+import source_contract
+
 PROVIDERS = ('jacktook', 'pov', 'otaku', 'thecrew', 'prism')
 ADDONS = {'jacktook': 'plugin.video.jacktook', 'pov': 'plugin.video.pov',
           'otaku': 'plugin.video.otaku', 'thecrew': 'plugin.video.thecrew', 'prism': 'plugin.video.prism'}
+INDEPENDENT = ('local',)   # first-party search that needs no add-on (independent_search.py); not in the add-on loop
 TOTAL_SECONDS = 60
 PROVIDER_SECONDS = 12
 RESOLVE_SECONDS = 15
@@ -44,9 +47,9 @@ def _check(cancel, deadline, clock=time.monotonic):
 def note(provider, status, count=0):
     try:
         import xbmc
-        if provider not in PROVIDERS:
+        if provider not in PROVIDERS + INDEPENDENT:
             provider = 'primary'
-        if status not in ('search', 'ready', 'empty', 'offline', 'timeout', 'unconfigured', 'resolve', 'resolved', 'canceled'):
+        if status not in ('search', 'ready', 'unconfigured', 'resolve', 'resolved') + source_contract.OUTCOMES:
             status = 'offline'
         xbmc.log('Kodi iOS provider fallback: provider=%s status=%s count=%d' %
                  (provider, status, max(0, int(count))), xbmc.LOGINFO)
@@ -100,7 +103,7 @@ def eligible(request):
 
 
 def normalize(candidate, provider):
-    if provider not in PROVIDERS or not isinstance(candidate, dict):
+    if provider not in PROVIDERS + INDEPENDENT or not isinstance(candidate, dict):
         return None
     name = str(candidate.get('name') or '').strip()
     if not name or len(name) > 2048:
@@ -165,14 +168,18 @@ def verified(candidates, request, provider):
     return kept
 
 
-def search(request, primary='elementum', cancel=None, timeout=TOTAL_SECONDS, transport=None, exclude=(), clock=time.monotonic):
+def search(request, primary='elementum', cancel=None, timeout=TOTAL_SECONDS, transport=None, exclude=(), clock=time.monotonic, independent=None, health=None):
     """Called only after primary failure/empty results. First usable backup wins; success remains lazy."""
     if not eligible(request):
         return []
     transport = transport or KodiTransport()
+    if health is None and isinstance(transport, KodiTransport):
+        import source_health
+        health = source_health.default()
     deadline = clock() + max(0, float(timeout))
     skipped = set(exclude) | {primary}
-    for provider in PROVIDERS:
+    order = health.order(PROVIDERS) if health is not None else PROVIDERS   # cooling-down providers are skipped; recent winners go first
+    for provider in order:
         _check(cancel, deadline, clock)
         if provider in skipped or (provider == 'otaku' and request.get('media_type') != 'episode'):
             continue
@@ -186,18 +193,41 @@ def search(request, primary='elementum', cancel=None, timeout=TOTAL_SECONDS, tra
             found = verified(values, request, provider)
         except Canceled:
             note(provider, 'canceled')
-            raise
-        except TimeoutError:
-            note(provider, 'timeout')
-            continue
-        except Exception:
+            raise                                   # a cancel is never recorded: it neither penalises nor advances
+        except Exception as error:
             _check(cancel, deadline, clock)
-            note(provider, 'offline')
+            # One typed outcome per failure (source_contract.classify never reads the message, so no link can leak).
+            outcome = source_contract.classify(error)
+            if health is not None:
+                import source_health
+                health.record(provider, outcome, source_health.retry_after(error))
+            note(provider, outcome)
             continue
+        if health is not None:
+            health.record(provider, source_contract.OK if found else source_contract.EMPTY)
         note(provider, 'ready' if found else 'empty', len(found))
         if found:
             return found
-    return []
+    return _independent(request, independent, transport, cancel, deadline, skipped, clock)
+
+
+def _independent(request, search_fn, transport, cancel, deadline, skipped, clock):
+    """Last resort once every add-on backup came back empty or failed: the first-party site search (independent_search).
+    Only with the real transport unless a function is given, so tests never touch the network."""
+    if search_fn is None and isinstance(transport, KodiTransport):
+        import independent_sites
+        import source_health
+        shared = source_health.default()
+        search_fn = lambda request, cancel=None, timeout=0: independent_sites.search_all(request, cancel=cancel, timeout=timeout, health=shared)[:2]
+    if search_fn is None or 'local' in skipped:
+        return []
+    _check(cancel, deadline, clock)
+    note('local', 'search')
+    outcome, found = search_fn(request, cancel=cancel, timeout=max(.5, deadline - clock()))
+    note('local', 'ready' if found else outcome, len(found))
+    if outcome == 'canceled':
+        raise Canceled('Source search canceled')
+    return found
 
 
 def safe_url(value):
@@ -237,7 +267,10 @@ def resolve(candidate, request, cancel=None, transport=None, timeout=RESOLVE_SEC
     deadline = clock() + max(0, float(timeout))
     _check(cancel, deadline, clock)
     note(provider, 'resolve')
-    result = transport.resolve(provider, candidate, request, deadline, cancel)
+    if provider in INDEPENDENT:
+        result = candidate.get('magnet') or ''       # no add-on to ask: the hash is the handle
+    else:
+        result = transport.resolve(provider, candidate, request, deadline, cancel)
     _check(cancel, deadline, clock)
     result = safe_url(result)
     if request.get('purpose') == 'stream' and result.startswith('magnet:'):

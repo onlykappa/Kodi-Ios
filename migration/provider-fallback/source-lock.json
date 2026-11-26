@@ -17,7 +17,9 @@
   "policy": {
     "reuse_existing_modules_if_minimum_dependencies_satisfied": true,
     "disable_new_background_services": true,
-    "required_service_exceptions": ["plugin.video.thecrew"],
+    "required_service_exceptions": [
+      "plugin.video.thecrew"
+    ],
     "exclude_adult_only_crew_dependency_and_artwork": true,
     "preserve_upstream_licences_and_headers": true,
     "no_device_verification_claim": true
@@ -47,7 +49,14 @@
       "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
       "install": "app",
       "remove_services": true,
-      "profile_copy": true
+      "profile_copy": true,
+      "original_pin": {
+        "repository": "kodifitzwell/repo",
+        "commit": "2c8390c6e65213853a862a00044597946b946132",
+        "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/plugin.video.pov/plugin.video.pov-6.11.03.zip",
+        "sha256": "9ac93ad045910774503cbfeeb45b63bbd9b23837c9e76749885076c9b11edfba"
+      },
+      "provenance": "Rebuilt from the tree that shipped in build 679 (see vendored_note); the bytes match sha256 but differ from original_pin; source and redistribution review pending."
     },
     {
       "id": "script.module.magneto",
@@ -61,7 +70,14 @@
       "version": "6.11.01",
       "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
       "install": "app",
-      "remove_services": false
+      "remove_services": false,
+      "original_pin": {
+        "repository": "kodifitzwell/repo",
+        "commit": "2c8390c6e65213853a862a00044597946b946132",
+        "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/script.module.magneto/script.module.magneto-6.11.01.zip",
+        "sha256": "c2dabb04a1ab8eda8307f12333f747bede00e481ba7cb9ef4905d2d59ac9e418"
+      },
+      "provenance": "Rebuilt from the tree that shipped in build 679 (see vendored_note); the bytes match sha256 but differ from original_pin; source and redistribution review pending."
     },
     {
       "id": "plugin.video.otaku",
@@ -119,7 +135,9 @@
       "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
       "install": "app",
       "remove_services": false,
-      "required_services": ["service.py"],
+      "required_services": [
+        "service.py"
+      ],
       "remove_requires": [
         "script.module.resolveurl.xxx"
       ]
@@ -347,6 +365,18 @@
       "url": "https://www.gnu.org/licenses/gpl-3.0.txt",
       "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
       "purpose": "Complete GNU GPL v3 text for upstream packages which retain GPL notices but omit a separate licence file."
+    },
+    {
+      "path": "licenses/segno-1.6.6-BSD-3-Clause.md",
+      "url": "https://raw.githubusercontent.com/heuer/segno/9b67a3f2914be966c35dd8f00bef19d01b9ec68e/LICENSE",
+      "sha256": "de6c85fccf5d52902aa13dfe2dc6d2a2a106fc3419ed438f3460f0d4b76a6935",
+      "purpose": "Upstream Segno 1.6.6 BSD notice for vendored Jacktook files; packaged files differ from this upstream tag and require further provenance review."
+    },
+    {
+      "path": "licenses/cloudscraper-1.2.60-MIT.md",
+      "url": "https://raw.githubusercontent.com/VeNoMouS/cloudscraper/d54abb0fac5743eb7122debe9807eec541613a0b/LICENSE",
+      "sha256": "96e0bd3493c45f42404142969335a500e69a13af5f34a9d6d6e22e0ca9961117",
+      "purpose": "Upstream cloudscraper 1.2.60 MIT notice for the a4kScrapers vendored subtree; differences and additional files require further provenance review."
     }
   ],
   "data_assets": [

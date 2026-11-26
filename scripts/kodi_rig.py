@@ -75,7 +75,9 @@ CMAKE_FLAGS = ['-DCMAKE_BUILD_TYPE=Release', '-DCORE_PLATFORM_NAME=x11', '-DAPP_
 # files (Kodi's cmake checks their hashes), served to it through -DKODI_MIRROR=file://...
 APACHE = ['https://archive.apache.org/dist/groovy/4.0.26/distribution/apache-groovy-binary-4.0.26.zip',
           'https://archive.apache.org/dist/commons/lang/binaries/commons-lang3-3.17.0-bin.tar.gz',
-          'https://archive.apache.org/dist/commons/text/binaries/commons-text-1.13.0-bin.tar.gz']
+          'https://archive.apache.org/dist/commons/text/binaries/commons-text-1.13.0-bin.tar.gz',
+          # Debian bookworm's FFmpeg is too old; Kodi verifies this archive against FFMPEG-VERSION.
+          'https://mirrors.kodi.tv/build-deps/sources/ffmpeg-6.0.1.tar.gz']
 # libdvd* come as GitHub archive tarballs, which some proxies refuse; the rig makes them from git tags instead and
 # points the (scratch) Kodi checkout's VERSION files at their hashes. Only the rig's own Kodi copy is changed.
 DVD = {'libdvdread': '6.1.3-Next-Nexus-Alpha2-2', 'libdvdnav': '6.1.1-Next-Nexus-Alpha2-2', 'libdvdcss': '1.4.3-Next-Nexus-Alpha2-2'}

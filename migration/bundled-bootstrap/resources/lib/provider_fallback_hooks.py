@@ -22,6 +22,29 @@ def cancel_callback(cancel=None):
  except ImportError:return lambda:False
 
 
+def playback_uncertain():
+ """A player is open, opening or buffering: a backup would start a second one. Unknown (no Kodi) counts as certain."""
+ try:
+  import xbmc
+  return bool(xbmc.getCondVisibility('Player.HasMedia | Player.Caching'))
+ except Exception:return False
+
+
+def candidate_key(candidate):
+ """Same torrent (info hash) or same release name and size is one source."""
+ return str(candidate.get('torrent_hash') or '').lower() or (str(candidate.get('name') or '').lower(),round(float(candidate.get('size') or 0),1))
+
+
+def dedupe(candidates):
+ """One row per source within a picker round, keeping the best-seeded copy. A failed origin is not remembered here: another
+ provider's copy of the same release must stay available as the next round's alternative."""
+ best={}
+ for c in candidates:
+  k=candidate_key(c)
+  if k not in best or (c.get('seeders') or 0)>(best[k].get('seeders') or 0):best[k]=c
+ return [c for c in candidates if best[candidate_key(c)] is c]
+
+
 def usable(deck,items,profile=None):
  profile=profile or {}
  kept=[p for p in items if p.get('seeds',0)>0 and not deck.is_bad(p)]
@@ -41,16 +64,23 @@ def _mark(home,auto=None):
 
 def _resolved(deck,exp,title,mode,auto=None,cancel=None,timeout=60):
  """Reuse the existing picker, retry only failed resolver origins, and bound the whole fallback turn."""
- pf=broker();cancel=cancel_callback(cancel);deadline=time.monotonic()+max(0,float(timeout));excluded=set()
+ pf=broker();base_cancel=cancel_callback(cancel);deadline=time.monotonic()+max(0,float(timeout));excluded=set()
+ if playback_uncertain():return None
  profile=dict((auto or {}).get('profile') or {})
  purpose=(auto or {}).get('purpose') or ('stream' if mode=='stream' else 'download')
  request=pf.request_from_expected(exp,purpose,profile)
  home=deck._home()
+ generation=_attempt(home,auto)
+ def cancel():
+  # A newer request replaced this one (its id left the Home window): this search is stale and must stop.
+  return base_cancel() or (bool(generation) and home is not None and _attempt(home,auto)!=generation)
  _mark(home,auto)
  while len(excluded)<len(pf.PROVIDERS) and time.monotonic()<deadline:
   if cancel():raise pf.Canceled('Source search canceled')
   candidates=pf.search(request,primary='umbrella' if mode=='stream' else 'elementum',cancel=cancel,
                        timeout=max(.1,deadline-time.monotonic()),exclude=tuple(excluded))
+  if cancel():raise pf.Canceled('Source search canceled')    # replaced or cancelled while searching: never show or start it
+  candidates=dedupe(candidates)
   if not candidates:return None
   # Broker identity/quality checks and the current picker's codec/size checks both apply.
   labels=pf.picker_items(candidates);parsed=deck.parse_all(labels) or []
@@ -84,11 +114,47 @@ def stream_url(url,request=None):
  raise ValueError('This source requires the torrent download route')
 
 
+def direct_wanted():
+ """A torrent Stream may go to peers (behind the torrent prompt) when there is no debrid key at all, or once debrid has been failing (three
+ service-level failures in a row, still cooling down). A working debrid or an unknown state keeps the old refusal."""
+ try:
+  import debrid_account,debrid_token
+  if not debrid_token.has():return True
+  return debrid_account.is_unavailable()
+ except Exception:return False
+
+
+def direct(selected,request,cancel=None):
+ """Step 18: stream the chosen torrent from peers with the bundled Elementum engine. True when playing; False when declined, canceled or no peers."""
+ import xbmcgui,elementum_download,backup_playback,p2p_rules,debrid_account,source_contract
+ home=xbmcgui.Window(10000);bar=[]
+ def show(text,percent=0):
+  """Kodi's own progress dialog, in the skin's style, with its Cancel button: "Streaming from peers" / "Waiting for peers · 80 s". Closed when done."""
+  try:
+   home.setProperty(p2p_rules.STATUS,text) if text else home.clearProperty(p2p_rules.STATUS)
+   if not text:
+    if bar:bar.pop().close()
+    return
+   if not bar:
+    dialog=xbmcgui.DialogProgress();dialog.create('Streaming from peers',text);bar.append(dialog)
+   bar[0].update(percent or 0,text)
+  except Exception:pass
+ def stop():return bool((cancel and cancel()) or (bar and bar[0].iscanceled()))     # its Cancel button ends the wait and never moves on to another swarm
+ try:
+  p2p_rules.stream_best([selected['candidate']],request,backup_playback.Playback(backup_playback.KodiPlayer()),home,lambda:elementum_download._torrent_gate(stream=True),
+                        health=debrid_account.shared_health(),cancel=stop,show=show)
+  return True
+ except source_contract.Outcome:return False
+ finally:show('')
+
+
 def dispatch(selected,auto=None,cancel=None):
  pf=broker();cancel=cancel_callback(cancel)
  if cancel():raise pf.Canceled('Source search canceled')
  url=selected['url'];request=selected['request']
  if request['purpose']=='stream':
+  if urllib.parse.urlsplit(url).scheme=='magnet' and direct_wanted():
+   return direct(selected,request,cancel)
   import xbmc
   xbmc.Player().play(stream_url(url,request))
   return True

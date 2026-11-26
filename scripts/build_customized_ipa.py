@@ -742,7 +742,8 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None,provide
  navigation_files=_nav.patch_skin(addonroot/'skin.arctic.fuse.3') if (addonroot/'skin.arctic.fuse.3').is_dir() else []
  drive_files=patch_drive(addonroot) if (addonroot/DRIVE_COMMON).is_dir() else []
  engine=add_elementum(elementum,target,addonroot) if elementum else None
- bootstrap=addonroot/BOOT;shutil.copytree(ROOT/'migration/bundled-bootstrap',bootstrap,dirs_exist_ok=True)  # the Deck page (add_deck_picker) may already be in it
+ bootstrap=addonroot/BOOT;shutil.copytree(ROOT/'migration/bundled-bootstrap',bootstrap,dirs_exist_ok=True)
+ import fetch_crew_remote;fetch_crew_remote.stage(bootstrap)   # Crew's four remote modules, pinned: the fallback copy for a phone that cannot download them (step 25)  # the Deck page (add_deck_picker) may already be in it
  profile_addons=add_profile_addons(elementum,bootstrap) if elementum else []
  fallback=provider_addons.install(providers,addonroot,bootstrap) if providers else None
  if fallback:profile_addons+=fallback['profile_copies']

@@ -1,0 +1,181 @@
+{
+ "schema": 1,
+ "scope": "host checks of the source-resilience modules (roadmap step 13): injected failures, a loopback server, one network-less namespace; no phone, rig or live-service evidence",
+ "rows": [
+  {
+   "group": "outage",
+   "scenario": "unavailable package repository: preserved copy used, tampered copy refused, no copy fails typed",
+   "expected": "build finishes from preserved bytes; tamper and missing are errors",
+   "observed": "preserved build ok; tampered and missing raise OSError",
+   "status": "pass"
+  },
+  {
+   "group": "outage",
+   "scenario": "missing primary add-on and every add-on backup: first-party searches take over",
+   "expected": "results from the ten site searches, add-ons never launched",
+   "observed": "3 candidates from site searches; 0 add-on calls",
+   "status": "pass"
+  },
+  {
+   "group": "outage",
+   "scenario": "dead remote configuration / all sites down: typed offline, not empty",
+   "expected": "typed offline outcome and no results",
+   "observed": "offline",
+   "status": "pass"
+  },
+  {
+   "group": "outage",
+   "scenario": "dead aggregator (Knaben) while others answer",
+   "expected": "others answer; aggregator reported offline and cooled down",
+   "observed": "ok; knaben offline, cooling",
+   "status": "pass"
+  },
+  {
+   "group": "outage",
+   "scenario": "shared backend failure: two add-on providers fail for the same reason",
+   "expected": "chain continues to a third provider; both cool down",
+   "observed": "thecrew answered; jacktook, pov cooling",
+   "status": "pass"
+  },
+  {
+   "group": "outage",
+   "scenario": "DNS failure (real resolver, .invalid host)",
+   "expected": "typed offline",
+   "observed": "offline",
+   "status": "pass"
+  },
+  {
+   "group": "outage",
+   "scenario": "TLS failure (real handshake against a self-signed local server)",
+   "expected": "typed offline; certificate is not accepted",
+   "observed": "offline (certificate verification failed)",
+   "status": "pass"
+  },
+  {
+   "group": "outage",
+   "scenario": "complete offline mode (network-less namespace, real sockets)",
+   "expected": "typed offline for every request; staged bundle still imports and searches fixtures",
+   "observed": "offline",
+   "status": "pass"
+  },
+  {
+   "group": "outage",
+   "scenario": "malformed feeds and pages for every site family",
+   "expected": "every family: layout changed, never a fabricated result",
+   "observed": "10 families reject malformed input",
+   "status": "pass"
+  },
+  {
+   "group": "outage",
+   "scenario": "expired link: re-resolved once, second expiry returns expired",
+   "expected": "one re-resolve, then expired; no loop",
+   "observed": "expired after 2 resolutions",
+   "status": "pass"
+  },
+  {
+   "group": "outage",
+   "scenario": "403/429 from a site and from the debrid service",
+   "expected": "typed refused; cooldown honours Retry-After; debrid circuit needs three service failures",
+   "observed": "refused; retry-after honoured",
+   "status": "pass"
+  },
+  {
+   "group": "outage",
+   "scenario": "absent peers: no swarm starts",
+   "expected": "timeout within the total bound; player stopped; each swarm cooled",
+   "observed": "timeout after 3 swarms in 211 s",
+   "status": "pass"
+  },
+  {
+   "group": "outage",
+   "scenario": "missing accounts: no AllDebrid key and no Google sign-in path",
+   "expected": "typed account-required; direct route offered only behind the prompt",
+   "observed": "account-required; direct plan allowed (prompt still required)",
+   "status": "pass"
+  },
+  {
+   "group": "correctness",
+   "scenario": "wrong movie, wrong year, wrong episode, duplicate results",
+   "expected": "only the exact title/year/episode; duplicates collapse by hash",
+   "observed": "3 movie candidates, no wrong-year/title rows, no wrong-episode rows",
+   "status": "pass"
+  },
+  {
+   "group": "correctness",
+   "scenario": "partial success: some families fail, one answers",
+   "expected": "results kept with a per-site report",
+   "observed": "ok with apibay timeout",
+   "status": "pass"
+  },
+  {
+   "group": "correctness",
+   "scenario": "all results empty is a valid outcome",
+   "expected": "empty, never fabricated success",
+   "observed": "empty",
+   "status": "pass"
+  },
+  {
+   "group": "correctness",
+   "scenario": "cancellation never advances or penalises",
+   "expected": "canceled outcome; nothing recorded in health; no player start",
+   "observed": "no advance, no record, no start",
+   "status": "pass"
+  },
+  {
+   "group": "correctness",
+   "scenario": "profile restart: health, token mirror and stale metadata survive",
+   "expected": "state reloads from the profile files",
+   "observed": "cooldown, mirrored key and own key persist",
+   "status": "pass"
+  },
+  {
+   "group": "correctness",
+   "scenario": "concurrent jobs: parallel searches share health; same stream starts once",
+   "expected": "no exception, consistent health, one player start",
+   "observed": "8 parallel searches ok; duplicate starts collapsed (1 player starts)",
+   "status": "pass"
+  },
+  {
+   "group": "correctness",
+   "scenario": "sports: stale, ambiguous and ended games rejected",
+   "expected": "typed unsupported/empty; no launch",
+   "observed": "unsupported, unsupported, unsupported",
+   "status": "pass"
+  },
+  {
+   "group": "correctness",
+   "scenario": "no direct torrent traffic is attempted by any search or fallback path",
+   "expected": "zero non-loopback connections recorded by the tripwire",
+   "observed": "tripwire clean: 0 non-loopback connects",
+   "status": "pass"
+  },
+  {
+   "group": "privacy",
+   "scenario": "no secret-bearing line: logs, health file, notices and reports carry no key or link",
+   "expected": "zero lines contain the key, a URL, a header or a magnet",
+   "observed": "6 log lines, 1 notices, health file: clean",
+   "status": "pass"
+  },
+  {
+   "group": "privacy",
+   "scenario": "the repository carries no key, token file or private state from these steps",
+   "expected": "no secret pattern in the new modules, docs or reports",
+   "observed": "11 modules checked",
+   "status": "pass"
+  },
+  {
+   "group": "privacy",
+   "scenario": "the app never runs downloaded code",
+   "expected": "update flow has no exec/eval/import of downloaded data",
+   "observed": "updates.py clean",
+   "status": "pass"
+  },
+  {
+   "group": "hygiene",
+   "scenario": "no abandoned background jobs after the whole matrix",
+   "expected": "thread count back to baseline",
+   "observed": "extra threads: 0",
+   "status": "pass"
+  }
+ ]
+}

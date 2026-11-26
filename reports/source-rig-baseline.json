@@ -1,0 +1,349 @@
+{
+  "schema": 1,
+  "date": "2026-11-23",
+  "source_commit": "7e45dc61f62233d92e7c83ef975435a70af00bc0",
+  "evidence_class": "desktop Kodi rig; controlled fixture responses",
+  "kodi_version": {
+    "major": 21,
+    "minor": 3,
+    "revision": "20261023-nogitfound",
+    "tag": "stable"
+  },
+  "embedded_python": "3.14.10",
+  "skin": "skin.arctic.fuse.3",
+  "screen_pixels": [
+    603,
+    1167
+  ],
+  "skin_reference_pixels": [
+    1080,
+    2090
+  ],
+  "visual_portrait_acceptance": false,
+  "actual_primary_engine_tested": false,
+  "live_provider_results": false,
+  "phone_tested": false,
+  "cases": [
+    {
+      "case": "primary-picker",
+      "status": "pass",
+      "seconds": 1.538,
+      "mailboxes_left": 0
+    },
+    {
+      "case": "cancel-picker",
+      "status": "pass",
+      "seconds": 1.507,
+      "mailboxes_left": 0
+    },
+    {
+      "case": "chain",
+      "status": "pass",
+      "seconds": 8.583,
+      "mailboxes_left": 0
+    },
+    {
+      "case": "cancel",
+      "status": "pass",
+      "seconds": 0.505,
+      "mailboxes_left": 0
+    },
+    {
+      "case": "timeout",
+      "status": "pass",
+      "seconds": 0.521,
+      "mailboxes_left": 0
+    },
+    {
+      "case": "adapter:jacktook",
+      "status": "pass",
+      "seconds": 3.01,
+      "mailboxes_left": 0
+    },
+    {
+      "case": "adapter:pov",
+      "status": "pass",
+      "seconds": 2.462,
+      "mailboxes_left": 0
+    },
+    {
+      "case": "adapter:prism",
+      "status": "pass",
+      "seconds": 3.041,
+      "mailboxes_left": 0
+    },
+    {
+      "case": "adapter:thecrew",
+      "status": "pass",
+      "seconds": 4.982,
+      "mailboxes_left": 0
+    },
+    {
+      "case": "adapter:otaku",
+      "status": "pass",
+      "seconds": 3.351,
+      "mailboxes_left": 0
+    },
+    {
+      "case": "strict",
+      "status": "pass",
+      "seconds": 3.293,
+      "mailboxes_left": 0
+    },
+    {
+      "case": "empty",
+      "status": "pass",
+      "seconds": 7.101,
+      "mailboxes_left": 0
+    },
+    {
+      "case": "resolver-offline",
+      "status": "pass",
+      "seconds": 9.395,
+      "mailboxes_left": 0
+    }
+  ],
+  "passed": 13,
+  "total": 13,
+  "playback": {
+    "status": "pass",
+    "selection": 0,
+    "video_started": true,
+    "clock_samples_seconds": [
+      0.10200000000000001,
+      0.728,
+      1.139,
+      1.55,
+      2.1710000000000003
+    ],
+    "stopped": true,
+    "transport": "generated local file; harness hands selected fixture to xbmc.Player, not a real provider/engine response",
+    "audible_output_verified": false
+  },
+  "preserved_failures": [
+    {
+      "stage": "container clone",
+      "category": "insufficient disk space",
+      "resolution": "reuse cached host Kodi 21.3 executable with separate profile; existing container/profile not repurposed"
+    },
+    {
+      "stage": "initial startup",
+      "category": "bootstrap disabled confirmation and absent audio sink",
+      "resolution": "enable genuine addon via JSON-RPC; private null ALSA configuration, independent process session and cleared stale private display lock"
+    },
+    {
+      "stage": "screenshot helper",
+      "category": "helper display :5 differs from actual :17",
+      "resolution": "no screenshot evidence claimed; future captures must explicitly use :17"
+    },
+    {
+      "stage": "Crew adapter",
+      "category": "staged addon omits runtime artwork dependency",
+      "resolution": "download locked artwork 3.2.0, verify SHA256, install and enable only in private rig; Crew retest passes"
+    }
+  ],
+  "artifact_hashes": {
+    "fixture_sha256": "52c420fcf36b092260d790310a1ca3aec29c60b26f5e853785f86ef6037cba7a",
+    "kodi_binary_sha256": "4af3436fe3f6a8ec5b1a92b6aef3a753745cd2c3f660559cc5496904f1378e49",
+    "probe_sha256": "8d70f8b14b2916eee56acaf94ef23ea6423942177ccb37361959eed73aec7bd0",
+    "production_adapter_hashes": {
+      "migration/bundled-bootstrap/resources/lib/provider_adapters/pov.py": "dca32ac56584f473d5fee78d3357ee4611f6fb7a968f9d86adfd82fc36c9c126",
+      "migration/bundled-bootstrap/resources/lib/provider_adapters/otaku.py": "75793344470c6b3679ab6de90935cc7c702bc881d9c3a4de74e44a259b43648a",
+      "migration/bundled-bootstrap/resources/lib/provider_adapters/jacktook.py": "ad110b987523bb34b2405fbadeed2885ed61a260c7704c456b9d503ea8f0f2a7",
+      "migration/bundled-bootstrap/resources/lib/provider_adapters/thecrew.py": "fdce7a13dbf3fac0a795d41d105c1d564356e532afb4c9fa09c6929b6f6c8f12",
+      "migration/bundled-bootstrap/resources/lib/provider_adapters/prism.py": "59d23c6d6f1a46507b479c11aa4b20500a7af80c7b9fa496c1961beccbdfe25a"
+    },
+    "upstream_code_comparison": {
+      "plugin.video.thecrew": {
+        "identical_python_files": 2,
+        "different_python_files": 0,
+        "missing_python_files": 0
+      },
+      "script.module.thecrew": {
+        "identical_python_files": 234,
+        "different_python_files": 0,
+        "missing_python_files": 9
+      },
+      "script.module.resolveurl": {
+        "identical_python_files": 318,
+        "different_python_files": 0,
+        "missing_python_files": 0
+      }
+    }
+  },
+  "rig_addons": [
+    {
+      "id": "context.otaku",
+      "version": "1.0.35"
+    },
+    {
+      "id": "context.prism",
+      "version": "4.0.2"
+    },
+    {
+      "id": "plugin.video.jacktook",
+      "version": "1.22.0"
+    },
+    {
+      "id": "plugin.video.kodi.ios.watch",
+      "version": "1.4.4"
+    },
+    {
+      "id": "plugin.video.otaku",
+      "version": "5.3.4"
+    },
+    {
+      "id": "plugin.video.pov",
+      "version": "6.11.03"
+    },
+    {
+      "id": "plugin.video.prism",
+      "version": "5.0.69"
+    },
+    {
+      "id": "plugin.video.thecrew",
+      "version": "3.2.2"
+    },
+    {
+      "id": "plugin.video.themoviedb.helper",
+      "version": "6.18.1+ios.1"
+    },
+    {
+      "id": "resource.font.robotocjksc",
+      "version": "0.0.3"
+    },
+    {
+      "id": "resource.images.arctic.splash",
+      "version": "1.0.7"
+    },
+    {
+      "id": "resource.images.arctic.weather",
+      "version": "1.0.4"
+    },
+    {
+      "id": "resource.images.studios.coloured",
+      "version": "0.0.24"
+    },
+    {
+      "id": "resource.images.weathericons.white",
+      "version": "0.0.6"
+    },
+    {
+      "id": "script.module.addon.signals",
+      "version": "0.0.6+matrix.1"
+    },
+    {
+      "id": "script.module.beautifulsoup4",
+      "version": "4.12.2"
+    },
+    {
+      "id": "script.module.certifi",
+      "version": "2023.5.7"
+    },
+    {
+      "id": "script.module.chardet",
+      "version": "5.1.0"
+    },
+    {
+      "id": "script.module.idna",
+      "version": "3.10.0"
+    },
+    {
+      "id": "script.module.infotagger",
+      "version": "0.1.0"
+    },
+    {
+      "id": "script.module.inputstreamhelper",
+      "version": "0.8.6"
+    },
+    {
+      "id": "script.module.jurialmunkey",
+      "version": "0.2.35"
+    },
+    {
+      "id": "script.module.kodi-six",
+      "version": "0.1.3.1"
+    },
+    {
+      "id": "script.module.magneto",
+      "version": "6.11.01"
+    },
+    {
+      "id": "script.module.myconnpy",
+      "version": "8.0.33"
+    },
+    {
+      "id": "script.module.pyqrcode",
+      "version": "1.2.1+matrix.4"
+    },
+    {
+      "id": "script.module.qrcode",
+      "version": "6.1.0+matrix.3"
+    },
+    {
+      "id": "script.module.requests",
+      "version": "2.31.0"
+    },
+    {
+      "id": "script.module.resolveurl",
+      "version": "5.1.212"
+    },
+    {
+      "id": "script.module.routing",
+      "version": "0.2.3+matrix.1"
+    },
+    {
+      "id": "script.module.simplejson",
+      "version": "3.19.1+matrix.1"
+    },
+    {
+      "id": "script.module.six",
+      "version": "1.16.0+matrix.1"
+    },
+    {
+      "id": "script.module.soupsieve",
+      "version": "2.4.1"
+    },
+    {
+      "id": "script.module.thecrew",
+      "version": "3.2.29"
+    },
+    {
+      "id": "script.module.unidecode",
+      "version": "1.3.6"
+    },
+    {
+      "id": "script.module.urllib3",
+      "version": "2.2.3"
+    },
+    {
+      "id": "script.skinvariables",
+      "version": "2.2.10"
+    },
+    {
+      "id": "script.texturemaker",
+      "version": "0.2.11"
+    },
+    {
+      "id": "script.thecrew.artwork",
+      "version": "3.2.0"
+    },
+    {
+      "id": "service.kodi.ios.bootstrap",
+      "version": "1.0.0"
+    },
+    {
+      "id": "skin.arctic.fuse.3",
+      "version": "3.4.8"
+    }
+  ],
+  "limitations": [
+    "No complete Umbrella installation or phone parity",
+    "Services disabled in private rig, including Crew; Sports proxy/service behavior not covered",
+    "Fixture methods replace upstream search/resolve responses after real module import",
+    "Generated-video handoff is harness-controlled, not proof of production provider-to-engine playback",
+    "No live provider reachability or source-independence/outage proof",
+    "No audible audio, hardware decode, touch, native tabs, AirPlay or VPN verification",
+    "No preserved-profile/account/database copies; read-only image/font assets shared from prior cache"
+  ]
+}

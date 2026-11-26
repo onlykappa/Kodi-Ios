@@ -1,0 +1,864 @@
+{
+ "schema": 1,
+ "source": "owner kodi.log, build 722, 2026-11-26: add-on ids and versions only; compared with the build-679 IPA and the source locks in this repository",
+ "rows": [
+  {
+   "id": "audioencoder.kodi.builtin.aac",
+   "phone_version": "1.0.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "audioencoder.kodi.builtin.wma",
+   "phone_version": "1.0.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "context.otaku",
+   "phone_version": "1.0.35",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "context.prism",
+   "phone_version": "4.0.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "game.controller.default",
+   "phone_version": "1.0.46",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "game.controller.keyboard",
+   "phone_version": "1.1.47",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "game.controller.mouse",
+   "phone_version": "1.0.30",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "game.controller.snes",
+   "phone_version": "1.0.46",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "imagedecoder.heif",
+   "phone_version": "21.0.3",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "inputstream.adaptive",
+   "phone_version": "21.5.18",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "inputstream.ffmpegdirect",
+   "phone_version": "21.3.8",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.global.audioengine",
+   "phone_version": "1.1.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.global.filesystem",
+   "phone_version": "1.1.9",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.global.general",
+   "phone_version": "1.0.5",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.global.gui",
+   "phone_version": "5.15.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.global.main",
+   "phone_version": "2.0.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.global.network",
+   "phone_version": "1.0.4",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.global.tools",
+   "phone_version": "1.0.4",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.instance.audiodecoder",
+   "phone_version": "4.0.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.instance.audioencoder",
+   "phone_version": "3.0.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.instance.game",
+   "phone_version": "3.0.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.instance.imagedecoder",
+   "phone_version": "3.0.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.instance.inputstream",
+   "phone_version": "3.3.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.instance.peripheral",
+   "phone_version": "3.0.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.instance.pvr",
+   "phone_version": "8.3.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.instance.screensaver",
+   "phone_version": "2.2.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.instance.vfs",
+   "phone_version": "3.0.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.instance.videocodec",
+   "phone_version": "2.1.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.binary.instance.visualization",
+   "phone_version": "4.0.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "kodi.resource",
+   "phone_version": "1.0.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "metadata.album.universal",
+   "phone_version": "3.1.20",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "metadata.artists.universal",
+   "phone_version": "4.3.24",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "metadata.common.allmusic.com",
+   "phone_version": "3.2.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "metadata.common.fanart.tv",
+   "phone_version": "3.6.5",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "metadata.common.musicbrainz.org",
+   "phone_version": "2.2.4",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "metadata.common.theaudiodb.com",
+   "phone_version": "2.0.3",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "metadata.generic.albums",
+   "phone_version": "1.0.21",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "metadata.generic.artists",
+   "phone_version": "1.0.21",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "metadata.local",
+   "phone_version": "1.0.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "metadata.themoviedb.org.python",
+   "phone_version": "3.2.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "metadata.tvshows.themoviedb.org.python",
+   "phone_version": "1.7.13",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "peripheral.joystick",
+   "phone_version": "21.1.23",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "plugin.googledrive",
+   "phone_version": "1.6.8",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "plugin.program.autocompletion",
+   "phone_version": "2.1.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "plugin.video.dailymotion_com",
+   "phone_version": "2.4.5",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "plugin.video.elementum",
+   "phone_version": "0.1.114",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "plugin.video.jacktook",
+   "phone_version": "1.22.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "plugin.video.jetproxy",
+   "phone_version": "1.1.0",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "plugin.video.kodi.ios.watch",
+   "phone_version": "1.4.4",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "plugin.video.loopguide",
+   "phone_version": "3.8.4",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "plugin.video.looptv",
+   "phone_version": "26+matrix.2",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "plugin.video.otaku",
+   "phone_version": "5.3.4",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "plugin.video.pov",
+   "phone_version": "6.11.03",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "plugin.video.prism",
+   "phone_version": "5.0.69",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "plugin.video.the-loop",
+   "phone_version": "8.4",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "plugin.video.thecrew",
+   "phone_version": "3.2.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "plugin.video.themoviedb.helper",
+   "phone_version": "6.18.1+ios.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "plugin.video.umbrella",
+   "phone_version": "6.8.02",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "plugin.video.youtube",
+   "phone_version": "7.4.4a",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "repository.cocoscrapers",
+   "phone_version": "1.0.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "repository.jurialmunkey",
+   "phone_version": "3.4",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "repository.loop",
+   "phone_version": "3.0.4",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "repository.umbrella",
+   "phone_version": "2.2.6",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "repository.xbmc.org",
+   "phone_version": "3.4.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "resource.font.robotocjksc",
+   "phone_version": "0.0.3",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "resource.images.arctic.splash",
+   "phone_version": "1.0.7",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "resource.images.arctic.weather",
+   "phone_version": "1.0.4",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "resource.images.studios.coloured",
+   "phone_version": "0.0.24",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "resource.images.weathericons.default",
+   "phone_version": "1.1.9",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "resource.images.weathericons.white",
+   "phone_version": "0.0.6",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "resource.language.en_gb",
+   "phone_version": "2.0.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "resource.uisounds.kodi",
+   "phone_version": "1.0.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "screensaver.xbmc.builtin.black",
+   "phone_version": "1.0.34",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "screensaver.xbmc.builtin.dim",
+   "phone_version": "1.0.66",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.elementum.burst",
+   "phone_version": "0.0.99",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.embuary.helper",
+   "phone_version": "2.0.8",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.embuary.info",
+   "phone_version": "2.0.8",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.globalsearch",
+   "phone_version": "9.0.7",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.image.resource.select",
+   "phone_version": "3.0.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.kodi.ios.first_run",
+   "phone_version": "1.0.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.kodi.loguploader",
+   "phone_version": "1.0.5",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.addon.signals",
+   "phone_version": "0.0.6+matrix.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.arrow",
+   "phone_version": "1.2.3",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.autocompletion",
+   "phone_version": "2.1.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.backports.zoneinfo",
+   "phone_version": "0.2.1",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.beautifulsoup4",
+   "phone_version": "4.12.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.certifi",
+   "phone_version": "2023.5.7",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.chardet",
+   "phone_version": "5.1.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.clouddrive.common",
+   "phone_version": "1.5.11",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.cocoscrapers",
+   "phone_version": "1.0.45",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.dateutil",
+   "phone_version": "2.8.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.defusedxml",
+   "phone_version": "0.6.0+matrix.1",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.future",
+   "phone_version": "1.0.0+matrix.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.go",
+   "phone_version": "1.0.5.1",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.idna",
+   "phone_version": "3.10.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.infotagger",
+   "phone_version": "0.1.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.inputstreamhelper",
+   "phone_version": "0.8.6",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.jetextractors",
+   "phone_version": "3.3.34",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.jurialmunkey",
+   "phone_version": "0.2.35",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.kodi-six",
+   "phone_version": "0.1.3.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.magneto",
+   "phone_version": "6.11.01",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.myconnpy",
+   "phone_version": "8.0.33",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.pil",
+   "phone_version": "5.1.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.pyamf",
+   "phone_version": "0.8.10+matrix.4",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.pycryptodome",
+   "phone_version": "3.4.3",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.pyjsparser",
+   "phone_version": "3.0.0",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.pyqrcode",
+   "phone_version": "1.2.1+matrix.4",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.pytz",
+   "phone_version": "2023.3.0+matrix.1",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.qrcode",
+   "phone_version": "6.1.0+matrix.3",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.requests",
+   "phone_version": "2.31.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.resolveurl",
+   "phone_version": "5.1.212",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.routing",
+   "phone_version": "0.2.3+matrix.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.simplecache",
+   "phone_version": "2.0.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.simpleeval",
+   "phone_version": "0.9.13",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.simplejson",
+   "phone_version": "3.19.1+matrix.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.six",
+   "phone_version": "1.16.0+matrix.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.soupsieve",
+   "phone_version": "2.4.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.thecrew",
+   "phone_version": "3.2.29",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.typing_extensions",
+   "phone_version": "4.7.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.tzdata",
+   "phone_version": "2023.3.0+matrix.1",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.tzlocal",
+   "phone_version": "5.0.1",
+   "in_ipa_build_679": false,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.module.unidecode",
+   "phone_version": "1.3.6",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.module.urllib3",
+   "phone_version": "2.2.3",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.skinshortcuts",
+   "phone_version": "2.0.3",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.skinvariables",
+   "phone_version": "2.2.10",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.texturemaker",
+   "phone_version": "0.2.11",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "script.thecrew.artwork",
+   "phone_version": "3.2.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": true
+  },
+  {
+   "id": "script.trakt",
+   "phone_version": "3.9.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "service.kodi.ios.bootstrap",
+   "phone_version": "1.0.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "service.xbmc.versioncheck",
+   "phone_version": "0.5.30+matrix.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "skin.arctic.fuse.3",
+   "phone_version": "3.4.8",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "skin.arctic.zephyr.mod",
+   "phone_version": "3.0.3",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "skin.estuary",
+   "phone_version": "4.0.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "vfs.libarchive",
+   "phone_version": "21.0.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "vfs.rar",
+   "phone_version": "21.0.2",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "webinterface.default",
+   "phone_version": "21.x-1.0.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "xbmc.addon",
+   "phone_version": "21.3.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "xbmc.core",
+   "phone_version": "0.1.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "xbmc.gui",
+   "phone_version": "5.17.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "xbmc.json",
+   "phone_version": "13.5.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "xbmc.metadata",
+   "phone_version": "2.1.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "xbmc.python",
+   "phone_version": "3.0.1",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  },
+  {
+   "id": "xbmc.webinterface",
+   "phone_version": "1.0.0",
+   "in_ipa_build_679": true,
+   "in_a_source_lock": false
+  }
+ ]
+}

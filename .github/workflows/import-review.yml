@@ -116,6 +116,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+          lfs: true
       # Every verified third-party download of this run is copied here (scripts/source_mirror.py) and published as release third-party-sources-1 at the end.
       - name: Folder for the kept third-party copies
         run: echo "KODI_IOS_PRESERVE_DIR=$RUNNER_TEMP/third-party-sources" >> "$GITHUB_ENV"
@@ -127,6 +128,8 @@ jobs:
           python-version: '3.11'
           update-environment: false
       - name: Acquire pinned provider fixtures
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: python3 -B scripts/provider_addons.py --output "$RUNNER_TEMP/provider-inputs"
       - name: Test staged import and navigation safety
         env:
@@ -250,10 +253,32 @@ jobs:
           python3 -B scripts/test_undefined_names.py
           python3 -B scripts/test_stream_fallback.py
           python3 -B scripts/test_provider_fallback.py
+          python3 -B scripts/test_source_contract.py
+          python3 -B scripts/test_independent_search.py
+          python3 -B scripts/test_independent_sites.py
+          python3 -B scripts/test_fresh_resolve.py
+          python3 -B scripts/test_backup_playback.py
+          python3 -B scripts/test_sports_match.py
+          python3 -B scripts/test_debrid_token.py
+          python3 -B scripts/test_source_health.py
+          python3 -B scripts/test_packaging_offline.py
+          python3 -B scripts/test_debrid_account.py
+          python3 -B scripts/test_direct_stream.py
+          python3 -B scripts/test_p2p_rules.py
+          python3 -B scripts/test_metadata_snapshot.py
+          python3 -B scripts/test_resilience_matrix.py
+          python3 -B scripts/test_hls_bridge.py
+          python3 -B scripts/test_signin_screens.py
+          python3 -B scripts/test_fetch_umbrella.py
+          python3 -B scripts/test_loop_addons_lock.py
+          python3 -B scripts/test_preserve_addons.py
+          python3 -B scripts/test_ipa_addon_lock.py
+          python3 -B scripts/test_crew_remote.py
           python3 -B scripts/test_provider_probe.py
           python3 -B scripts/test_provider_queue_bridge.py
           python3 -B scripts/test_provider_worker.py
           python3 -B scripts/test_provider_addons.py
+          python3 -B scripts/test_source_offline_restore.py
           python3 -B scripts/test_provider_direct_queue.py
           python3 -B scripts/test_provider_adapters_primary.py
           python3 -B scripts/test_provider_adapters_secondary.py

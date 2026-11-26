@@ -1,0 +1,225 @@
+{
+ "schema": 1,
+ "scope": "Exact upstream archives of the add-ons the phone has beyond the IPA (see docs/ADDON-BACKUP-GAPS.md); Git LFS objects; pinned in the named locks",
+ "archives": [
+  {
+   "path": "migration/addon-preserve/plugin.video.umbrella-6.8.02.zip",
+   "id": "plugin.video.umbrella",
+   "version": "6.8.02",
+   "sha256": "30a437e8cf87f92447305e31f9b943f2c623c4e494010a89f283dce78782a5a5",
+   "bytes": 14249945,
+   "lock": "migration/umbrella/source-lock.json",
+   "notice": "plugin.video.umbrella/LICENSE.txt",
+   "lock_key": "package",
+   "reviewed_secret_shaped": [
+    {
+     "member": "plugin.video.umbrella/resources/lib/context/tmdb.py",
+     "pattern": "assigned-secret",
+     "member_sha256": "bf0f5bc8d33888657aa3192b4ef6c7221661cc503394f0ad607abb52e4da5a21"
+    },
+    {
+     "member": "plugin.video.umbrella/resources/lib/indexers/fanarttv.py",
+     "pattern": "assigned-secret",
+     "member_sha256": "d8b789776c733136ded5f9e792e619b3d61afdbe968b4b3d29ff97dd04d50f14"
+    },
+    {
+     "member": "plugin.video.umbrella/resources/lib/indexers/tmdb.py",
+     "pattern": "assigned-secret",
+     "member_sha256": "51d826f856e8b91127d53db714185191997f4e4d7040253ca320157b3957ac2f"
+    },
+    {
+     "member": "plugin.video.umbrella/resources/lib/modules/library.py",
+     "pattern": "credential-url",
+     "member_sha256": "67d856f21b9271877546c8c303ff3b256d6b8cc6395b39a910db95692655c17b"
+    },
+    {
+     "member": "plugin.video.umbrella/resources/lib/modules/opensubs.py",
+     "pattern": "assigned-secret",
+     "member_sha256": "bb8335fac13a5e834c3bc412d3e81466584107bc3c9e0f10c9f87156236fd0f3"
+    },
+    {
+     "member": "plugin.video.umbrella/resources/lib/modules/playcount.py",
+     "pattern": "assigned-secret",
+     "member_sha256": "88d696ac660b66159074465379d6cc6725cfad2d1cb453fcc7976c3211c19cb4"
+    },
+    {
+     "member": "plugin.video.umbrella/resources/lib/modules/punchplay.py",
+     "pattern": "assigned-secret",
+     "member_sha256": "c502defdef723608cf8fde8c85a6ab04e302bb07dae6d9cac8a366be061aaf2d"
+    },
+    {
+     "member": "plugin.video.umbrella/resources/lib/modules/trailer.py",
+     "pattern": "google-api-key",
+     "member_sha256": "1d7463675c0c547adbb0216dc96348189a6bf1b4cec5711d6fb92fcd732c18f8"
+    },
+    {
+     "member": "plugin.video.umbrella/resources/lib/modules/youtube_menu.py",
+     "pattern": "google-api-key",
+     "member_sha256": "8e45fd59af5525bbaf048f99113ba484b9af7e9dfab4ad3da2c408e9e1469b6d"
+    }
+   ]
+  },
+  {
+   "path": "migration/addon-preserve/repository.umbrella-2.2.6.zip",
+   "id": "repository.umbrella",
+   "version": "2.2.6",
+   "sha256": "055105e00c7da090cc124947bc5c5e9cdae310f8687fc4c16f83d51b89750128",
+   "bytes": 164373,
+   "lock": "migration/umbrella/source-lock.json",
+   "notice": "repository.umbrellaplug.github.io/addon.xml",
+   "lock_key": "repository",
+   "folder": "repository.umbrellaplug.github.io"
+  },
+  {
+   "path": "migration/addon-preserve/plugin.video.dailymotion_com-2.4.5.zip",
+   "id": "plugin.video.dailymotion_com",
+   "version": "2.4.5",
+   "sha256": "952085f320df8f7d2b1f31af52b1ce73197cf62bc01a9c150ea178906b21ad79",
+   "bytes": 273132,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "plugin.video.dailymotion_com/LICENSE.txt"
+  },
+  {
+   "path": "migration/addon-preserve/plugin.video.jetproxy-1.1.0.zip",
+   "id": "plugin.video.jetproxy",
+   "version": "1.1.0",
+   "sha256": "e4a0c7d4512bd826df91b8cfd8d3bd85f65e1969b644e017226a2d395fe31d31",
+   "bytes": 78702,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "plugin.video.jetproxy/addon.xml"
+  },
+  {
+   "path": "migration/addon-preserve/plugin.video.loopguide-3.8.4.zip",
+   "id": "plugin.video.loopguide",
+   "version": "3.8.4",
+   "sha256": "626d5936cc9e6a21c79867d44a1b9d681d96fafa358cf5f22a3250627229ba12",
+   "bytes": 3632889,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "plugin.video.loopguide/addon.xml"
+  },
+  {
+   "path": "migration/addon-preserve/plugin.video.looptv-26+matrix.2.zip",
+   "id": "plugin.video.looptv",
+   "version": "26+matrix.2",
+   "sha256": "d7a00cd9c16d36595ec69887146c1ce33eba3f814da57339d2d1167ea67b1fee",
+   "bytes": 1256300,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "plugin.video.looptv/addon.xml"
+  },
+  {
+   "path": "migration/addon-preserve/plugin.video.the-loop-8.4.zip",
+   "id": "plugin.video.the-loop",
+   "version": "8.4",
+   "sha256": "01288f0b06358797eeaffa843324e90872cbab83819abc49dcc248979bde5bb1",
+   "bytes": 1255294,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "plugin.video.the-loop/addon.xml",
+   "reviewed_secret_shaped": [
+    {
+     "member": "plugin.video.the-loop/resources/lib/plugins/airtable_parser.py",
+     "pattern": "assigned-secret",
+     "member_sha256": "2d04f10e91eae72fb7842738f743102c551754b62177926addbb4816229ad0cd"
+    }
+   ]
+  },
+  {
+   "path": "migration/addon-preserve/script.module.backports.zoneinfo-0.2.1.zip",
+   "id": "script.module.backports.zoneinfo",
+   "version": "0.2.1",
+   "sha256": "e9f2a4ad3fb491c9165025b24cf36d0722044686e37ea3521e316eb13d77f8b9",
+   "bytes": 24349,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "script.module.backports.zoneinfo/LICENSE"
+  },
+  {
+   "path": "migration/addon-preserve/script.module.defusedxml-0.6.0+matrix.1.zip",
+   "id": "script.module.defusedxml",
+   "version": "0.6.0+matrix.1",
+   "sha256": "11ca2fcf2791d5192ee7e529e3015952c12b5527637c0501da8f4ad63de522cc",
+   "bytes": 32993,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "script.module.defusedxml/LICENSE"
+  },
+  {
+   "path": "migration/addon-preserve/script.module.go-1.0.5.1.zip",
+   "id": "script.module.go",
+   "version": "1.0.5.1",
+   "sha256": "4046137c06337628d85be53e1a59381ef85b9a6370fecc760a5d139e345ebd34",
+   "bytes": 34200,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "script.module.go/addon.xml"
+  },
+  {
+   "path": "migration/addon-preserve/script.module.jetextractors-3.3.34.zip",
+   "id": "script.module.jetextractors",
+   "version": "3.3.34",
+   "sha256": "05933f04681ee65b8fbd5d6968394d8bb271c3a670f04546104218763aae0f53",
+   "bytes": 535344,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "script.module.jetextractors/LICENSE.txt"
+  },
+  {
+   "path": "migration/addon-preserve/script.module.pyamf-0.8.10+matrix.4.zip",
+   "id": "script.module.pyamf",
+   "version": "0.8.10+matrix.4",
+   "sha256": "1eb3a6d50d0c7e2a81432c304d9e105343a66e13aaca5bacadd7b9b7e41a3b94",
+   "bytes": 204097,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "script.module.pyamf/LICENSE.txt"
+  },
+  {
+   "path": "migration/addon-preserve/script.module.pyjsparser-3.0.0.zip",
+   "id": "script.module.pyjsparser",
+   "version": "3.0.0",
+   "sha256": "3d1643e63938a90527f6addf0f465914fbcc711d7dddaccffc10cf9c9efe7989",
+   "bytes": 39235,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "script.module.pyjsparser/LICENSE"
+  },
+  {
+   "path": "migration/addon-preserve/script.module.pytz-2023.3.0+matrix.1.zip",
+   "id": "script.module.pytz",
+   "version": "2023.3.0+matrix.1",
+   "sha256": "ac770594355682d2b9c7c9d5a9ad468e14f7fd08ba05ea6ecfaea5333495babe",
+   "bytes": 510726,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "script.module.pytz/LICENSE.txt"
+  },
+  {
+   "path": "migration/addon-preserve/script.module.tzdata-2023.3.0+matrix.1.zip",
+   "id": "script.module.tzdata",
+   "version": "2023.3.0+matrix.1",
+   "sha256": "d7e744b11598a1403768debafbfcfc4ad6248f9027573517a42fd810f19ecd13",
+   "bytes": 356151,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "script.module.tzdata/LICENSE.txt"
+  },
+  {
+   "path": "migration/addon-preserve/script.module.tzlocal-5.0.1.zip",
+   "id": "script.module.tzlocal",
+   "version": "5.0.1",
+   "sha256": "8e1e660ba10b629bff21cb125ede8deb2b604442e67741d37f3a6f306a49a668",
+   "bytes": 21259,
+   "lock": "migration/loop-addons/source-lock.json",
+   "notice": "script.module.tzlocal/LICENSE.txt"
+  },
+  {
+   "path": "migration/addon-preserve/crew-remote-modules-936547cf.zip",
+   "id": "crew-remote-modules",
+   "version": "936547cf",
+   "sha256": "db4e4e9ffa4762085d9e5ca901d610475467c08baecb26a957841d0e10f59683",
+   "bytes": 393824,
+   "lock": "migration/crew-remote/source-lock.json",
+   "notice": "crew-remote-modules/README.txt",
+   "lock_key": "archive",
+   "folder": "crew-remote-modules",
+   "reviewed_secret_shaped": [
+    {
+     "member": "crew-remote-modules/crewreplays.xml",
+     "pattern": "jwt",
+     "member_sha256": "871f8eee0e374f264150f7e85751d6f9ff46a9f913558a73ef4eb513a276f4b8"
+    }
+   ]
+  }
+ ]
+}

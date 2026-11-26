@@ -1,0 +1,198 @@
+{
+ "schema": 1,
+ "scope": "desktop Kodi 21.3 rig and host measurements on 2026-11-26 from one cloud container; not the phone. Public sites and TMDb were live at that moment.",
+ "fallback_chain_before_after_ms": {
+  "main (before)": {
+   "healthy primary (no backup runs)": {
+    "median_ms": 0,
+    "requests": 0
+   },
+   "first backup answers": {
+    "median_ms": 51,
+    "requests": 1
+   },
+   "three backups fail, fourth answers": {
+    "median_ms": 152,
+    "requests": 3
+   },
+   "every add-on backup empty": {
+    "median_ms": 204,
+    "requests": 4
+   },
+   "peak resident memory MB": 19.7,
+   "threads at end": 1
+  },
+  "branch (after)": {
+   "healthy primary (no backup runs)": {
+    "median_ms": 0,
+    "requests": 0
+   },
+   "first backup answers": {
+    "median_ms": 51,
+    "requests": 1
+   },
+   "three backups fail, fourth answers": {
+    "median_ms": 154,
+    "requests": 3
+   },
+   "every add-on backup empty": {
+    "median_ms": 204,
+    "requests": 4
+   },
+   "ten site searches in parallel (branch only)": {
+    "median_ms": 306,
+    "requests": 8
+   },
+   "sequential equivalent of the same requests (computed)": {
+    "median_ms": 1200,
+    "requests": 8
+   },
+   "dead provider: first search / next search (cooldown skips it)": {
+    "first_ms": 102,
+    "first_requests": 2,
+    "next_ms": 55,
+    "next_requests": 1
+   },
+   "peak resident memory MB": 22.6,
+   "threads at end": 1
+  }
+ },
+ "rig_playback_seconds_to_one_second_of_picture": {
+  "file_header": {
+   "outcome": "playing",
+   "seconds": 6.3,
+   "advanced": true,
+   "stopped": true
+  },
+  "hls_header_cookie": {
+   "outcome": "playing",
+   "seconds": 6.6,
+   "advanced": true,
+   "stopped": true
+  },
+  "hls_missing_header": {
+   "outcome": "refused"
+  },
+  "internet_hls_no_key": {
+   "outcome": "playing",
+   "seconds": 9.7,
+   "advanced": true,
+   "stopped": true
+  },
+  "torrent_loopback_standin": {
+   "outcome": "playing",
+   "seconds": 11.6,
+   "advanced": true,
+   "stopped": true
+  }
+ },
+ "rig_tmdb_with_elementum_burst_disabled": {
+  "tmdb_helper_lists": {
+   "popular movies": {
+    "seconds": 0.11,
+    "items": 21
+   },
+   "trending movies": {
+    "seconds": 0.12,
+    "items": 21
+   },
+   "top rated movies": {
+    "seconds": 0.11,
+    "items": 21
+   }
+  },
+  "films": [
+   {
+    "film": "The Dark Knight (2008)",
+    "tmdb_ms": 458,
+    "tmdb_second_pass_ms": 1,
+    "metadata": "live",
+    "aliases": 80,
+    "search_s": 1.64,
+    "candidates": 151,
+    "site_outcomes": {
+     "knaben": "ok",
+     "apibay": "ok",
+     "yts": "ok",
+     "bitsearch": "ok",
+     "torrentdownload": "ok",
+     "kick4ss": "ok",
+     "1337x": "refused",
+     "limetorrents": "ok"
+    }
+   },
+   {
+    "film": "Parasite (2019)",
+    "tmdb_ms": 193,
+    "tmdb_second_pass_ms": 0,
+    "metadata": "live",
+    "aliases": 33,
+    "search_s": 1.32,
+    "candidates": 123,
+    "site_outcomes": {
+     "apibay": "empty",
+     "knaben": "ok",
+     "yts": "empty",
+     "torrentdownload": "ok",
+     "limetorrents": "ok",
+     "bitsearch": "ok",
+     "kick4ss": "ok"
+    }
+   },
+   {
+    "film": "Spirited Away (2001)",
+    "tmdb_ms": 174,
+    "tmdb_second_pass_ms": 0,
+    "metadata": "live",
+    "aliases": 59,
+    "search_s": 1.22,
+    "candidates": 84,
+    "site_outcomes": {
+     "knaben": "ok",
+     "apibay": "empty",
+     "yts": "empty",
+     "bitsearch": "ok",
+     "kick4ss": "ok",
+     "torrentdownload": "ok",
+     "limetorrents": "ok"
+    }
+   },
+   {
+    "film": "Mad Max: Fury Road (2015)",
+    "tmdb_ms": 181,
+    "tmdb_second_pass_ms": 0,
+    "metadata": "live",
+    "aliases": 53,
+    "search_s": 1.63,
+    "candidates": 114,
+    "site_outcomes": {
+     "apibay": "empty",
+     "yts": "ok",
+     "torrentdownload": "ok",
+     "bitsearch": "ok",
+     "knaben": "ok",
+     "kick4ss": "ok",
+     "limetorrents": "ok"
+    }
+   },
+   {
+    "film": "Big Buck Bunny (2008)",
+    "tmdb_ms": 185,
+    "tmdb_second_pass_ms": 0,
+    "metadata": "live",
+    "aliases": 13,
+    "search_s": 1.04,
+    "candidates": 3,
+    "site_outcomes": {
+     "apibay": "empty",
+     "knaben": "empty",
+     "yts": "empty",
+     "bitsearch": "ok",
+     "torrentdownload": "empty",
+     "limetorrents": "empty",
+     "kick4ss": "empty"
+    }
+   }
+  ]
+ }
+}

@@ -776,7 +776,7 @@ def drive_uploads(monitor,home,profile):
    return debrid_drive.slow_cellular(cell_state,cache_tune.link_kind(),rate,time.time())
   except Exception:return False
  def debrid_loop():
-  import alldebrid,debrid_drive,prepare_downloads,transfer_control
+  import alldebrid,debrid_account,debrid_drive,prepare_downloads,transfer_control
   delay=10
   def remember_shows(jobs):
    try:
@@ -813,7 +813,8 @@ def drive_uploads(monitor,home,profile):
      xbmc.log('Kodi iOS transfers: AirPlay is over, resumed %s'%', '.join(lifted),xbmc.LOGINFO)
      notices.note('info','Uploads running again','AirPlay is over, so downloads and uploads to Google Drive continue.')
    except Exception as error:xbmc.log('Kodi iOS transfers: AirPlay pause check failed: %s'%diagnostics.error_text(error),xbmc.LOGWARNING)
-   try:token=xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken')
+   try:
+    import debrid_token;token=debrid_token.get()
    except Exception:token=''
    # A version played from the source page keeps downloading onto the phone after playback (Elementum's keep
    # downloading): once nothing plays, AllDebrid takes it to Drive and Elementum drops it (owner, build 160).
@@ -871,7 +872,7 @@ def drive_uploads(monitor,home,profile):
      return debrid_ready.copy(q,profile,with_link,name,size,parent,going,progress,key,
                               log=lambda text:xbmc.log('Kodi iOS AllDebrid: '+diagnostics.redact(text),xbmc.LOGINFO),hold=slowdown.holding,
                               quality=quality)
-    delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text,group='':notices.add(profile,kind,title,text,group=group),ready_copy=ready_copy,
+    delay=debrid_drive.step(profile,alldebrid.AllDebrid(token,observe=debrid_account.observer()),drive,lambda kind,title,text,group='':notices.add(profile,kind,title,text,group=group),ready_copy=ready_copy,
                             keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not wifi_only_hold() and not slow_cell_hold(),on_done=done,
                             cancelled=lambda:transfer_control.cancelled_copies(profile),
                             forget=lambda h:transfer_control.clear_cancelled(profile,h),

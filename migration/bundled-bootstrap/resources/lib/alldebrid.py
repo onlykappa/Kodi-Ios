@@ -20,14 +20,18 @@ VIDEO = ('.mkv', '.mp4', '.m4v', '.avi', '.mov', '.webm', '.ts', '.m2ts', '.mts'
 
 
 class Problem(Exception):
-    """AllDebrid said no; str() is what to tell the owner."""
+    """AllDebrid said no; str() is what to tell the owner. `code` is AllDebrid's own error code when it gave one (debrid_account maps it)."""
+    def __init__(self, message='', code=None):
+        super().__init__(message)
+        self.code = code
 
 
 class Busy(RuntimeError):
     """AllDebrid could not be reached, or answered with something other than its JSON (a busy or maintenance page, an
     empty reply). Not a "no": debrid_drive tries again later (a RuntimeError, like a network error), and the words
     say what came back, so the log shows it (owner, build 191: Inception failed at once with "an answer this app
-    cannot read", and nothing said what the answer was)."""
+    cannot read", and nothing said what the answer was). `kind` says which failure it was ('timeout', 'refused' for 403/429/451, else 'offline')."""
+    kind = 'offline'
 
 
 def describe(raw, code=None):
@@ -67,13 +71,30 @@ def default_request(method, url, data=None, headers=None, timeout=30):
 
 
 class AllDebrid(object):
-    def __init__(self, token, request=default_request):
+    def __init__(self, token, request=default_request, observe=None):
         if not token:
-            raise Problem(ERRORS['AUTH_MISSING_APIKEY'])
+            raise Problem(ERRORS['AUTH_MISSING_APIKEY'], 'AUTH_MISSING_APIKEY')
         self.token = token
         self.request = request
+        self.observe = observe       # observe(None) after a good answer, observe(error) after a failed one (debrid_account.record feeds source health)
 
     def call(self, path, params=None, post=None):
+        try:
+            data = self._call(path, params, post)
+        except (Problem, Busy) as error:
+            self._seen(error)
+            raise
+        self._seen(None)
+        return data
+
+    def _seen(self, error):
+        if self.observe is not None:
+            try:
+                self.observe(error)
+            except Exception:
+                pass
+
+    def _call(self, path, params=None, post=None):
         url = API + path + '?' + urllib.parse.urlencode(dict(params or {}, agent=AGENT), doseq=True)
         code = None
         try:
@@ -82,9 +103,13 @@ class AllDebrid(object):
             code = error.code
             raw = error.read() if hasattr(error, 'read') else b''
             if not raw:
-                raise Busy('AllDebrid did not answer (HTTP %d).' % error.code)
+                busy = Busy('AllDebrid did not answer (HTTP %d).' % error.code)
+                busy.kind = 'refused' if error.code in (403, 429, 451) else 'offline'
+                raise busy
         except (OSError, ValueError) as error:
-            raise Busy('AllDebrid could not be reached (%s).' % type(error).__name__)
+            busy = Busy('AllDebrid could not be reached (%s).' % type(error).__name__)
+            busy.kind = 'timeout' if isinstance(error, TimeoutError) else 'offline'
+            raise busy
         try:
             answer = json.loads(raw)
             if not isinstance(answer, dict):
@@ -93,7 +118,7 @@ class AllDebrid(object):
             raise Busy('AllDebrid gave an answer this app cannot read (%s %s).' % (describe(raw, code), path))
         if answer.get('status') != 'success':
             error = answer.get('error') or {}
-            raise Problem(ERRORS.get(error.get('code'), 'AllDebrid: %s' % (error.get('message') or 'unknown problem')))
+            raise Problem(ERRORS.get(error.get('code'), 'AllDebrid: %s' % (error.get('message') or 'unknown problem')), error.get('code'))
         return answer.get('data') or {}
 
     def add(self, info_hash):
@@ -102,7 +127,7 @@ class AllDebrid(object):
         magnet = (data.get('magnets') or [{}])[0]
         if magnet.get('error'):
             code = magnet['error'].get('code')
-            raise Problem(ERRORS.get(code, 'AllDebrid: %s' % magnet['error'].get('message', code)))
+            raise Problem(ERRORS.get(code, 'AllDebrid: %s' % magnet['error'].get('message', code)), code)
         return str(magnet['id']), bool(magnet.get('ready'))
 
     def status(self, magnet_id):

@@ -131,6 +131,18 @@ class Packaging(unittest.TestCase):
    database.execute('CREATE TABLE account_tokens (token TEXT)');data=database.serialize()
    with self.assertRaisesRegex(ValueError,'Unexpected.*tables'):providers.validate_asset(data,{'format':'sqlite','tables':{'anime':['mal_id']}})
 
+class PrivateReleaseFetch(unittest.TestCase):
+ def test_only_approved_assets_use_authenticated_release_fetch(self):
+  from unittest.mock import patch
+  from types import SimpleNamespace
+  url=providers.PRIVATE_RELEASE+'plugin.video.pov-6.11.03.zip'
+  with patch.object(providers.subprocess,'run',return_value=SimpleNamespace(stdout=b'fixture')) as run:
+   self.assertEqual(providers.fetch(url),b'fixture')
+   self.assertIn('plugin.video.pov-6.11.03.zip',run.call_args.args[0])
+   with self.assertRaisesRegex(ValueError,'Unapproved'):
+    providers.fetch(providers.PRIVATE_RELEASE+'other.zip')
+   self.assertEqual(run.call_count,1)
+
 class ReviewedLock(unittest.TestCase):
  def test_six_fallback_roots_and_dependencies_have_immutable_digest_pins(self):
   lock=json.loads(providers.LOCK.read_text());ids={s['id'] for s in lock['packages']}

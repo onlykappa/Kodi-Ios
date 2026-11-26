@@ -1,0 +1,40 @@
+{
+ "schema": 1,
+ "note": "The four Python modules Crew downloads and executes at every use (control.cdnImport in script.module.thecrew 3.2.29). Pinned by upstream commit; the live branch changes often. Frozen backup only: nothing here changes the app.",
+ "upstream_repository": "https://github.com/posadka/xmls2",
+ "commit": "936547cfb5a4240404426bb052209757b9f570f5",
+ "commit_date": "2026-11-20",
+ "used_by": "script.module.thecrew control.cdnImport / client.py / crewservice.py",
+ "modules": [
+  {
+   "path": "crewproxy.xml",
+   "git_blob": "4531beb11e99a627bf202ebb5202b4d066571be5",
+   "sha256": "46f955961185e2038156051a23cb1b9049a96a00380f5a23f1c4eb5798a6d136",
+   "size": 49179
+  },
+  {
+   "path": "crewreplays.xml",
+   "git_blob": "8d3897fe3371ce1f7e2011f0cc9621b6ad0d7193",
+   "sha256": "871f8eee0e374f264150f7e85751d6f9ff46a9f913558a73ef4eb513a276f4b8",
+   "size": 23009
+  },
+  {
+   "path": "crewschedule.xml",
+   "git_blob": "47df5d5c9caaf2563640a4a890a67240c48103d6",
+   "sha256": "b7ad7268634aec6f355b29fa8c3427d0c2313b3ca6aaab4a42c679c16cddf6d5",
+   "size": 109282
+  },
+  {
+   "path": "crewstreamer.xml",
+   "git_blob": "d49999140a68bea8c05ea0b814cd7c44fe96be74",
+   "sha256": "5db1f4537ca98de69a0bf18579e7c7167e78f43c662127994c6f60491c51c099",
+   "size": 210553
+  }
+ ],
+ "archive": {
+  "id": "crew-remote-modules",
+  "version": "936547cf",
+  "sha256": "db4e4e9ffa4762085d9e5ca901d610475467c08baecb26a957841d0e10f59683",
+  "size": 393824
+ }
+}

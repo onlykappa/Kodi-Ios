@@ -54,4 +54,40 @@ class Fallback(unittest.TestCase):
   with self.assertRaises(ValueError):f.safe_url('https://fixture.invalid/x|Cookie=a%0D%0Ab')
  def test_header_preservation(self):
   self.assertEqual(f.safe_url({'url':'https://fixture.invalid/x','headers':{'User-Agent':'A B'}}),'https://fixture.invalid/x|User-Agent=A+B')
+class Typed(unittest.TestCase):
+ def test_search_notes_one_typed_status_per_failure_without_a_link(self):
+  import types
+  logs=[];fake=types.SimpleNamespace(LOGINFO=1,log=lambda m,l:logs.append(m));sys.modules['xbmc']=fake
+  try:
+   class H(Exception):
+    def __init__(s,code):super().__init__('https://private.invalid/?token=SECRET');s.code=code
+   src={'name':'Example.Film.2024.1080p.WEB-DL.mkv','quality':'1080p','url':'https://fixture.invalid/m.mkv','size':1,'seeders':0}
+   t=Transport({'jacktook':H(403),'pov':H(401),'otaku':ValueError('x'),'thecrew':TimeoutError(),'prism':[src]})
+   req={'media_type':'episode','title':'Example Film','show_title':'Example Film','year':2024,'season':1,'episode':1,'profile':{}}
+   t.answers['prism']=[dict(src,name='Example.Film.S01E01.1080p.WEB.mkv')]
+   f.search(req,transport=t)
+  finally:sys.modules.pop('xbmc',None)
+  text='\n'.join(logs)
+  for want in ('provider=jacktook status=refused','provider=pov status=account-required','provider=otaku status=unsupported','provider=thecrew status=timeout','provider=prism status=ready'):
+   self.assertIn(want,text)
+  self.assertNotIn('SECRET',text);self.assertNotIn('private.invalid',text)
+
+class Independent(unittest.TestCase):
+ req={'media_type':'movie','title':'Example Film','year':2024,'quality':'1080p','profile':{}}
+ def test_local_search_runs_only_after_every_add_on_failed_and_is_never_default_in_tests(self):
+  t=Transport({'jacktook':[],'pov':ConnectionError()});calls=[]
+  def local(request,cancel=None,timeout=0):calls.append(1);return 'ok',[{'provider':'local','name':'Example.Film.2024.1080p','torrent_hash':'a'*40,'magnet':'magnet:?xt=urn:btih:'+'a'*40}]
+  self.assertEqual(f.search(self.req,transport=t),[]);self.assertEqual(calls,[])
+  self.assertEqual(f.search(self.req,transport=t,independent=local)[0]['provider'],'local');self.assertEqual(calls,[1])
+  ok=Transport({'jacktook':[{'name':'Example.Film.2024.1080p.mkv','quality':'1080p','url':'https://fixture.invalid/m.mkv','size':1,'seeders':0}]})
+  f.search(self.req,transport=ok,independent=local);self.assertEqual(calls,[1],'an add-on result means no local search')
+ def test_local_excluded_cancel_and_resolve_uses_the_magnet(self):
+  t=Transport({})
+  def local(request,cancel=None,timeout=0):return 'canceled',[]
+  self.assertEqual(f.search(self.req,transport=t,independent=local,exclude=('local',)),[])
+  with self.assertRaises(f.Canceled):f.search(self.req,transport=t,independent=local)
+  cand=dict(f.normalize({'name':'Example.Film.2024.1080p','torrent_hash':'a'*40,'magnet':'magnet:?xt=urn:btih:'+'a'*40,'seeders':4},'local'))
+  cand['magnet']='magnet:?xt=urn:btih:'+'a'*40
+  self.assertEqual(f.resolve(cand,dict(self.req,purpose='download'),transport=t),cand['magnet'])
+
 if __name__=='__main__':unittest.main()

@@ -175,7 +175,9 @@ def guarded(context, xbmc, xbmcgui, xbmcaddon):
             stopped.set();interrupt_all();watcher.join(.1)
         stack.callback(finish)
         original_addon = xbmcaddon.Addon
-        try: token = original_addon('plugin.video.umbrella').getSetting('alldebridtoken')
+        try:
+            import debrid_token
+            token = debrid_token.get()
         except Exception: token = ''
         def addon(ident=None, **kwargs):
             ident = ident or kwargs.pop('id', None) or context.addon_id

@@ -1103,6 +1103,79 @@ AirPlay step 6 validation: native run 44343640378 succeeded on retry, including 
 
 AirPlay step 6 results: import CI run 44358013453 passed on `3bb8bf5`. A separate local run of all 180 then-registered workflow test commands passed 179 initially; `test_customized_ipa.py` failed because the host lacked CPython 3.11, then passed all 14 cases with a task-local CPython 3.11.18. All 26 separately run slowdown tests pass and are now registered in CI. The native host tests and candidate compile passed, but GitHub's temporary artifact download returned Forbidden, so independent binary inspection remains open. Synthetic long-fragment host audio generated 27 segments without failure; deliberately injected EOF produced an empty segment that recovered on retry. This does not reproduce the owner's original audio issue or establish iPhone playback, buffering, stall recovery or resume. No framework release, new IPA or merge is authorized.
 
+
+## 2026-11-23 — Bundled backup source resilience roadmap
+
+Owner requests a fresh documentation-only draft PR, keeping development in this
+repository. Added docs/SOURCE-RESILIENCE-ROADMAP.md: 16 stable numbered steps from
+actual dependency inventory through licensed source preservation, independent
+search/resolution, existing picker/engine integration, Sports, outage/rig tests and
+separately authorized phone acceptance. Initial observations were checked against
+main cf42c63; existing fallback adapters still depend on installed upstream code
+and some remote backends. No new endpoint inventory, live playback or independence
+claim. No runtime changes, IPA, publication or merge. Implementation 0/16; next is
+owner-authorized step 1.
+
+
+## 2026-11-23 — Source resilience step 1 available-source audit
+
+Added docs/SOURCE-DEPENDENCY-INVENTORY.md and reports/source-dependency-inventory.json.
+Six pinned archives downloaded and SHA256-verified, seven manifest import lists
+recorded, safe static hostname index generated, primary search/resolve/transport
+paths traced. Burst has 84 local definitions; Coco torrent directory has 27 Python
+files (not a working-provider count). Crew fetches runtime modules and falls back
+to cached code; cold installs still depend on remote availability. Elementum's
+actual client/engine LICENSE text is MIT despite client manifest wording.
+Umbrella scratch source is partial; exact phone versions and dynamic runtime
+closure remain unverified. Step 1 available-source scope complete; steps 2–16
+unstarted. No runtime modifications or rig/playback/device claim.
+
+
+## 2026-11-23 — Source resilience step 2 controlled desktop baseline
+
+Fresh separate profile runs real Kodi 21.3 / Python 3.14.10, Arctic Fuse active.
+13 fixture scenarios pass after a rig-only missing-artwork dependency repair;
+initial 7/8 adapter batch preserved. Generated local video selected in the real
+picker starts VideoPlayer, time advances >2 seconds and stop succeeds; final media
+handoff is harness-controlled, not production provider/engine proof. See
+docs/SOURCE-RIG-BASELINE.md, reports/source-rig-baseline.json and ISSUE-398.
+Old private profiles preserved. Services disabled, null audio, no live results,
+no iPhone/native-engine or portrait visual claim. Step 3 next; no IPA/merge.
+
+## 2026-11-23 — Source resilience step 3 partial offline staging
+
+Reconstructed all 29 provider inputs and separately verified Elementum client, Burst and CocoScrapers against the existing locks. A local-only `provider_addons.run` exercise blocked Python socket connects and reverified/restored 29 provider inputs; actual clean preparer tests passed 27 cases against them. Current Crew's manifest retains the locked artwork dependency, but the unavailable 21.3 rig prevented a fresh runtime import check. Archive licensing, third-party artwork, the unlicensed Otaku mapping, native engine/source closure and durable owner-controlled backup remain unresolved. Step 3 is blocked rather than complete; details and the storage decision are in docs/SOURCE-PRESERVATION-STEP3.md. No source archives, private profile, release or IPA committed.
+
+Step 3 follow-up: the owner accepts keeping the usable backup in the app/on device. Recovered the existing pinned Elementum framework and verified its hash, all five Git module tree hashes, four extras and pinned AirPlay framework; `source_elementum_offline.py` exercised the existing fetcher's local staging with Python socket connects blocked. This is scratch-only and does not rebuild or run the engine. Durable licensed inputs, archive-scanning policy, native build closure and real Kodi runtime remain blockers. See docs/SOURCE-PRESERVATION-STEP3.md.
+
+Step 3 durable subset: four unmodified dependency source trees with included license texts are preserved through repository Git LFS and exact tree/hash regression checks. The scanner rejected the original `future` archive's upstream test keys; it is excluded. This makes part of the baseline durable, but full dependency/license closure remains incomplete. See migration/source-baseline/README.md; no app build, runtime change or release.
+
+Step 3 native audit: fixed the engine build's live Go checksum lookup with an official fixed pin (ISSUE-400). Inspected pinned engine module and license declarations: 82 dependency version lines remain to audit/preserve; SWIG and libtorrent retain separate notice obligations. Confirmed `future` findings are public test keys/doctest examples, still excluded. Full rig/native recovery is blocked by roughly 161 MB free disk and no local iPhoneOS SDK. Four-tree restore and related tests pass; no complete baseline, native rebuild or device success claim.
+
+2026-11-24 step 3 follow-up: reconstructed the pinned future tree and produced a reproducible sanitized runtime snapshot with retained MIT notice, documented removed test PEMs and doctest examples, a distinct Git tree hash and isolated host import checks. The local Elementum restorer recognizes the transformed tree separately. Prior scratch and Kodi 21.3 rig remain absent; the new workspace has 7.4 GB free. Provider rights, complete durable closure, real Kodi runtime and native build remain open; see docs/SOURCE-PRESERVATION-STEP3.md. No iPhone result or step completion claimed.
+
+2026-11-24 recovery check: the pinned POV download now returns HTTP 404 and GitHub reports its pinned repository commit unavailable. An earlier private CI review artifact exists but its download returned HTTP 403 here; whether it contains the exact archive is unknown. PR head 7ea552d's engine CI passed and review CI failed in the test step; logs returned HTTP 403, leaving the CI failure unexplained. See ISSUE-402. The 29/29 retrieval documented earlier was historical, not a current durable backup. The Kodi rig setup requires system packages and this environment has no sudo; no rig rebuild was attempted. Native iOS builds require macOS/Xcode.
+
+2026-11-24 owner-selected recovery: identified the existing private provider-sources-1 release. Its POV and Magneto files do not match the earlier upstream SHA256 values; at the owner's direction the lock now uses the retrieved private-release hashes and preserves the original pins, with provenance and license review outstanding. Authenticated release retrieval and current 29-input acquisition succeeded; offline local restoration verified 29 and staging/primary adapter tests passed 28/15. This is not Kodi runtime or iPhone evidence. See ISSUE-402 and docs/SOURCE-PRESERVATION-STEP3.md.
+
+CI diagnosis: logs for 9101164 show the future snapshot import test used runner Python 3.14, whose removed `uu` module breaks the upstream legacy email backport. The test now uses the workflow's provisioned Python 3.11 via `KODI_IOS_PYTHON311` (local fallback: current interpreter). The 3.14 incompatibility remains recorded as ISSUE-403; a new CI result is required.
+
+Private release restoration follow-up: independently downloaded all 29 current locked provider assets from the existing private release, matched each by SHA256, and restored them through the local-only Python socket-guarded path. Real clean staging tests passed 28; primary adapter tests passed 15. Added a digest-based release-directory restore command with missing/duplicate rejection. The retained release copies improve recovery evidence but do not resolve provider/artwork/data rights, corresponding-source completeness, Kodi runtime or native closure. See docs/SOURCE-PRESERVATION-STEP3.md.
+
+CI run 45470298700 at faa3e96 passed the corrected future test but review later failed in the unrelated sports-upcoming test on Python 3.14 (`urllib.response` attribute missing during import); root cause not diagnosed. The review job is still failed, not a full CI pass.
+
+Provider rights work: inventoried metadata, notice filenames and image counts across the 28 current archives and inspected representative third-party headers. Preserved a separately pinned upstream Segno BSD notice for Jacktook's differing vendored Segno files. POV/Magneto origin, artwork rights, other embedded third-party terms and corresponding source remain open; see docs/SOURCE-PROVIDER-RIGHTS-REVIEW.md and ISSUE-404. The review is not a blanket license clearance.
+
+2026-11-25 step 3: preserved the upstream cloudscraper 1.2.60 MIT notice after comparing its vendored files (10 exact, 10 differing, two absent at upstream paths); complete provenance remains open. Retrieved 179 Go module versions into isolated scratch and verified the cache; original-lock readonly ios/arm64 package listing used 62 external versions. A selected dependency, napping, declares GPL v3 without a separate license-like file. This is not a durable native mirror or a native build; see ISSUE-405 and the Go module inventory. CI for 50282fa passed both review and engine; prior native workflow may publish if its release tag is absent and was not manually triggered.
+
+Kodi 21.3 reconstruction attempt: Debian bookworm x11 dependency trial omitted unavailable `libdisplay-info-dev`; installation worked, but the source clone failed container TLS certificate verification. A local-image retry with the host CA mounted exhausted disk while Docker duplicated the container filesystem, before source checkout. Only newly created Docker resources were removed; no profile was used. The rig and Crew runtime/service checks remain open (ISSUE-406).
+
+2026-11-25 provider provenance: selected Magneto's 54 decompressed files exactly match a later public upstream 6.11.01 package despite differing ZIP hashes. The later upstream POV is version 6.11.04 and differs from the selected 6.11.03. This narrows provenance but does not prove the missing original commits, individual image rights or complete corresponding source; see the provider rights review.
+
+2026-11-25 rig retry: cleared only orphaned Docker filesystem copies from our failed attempt, set up the environment CA in a new bookworm container, checked out Kodi 21.3 and recovered its SHA-512-pinned FFmpeg source after a local-mirror omission caused the first build to fail. The rig script now retrieves that source. The documented default release build-275 is absent; an existing build-621 supplied only packaged add-ons and Fuse into a fresh isolated profile. The compile and real runtime/service checks are still in progress; see ISSUE-406.
+
+Kodi rig result: rebuilt and launched real desktop Kodi 21.3 with a fresh profile and verified current Crew plugin/module/artwork. The first controlled Crew adapter case failed because soupsieve was absent; after staging and enabling the locked 2.4.1 package, it passed twice, including after a restart. Crew's service started a local proxy and accepted TCP, but also logged a buffer-write exception both times; proxy functionality and the exception remain open. Other dependencies came from existing build-621, not full lock-only staging. No phone, real-stream, or offline-runtime claim. See ISSUE-407.
+
 AirPlay TV handoff step 2 (ISSUE-393, 2026-11-20): `receiver_prepare()` prepares the third-party receiver's converted init and resume-position unit (video, and converted audio with a converted plan) through the converted plan's own grid when its master request arrives; the obsolete converted-segment-0 queue is removed (a zero start still gets segment 0); an init request now schedules after the resume segment. The step1 expected-red wrapper is a normal regression gate (`--receiver-handoff`, also in the full native run). Python AirPlay suites pass locally; the native gate has not yet run. Host evidence only: no AVPlayer, TV or phone result, no framework, IPA or merge.
 
 AirPlay build611 seek/empty-segment log (ISSUE-393, 2026-11-20): the seek-restart cause is a stall reload at the player's stale clock; the server now keeps the receiver's latest jump and the reload resumes there with EXT-X-START (`kr_remux_recent_seek_target`, `kr_remux_set_resume`). The "empty segment" stop (stream 2 window after a jump, two packets, no I/O) gets one fresh audio reader with both attempts logged; its root cause is unproven. Native test `test_seek_target_and_empty_window` added; not yet run. Host evidence only.
@@ -1154,3 +1227,5 @@ Build 622 flicks and captions (ISSUE-424/425, branch claude/library-playback-fix
 - 2026-11-21: ISSUE-440/441: a live game's page keeps looking by itself; Crew walks answer for 3 minutes, visit productive folders and each game's last folder first; any recent Umbrella title reopens from its link. Host tests only; not built.
 
 - 2026-11-21 (build 653 logs 5ee55982, d63069c3): ISSUE-442: background source look at 25 s and only while the screen is idle, failed Sports sources retried and no longer taken for a cancel, debrid links read serially through the cache, Continue's subtitle search knows its show. Host tests only; not built.
+
+- 2026-11-26 (PR #56, branch codex/source-resilience-roadmap): source-resilience steps 3 to 14 and 17 to 20 built with host tests (contract, first-party searches of ten sites, fresh resolution, backup playback, picker policy, Sports matching, health, packaging from preserved inputs, own AllDebrid sign-in, direct peer-to-peer route, peer rules, metadata outages), the step 13 matrix (25 scenarios) and the step 14 desktop-rig run (real Kodi opened guarded file/HLS, an internet HLS stream and a loopback torrent stand-in with the clock advancing). ISSUE-488 to ISSUE-495. Not done: the phone, real AllDebrid, real swarms, the iOS Elementum engine, any on-screen control for the new routes, an IPA. See docs/SOURCE-RESILIENCE-HANDOFF.md.

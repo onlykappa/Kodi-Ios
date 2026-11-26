@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "note": "Umbrella as installed on the owner's phone (build 722 log, 2026-11-26: plugin.video.umbrella v6.8.02, repository.umbrella v2.2.6). It is NOT part of the IPA build; this lock only pins and describes it so a preserved copy can be verified. Nothing here changes the app.",
+  "package": {
+    "id": "plugin.video.umbrella",
+    "version": "6.8.02",
+    "upstream_repository": "https://github.com/umbrellaplug/umbrellaplug.github.io",
+    "commit": "ba0d5e2a8fec793ffe90c6c1248e873f9f84dae3",
+    "commit_message": "6.8.02",
+    "commit_date": "2026-11-16",
+    "zip_path": "omega/zips/plugin.video.umbrella/plugin.video.umbrella-6.8.02.zip",
+    "git_blob": "9e41655d3781b62cfd368f0d3ae081d5cf4728fe",
+    "source_tree": {
+      "path": "omega/plugin.video.umbrella",
+      "git_tree": "b5042626fb7b3cd93e9a8ebb28f59ccf2896d5f6"
+    },
+    "sha256": "30a437e8cf87f92447305e31f9b943f2c623c4e494010a89f283dce78782a5a5",
+    "size": 14249945,
+    "members": 1782,
+    "license_file": "plugin.video.umbrella/LICENSE.txt",
+    "requires": [
+      "xbmc.python>=3.0.0",
+      "script.module.requests",
+      "plugin.video.youtube (optional)"
+    ],
+    "native_code": false
+  },
+  "verification": "The zip is the file the upstream repository serves for 6.8.02, read from that commit with git (blob id and SHA-256 above). The version matches the phone's log. The installed files on the phone were not compared byte for byte (Umbrella has its own update check, and a repository add-on is installed), so the phone could differ.",
+  "status": "both pinned; no preserved copy stored yet; rights not reviewed",
+  "repository": {
+    "id": "repository.umbrella",
+    "version": "2.2.6",
+    "folder_in_zip": "repository.umbrellaplug.github.io",
+    "upstream_repository": "https://github.com/umbrellaplug/umbrellaplug.github.io",
+    "commit": "ba0d5e2a8fec793ffe90c6c1248e873f9f84dae3",
+    "zip_path": "repository.umbrella-2.2.6.zip",
+    "git_blob": "554d3a8aef08b26fff280a3c6251133ee5d35a3d",
+    "sha256": "055105e00c7da090cc124947bc5c5e9cdae310f8687fc4c16f83d51b89750128",
+    "size": 164373,
+    "members": 3,
+    "native_code": false,
+    "note": "Points Kodi's add-on updates at the upstream master branch (matrix, nexus and omega zips): a moving target, which is why the package above is pinned by commit."
+  }
+}

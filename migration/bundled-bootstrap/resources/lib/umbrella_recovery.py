@@ -49,8 +49,8 @@ def selected(source,home):
 def renew(record,context=None,token=None,request=None):
  import alldebrid
  if token is None:
-  import xbmcaddon
-  token=xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken')
+  import debrid_token
+  token=debrid_token.get()
  def send(method,url,data=None,headers=None):
   body=urllib.parse.urlencode(data,doseq=True).encode() if data is not None else None
   req=urllib.request.Request(url,data=body,headers=headers or {},method=method)
