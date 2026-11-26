@@ -258,6 +258,7 @@ jobs:
           python3 -B scripts/test_independent_sites.py
           python3 -B scripts/test_fresh_resolve.py
           python3 -B scripts/test_backup_playback.py
+          python3 -B scripts/test_sports_match.py
           python3 -B scripts/test_provider_probe.py
           python3 -B scripts/test_provider_queue_bridge.py
           python3 -B scripts/test_provider_worker.py
