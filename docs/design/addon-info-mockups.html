@@ -124,6 +124,33 @@ figcaption p{color:var(--grey);font-size:14px;line-height:1.45}
 .legend td{color:#c8c8ce}
 .legend code{background:#1c1c1e;padding:1px 6px;border-radius:5px;font-size:13px}
 @media(max-width:700px){.legend{overflow-x:auto}}
+
+/* install flow */
+.nav .act{position:absolute;right:4px;top:0;width:56px;height:56px;display:grid;place-items:center;color:var(--blue-text)}
+.nav .act svg{width:22px;height:22px}
+.arow{display:flex;align-items:center;gap:14px;padding:12px 16px;min-height:76px;position:relative}
+.arow + .arow::before{content:"";position:absolute;left:82px;right:0;top:0;height:.5px;background:var(--sep)}
+.arow .tile{width:52px;height:52px;border-radius:13px;flex:none}
+.arow .tile .lt{font-size:22px}
+.arow .nm{flex:1;font-size:17px;font-weight:600;letter-spacing:-.015em;line-height:1.25}
+.arow .nm small{display:block;color:var(--grey);font-size:13px;font-weight:400;margin-top:2px;letter-spacing:0}
+.arow .st{font-size:13px;font-weight:600;color:var(--blue-text);white-space:nowrap}
+.arow .st.ok{color:var(--green)}
+.alert{position:absolute;left:51px;right:51px;top:50%;transform:translateY(-50%);z-index:60;background:var(--surface2);border-radius:26px;overflow:hidden;text-align:center}
+.alert .b{padding:24px 20px 20px}
+.alert h3{font-size:19px;font-weight:700;letter-spacing:-.01em;line-height:1.25}
+.alert p{color:var(--grey);font-size:14px;line-height:1.4;margin-top:6px}
+.alert .two{display:flex;border-top:.5px solid var(--sep)}
+.alert .two div{flex:1;height:56px;display:grid;place-items:center;font-size:17px;color:var(--blue-text)}
+.alert .two div + div{border-left:.5px solid var(--sep);font-weight:700}
+.bar{height:4px;border-radius:2px;background:rgba(255,255,255,.2);overflow:hidden;margin-top:12px}
+.bar i{display:block;height:100%;background:var(--blue);border-radius:2px}
+.card2{position:absolute;left:20px;right:20px;bottom:44px;z-index:60;background:var(--surface2);border-radius:22px;padding:14px 16px 16px;display:flex;flex-direction:column}
+.card2 .r{display:flex;align-items:center;gap:12px}
+.card2 .tile{width:44px;height:44px;border-radius:11px;flex:none}
+.card2 .tile .lt{font-size:19px}
+.card2 b{font-size:16px;font-weight:700;letter-spacing:-.01em;display:block}
+.card2 span.s{color:var(--grey);font-size:13px;display:block;margin-top:2px}
 </style>
 </head>
 <body>
@@ -156,7 +183,7 @@ figcaption p{color:var(--grey);font-size:14px;line-height:1.45}
   <p>Proposed: a <b>full portrait page</b>, the same pattern as the other portrait pages (back chevron, grouped rows, one white primary capsule).
   The same layout serves every add-on. What changes per add-on is only its data (icon, name, author, version, description) and which actions apply,
   so <b>Open</b>, <b>Install</b>, <b>Update</b> and <b>Enable</b> are the same slot with different wording.
-  Nothing is truncated: long names and descriptions wrap and the whole page scrolls. Three states follow, plus the Versions sheet and a scrolled view.</p>
+  Nothing is truncated: long names and descriptions wrap and the whole page scrolls. Three states follow, plus the Versions sheet and a scrolled view, then the install-from-repository flow (frames 6 to 8).</p>
   <p>Add-on names and descriptions below are sample text only. Tiles use a letter or a generic puzzle piece, because each add-on's own icon is
   supplied by the add-on at runtime.</p>
 </header>
@@ -380,6 +407,57 @@ figcaption p{color:var(--grey);font-size:14px;line-height:1.45}
 </figure>
 
 
+
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll">
+      <div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Video add-ons</div>
+        <div class="act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></div></div>
+      <div class="sh" style="padding-top:8px">Loop Repository</div>
+      <div class="group"><div class="arow"><div class="tile"><span class="lt">J</span></div><div class="nm">JetProxy<small>1.1.0 · Add-on author</small></div><span class="st ok">Installed</span></div><div class="arow"><div class="tile"><span class="lt">S</span></div><div class="nm">SMR Link Tester<small>1.1.22 · Add-on author</small></div><span class="st ">Install</span></div><div class="arow"><div class="tile"><span class="lt">L</span></div><div class="nm">The Loop<small>8.4 · Loop Repository</small></div><span class="st ">Install</span></div><div class="arow"><div class="tile"><span class="lt">U</span></div><div class="nm">Umbrella Streams With A Very Long Name<small>6.8.02 · Umbrella repository</small></div><span class="st ">Update</span></div><div class="arow"><div class="tile"><span class="lt">P</span></div><div class="nm">POV<small>6.11.03 · POV repository</small></div><span class="st ok">Installed</span></div></div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">6 · MOCKUP</div><h2>Install from repository: the list</h2><p>The same rows as My add-ons, with the state on the right (Install, Update, Installed). The row of four pills, which clipped its text at the screen edge, is gone from sub-lists. Search is the icon in the header. Tapping a row opens the add-on page (frame 3), where Install is the primary action.</p></figcaption>
+</figure>
+
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll">
+      <div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Add-on</div></div>
+      <div class="hero"><div class="tile"><span class="lt">L</span></div><h1>The Loop</h1><div class="by">Loop Repository · Video add-on</div>
+      <div class="status-chip new"><i></i>Not installed · v8.4</div></div>
+      <div class="actions"><div class="btn primary">Install</div></div>
+    </div>
+    <div class="dim"></div>
+    <div class="alert"><div class="b"><h3>Install The Loop?</h3>
+      <p>It also needs 8 more add-ons, such as Timezone data and JetExtractors. They install with it.</p></div>
+      <div class="two"><div>Cancel</div><div>Install</div></div></div>
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">7 · MOCKUP</div><h2>The prompt that showed only "OK"</h2><p>Replaces the blank white box. It uses the same alert card as the project confirm dialogs: a short title, one wrapped sentence saying what happens, and Cancel / Install as hairline-divided buttons. The full dependency list stays one tap away on the Dependencies row of the add-on page.</p></figcaption>
+</figure>
+
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll">
+      <div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Add-on</div></div>
+      <div class="hero"><div class="tile"><span class="lt">L</span></div><h1>The Loop</h1><div class="by">Loop Repository · Video add-on</div>
+      <div class="status-chip upd"><i></i>Installing</div></div>
+      <div class="actions"><div class="btn" style="color:var(--grey)">Installing</div></div>
+    </div>
+    <div class="card2"><div class="r"><div class="tile"><span class="lt">L</span></div><div><b>Installing The Loop</b><span class="s">Add-on 3 of 9 · 34 %</span></div></div>
+      <div class="bar"><i style="width:34%"></i></div></div>
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">8 · MOCKUP</div><h2>While it installs</h2><p>One thin progress bar (the project progress style), the stage as "3 of 9" and the percentage. When it finishes the button becomes Open and the chip turns green. A failure says what failed in plain words, with a Retry button.</p></figcaption>
+</figure>
 </main>
 <script>document.querySelectorAll("[data-scroll]").forEach(e=>e.scrollTop=+e.dataset.scroll)</script>
 
