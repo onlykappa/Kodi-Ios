@@ -279,6 +279,10 @@ profile (`debrid_token.py`, commit 4914392), so removing Umbrella no longer remo
 - Acceptance: with the metadata services blocked, a title with a prior snapshot still matches strictly, one without a snapshot fails with a typed
   outcome, and an old sports game is rejected. No claim that metadata stays correct without the services.
 
+
+### Extension 2 (owner request 2026-11-26): back up the add-ons too
+Detail and the real inventory: [ADDON-BACKUP-GAPS.md](ADDON-BACKUP-GAPS.md). Proposed steps (docs only, each needs your "Start N"): 21 preserve Umbrella and its repository (pinned: migration/umbrella/source-lock.json); 22 pin and preserve the other phone-only add-ons you use (Loop, Jet, YouTube, Dailymotion and helpers); 23 stop silent add-on updates and keep a last-known-good copy; 24 per-add-on lock for the 124 add-ons inside the IPA; 25 Crew's remote modules and Elementum's native build inputs; 26 Kodi source mirror, repository and release backup, and a full rebuild drill with every host blocked.
+
 ## Step execution record
 
 | Step | Status | Commit / evidence / blocker |
