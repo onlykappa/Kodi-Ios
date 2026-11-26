@@ -6,11 +6,27 @@ and nothing overlaps them. A search runs on a thread: request_game returns a tok
 game_search_failed says whether Crew could not answer (the page then says so in plain words). Sources found for a game stay with it for the
 rest of the session; a game with no source found is simply "None yet" (not an error).
 """
+import json
 import threading
 import time
 import uuid
 
 import sports_model as sm
+
+FOUND_KEY = 'KodiIOS.SportsFound'   # Home window property: sources found for games, shared by every Kodi script (the prefetch service, each game page)
+FOUND_TTL = 30 * 60                  # seconds a found source list is trusted; Crew re-resolves the link when it is played anyway
+FOUND_MAX = 12                       # games kept in the shared list
+
+
+def window_store():
+    """(read, write) of the shared found-sources text on the Home window; (None, None) outside Kodi."""
+    try:
+        import xbmcgui
+        home = xbmcgui.Window(10000)
+        return (lambda: home.getProperty(FOUND_KEY)), (lambda text: home.setProperty(FOUND_KEY, text))
+    except Exception:
+        return None, None
+
 
 TTL = 8   # seconds an ESPN answer is reused: scores and clocks must be live (the pages ask every few seconds while a game is live)
 
@@ -26,15 +42,27 @@ def log(text):
 class HybridProvider:
     """The contract the pages use (sports_model.py), backed by ESPN for the games and by `crew_sources(game)` for sources."""
 
-    def __init__(self, espn, crew_sources, clock=time.time):
+    def __init__(self, espn, crew_sources, clock=time.time, store=None):
         self.espn, self.crew_sources, self.clock = espn, crew_sources, clock
+        self.read, self.write = store if store is not None else window_store()
+        self.shared_at = {}   # game id -> when the shared list that gave its sources was published
         self.lock = threading.Lock()
         self.found = {}      # game id -> sources Crew gave for it
         self.searches = {}   # token -> {'game', 'state': 'searching' | 'done' | 'error'}
 
     # -- games and leagues: ESPN only
-    def refresh(self):
-        self.espn.refresh()
+    def refresh(self, block=False):
+        code = getattr(getattr(self.espn.refresh, '__func__', self.espn.refresh), '__code__', None)
+        if code is not None and 'block' in code.co_varnames[:code.co_argcount]:
+            self.espn.refresh(block=block)
+        else:   # a provider without the block argument (tests, the sample)
+            self.espn.refresh()
+
+    def has_answer(self):
+        return bool(getattr(self.espn, 'has_answer', lambda: False)())
+
+    def remembered(self):
+        return bool(getattr(self.espn, 'remembered', lambda: False)())
 
     def live_games(self, league=None):
         return self._with(self.espn.live_games(league))
@@ -52,17 +80,53 @@ class HybridProvider:
         game = self.espn.game(gid)
         return self._with([game])[0] if game else None
 
+    def _adopt(self):
+        """Sources another script found (the service's prefetch finds them before anyone opens the page) join this one's. Owner, build 618: a live game's
+        page said "Searching for sources" for a minute although the prefetch had found them; each Kodi script has its own provider and saw nothing."""
+        if not self.read:
+            return
+        try:
+            shared = json.loads(self.read() or '{}')
+        except (ValueError, TypeError):
+            return
+        now = self.clock()
+        for gid, entry in (shared if isinstance(shared, dict) else {}).items():
+            try:
+                if now - float(entry.get('at') or 0) <= FOUND_TTL and entry.get('sources') and gid not in self.found:
+                    self.found[gid] = list(entry['sources'])
+            except (AttributeError, TypeError, ValueError):
+                continue
+
+    def _publish(self, game_id, sources):
+        """Leave a game's sources where every Kodi script can read them (newest FOUND_MAX games)."""
+        if not self.write:
+            return
+        try:
+            try:
+                shared = json.loads(self.read() or '{}') if self.read else {}
+            except (ValueError, TypeError):
+                shared = {}
+            shared = shared if isinstance(shared, dict) else {}
+            now = self.clock()
+            shared[game_id] = {'at': now, 'sources': sources}
+            keep = sorted(shared, key=lambda g: -float((shared[g] or {}).get('at') or 0))[:FOUND_MAX]
+            self.write(json.dumps({g: shared[g] for g in keep if now - float((shared[g] or {}).get('at') or 0) <= FOUND_TTL}, separators=(',', ':')))
+        except Exception:
+            pass
+
     def _with(self, games):
         with self.lock:
+            self._adopt()
             return [dict(g, sources=list(self.found.get(g['id'], []))) for g in games if g]
 
     # -- sources: Crew, asked for one game at a time
-    def request_game(self, game_id):
+    def request_game(self, game_id, fresh=False):
         game = self.espn.game(game_id)
         if game is None:
             raise sm.SportsUnavailable('this game is no longer listed')
         token = uuid.uuid4().hex
         with self.lock:
+            self._adopt()
             known = bool(self.found.get(game_id))
             self.searches[token] = {'game': game_id, 'state': 'done' if known else 'searching'}   # sources already found for it: nothing to look for
         if known:
@@ -71,10 +135,12 @@ class HybridProvider:
         def work():
             state = 'error'
             try:
-                sources = list(self.crew_sources(game) or [])
+                sources = list((self.crew_sources(game, fresh=True) if fresh else self.crew_sources(game)) or [])
                 with self.lock:
                     if sources:
                         self.found[game_id] = sources
+                if sources:
+                    self._publish(game_id, sources)
                 state = 'done'
             except Exception as error:   # Crew not open, a scan that never answered: the page says so
                 log('sources for %s: %s' % (game_id, type(error).__name__))

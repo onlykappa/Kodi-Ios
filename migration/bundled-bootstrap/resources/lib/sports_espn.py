@@ -15,9 +15,12 @@ from concurrent.futures import ThreadPoolExecutor
 import sports_model as sm
 
 BASE = 'https://site.api.espn.com/apis/site/v2/sports/%s/scoreboard'
-# The feed answers a date range with HTTP 400, a single date and the plain scoreboard (today, or the whole week for the NFL) with 200. So each league is
-# asked twice: the plain scoreboard and tomorrow's date (the answers are merged by event id).
-EXTRA_DAYS = (1,)
+# The feed answers a date range with HTTP 400, a single date and the plain scoreboard with 200. The plain scoreboard is the feed's own idea of "today" and
+# it lags: on 2026-11-20 at 10:25 ET it still answered the finished 2026-11-19 slate, so the owner's Sports page said "Nothing live, next game tomorrow"
+# while that day's games (4:00 PM onwards) were on Apple Sports (ISSUE-399). So each league is asked three times: the plain scoreboard, today's date and
+# tomorrow's (the answers are merged by event id). The feed's days are US Eastern days: a game that starts at 01:00 UTC belongs to the previous day.
+EXTRA_DAYS = (0, 1)
+FEED_DAY_SHIFT = 5 * 3600   # seconds from UTC to the feed's day (US Eastern, standard time)
 TTL = 45           # seconds a fetched answer is reused (a page asks three or four things in a row)
 TIMEOUT = 8        # seconds for one league
 UA = 'KodiIOS/1.0'
@@ -137,6 +140,15 @@ def _person(name):
             'aliases': [name] if name else []}
 
 
+SESSIONS = {'FP1': 'Practice 1', 'FP2': 'Practice 2', 'FP3': 'Practice 3', 'Qual': 'Qualifying', 'SQ': 'Sprint qualifying', 'Sprint': 'Sprint', 'Race': 'Race'}
+
+
+def _session_name(competition):
+    """The session of a race weekend that is on ("Race", "Qualifying"), or '' when there is none."""
+    abbreviation = ((competition or {}).get('type') or {}).get('abbreviation') or ''
+    return SESSIONS.get(abbreviation, abbreviation if abbreviation and len(abbreviation) <= 16 else '')
+
+
 def parse_events(code, name, sport, joiner, kind, body, now):
     """(live, upcoming, finished) for a league whose events are not two-team games: golf and F1 (the event's title alone) and UFC (the card's main
     event: the last fight listed, its two fighters). A tournament that began and is not over is live (its round is the clock)."""
@@ -147,6 +159,19 @@ def parse_events(code, name, sport, joiner, kind, body, now):
             state = (status.get('type') or {}).get('state')
             start = _epoch(event.get('date'))
             comps = event.get('competitions') or [{}]
+            session = None
+            if kind == 'event' and state in ('post', 'pre'):
+                # A race weekend (owner, 2026-11-21: "it says there is no f1 streams and there is? vegas is rn"): ESPN's event status is FINAL from the first practice
+                # (the event's date is the first session's) while its Race competition is IN PROGRESS, so the weekend was counted as finished and never listed.
+                # The sessions decide: one in progress makes the event live, one still to come (with the earlier ones done) makes it upcoming at that session's time.
+                states = [(((c.get('status') or {}).get('type') or {}).get('state'), c) for c in comps]
+                if state == 'post':
+                    found = next((c for st, c in states if st == 'in'), None)
+                    coming = next((c for st, c in states if st == 'pre'), None)
+                    if found is not None:
+                        state, session = 'in', found
+                    elif coming is not None and _epoch(coming.get('date')) is not None:
+                        state, session, start = 'pre', coming, _epoch(coming.get('date'))
             if state not in ('pre', 'in', 'post') or start is None:
                 continue
             if state == 'post':
@@ -166,7 +191,7 @@ def parse_events(code, name, sport, joiner, kind, body, now):
                     'sources': [], 'path': path_of(code), 'venue': _venue((comps[0] or {}).get('venue')), 'title': title}
             if state == 'in':
                 period = (comps[0].get('status') or {}).get('period') or status.get('period')
-                game['clock'] = ('Round %s' % period) if kind == 'event' and period and sport == 'Golf' else 'Live'
+                game['clock'] = ('Round %s' % period) if kind == 'event' and period and sport == 'Golf' else _session_name(session) or 'Live'
                 game['left'] = None
                 live.append(game)
             elif start >= now - 600:
@@ -214,6 +239,18 @@ def parse(code, name, sport, joiner, cfg, body, now):
                     'joiner': joiner, 'start': start, 'sources': [], 'path': path_of(code),
                     'venue': _venue(comp.get('venue')), 'week': ((event.get('week') or {}).get('number') or 0)}
             if state == 'in':
+                # Football's situation, drawn under the clock on the Live Now rows (owner, 2026-11-21): the down and distance ("2nd & 10"), the yard line
+                # ("WVU 45"; red inside the 20, ESPN's isRedZone) and the team id that has the ball (the football icon sits on that side).
+                situation = comp.get('situation') or {}
+                for key, value in (('detail', situation.get('shortDownDistanceText')), ('yard', situation.get('possessionText'))):
+                    if value:
+                        game[key] = str(value)
+                if situation.get('isRedZone'):
+                    game['redzone'] = True
+                ball = str(situation.get('possession') or '')
+                if ball:
+                    ids = {side: str((teams[side].get('team') or {}).get('id') or '') for side in ('away', 'home')}
+                    game['ball'] = 'a' if ball == ids['away'] else 'h' if ball == ids['home'] else ''
                 game['clock'] = _clock(code, status, cfg)
                 game['left'] = _left(cfg, status.get('period'), status.get('displayClock'))
                 seconds = status.get('clock')
@@ -240,15 +277,28 @@ def fetch_json(url, timeout=TIMEOUT):
         return json.loads(raw.decode('utf-8', 'replace'))
 
 
+SNAPSHOT_KEEP = 48 * 3600  # seconds a remembered answer may still be drawn first (build 622, log ac85bba1: opened 4 s after launch with the last answer
+                           # from the night before, over the old 6-hour limit, so the page waited; it is drawn as "Updated at ..." while the new one loads)
+FRESH_DISK = 45            # seconds: an answer on disk this young was written by the service's loop (sports_data) and needs no refresh at all
+REFRESH_SKIP = 10          # a page's own refresh is skipped when the answer on disk is younger than this
+SHOW_SAVED = 600           # owner, build 620 (log 02bd6dd7: every Sports page sat on "Checking..." / "Updating"): a saved answer up to this old is drawn as current;
+                           # an older one (up to SNAPSHOT_KEEP) is drawn as remembered. The newer one follows in the background; only with nothing saved does a page wait
+
+
 class EspnProvider:
     """The contract's provider over the ESPN feed. `fetch(url)` is injectable (tests)."""
 
-    def __init__(self, fetch=None, clock=time.time, leagues=None):
+    def __init__(self, fetch=None, clock=time.time, leagues=None, snapshot_path=None):
         self.fetch, self.clock = fetch, clock   # None: fetch_json, looked up at each call
+        self.snapshot_path = snapshot_path      # the last answer is kept here, so a page opened after a restart draws it at once (owner: "a black screen for a second")
+        self.saved_at = 0.0
+        self.disk_seen = 0.0   # modification time of the file the in-memory answer came from or was last compared with
         self.ttl = TTL   # the phone's provider lowers it (sports_hybrid.TTL) so scores stay live
         self.league_defs = tuple(entry for entry in LEAGUES if leagues is None or entry[0] in leagues)
         self.lock = threading.Lock()
+        self.fetch_lock = threading.Lock()   # one fetch at a time; the state lock above is never held while ESPN is asked
         self.snapshot = None   # {'at', 'live', 'upcoming', 'leagues', 'finished'}
+        self.refreshing = False   # a background refresh is running (one at a time)
 
     def _log(self, text):
         """One line in kodi.log; the pages only say "can't load", so the reason goes here."""
@@ -258,13 +308,117 @@ class EspnProvider:
         except ImportError:
             pass
 
+    # -- the last answer on disk
+    def _read_disk(self):
+        try:
+            import json
+            with open(self.snapshot_path, encoding='utf-8') as handle:
+                data = json.load(handle)
+            if isinstance(data, dict) and all(key in data for key in ('at', 'live', 'upcoming', 'leagues')) and self.clock() - data['at'] < SNAPSHOT_KEEP:
+                return data
+        except (OSError, ValueError, TypeError):
+            pass
+        return None
+
+    def _adopt_newer_disk(self):
+        """Another process (the service's loop, another page) wrote a newer answer: take it instead of asking ESPN again. Lock held by the caller."""
+        if not self.snapshot_path:
+            return False
+        try:
+            import os
+            stamp = os.path.getmtime(self.snapshot_path)
+        except OSError:
+            return False
+        if stamp <= self.disk_seen:
+            return False
+        self.disk_seen = stamp
+        data = self._read_disk()
+        if data and (self.snapshot is None or data['at'] > self.snapshot['at']):
+            self.snapshot = data
+            return True
+        return False
+
+    def _write_disk(self, snapshot):
+        if not self.snapshot_path or self.clock() - self.saved_at < 4:
+            return
+        try:
+            import json
+            import os
+            import tempfile
+            folder = os.path.dirname(self.snapshot_path) or '.'
+            os.makedirs(folder, exist_ok=True)
+            handle, temp = tempfile.mkstemp(dir=folder)
+            with os.fdopen(handle, 'w', encoding='utf-8') as out:
+                json.dump(snapshot, out, separators=(',', ':'), default=str)
+            os.replace(temp, self.snapshot_path)
+            self.saved_at = self.clock()
+        except (OSError, TypeError, ValueError):
+            pass
+
+    def remembered(self):
+        """True while the answer on offer is the one kept from last time (or one is waiting on disk to be offered): the real one is on its way."""
+        if self.snapshot is not None:
+            return bool(self.snapshot.get('remembered'))
+        if not self.snapshot_path:
+            return False
+        data = self._read_disk()
+        return data is not None and self.clock() - data['at'] > FRESH_DISK   # younger than that, the service kept it current: nothing is on its way
+
+    def has_answer(self):
+        """True when an answer (this run's or the one kept on the phone) can be drawn at once, without asking ESPN: a page may draw before it opens."""
+        if self.snapshot is not None:
+            return True
+        return bool(self.snapshot_path) and self._read_disk() is not None
+
+    def _refresh_later(self):
+        if self.refreshing:
+            return
+        self.refreshing = True
+
+        def run():
+            try:
+                self._load(force=True)
+            except Exception as error:
+                self._log('background refresh: %s' % type(error).__name__)
+            finally:
+                self.refreshing = False
+        threading.Thread(target=run, daemon=True).start()
+
     # -- loading
     def _load(self, force=False):
         with self.lock:
             now = int(self.clock())
+            if not force and self.snapshot is None and self.snapshot_path:
+                remembered = self._read_disk()
+                if remembered:   # the first read after a start: what was true last time, now; the real answer follows in the background
+                    try:
+                        import os
+                        self.disk_seen = os.path.getmtime(self.snapshot_path)
+                    except OSError:
+                        pass
+                    if now - remembered['at'] <= FRESH_DISK:   # the service kept it current: nothing to wait for or refresh
+                        self.snapshot = dict(remembered)
+                        return self.snapshot
+                    self.snapshot = dict(remembered, remembered=True)
+                    self._refresh_later()
+                    return self.snapshot
+            if not force and self.snapshot and not self.snapshot.get('remembered') and self.snapshot['at'] != now:
+                self._adopt_newer_disk()
+            if not force and self.snapshot and self.snapshot.get('remembered'):
+                return self.snapshot
             if not force and self.snapshot and now - self.snapshot['at'] < self.ttl:
                 return self.snapshot
-            days = [_date(now + d * 86400) for d in EXTRA_DAYS]
+            stale = self.snapshot
+        # The network is asked with the lock NOT held (owner, 2026-11-23, log e38980c3: every Sports page waited 2.2-3.0 s for its own background refresh, which held the
+        # lock across the whole ESPN fetch while the page's first read waited for it). A reader with any answer in hand never waits for a fetch that is already running.
+        if not force and stale is not None and self.fetch_lock.locked():
+            return stale
+        with self.fetch_lock:
+            now = int(self.clock())
+            with self.lock:   # an answer that arrived while this call waited for its turn is as good as asking again
+                if not force and self.snapshot and not self.snapshot.get('remembered') and now - self.snapshot['at'] < self.ttl:
+                    return self.snapshot
+            days = [_date(now - FEED_DAY_SHIFT + d * 86400) for d in EXTRA_DAYS]
             jobs = [(entry, [BASE % entry[3]] + ['%s?dates=%s' % (BASE % entry[3], day) for day in days]) for entry in self.league_defs]
 
             def one(job):
@@ -304,12 +458,42 @@ class EspnProvider:
                 if self.snapshot:
                     return self.snapshot   # the last good answer is better than none
                 raise sm.SportsUnavailable('no league answered')
-            self.snapshot = {'at': now, 'live': live, 'upcoming': upcoming, 'leagues': leagues, 'finished': finished}
-            return self.snapshot
+            fresh = {'at': now, 'live': live, 'upcoming': upcoming, 'leagues': leagues, 'finished': finished}
+            with self.lock:
+                self.snapshot = fresh
+            self._write_disk(fresh)
+            return fresh
 
     # -- the contract
-    def refresh(self):
+    def refresh(self, block=False):
+        """Bring the answer up to date. A page (block=False) never waits when an answer is saved: under REFRESH_SKIP old it is current (the service's loop
+        keeps it so), under SHOW_SAVED it is drawn now and the newer one is fetched in the background (the pages re-read every second or two). Only with
+        nothing usable does a page wait for ESPN. The service's loop (block=True) always fetches."""
+        with self.lock:   # an answer another process wrote a moment ago is as good as asking again
+            self._adopt_newer_disk()
+            if self.snapshot is None and self.snapshot_path:
+                data = self._read_disk()
+                if data:
+                    self.snapshot = dict(data)
+            snap = self.snapshot
+            age = self.clock() - snap['at'] if snap else None
+            if not block and snap is not None and age < REFRESH_SKIP and not snap.get('remembered'):
+                return
+            if not block and snap is not None:
+                # Build 621 (owner log 0ee2c2eb: "sports doesn't work at all", a bad network and a 3-hour-old saved answer): an answer under SHOW_SAVED is
+                # drawn as current; an older one (up to SNAPSHOT_KEEP, which _read_disk enforces) is drawn as remembered ("Updating"). Either way the page
+                # shows it now and the fresh one replaces it when ESPN answers; a page waits only when nothing at all is saved.
+                self.snapshot = dict(snap)
+                if age < SHOW_SAVED:
+                    self.snapshot.pop('remembered', None)
+                else:
+                    self.snapshot['remembered'] = True
+                self._refresh_later()
+                return
+        started = self.clock()
         self._load(force=True)
+        if not block:
+            self._log('a page waited %.1f s for ESPN (no saved answer)' % (self.clock() - started))
 
     def live_games(self, league=None):
         return sm.filter_league(sm.order_live(self._load()['live']), league)

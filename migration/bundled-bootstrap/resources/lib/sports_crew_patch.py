@@ -98,6 +98,125 @@ def apply(folders):
     return reason
 
 
+CLIENT_RELATIVE = os.path.join('lib', 'resources', 'lib', 'modules', 'client.py')
+CLIENT_ANCHOR = "def parseHTML(html, name='', attrs=None, ret=False):\n"
+CLIENT_MARK = '# Kodi iOS parseDOM'
+CLIENT_ADDED = ("parseDOM = parseDom  # Kodi iOS parseDOM: Crew's runtime stream code (generic streamer, rapidmoviez and others) calls client.parseDOM, "
+                "which client.py never defined: \"Streamer [generic] failed ... has no attribute 'parseDOM'\" (owner log 551591c4)\n\n\n")
+
+
+def apply_client(folders):
+    """Give Crew's client module the `parseDOM` name its own downloaded streamers call (it defines only `parseDom`). Pinned version and the exact anchor line
+    are checked, as for the scan patch. Returns 'patched', 'already', or a short reason it was left alone."""
+    reason = 'no Crew module folder'
+    for folder in folders:
+        path = os.path.join(folder, CLIENT_RELATIVE)
+        if not os.path.isfile(path):
+            continue
+        if _version(folder) != VERSION:
+            reason = 'Crew module is not the pinned version'
+            continue
+        try:
+            source = open(path, encoding='utf-8').read()
+        except OSError:
+            reason = 'Crew client cannot be read'
+            continue
+        if CLIENT_MARK in source or 'parseDOM =' in source:
+            return 'already'
+        if source.count(CLIENT_ANCHOR) != 1 or 'def parseDom(' not in source:
+            reason = 'Crew client does not match the pinned file'
+            continue
+        try:
+            open(path, 'w', encoding='utf-8').write(source.replace(CLIENT_ANCHOR, CLIENT_ADDED + CLIENT_ANCHOR, 1))
+        except OSError:
+            reason = 'Crew client cannot be written'
+            continue
+        return 'patched'
+    return reason
+
+
+DNS_MARK = '# Kodi iOS dns override'
+DNS_ADDED = '''
+
+# Kodi iOS dns override: a host this phone's DNS answers wrongly (dns_override.py in the service lists it in dns-overrides.json) is connected by the working address
+# DNS over HTTPS gave; the name, and so TLS's certificate check, stays the host's own. Any other name, and any failure here, goes to the normal lookup.
+def _kodi_ios_dns():
+    try:
+        import json
+        import os
+        import socket
+        import time
+        import xbmcvfs
+        real = socket.getaddrinfo
+        if getattr(real, '_kodi_ios', False):
+            return
+        where = os.path.join(xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap'), 'dns-overrides.json')
+        cache = [None, {}]
+
+        def table():
+            try:
+                stamp = os.path.getmtime(where)
+            except OSError:
+                cache[:] = [None, {}]
+                return cache[1]
+            if stamp != cache[0]:
+                try:
+                    with open(where, encoding='utf-8') as handle:
+                        data = json.load(handle)
+                except Exception:
+                    data = {}
+                cache[:] = [stamp, data if isinstance(data, dict) else {}]
+            return cache[1]
+
+        def getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            try:
+                entry = table().get(str(host).lower())
+                if entry and time.time() - float(entry.get('at', 0)) < 43200:
+                    ip = str(entry['ip'])
+                    v6 = ':' in ip
+                    if family in (0, socket.AF_INET6 if v6 else socket.AF_INET):
+                        number = int(port or 0)
+                        return [(socket.AF_INET6 if v6 else socket.AF_INET, type or socket.SOCK_STREAM, proto or 6, '',
+                                 (ip, number, 0, 0) if v6 else (ip, number))]
+            except Exception:
+                pass
+            return real(host, port, family, type, proto, flags)
+        getaddrinfo._kodi_ios = True
+        socket.getaddrinfo = getaddrinfo
+    except Exception:
+        pass
+
+
+_kodi_ios_dns()
+'''
+
+
+def apply_dns(folders):
+    """Append the name-lookup wrapper to Crew's control module (pinned version and file checked; added once). Returns 'patched', 'already', or a short reason."""
+    reason = 'no Crew module folder'
+    for folder in folders:
+        path = os.path.join(folder, RELATIVE)
+        if not os.path.isfile(path):
+            continue
+        if _version(folder) != VERSION:
+            reason = 'Crew module is not the pinned version'
+            continue
+        try:
+            source = open(path, encoding='utf-8').read()
+        except OSError:
+            reason = 'Crew module cannot be read'
+            continue
+        if DNS_MARK in source:
+            return 'already'
+        try:
+            open(path, 'w', encoding='utf-8').write(source.rstrip('\n') + '\n' + DNS_ADDED)
+        except OSError:
+            reason = 'Crew module cannot be written'
+            continue
+        return 'patched'
+    return reason
+
+
 def folders():
     """Where Kodi keeps this add-on on the phone and on the desktop rig."""
     out = []
@@ -111,6 +230,16 @@ def folders():
 
 
 def ensure(log=lambda text: None):
+    client = apply_client(folders())
+    if client == 'patched':
+        log('crew: parseDOM alias added')
+    elif client != 'already':
+        log('crew: parseDOM alias left alone (%s)' % client)
+    dns = apply_dns(folders())
+    if dns == 'patched':
+        log('crew: name-lookup wrapper added (dns_override)')
+    elif dns != 'already':
+        log('crew: name-lookup wrapper left alone (%s)' % dns)
     result = apply(folders())
     if result not in ('patched', 'already'):
         log('crew: scan patch left alone (%s)' % result)

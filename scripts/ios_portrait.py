@@ -95,6 +95,12 @@ def disable_splash(system):
  timeout=root.find('playlisttimeout')
  if timeout is None:timeout=ET.SubElement(root,'playlisttimeout')
  timeout.text='0'
+ # Build 634 logs 8c570737 and 4c4cf619: stopping a video read through a Drive loopback server that stopped answering took 26-40 s (Kodi's file cache waits out
+ # libcurl's 20 s low-speed time, twice, before the player may close), which is how long Next Episode sat. A connection that moves under 1 byte a second for 8 s
+ # is dead; Kodi retries it as before. An owner's own setting is kept.
+ network=root.find('network')
+ if network is None:network=ET.SubElement(root,'network')
+ if network.find('curllowspeedtime') is None:ET.SubElement(network,'curllowspeedtime').text='8'
  data=ET.tostring(root,encoding='utf-8')+b'\n'
  path.write_bytes(data)
  return {'path':path.name,'sha256':sha(data)}

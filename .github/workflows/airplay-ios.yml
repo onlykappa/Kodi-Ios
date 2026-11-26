@@ -115,6 +115,13 @@ jobs:
             echo "$digest  $RUNNER_TEMP/existing-airplay/KodiAirPlay.framework.zip" | sha256sum -c -
             exit 0
           fi
+          # ISSUE-332 / ISSUE-393: a tag on a commit that carries workflow-file changes is refused for this token (HTTP 403,
+          # build 2026-11-20 r69); the tag is then made on the default branch. The pin is the asset's sha256, checked below.
+          default=$(gh api "repos/$REPO" --jq .default_branch)
+          notes="$digest  KodiAirPlay.framework.zip; verified candidate $sha, run ${{ steps.source.outputs.run }}. Device retest pending."
           gh release create "$tag" "$archive" --repo "$REPO" --target "$sha" --prerelease \
-            --title "AirPlay ($tag): one-file preparation at source resolution" \
-            --notes "$digest  KodiAirPlay.framework.zip; verified candidate $sha, run ${{ steps.source.outputs.run }}. Device retest pending."
+            --title "AirPlay ($tag): one-file preparation at source resolution" --notes "$notes" ||
+          gh release create "$tag" "$archive" --repo "$REPO" --target "$default" --prerelease \
+            --title "AirPlay ($tag): one-file preparation at source resolution" --notes "$notes"
+          gh release download "$tag" --repo "$REPO" --pattern KodiAirPlay.framework.zip --dir "$RUNNER_TEMP/existing-airplay"
+          echo "$digest  $RUNNER_TEMP/existing-airplay/KodiAirPlay.framework.zip" | sha256sum -c -

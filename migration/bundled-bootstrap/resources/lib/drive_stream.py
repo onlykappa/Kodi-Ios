@@ -231,6 +231,15 @@ class DriveStream(object):
                 try:
                     while position <= end:
                         index = position // stream.block_size
+                        # A source that is read like Kodi's own player reads a debrid link (one connection, streaming) relays what is not in its cache instead of
+                        # fetching it block by block (remote_media.Foreground.relay_tail); the cached opening is still served from memory.
+                        tail = getattr(stream, 'relay_tail', None)
+                        if tail:
+                            sent = tail(item, position, end, self.wfile.write)
+                            if sent:
+                                stream.served = getattr(stream, 'served', 0) + sent
+                                position += sent
+                                continue
                         try:
                             asked = time.monotonic()
                             if getattr(stream, 'want', None):
@@ -258,7 +267,7 @@ class DriveStream(object):
                         # the next READ_AHEAD blocks are fetched at once, in parallel, not one after another.
                         # Not while a video plays (build-181 log: AirPlay starved while a conversion read and uploaded).
                         # Build 193: while a video or AirPlay plays, one block ahead instead of none (it slows, never stops).
-                        for step in range(1, 0 if stream.hold() else (stream.ahead_blocks or ahead_count(stream.playback, slowdown.reason(), stream.wide or item in stream.wide_items, len(stream.wide_items))) + 1):
+                        for step in range(1, 0 if (stream.hold() or getattr(stream, 'serial', False)) else (stream.ahead_blocks or ahead_count(stream.playback, slowdown.reason(), stream.wide or item in stream.wide_items, len(stream.wide_items))) + 1):
                             stream.blocks.ahead(item, index + step)
                         piece = block[position - index * stream.block_size:end - index * stream.block_size + 1]
                         if not piece:

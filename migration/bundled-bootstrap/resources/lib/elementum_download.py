@@ -68,7 +68,29 @@ def _interruptible_get(url,timeout,cancel):
  if cancel():raise Canceled('Source search canceled')
  if 'error' in result:raise result['error']
 
-def follow(url,opener=None,hops=6,timeout=600,route=None,engine=None,cancel=None):
+def _torrent_gate():
+ """Before anything reaches Elementum's own torrent engine: ask (torrent_prompt.py), with a hint whether a VPN looks active. Raises Canceled (quietly ends the caller) when
+ declined. A no-op outside Kodi, so the host tests run without it."""
+ try:
+  import xbmc,xbmcgui,cache_tune,vpn_hint,torrent_prompt
+ except ImportError:return
+ found=vpn_hint.current(cache_tune.local_address,cache_tune.interfaces)
+ log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
+ if not torrent_prompt.ask(found,xbmcgui.Dialog(),log):
+  xbmcgui.Dialog().notification(torrent_prompt.DECLINED[0],torrent_prompt.DECLINED[1],xbmcgui.NOTIFICATION_INFO,4000)
+  raise Canceled(torrent_prompt.DECLINED[1])
+
+def background_gate():
+ """The gate for work nobody asked for at that moment (the follow-shows job): if AllDebrid does not take it, nothing starts and nothing is asked. Owner, 2026-11-23,
+ build 677 log 94a6a00c: the person pressed Done on the Leagues page and the "Download this torrent directly?" dialog appeared over it, from a followed show's automatic
+ download. A question belongs to a download the person started; this one is skipped (Canceled ends it quietly, the check is tried again later) and the log says so."""
+ try:
+  import xbmc
+  xbmc.log('Kodi iOS torrent prompt: not asked; an automatic download that AllDebrid did not take is skipped, never started as a direct torrent',xbmc.LOGINFO)
+ except ImportError:pass
+ raise Canceled('Automatic downloads never start a direct torrent')
+
+def follow(url,opener=None,hops=6,timeout=600,route=None,engine=None,cancel=None,gate=None):
  """Run an Elementum plugin link over its HTTP API, following its redirects. Owner (build-133): a season download
  picked a version, then Elementum answered with a redirect to plugin://.../download (and that to /play?background)
  which Kodi dropped when the link was run with RunPlugin, so no torrent was added. Returns the last URL reached."""
@@ -89,6 +111,7 @@ def follow(url,opener=None,hops=6,timeout=600,route=None,engine=None,cancel=None
  for _ in range(hops):
   if cancel and cancel():raise Canceled('Source search canceled')
   if route(url):return url
+  (gate or _torrent_gate)()   # not the AllDebrid route: this would start a torrent on the phone itself
   if engine is not None:engine();engine=None
   if cancel and cancel():raise Canceled('Source search canceled')
   try:

@@ -101,6 +101,17 @@ class PortraitTests(unittest.TestCase):
  def test_fonts_added_to_every_fontset(self):
   names={f.findtext('name') for f in self.read('portrait/Font.xml').iter('font')}
   self.assertIn('p_title',names)
+ def test_the_score_font_keeps_its_own_file_and_ships_with_the_page(self):
+  # Live Now's scores (owner, 2026-11-21): Barlow Condensed ExtraBold, drawn from its own file even where every other style is the phone's SF.
+  fonts=portrait.fonts(FONT,'SF-UI.ttf')
+  score=[f for f in ET.fromstring(fonts).iter('font') if f.findtext('name')=='p_score']
+  self.assertTrue(score);self.assertTrue(all(f.findtext('filename')==portrait.SCORE_FONT and f.find('style') is None for f in score))
+  other=[f for f in ET.fromstring(fonts).iter('font') if f.findtext('name')=='p_title']
+  self.assertTrue(all(f.findtext('filename')=='SF-UI.ttf' for f in other))
+  files=portrait.portrait_files(self.skin,self.profile)
+  self.assertTrue(files['fonts/'+portrait.SCORE_FONT].startswith(b'\x00\x01\x00\x00'))   # a TrueType file, kept in the repository as base64 text (score_font.py)
+  self.assertTrue(files['extras/portrait/football.png'].startswith(b'\x89PNG'))              # drawn by portrait.football(): the repository takes no images
+  self.assertTrue((ROOT/'migration/bundled-bootstrap/resources/fonts/OFL-BarlowCondensed.md').is_file())   # its licence travels with it
  def test_refresh_is_idempotent_and_follows_widget_changes(self):
   self.assertEqual(portrait.refresh(self.skin,self.profile),[])
   nodes=self.profile/'addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json'
@@ -181,6 +192,7 @@ class PortraitTests(unittest.TestCase):
   for c in [p for top in osd.find('controls').findall('control') for p in pinned(top)]:
    if c.find('centerleft') is not None:continue
    if c.get('type')=='image' and any(t in (c.findtext('texture') or '') for t in ('white.png','fade_')):continue   # shades over the video
+   if c.get('type')=='image' and 'EB18181C' in ET.tostring(c).decode():continue   # the Continue Watching sheet runs edge to edge on purpose
    if c.get('id')=='7100':continue   # ISSUE-279: the clear tap-to-hide area under the controls (nothing drawn or read)
    if c.findtext('right')=='0' and c.findtext('width'):
     w=int(c.findtext('width'))
@@ -208,7 +220,10 @@ class PortraitTests(unittest.TestCase):
   xml=portrait.portrait_files(self.skin,self.profile)['portrait/MyVideoNav.xml'].decode()
   root=ET.fromstring(xml);row=root.find(".//control[@id='48']")
   self.assertIsNotNone(row);self.assertIn('Container.Content(episodes)',row.findtext('visible'))
-  self.assertIn('info=seasons&tmdb_type=tv&tmdb_id=$INFO[Container(52).ListItem.Property(tvshow.tmdb_id)]',row.findtext('content'))
+  self.assertEqual(row.findtext('content'),'$VAR[Portrait_Season_Chips_Path]')
+  variable=re.search(r'<variable name="Portrait_Season_Chips_Path">(.*?)</variable>',portrait.VARIABLES.replace('&amp;','&')).group(1)
+  self.assertIn('info=seasons&tmdb_type=tv&tmdb_id=$INFO[Container(52).ListItem.Property(tvshow.tmdb_id)]',variable)
+  self.assertIn('condition="!String.IsEmpty(Container(52).ListItem.Property(tvshow.tmdb_id))"',variable)   # no id, no request (build 615 log)
   self.assertEqual([c.text for c in row.findall('onclick')],['Action(ParentDir)','Container.Update($INFO[ListItem.FolderPath])'])
   self.assertNotIn('replace',''.join(c.text for c in row.findall('onclick')))   # replace clears the history
   self.assertIsNotNone(root.find(".//control[@id='9900']/control[@id='48']"))   # in the page's own scroll
@@ -285,7 +300,7 @@ class PortraitTests(unittest.TestCase):
   for filename in ('Inter-Medium.ttf','Inter-SemiBold.ttf','Inter-Black.ttf','Inter-ExtraBold.ttf'):self.assertTrue(portrait.sf_bold('x',filename),filename)
   self.assertFalse(portrait.sf_bold('x','Inter-Regular.ttf'));self.assertFalse(portrait.sf_bold('x','Inter-Light.ttf'))
   root=ET.fromstring(portrait.fonts('<fonts><fontset id="Default"/></fonts>'))
-  self.assertTrue(all(f.findtext('filename').startswith('Inter') for f in root.iter('font')))
+  self.assertTrue(all(f.findtext('filename').startswith('Inter') for f in root.iter('font') if f.findtext('name')!='p_score'))   # the score font is its own file
  def test_textures_are_png(self):
   for name,data in portrait.textures().items():self.assertTrue(data.startswith(b'\x89PNG'),name)
 
@@ -370,7 +385,7 @@ class ServiceTests(unittest.TestCase):
    def getTime(self):return 600
    def getTotalTime(self):return 1200
   class Store:
-   def update(self,read,write,position,total):calls.append(('update',position,total))
+   def update(self,read,write,position,total,stream=None):calls.append(('update',position,total))
    def stopped(self,read,write):calls.append(('stopped',))
   player=Player();tick=portrait.progress_tracker(player,Store(),None,None,lambda:next(clock))
   tick();player.playing=False;tick()
@@ -514,7 +529,9 @@ class BufferingPill(unittest.TestCase):
   osd=portrait.player_osd;xml=osd.buffering_window()
   root=ET.fromstring(xml.split('\n',2)[2]);self.assertEqual(root.findtext('visible'),'false')
   src=open(osd.__file__,encoding='utf-8').read()
-  self.assertIn("'Buffering $INFO[Player.CacheLevel]%','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>'",src)
+  # 2026-11-23 (owner: the bar sat at 0 and jumped to 100): no percentage in the words, a pulse while empty, a short linger when full; the Kodi patch eases the bar
+  self.assertIn("'Buffering','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>'+LINGER",src)
+  self.assertNotIn('Buffering $INFO[Player.CacheLevel]',osd.window())   # the controls; the legacy dialog above is never shown
  def test_kodi_cache_is_tuned_once(self):
   calls=[]
   class X:

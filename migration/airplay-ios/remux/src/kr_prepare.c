@@ -143,6 +143,18 @@ static int text_sub(enum AVCodecID id) {
     return id==AV_CODEC_ID_MOV_TEXT || id==AV_CODEC_ID_SUBRIP || id==AV_CODEC_ID_ASS ||
            id==AV_CODEC_ID_SSA || id==AV_CODEC_ID_WEBVTT || id==AV_CODEC_ID_TEXT;
 }
+// How long a text cue with no duration of its own stays up: 1.2 s plus 70 ms a character of its text (the ASS event text carries about 20 characters of
+// fields before the words), at least 2 s and at most 7 s.
+int64_t kr_cue_reading_ms(const AVSubtitle *sub) {
+    int64_t chars=0;
+    for(unsigned i=0;sub && i<sub->num_rects;i++) {
+        const AVSubtitleRect *r=sub->rects[i];
+        if(r && r->ass) {int64_t n=(int64_t)strlen(r->ass)-20;chars+=n>0?n:0;}
+        else if(r && r->text)chars+=(int64_t)strlen(r->text);
+    }
+    int64_t ms=1200+70*chars;
+    return ms<2000?2000:ms>7000?7000:ms;
+}
 int kr_prepare_ready(AVFormatContext *f) {
     if(!f || !f->iformat || !strstr(f->iformat->name,"mov")) return 0;
     int v=video_index(f);if(v<0 || !copy_video(f->streams[v]->codecpar)) return 0;
@@ -1124,6 +1136,13 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
                 int64_t base=p->pts==AV_NOPTS_VALUE?0:av_rescale_q(p->pts,src->time_base,dst->time_base);
                 encoded->pts=encoded->dts=base+av_rescale_q(sub.start_display_time,(AVRational){1,1000},dst->time_base);
                 encoded->duration=av_rescale_q(sub.end_display_time-sub.start_display_time,(AVRational){1,1000},dst->time_base);
+                // r56 (owner, build 634 log f75957fe: The Lanterns' captions "on" and nothing drawn; every text cue of its three converted tracks was 0 s long, the
+                // blank sample that clears the screen starting at the same instant): a source whose subtitle packets carry no duration decodes with an end time equal
+                // to its start. A cue with no length is given the source packet's own duration when it has one, else a reading time from its text.
+                if(encoded->duration<=0) {
+                    int64_t ms=p->duration>0?av_rescale_q(p->duration,src->time_base,(AVRational){1,1000}):kr_cue_reading_ms(&sub);
+                    encoded->duration=av_rescale_q(ms,(AVRational){1,1000},dst->time_base);
+                }
                 q=put(out,rc,encoded);av_packet_free(&encoded);
             }
             avsubtitle_free(&sub);

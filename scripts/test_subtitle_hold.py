@@ -45,6 +45,14 @@ class Rows(unittest.TestCase):
         xml = pages.track_menu()
         self.assertGreaterEqual(xml.count('<wrapmultiline>true</wrapmultiline>'), 4)   # every track label may take a second line
 
+    def test_a_track_the_file_holds_no_subtitles_for_is_refused_unless_forced(self):
+        import subtitle_match as sm
+        ranked = sm.rank([{'index': 0, 'language': 'eng', 'name': '', 'sample_count': 0}, {'index': 1, 'language': 'eng', 'name': '', 'sample_count': 900},
+                          {'index': 2, 'language': 'eng', 'name': '', 'sample_count': 1, 'isforced': True}], {'duration': 3000})
+        by = {t['index']: t for t in ranked}
+        self.assertTrue(by[0]['match_rejected']);self.assertEqual(by[0]['match_reason'], 'Empty subtitle track')
+        self.assertFalse(by[1]['match_rejected']);self.assertFalse(by[2]['match_rejected'])
+
     def test_remove_is_red(self):
         self.assertTrue(tm.more_rows(0, False, '', 'English', True)[2]['danger'])
         self.assertIn('FFFF453A', pages.track_menu())
@@ -65,10 +73,18 @@ class Rows(unittest.TestCase):
         root = ET.fromstring(pages.track_menu().split('\n', 2)[2])
         ids = [c.get('id') for c in root.iter('control') if c.get('id')]
         self.assertEqual(len(ids), len(set(ids)))
-        for name in ('SUBS_LIST', 'T_MINUS_S', 'T_PLUS_S', 'HOLD_FIND', 'HOLD_REMOVE', 'HOLD_SCRIM', 'SURE_SCRIM', 'SURE_CANCEL', 'SURE_REMOVE'):
+        for name in ('SUBS_LIST', 'T_MINUS_S', 'T_PLUS_S', 'HOLD_FIND', 'HOLD_REMOVE', 'HOLD_SCRIM', 'SURE_SCRIM', 'SURE_CANCEL', 'SURE_REMOVE', 'SYNC'):
             self.assertEqual(getattr(tracks, name), getattr(pages, name), name)
             self.assertIn(str(getattr(pages, name)), ids)
         self.assertEqual(tracks.SUBS_ROWS, pages.SUBS_ROWS)
+
+    def test_auto_sync_is_a_row_under_timing_with_its_states(self):   # owner, 2026-11-22; docs/design/subtitles-autosync-mockup.html
+        xml = pages.track_menu()
+        self.assertIn('Auto sync', xml);self.assertIn('Window().Property(sync)', xml)
+        for state in ('busy', 'done', 'fail'):
+            self.assertIn('String.IsEqual(Window().Property(sync_state),%s)' % state, xml)
+        src = Path(tracks.__file__).read_text()
+        self.assertIn('control == SYNC', src);self.assertIn('def auto_sync(self)', src)
 
     def test_the_drawer_is_full_height_at_the_right_edge_with_no_cut_text(self):
         xml = pages.track_menu()
@@ -84,6 +100,7 @@ class Fake:
         self.folder, self.props, self.calls, self.notes = folder, {}, [], []
         self.subs = streams()
         self.current, self.enabled = 0, True
+        self.item = {'title': 'Film', 'year': 2019, 'file': 'Film.2019.1080p.mkv', 'uniqueid': {}}
 
     def rpc(self, text):
         request = json.loads(text)
@@ -96,7 +113,7 @@ class Fake:
             result = {'subtitles': list(self.subs), 'currentsubtitle': {'index': self.current}, 'subtitleenabled': self.enabled,
                       'audiostreams': [], 'currentaudiostream': {}}
         elif method == 'Player.GetItem':
-            result = {'item': {'title': 'Film', 'year': 2019, 'file': 'Film.2019.1080p.mkv', 'uniqueid': {}}}
+            result = {'item': dict(self.item)}
         elif method == 'Player.SetSubtitle':
             self.enabled = params.get('subtitle') != 'off'
             self.current = params['subtitle'] if self.enabled else None
@@ -105,6 +122,10 @@ class Fake:
         elif method == 'Settings.GetSettingValue':
             result = {'value': 'default' if 'locale' in params.get('setting', '') else ['English']}
         return json.dumps({'jsonrpc': '2.0', 'id': 1, 'result': result})
+
+
+HOME_PROPS = {}
+FIND_CALLS = []
 
 
 def drive(scenario, fake, found=2):
@@ -168,7 +189,7 @@ def drive(scenario, fake, found=2):
         Player=lambda: types.SimpleNamespace(getTotalTime=lambda: 7200, setSubtitles=lambda path: None))
     gui = types.SimpleNamespace(
         WindowXMLDialog=Window, ListItem=Item, NOTIFICATION_INFO=1,
-        Window=lambda ident: types.SimpleNamespace(setProperty=lambda *a: None, clearProperty=lambda *a: None, getProperty=lambda k: ''),
+        Window=lambda ident: types.SimpleNamespace(setProperty=lambda *a: None, clearProperty=lambda *a: None, getProperty=lambda k: HOME_PROPS.get(k, '')),
         Dialog=lambda: types.SimpleNamespace(notification=lambda title, *a: notes.append(title)))
     vfs = types.SimpleNamespace(translatePath=lambda path: fake.folder + os.sep)
     results = [{'id': str(n), 'releases': ['Film.2019.rel%d' % n], 'impaired': False, 'match_reason': '', 'match_rejected': False} for n in range(found)]
@@ -176,7 +197,7 @@ def drive(scenario, fake, found=2):
             patch.object(tracks, 'player_id', return_value=1), \
             patch.object(tracks, 'subtitle_language', return_value=('en', 'English')), \
             patch.object(tracks, 'keys_tag', return_value='SET'), \
-            patch('subtitle_sources.find', side_effect=lambda *a, **k: list(results) if found else []), \
+            patch('subtitle_sources.find', side_effect=lambda *a, **k: (FIND_CALLS.append(a), list(results) if found else [])[1]), \
             patch('subtitle_sources.load_keys', return_value={}), \
             patch('subtitle_sources.sources', return_value=['subdl']):
         tracks.run('subtitles')
@@ -238,6 +259,68 @@ class Flows(unittest.TestCase):
         self.assertEqual(notes, ['English removed'])
         self.assertIn(('Player.SetSubtitle', {'playerid': 1, 'subtitle': 'off'}), self.fake.calls)   # it was on
 
+    def test_a_downloaded_subtitle_survives_closing_and_reopening_the_menu(self):
+        # Build 617 log: the downloaded track ("<crc> (External)") was forgotten on the next open, the embedded CC outranked it and the menu
+        # switched Kodi to the CC (turning the download off). A fresh menu must keep it on and offer it for English.
+        self.fake.subs = [{'index': 0, 'language': 'eng', 'name': ''}, {'index': 1, 'language': 'eng', 'name': '', 'isimpaired': True},
+                          {'index': 3, 'language': 'eng', 'name': '4168484231 (External)'}]
+        self.fake.current = 3
+
+        def scenario(menu):
+            english = [r for r in menu.rows if r['label'].startswith('English')]
+            self.assertEqual([r['index'] for r in english], [3])
+            self.assertTrue(english[0]['on'])
+        drive(scenario, self.fake)
+        self.assertEqual([c for c in self.fake.calls if c[0] == 'Player.SetSubtitle'], [])   # opening the menu changed nothing
+        self.assertEqual(self.fake.current, 3)
+
+    def test_turning_it_off_and_on_again_selects_the_download_not_the_embedded_cc(self):
+        self.fake.subs = [{'index': 0, 'language': 'eng', 'name': ''}, {'index': 1, 'language': 'eng', 'name': '', 'isimpaired': True},
+                          {'index': 3, 'language': 'eng', 'name': '4168484231 (External)'}]
+        self.fake.current = 3
+
+        def scenario(menu):
+            menu.pick(0)            # Off
+            self.assertFalse(self.fake.enabled)
+            menu.fill()
+            menu.pick(next(n for n, r in enumerate(menu.rows) if r['label'].startswith('English')))
+        drive(scenario, self.fake)
+        self.assertTrue(self.fake.enabled)
+        self.assertEqual(self.fake.current, 3)
+
+    def test_an_embedded_track_with_no_subtitles_in_it_is_not_offered(self):
+        self.fake.subs = [{'index': 0, 'language': 'eng', 'name': ''}, {'index': 1, 'language': 'spa', 'name': ''}]
+        self.fake.current = 1
+
+        def scenario(menu):
+            menu.file_tracks = [{'samples': 0}, {'samples': 800}]
+            menu.fill()
+            self.assertEqual([r['label'] for r in menu.rows], ['Off', 'Spanish'])
+        drive(scenario, self.fake)
+
+    def test_the_search_uses_what_the_playing_add_on_knew_when_kodis_item_lacks_it(self):
+        # Build 618 log: a Drive episode searched as 'Trust Fall' with season and episode None, SubDL found 0.
+        import json as _json
+        self.fake.item = {'title': 'Trust Fall', 'file': 'http://127.0.0.1:50465/x', 'uniqueid': {}}
+        HOME_PROPS['KodiIOS.Playing'] = _json.dumps({'t': time.time(), 'kind': 'episode', 'title': 'Trust Fall', 'show': 'Some Show', 'season': 1, 'episode': 2, 'year': 2021, 'tmdb': '95350'})
+        FIND_CALLS.clear()
+        self.addCleanup(HOME_PROPS.clear)
+
+        def scenario(menu):
+            menu.search()
+        drive(scenario, self.fake)
+        title, year, season, episode, tmdb = FIND_CALLS[0][3], FIND_CALLS[0][4], FIND_CALLS[0][5], FIND_CALLS[0][6], FIND_CALLS[0][8]
+        self.assertEqual((title, season, episode, tmdb), ('Some Show', 1, 2, '95350'))
+
+    def test_a_stale_or_different_video_is_not_used(self):
+        import json as _json
+        self.fake.item = {'title': 'Another Film', 'year': 2019, 'file': 'Another.Film.2019.mkv', 'uniqueid': {}}
+        HOME_PROPS['KodiIOS.Playing'] = _json.dumps({'t': time.time(), 'kind': 'episode', 'title': 'Trust Fall', 'show': 'Some Show', 'season': 1, 'episode': 2, 'tmdb': '95350'})
+        FIND_CALLS.clear()
+        self.addCleanup(HOME_PROPS.clear)
+        drive(lambda menu: menu.search(), self.fake)
+        self.assertEqual((FIND_CALLS[0][3], FIND_CALLS[0][5], FIND_CALLS[0][8]), ('Another Film', None, None))
+
     def test_cancel_removes_nothing(self):
         def scenario(menu):
             menu.added.add(0)
@@ -290,6 +373,32 @@ class Flows(unittest.TestCase):
                     time.sleep(0.02)
             self.assertEqual(menu.props['cta_state'], 'none')
             self.assertEqual((menu.lang, menu.lang_name), ('en', 'English'))
+        drive(scenario, self.fake)
+
+    def test_the_words_check_runs_after_the_subtitle_is_on_and_only_then_swaps_or_shifts(self):
+        # Build 616 log: Download and apply took 58 s listening to the video before anything was applied, and the check made no claim (9 words).
+        import speech_check
+        def scenario(menu):
+            applied=[];shown=[]
+            menu.apply=lambda result,got=None:applied.append((result['id'],got[1] if got else None))
+            menu.fetch_result=lambda r:('%s.en.srt'%r['id'],b'1\n00:00:01,000 --> 00:00:02,000\nhello\n')
+            first={'id':'a','source':'x'};second={'id':'b','source':'x'}
+            data=b'orig'
+            heard=[(1.0,'hello')]
+            # too few words: nothing happens
+            menu.checked_video=lambda:{'heard':[]}
+            menu.check_by_speech(first,'a.en.srt',data,[first,second],'English');self.assertEqual(applied,[])
+            # a shift: the corrected file is applied again
+            menu.checked_video=lambda:{'heard':heard}
+            with patch.object(speech_check,'apply',return_value=(b'shifted',None)):
+                menu.check_by_speech(first,'a.en.srt',data,[first,second],'English')
+            self.assertEqual(applied,[('a',b'shifted')])
+            # a clear mismatch: the next candidate replaces it
+            applied.clear()
+            with patch.object(speech_check,'apply',side_effect=[(data,'Words do not match the speech'),(b'ok',None)]), \
+                 patch('subtitle_match.choose_download',return_value=(second,'b.en.srt',b'second')):
+                menu.check_by_speech(first,'a.en.srt',data,[first,second],'English')
+            self.assertEqual([a[0] for a in applied],['b'])
         drive(scenario, self.fake)
 
     def test_a_tap_outside_ends_the_menu(self):

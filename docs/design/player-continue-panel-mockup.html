@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Continue Watching panel</title>
+<style>
+/* MOCKUP (evidence class: mockup, APPLE-UI-POLICY §9). Not a render of Kodi. Geometry in Kodi units of the 2340 x 1080 landscape canvas (--k = 1 unit). BEFORE is drawn from the
+   owner's phone screenshot of build 686 (cards straight over the video, Fuse's info text showing through). AFTER is a glass-STYLED sheet: a flat, nearly opaque translucent texture
+   (Kodi cannot blur the video behind it, so this is not Liquid Glass and the browser's blur is NOT used here), as the Play on TV and activity sheets are. */
+:root{--grey:rgba(235,235,245,.6);--blue:#4fa8ff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,-apple-system,sans-serif;padding:28px 16px 60px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto}
+.tag{display:inline-block;background:#3a2a00;color:#ffd60a;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:30px;font-weight:800;margin-bottom:8px}p.lead{color:#b4b4ba;line-height:1.5;max-width:780px;margin-bottom:22px}
+.cap{font-size:12px;font-weight:700;letter-spacing:.06em;margin:28px 0 6px}.cap.b{color:#ff9f0a}.cap.a{color:var(--blue)}
+.note{color:var(--grey);font-size:13px;line-height:1.45;margin:10px 0 0;max-width:860px}
+.frame{width:100%;max-width:934px;aspect-ratio:934/462;border-radius:56px;padding:30px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 2px #4a4a4e}
+.screen{position:relative;width:100%;height:100%;border-radius:30px;overflow:hidden;background:#000;container-type:inline-size}
+.k{position:absolute;inset:0;--k:calc(100cqw / 2340)}
+.video{position:absolute;inset:0;background:radial-gradient(90% 90% at 55% 25%,#e2c66d 0%,#b4534a 35%,#6a2f6b 62%,#241a2b 100%)}
+.video::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.45),rgba(0,0,0,0) 30%,rgba(0,0,0,0) 45%,rgba(0,0,0,.35))}
+.ic{position:absolute;width:calc(110*var(--k));height:calc(110*var(--k));display:flex;align-items:center;justify-content:center}
+.ic svg{width:calc(70*var(--k));height:calc(70*var(--k))}
+.abs{position:absolute}
+.hd{position:absolute;left:calc(150*var(--k));font-size:calc(52*var(--k));font-weight:800}
+.card{position:absolute;top:calc(590*var(--k));width:calc(396*var(--k));height:calc(223*var(--k));border-radius:calc(26*var(--k));overflow:hidden}
+.card.sel{outline:calc(5*var(--k)) solid #fff;outline-offset:calc(4*var(--k))}
+.cl{position:absolute;top:calc(828*var(--k));width:calc(396*var(--k));font-size:calc(30*var(--k));font-weight:600;color:rgba(255,255,255,.75)}
+.track{position:absolute;left:calc(150*var(--k));right:calc(150*var(--k));border-radius:999px;background:rgba(255,255,255,.3)}
+.track i{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;background:#fff}
+.time{position:absolute;display:flex;font-size:calc(38*var(--k));font-weight:700;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.75)}
+.btn{position:absolute;height:calc(54*var(--k));display:flex;align-items:center;font-size:calc(38*var(--k));font-weight:600;color:rgba(255,255,255,.85)}
+.stray{position:absolute;font-size:calc(36*var(--k));color:var(--grey);text-shadow:0 0 calc(8*var(--k)) #000}
+/* the sheet: top corners 40 units, a hairline light edge on top, no shadow into the video */
+.sheet{position:absolute;left:0;right:0;top:calc(470*var(--k));bottom:0;border-radius:calc(40*var(--k)) calc(40*var(--k)) 0 0;background:rgba(24,24,28,.92);border-top:calc(2*var(--k)) solid rgba(255,255,255,.18)}
+.grab{position:absolute;left:50%;top:calc(484*var(--k));width:calc(90*var(--k));height:calc(8*var(--k));margin-left:calc(-45*var(--k));border-radius:99px;background:rgba(255,255,255,.3)}
+.diff{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;max-width:900px}.diff div{background:#17171a;border-radius:10px;padding:10px 12px;font-size:13px;color:#c8c8ce;line-height:1.4}.diff b{display:block;color:#fff;margin-bottom:2px}
+</style></head><body><div class="wrap">
+<span class="tag">MOCKUP · not Kodi</span>
+<h1>Continue Watching over the video</h1>
+<p class="lead">The row of your other titles, opened from the controls. Today its cards sit straight on the picture, so bright scenes fight the titles and Fuse's own info line shows through them. Below: the same row on a glass-styled sheet.</p>
+
+<div class="cap b">BEFORE · BUILD 686 (from your screenshot)</div>
+<div class="frame"><div class="screen"><div class="k"><div class="video"></div>
+<div class="hd" style="top:calc(470*var(--k))">Continue Watching</div>
+<div class="stray" style="left:calc(190*var(--k));top:calc(400*var(--k))">FHD · 23 mins</div><div class="stray" style="left:calc(190*var(--k));top:calc(490*var(--k));font-weight:700;color:#ddd">1x01. The God Who Destroys</div><div class="stray" style="left:calc(190*var(--k));top:calc(640*var(--k))">Ends at 8:12 AM &nbsp; Returning 11/29/2026</div>
+<div class="card" style="left:calc(150*var(--k));background:linear-gradient(135deg,#2a2f58,#4b2c63)"></div><div class="card" style="left:calc(570*var(--k));background:linear-gradient(135deg,#8c7a45,#3f3a2a)"></div><div class="card" style="left:calc(990*var(--k));background:linear-gradient(135deg,#b3252c,#3a0b0e)"></div><div class="card" style="left:calc(1410*var(--k));background:linear-gradient(135deg,#a6b2bb,#6b7b86)"></div><div class="card" style="left:calc(1830*var(--k));background:linear-gradient(135deg,#7c8fa6,#4a5a6b)"></div>
+<div class="cl" style="left:calc(150*var(--k))">Dragon Ball Super: Beerus</div><div class="cl" style="left:calc(570*var(--k))">FROM</div><div class="cl" style="left:calc(990*var(--k))">Black Clover</div><div class="cl" style="left:calc(1410*var(--k))">Phony</div>
+<div class="track" style="top:calc(878*var(--k));height:calc(16*var(--k))"><i style="width:50%"></i></div>
+<div class="time" style="left:calc(150*var(--k));top:calc(912*var(--k))">11:15</div><div class="time" style="right:calc(150*var(--k));top:calc(912*var(--k))">−12:03</div>
+<div class="btn" style="left:calc(150*var(--k));top:calc(970*var(--k))">Info</div><div class="btn" style="left:calc(340*var(--k));top:calc(970*var(--k))">Continue Watching</div></div></div></div>
+<p class="note">Today: the header and cards are drawn right on the video. Fuse's info text ("FHD · 23 mins", the episode line, "Ends at", "Returning") shows through the first card. That text is now hidden whenever the controls are up (it was an older copy of the skin file on the phone that kept it).</p>
+
+<div class="cap a">AFTER · A · DARK GLASS-STYLED SHEET</div>
+<div class="frame"><div class="screen"><div class="k"><div class="video"></div>
+<div class="ic" style="left:calc(140*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></div>
+<div class="sheet"></div><div class="grab"></div>
+<div class="hd" style="top:calc(520*var(--k))">Continue Watching</div>
+<div class="card sel" style="left:calc(150*var(--k));background:linear-gradient(135deg,#2a2f58,#4b2c63)"></div><div class="card" style="left:calc(570*var(--k));background:linear-gradient(135deg,#8c7a45,#3f3a2a)"></div><div class="card" style="left:calc(990*var(--k));background:linear-gradient(135deg,#b3252c,#3a0b0e)"></div><div class="card" style="left:calc(1410*var(--k));background:linear-gradient(135deg,#a6b2bb,#6b7b86)"></div><div class="card" style="left:calc(1830*var(--k));background:linear-gradient(135deg,#7c8fa6,#4a5a6b)"></div>
+<div class="cl" style="left:calc(150*var(--k));color:#fff">Dragon Ball Super: Beerus</div><div class="cl" style="left:calc(570*var(--k))">FROM</div><div class="cl" style="left:calc(990*var(--k))">Black Clover</div><div class="cl" style="left:calc(1410*var(--k))">Phony</div>
+<div class="track" style="top:calc(878*var(--k));height:calc(16*var(--k))"><i style="width:50%"></i></div>
+<div class="time" style="left:calc(150*var(--k));top:calc(912*var(--k))">11:15</div><div class="time" style="right:calc(150*var(--k));top:calc(912*var(--k))">−12:03</div>
+<div class="btn" style="left:calc(150*var(--k));top:calc(970*var(--k))">Info</div><div class="btn" style="left:calc(340*var(--k));top:calc(970*var(--k))">Continue Watching</div></div></div></div>
+<div class="diff"><div><b>The sheet</b>A bottom sheet from 470 units down to the screen edge, top corners 40, a hairline light edge, about 92 % dark. It carries the header, the cards, the bar and the times, so all of them read on any scene.</div><div><b>Why not a real blur</b>Kodi draws the video and the controls in one layer and cannot blur one behind the other, so the sheet is a flat translucent texture (like the Play on TV and activity sheets), not Liquid Glass. A native blur would sit above the cards and hide them.</div><div><b>Unchanged</b>The controls above, the card size, the focus ring and what a tap does. The picture shows through a little at the top edge, so it still feels like part of the video.</div></div>
+<div class="cap a">AFTER · B · LIGHT GREY BOX</div>
+<div class="frame"><div class="screen"><div class="k"><div class="video"></div>
+<div class="ic" style="left:calc(140*var(--k));top:calc(55*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></div>
+<div class="abs" style="left:calc(100*var(--k));right:calc(100*var(--k));top:calc(470*var(--k));height:calc(410*var(--k));border-radius:calc(40*var(--k));background:rgba(72,72,78,.94);border:calc(2*var(--k)) solid rgba(255,255,255,.2)"></div>
+<div class="hd" style="top:calc(500*var(--k));left:calc(150*var(--k))">Continue Watching</div>
+<div class="card sel" style="top:calc(580*var(--k));left:calc(150*var(--k));background:linear-gradient(135deg,#2a2f58,#4b2c63)"></div><div class="card" style="top:calc(580*var(--k));left:calc(570*var(--k));background:linear-gradient(135deg,#8c7a45,#3f3a2a)"></div><div class="card" style="top:calc(580*var(--k));left:calc(990*var(--k));background:linear-gradient(135deg,#b3252c,#3a0b0e)"></div><div class="card" style="top:calc(580*var(--k));left:calc(1410*var(--k));background:linear-gradient(135deg,#a6b2bb,#6b7b86)"></div><div class="card" style="top:calc(580*var(--k));left:calc(1830*var(--k));background:linear-gradient(135deg,#7c8fa6,#4a5a6b)"></div>
+<div class="cl" style="top:calc(814*var(--k));left:calc(150*var(--k));color:#fff">Dragon Ball Super: Beerus</div><div class="cl" style="top:calc(814*var(--k));left:calc(570*var(--k))">FROM</div><div class="cl" style="top:calc(814*var(--k));left:calc(990*var(--k))">Black Clover</div><div class="cl" style="top:calc(814*var(--k));left:calc(1410*var(--k))">Phony</div>
+<div class="track" style="top:calc(878*var(--k));height:calc(16*var(--k))"><i style="width:50%"></i></div>
+<div class="time" style="left:calc(150*var(--k));top:calc(912*var(--k))">11:15</div><div class="time" style="right:calc(150*var(--k));top:calc(912*var(--k))">−12:03</div>
+<div class="btn" style="left:calc(150*var(--k));top:calc(970*var(--k))">Info</div><div class="btn" style="left:calc(340*var(--k));top:calc(970*var(--k))">Continue Watching</div></div></div></div>
+<div class="diff"><div><b>A · dark sheet</b>A full-width bottom sheet, nearly black (92 %), carrying the row, the bar and the times. Calm, and the bar reads on any scene.</div><div><b>B · light grey box</b>A floating rounded box, mid grey (94 % opaque, the lighter surface of the Settings rows), around the header and the cards only; the bar and the times stay on the video below. Lighter and friendlier, but the box sits in front of more of the picture.</div><div><b>Both</b>Flat translucent textures, not a blur (Kodi cannot blur what is behind), so neither is Liquid Glass. The row, the cards, the focus ring and what a tap does stay as they are.</div></div>
+</div></body></html>

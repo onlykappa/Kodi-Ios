@@ -31,7 +31,10 @@ KODI_CAP=30*60
 # ISSUE-281 (owner, build 442: an Umbrella episode sat at "Opening the video · 0 of 12 MB", then the app crashed on Resume):
 # ISSUE-303: Kodi is handed the cache only after all opening blocks are complete within FIRST_ANSWER seconds;
 # a size or one split piece is not enough. Otherwise cancel its reads and preserve the original direct source.
-FIRST_ANSWER=5.0
+# ISSUE-477 (owner, 2026-11-24: Umbrella openings are inconsistent). 21 Umbrella opens in the logs of builds 640-693: with the opening blocks in (cache 3/3, wait 0-240 ms) the open took 0.2-3.2 s; when the
+# cache gave up at about 2 s (`direct 0-2/3 wait 2.0 s`: hopeless() projected a finish just past the 5 s budget) the direct open then took 6-8 s more, 10-18 s to the first picture, and nothing was
+# kept for the next time. Giving the blocks up to 8 s is cheaper than that fallback; a server that is dead or really slow (0.2 MB/s needs 60 s) is still dropped after EARLY_LOOK by hopeless().
+FIRST_ANSWER=8.0
 _BROKER=[None]   # ISSUE-281: one cache per service run; a restarted Drive loop reuses it
 # ISSUE-302 (owner, build 470, log 2979ea67: an Umbrella episode sat at "Opening the video · 4 of 12 MB, 33 %", AllDebrid
 # "sending it slowly (0.2 MB/s)", no picture after 126 s, on Wi-Fi with nothing else copying): a 4 MiB block came over ONE
@@ -39,10 +42,11 @@ _BROKER=[None]   # ISSUE-281: one cache per service run; a restarted Drive loop 
 # opening blocks (the first two and the last) were fetched one after another: 60 s before the first picture. Debrid links
 # are slow per connection, not per phone (ISSUE-163): each block is now fetched as SPLIT parallel ranges, and the opening
 # blocks together. At most PIECES requests run at once, so a link that limits connections is not flooded.
-SPLIT=4;PIECES=8;SPLIT_MIN=256*1024
+SERIAL_FAMILIES=('debrid.it','real-debrid.com','debrid-link.com','debrid-link.fr','premiumize.me','alldebrid.com','torbox.app');SERIAL_PIECES=2
+SPLIT=4;PIECES=6;SPLIT_MIN=256*1024   # PIECES 8 -> 6 (build 646 log d8f39741: the read-ahead blocks 5-8 and the resume blocks were all refused, "Drive answered without the asked byte range", after 4.6-6.5 s while the blocks Kodi waited on came through)
 TYPES={'mkv':'video/x-matroska','avi':'video/x-msvideo','webm':'video/webm'}
 RACE=20          # ISSUE-315: a Kodi source replaced this soon after it was opened is kept beside the new one
-KODI_AHEAD=4     # ISSUE-315: blocks after the opening ones fetched at once for Kodi (it reads the file's start next)
+KODI_AHEAD=2     # ISSUE-315: blocks after the opening ones fetched at once for Kodi (it reads the file's start next); 4 -> 2 in build 647: fewer refused ranges
 # ISSUE-317 (owner log d3c14036, build 482: the cache route with all three opening blocks ready in 4.3 s still took 31.3 s
 # for Kodi to open; the direct link 19.6 s): every read Kodi makes through the cache (offset, length, time, how long it
 # waited for blocks) and every block fetched, for READ_LOG_FOR seconds after the source opens (READ_LOG_MAX lines at most).
@@ -138,7 +142,12 @@ class Foreground(drive_stream.DriveStream):
   # 4 MB block: at ~0.7 MB/s that block takes ~6 s, longer than for_kodi's FIRST_ANSWER, so Kodi always fell back.
   self.answered_size=0
   self.cancelled=threading.Event();self.response_lock=threading.Lock();self.responses=set()
-  self.pieces=_Gate(PIECES);self.urgent=set();self.connect_timeout=20;self.opening_deadline=None
+  # Build 653 log d63069c3: Continue played through this cache and every block after the opening was refused ("Drive answered without the asked byte range",
+  # 4-30 s each, Kodi's reads waited up to 28 s): the debrid server answers one or two connections and refuses a crowd. Its links are read one request at a time
+  # in 2 places, as Kodi's own player reads them (SERIAL_FAMILIES, and any server a refusal was seen from).
+  self.serial=serial_host(source)
+  self.split=1 if self.serial else SPLIT
+  self.pieces=_Gate(SERIAL_PIECES if self.serial else PIECES);self.urgent=set();self.connect_timeout=20;self.opening_deadline=None
   self.renew_lock=threading.Lock();self.renewal=None;self.renew_link=None;self.renewed=False;self.renewal_state='unavailable'
   self.renew_clock=clock;self.renew_after=0.0
   self.remote_headers={k:v for k,v in urllib.parse.parse_qsl(extra,keep_blank_values=True)
@@ -237,7 +246,9 @@ class Foreground(drive_stream.DriveStream):
    # ISSUE-344 (owner log a83e06c7, build 513: "Drive answered without the asked byte range" again and again while Kodi
    # and AirPlay read one AllDebrid link; most pieces in flight failed, single ones went through): the server answers
    # a ranged request with the whole file (200) when too many connections ask at once. Two places for a minute.
-   if 'without the asked byte range' in str(error):self.pieces.calm(REFUSED_FOR,places=REFUSED_PLACES)
+   if 'without the asked byte range' in str(error):
+    self.pieces.calm(REFUSED_FOR,places=REFUSED_PLACES)
+    note_slow(None,self.remote_url)   # this server refuses a crowd: its next source is read serially from the start (serial_host)
    else:self.pieces.calm()
    # Only a failed transfer is tried again; an answer that contradicts the file (a wrong range, another size, pieces
    # that do not make one block) never becomes a block (ISSUE-303 integrity).
@@ -270,6 +281,39 @@ class Foreground(drive_stream.DriveStream):
   if index<self.open_blocks or (total and index==(total-1)//self.block_size):return 1
   return 2
 
+ def relay_tail(self,item,position,end,write):
+  """Bytes position..end relayed to `write` from ONE upstream connection as they arrive, for a source read serially (a debrid link). Returns how many were relayed
+  (0: not used: not a serial source, the block is in the cache or on its way, or the server did not answer: the block path then reads it as before).
+  Build 653 log d63069c3: Continue's cache fetched the file block by block and the debrid server refused almost every one (`RangeRefused`, Kodi's reads waited up to
+  28 s); in the same logs Kodi's own direct reads of the same server never were refused. One streaming request from where Kodi reads, like its own, with the
+  opening still answered from the kept blocks on the phone: fast to start and smooth after."""
+  if not self.serial or self.cancelled.is_set():return 0
+  size=self.block_size;index=position//size
+  with self.blocks.lock:
+   if (item,index) in self.blocks.data or (item,index) in self.blocks.pending:return 0
+  self.want(index)
+  try:
+   response=self.open_url(urllib.request.Request(self.remote_url,headers={'Range':'bytes=%d-%d'%(position,end)}),20)
+  except Exception:return 0
+  sent=0
+  try:
+   while position+sent<=end and not self.cancelled.is_set():
+    try:chunk=response.read(256*1024)
+    except Exception:break   # the server cut it: what was relayed stands, the block path takes over from there
+    if not chunk:break
+    chunk=chunk[:end-position-sent+1]
+    try:write(chunk)
+    except OSError as error:raise BrokenPipeError('the reader went away') from error
+    sent+=len(chunk)
+    at=position+sent
+    if at%size==0:   # at a block boundary: a block that is in the cache is served from it (the kept opening, the resume blocks)
+     with self.blocks.lock:
+      if (item,at//size) in self.blocks.data:break
+  finally:
+   try:response.close()
+   except Exception:pass
+  return sent
+
  def on_read(self,start,end,sent,took,waited,waits):
   """ISSUE-317: two lines per read Kodi makes through the cache: as it asks (sent is None) and as it ends."""
   at=time.monotonic()-took-self.born
@@ -294,9 +338,10 @@ class Foreground(drive_stream.DriveStream):
  def _fetch_block(self,item,start,end):
   if self.cancelled.is_set():raise _SourceClosed('Stream cache closed')
   total=self.blocks.sizes.get(item);stop=end if total is None else min(end,total-1)
-  if stop-start+1<=SPLIT*SPLIT_MIN:return super()._fetch(item,start,end)
-  step=-(-(stop-start+1)//SPLIT)
-  spans=[(start+i*step,min(stop,start+(i+1)*step-1)) for i in range(SPLIT) if start+i*step<=stop]
+  split=self.split
+  if split<=1 or stop-start+1<=split*SPLIT_MIN:return super()._fetch(item,start,end)
+  step=-(-(stop-start+1)//split)
+  spans=[(start+i*step,min(stop,start+(i+1)*step-1)) for i in range(split) if start+i*step<=stop]
   results=[None]*len(spans);errors=[]
   def piece(i,a,b):
    # A refused split range should yield to the existing single-connection fallback immediately. Retrying each piece
@@ -379,7 +424,16 @@ class Broker:
         broker.current.connect_timeout=min(20,FIRST_ANSWER)
         broker.current.opening_deadline=broker.opened+FIRST_ANSWER
         broker.current.open_blocks=OPEN_BLOCKS
-        threading.Thread(target=prefetch,args=(broker.current,),kwargs={'blocks':OPEN_BLOCKS,'extra':KODI_AHEAD},daemon=True).start()
+        resume=request.get('resume')
+        resume=resume if isinstance(resume,(int,float)) and 0<resume<1 else None
+        try:   # the opening kept from the last time this stream was played (resume_cache): in memory before Kodi reads, so the open and the resume seek need no network
+         import resume_cache
+         seeded=resume_cache.seed(broker.current,source)
+         if seeded:
+          import xbmc
+          xbmc.log('Kodi iOS resume cache: %d kept blocks given to the opening'%seeded,xbmc.LOGINFO)
+        except Exception:pass
+        threading.Thread(target=prefetch,args=(broker.current,),kwargs={'blocks':OPEN_BLOCKS,'extra':KODI_AHEAD,'resume':resume},daemon=True).start()
        answer={'url':broker.current.media_url,'id':broker.ident,'warmed':warmed}
       elif action=='warm':
        source=request.get('source','')
@@ -487,11 +541,23 @@ class Broker:
    if self.current:self.current.close();self.current=None
 
 
-def prefetch(source,blocks=None,extra=0):
+RESUME_BLOCKS=3   # Continue (owner, build 620 log 80ea6c76: 3.6 s from streams ready to the first picture, the resume seek reading cold): the
+                  # block where playback resumes and its neighbours, asked for with the opening blocks
+
+def resume_blocks(fraction,total,size):
+ """The block indexes around `fraction` of a file of `total` bytes (a guess from time: bitrate varies), or [] when there is no resume point."""
+ try:fraction=float(fraction)
+ except (TypeError,ValueError):return []
+ if not 0<fraction<1 or total<=0 or size<=0:return []
+ at=int(fraction*total)//size;last=(total-1)//size
+ return [i for i in range(at-1,at-1+RESUME_BLOCKS) if 0<i<last]
+
+def prefetch(source,blocks=None,extra=0,resume=None):
  """ISSUE-259: the blocks a converter reads first, fetched once (the size comes with block 0). Failures only mean
  Play on TV reads them itself later."""
  try:
   cache=source.blocks;cache.get('media',0);total=cache.sizes['media'];size=cache.block_size
+  if getattr(source,'serial',False):extra=min(extra,1)   # a serial server is read one block ahead, not a crowd of them
   last=(total-1)//size
   # ISSUE-302: together, not one after another (each is slow on its own on a debrid link)
   def one(index):
@@ -508,11 +574,12 @@ def prefetch(source,blocks=None,extra=0):
   begins=video_start(cache.data.get(('media',0),b''))
   if begins is not None:first=max(first,begins//size)
   more=[threading.Thread(target=one,args=(i,),daemon=True) for i in range(first,first+extra) if i<last]
+  more+=[threading.Thread(target=one,args=(i,),daemon=True) for i in resume_blocks(resume,total,size)]
   for t in threads:t.start()
   # the opening blocks' requests queue first (the gate only orders waiters; a free place goes to whoever asks first)
-  gate=getattr(source,'pieces',None);want=min(PIECES,SPLIT*len(threads))
+  gate=getattr(source,'pieces',None);room=getattr(gate,'size',PIECES);want=min(room,getattr(source,'split',SPLIT)*len(threads))
   until=time.monotonic()+1
-  while gate is not None and more and time.monotonic()<until and PIECES-gate.free+len(gate.waiting)<want:time.sleep(.01)
+  while gate is not None and more and time.monotonic()<until and room-gate.free+len(gate.waiting)<want:time.sleep(.01)
   for t in more:t.start()
   for t in threads:t.join()
  except Exception:pass
@@ -606,14 +673,138 @@ def acquire(source,home):
  except Exception:return source,None
 
 
-def for_kodi(source,home,wait=None,clock=time.monotonic):
+SLOW_SKIP=30*60   # seconds a server family that did not answer the cache's opening in time is played directly without asking again (build 639 log aec66fce: the
+                   # first open after each launch still paid 2 s and, with 28 requests in flight, left the debrid server refusing Kodi's own range read: "Requested range was not delivered")
+SLOW_PROPERTY='KodiIOS.CacheSlowHost'
+
+def _host(source):
+ """The server family of a link: 'debrid.it' for 8sio2e.debrid.it (every link of one debrid service has its own sub-domain)."""
+ try:
+  labels=(urllib.parse.urlsplit(str(source).split('|',1)[0]).hostname or '').lower().split('.')
+  return '.'.join(labels[-2:]) if len(labels)>=2 else '.'.join(labels)
+ except Exception:return ''
+
+def _memory_path():
+ try:
+  import xbmcvfs,os
+  return os.path.join(xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap'),'cache-slow.json')
+ except Exception:return None
+
+def note_slow(home,source,now=time.time,path=None):
+ """Remember (in the Home window and on disk, so a restart keeps it) that this link's server was too slow for the cache's opening."""
+ try:
+  host=_host(source)
+  if not host:return
+  stamp=now()
+  try:home.setProperty(SLOW_PROPERTY,'%s|%d'%(host,stamp))
+  except Exception:pass
+  path=path or _memory_path()
+  if path:
+   import json,os
+   try:data=json.load(open(path,encoding='utf-8'))
+   except Exception:data={}
+   data=data if isinstance(data,dict) else {}
+   data[host]=int(stamp)
+   os.makedirs(os.path.dirname(path),exist_ok=True)
+   with open(path,'w',encoding='utf-8') as out:json.dump({k:v for k,v in data.items() if now()-float(v)<SLOW_SKIP},out)
+ except Exception:pass
+
+def slow_recently(home,source,now=time.time,path=None):
+ try:
+  host=_host(source)
+  if not host:return False
+  mine,_,at=(home.getProperty(SLOW_PROPERTY) or '').partition('|')
+  if mine==host and 0<=now()-float(at)<SLOW_SKIP:return True
+ except Exception:pass
+ try:
+  path=path or _memory_path()
+  if not path:return False
+  import json
+  at=json.load(open(path,encoding='utf-8')).get(_host(source))
+  return at is not None and 0<=now()-float(at)<SLOW_SKIP
+ except Exception:return False
+
+def serial_host(source):
+  """True for a link whose server is read one request at a time: a debrid service, or any server that refused a crowd (or missed the cache's opening) lately."""
+  try:return _host(source) in SERIAL_FAMILIES or slow_recently(None,source)
+  except Exception:return False
+
+def _kept(source):
+ try:
+  import resume_cache
+  return resume_cache.ready(source)
+ except Exception:return False
+
+PREFLIGHT=6.0       # seconds a link's server has to deliver the start of the file before Kodi is given the link to play directly
+PREFLIGHT_TRIES=2   # connections asked at once: a debrid node that hangs one connection often answers another
+
+PREFLIGHT_BYTES=32768   # data that must really arrive: a server can answer a one-byte range quickly and then sit on a bigger read for 28 s (build 660 log bbd44482)
+
+def first_byte(source,limit=PREFLIGHT,tries=PREFLIGHT_TRIES,open_url=None,clock=time.monotonic,want=PREFLIGHT_BYTES):
+ """Seconds until the server of `source` has really sent `want` bytes of the start of the file (a range read of the first 64 KB), or None when that did not happen
+ within `limit`. Owner, build 660 (log bbd44482): the one-byte check answered in 1.4 s and Kodi's own read of the same link then waited 28 s for data, twice. Several
+ connections at once, the first that delivers counts; the address never reaches a log. open_url(request,timeout) is injectable (tests)."""
+ address,_,tail=str(source).partition('|');headers={'Range':'bytes=0-%d'%(2*want-1)}
+ headers.update({k:v for k,v in urllib.parse.parse_qsl(tail)})   # Kodi's own `|Header=value` suffix
+ opener=open_url or (lambda request,timeout:urllib.request.urlopen(request,timeout=timeout))
+ began=clock();answers=[];done=threading.Event()
+ def one():
+  try:
+   with opener(urllib.request.Request(address,headers=headers),limit) as response:
+    if not (getattr(response,'status',None) in (200,206) or response.getcode() in (200,206)):return
+    got=0
+    while got<want:
+     chunk=response.read(min(16384,want-got))
+     if not chunk:break
+     got+=len(chunk)
+    if got>=want or got>0:   # a file shorter than `want` ends early: what it has is what it sends
+     if got>=want or not response.read(1):answers.append(clock()-began);done.set()
+  except Exception:pass
+ threads=[threading.Thread(target=one,daemon=True) for _ in range(max(1,tries))]
+ for thread in threads:thread.start()
+ done.wait(limit)
+ return min(answers) if answers else None
+
+def preflight(source,home,limit=PREFLIGHT,check=None,renew=None,log=None):
+ """The link Kodi should be given when it will play it directly (the cache did not answer, or this server was slow a moment ago): `source` when its server sends
+ a first byte within `limit`; else the same file unlocked again, which a debrid service serves from another node, when THAT answers; else `source` (as before).
+ Owner, build 659 (log 4a05fc8f): Kodi waited 27.6 s for the first bytes of a link whose server was not answering, then read an empty file: 36.7 s of nothing."""
+ check=check or first_byte
+ log=log or (lambda text:None)
+ try:
+  waited=check(source,limit)
+  if waited is not None:
+   log('Kodi iOS stream opening: preflight: the server answered in %d ms'%int(waited*1000))
+   return source
+  record=umbrella_recovery.selected(source,home)
+  if not record:
+   log('Kodi iOS stream opening: preflight: no first byte in %d s and no way to unlock the file again'%int(limit))
+   return source
+  fresh=(renew or umbrella_recovery.renew)(record)
+  if fresh and umbrella_recovery.web(fresh) and fresh.partition('|')[0]!=source.partition('|')[0]:
+   again=check(fresh,limit)
+   if again is not None:
+    log('Kodi iOS stream opening: preflight: no first byte in %d s; the file unlocked again answered in %d ms'%(int(limit),int(again*1000)))
+    return fresh
+  log('Kodi iOS stream opening: preflight: no first byte in %d s and the unlocked-again link did not answer either; playing it as it is'%int(limit))
+ except Exception as error:log('Kodi iOS stream opening: preflight failed (%s)'%describe(error))
+ return source
+
+def for_kodi(source,home,wait=None,clock=time.monotonic,resume=None):
  """ISSUE-280: the address Kodi's own player should open for a link Umbrella just resolved: the service's cache when
  the link is a remote MKV / AVI / WebM and the service answers, else the link itself (nothing changes then)."""
- if not KODI_PLAYBACK or not eligible(source):return source
+ if not KODI_PLAYBACK:return source
+ if not eligible(source):
+  _note_route(home,source);return source   # the open record names why this open did not use the cache (an .mp4 link, for one)
  began=clock();sample={}
  try:
   endpoint=_endpoint(home)
   if not endpoint:return source
+  # Build 639 log 9f7b4ab2: both Umbrella opens waited 2 s for the cache's opening blocks (ready=False, 0 of 3) and then went direct. A server that
+  # was too slow a moment ago is not asked again for SLOW_SKIP seconds: the link is played directly at once (the cache is tried again afterwards).
+  if slow_recently(home,source) and not _kept(source):   # unless the opening of this very link is on the phone (resume_cache)
+   opening_log('direct',0,{},reason='this server did not answer the cache in time a moment ago')
+   return _direct(source,home)
   # ISSUE-306: the source handed over last time is still here and Kodi took nothing from it, a moment ago: Umbrella went on
   # to its next source without playing this one. Whatever stops the cache route playing, more of it will not help: this
   # source (and the rest of the cycle) is played directly, as in the builds that played.
@@ -624,7 +815,9 @@ def for_kodi(source,home,wait=None,clock=time.monotonic):
    except Exception:pass
    opening_log('direct',clock()-began,before,reason='previous source never read by Kodi')
    return source
-  answer=_call(endpoint,{'action':'open','source':source,'renewal':umbrella_recovery.selected(source,home),'player':'kodi'},timeout=min(1,FIRST_ANSWER))
+  request={'action':'open','source':source,'renewal':umbrella_recovery.selected(source,home),'player':'kodi'}
+  if isinstance(resume,(int,float)) and 0<resume<1:request['resume']=resume   # Continue: where playback resumes, as a share of the file
+  answer=_call(endpoint,request,timeout=min(1,FIRST_ANSWER))
   target=urllib.parse.urlsplit(answer['url'])
   if target.scheme!='http' or target.hostname!='127.0.0.1':return source
   # A Content-Range header is not video data. Admit only completed opening probes; otherwise preserve direct play.
@@ -633,12 +826,28 @@ def for_kodi(source,home,wait=None,clock=time.monotonic):
    try:_call(endpoint,{'action':'drop','id':answer.get('id','')})
    except Exception:pass
    opening_log('direct',clock()-began,sample)
-   return source
+   note_slow(home,source)
+   return _direct(source,home)
   opening_log('cache',clock()-began,sample)
   _LAST[0]=clock()
   return answer['url']
  except Exception:return source
 
+
+def _note_route(home,source):
+ """The open record's route field for a link the cache does not take: its file type only (never the address)."""
+ try:
+  import os
+  ext=os.path.splitext(urllib.parse.urlsplit(source.partition('|')[0]).path.lower())[1].lstrip('.')[:8] or 'none'
+  home.setProperty('KodiIOS.OpenRoute','not cached (.%s)'%ext)
+ except Exception:pass
+
+
+def _direct(source,home):
+ """The link for a direct open, checked first (preflight), with the failover logged."""
+ try:import xbmc
+ except ImportError:return source   # outside Kodi (tests, tools): nothing is asked of the network
+ return preflight(source,home,log=lambda text:xbmc.log(text,xbmc.LOGINFO))
 
 def opening_log(route,elapsed,stats,reason=''):
  """One useful, credential-free line per handoff, including failed/stalled probes."""
@@ -648,7 +857,11 @@ def opening_log(route,elapsed,stats,reason=''):
    route,max(0,int(elapsed*1000)),bool(stats.get('opening_ready')),int(stats.get('opening_complete') or 0),
    int(stats.get('opening_blocks') or 0),int(stats.get('pending_blocks') or 0),int(stats.get('read_bytes') or 0),
    int(stats.get('http_requests') or 0),int(stats.get('http_errors') or 0),int(stats.get('last_status') or 0))
-   +(' served=%d'%int(stats.get('served') or 0))+((' reason=%s'%reason) if reason else ''),xbmc.LOGINFO)
+   +(' served=%d'%int(stats.get('served') or 0))+((' reason=%s'%reason) if reason else '')+(' origin_answered=%s'%('yes' if int(stats.get('size') or 0)>0 else 'no')),xbmc.LOGINFO)   # origin_answered=no: the debrid server had not even said the file size, so the wait was its slow start, not ours
+ except Exception:pass
+ try:   # the one open record line (open_timing.record) names the route this open took
+  import xbmcgui
+  xbmcgui.Window(10000).setProperty('KodiIOS.OpenRoute','%s %d/%d wait %.1f s%s'%(route,int(stats.get('opening_complete') or 0),int(stats.get('opening_blocks') or 0),max(0.0,elapsed),(' ('+reason+')') if reason else ''))
  except Exception:pass
 
 

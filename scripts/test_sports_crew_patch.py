@@ -64,5 +64,41 @@ class CrewPatch(unittest.TestCase):
         self.assertEqual(patch.apply([os.path.join(tempfile.mkdtemp(), 'none')]), 'no Crew module folder')
 
 
+class ClientAlias(unittest.TestCase):
+    """Build 616 log: `Streamer [generic] failed ... module 'resources.lib.modules.client' has no attribute 'parseDOM'`: Crew's own downloaded streamers call
+    client.parseDOM, client.py defines only parseDom."""
+    BODY = "import re\n\n\ndef parseDom(html, name='', attrs=None, ret=False):\n    return [html]\n\n\ndef parseHTML(html, name='', attrs=None, ret=False):\n    return []\n"
+
+    def client(self, version='3.2.29', body=None):
+        folder = tempfile.mkdtemp()
+        os.makedirs(os.path.join(folder, 'lib/resources/lib/modules'))
+        open(os.path.join(folder, 'addon.xml'), 'w').write('<?xml version="1.0"?>\n<addon id="script.module.thecrew" name="x" version="%s">\n</addon>\n' % version)
+        path = os.path.join(folder, patch.CLIENT_RELATIVE)
+        open(path, 'w').write(body or self.BODY)
+        return folder, path
+
+    def test_the_alias_is_added_once_and_works(self):
+        folder, path = self.client()
+        self.assertEqual(patch.apply_client([folder]), 'patched');self.assertEqual(patch.apply_client([folder]), 'already')
+        namespace = {}
+        exec(compile(open(path).read(), path, 'exec'), namespace)
+        self.assertIs(namespace['parseDOM'], namespace['parseDom']);self.assertEqual(namespace['parseDOM']('<a>', 'a'), ['<a>'])
+        self.assertEqual(open(path).read().count('parseDOM ='), 1)
+
+    def test_another_version_or_file_is_left_alone(self):
+        folder, path = self.client(version='3.2.30');before = open(path).read()
+        self.assertIn('not the pinned version', patch.apply_client([folder]));self.assertEqual(open(path).read(), before)
+        folder, path = self.client(body='def parseDom(x):\n    return x\n');before = open(path).read()
+        self.assertIn('does not match', patch.apply_client([folder]));self.assertEqual(open(path).read(), before)
+
+    def test_the_real_pinned_client_gets_it_when_it_is_here(self):
+        real = Path('/tmp/claude-0/ipa608/x/Payload/Kodi.app/AppData/AppHome/addons/script.module.thecrew')
+        if not (real / 'lib/resources/lib/modules/client.py').exists():self.skipTest('the pinned Crew module is not on this machine')
+        copy = Path(tempfile.mkdtemp()) / 'm';import shutil;shutil.copytree(real, copy)
+        self.assertEqual(patch.apply_client([str(copy)]), 'patched')
+        source = (copy / patch.CLIENT_RELATIVE).read_text();compile(source, 'client.py', 'exec')
+        self.assertIn('parseDOM = parseDom', source)
+
+
 if __name__ == '__main__':
     unittest.main()

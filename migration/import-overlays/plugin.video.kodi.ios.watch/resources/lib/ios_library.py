@@ -84,9 +84,34 @@ def warm_copy(path,xbmcvfs=None,ask=None):
   return bool(ask(int(port),file_id))
  except Exception:return False
 
+def prefetch_copy(path,xbmcvfs=None,ask=None,at=None):
+ """A copy that may play next (the next episode, the movie most likely to be resumed, a Continue Watching item): the app's Drive proxy keeps its first
+ 24 MB and last 4 MB on the phone until it plays (Wi-Fi only, kept past the current video's stop), so it opens and autoplays without a Drive wait.
+ Asked on a thread: a page never waits for it. Quiet when it cannot."""
+ try:
+  file_id=drive_file_id(path)
+  if not file_id:return False
+  import xbmcgui,threading
+  port=xbmcgui.Window(10000).getProperty('KodiIOS.DriveProxy')
+  if not port.isdigit():return False
+  if ask is None:
+   boot_path(xbmcvfs);import drive_proxy;ask=drive_proxy.ask_prefetch
+  args=(int(port),file_id)
+  threading.Thread(target=ask,args=args,kwargs={'at':at} if at else {},daemon=True).start()
+  return True
+ except Exception:return False
+
 def live_proxy_port(xbmc,xbmcgui,xbmcvfs):
  """The app's Drive proxy port as a string, or '' when it does not answer (ISSUE-355)."""
  window=xbmcgui.Window(10000)
+ try:   # build 634 log 4c4cf619: a Continue 6 s after launch found no proxy yet (it was up at 8 s) and played through the Drive add-on's own server, which could not be cut when Next Episode stopped it for 26 s: in the first 40 s after the service started, wait up to 5 s for it
+  import time
+  began=float(window.getProperty('KodiIOS.ServiceStart') or 0)
+  if not window.getProperty('KodiIOS.DriveProxy') and began and time.time()-began<40:
+   for _ in range(25):
+    if window.getProperty('KodiIOS.DriveProxy'):break
+    xbmc.sleep(200)
+ except Exception:pass
  try:
   boot_path(xbmcvfs);import drive_proxy
   port=drive_proxy.live_port(lambda:window.getProperty('KodiIOS.DriveProxy'),lambda p:window.setProperty(drive_proxy.DEAD,str(p)),lambda s:xbmc.sleep(int(s*1000)))
@@ -455,6 +480,24 @@ def upscaled_path(path,params,profile,xbmc=None):
   if xbmc is not None:xbmc.log('Kodi iOS Library: AI Upscale copy not used (%s)'%type(error).__name__,xbmc.LOGWARNING)
   return path
 
+def play_stream(handle,entry,url,position,total):
+ """Resolve a remembered Umbrella link for Continue (ios_watch_dialog.fast_stream): the title, show, season, episode and art come from the Continue record."""
+ import xbmc,xbmcgui,xbmcplugin
+ kind=entry.get('kind') or 'episode'
+ li=xbmcgui.ListItem(label=entry.get('title') or entry.get('tvshowtitle') or '',path=url);li.setProperty('IsPlayable','true')
+ tag=li.getVideoInfoTag();tag.setMediaType('movie' if kind=='movie' else 'episode');tag.setTitle(entry.get('title') or entry.get('tvshowtitle') or '')
+ if kind=='episode':
+  tag.setTvShowTitle(entry.get('tvshowtitle') or '')
+  if str(entry.get('season') or '').isdigit():tag.setSeason(int(entry['season']))
+  if str(entry.get('episode') or '').isdigit():tag.setEpisode(int(entry['episode']))
+ elif str(entry.get('year') or '').isdigit():tag.setYear(int(entry['year']))
+ if entry.get('art'):li.setArt(entry['art'])
+ if entry.get('plot'):tag.setPlot(entry['plot'])   # the Info card's description (ios_continue.record keeps it)
+ tag.setResumePoint(position,total);li.setProperty('StartOffset',str(position))
+ mark_open('umbrella')
+ mark_resolved()
+ xbmcplugin.setResolvedUrl(handle,True,li)
+
 def play_downloaded(handle,params):
  """Resolve a completed copy directly and retain progress in the same history used by Continue Watching."""
  import xbmc,xbmcgui,xbmcplugin,xbmcvfs
@@ -499,6 +542,9 @@ def play_downloaded(handle,params):
    # roadmap 1A.1: the app's own Drive proxy. ISSUE-355: checked first; a dead one (iOS closes sockets in the background) is restarted by the
    # service and its new port read, else the Drive add-on's stream below plays the copy.
    ours=live_proxy_port(xbmc,xbmcgui,xbmcvfs)
+   # Step 3 (owner, build 619 log bb2b3e35: the jump to where a Drive copy was left took 3.5 s, its reads cold): the proxy fetches the fragment
+   # where it resumes (found in the copy's own index) while Kodi opens the file.
+   if ours and position and total and 0<position<total:prefetch_copy(path,xbmcvfs,at=position/total)
    fast=lib.direct_url(path,state,ours,ours=True) if ours else None
    via='app proxy' if fast else 'Drive add-on stream'
    fast=fast or lib.direct_url(path,state,xbmcaddon.Addon('plugin.googledrive').getSetting('download.service.port'))
@@ -506,6 +552,17 @@ def play_downloaded(handle,params):
  except Exception as error:xbmc.log('Kodi iOS Library: playback details unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
  li.getVideoInfoTag().setResumePoint(position,total)
  if position:li.setProperty('StartOffset',str(position))
+ try:   # what this add-on knows about the video, for the subtitle search: Kodi's own item can lack the show, season and episode (owner log 067121ef: "unable to find any")
+  import json,time
+  try:known=dict(info)
+  except NameError:known={}
+  xbmcgui.Window(10000).setProperty('KodiIOS.Playing',json.dumps({'t':time.time(),'kind':params.get('kind') or 'episode','title':known.get('title') or params.get('title',''),
+   'show':known.get('tvshowtitle') or params.get('show',''),'season':known.get('season') or params.get('season',''),'episode':known.get('episode') or params.get('episode',''),
+   'year':known.get('year') or params.get('year',''),'tmdb':params.get('tmdb_id') or known.get('tmdb_id',''),
+   # Next Episode on a downloaded copy (owner 2026-11-21: it did nothing): the Library path of this copy and what Kodi plays, so the next downloaded
+   # episode of the show can be found in the Library's own order (next_episode.downloaded_plan).
+   'path':params.get('path',''),'file':li.getPath(),'downloaded':True}))
+ except Exception:pass
  import ios_continue
  def read(location):
   source=xbmcvfs.File(location)
@@ -587,13 +644,21 @@ def _directory(handle,params):
    rows=[row for row in rows if str(row[3].get('season') or '0')==params['season']]
   props=play_properties(rows)
   target=play_target(rows)
-  if target:warm_copy(target[0],xbmcvfs)   # roadmap 1A.4
+  if target:
+   warm_copy(target[0],xbmcvfs)   # roadmap 1A.4
+   prefetch_copy(target[0],xbmcvfs)
+   place=rows.index(target) if target in rows else -1   # and the episode after it, so autoplay is instant
+   if 0<=place<len(rows)-1 and rows[place+1][3].get('mediatype')=='episode':prefetch_copy(rows[place+1][0],xbmcvfs)
   search=lib.artwork('tv',show,'',key,art_cache,None,cached_only=True)
   details=dict(search,**lib.show_details(search.get('tmdb_id'),key,art_cache,None,cached_only=True))
   props.update({'KodiIOS.ShowPlot':details.get('plot',''),'KodiIOS.ShowYear':str(details.get('year') or year),
                 'KodiIOS.ShowRating':str(details.get('rating') or ''),'KodiIOS.ShowGenres':' / '.join(details.get('genres') or [])})
   if params.get('season') is None:rows=season_rows(rows,params,lib,art_cache,key)
-  else:rows=[(play_route(row),row[1],row[2],dict(row[3],properties=play_properties([row])),row[4]) for row in rows]
+  else:
+   # A season's episodes carry where the show's season list is, so the page can draw the season row above them (owner 2026-11-20:
+   # "scroll up I can't select a different season without backing out"; the row was only there for TMDb Helper shows).
+   seasons=page_url({k:v for k,v in params.items() if k in ('type','folder','show','year','local','loose','merge')})
+   rows=[(play_route(row),row[1],row[2],dict(row[3],properties=dict(play_properties([row]),**{'KodiIOS.SeasonsPath':seasons})),row[4]) for row in rows]
   if not rows:rows=[empty_show_row(details)]
  else:
   props={key:'' for key in ('KodiIOS.DownloadedShow','KodiIOS.PlayLabel','KodiIOS.PlayPath','KodiIOS.PlayResume',
@@ -621,6 +686,7 @@ def _directory(handle,params):
   except (OSError,ValueError,AttributeError):history={}
   rows=movie_resume_rows(rows,rpc,history)
   warm_copy(movie_warm_target(rows),xbmcvfs)   # roadmap 1A.4: the movie most likely to be resumed
+  prefetch_copy(movie_warm_target(rows),xbmcvfs)
  seen=set()
  for name,value in props.items():xbmcplugin.setProperty(handle,name,value)
  for path,label,art,info,is_folder in rows:

@@ -5,7 +5,7 @@ import episode_watch as watch
 def pass_once(profile,window,keep_going,log,auto_allowed=True):
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
  import debrid_drive,drivelibrary,library_scan,source_match,elementum_cloud,elementum_download,transfer_control
- if watch.batch_active(window):return 0
+ if watch.batch_active(window):watch.sweep.last={'deferred':True,'unresolved':0,'checked':0};return 0   # a season batch is running: look again soon
  if not watch.load(profile)['shows']:return 0
  key=source_match.tmdb_key()
  if not key:raise RuntimeError('Episode metadata is unavailable')
@@ -71,7 +71,10 @@ def pass_once(profile,window,keep_going,log,auto_allowed=True):
   queued=False
   try:
    url=elementum_download.plugin_url('episode',show['tmdb'],target['season'],target['episode'])
-   elementum_download.follow(url,timeout=120,route=lambda url:elementum_cloud.route(url,quiet=True,request_id=ident) if allowed() else True)
+   try:elementum_download.follow(url,timeout=120,route=lambda url:elementum_cloud.route(url,quiet=True,request_id=ident) if allowed() else True,gate=elementum_download.background_gate)
+   except elementum_download.Canceled:
+    if not allowed():raise   # interrupted (a video started, the app left)
+    return False             # AllDebrid did not take it (a new episode is often not cached yet): this episode is not found yet, the others are still checked
    result=json.loads(window.getProperty('KodiIOS.AutoPick.Queued') or '{}')
    queued=result.get('request_id')==ident and result.get('queued') is True
    return queued
@@ -99,10 +102,17 @@ def run(monitor,profile,ready):
  log=lambda event,**fields:diagnostics.event(lambda text:xbmc.log(text,xbmc.LOGINFO),'episode_watch',event,**fields)
  def check():
   # The Library setting only switches automatic downloading off; the bell's alerts still run (a stream-only show).
-  try:log('opening_check',queued=pass_once(profile,window,
-       lambda:not monitor.abortRequested() and app_state.foreground() and not xbmc.getCondVisibility('Player.HasMedia'),log,
-       auto_allowed=xbmcaddon.Addon().getSetting('follow_episodes')!='false'))
-  except Exception as error:log('opening_deferred',error=type(error).__name__)
+  # Returns when to look again: soon after an interrupted pass, every half hour while an aired episode is still not found.
+  watch.sweep.last={}
+  try:
+   queued=pass_once(profile,window,lambda:not monitor.abortRequested() and app_state.foreground() and not xbmc.getCondVisibility('Player.HasMedia'),log,
+                    auto_allowed=xbmcaddon.Addon().getSetting('follow_episodes')!='false')
+  except Exception as error:
+   log('opening_deferred',error=type(error).__name__);return watch.RETRY_DEFERRED if watch.interrupted(error) else None
+  last=getattr(watch.sweep,'last',{}) or {}
+  log('opening_check',queued=queued,checked=last.get('checked',0),unresolved=last.get('unresolved',0),deferred=bool(last.get('deferred')))
+  if last.get('deferred'):return watch.RETRY_DEFERRED
+  return watch.RETRY_UNRESOLVED if last.get('unresolved') else None
  watch.run_open_checks(monitor,ready,app_state.foreground,
   lambda:xbmc.getCondVisibility('Player.HasMedia | Window.IsVisible(yesnodialog) | Window.IsVisible(selectdialog) | Window.IsVisible(virtualkeyboard)') or bool(watch.active_request(window)) or watch.batch_active(window),
   lambda:True,check)

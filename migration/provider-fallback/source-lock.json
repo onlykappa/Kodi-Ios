@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "mirror_base": "https://github.com/onlykappa/Kodi-Ios/releases/download/provider-sources-1",
   "purpose": "Headless fallback sources for the existing automatic movie/TV picker; no replacement UI, account state, repositories or native engines.",
   "roots": [
     "plugin.video.jacktook",
@@ -37,8 +38,13 @@
     },
     {
       "id": "plugin.video.pov",
-      "url": "https://github.com/onlykappa/Kodi-Ios/releases/download/provider-sources-1/plugin.video.pov-6.11.03.zip",
+      "repo": "kodifitzwell/repo",
+      "commit": "2c8390c6e65213853a862a00044597946b946132",
+      "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/plugin.video.pov/plugin.video.pov-6.11.03.zip",
       "sha256": "2ec94ad0a1d4b735285d8b79e9dfbba33e11cbd1f817e07f58d1c6f630a7f71d",
+      "upstream_sha256": "9ac93ad045910774503cbfeeb45b63bbd9b23837c9e76749885076c9b11edfba",
+      "from_ipa": {"url": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-679/Kodi-iOS-Customized-Touch-r10.ipa", "sha256": "8f612c0b9e96ff351285d7f1936f65d62724e9d5e46da01132199dd81eac1fe0", "prefix": "Payload/Kodi.app/AppData/AppHome/addons"},
+      "vendored_note": "Upstream (kodifitzwell/repo) answered 404 on 2026-11-24. This archive is rebuilt from the reviewed tree that shipped in build 679 (the IPA kept as a release asset, pinned by from_ipa.sha256): bytecode left out, services already disabled as remove_services does, entries in sorted order with fixed dates and no compression. upstream_sha256 is the original archive.",
       "version": "6.11.03",
       "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
       "install": "app",
@@ -50,12 +56,17 @@
         "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/plugin.video.pov/plugin.video.pov-6.11.03.zip",
         "sha256": "9ac93ad045910774503cbfeeb45b63bbd9b23837c9e76749885076c9b11edfba"
       },
-      "provenance": "Owner-selected private release archive; relation to original upstream tree unverified; source and redistribution review pending."
+      "provenance": "Rebuilt from the tree that shipped in build 679 (see vendored_note); the bytes match sha256 but differ from original_pin; source and redistribution review pending."
     },
     {
       "id": "script.module.magneto",
-      "url": "https://github.com/onlykappa/Kodi-Ios/releases/download/provider-sources-1/script.module.magneto-6.11.01.zip",
+      "repo": "kodifitzwell/repo",
+      "commit": "2c8390c6e65213853a862a00044597946b946132",
+      "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/script.module.magneto/script.module.magneto-6.11.01.zip",
       "sha256": "815e862ed661cc0350dfccadf1b9a7a0120805f878004398fe0e3e20557958a9",
+      "upstream_sha256": "c2dabb04a1ab8eda8307f12333f747bede00e481ba7cb9ef4905d2d59ac9e418",
+      "from_ipa": {"url": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-679/Kodi-iOS-Customized-Touch-r10.ipa", "sha256": "8f612c0b9e96ff351285d7f1936f65d62724e9d5e46da01132199dd81eac1fe0", "prefix": "Payload/Kodi.app/AppData/AppHome/addons"},
+      "vendored_note": "Upstream (kodifitzwell/repo) answered 404 on 2026-11-24. This archive is rebuilt from the reviewed tree that shipped in build 679 (the IPA kept as a release asset, pinned by from_ipa.sha256): bytecode left out, services already disabled as remove_services does, entries in sorted order with fixed dates and no compression. upstream_sha256 is the original archive.",
       "version": "6.11.01",
       "license": "GNU GENERAL PUBLIC LICENSE. Version 3, 29 June 2007",
       "install": "app",
@@ -66,7 +77,7 @@
         "url": "https://raw.githubusercontent.com/kodifitzwell/repo/2c8390c6e65213853a862a00044597946b946132/script.module.magneto/script.module.magneto-6.11.01.zip",
         "sha256": "c2dabb04a1ab8eda8307f12333f747bede00e481ba7cb9ef4905d2d59ac9e418"
       },
-      "provenance": "Owner-selected private release archive; relation to original upstream tree unverified; source and redistribution review pending."
+      "provenance": "Rebuilt from the tree that shipped in build 679 (see vendored_note); the bytes match sha256 but differ from original_pin; source and redistribution review pending."
     },
     {
       "id": "plugin.video.otaku",

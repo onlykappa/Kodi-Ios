@@ -31,7 +31,10 @@ WARM_FILES = 2                    # at most this many titles are kept warm (abou
 WARM_MAX_AGE = 600                # seconds a warmed title stays usable
 SPARE_MAX_AGE = 45                # seconds a pre-opened connection is trusted (Drive closes idle ones)
 HOLD_MAX = 10                     # roadmap 1G.3: longest one wait is (below Kodi's 20 s low-speed limit), seconds
-READ_AHEAD = 16                  # roadmap 1A.5: pieces (4 MB) the proxy reads ahead of Kodi after a seek
+READ_AHEAD = 96                  # pieces (24 MB) the proxy reads ahead of Kodi after a seek (roadmap 1A.5 had 4 MB; build 615's log: seeks landed 0.6-3.5 s later and
+                                 # then stuttered, every request being a new Drive read at 0.3-0.7 s to the first byte)
+BLOCK = 1024 * 1024              # the memory cache's block
+BLOCK_CAP = 96                   # blocks kept (96 MB); memory only: the Drive index design keeps no movie payload on disk
 
 
 def media_path(file_id):
@@ -145,6 +148,64 @@ class Stats(object):
         return out
 
 
+class Blocks(object):
+    """The last BLOCK_CAP blocks of movie that went through the proxy, kept in memory only. A seek back to what was just played, or a
+    request that starts inside it, is answered without a Drive round trip. Each block is whole and aligned; the cache is keyed by the
+    file and its size, so a replaced file (a new size) never serves an old block."""
+
+    def __init__(self, cap=None):
+        self.cap = cap or BLOCK_CAP
+        self.lock = threading.Lock()
+        self.data = collections.OrderedDict()   # (file_id, size, index) -> bytes, least recently used first
+        self.size = {}                          # file_id -> the size those blocks belong to
+
+    def put(self, file_id, size, index, block):
+        with self.lock:
+            if self.size.get(file_id) != size:
+                for key in [k for k in self.data if k[0] == file_id]:
+                    del self.data[key]
+                self.size[file_id] = size
+            self.data[(file_id, size, index)] = block
+            self.data.move_to_end((file_id, size, index))
+            while len(self.data) > self.cap:
+                self.data.popitem(last=False)
+
+    def get(self, file_id, size, index):
+        with self.lock:
+            block = self.data.get((file_id, size, index))
+            if block is not None:
+                self.data.move_to_end((file_id, size, index))
+            return block
+
+    def known_size(self, file_id):
+        with self.lock:
+            return self.size.get(file_id)
+
+
+class Tee(object):
+    """Collects the pieces of one upstream response into whole aligned blocks for Blocks (a start inside a block waits for the next boundary)."""
+
+    def __init__(self, blocks, file_id, size, start):
+        self.blocks, self.file_id, self.size, self.pos, self.buf = blocks, file_id, size, start, bytearray()
+
+    def feed(self, piece):
+        if not self.blocks or not piece:
+            return
+        if not self.buf and self.pos % BLOCK:   # not at a boundary yet: skip to the next one
+            skip = min(len(piece), BLOCK - self.pos % BLOCK)
+            self.pos += skip
+            piece = piece[skip:]
+        self.buf += piece
+        self.pos += len(piece)
+        while len(self.buf) >= BLOCK:
+            index = (self.pos - len(self.buf)) // BLOCK
+            self.blocks.put(self.file_id, self.size, index, bytes(self.buf[:BLOCK]))
+            del self.buf[:BLOCK]
+        if self.pos >= self.size and self.buf and (self.pos - len(self.buf)) % BLOCK == 0:
+            self.blocks.put(self.file_id, self.size, (self.pos - len(self.buf)) // BLOCK, bytes(self.buf))   # the file's short last block
+            self.buf = bytearray()
+
+
 class Upstream(object):
     """One kept-alive HTTPS connection per thread to Drive; token(force) gives a bearer token (force: a fresh one)."""
 
@@ -153,6 +214,8 @@ class Upstream(object):
         self.token = token
         self.connect = connect or (lambda: http.client.HTTPSConnection(HOST, timeout=TIMEOUT))
         self.local = threading.local()
+        self.open = set()               # every connection made, so abort_all can cut them (ISSUE-428)
+        self.aborted_until = 0.0
         self.keep_spare = spare       # roadmap 1A.5: keep one connected (TLS done) connection ready for the next request
         self.lock = threading.Lock()
         self.spare = None
@@ -204,8 +267,37 @@ class Upstream(object):
             conn = None if fresh else self._take_spare()
             self.local.conn = conn or self.connect()
             conn = self.local.conn
+            with self.lock:
+                self.open.add(conn)
             self.prepare()
         return conn
+
+    def release(self):
+        """End the refusal abort_all started: the old video is closed, so what asks next is the next video (ISSUE-428, build 639 log 9f7b4ab2: the next
+        episode's first reads came 0.4 s after the close, inside the 4 s hold, and Kodi got 502 for a file that was fine)."""
+        with self.lock:
+            self.aborted_until = 0.0
+
+    def abort_all(self, hold=4.0):
+        """Cut every upstream connection now and refuse new requests for `hold` seconds (ISSUE-428, owner build 623 log 8c570737: Next Episode waited 40 s for the
+        playing Drive video to close, Kodi's cache blocked on reads the proxy could not finish). Readers get an error at once, so Kodi's close does not wait.
+        Returns how many connections were cut."""
+        with self.lock:
+            conns = list(self.open) + ([self.spare] if self.spare is not None else [])
+            self.open.clear()
+            self.spare = None
+            self.aborted_until = time.monotonic() + hold
+        cut = 0
+        for conn in conns:
+            try:
+                sock = getattr(conn, 'sock', None)
+                if sock is not None:
+                    sock.shutdown(2)   # socket.SHUT_RDWR: a blocked read returns at once
+                    cut += 1
+                conn.close()
+            except Exception:
+                pass
+        return cut
 
     def drop(self):
         conn = getattr(self.local, 'conn', None)
@@ -240,6 +332,8 @@ class Upstream(object):
         """The open upstream response for file_id (status 200/206/...), retrying once on a stale connection or 401."""
         force = False
         for attempt in range(attempts):
+            if time.monotonic() < self.aborted_until:
+                raise ConnectionAbortedError('upstream aborted')
             began = time.monotonic()
             access = self.token(force)
             authenticated = time.monotonic()
@@ -273,6 +367,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     stats = None
     hold = None
     indices = None
+    blocks = None
+    filler = None
 
     def log_message(self, *args):
         pass
@@ -356,6 +452,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     put(piece)
                     if not piece:
                         return
+            except AttributeError:   # http.client's response lost its socket when abort_all cut it (build 639 log 9f7b4ab2: 'NoneType' has no attribute 'close' in a request thread)
+                put(ConnectionAbortedError('upstream aborted'))
             except Exception as error:
                 put(error)
         threading.Thread(target=produce, daemon=True).start()
@@ -430,6 +528,108 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.close_connection = True
         return True
 
+    def _from_blocks(self, file_id, rng, started):
+        """Answer a ranged request from the memory cache: whole blocks from the start of the range, then (if the range goes on) the rest from
+        Drive. False when the first byte is not cached (or the file's size is not known), so the ordinary path runs."""
+        size = self.blocks.known_size(file_id) if self.blocks else None
+        span = self._range(rng, size) if size else None
+        if not span:
+            return False
+        first, last = span
+        pieces, pos = [], first
+        while pos <= last:
+            block = self.blocks.get(file_id, size, pos // BLOCK)
+            if block is None:
+                break
+            part = block[pos - (pos // BLOCK) * BLOCK:][:last - pos + 1]
+            pieces.append(part)
+            pos += len(part)
+        if not pieces:
+            return False
+        rest = None
+        if pos <= last:
+            try:
+                rest = self.upstream.get(file_id, 'bytes=%d-%d' % (pos, last))
+            except Exception:
+                return False
+            if rest.status != 206:
+                rest.read()
+                return False
+        if self.filler:
+            self.filler.want(file_id, size, first)
+        self.send_response(206)
+        self.send_header('Content-Length', str(last - first + 1))
+        self.send_header('Content-Range', 'bytes %d-%d/%d' % (first, last, size))
+        self.send_header('Accept-Ranges', 'bytes')
+        self.send_header('Content-Type', self._type(self.path, (self.sizes.get(file_id) or (0, ''))[1]))
+        self.end_headers()
+        self.upstream.log('Kodi iOS Drive range: start=%d cached=%d%s' % (first, pos - first, ' then Drive' if rest is not None else ''))
+        if self.stats:
+            self.stats.add(seek=(time.time() - started) if first else None, warm=True)
+        try:
+            for part in pieces:
+                self.wfile.write(part)
+            if rest is not None:
+                tee = Tee(self.blocks, file_id, size, pos)
+                for piece in self._stream(rest):
+                    tee.feed(piece)
+                    self.wfile.write(piece)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            self.upstream.drop()
+            self.close_connection = True
+        return True
+
+    def _prefetch_request(self):
+        """GET /prefetch/<file id>/<name>: this video may play next (the next episode, a Continue Watching item): keep its start and end on the phone
+        past the current video's stop (drive_cache.Filler.prefetch)."""
+        split = urllib.parse.urlsplit(self.path)
+        parts = split.path.split('/')
+        file_id = urllib.parse.unquote(parts[2]) if len(parts) >= 3 else ''
+        ok = False
+        try:
+            if file_id and self.filler:
+                info = self._size(file_id)
+                first = ()
+                at = urllib.parse.parse_qs(split.query).get('at', [''])[0]   # step 3: a resumed copy's share: its fragment is fetched first
+                if at and self.indices and info:
+                    block = getattr(self.filler, 'block', BLOCK)
+                    first = [(offset, max(1, -(-count // block))) for offset, count in self.indices.resume_plan(file_id, at, info[0])]
+                ok = bool(info and self.filler.prefetch(file_id, info[0], first=first))
+        except Exception:
+            ok = False
+        self.send_response(202 if ok else 404)
+        self.send_header('Content-Length', '0')
+        self.end_headers()
+
+    def _cushion_request(self):
+        """GET /cushion/<file id>/<name>?at=<byte>: Play on TV is about to start reading this file from about byte `at`. Starts (or moves) the filler there and
+        answers with how many bytes in a row are already on the phone from that point, as JSON {"ahead": bytes, "state": "..."}: the app waits for a
+        cushion before it tells the TV to start (owner log f93a3233: the TV began after one segment and starved at 40 s). No ids and no links in the state."""
+        split = urllib.parse.urlsplit(self.path)
+        parts = split.path.split('/')
+        file_id = urllib.parse.unquote(parts[2]) if len(parts) >= 3 else ''
+        body, code = {'ahead': 0, 'state': 'no cache'}, 404
+        try:
+            if file_id and self.filler:
+                info = self._size(file_id)
+                at = urllib.parse.parse_qs(split.query).get('at', ['0'])[0]
+                if info:
+                    size = info[0]
+                    position = max(0, min(size - 1, int(at))) if at.isdigit() else 0
+                    self.filler.want(file_id, size, position)
+                    need = urllib.parse.parse_qs(split.query).get('need', [''])[0]
+                    body, code = {'ahead': self.filler.ahead_bytes(file_id), 'state': self.filler.state(), 'size': size}, 200
+                    if need.isdigit():
+                        body['ready'] = self.filler.cushion_ready(file_id, int(need))   # the picture's cushion AND every other followed stretch's (audio)
+        except Exception:
+            body, code = {'ahead': 0, 'state': 'error'}, 500
+        data = json.dumps(body).encode()
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def _warm_request(self):
         """GET /warm/<file id>/<name>: the page of this title opened; read its start and end now (roadmap 1A.4)."""
         parts = urllib.parse.urlsplit(self.path).path.split('/')
@@ -441,8 +641,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         started = time.time()
+        if self.path.startswith('/cushion/'):
+            return self._cushion_request()
         if self.path.startswith('/warm/'):
             self._warm_request()
+            return
+        if self.path.startswith('/prefetch/'):
+            self._prefetch_request()
+            return
+        if self.path.startswith('/abort'):   # ISSUE-428: the player is about to be stopped: cut what it is waiting on
+            if 'release=1' in self.path:   # the old video is closed: the next one's requests are welcome (build 639 log 9f7b4ab2: Next Episode's first reads got 502)
+                if self.upstream:
+                    self.upstream.release()
+                cut = 0
+            else:
+                cut = self.upstream.abort_all() if self.upstream else 0
+            self.send_response(200)
+            self.send_header('Content-Length', '0')
+            self.send_header('X-Cut', str(cut))
+            self.end_headers()
             return
         file_id = parse_path(self.path)
         if not file_id:
@@ -450,6 +667,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         rng = self.headers.get('Range')
         if rng and self._from_warm(file_id, rng, started):
+            return
+        if rng and self.blocks and self._from_blocks(file_id, rng, started):
             return
         try:
             if self.indices:
@@ -479,8 +698,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.stats:
             begins = re.match(r'bytes=(\d+)-', rng or '')
             self.stats.add(seek=(time.time() - started) if begins and int(begins.group(1)) else None)
+        tee = None
+        total = re.fullmatch(r'bytes (\d+)-\d+/(\d+)', resp.getheader('Content-Range') or '')
+        if self.blocks and total:
+            tee = Tee(self.blocks, file_id, int(total.group(2)), int(total.group(1)))
+            if self.filler:
+                self.filler.want(file_id, int(total.group(2)), int(total.group(1)))
+        elif self.blocks and resp.status == 200 and (resp.getheader('Content-Length') or '').isdigit():
+            tee = Tee(self.blocks, file_id, int(resp.getheader('Content-Length')), 0)
+        self.upstream.log('Kodi iOS Drive range: start=%s cached=0' % (re.match(r'bytes=(\d+)-', rng or '') or [0, 0])[1])
         try:
             for piece in self._stream(resp):
+                if tee:
+                    tee.feed(piece)
                 self.wfile.write(piece)
         except (BrokenPipeError, ConnectionResetError, OSError):
             # Kodi closed the request (a seek): the upstream response is half read, so its connection is not reused.
@@ -502,15 +732,44 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
         super().handle_error(request, client_address)
 
 
-def start(token, connect=None, port=0, hold=None, state_dir=None, log=lambda text: None):
+def filler_state():
+    """The fillers' one-line state for the cast diagnostics ('filler idle', 'filler on 1 file(s), 120 MB ahead'); '' with no cache."""
+    for server in CURRENT:
+        filler = server.RequestHandlerClass.filler
+        if filler:
+            return filler.state()
+    return ''
+
+
+def clear_cache():
+    """Playback stopped: drop the playback cache (the movie blocks on the phone) and stop the fillers."""
+    for server in CURRENT:
+        handler = server.RequestHandlerClass
+        if handler.filler:
+            handler.filler.stop_all()
+        if hasattr(handler.blocks, 'clear'):
+            handler.blocks.clear(keep_pins=True)   # a prefetched next video stays
+        elif handler.blocks:
+            handler.blocks.data.clear()
+            handler.blocks.size.clear()
+
+
+def start(token, connect=None, port=0, hold=None, state_dir=None, log=lambda text: None, cache_dir=None, wifi_ok=None, pace=None):
     """Start the proxy on 127.0.0.1; returns (server, port). token(force) -> bearer token."""
     stats = Stats()
     indices = None
     if state_dir is not None:
         import drive_index
         indices = drive_index.Cache(state_dir, log, background=True)
-    handler = type('DriveProxyHandler', (Handler,), {'upstream': Upstream(token, connect, spare=connect is None, log=log), 'sizes': {},
-                                                     'warm': Warm(), 'stats': stats, 'hold': staticmethod(hold) if hold else None,
+    upstream = Upstream(token, connect, spare=connect is None, log=log)
+    blocks, filler = Blocks(), None
+    if cache_dir:   # the playback cache on the phone's temporary folder (drive_cache): blocks on disk, a Wi-Fi-only filler, wiped when playback stops
+        import drive_cache
+        blocks = drive_cache.DiskBlocks(cache_dir, BLOCK, log=log)
+        filler = drive_cache.Filler(blocks, Upstream(token, connect, log=log), BLOCK, Tee, allowed=wifi_ok or (lambda: True), log=log)
+        filler.pace = pace   # cast_cache.Pacing: rests while a TV is fed and its cushion is full
+    handler = type('DriveProxyHandler', (Handler,), {'upstream': upstream, 'sizes': {}, 'filler': filler,
+                                                     'warm': Warm(), 'blocks': blocks, 'stats': stats, 'hold': staticmethod(hold) if hold else None,
                                                      'indices': indices})
     server = Server(('127.0.0.1', port), handler)
     server.stats = stats
@@ -594,10 +853,33 @@ def live_port(read, ask_restart, sleep, tries=16, probe=None):
     return None
 
 
+def ask_abort(port, timeout=1.0, release=False):
+    """Ask the proxy to cut its upstream connections (see Upstream.abort_all), or with release=True to let new requests in again; True when it answered."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen('http://127.0.0.1:%d/abort%s' % (int(port), '?release=1' if release else ''), timeout=timeout) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
 def ask_warm(port, file_id, name='', timeout=0.6):
     """Called from the Library page when a title's page opens: the proxy reads its start and index now (roadmap 1A.4).
     True when the proxy accepted."""
     address = 'http://127.0.0.1:%d/warm/%s/%s' % (int(port), urllib.parse.quote(file_id, safe=''), urllib.parse.quote(name or 'video'))
+    try:
+        with urllib.request.urlopen(address, timeout=timeout) as resp:
+            return resp.status == 202
+    except Exception:
+        return False
+
+
+def ask_prefetch(port, file_id, name='', timeout=1.5, at=None):
+    """Ask the proxy to keep a video's start and end ready (the next episode, a Continue Watching item); with `at` (a share of the video), the
+    fragment where it resumes first. True when it accepted."""
+    address = 'http://127.0.0.1:%d/prefetch/%s/%s' % (int(port), urllib.parse.quote(file_id, safe=''), urllib.parse.quote(name or 'video'))
+    if isinstance(at, (int, float)) and 0 < at < 1:
+        address += '?at=%.6f' % at
     try:
         with urllib.request.urlopen(address, timeout=timeout) as resp:
             return resp.status == 202

@@ -1,12 +1,17 @@
 """Rank game choices and let Kodi's native playlist skip failed Loop routes."""
 import json
+import threading
 import time
 import uuid
 import sports_native_routes as routes
 import sports_merge
+import sports_stream_health as health_mod
 
 MAX_CHOICES = 32
 OWNER = "KodiIOS.SportsNativeOwner"
+
+
+CHOOSER_SETTLE = 0.2   # seconds Crew's chooser is left to build its list before its first entry is taken (was 0.4; bug 1, owner 2026-11-21)
 
 
 def native_route(source):
@@ -32,9 +37,33 @@ def automatic_source(sources):
     return result
 
 
-def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=None, keep_owner_on_failure=False, auto_pick=True):
+def tapped_source(source, sources):
+    """What a tap on one source plays: that source first, then the game's other native sources (best first), so a dead link is never the end.
+    The tap is a request, not an order for a stream that is known dead: the queue puts it behind working ones (see Health.order)."""
+    if not native_route(source):
+        return source
+    others = [s for s in sources if s is not source and native_route(s) and s.get('play') != source.get('play')]
+    result = dict(source)
+    result['native_queue'] = [{'play': s['play'], 'addon': s.get('addon', '')} for s in [source] + others[:MAX_CHOICES - 1]]
+    result['native_pinned'] = True   # the first entry is the person's choice; play() keeps it first unless it is known dead
+    result['alts'] = list(source.get('alts') or []) + [s['play'] for s in sources if not native_route(s) and s.get('play')]
+    return result
+
+
+LATE_STOP = 3      # seconds after a source was handed to Kodi from which a Stop with no start is a failure, not a cancel
+SAME_FAST = 30      # seconds: a failure sooner than this after the source was handed to Kodi counts as a quick one
+SAME_RETRIES = 2    # times the same source is tried again at the end of the queue
+SAME_WAIT_MS = 2500  # a moment for a busy server
+
+
+def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=None, keep_owner_on_failure=False, auto_pick=True, pinned=False,
+         health=None, info=None):
     if backend is None:
         import xbmc as backend
+    if health is None:
+        health = health_mod.open_health()
+    if info is None:
+        info = getattr(backend, 'getInfoLabel', None)
     choices, seen = [], set()
     for source in queue[:MAX_CHOICES]:
         address = native_route(source)
@@ -43,6 +72,13 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             choices.append((address, source.get('addon') or 'Sports', source))
     if not choices:
         raise ValueError('no native addon routes')
+    # What the phone has learned: sources that worked lately and looked sharp first, one that died minutes ago last. The person's own pick leads
+    # unless it is known dead (an automatic Play has no pick: everything is ranked).
+    before = [choice[1] for choice in choices]
+    choices = health.order(choices, key=lambda choice: choice[1], quality=lambda choice: sports_merge.quality_rank(choice[2].get('quality')),
+                           first=choices[0] if pinned else None)
+    if [choice[1] for choice in choices] != before:
+        logger('sports: source order from what worked before: %s' % ', '.join('%s (%.1f)' % (c[1], health.score(c[1])) for c in choices[:4]))
     routes.prepare_proxy([choice[0] for choice in choices])
 
     class Observer(backend.Player):
@@ -96,6 +132,8 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             raise InterruptedError('native source preparation incomplete') from error
         if not owns_queue():
             raise InterruptedError('a newer play request replaced this queue')
+        if home is not None:
+            home.setProperty('KodiIOS.SportsOpeningChoice', '%d/%d' % (index + 1, len(choices)))   # the opening card says "Source 2 of 3"
         item = xbmcgui.ListItem(label=choices[index][1])
         item.setProperty('IsPlayable', 'true')
         playlist.add(address, item)
@@ -103,31 +141,113 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
     monitor = backend.Monitor()
     logger('sports: opening native addon queue (%d choices)' % len(choices))
     began, previous, failed_through = clock(), clock(), -1
-    first_video_time = None
+    check = health_mod.Watch()
     current_index = 0
-    select_seen, picked = None, False   # when a Crew chooser appeared, and whether it has been answered
+    choice_began = clock()   # when the current choice was handed to Kodi (the person answering Crew's chooser does not count)
+    pick = {'seen': None, 'picked': False}   # when a Crew chooser appeared, and whether it has been answered
+    used = {'chooser': False}                # the current choice showed Crew's chooser and it was answered: Crew has more links for this game to try
+    links = [0] * len(choices)               # which entry of Crew's chooser each choice takes (0 first); a failed route is retried with the next entry
+    pick_lock = threading.Lock()
+
+    def chooser_up(now):
+        """True while Crew's link chooser is on screen. Owner, 2026-11-20: no Crew UI. The chooser is answered with its first (best) entry, once
+        per appearance, after a moment for the list to build: Kodi's own select action, nothing of Crew's code is called."""
+        with pick_lock:
+            if backend.getCondVisibility('Window.IsActive(selectdialog)'):
+                if auto_pick:
+                    if pick['seen'] is None:
+                        pick['seen'] = now
+                    elif not pick['picked'] and now - pick['seen'] >= CHOOSER_SETTLE:
+                        for _ in range(links[current_index] if current_index < len(links) else 0):
+                            backend.executebuiltin('Action(Down)')   # a retry of a failed route takes the chooser's next link
+                        backend.executebuiltin('Action(Select)')
+                        n = links[current_index] if current_index < len(links) else 0
+                        logger('sports: picked the first link in Crew\'s chooser' if not n else 'sports: picked link %d in Crew\'s chooser' % (n + 1))
+                        pick['picked'] = True
+                        used['chooser'] = True
+                return True
+            pick['seen'], pick['picked'] = None, False
+            return False
+    def retry_next_link():
+        """Crew's chooser listed more links than the one taken: the same game's next link is the next try (owner, build 619: one source failed and the
+        app stopped, although Crew had offered other links for the game)."""
+        if used['chooser'] and links[current_index] < 2 and len(choices) < MAX_CHOICES:
+            choices.insert(current_index + 1, choices[current_index])
+            links.insert(current_index + 1, links[current_index] + 1)
+            used['chooser'] = False
+
+    tries = {}   # address -> how many times it was put back at the end of the queue after a quick failure
+
+    def retry_same_source():
+        """A source that fails within SAME_FAST seconds of being handed to Kodi is put back at the end of the queue, up to SAME_RETRIES times, after the others have had
+        their turn. Build 653 logs 5ee55982 (two plays, one source each): the stream's host answered HTTP 503 to the first three manifest requests, 0.4 s apart, and
+        the queue, having one choice, gave up in 1 s; a server that is busy for a moment is often fine a few seconds later, and Crew resolves a fresh link each try."""
+        address = choices[current_index][0]
+        if clock() - choice_began < SAME_FAST and tries.get(address, 0) < SAME_RETRIES and len(choices) < MAX_CHOICES + SAME_RETRIES:
+            tries[address] = tries.get(address, 0) + 1
+            choices.append(choices[current_index])
+            links.append(links[current_index])
+            logger('sports: %s failed quickly; it will be tried again after the others (try %d of %d)' % (choices[current_index][1], tries[address], SAME_RETRIES))
+            backend.sleep(SAME_WAIT_MS)
+
+    def close_failure_dialogs():
+        """Kodi's "playback failed" box (an OK or a Yes/No dialog) is closed: the next source opens by itself, and nothing says "check the log"."""
+        for name in ('okdialog', 'yesnodialog'):
+            backend.executebuiltin('Dialog.Close(%s)' % name)
+
+    def advance(why):
+        """Stop what is on, then open the next choice (raises when none is left)."""
+        nonlocal current_index, check, choice_began, failed_through
+        retry_next_link()
+        retry_same_source()
+        try:   # build 623 log 8c570737: Crew's streamer host failed TLS; say which layer (the phone's DNS, the handshake, DoH), once every ten minutes
+            import host_check
+            host_check.check_later(logger)
+        except Exception:
+            pass
+        if current_index + 1 >= len(choices):
+            close_failure_dialogs()
+            raise RuntimeError('native queue exhausted')
+        failed_through = current_index
+        logger('jet: a source failed (%s, choice %d)' % (why, current_index + 1))
+        player.stop()
+        backend.sleep(300)   # let Kodi report this Stop before the observer's flags are cleared for the next choice
+        close_failure_dialogs()
+        used['chooser'] = False
+        player.failed = player.stopped = player.started = player.ready = False
+        current_index += 1
+        playlist.clear()
+        stage(current_index)
+        check, choice_began = health_mod.Watch(), clock()
+        player.play(playlist, startpos=0)
+
     try:
         stage(0)
-        player.play(playlist)
+        # Build 611 (phone log): player.play() does not return until Crew has resolved the link, and Crew's chooser appears during that wait, so
+        # nothing answered it (the owner had to tap). A watcher answers it while play() is blocked; the loop below shares its state.
+        watching = threading.Event()
+        def watch():
+            while not watching.is_set():
+                try:
+                    chooser_up(clock())
+                except Exception:
+                    pass
+                time.sleep(.2)
+        threading.Thread(target=watch, daemon=True).start()
+        try:
+            player.play(playlist)
+        finally:
+            watching.set()
+        previous = clock()
         while not monitor.abortRequested():
             backend.sleep(200)  # permits native Player callbacks on the script thread
             if not owns_queue():
                 raise InterruptedError('a newer play request replaced this queue')
             now = clock()
             # A person choosing a nested link is not a slow or failed server.
-            if backend.getCondVisibility('Window.IsActive(selectdialog)'):
+            if chooser_up(now):
                 began += now - previous
-                # Owner, 2026-11-20: no Crew UI. A link chooser Crew puts up while it resolves is answered with its first (best) entry, once per
-                # appearance, after a moment for the list to build. Kodi's own select action: nothing of Crew's code is called.
-                if auto_pick:
-                    if select_seen is None:
-                        select_seen = now
-                    elif not picked and now - select_seen >= .4:
-                        backend.executebuiltin('Action(Select)')
-                        logger('sports: picked the first link in Crew\'s chooser')
-                        picked = True
-            else:
-                select_seen, picked = None, False
+                choice_began += now - previous
             previous = now
             if not player.ready and now - began >= timeout:
                 raise InterruptedError('native sports opening timed out')
@@ -135,29 +255,49 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
             # Kodi also reports a user's stop during opening as a pre-AV
             # Stop. Never infer failure from that ambiguous callback.
             if player.stopped and not player.failed:
+                # Build 653 logs 5ee55982: Kodi's open of Crew's manifest failed (the host answered HTTP 503), Kodi reported only a Stop, and no "started" had come
+                # (the picture never began): that was taken for the person's own cancel and the queue ended. A Stop that arrives LATE_STOP seconds or more after the
+                # source was handed over, with the queue still ours, is a failed source too (a person's cancel clears the ownership first).
+                late = not player.started and (now - choice_began >= LATE_STOP or backend.getCondVisibility('Window.IsActive(yesnodialog)')
+                                               or backend.getCondVisibility('Window.IsActive(okdialog)'))   # Kodi's own "playback failed" box is up
+                if (player.started or late) and not player.ready and owns_queue():
+                    # Build 619 log: Crew's streamers failed, Crew handed Kodi an unresolved link, Kodi's open failed and only a Stop reported it ("current
+                    # media"). A person's own cancel clears the ownership first (Opening.cancel), so with the queue still ours this is a failed source.
+                    logger('sports: stream check: %s stopped before any picture' % choices[current_index][1])
+                    health.fail(choices[current_index][1], 'stopped before picture')
+                    advance('stopped before a picture')
+                    continue
                 logger('sports: native opening stopped; queue cancelled')
                 raise InterruptedError('native opening stopped')
             if player.failed and not player.ready:
                 current = current_index
                 for n in range(failed_through + 1, current + 1):
                     logger('jet: a source failed (native media open failed, choice %d)' % (n + 1))
+                    health.fail(choices[n][1], 'would not open')
                     failed_through = n
                 # Only a recorded VideoPlayer error closes its own media-error
                 # dialog; authorization/refusal dialogs do not trigger this hook.
-                backend.executebuiltin('Dialog.Close(okdialog)')
+                close_failure_dialogs()
                 backend.sleep(100)
+                retry_next_link()
                 if current + 1 >= len(choices):
                     raise RuntimeError('native queue exhausted')
+                used['chooser'] = False
                 player.failed = player.stopped = player.started = False
                 current_index = current + 1
                 playlist.clear()
                 stage(current_index)
+                check, choice_began = health_mod.Watch(), clock()
                 player.play(playlist, startpos=0)
                 continue
             if position < 0 and not player.isPlayingVideo():
                 if backend.getCondVisibility('Window.IsActive(okdialog)'):
                     raise InterruptedError('native opening ended with a dialog')
-                if now - began > 1 and not backend.getCondVisibility('Window.IsActive(progressdialog)') and not backend.getCondVisibility('Window.IsActive(selectdialog)'):
+                # Crew often plays its resolved stream itself (the playlist then no longer holds our item, position -1) while the stream is
+                # still opening. Build 611 (Crew's progress box now silent) stopped that playback 0.2 s after Crew opened it, because the
+                # progress box used to be what kept this check from firing. Media that Kodi has begun to open or play is not an ended opening.
+                taking_over = player.started or backend.getCondVisibility('Player.HasMedia')
+                if now - began > 1 and not taking_over and not backend.getCondVisibility('Window.IsActive(progressdialog)') and not backend.getCondVisibility('Window.IsActive(selectdialog)'):
                     logger('sports: native opening ended without a confirmed error; queue cancelled')
                     raise InterruptedError('native opening ended')
             if player.ready and player.isPlayingVideo():
@@ -165,13 +305,25 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                     position_seconds = player.getTime()
                 except (RuntimeError, AttributeError, ValueError):
                     position_seconds = None
-                if position_seconds is not None:
-                    if first_video_time is None or position_seconds < first_video_time:
-                        first_video_time = position_seconds
-                    elif position_seconds - first_video_time > .1:
-                        logger('sports: playing (native addon queue)')
-                        return True
-            if now - began >= timeout:
+                stats = health_mod.read_stats(info) if info else {}
+                verdict = check.feed(now, position_seconds, stats)
+                if verdict == 'good':
+                    health.ok(choices[current_index][1], check.stats)
+                    logger('sports: playing (native addon queue)')
+                    logger('sports: stream check: %s is playing (%s)' % (choices[current_index][1], health_mod.describe(check.stats)))
+                    return True
+                if verdict == 'bad':
+                    logger('sports: stream check: %s is not usable (%s)' % (choices[current_index][1], check.reason))
+                    health.fail(choices[current_index][1], check.reason)
+                    advance('stream check')
+                    continue
+            elif len(choices) > current_index + 1 and not player.ready and now - choice_began >= health_mod.FIRST_PICTURE:
+                # One source that never shows a picture must not hold the other four for the whole timeout.
+                logger('sports: stream check: %s showed no picture in %d s' % (choices[current_index][1], health_mod.FIRST_PICTURE))
+                health.fail(choices[current_index][1], 'no picture')
+                advance('no picture')
+                continue
+            if now - began >= timeout + (health_mod.OBSERVE + health_mod.STALL if player.ready else 0):   # a picture that has begun gets its checking time
                 # A stop can remain queued while Kodi is blocked opening media.
                 # Do not launch an alternate after an ambiguous timeout.
                 raise InterruptedError('native sports opening timed out')

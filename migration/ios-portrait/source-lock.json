@@ -3,23 +3,26 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "build_tag": "kodi-ios-portrait-r33",
+  "build_tag": "kodi-ios-portrait-r36",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
-    "tag": "kodi-ios-portrait-r33",
+    "tag": "kodi-ios-portrait-r36",
     "asset": "Kodi-portrait-executable.zip",
-    "sha256": "091eb4a4ef75ad1475f5aa0d5d014f5eddb0ff3eb398e6d23b5a5e64a4671435",
-    "archive_sha256": "7ebe1377e8a409f74531ebbc7666d0f915cca9c9bee42cc831093ffd894afb00"
+    "sha256": "6b4abd88dae6e00754b5c2826a0201bd5f8a8f52e62d87d9ef5a004ba7a13601",
+    "archive_sha256": "a556c774de895216ad55a7b7dfe2f8396a84a538ea6dcec4c20055372c350507"
   },
-  "build_note": "r33 built by run 43681992197 (manual build of 04ffff0, ISSUE-316: a group list skips children far off screen) and published by run 43719679425 (from_run, ISSUE-332): release zip and executable digests checked after download (arm64 Mach-O). r32 kept as previous; device acceptance pending.",
+  "build_note": "r36 built and published by the dispatched run 45219972535 (attempt 3, macos-15, 43 minutes) of a523c17: ISSUE-462 (the seek slider's dragged position drives the player labels and the progress fill; the controls' close timer is renewed under the finger; a seek to where the progress already is lands after 0.6 s) and ISSUE-464 (the buffer bar eases up to the cache level). Release zip digest from the release asset; executable digest from the release body. r35 kept as previous; device acceptance pending.",
   "previous_executable_release": {
-    "tag": "kodi-ios-portrait-r32",
+    "tag": "kodi-ios-portrait-r35",
     "asset": "Kodi-portrait-executable.zip",
-    "sha256": "8ebf5aa4027573d3fc02be8952af014d88e1e45d494b993c02e233d995a3fe57",
-    "archive_sha256": "7565cddcb792a4aa8cd79a100f7ab96b6705b3065b2deb1a884609c2733c2169"
+    "sha256": "411523c9482cf71603fd543a9ff16198b1b9f6f1655956de400d511c94a3f61c",
+    "archive_sha256": "6abee32706d2f773894ae5a0523b4dd143e7861567b58d16b697132a6f793db0"
   },
-  "verified_run": 43362838057,
-  "source_commit": "61510d7781025b4c3dc633c571ae9310dbaac0fa",
-  "patch_sha256": "f7c287f05e61359445a11b7035b414e015ee1d9b38b8b04a5711e431aeb91efb",
-  "build_note_r33": "r33 (owner approved the build 2026-11-15): ISSUE-316, a group list skips children more than a screen away from the visible part, so long pages scroll like the hubs. executable_release stays r32 until r33 is built and checked."
+  "verified_run": 45219972535,
+  "source_commit": "a523c17e57fa0b07c02ca1a97a8d12532a955a37",
+  "patch_sha256": "0a3ac81e51f539591d4a7592ade7da0ae742f7d19be903e6fa87953c2d99ec3e",
+  "build_note_r33": "r33 (owner approved the build 2026-11-15): ISSUE-316, a group list skips children more than a screen away from the visible part, so long pages scroll like the hubs. executable_release stays r32 until r33 is built and checked.",
+  "build_note_r34": "r34 (owner approved the build 2026-11-21): ISSUE-411, a black cover over the whole window while the phone turns into or out of a video, removed once Kodi has drawn the new size (at most 0.6 s after the turn ends: owner wants Home within 1 s of leaving a video). executable_release stays r33 until r34 is built and checked.",
+  "build_note_r35": "r35 (built and pinned): ISSUE-424, a flick on a Python dialog page (Sports, Favourites) never glided because the window under the modal dialog overwrote the dialog's inertia answer to Kodi's gesture-notify message (CGUIWindow::OnMessage, GUI_MSG_GESTURE_NOTIFY). An accepted answer now stays.",
+  "build_note_r36": "r36 (built and pinned): ISSUE-462, the seek slider's dragged position drives Player.Progress, SeekTime, SeekOffset, TimeRemaining and Seeking and the progress fill to the pixel (IOSScrub.h), the controls' close timer is renewed under the finger, and a seek to where the progress already is lands after 0.6 s; ISSUE-464, the buffer bar eases up to the cache level. Tested in the desktop rig and by test_seek_release (48 scenarios). "
 }

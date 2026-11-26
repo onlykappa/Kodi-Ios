@@ -9,6 +9,8 @@ typedef struct kr_source kr_source;
 kr_source *kr_source_open(const char *url, int timeout_s, char *err, int errlen);
 // Cancellation is installed before the first network operation, not after open returns.
 kr_source *kr_source_open_interruptible(const char *url, int timeout_s, int (*interrupt)(void *), void *context, char *err, int errlen);
+// Like kr_source_open_interruptible, with every HTTP range request `request_bytes` long (0: the defaults: 256 KiB first, then 1 MiB).
+kr_source *kr_source_open_tuned(const char *url, int timeout_s, int (*interrupt)(void *), void *context, int request_bytes, char *err, int errlen);
 // Independent cursor/connection, sharing this session's bounded byte cache. No network on clone.
 kr_source *kr_source_clone(kr_source *source, int timeout_s, int (*interrupt)(void *), void *context);
 // Nonblocking cache lookup. Returns available bytes, 0 on a miss; never waits for upstream I/O.

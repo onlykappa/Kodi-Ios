@@ -47,8 +47,10 @@ class Warm(unittest.TestCase):
         self.assertEqual(lw.warm(self.url, len(DATA)), 2)
         self.assertEqual(Handler.seen, ['bytes=0-%d' % (lw.HEAD - 1), 'bytes=%d-%d' % (len(DATA) - lw.TAIL, len(DATA) - 1)])
 
-    def test_unknown_or_small_size_reads_only_the_start(self):
-        self.assertEqual(lw.warm(self.url, 0), 1)
+    def test_unknown_size_is_learned_from_the_first_answer(self):
+        self.assertEqual(lw.warm(self.url, 0), 2)
+
+    def test_small_size_reads_only_the_start(self):
         self.assertEqual(lw.warm(self.url, lw.HEAD), 1)
 
     def test_a_failing_link_is_swallowed(self):

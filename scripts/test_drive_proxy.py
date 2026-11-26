@@ -37,12 +37,51 @@ class ProxyBase(unittest.TestCase):
         req=urllib.request.Request('http://127.0.0.1:%d%s'%(self.port,path),headers=headers or {},method=method)
         return urllib.request.urlopen(req,timeout=10)
 
+class BlockCache(ProxyBase):
+    """The memory block cache (build 615 log: every seek was a new Drive read at 0.3-0.7 s to the first byte)."""
+    def setUp(self):
+        self.small=dp.BLOCK;dp.BLOCK=64*1024
+        super().setUp()
+    def tearDown(self):
+        super().tearDown();dp.BLOCK=self.small
+    def get(self,rng):
+        with self.fetch('/drive/F1/Movie.mp4',{'Range':rng}) as r:return r.status,r.headers['Content-Range'],r.read()
+    def test_a_range_read_twice_is_exact_and_the_second_needs_no_drive_request(self):
+        a,b=70000,70000+3*64*1024
+        status,crange,body=self.get('bytes=%d-%d'%(a,b));self.assertEqual((status,body),(206,DATA[a:b+1]))
+        before=len(FakeConn.log)
+        status,crange,body=self.get('bytes=%d-%d'%(a+64*1024,b-64*1024))   # inside the whole blocks that were kept
+        self.assertEqual((status,crange,body),(206,'bytes %d-%d/%d'%(a+64*1024,b-64*1024,len(DATA)),DATA[a+64*1024:b-64*1024+1]))
+        self.assertEqual(len(FakeConn.log),before)
+    def test_an_overlapping_range_asks_drive_only_for_the_missing_tail(self):
+        self.get('bytes=0-%d'%(2*64*1024-1))
+        before=len(FakeConn.log)
+        status,crange,body=self.get('bytes=%d-%d'%(64*1024,5*64*1024-1))
+        self.assertEqual((status,body),(206,DATA[64*1024:5*64*1024]))
+        self.assertEqual(len(FakeConn.log)-before,1)
+        self.assertEqual(FakeConn.log[-1][1]['Range'],'bytes=%d-%d'%(2*64*1024,5*64*1024-1))
+    def test_the_cache_is_bounded_and_evicts_the_oldest(self):
+        blocks=dp.Blocks(cap=3)
+        for n in range(5):blocks.put('F',100,n,bytes([n])*10)
+        self.assertEqual([blocks.get('F',100,n) is not None for n in range(5)],[False,False,True,True,True])
+    def test_a_replaced_file_never_serves_old_blocks(self):
+        blocks=dp.Blocks(cap=8);blocks.put('F',100,0,b'old');blocks.put('F',200,0,b'new')
+        self.assertIsNone(blocks.get('F',100,0));self.assertEqual(blocks.get('F',200,0),b'new')
+    def test_tee_keeps_only_whole_aligned_blocks(self):
+        blocks=dp.Blocks(cap=8);tee=dp.Tee(blocks,'F',10*dp.BLOCK,start=dp.BLOCK//2)
+        tee.feed(b'a'*dp.BLOCK);tee.feed(b'b'*dp.BLOCK)   # starts mid-block 0: block 0 is skipped, block 1 is whole
+        self.assertIsNone(blocks.get('F',10*dp.BLOCK,0))
+        self.assertEqual(blocks.get('F',10*dp.BLOCK,1),(b'a'*(dp.BLOCK//2)+b'b'*(dp.BLOCK//2)))
+    def test_the_files_short_last_block_is_kept_when_the_stream_ends_there(self):
+        blocks=dp.Blocks(cap=8);size=dp.BLOCK+100;tee=dp.Tee(blocks,'F',size,start=0);tee.feed(b'x'*size)
+        self.assertEqual(blocks.get('F',size,1),b'x'*100)
+
 class Proxy(ProxyBase):
     def test_whole_file_and_a_seek(self):
         with self.fetch('/drive/F1/Movie.mp4') as r:self.assertEqual((r.status,r.read()),(200,DATA))
         with self.fetch('/drive/F1/Movie.mp4',{'Range':'bytes=1000-1999'}) as r:
             self.assertEqual((r.status,r.headers['Content-Range'],r.read()),(206,'bytes 1000-1999/1048576',DATA[1000:2000]))
-        self.assertIn('/drive/v3/files/F1?alt=media',FakeConn.log[-1][0]);self.assertEqual(FakeConn.log[-1][1]['Range'],'bytes=1000-1999')
+        self.assertEqual(len(FakeConn.log),1)   # the whole-file read left its blocks in the memory cache: the seek inside it needs no Drive request
     def test_head_reports_the_size_from_a_one_byte_read(self):
         with self.fetch('/drive/F2/Show.S01E01.mkv',method='HEAD') as r:
             self.assertEqual((r.headers['Content-Length'],r.headers['Accept-Ranges']),('1048576','bytes'))

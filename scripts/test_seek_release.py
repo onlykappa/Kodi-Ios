@@ -35,6 +35,8 @@ struct CGUIMessage {std::string param;CGUIMessage(int,int,int){}void SetStringPa
 struct CLog {template<class...T>static void Log(T...){}};
 namespace MathUtils {inline int round_int(double v){return std::lround(v);}inline float RoundF(float v,float interval){return interval?std::round(v/interval)*interval:v;}}
 namespace StringUtils {inline std::string Format(std::string,float p){return std::to_string(p);}}
+struct AlarmStub {double remaining=0;int starts=0,stops=0;double GetRemaining(const std::string&){return remaining;}void Stop(const std::string&,bool){stops++;remaining=0;}void Start(const std::string&,float secs,const std::string&,bool){starts++;remaining=secs;}} g_alarmClock;
+namespace IOSScrub {inline float percent=-1.0f;inline bool sliderReading=false;inline bool Active(){return !sliderReading&&percent>=0.0f;}}
 std::vector<float> submitted;int threaded=0,synchronous=0;
 #define SEND_CLICK_MESSAGE(a,b,c) ((void)0)
 struct Context {float scale=1;template<class T>void SetScalingResolution(T,bool){}void InvertFinalCoords(float& x,float& y){x/=scale;y/=scale;}};
@@ -52,7 +54,7 @@ struct CGUISliderControl:CGUIControl {
  float m_fStart=0,m_fEnd=100,m_fInterval=1,percent=0;enum{RangeSelectorLower,RangeSelectorUpper};
  SliderAction action;SliderAction* m_action=&action;Texture texture;Texture* m_guiBackground=&texture;
  int GetID(){return 1;}int GetParentID(){return 2;}void SendWindowMessage(CGUIMessage&){}void Move(int){}
- float GetProportion(){return percent/100;}float GetPercentage(int){return percent;}
+ float GetProportion(){return percent/100;}float GetPercentage(int=0){return percent;}
  void SetPercentage(float p,int,bool){percent=p;}void SetFloatValue(float p,int,bool){percent=p;}void SetIntValue(int p,int=0,bool=false){percent=p;}
  void Frame();void SetFromPosition(const CPoint&,bool=false);void SendClick();EVENT_RESULT OnMouseEvent(const CPoint&,const MOUSE::CMouseEvent&) override;
 };
@@ -89,12 +91,17 @@ int main(){int cases=0;
   win.OnMouseAction({ACTION_GESTURE_PAN,{100+target*10,200}});
   if(unrelated)win.OnMouseAction({ACTION_MOUSE_MOVE,{100+target*10,200}});
   p.Frame();assert(std::abs(p.percent-target)<.01 && submitted.empty());
+  assert(IOSScrub::Active() && std::abs(IOSScrub::percent-target)<.01); // the player labels follow the finger
   handler.OnTouchGestureEnd(100+target*10,200,0,0,10000,0);
   assert(submitted.size()==1 && std::abs(submitted[0]-target)<.01 && p.m_pendingSeekAt);
   p.Frame();assert(std::abs(p.percent-target)<.01); // backend still at 3%
+  assert(IOSScrub::Active() && std::abs(IOSScrub::percent-target)<.01); // held at the target until the seek lands
   info.value=std::lround(target);p.Frame();assert(!p.m_pendingSeekAt && std::abs(p.percent-target)<.01);
+  assert(!IOSScrub::Active()); // landed: the labels are the player's again
   info.value=17;p.Frame();assert(p.percent==17);cases++;
  }
+ {CGUISliderControl p;CServiceBroker::GetGUI()->info.value=50;p.percent=50;p.SendClick();assert(p.m_pendingSeekAt);p.Frame();assert(p.m_pendingSeekAt); // not landed yet: the player has not moved
+  p.m_pendingSeekAt-=700;p.Frame();assert(!p.m_pendingSeekAt && !IOSScrub::Active());cases++;} // a seek to where the progress already is lands after 0.6 s, not 15 s
  {CGUISliderControl p;p.percent=50;p.SendClick();assert(p.m_pendingSeekAt);p.m_pendingSeekAt-=16000;
   CServiceBroker::GetGUI()->info.value=3;p.Frame();assert(!p.m_pendingSeekAt && p.percent==3);cases++;}
  {CGUISliderControl p;p.percent=50;p.SendClick();p.percent=75;p.SendClick();
@@ -103,6 +110,10 @@ int main(){int cases=0;
  {CGUISliderControl p;CServiceBroker::GetGUI()->info.value=3;p.percent=3.75;p.SendClick();
   p.Frame();assert(p.m_pendingSeekAt && std::abs(p.percent-3.75)<.01);
   CServiceBroker::GetGUI()->info.value=4;p.Frame();assert(!p.m_pendingSeekAt && p.percent==4);cases++;}
+ {CGUISliderControl p;g_alarmClock.remaining=1.0;g_alarmClock.starts=0;p.m_dragging=true;p.Frame();assert(g_alarmClock.starts==1 && g_alarmClock.remaining>=4.0); // the close timer is renewed under the finger
+  g_alarmClock.remaining=3.0;g_alarmClock.starts=0;p.Frame();assert(g_alarmClock.starts==0); // not while it still has time
+  g_alarmClock.remaining=0;p.Frame();assert(g_alarmClock.starts==0); // nor when there is no timer (paused or never armed)
+  p.m_dragging=false;g_alarmClock.remaining=1.0;p.Frame();assert(g_alarmClock.starts==0);cases++;}
  assert(threaded>0 && synchronous==0); // progress requests never synchronously call the player from touch dispatch
  {CGUISliderControl p;p.action.infoCode=7;p.percent=20;p.SendClick();assert(synchronous==1 && !p.m_pendingSeekAt);cases++;}
  std::cout<<cases<<" real gesture/slider/info-refresh scenarios passed\n";

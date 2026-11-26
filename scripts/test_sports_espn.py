@@ -23,6 +23,10 @@ def event(eid, when, state, away, home, period=0, clock='', kind='STATUS_SCHEDUL
                                                        'competitors': [home, away]}]}
 
 
+def _epoch_of(text):
+    return se._epoch(text)
+
+
 def body(*events):
     return {'leagues': [{'name': 'x'}], 'events': list(events)}
 
@@ -37,6 +41,41 @@ class Parse(unittest.TestCase):
         self.assertIsNone(live[0]['away']['score'])
         self.assertIsNone(live[0]['home']['score'])
 
+    def test_a_live_football_game_has_its_situation_yard_line_and_who_has_the_ball(self):
+        """Owner, 2026-11-21 (the Live Now rows): ESPN's down and distance, yard line, red zone flag and the team that has the ball (a team id)."""
+        away, home = team('UTC', 'Chattanooga', '0', False), team('ALA', 'Alabama', '47')
+        away['team']['id'], home['team']['id'] = '236', '333'
+        ev = event('9', '2025-11-16T17:00Z', 'in', away, home, period=4, clock='5:18', kind='STATUS_IN_PROGRESS')
+        ev['competitions'][0]['situation'] = {'shortDownDistanceText': '2nd & 2', 'possessionText': 'ALA 31', 'isRedZone': False, 'possession': '333'}
+        g = self.go('NCAAF', [ev])[0][0]
+        self.assertEqual((g['detail'], g['yard'], g['ball'], g.get('redzone')), ('2nd & 2', 'ALA 31', 'h', None))
+        ev['competitions'][0]['situation'] = {'shortDownDistanceText': '1st & Goal', 'possessionText': 'CHAT 4', 'isRedZone': True, 'possession': '236'}
+        g = self.go('NCAAF', [ev])[0][0]
+        self.assertEqual((g['detail'], g['ball'], g['redzone']), ('1st & Goal', 'a', True))
+        ev['competitions'][0]['situation'] = {'possession': '999'}
+        g = self.go('NCAAF', [ev])[0][0]
+        self.assertEqual((g.get('detail'), g['ball']), (None, ''))   # a team id that is neither side: no football
+        ev['competitions'][0].pop('situation')
+        g = self.go('NCAAF', [ev])[0][0]
+        self.assertNotIn('ball', g)
+
+    def test_a_race_weekend_is_live_while_its_race_is_in_progress(self):
+        """Owner, 2026-11-21: "it says there is no f1 streams and there is? vegas is rn". ESPN's F1 event status is FINAL from the first practice while the
+        Race competition is IN PROGRESS (the real answer of that evening)."""
+        def comp(kind,date,state):
+            return {'type':{'abbreviation':kind},'date':date,'status':{'type':{'state':state}}}
+        def weekend(race_state,qual_state='post'):
+            return {'id':'600','name':'Heineken Las Vegas Grand Prix','date':'2026-11-20T00:30Z','status':{'type':{'state':'post','name':'STATUS_FINAL'}},
+                    'competitions':[comp('FP1','2026-11-20T00:30Z','post'),comp('Qual','2026-11-21T04:00Z',qual_state),comp('Race','2026-11-22T04:00Z',race_state)]}
+        entry=next(e for e in se.LEAGUES if e[0]=='F1')
+        run=lambda ev:se.parse(entry[0],entry[1],entry[2],entry[4],entry[5],body(ev),NOW)
+        live,up,done=run(weekend('in'))
+        self.assertEqual((len(live),len(up),done),(1,0,0));self.assertEqual((live[0]['league'],live[0]['title'],live[0]['clock'],live[0]['state']),('F1','Heineken Las Vegas Grand Prix','Race','live'))
+        live,up,done=run(weekend('pre',qual_state='in'));self.assertEqual((len(live),live[0]['clock']),(1,'Qualifying'))      # qualifying on: the weekend is live
+        live,up,done=run(weekend('post'));self.assertEqual((len(live),len(up),done),(0,0,1))                                    # every session over: finished
+        far=weekend('pre');far['competitions'][1]['status']['type']['state']='post'
+        live,up,done=se.parse(entry[0],entry[1],entry[2],entry[4],entry[5],body(far),_epoch_of('2026-11-21T05:00Z'));self.assertEqual((len(live),len(up),done),(0,1,0))   # the race still to come: upcoming at ITS time
+        self.assertEqual(up[0]['start'],_epoch_of('2026-11-22T04:00Z'))
     def test_a_live_nba_game_has_score_clock_and_what_is_left(self):
         live, up, done = self.go('NBA', [event('1', '2025-11-16T17:00Z', 'in', team('IND', 'Indiana Pacers', '88', False), team('PHI', 'Philadelphia 76ers', '91'),
                                                 period=3, clock='8:41', kind='STATUS_IN_PROGRESS')])
@@ -123,19 +162,55 @@ class Provider(unittest.TestCase):
         p.upcoming_games()
         p.overview()
         self.assertEqual(len(p.calls), count)          # one fetch per page load, not three
-        p.refresh()
+        p.refresh(block=True)   # the service's loop: always asks again
         self.assertEqual(len(p.calls), 2 * count)   # both requests of every league again
 
     def test_each_league_is_asked_for_today_and_tomorrow_with_no_date_range(self):
         p = self.provider(answers=self.answers())
         p.live_games()
         nba = [u for u in p.calls if 'basketball/nba' in u]
-        self.assertEqual(len(nba), 2)
+        self.assertEqual(len(nba), 3)      # the plain scoreboard (it lags), today's date, tomorrow's date
         self.assertTrue(nba[0].endswith('/scoreboard'))
         self.assertRegex(nba[1], r'scoreboard\?dates=\d{8}$')
+        self.assertRegex(nba[2], r'scoreboard\?dates=\d{8}$')
+        self.assertLess(nba[1].split('dates=')[-1], nba[2].split('dates=')[-1])
         self.assertFalse(any('-' in u.split('dates=')[-1] for u in p.calls if 'dates=' in u))   # the feed answers a range with HTTP 400
         # the same event in both answers is one game
         self.assertEqual(len([g for g in p.upcoming_games('NBA')]), 2)
+
+    def test_todays_games_show_when_the_plain_scoreboard_still_answers_yesterday(self):
+        # ISSUE-399 (owner, 2026-11-20 7:24 AM Pacific): ESPN's plain scoreboard still answered the finished 2026-11-19 slate at 10:25 ET, so the page said
+        # "Nothing live, next game tomorrow" while that day's games were on Apple Sports. Today's own date is asked as well.
+        import time as _t
+        now = int(_t.mktime((2026, 11, 20, 15, 25, 0, 0, 0, 0))) - _t.timezone   # 15:25 UTC on the 20th (10:25 ET)
+        asked = []
+        late = int(_t.mktime((2026, 11, 21, 0, 0, 0, 0, 0, 0))) - _t.timezone     # 00:00 UTC on the 21st: 4 PM Pacific on the 20th, a game still to come
+
+        def fetch(url):
+            asked.append(url)
+            if 'basketball/nba' not in url:
+                return body()
+            if url.endswith('/scoreboard'):   # the lagging plain answer: only the day before, finished
+                return body(event('old', '2026-11-20T01:00Z', 'post', team('GSW', 'Golden State Warriors', '90', False), team('MEM', 'Memphis Grizzlies', '95'), kind='STATUS_FINAL'))
+            if url.endswith('dates=20261120'):
+                return body(event('today1', _t.strftime('%Y-%m-%dT%H:%MZ', _t.gmtime(late)), 'pre', team('CHA', 'Charlotte Hornets', '0', False), team('ATL', 'Atlanta Hawks')))
+            return body()
+        p = se.EspnProvider(fetch=fetch, clock=lambda: now)
+        nba = [g['id'] for g in p.upcoming_games('NBA')]
+        self.assertEqual(nba, ['espn:NBA:today1'])
+        self.assertTrue(any(u.endswith('dates=20261120') for u in asked) and any(u.endswith('dates=20261121') for u in asked))
+
+    def test_the_feeds_day_is_the_us_eastern_day(self):
+        import time as _t
+        now = int(_t.mktime((2026, 11, 21, 3, 0, 0, 0, 0, 0))) - _t.timezone     # 03:00 UTC on the 21st = 22:00 ET on the 20th
+        asked = []
+        p = se.EspnProvider(fetch=lambda url: asked.append(url) or body(), clock=lambda: now)
+        try:
+            p.live_games()
+        except Exception:
+            pass
+        nba = [u.split('dates=')[-1] for u in asked if 'basketball/nba' in u and 'dates=' in u]
+        self.assertEqual(nba, ['20261120', '20261121'])
 
     def test_tomorrow_failing_keeps_the_first_answer(self):
         answers = self.answers()
@@ -171,7 +246,7 @@ class Provider(unittest.TestCase):
         p = self.provider(answers=self.answers())
         props, chosen, slots = sports_live.load(p, now=NOW, offset=0)
         self.assertEqual(props['state'], 'ok')
-        self.assertEqual(props['g.1.league'], 'NBA')
+        self.assertEqual(props['g.1.gn'], 'NBA')
         self.assertEqual(props['g.1.clock'], 'Q4 · 1:00')
         self.assertEqual(slots, {})   # no sources yet: nothing to play
 

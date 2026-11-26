@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Player Scrubber</title>
+<style>
+/* MOCKUP (evidence class: mockup, APPLE-UI-POLICY §9). Not a render of Kodi. Geometry in Kodi units of the 2340 x 1080 landscape canvas (--k = 1 unit); the BEFORE frame is
+   drawn from player_osd.py as it is today (bar at top 862 / progress 10 high with a knob, "-time left" at top 936, Info and Continue Watching at top 936, title at top 770). */
+:root{--grey:rgba(235,235,245,.6);--blue:#4fa8ff;--green:#30d158}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,-apple-system,sans-serif;padding:28px 16px 60px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto}
+.tag{display:inline-block;background:#3a2a00;color:#ffd60a;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:30px;font-weight:800;margin-bottom:8px}p.lead{color:#b4b4ba;line-height:1.5;max-width:780px;margin-bottom:22px}
+.cap{font-size:12px;font-weight:700;letter-spacing:.06em;margin:28px 0 6px}.cap.b{color:#ff9f0a}.cap.a{color:var(--blue)}.note{color:var(--grey);font-size:13px;line-height:1.45;margin:10px 0 0;max-width:840px}
+.frame{width:100%;max-width:934px;aspect-ratio:934/462;border-radius:56px;padding:30px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.screen{position:relative;width:100%;height:100%;border-radius:30px;overflow:hidden;background:#000;container-type:inline-size}
+.k{position:absolute;inset:0;--k:calc(100cqw / 2340)}
+.video{position:absolute;inset:0;background:radial-gradient(120% 90% at 30% 40%,#2b3440 0%,#151a20 45%,#07090b 100%)}
+.video::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,0) 30%,rgba(0,0,0,0) 45%,rgba(0,0,0,.78))}
+.abs{position:absolute}
+.ic{position:absolute;width:calc(110*var(--k));height:calc(110*var(--k));border-radius:50%;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center}
+.ic svg{width:calc(52*var(--k));height:calc(52*var(--k))}
+.centre{position:absolute;left:50%;top:calc(300*var(--k));transform:translateX(-50%);display:flex;gap:calc(190*var(--k));align-items:center}
+.centre svg{width:calc(110*var(--k));height:calc(110*var(--k))}.centre .big svg{width:calc(150*var(--k));height:calc(150*var(--k))}
+.title{position:absolute;left:calc(140*var(--k));top:calc(770*var(--k));height:calc(90*var(--k));display:flex;align-items:center;font-size:calc(52*var(--k));font-weight:700}
+.btn{position:absolute;height:calc(60*var(--k));display:flex;align-items:center;font-size:calc(38*var(--k));font-weight:600;color:#fff}
+.time{position:absolute;display:flex;align-items:center;font-size:calc(38*var(--k));font-weight:700;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.7)}
+.before .time{font-weight:500;color:rgba(255,255,255,.85)}
+.track{position:absolute;left:calc(140*var(--k));right:calc(140*var(--k));border-radius:999px;background:rgba(255,255,255,.3)}
+.track i{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;background:#fff}
+.before .track{background:rgba(255,255,255,.35)}
+.knob{position:absolute;width:calc(48*var(--k));height:calc(48*var(--k));border-radius:50%;background:#fff;transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.bubble{position:absolute;transform:translateX(-50%);text-align:center}
+.thumb{width:calc(470*var(--k));height:calc(264*var(--k));border-radius:calc(26*var(--k));border:calc(5*var(--k)) solid #fff;background:linear-gradient(135deg,#46566a,#1a2230);box-shadow:0 18px 50px rgba(0,0,0,.6)}
+.bubble b{display:block;margin-top:calc(14*var(--k));font-size:calc(42*var(--k));font-weight:700}.bubble small{display:block;font-size:calc(30*var(--k));color:var(--grey);margin-top:2px}
+.diff{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;max-width:900px}.diff div{background:#17171a;border-radius:10px;padding:10px 12px;font-size:13px;color:#cfcfd4;line-height:1.4}.diff b{color:#fff;display:block;margin-bottom:2px}
+</style></head><body><div class="wrap">
+<span class="tag">MOCKUP · not Kodi</span>
+<h1>Player controls: the scrubber we are replacing</h1>
+<p class="lead">Top: what is on screen today, drawn from the code. Below: the same controls with only the progress bar and the times changed. Everything else stays where it is: the close and Play on TV buttons, back 10 / pause / forward 10, the title, and Info and Continue Watching.</p>
+
+<div class="cap b">BEFORE · TODAY</div>
+<div class="frame"><div class="screen before"><div class="k"><div class="video"></div>
+<div class="ic" style="left:calc(140*var(--k));top:calc(60*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+<div class="ic" style="left:calc(290*var(--k));top:calc(60*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/></svg></div>
+<div class="centre"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M12 4a8 8 0 1 0 8 8M12 1v6l-3-3"/></svg><div class="big"><svg viewBox="0 0 24 24" fill="#fff"><path d="M7 4h4v16H7zM13 4h4v16h-4z"/></svg></div><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M12 4a8 8 0 1 1-8 8M12 1v6l3-3"/></svg></div>
+<div class="title">Interstellar</div>
+<div class="track" style="top:calc(884*var(--k));height:calc(10*var(--k))"><i style="width:34.5%"></i></div><div class="knob" style="left:calc(140*var(--k) + (100% - 280*var(--k))*.345);top:calc(889*var(--k))"></div>
+<div class="time" style="right:calc(140*var(--k));top:calc(936*var(--k));height:calc(60*var(--k))">−34:42</div>
+<div class="btn" style="left:calc(140*var(--k));top:calc(936*var(--k))">Info</div><div class="btn" style="left:calc(340*var(--k));top:calc(936*var(--k))">Continue Watching</div></div></div></div>
+<p class="note">Today: a hairline bar (10 units, about 4 pt) with a white knob, only the time left under its right end, nothing on the left. Info and Continue Watching sit on the same line as the time.</p>
+
+<div class="cap a">AFTER · CONTROLS SHOWN</div>
+<div class="frame"><div class="screen"><div class="k"><div class="video"></div>
+<div class="ic" style="left:calc(140*var(--k));top:calc(60*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+<div class="ic" style="left:calc(290*var(--k));top:calc(60*var(--k))"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/></svg></div>
+<div class="centre"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M12 4a8 8 0 1 0 8 8M12 1v6l-3-3"/></svg><div class="big"><svg viewBox="0 0 24 24" fill="#fff"><path d="M7 4h4v16H7zM13 4h4v16h-4z"/></svg></div><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M12 4a8 8 0 1 1-8 8M12 1v6l3-3"/></svg></div>
+<div class="title">Interstellar</div>
+<div class="track" style="top:calc(878*var(--k));height:calc(16*var(--k))"><i style="width:34.5%"></i></div>
+<div class="time" style="left:calc(140*var(--k));top:calc(912*var(--k));height:calc(50*var(--k))">18:19</div><div class="time" style="right:calc(140*var(--k));top:calc(912*var(--k));height:calc(50*var(--k))">−34:42</div>
+<div class="btn" style="left:calc(140*var(--k));top:calc(970*var(--k));height:calc(54*var(--k))">Info</div><div class="btn" style="left:calc(340*var(--k));top:calc(970*var(--k));height:calc(54*var(--k))">Continue Watching</div></div></div></div>
+<div class="diff"><div><b>Bar</b>10 → 16 units (about 6 pt), fully rounded, no knob at rest. 30 % white track, white fill.</div><div><b>Times</b>Elapsed on the left, remaining with a minus on the right, 38 units bold, tabular figures. Tap the right one to show total length.</div><div><b>Info / Continue Watching</b>Same buttons, same text; the row moves down 34 units to make room for the times.</div></div>
+
+<div class="cap a">AFTER · WHILE DRAGGING</div>
+<div class="frame"><div class="screen"><div class="k"><div class="video"></div>
+<div class="bubble" style="left:63%;top:calc(470*var(--k))"><div class="thumb"></div><b>33:10</b><small>+14:51</small></div>
+<div class="track" style="top:calc(870*var(--k));height:calc(32*var(--k))"><i style="width:63%"></i></div>
+<div class="time" style="left:calc(140*var(--k));top:calc(924*var(--k));height:calc(50*var(--k));color:#fff">33:10</div><div class="time" style="right:calc(140*var(--k));top:calc(924*var(--k));height:calc(50*var(--k));color:#fff">−19:51</div></div></div></div>
+<p class="note">Under the finger the bar thickens to 32 units (about 12 pt), the times turn white, and a frame preview with the exact time and the jump from where you were floats above it. Release to seek; a light haptic on each minute. Kodi's smooth seek and buffer percentage keep working.</p>
+
+<div class="cap a">AFTER · PAUSED</div>
+<div class="frame"><div class="screen"><div class="k"><div class="video"></div>
+<div class="centre"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M12 4a8 8 0 1 0 8 8M12 1v6l-3-3"/></svg><div class="big"><svg viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M12 4a8 8 0 1 1-8 8M12 1v6l3-3"/></svg></div>
+<div class="title">Interstellar</div>
+<div class="track" style="top:calc(878*var(--k));height:calc(16*var(--k))"><i style="width:34.5%"></i></div>
+<div class="time" style="left:calc(140*var(--k));top:calc(912*var(--k));height:calc(50*var(--k))">18:19</div><div class="time" style="right:calc(140*var(--k));top:calc(912*var(--k));height:calc(50*var(--k))">−34:42</div></div></div></div>
+<p class="note">Paused looks the same with the play glyph; the controls stay up while paused and hide after the usual few seconds while playing (the Hide Controls After setting).</p>
+</div></body></html>

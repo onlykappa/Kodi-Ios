@@ -183,7 +183,7 @@ class DownloadCap(unittest.TestCase):
   g,slept=self.gate(['']);self.assertEqual(g.after(0.08,1024*1024,download=True),0.0);self.assertEqual(slept,[])
  def test_the_service_reports_buffering(self):
   text=(BOOT/'service.py').read_text()
-  self.assertEqual(text.count("xbmc.getCondVisibility('Player.Caching')"),2)
+  self.assertEqual(text.count("xbmc.getCondVisibility('Player.Caching')"),3)   # the busy watchdog also reads it
   self.assertIn("reader_gate.after(time.monotonic()-piece,len(data),download=True)",(LIB/'driveupload.py').read_text())
 
 class Watched(Reset):

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+
+<category label="Health"> <!-- Health -->
+    <setting id="tmdb_api" label="" type="text" default="7b2b174744f774ba48145e2859bb2e2c" enable="false" visible="false" />
+    <setting id="module.provider" label="" type="text" default="Magneto" enable="false" visible="false" />
+    <setting type="action" label="Open POV Sources Settings" option="close" action="RunPlugin(plugin://script.module.magneto/?action=POVSettings)" />
+    <setting type="action" label="Test All Source Providers (Magneto)" action="RunPlugin(plugin://script.module.magneto/?action=healthCheck)" />
+    <setting type="sep" />
+    <setting type="action" label="Clean Settings file" option="close" action="RunPlugin(plugin://script.module.magneto/?action=cleanSettings)" />
+    <setting type="action" label="Show Changelog" action="RunPlugin(plugin://script.module.magneto/?action=ShowChangelog)" />
+    <setting type="sep" />
+    <setting id="debug.enabled" type="bool" label="Enable Debug" default="false" />
+    <setting id="debug.location" type="enum" label="Logging Location" default="0" values="Kodi Log|Addon Log" enable="eq(-1,true)" />
+    <setting id="debug.reversed" type="bool" label="Write Magneto log in reverse order" default="false" visible="eq(-2,true)+eq(-1,1)" />
+    <setting type="action" label="Clear Magneto log file" visible="eq(-3,true)+eq(-2,1)" action="RunPlugin(plugin://script.module.magneto/?action=tools_clearLogFile)" />
+    <setting type="action" label="View Kodi log file" visible="eq(-4,true)+eq(-3,0)" action="RunPlugin(plugin://script.module.magneto/?action=tools_viewLogFile&amp;name=Kodi)" />
+    <setting type="action" label="View Magneto log file" visible="eq(-5,true)+eq(-4,1)" action="RunPlugin(plugin://script.module.magneto/?action=tools_viewLogFile&amp;name=Magneto)" />
+    <setting type="action" label="Upload Magneto log file to pastebin" visible="eq(-6,true)" action="RunPlugin(plugin://script.module.magneto/?action=tools_uploadLogFile)" />
+</category>
+
+<category label="AIOStreams"> <!-- AIOStreams -->
+    <setting label="Results" type="lsep" />
+    <setting id="provider.aiostreams" type="bool" label="" default="true" visible="false" />
+    <setting id="results.list_format" type="enum" label="Results Format" default="1" values="List|Wide List" />
+    <setting id="highlight.type" label="Result Hightlight Type" type="enum" default="1" values="Resolution|Single Color" />
+    <setting id="scraper_single_highlight" label="" type="text" default="dodgerblue" visible="false" />
+    <setting id="scraper_single_display" label="Single Color Hightlight" type="action" default="[COLOR FF1E90FF]dodgerblue[/COLOR]" action="RunPlugin(plugin://script.module.magneto/?action=ColorPick&amp;setting=scraper_single_highlight)" />
+    <setting id="scraper_4k_highlight" label="" type="text" default="magenta" visible="false" />
+    <setting id="scraper_4k_display" label="4K Color Hightlight" type="action" default="[COLOR FFFF00FF]magenta[/COLOR]" action="RunPlugin(plugin://script.module.magneto/?action=ColorPick&amp;setting=scraper_4k_highlight)" />
+    <setting id="scraper_1080p_highlight" label="" type="text" default="orange" visible="false"/>
+    <setting id="scraper_1080p_display" label="1080p Color Hightlight" type="action" default="[COLOR FFFFA500]orange[/COLOR]" action="RunPlugin(plugin://script.module.magneto/?action=ColorPick&amp;setting=scraper_1080p_highlight)" />
+    <setting id="scraper_720p_highlight" label="" type="text" default="blue" visible="false" />
+    <setting id="scraper_720p_display" label="720p Color Hightlight" type="action" default="[COLOR FF0000FF]blue[/COLOR]" action="RunPlugin(plugin://script.module.magneto/?action=ColorPick&amp;setting=scraper_720p_highlight)"/>
+    <setting id="scraper_SD_highlight" label="" type="text" default="green" visible="false" />
+    <setting id="scraper_SD_display" label="SD Color Hightlight" type="action" default="[COLOR FF008000]green[/COLOR]" action="RunPlugin(plugin://script.module.magneto/?action=ColorPick&amp;setting=scraper_SD_highlight)" />
+    <setting id="results.language_filter" label="Hightlight Priority Language" type="bool" default="false" />
+        <setting id="results.language" label="Priority Language" type="select" default="English" values="English|Arabic|Bulgarian|Chinese|Croatian|Czech|Danish|Dutch|Estonian|Finnish|French|German|Greek|Hebrew|Hindi|Hungarian|Indonesian|Italian|Japanese|Korean|Latvian|Lithuanian|Malay|Norwegian|Persian|Polish|Portuguese|Romanian|Russian|Serbian|Slovakian|Slovenian|Spanish|Swedish|Taiwanese|Tamil|Telugu|Thai|Turkish|Ukrainian|Vietnamese" subsetting="true" visible="eq(-1,true)" />
+    <setting id="scraping_timeout" type="number" label="Scraping Timeout" default="30" />
+    <setting label="Setup" type="lsep" />
+    <setting id="aiostreams_instance" type="enum" label="Provider" default="0" values="Kuu|Custom|Viren|Yeb|Midnight" enable="true" />
+    <setting id="aio.ku_url" type="text" label="Url" default="https://aiostreams.stremio.ru" enable="false" visible="eq(-1,0)" />
+    <setting id="aio.custom_url" type="text" label="Url" default="" visible="eq(-2,1)" />
+    <setting id="aio.viren_url" type="text" label="Url" default="https://aiostreams.viren070.me" enable="false" visible="eq(-3,2)" />
+    <setting id="aio.yeb_url" type="text" label="Url" default="https://aiostreams.fortheweak.cloud" enable="false" visible="eq(-4,3)" />
+    <setting id="aio.midnight_url" type="text" label="Url" default="https://aiostreamsfortheweebsstable.midnightignite.me" enable="false" visible="eq(-5,4)" />
+    <setting id="aio.username" type="text" label="Username" default="" />
+    <setting id="aio.password" type="text" label="Password" default="" />
+</category>
+
+</settings>

@@ -55,7 +55,7 @@ def capture(profile,report,write,queues=None):
  diagnostics.event(write,'airplay','unexpected_stop',reason=report['reason'],generation=report['generation'],
                    recent=report['recent'][-12:],queues=report['queues'])
 
-def watch(lib,profile,window,write,wait,clock=time.time):
+def watch(lib,profile,window,write,wait,clock=time.time,recover=None):
  import airplay,remote_media
  if not hasattr(lib,'kodi_airplay_health'):return
  tracker=Tracker();saved=logged=float('-inf')
@@ -67,6 +67,9 @@ def watch(lib,profile,window,write,wait,clock=time.time):
    try:source=selected(remote_media.stats(window),SOURCE)
    except Exception:source={} # a closing broker must not prevent the stop itself from being captured
    sample={'player':player,'network':selected(airplay.network(lib,window) or {},NETWORK),'source':source}
+   if recover is not None:
+    try:recover.observe(player)   # a cast that sits still is started again once, then the person is told (airplay_recover.py)
+    except Exception as error:diagnostics.exception(write,'airplay_recover',error)
    was_playing=tracker.played
    now=clock();report=tracker.observe(sample,now)
    if report:capture(profile,report,write,diagnostics.snapshot(profile))

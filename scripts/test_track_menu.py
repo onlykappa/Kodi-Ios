@@ -8,14 +8,27 @@ sys.path.insert(0,str(LIB))
 import track_menu as tm,pages,player_osd
 
 class Rows(unittest.TestCase):
- def test_subtitles_off_first_with_tags_and_check(self):
+ def test_subtitles_off_first_one_row_per_language_cc_first(self):
+  # Owner, 2026-11-20: "there should never be more than one english ... I just want the CC version of English".
   subs=[{'index':0,'language':'eng','name':''},{'index':1,'language':'eng','name':'English SDH','isimpaired':True},
-        {'index':2,'language':'spa','name':'Spanish (Latin America)'},{'index':3,'language':'eng','name':'Forced','isforced':True}]
+        {'index':2,'language':'spa','name':'Spanish (Latin America)'},{'index':3,'language':'eng','name':'Forced','isforced':True},
+        {'index':4,'language':'und','name':''}]
   rows=tm.subtitle_rows(subs,0,True)
-  self.assertEqual([(r['label'],r['tag'],r['on']) for r in rows],
-                   [('Off','',False),('English','',True),('English','SDH',False),('Spanish','',False),('English','FORCED',False)])
+  self.assertEqual([(r['label'],r['tag'],r['on'],r['index']) for r in rows],
+                   [('Off','',False,None),('English','CC',True,1),('Spanish','',False,2)])   # the playing plain English is the CC row's language
   self.assertTrue(tm.subtitle_rows(subs,0,False)[0]['on'])            # subtitles disabled: Off is checked
   self.assertEqual(tm.subtitle_rows([dict(subs[0],downloaded=True)],0,True)[1]['tag'],'NEW')
+ def test_pick_edges(self):
+  plain=lambda n,lang='eng',**kw:dict({'index':n,'language':lang,'name':''},**kw)
+  self.assertEqual([s['index'] for s in tm.pick([plain(0),plain(1)])],[0])                         # two plain Englishes: the first
+  self.assertEqual([s['index'] for s in tm.pick([plain(0,isforced=True),plain(1,isimpaired=True)])],[1])
+  self.assertEqual([s['index'] for s in tm.pick([plain(0,isforced=True)])],[0])                    # only a forced track: keep it
+  self.assertEqual([s['index'] for s in tm.pick([plain(0,'und')])],[0])                            # nothing else: UND stays
+  self.assertEqual([s['index'] for s in tm.pick([plain(0,'und'),plain(1,'fre')])],[1])
+  self.assertEqual([s['index'] for s in tm.pick([plain(0,isimpaired=True),plain(1,downloaded=True)])],[1])   # a downloaded one wins
+  broken={'language':'eng','name':'','index':0,'filename':'x.srt','data':b''}
+  self.assertEqual(tm.pick([broken],{'duration':3000,'language':'en'}),[])                         # an empty track is not shown
+  self.assertEqual([s['index'] for s in tm.pick([plain(0,'spa')],{'duration':3000,'language':'en'})],[0])   # another language is not broken
  def test_audio_tags(self):
   rows=tm.audio_rows([{'index':0,'language':'eng','name':'TrueHD Atmos 7.1','channels':8},
                       {'index':1,'language':'eng','name':'Director\'s Commentary','channels':2},

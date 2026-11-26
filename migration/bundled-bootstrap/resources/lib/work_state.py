@@ -159,6 +159,20 @@ def retry_text(until, now):
     return 'trying again in %d min' % m if m < 60 else 'trying again in %d h' % (m // 60)
 
 
+SLOW_CELL_WAIT = 'Waiting for Wi-Fi · cellular is too slow for copies, it carries on from where it stopped'
+SLOW_LINE_RATE = 1048576      # ISSUE-484: a copy under 1 MB/s with this long still to go says why it takes so long
+SLOW_LINE_ETA = 900
+
+
+def slow_line(job):
+    """True for a copy that will take a long while because the phone's upload line is slow (not a stuck copy)."""
+    try:
+        rate, eta = float(job.get('rate') or 0), float(job.get('eta_s') or 0)
+    except (TypeError, ValueError):
+        return False
+    return job.get('kind') == 'copy' and 0 < rate < SLOW_LINE_RATE and eta > SLOW_LINE_ETA
+
+
 def line(job):
     """The one status line of a job (the same on every page): its step or why it waits, its speed, its time left."""
     state = job['state']
@@ -169,7 +183,8 @@ def line(job):
     if state == STALE_STATE:
         return 'Updating…'
     first = job['slow_words'] if state == SLOWED and not job.get('phase_detail') else job['step']
-    return ' · '.join(x for x in (first, speed(job.get('rate')), left(job.get('eta_s'))) if x)
+    return ' · '.join(x for x in (first, speed(job.get('rate')), left(job.get('eta_s')),
+                                  'slow upload line, still working' if slow_line(job) else '') if x)
 
 
 # --- the snapshot ------------------------------------------------------------------------------------------------------
@@ -375,6 +390,8 @@ def _copy(debrid, now):
             out['wait'] = retry_words(job, retry, now)
         if (debrid or {}).get('hold') == 'wifi':
             out['wait'] = 'Waiting for Wi-Fi · copies run on Wi-Fi only (Transfer settings)'
+        if (debrid or {}).get('hold') == 'slow_cell':
+            out['wait'] = SLOW_CELL_WAIT
         out['playback_held']=phase=='paused_playback' and not ((job.get('tries') or job.get('net_tries') or job.get('tmdb_waits')) and retry>now)
         return out
     if current.get('stage') == 'fetching':
@@ -385,10 +402,10 @@ def _copy(debrid, now):
         return {'kind': 'copy', 'title': title, 'name': job.get('name', ''), 'step': STEP['copy'], 'pct': 0, 'indeterminate': False,
                 'rate': 0.0, 'eta_s': 0, 'tint': BLUE, 'hash': job.get('hash', ''),
                 'wait': retry_words(job, retry, now)}
-    if (debrid or {}).get('hold') == 'wifi':
+    if (debrid or {}).get('hold') in ('wifi', 'slow_cell'):
         return {'kind': 'copy', 'title': title, 'name': job.get('name', ''), 'step': STEP['copy'], 'pct': 0, 'indeterminate': False,
                 'rate': 0.0, 'eta_s': 0, 'tint': BLUE, 'hash': job.get('hash', ''),
-                'wait': 'Waiting for Wi-Fi · copies run on Wi-Fi only (Transfer settings)'}
+                'wait': SLOW_CELL_WAIT if debrid.get('hold') == 'slow_cell' else 'Waiting for Wi-Fi · copies run on Wi-Fi only (Transfer settings)'}
     return {'kind':'copy','title':title,'name':job.get('name',''),'step':
             'Waiting for AllDebrid' if job.get('status') in ('new','fetching') else 'Starting transfer to Google Drive',
             'pct':0,'indeterminate':True,'queued':True,'rate':0.0,'eta_s':0,'tint':BLUE,'hash':job.get('hash','')}

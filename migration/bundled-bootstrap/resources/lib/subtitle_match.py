@@ -208,6 +208,8 @@ def assess(track, video):
         score += 12 if dub_marked(track) else -8
     forced = bool(track.get('isforced') or track.get('forced') or re.search(r'(?i)\bforced\b', name))
     duration = max(0.0, float(video.get('duration') or 0))
+    if track.get('sample_count') is not None and int(track['sample_count']) <= 1 and not forced:
+        return refuse('Empty subtitle track')   # an embedded track the file itself holds no (or one) subtitle for (mp4_tracks)
     if checked and not cues:
         return refuse('Empty subtitle track')
     if track.get('offset_s') is not None and float(track.get('offset_confidence') or 0) >= .75:

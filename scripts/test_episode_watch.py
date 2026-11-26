@@ -9,7 +9,7 @@ from test_elementum_cloud import url,magnet
 def timestamp(date):return datetime.datetime.fromisoformat(date).replace(tzinfo=datetime.timezone.utc).timestamp()
 def ep(n,aired,season=1):return {'season_number':season,'episode_number':n,'name':'Episode '+str(n),'air_date':aired}
 
-class Calendar(unittest.TestCase):
+class Fixture:
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.profile=self.tmp.name
   self.now=timestamp('2026-11-10T12:00:00');self.downloaded=[];self.logs=[]
@@ -22,6 +22,8 @@ class Calendar(unittest.TestCase):
   args=dict(get_show=lambda ident:copy.deepcopy(self.details),get_season=lambda *a:{'episodes':copy.deepcopy(self.rows)},
             existing=self.owned,download=self.fetch,clock=lambda:self.now,log=lambda *a,**k:self.logs.append((a,k)))
   args.update(kwargs);return watch.sweep(self.profile,**args)
+
+class Calendar(Fixture,unittest.TestCase):
  def test_future_and_unknown_dates_wait_then_release_is_queued_once_across_restarts(self):
   self.assertEqual(self.sweep(),0);self.assertEqual(self.downloaded,[])
   self.now=timestamp('2026-11-11T12:00:00');self.assertEqual(self.sweep(),1)
@@ -127,6 +129,56 @@ class Openings(unittest.TestCase):
   turns=iter([False,False,True]);check=Mock()
   watch.run_open_checks(types.SimpleNamespace(waitForAbort=lambda delay:next(turns)),lambda:True,lambda:True,lambda:False,lambda:False,check)
   check.assert_not_called()
+
+class Retries(Fixture,unittest.TestCase):
+ """Owner 2026-11-25 (an episode of Phony came out and was never fetched): build 698's log shows the launch's single pass ending in Stop / Canceled."""
+ def test_an_interrupted_pass_does_not_start_the_cooldown_and_says_it_was_deferred(self):
+  self.now=timestamp('2026-11-11T12:00:00')
+  stopped=lambda *a:(_ for _ in ()).throw(type('Stop',(Exception,),{})())
+  self.sweep(existing=stopped)
+  self.assertTrue(watch.sweep.last['deferred']);self.assertEqual(watch.load(self.profile)['shows']['123']['last_check'],0)
+  self.now+=60;self.assertEqual(self.sweep(),1)          # a minute later the show is checked again, not after 30 minutes
+ def test_a_download_that_found_nothing_is_this_episodes_result_and_the_next_episode_is_still_tried(self):
+  self.now=timestamp('2026-11-12T12:00:00');self.rows=[ep(1,'2026-11-10'),ep(2,'2026-11-11'),ep(3,'2026-11-12')]
+  def fetch(show,row):
+   if row['episode_number']==2:raise type('Canceled',(RuntimeError,),{})()   # AllDebrid had not taken the new episode yet
+   self.downloaded.append(row['episode_number']);return True
+  self.assertEqual(self.sweep(download=fetch),1);self.assertEqual(self.downloaded,[3])
+  state=watch.load(self.profile)['shows']['123']['episodes']
+  self.assertEqual((state['1:2']['status'],state['1:3']['status']),('not_found','queued'))
+  self.assertEqual(watch.sweep.last['unresolved'],1);self.assertFalse(watch.sweep.last['deferred'])
+  self.now+=watch.COOLDOWN+1;self.assertEqual(self.sweep(download=lambda *a:True),1)   # found on a later pass
+ def test_a_stop_while_the_app_is_leaving_still_ends_the_pass(self):
+  self.now=timestamp('2026-11-11T12:00:00')
+  def fetch(show,row):raise type('Stop',(Exception,),{})()
+  self.sweep(download=fetch,keep_going=lambda:False);self.assertTrue(watch.sweep.last['deferred'])
+
+def monitor_for(turns):
+ state={'i':0}
+ def wait(seconds):state['i']+=1;return state['i']>turns
+ return types.SimpleNamespace(waitForAbort=wait,state=state)
+
+class Scheduling(unittest.TestCase):
+ def run_checks(self,results,turns=400,day=None,clock_step=15.0):
+  now={'t':0.0};monitor=monitor_for(turns);calls=[];it=iter(results)
+  def wait(seconds):now['t']+=clock_step;monitor.state['i']+=1;return monitor.state['i']>turns
+  monitor.waitForAbort=wait
+  days=iter(day) if day else None
+  watch.run_open_checks(monitor,lambda:True,lambda:True,lambda:False,lambda:True,lambda:calls.append(now['t']) or next(it,None),
+                        clock=lambda:now['t'],today=(lambda:next(days,'2026-11-11')) if days else (lambda:'2026-11-11'))
+  return calls
+ def test_nothing_to_retry_means_one_pass_per_launch(self):
+  self.assertEqual(len(self.run_checks([None])),1)
+ def test_an_interrupted_pass_is_tried_again_two_minutes_later(self):
+  calls=self.run_checks([watch.RETRY_DEFERRED,None])
+  self.assertEqual(len(calls),2);self.assertGreaterEqual(calls[1]-calls[0],watch.RETRY_DEFERRED);self.assertLess(calls[1]-calls[0],watch.RETRY_DEFERRED+60)
+ def test_an_unfound_episode_is_looked_for_every_half_hour_but_only_twelve_times(self):
+  calls=self.run_checks([watch.RETRY_UNRESOLVED]*40,turns=3000)
+  self.assertEqual(len(calls),watch.MAX_RETRIES+1)
+  self.assertTrue(all(b-a>=watch.RETRY_UNRESOLVED for a,b in zip(calls,calls[1:])))
+ def test_a_new_day_while_the_app_stays_open_starts_a_pass(self):
+  days=['2026-11-11']*40+['2026-11-12']*400
+  self.assertEqual(len(self.run_checks([None,None],turns=200,day=days)),2)
 
 class Runtime(unittest.TestCase):
  def test_season_sheet_offers_two_choices_and_following_moved_to_the_bell(self):

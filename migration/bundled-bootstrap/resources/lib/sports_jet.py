@@ -22,6 +22,7 @@ import sports_merge
 import sports_model as sm
 
 TTL = 45                # recheck ESPN while avoiding a scan for each page tap
+WALK_TTL = 180          # a walk of Crew's menus that ran to the end answers any read for this long (build 646 logs: a walk started whenever a read found the answer 45 s old)
 SCORE_EVERY, SCORE_STALE = 8, 40   # live scores: asked again at most every 8 s while a page polls, trusted for 40 s (owner: scores and clocks must be live)
 SHOW_AFTER = 6          # allow an initial scan to collect a useful first batch
 LOAD_SECONDS = 18       # how long a page waits for the scrapers before showing what it has
@@ -339,6 +340,7 @@ class JetProvider:
         self.at = 0
         self.running = None   # (thread list, done event)
         self.reason = ''
+        self.walked = ''   # the league the last Crew walk was limited to ('' = every league), published with its answer (sports_provider reuses a recent walk)
         self._remote_cache = None  # snapshot bytes and recent merged result
         self.score_loader, self._scores = score_loader, []
         self._score_started = self._score_at = 0
@@ -432,7 +434,12 @@ class JetProvider:
                     if _folder('plugin.video.thecrew'):
                         import sports_crew_routes
                         schedule_began = time.monotonic()
-                        schedule = sports_crew_routes.schedule()
+                        try:
+                            only_league = str(self._home().getProperty(sports_crew_routes.ONLY_LEAGUE) or '')
+                        except Exception:   # outside Kodi (tests): every league
+                            only_league = ''
+                        self.walked = only_league
+                        schedule = sports_crew_routes.schedule(only_league) if only_league else sports_crew_routes.schedule()
                         log('jet: ESPN schedule ready in %.2fs (%d live, %d upcoming)' % (
                             time.monotonic() - schedule_began,
                             sum(g.get('state') == 'live' for g in schedule),
@@ -441,7 +448,8 @@ class JetProvider:
                             self.schedule = schedule
                         self._publish(False)
                         others = sports_crew_routes.discover(schedule=schedule, session=self.crew_session)
-                        log('jet: %d Crew source routes discovered' % len(others))
+                        log('jet: %d Crew source routes discovered (live in the schedule: %s)' % (
+                            len(others), ', '.join(sorted({str(g.get('league')) for g in schedule if g.get('state') == 'live'})) or 'none'))
                     elif self.crew_only:
                         import sports_crew_routes
                         with self.lock:
@@ -507,7 +515,7 @@ class JetProvider:
             with self.lock:
                 every = [r for rs in self.records.values() for r in rs]
                 schedule = copy.deepcopy(self.schedule)
-            self.publish({'at': int(self.clock()), 'done': bool(done), 'records': every, 'schedule': schedule, 'reason': self.reason})
+            self.publish({'at': int(self.clock()), 'done': bool(done), 'records': every, 'schedule': schedule, 'reason': self.reason, 'league': self.walked})
         except Exception as error:
             log('jet: publish failed (%s)' % type(error).__name__)
 
@@ -537,7 +545,8 @@ class JetProvider:
             except ValueError:
                 return None
         data = read()
-        if force or not data or now - data.get('at', 0) >= TTL:
+        limit = WALK_TTL if data and data.get('done') and data.get('records') else TTL
+        if force or not data or now - data.get('at', 0) >= limit:
             try:
                 started = float(home.getProperty(RUN) or 0)
             except ValueError:
@@ -816,10 +825,16 @@ def run_script(args, window=None):
             log('sports: opening cancelled')
         except Exception as error:
             log('jet: play failed (%s)' % type(error).__name__)
-            try:
-                xbmcgui.Dialog().notification('Sports', "Can't play this source right now. Try another source.", xbmcgui.NOTIFICATION_WARNING, 4000)
+            shown = False
+            try:   # the card says so (one button, Back to Sports) instead of closing and leaving a toast (owner, build 623: "we cant have failed sources")
+                shown = bool(opening and opening.fail())
             except Exception:
-                pass
+                shown = False
+            if not shown:
+                try:
+                    xbmcgui.Dialog().notification('Sports', "Can't play this source right now. Try another source.", xbmcgui.NOTIFICATION_WARNING, 4000)
+                except Exception:
+                    pass
         finally:
             _play_session.opening = None
             if opening:opening.close()
@@ -880,7 +895,7 @@ def play_request(source, logger=log, window=None, launch=None):
     import sports_crew_context
     sports_crew_context.cancel_current(home)
     payload = {'play': source.get('play'), 'alts': source.get('alts') or [], 'id': source.get('id'),
-               'native_queue': source.get('native_queue') or [], 'native_owner': key}
+               'native_queue': source.get('native_queue') or [], 'native_owner': key, 'native_pinned': bool(source.get('native_pinned'))}
     home.setProperty(PLAY + key, json.dumps(payload, separators=(',', ':')))
     logger('sports: play %s from %s (%s, %s)' % (source.get('id'), source.get('addon'), source.get('quality'), source.get('language')))
     (launch or _launch)('sports_jet_run', 'play', key)
@@ -959,7 +974,8 @@ def play(source, logger=log):
     if source.get('native_queue'):
         import sports_loop_router
         try:
-            return sports_loop_router.play(source['native_queue'], logger, owner=source.get('native_owner'), keep_owner_on_failure=bool(source.get('alts')))
+            return sports_loop_router.play(source['native_queue'], logger, owner=source.get('native_owner'), keep_owner_on_failure=bool(source.get('alts')),
+                                           pinned=bool(source.get('native_pinned')))
         except InterruptedError:
             return False  # user stop/shutdown must not start a different provider
         except Exception as error:
@@ -1028,6 +1044,26 @@ def hold_local_proxy(xbmc, address, startup_seconds=20):
             return
 
 
+def watch_resolved(route, playing_file, log, clock=None, sleep=None, limit=40.0, step=0.25):
+    """After Kodi was handed a Crew play route: say how long Crew's plugin took to give Kodi the stream (build 639 log fd1d028c: about 6 s between the play call and
+    the first stream Kodi opened, silent in the log, so nothing could say where it went). `playing_file()` is what Kodi has open ('' when none). One line, no address."""
+    import time
+    clock = clock or time.monotonic
+    sleep = sleep or time.sleep
+    began = clock()
+    while clock() - began < limit:
+        try:
+            current = str(playing_file() or '')
+        except Exception:
+            current = ''
+        if current and current != route:
+            log('sports: Crew handed Kodi its stream %.1fs after the play call' % (clock() - began))
+            return True
+        sleep(step)
+    log('sports: Crew gave Kodi no stream in %.0fs after the play call' % limit)
+    return False
+
+
 def play_one(play_value, logger=log):
     """One add-on's stream of a game. Raises when it cannot be opened."""
     import xbmc
@@ -1044,14 +1080,22 @@ def play_one(play_value, logger=log):
         sports_native_routes.prepare_proxy([route])
         if value['e'] == 'TheCrewRoute':
             import sports_crew_routes
-            if getattr(_play_session,'opening',None):_play_session.opening.stage('Refreshing the selected source.')
+            if getattr(_play_session,'opening',None):_play_session.opening.stage('Getting the source ready')
+            import time as _time
+            _began = _time.monotonic()
             try:
                 route = sports_crew_routes.refresh_link(value['l'])
             except RuntimeError as error:
                 raise InterruptedError('Crew source refresh incomplete') from error
+            _ready = _time.monotonic() - _began
         logger('sports: opening via %s' % ('The Crew' if value['e'] == 'TheCrewRoute' else 'The Loop'))
-        if getattr(_play_session,'opening',None):_play_session.opening.stage('Connecting to the selected source.')
+        if value['e'] == 'TheCrewRoute':
+            logger('sports: Crew link ready after %.2fs' % _ready)
+        if getattr(_play_session,'opening',None):_play_session.opening.stage('Connecting to the source')
         xbmc.Player().play(route)
+        if value['e'] == 'TheCrewRoute':
+            _route = route
+            threading.Thread(target=watch_resolved, args=(_route, lambda: xbmc.Player().getPlayingFile(), logger), daemon=True).start()
         return True
     if value.get('e') == sports_fawa.NAME:
         address = sports_fawa.resolve(value['l']['address'])

@@ -1,0 +1,12 @@
+# Kodi Media Center language file
+# Addon Name: POV
+# Addon id: plugin.video.pov
+# Addon Provider: kodifitzwell
+# Translator English: Tiki
+msgid ""
+msgstr ""
+
+msgctxt "#32000"
+msgid ""
+msgstr ""
+

@@ -7,6 +7,7 @@ finds subtitles for this video in the owner's language on Podnapisi, downloads a
 holds Choose another (the other results), Add from a file and Use for all videos. Timing and Volume boost use Kodi's
 own subtitle delay, audio delay and volume amplification."""
 import json
+import re
 import os
 import sys
 import threading
@@ -22,7 +23,7 @@ import subtitle_match as sm
 BACK = (9, 10, 92, 110)
 CLOSE, MORE, CTA, LIST, T_MINUS, T_PLUS, B_MINUS, B_PLUS = 9500, 9501, 9510, 9310, 9401, 9402, 9403, 9404
 # The Subtitles drawer (owner, 2026-11-16): its own list and timing buttons; holding a track opens a menu (Find another / Remove).
-SUBS_LIST, T_MINUS_S, T_PLUS_S = 9312, 9405, 9406
+SUBS_LIST, T_MINUS_S, T_PLUS_S, SYNC = 9312, 9405, 9406, 9407
 HOLD_FIND, HOLD_REMOVE, HOLD_SCRIM, SURE_SCRIM, SURE_CANCEL, SURE_REMOVE = 9601, 9602, 9690, 9691, 9611, 9612
 LONG = (101, 117, 10)   # a long press on the phone arrives as 101 / 117, and as 10 (Back) first; see favourites_page.onAction
 SUBS_ROWS = 5
@@ -31,6 +32,71 @@ BACK_LINK = 9502    # board 02: the sub-page's back link in the header (owner lo
                     # replaced the back actions above and every key press in the menu raised a TypeError)
 FIELDS = ['subtitles', 'currentsubtitle', 'subtitleenabled', 'audiostreams', 'currentaudiostream']
 UA = 'KodiIOS/1.0'
+
+
+
+def generic_title(title):
+    """True for a title that is only an episode label ('Episode 8', 'E08', 'Part 2'): it says nothing about the show."""
+    return bool(re.match(r'^\s*(episode|ep\.?|e|part|chapter)\s*0*\d+\s*$', str(title or ''), re.I))
+
+
+def tmdb_known(it, show_tmdb):
+    """A TMDb id for the video, from Kodi's own item or from what Continue knew."""
+    return bool(show_tmdb or (it.get('uniqueid') or {}).get('tmdb'))
+
+
+def playing_known(it, raw, now=time.time):
+    """What the Library's player left in KodiIOS.Playing for the video that plays, when it is recent and the title agrees; {} otherwise. Build 662 log 3173e72b:
+    with the property unset the old check read its time as 0 and returned {} for everything, so Continue's own record was never asked and SubDL got 'Episode 8'
+    with no show (a dragon cartoon's subtitle on a Black Clover episode)."""
+    try:
+        known = json.loads(raw or '{}')
+        if not known or now() - float(known.get('t') or 0) > 6 * 3600:
+            return {}
+        names = {str(it.get('title') or '').lower(), str(it.get('showtitle') or '').lower(), str(it.get('label') or '').lower()} - {''}
+        return known if names & {str(known.get('title') or '').lower(), str(known.get('show') or '').lower()} else {}
+    except Exception:
+        return {}
+
+
+def continue_known(it, read, now=time.time, link=None):
+    """What Continue Watching knows about the video it started (show, season, episode, year, TMDb id), when Kodi's own item lacks them and the title agrees.
+    Owner, build 639 log 9f7b4ab2: an Umbrella episode played as 'Episode 8' with no show, so SubDL was asked for 'Episode 8' with no season or episode and
+    returned some other show's subtitle. {} when nothing agrees."""
+    try:
+        data = json.loads(read('special://profile/addon_data/plugin.video.kodi.ios.watch/continue.json') or '{}')
+        entry = (data.get('items') or {}).get(data.get('current')) or {}
+        if not entry or now() - float(entry.get('played') or 0) > 6 * 3600:
+            return {}
+        names = {str(it.get('title') or '').lower(), str(it.get('showtitle') or '').lower(), str(it.get('label') or '').lower()} - {''}
+        mine = {str(entry.get('title') or '').lower(), str(entry.get('tvshowtitle') or '').lower()} - {''}
+        same_link = bool(link) and str(link).split('|')[0] == str((entry.get('stream') or {}).get('url') or '').split('|')[0]   # Continue plays this very link
+        # Build 660 log dc74b76b: the guard fell back to a new link and the entry's title was the episode's own name, so neither the title nor the link
+        # agreed and SubDL was asked for 'Episode 8' with no show (the subtitle did not line up). The entry Continue followed last, when Kodi calls the item 'Episode N' and that is its episode, counts.
+        import re
+        number = re.search(r'\bepisode\s*0*(\d+)\b', ' '.join(names))
+        same_episode = bool(number) and str(entry.get('episode') or '').strip() == number.group(1)   # the entry is already no older than 6 h
+        if not (names & mine or same_link or same_episode):
+            return {}
+        movie = entry.get('kind') == 'movie'
+        return {'kind': 'movie' if movie else 'episode', 'title': entry.get('title') or '', 'show': '' if movie else entry.get('tvshowtitle') or '',
+                'season': entry.get('season'), 'episode': entry.get('episode'), 'year': entry.get('year') or None, 'tmdb': entry.get('tmdb_id') or None}
+    except Exception:
+        return {}
+
+def external(stream):
+    """True for a subtitle file Kodi was handed (its stream name ends '(External)'): a download or a file the viewer added."""
+    return str(stream.get('name') or '').rstrip().endswith('(External)')
+
+
+def external_file(folder, name):
+    """The file this app downloaded for Kodi's '<crc> (External)' stream (the file is '<crc>.<lang>.<ext>'), or None."""
+    import glob
+    stem = str(name or '').replace('(External)', '').strip()
+    if not stem.isdigit():
+        return None
+    found = sorted(glob.glob(os.path.join(folder, stem + '.*')))
+    return found[0] if found else None
 
 
 def rpc(xbmc, method, params=None):
@@ -116,6 +182,36 @@ def keys_tag(xbmcvfs):
     return ' + '.join(names).upper() if names else 'NOT SET'
 
 
+def auto_flow(Menu, xbmc, xbmcgui, log, lang, lang_name):
+    """Subtitles for the playing video without the menu: Menu's own search, fetch and apply (their closures are the menu's), on an object that has no window."""
+    class Auto:
+        pass
+    for name in ('item', 'video', 'played', 'search', 'fetch_result', 'apply'):
+        setattr(Auto, name, getattr(Menu, name))
+    auto = Auto()
+    auto.lang, auto.lang_name, auto.added, auto.paths, auto.track_evidence, auto.episode = lang, lang_name, set(), {}, {}, (None, None)
+    try:
+        results = auto.search()
+        if not results:
+            log('auto: nothing found')
+            xbmcgui.Dialog().notification('No %s subtitles found' % lang_name, '', xbmcgui.NOTIFICATION_INFO, 3000, False)
+            return False
+        selected, name, data = sm.choose_download(list(results), auto.fetch_result, auto.video())
+        auto.apply(selected, (name, data))
+        log('auto: %s subtitles applied' % lang_name)
+        xbmcgui.Dialog().notification('%s subtitles on' % lang_name, '', xbmcgui.NOTIFICATION_INFO, 2000, False)
+        return True
+    except Exception as error:
+        log('auto: failed: %s: %s' % (type(error).__name__, error))
+        try:
+            if tm.ZIP_NAMES:
+                log('subtitle files in the last zip: %s' % ' | '.join(tm.ZIP_NAMES))
+        except Exception:
+            pass
+        xbmcgui.Dialog().notification('No %s subtitles found' % lang_name, '', xbmcgui.NOTIFICATION_INFO, 3000, False)
+        return False
+
+
 def run(mode):
     import xbmc
     import xbmcgui
@@ -126,8 +222,26 @@ def run(mode):
     # Owner log 20b1ca76: an error message carried the SubDL key into kodi.log; keys never reach the log.
     log = lambda m: xbmc.log('Kodi iOS tracks: ' + redact(m), xbmc.LOGINFO)
     lang, lang_name = subtitle_language(xbmc)
-    folder = xbmcvfs.translatePath('special://temp/kodiios-subtitles/')
+    folder = xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/subtitles/')   # build 634 log f75957fe: special://temp is emptied at every start, so a download was lost
     LIST_ID = SUBS_LIST if mode == 'subtitles' else LIST   # the drawer has a taller list of its own
+
+    def known_now():
+        """subtitle_memory.known_from for the video playing now: the same key the service files and finds a subtitle under."""
+        import subtitle_memory
+
+        def read(path):
+            f = xbmcvfs.File(path)
+            try:
+                return f.read()
+            finally:
+                f.close()
+        link = None
+        try:
+            import remote_media
+            link = remote_media.original(xbmc.Player().getPlayingFile(), xbmcgui.Window(10000))
+        except Exception:
+            link = None
+        return subtitle_memory.known_from(read, xbmc.getInfoLabel('VideoPlayer.Title'), link=link)
 
     class Menu(xbmcgui.WindowXMLDialog):
         closed = False
@@ -150,6 +264,7 @@ def run(mode):
             self.rows, self.results, self.added = [], [], set()
             self.track_evidence, self.auto_chosen = {}, False
             self.hidden, self.paths, self.held = set(), {}, None   # removed tracks, files this menu downloaded, the row held
+            self.file_tracks, self.names = [], {}   # the subtitle tracks the MP4 itself holds (log_file_tracks), stream names by index
             self.lang, self.lang_name, self.from_hold = lang, lang_name, False
             self.page = 'tracks'
             self.setProperty('mode', mode)
@@ -195,12 +310,19 @@ def run(mode):
                 video = self.video()
                 if not self.auto_chosen:
                     self.auto_chosen = True
-                    chosen = sm.preferred(subs, cur, p.get('subtitleenabled'), video)
+                    chosen = sm.preferred(tm.pick(subs, video), cur, p.get('subtitleenabled'), video)   # only the streams the menu shows
+                    if any(s.get('index') == cur and s.get('downloaded') for s in subs):
+                        chosen = cur   # a subtitle the viewer downloaded is never swapped for an embedded one by opening the menu
                     if p.get('subtitleenabled') and chosen != cur:
                         rpc(xbmc, 'Player.SetSubtitle', {'playerid': pid, 'subtitle': chosen if chosen is not None else 'off',
                                                        'enable': chosen is not None})
                         cur = chosen
                         p['subtitleenabled'] = chosen is not None
+                if not getattr(self, 'logged_streams', False):
+                    self.logged_streams = True   # what Kodi offers for this video, so a log shows why a track is or is not there
+                    log('streams: %s' % '; '.join('#%s %s%s%s%s' % (s.get('index'), s.get('language') or '?', ' "%s"' % s['name'] if s.get('name') else '',
+                                                                   ' forced' if s.get('isforced') else '', ' sdh' if s.get('isimpaired') else '') for s in (p.get('subtitles') or [])) + ' | on #%s' % cur)
+                    threading.Thread(target=self.log_file_tracks, daemon=True).start()
                 self.rows = tm.subtitle_rows(subs, cur, p.get('subtitleenabled'), video)
             else:
                 self.rows = tm.audio_rows(p.get('audiostreams'), (p.get('currentaudiostream') or {}).get('index'))
@@ -268,6 +390,19 @@ def run(mode):
                 rpc(xbmc, 'Player.SetAudioStream', {'playerid': pid, 'stream': r['index']})
                 said = 'Audio: %s' % r['label']
             log(said)
+            if mode == 'subtitles' and r.get('index') is not None:
+                # Build 622 (owner: captions "on" and nothing drawn): what Kodi itself says a moment later, so "on but not drawn" and "never turned on" differ.
+                def report():
+                    try:
+                        xbmc.sleep(2500)
+                        got = rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['subtitleenabled', 'currentsubtitle']}) or {}
+                        shown = xbmc.getCondVisibility('VideoPlayer.SubtitlesEnabled')
+                        current = got.get('currentsubtitle') or {}
+                        log('Kodi says subtitles enabled=%s (info %s), current #%s %s %s' % (got.get('subtitleenabled'), shown, current.get('index'),
+                                                                                           current.get('language') or '?', current.get('name') or ''))
+                    except Exception as error:
+                        log('subtitle check not read (%s)' % type(error).__name__)
+                threading.Thread(target=report, daemon=True).start()
             self.fill()
             xbmc.sleep(300)
             self.close()
@@ -306,14 +441,73 @@ def run(mode):
 
         def with_evidence(self, streams):
             # A track this menu downloaded or added from a file can be removed; one inside the video file cannot.
-            return [dict(s, downloaded=s.get('index') in self.added, removable=s.get('index') in self.added or s.get('index') in self.track_evidence,
-                         **self.track_evidence.get(s.get('index'), {}))
-                    for s in streams if s.get('index') not in self.hidden]
+            # Owner, 2026-11-20 (build 617 log): a downloaded subtitle was forgotten the moment the menu closed (this object is new on every open), so the
+            # next open saw it as an ordinary English track, ranked the embedded CC above it and switched Kodi to that, turning the download off. Kodi names
+            # every file it was handed "<file> (External)": those are the viewer's, wherever this menu instance learned of them.
+            gone = set(filter(None, xbmcgui.Window(10000).getProperty('KodiIOS.SubsRemoved').split('|')))
+            embedded = [s for s in streams if not external(s)]
+            sized = {}
+            if self.file_tracks and len(self.file_tracks) == len(embedded):   # the file's tracks come in the order Kodi numbers its own
+                for stream, track in zip(sorted(embedded, key=lambda s: s.get('index') or 0), self.file_tracks):
+                    if track.get('samples') is not None:
+                        sized[stream.get('index')] = track['samples']
+            out = []
+            for s in streams:
+                index, mine = s.get('index'), external(s)
+                self.names[index] = s.get('name') or ''
+                if index in self.hidden or (mine and s.get('name') in gone):
+                    continue
+                extra = {} if index not in sized else {'sample_count': sized[index]}
+                out.append(dict(s, downloaded=index in self.added or mine, removable=index in self.added or index in self.track_evidence or mine,
+                                **extra, **self.track_evidence.get(index, {})))
+            return out
+
+        def played(self, it):
+            """What the add-on that started this video knew about it (show, season, episode, year, TMDb id of the show), when Kodi's own item lacks it and the
+            title agrees. Owner, build 618 log: a Drive episode searched as 'Trust Fall' with no season or episode, and SubDL found nothing."""
+            try:
+                found = playing_known(it, xbmcgui.Window(10000).getProperty('KodiIOS.Playing'))
+                if found:
+                    return found
+            except Exception:
+                pass
+            try:   # a stream Continue Watching follows (Umbrella): Kodi's item says only 'Episode 8' (build 639 log 9f7b4ab2: the search had no show, season or episode)
+                def read(path):
+                    f = xbmcvfs.File(path)
+                    try:
+                        return f.read()
+                    finally:
+                        f.close()
+                link = None
+                try:   # the link behind the cache's own address (remote_media.original)
+                    import remote_media
+                    link = remote_media.original(str(it.get('file') or ''), xbmcgui.Window(10000))
+                except Exception:
+                    link = None
+                return continue_known(it, read, link=link)
+            except Exception:
+                return {}
+            return {}
 
         def search(self):
             it = self.item()
             show = it.get('showtitle')
             season, episode = it.get('season'), it.get('episode')
+            extra = self.played(it)
+            show_tmdb = None
+            if extra and extra.get('kind') != 'movie':
+                if not show:
+                    show = extra.get('show') or None
+                try:
+                    if season is None or season < 0:
+                        season = int(extra.get('season')) if str(extra.get('season') or '').isdigit() else season
+                    if episode is None or episode <= 0:
+                        episode = int(extra.get('episode')) if str(extra.get('episode') or '').isdigit() else episode
+                except (TypeError, ValueError):
+                    pass
+                show_tmdb = extra.get('tmdb') or None
+            elif extra and not it.get('year'):
+                it = dict(it, year=extra.get('year') or it.get('year'))
             title = show or it.get('title') or it.get('label') or ''
             name = os.path.basename(str(it.get('file') or '').split('?')[0].split('|')[0])
             # Roadmap B.5 (build 232): a copy played without details searched its file name; read show and episode
@@ -330,7 +524,12 @@ def run(mode):
             import subtitle_sources as ss
             keys = ss.load_keys(keys_folder(xbmcvfs))
             self.episode = ep
-            tmdb = (it.get('uniqueid') or {}).get('tmdb') if not ep[0] else None
+            if not ep[0] and not tmdb_known(it, show_tmdb) and generic_title(title):
+                # A bare 'Episode 8' names no show: SubDL answers with whatever it calls that (a dragon cartoon's subtitle on an anime episode, build 662 log
+                # 3173e72b). No subtitle is better than another show's.
+                log('search skipped: %r names no show, season or episode' % title)
+                return []
+            tmdb = (it.get('uniqueid') or {}).get('tmdb') if not ep[0] else show_tmdb
             log('search %s %r %s S%sE%s via %s' % (self.lang, title, year, ep[0], ep[1], ', '.join(ss.sources(keys))))
             video = self.video()
             return sm.rank(ss.find(http_get, keys, self.lang, title, year, ep[0], ep[1], name, tmdb,
@@ -341,7 +540,7 @@ def run(mode):
             ep = getattr(self, 'episode', (None, None))
             return ss.fetch(http_get, http_post, ss.load_keys(keys_folder(xbmcvfs)), result, ep[0], ep[1])
 
-        def apply(self, result, got=None):
+        def apply(self, result, got=None, path=None):
             if got is None:
                 result, name, data = sm.choose_download([result], self.fetch_result, self.checked_video())
                 got = (name, data)
@@ -349,8 +548,8 @@ def run(mode):
             os.makedirs(folder, exist_ok=True)
             # Owner log 20b1ca76: SubDL's id is its download path ('/subtitle/…zip?…'), which made an absolute, missing
             # path; the file is named by a hash of the id.
-            path = os.path.join(folder, '%s.%s.%s' % (zlib.crc32(str(result['id']).encode('utf-8')) & 0xffffffff, self.lang,
-                                                      name.rsplit('.', 1)[-1].lower()))
+            path = path or os.path.join(folder, '%s.%s.%s' % (zlib.crc32(str(result['id']).encode('utf-8')) & 0xffffffff, self.lang,
+                                                          name.rsplit('.', 1)[-1].lower()))
             with open(path, 'wb') as f:
                 f.write(data)
             before = {s.get('index') for s in (rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['subtitles']}) or {}).get('subtitles') or []}
@@ -359,6 +558,11 @@ def run(mode):
             after = (rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['subtitles']}) or {}).get('subtitles') or []
             added = {s.get('index') for s in after} - before
             self.added |= added
+            try:   # this video's subtitle from now on, put back on when it starts again (subtitle_memory.py)
+                import subtitle_memory
+                subtitle_memory.remember(folder, subtitle_memory.identity(xbmc.getInfoLabel, xbmc.Player().getPlayingFile(), known_now()), path, name, self.lang)
+            except Exception as error:
+                log('subtitle memory: not kept (%s)' % type(error).__name__)
             for index in added:
                 self.paths[index] = path
                 self.track_evidence[index] = {'filename': name, 'cues': sm.cue_times(data, name), 'language': self.lang}
@@ -375,18 +579,168 @@ def run(mode):
                         log('nothing found')
                         return
                 self.state('download')
-                selected, name, data = sm.choose_download(self.results if result is None else [result], self.fetch_result, self.checked_video())
+                # Owner, 2026-11-20 (build 616 log): Download and apply took 58 s, nearly all of it listening to two 45 s stretches of the video's
+                # sound over Drive (96 MB of a 4K file) for a check that heard 9 words and made no claim. The subtitle that fits the video's length and
+                # episode is applied at once; the words check runs afterwards and only then corrects the timing or swaps it.
+                candidates = list(self.results if result is None else [result])
+                selected, name, data = sm.choose_download(candidates, self.fetch_result, self.video())
                 self.apply(selected, (name, data))
                 self.state('done')
                 self.fill()
                 xbmcgui.Dialog().notification('%s subtitles on' % self.lang_name, '', xbmcgui.NOTIFICATION_INFO, 2000, False)
+                threading.Thread(target=self.check_by_speech, args=(selected, name, data, candidates, self.lang_name), daemon=True).start()
             except Exception as error:
                 log('download and apply failed: %s: %s' % (type(error).__name__, error))
+                try:
+                    if tm.ZIP_NAMES:
+                        log('subtitle files in the last zip: %s' % ' | '.join(tm.ZIP_NAMES))
+                except Exception:
+                    pass
                 self.state(self.missing('error'))
                 if isinstance(error, sm.Mismatch):
                     self.setProperty('hint', str(error))
             finally:
                 self.reset_language()
+
+        def log_file_tracks(self):
+            """What kind of subtitle tracks the playing MP4 carries (tx3g text Kodi draws; wvtt, stpp or c608 it may not), read from the first MB of the
+            file through the app's own proxy (the playback cache already holds it). One log line, for diagnosis."""
+            try:
+                url = str(xbmc.Player().getPlayingFile() or '').split('|')[0]
+                if not url.startswith('http://127.0.0.1:'):
+                    return
+                import mp4_tracks
+                request = urllib.request.Request(url, headers={'Range': 'bytes=0-1048575'})
+                with urllib.request.urlopen(request, timeout=3) as response:
+                    head = response.read(1048576)
+                    total = int(str(response.headers.get('Content-Range') or '').rpartition('/')[2] or 0)
+                self.file_tracks = mp4_tracks.subtitle_tracks(head)
+                picture = None
+                if self.file_tracks and all(t.get('samples') is None for t in self.file_tracks) and total > 1048576:
+                    # A fragmented file counts no samples in its moov: its fragment index (the last bytes) says how many fragments hold each track.
+                    try:
+                        def get(first, last):
+                            with urllib.request.urlopen(urllib.request.Request(url, headers={'Range': 'bytes=%d-%d' % (first, last)}), timeout=3) as r:
+                                return r.read(last - first + 2)
+                        tail = get(total - 16, total - 1)
+                        size = int.from_bytes(tail[-4:], 'big') if tail[-12:-8] == b'mfro' else 0
+                        if 24 <= size <= 2 * 1024 * 1024:
+                            index = get(total - size, total - 1)
+                            mp4_tracks.with_fragment_counts(self.file_tracks, mp4_tracks.fragment_counts(index))
+                            spans = mp4_tracks.fragment_spans(index, mp4_tracks.track_timescales(head))   # where the cues sit against the video (ISSUE-424)
+                            mp4_tracks.with_spans(self.file_tracks, spans)
+                            picture = mp4_tracks.video_span(self.file_tracks, spans)
+                            try:   # what the first fragments hold for each subtitle track: text or only blanks, and when (ISSUE-424: the cues exist, so are they readable?)
+                                scales = mp4_tracks.track_timescales(head)
+                                entries = mp4_tracks.fragment_entries(index, 3)
+                                first = next((t['id'] for t in self.file_tracks if len(entries.get(t['id'], ())) > 1), None)
+                                cues = {t['id']: [] for t in self.file_tracks}
+                                raw = {t['id']: [] for t in self.file_tracks}
+                                for when, offset in entries.get(first, ()):
+                                    found = mp4_tracks.moof_samples(get(offset, offset + 262143), offset, scales)
+                                    for t in self.file_tracks:
+                                        cues[t['id']].append('%d s: %s' % (round(when / scales.get(first, 1)), mp4_tracks.cue_summary(found.get(t['id'], []))))
+                                        raw[t['id']].extend(found.get(t['id'], []))
+                                if first is not None:
+                                    log('file subtitle cues: ' + '; '.join('#%s [%s]' % (k, ' | '.join(v)) for k, v in cues.items()))
+                                    # Build 634 log f75957fe: every text cue of these tracks has no length, so Kodi reports the track on and draws nothing: such a track
+                                    # is left out of the menu like an empty one, and is not shown as "on" (the existing rule below turns subtitles off)
+                                    flat = [t['id'] for t in self.file_tracks if mp4_tracks.zero_length(raw[t['id']])]
+                                    for t in self.file_tracks:
+                                        if t['id'] in flat:
+                                            t['samples'] = 0
+                                    if flat:
+                                        log('file subtitle tracks with cues that have no length (hidden, they would show nothing): %s' % ', '.join('#%s' % i for i in flat))
+                            except Exception as error:
+                                log('file subtitle cues: not read (%s)' % type(error).__name__)
+                    except Exception as error:
+                        log('file subtitle tracks: fragment index not read (%s)' % type(error).__name__)
+                log('file subtitle tracks: %s' % mp4_tracks.describe(self.file_tracks, picture))
+                if any(t.get('samples') is not None and t['samples'] <= 1 for t in self.file_tracks) and not self.closed:
+                    self.fill(focus_on=False)   # an empty embedded track is now known: the list drops it
+            except Exception as error:
+                log('file subtitle tracks: not read (%s)' % type(error).__name__)
+
+        def check_by_speech(self, selected, name, data, candidates, language):
+            """After the subtitle is already on: listen to the video (slow, off the page's thread). A clear mismatch swaps it for the next candidate; a shift
+            of 0.4 s or more is taken out and the file applied again; too few words to say anything leaves it alone."""
+            try:
+                log('speech check: listening to the video (takes up to a minute; a subtitle applied before it reports is not yet checked)')
+                video = self.checked_video()
+                heard = video.get('heard')
+                if not heard:
+                    log('speech check: nothing to compare, subtitles kept as applied')
+                    return
+                import speech_check
+                tested = sm.annotate(dict(selected, filename=name, data=data), video)
+                fixed, why = speech_check.apply(selected, tested, data, name, heard)
+                log('speech check: %d words heard, this subtitle: %s' % (len(heard), speech_check.describe(selected)))
+                if not why and selected.get('match_speech') == 'unknown':
+                    # The words cannot say whether this subtitle is for this video: try the next few results and keep one the speech supports.
+                    others = [r for r in candidates if r.get('id') != selected.get('id')][:3]
+                    files = []
+                    for other in others:
+                        try:
+                            files.append(sm.choose_download([other], self.fetch_result, video))
+                        except Exception:
+                            continue
+                    best = speech_check.best_fit(heard, files)
+                    if best:
+                        selected2, name2, data2, how, seconds = best
+                        log('speech check: a better supported subtitle among %d others (%s)' % (len(files), how))
+                        if how == 'shift':
+                            data2 = speech_check.shift_file(data2, name2, seconds)
+                        self.apply(selected2, (name2, data2))
+                        xbmcgui.Dialog().notification('Better-matched %s subtitles on' % language, '', xbmcgui.NOTIFICATION_INFO, 3000, False)
+                        return
+                    log('speech check: none of %d others is better supported; subtitles kept as applied' % len(files))
+                if why:
+                    others = [r for r in candidates if r.get('id') != selected.get('id')]
+                    log('speech check: %s; trying %d other subtitle(s)' % (why, len(others)))
+                    selected2, name2, data2 = sm.choose_download(others, self.fetch_result, video)
+                    self.apply(selected2, (name2, data2))
+                    xbmcgui.Dialog().notification('Better-timed %s subtitles on' % language, '', xbmcgui.NOTIFICATION_INFO, 3000, False)
+                elif fixed is not data:
+                    self.apply(selected, (name, fixed))
+                    xbmcgui.Dialog().notification('%s subtitle timing adjusted' % language, '', xbmcgui.NOTIFICATION_INFO, 3000, False)
+            except Exception as error:
+                log('speech check: skipped (%s: %s)' % (type(error).__name__, error))
+
+        def sync_say(self, state, text):
+            self.setProperty('sync_state', state)
+            self.setProperty('sync', text)
+
+        def auto_sync(self):
+            """Subtitles > More > Auto sync (owner, 2026-11-22): listen to the video now and move the subtitle that is on by what the speech says. Only a file this app
+            downloaded can be moved; the sound must be in the subtitle's language (speech_check.wanted)."""
+            try:
+                self.sync_say('busy', 'Listening to the video')
+                p = rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['currentsubtitle', 'subtitleenabled', 'currentaudiostream']}) or {}
+                index = (p.get('currentsubtitle') or {}).get('index')
+                path = self.paths.get(index) or external_file(folder, self.names.get(index, ''))
+                if not p.get('subtitleenabled') or not path or not os.path.exists(path):
+                    log('auto sync: no downloaded subtitle is on (index %s)' % index)
+                    self.sync_say('fail', 'Turn on a downloaded subtitle first')
+                    return
+                import speech_check
+                video = self.video()
+                if not speech_check.wanted(video, (p.get('currentaudiostream') or {}).get('language')):
+                    log('auto sync: not listening (sound %s, subtitles %s)' % ((p.get('currentaudiostream') or {}).get('language') or 'unknown', video.get('language')))
+                    self.sync_say('fail', 'The sound is in another language than the subtitles')
+                    return
+                xbmcgui.Window(10000).setProperty(speech_check.PROPERTY, '')   # listen again: an earlier try may have heard nothing
+                heard = speech_check.for_playing(xbmc, xbmcgui, xbmcvfs, video, log)
+                with open(path, 'rb') as f:
+                    data = f.read()
+                state, text, fixed = speech_check.sync_result(heard, data, path)
+                log('auto sync: %d words heard; %s (%s)' % (len(heard or []), text, state))
+                if fixed is not None:
+                    self.apply({'id': 'auto sync'}, (os.path.basename(path), fixed), path=path)
+                    self.timing()
+                self.sync_say(state, text)
+            except Exception as error:
+                log('auto sync: failed (%s: %s)' % (type(error).__name__, error))
+                self.sync_say('fail', 'Could not sync. Try again')
 
         def always_on(self):
             try:
@@ -512,6 +866,9 @@ def run(mode):
                     threading.Thread(target=self.download_and_apply, daemon=True).start()
             elif control == MORE:
                 self.more()
+            elif control == SYNC:
+                if self.getProperty('sync_state') != 'busy':
+                    threading.Thread(target=self.auto_sync, daemon=True).start()
             elif control in (T_MINUS, T_PLUS, T_MINUS_S, T_PLUS_S):
                 step = 'SubtitleDelay' if mode == 'subtitles' else 'AudioDelay'
                 xbmc.executebuiltin('Action(%s%s)' % (step, 'Minus' if control in (T_MINUS, T_MINUS_S) else 'Plus'))
@@ -614,12 +971,19 @@ def run(mode):
             if row.get('on'):
                 rpc(xbmc, 'Player.SetSubtitle', {'playerid': pid, 'subtitle': 'off'})
             self.hidden.add(index)
-            path = self.paths.pop(index, None)
+            home_window = xbmcgui.Window(10000)
+            home_window.setProperty('KodiIOS.SubsRemoved', '|'.join(filter(None, [home_window.getProperty('KodiIOS.SubsRemoved'), self.names.get(index, '')])))
+            path = self.paths.pop(index, None) or external_file(folder, self.names.get(index, ''))
             if path and os.path.dirname(path) == os.path.dirname(os.path.join(folder, 'x')):   # only a file this menu downloaded
                 try:
                     os.remove(path)
                 except OSError:
                     pass
+            try:
+                import subtitle_memory
+                subtitle_memory.forget(folder, subtitle_memory.identity(xbmc.getInfoLabel, xbmc.Player().getPlayingFile(), known_now()))
+            except Exception:
+                pass
             log('removed subtitle %s' % row['label'])
             self.end_hold()
             if self.page != 'tracks':
@@ -628,6 +992,9 @@ def run(mode):
                 self.fill()
             xbmcgui.Dialog().notification('%s removed' % row['label'], '', xbmcgui.NOTIFICATION_INFO, 2000, False)
 
+    if mode == 'auto':   # no window: the same search, download and apply as the menu's button, started by the service (auto_subtitles.py)
+        auto_flow(Menu, xbmc, xbmcgui, log, lang, lang_name)
+        return
     home = HERE
     menu = Menu('IOSTrackMenu.xml', home, 'Default', '1080i')
     menu.doModal()
@@ -635,4 +1002,4 @@ def run(mode):
 
 
 if __name__ == '__main__':
-    run(sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] in ('subtitles', 'audio', 'speed') else 'subtitles')
+    run(sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] in ('subtitles', 'audio', 'speed', 'auto') else 'subtitles')

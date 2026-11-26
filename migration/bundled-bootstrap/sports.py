@@ -34,11 +34,11 @@ def sports_line(names):
     return '%s, %s\nand %d more' % (names[0], names[1], len(names) - 2)   # explicit break: "1 / more" must not be split
 
 
-def _lines(props, key, text, limit):
-    lines = sp.split_lines(text, limit) or ['']
-    props[key + '.d1'] = lines[0]
-    props[key + '.d2'] = lines[1] if len(lines) > 1 else ''
-    props[key + '.lines'] = str(len(lines))
+def _lines(props, key, text, limit=0):
+    """The tile's one detail line (the slim tiles of the owner's 2026-11-20 request have room for one; d2 stays empty)."""
+    props[key + '.d1'] = str(text).replace('\n', ' ')
+    props[key + '.d2'] = ''
+    props[key + '.lines'] = '1'
 
 
 def _next_game(start, now, offset):
@@ -70,38 +70,38 @@ def props_for(overview, now, offset):
             text = 'Next game starts%s at %s.' % (when, sm.clock_text(overview['next'], offset))
         props['live.detail'] = text
     if overview.get('next') is None:
-        props['up.d1'], props['up.d2'], props['up.lines'] = 'No games', 'coming up', '2'   # not "No games coming / up"
+        _lines(props, 'up', 'No games coming up')
     else:
         total = overview.get('upcoming')
         if total:   # "59 games · 2 more today" (mockup A1)
-            text = sm.count_text(total, 'game') + (' · %d more today' % overview['more_today'] if overview.get('more_today') else '')
-            _lines(props, 'up', text, sp.FIT_HALF)
+            _lines(props, 'up', sm.count_text(total, 'game'))   # "157 games"; the day's count is on the page itself
         else:
             first, second = _next_game(overview['next'], now, offset)
             if not second and overview.get('more_today'):
                 second = '%d more today' % overview['more_today']
-            props['up.d1'], props['up.d2'] = first, second
-            props['up.lines'] = '2' if second else '1'
-    _lines(props, 'lg', sm.count_text(overview.get('leagues') or 0, 'league'), sp.FIT_HALF)
+            _lines(props, 'up', first)   # one short line; the Live now card already says when the next game starts
+    _lines(props, 'lg', sm.count_text(overview.get('leagues') or 0, 'league'))
     return props
 
 
-def next_props(games, now, offset, logos=None, count=sp.NEXT_ROWS):
-    """The Up next rows: the next `count` games not yet started, in the Upcoming page's row shape (the small line is the day)."""
-    import choice_sheet
-    coming = sorted((g for g in games if g.get('state') == 'upcoming' and g['start'] >= now), key=lambda g: g['start'])[:count]
-    props = {}
+def up_next(games, now, offset, count=sp.NEXT_ROWS):
+    """The games for the hub's Up next: today's games that have not started, soonest first (owner, 2026-11-20: today's only, not every game)."""
+    return sorted((g for g in games if g.get('state') == 'upcoming' and g['start'] >= now and sm.day_label(g['start'], now, offset) == 'Today'),
+                  key=lambda g: g['start'])[:count]
+
+
+def next_props(games, now, offset, crests=None, count=sp.NEXT_ROWS):
+    """The Up next rows (sports_rows: logos, short names, records, league tag, time) for today's games still to come. With none left today the
+    section says so in one line (next.empty) instead of vanishing."""
+    import sports_rows
+    coming = up_next(games, now, offset, count)
+    props = {'next.empty': '' if coming else 'No more games today'}
     for n in range(count):
         game = coming[n] if n < len(coming) else None
-        title = sm.versus(game) if game else ''
-        clock = sm.clock_text(game['start'], offset).rsplit(' ', 1) + [''] if game else ['', '']
-        row = {'clock': ' '.join(clock[:2]).strip(), 'clock.main': clock[0], 'clock.ampm': clock[1], 'soon': sm.soon_text(game['start'], now) if game else '',
-               'title': title, 'logo': (logos or {}).get(game['league'], '') if game else '',
-               'sources': sm.day_label(game['start'], now, offset) if game else '',
-               'lines': str(min(4, choice_sheet.lines(title, 24))) if game else '',
-               'pos': ('only' if len(coming) == 1 else 'first' if n == 0 else 'last' if n == len(coming) - 1 else 'mid') if game else ''}
-        for key, value in row.items():
-            props['next.%d.%s' % (n, key)] = value
+        pos = ('only' if len(coming) == 1 else 'first' if n == 0 else 'last' if n == len(coming) - 1 else 'mid') if game else ''
+        row = sports_rows.row_props(game, now, offset, crests, pos)
+        for key in sports_rows.KEYS:
+            props['next.%d.%s' % (n, key)] = row.get(key, '')
     return props
 
 
@@ -111,8 +111,8 @@ def props_updating(last=None):
     props.update({'state': 'ok', 'sub': 'Updating', 'live.title': 'Live Now', 'up.title': 'Upcoming', 'lg.title': 'Leagues',
                   'live.mode': props.get('live.mode') or 'idle', 'live.badge': '',
                   'live.title': props.get('live.title') or 'Checking what is on', 'live.detail': props.get('live.detail', '')})
-    _lines(props, 'up', 'Checking today’s games', sp.FIT_HALF)
-    _lines(props, 'lg', 'Checking leagues', sp.FIT_HALF)
+    _lines(props, 'up', 'Checking games')
+    _lines(props, 'lg', 'Checking leagues')
     return props
 
 
@@ -133,6 +133,44 @@ def load(provider, now=None, offset=None, refresh=False):
         return dict(ERROR)
 
 
+def draw_first(page, provider_module, laps=None):
+    """Before the page opens: when an answer is on the phone, set the page's properties from it (no ESPN request, no thread), so the first frame the person
+    sees is the real hub. Returns True when it did. Never raises. `laps` (a list) gets (step, ms) pairs: owner, build 659 (log 4a05fc8f): the hub's first
+    frame took 5.4-5.8 s three times from the saved answer while the same work takes about 55 ms on a computer; the log now says which step it is."""
+    began = time.monotonic()
+
+    def lap(step):
+        if laps is not None:
+            laps.append((step, (time.monotonic() - began) * 1000))
+    try:
+        provider = provider_module.get()
+        lap('provider')
+        if not getattr(provider, 'has_answer', lambda: False)():
+            return False
+        lap('saved answer')
+        now = time.time()
+        props = load(provider, now=now)
+        lap('load')
+        if props.get('state') != 'ok':
+            return False
+        props.update(sf.edit_state(provider))
+        lap('edit state')
+        games = provider.upcoming_games()
+        lap('upcoming')
+        props.update(next_props(games, now, sm.device_offset(now)))
+        if props.get('edit.summary'):
+            props['sub'] = '%s \u00b7 %s' % (props['edit.summary'], props.get('sub', ''))
+        lap('next game')
+        page.games = games
+        page.last = props
+        for key, value in props.items():
+            page.setProperty(key, value)
+        lap('properties')
+        return True
+    except Exception:
+        return False
+
+
 def run(args=()):
     import xbmc
     import xbmcgui
@@ -147,8 +185,9 @@ def run(args=()):
                 return
             self.guard = live_window.Guard(self)   # controls only while this page is open
             self.stop = threading.Event()
-            self.last = {}
-            self.show(props_updating())
+            if not getattr(self, 'last', None):
+                self.last = {}
+                self.show(props_updating())   # nothing saved to draw: the tiles say so until ESPN answers
             home = xbmcgui.Window(10000)
             initial_owner = home.getProperty('KodiIOS.SportsNativeOwner')
             def watch_handoff():
@@ -158,6 +197,9 @@ def run(args=()):
                         self.finish()
                         return
             threading.Thread(target=watch_handoff, daemon=True).start()
+            import sports_fresh
+            if sports_fresh.remembered(sports_provider.get()):
+                self.fetch(False)   # last time's answer at once, the real one right behind it
             self.fetch(True)
             def refresh_loop():   # the hub keeps itself current: live count, next game, up next (owner: times must be live)
                 import page_wait
@@ -168,6 +210,12 @@ def run(args=()):
                         last = time.monotonic()
                         self.fetch(False)
             threading.Thread(target=refresh_loop, daemon=True).start()
+            if args and args[0] == 'scrolltest':   # started from Settings search ("scroll test"): the hub scrolls itself, part by part (ISSUE-429)
+                def scroll_test():
+                    import scroll_test as test
+                    if not xbmc.Monitor().waitForAbort(3):   # the games are drawn first
+                        test.start(self, xbmc, xbmcgui, log)
+                threading.Thread(target=scroll_test, daemon=True).start()
 
         def show(self, props):
             for key, value in props.items():
@@ -194,17 +242,22 @@ def run(args=()):
                     if props.get('state') == 'ok':   # the leagues' real logos: fetched once, kept on the phone; the rows draw first
                         try:
                             import sports_logos
-                            found = sports_logos.paths(xbmcvfs.translatePath('special://profile/'), sorted({g['league'] for g in self.games[:sp.NEXT_ROWS + 3]}))
+                            import sports_rows
+                            coming = up_next(self.games, time.time(), sm.device_offset(time.time()))
+                            found = sports_logos.crests(xbmcvfs.translatePath('special://profile/'), sports_rows.crest_urls(coming))
                             if found and not self.stop.is_set():
                                 self.logos = found
                                 self.show(next_props(self.games, time.time(), sm.device_offset(time.time()), found))
                         except Exception as error:
-                            log('logos (%s)' % type(error).__name__)
-            if refresh:
+                            log('crests (%s)' % type(error).__name__)
+            if refresh and not self.last:   # with games already drawn the refresh is silent: no "Updating" over them (owner: the page must not look like it loads)
                 self.show(props_updating(self.last))
             threading.Thread(target=work, daemon=True).start()
 
         def onAction(self, action):
+            import gesture_note
+            if not hasattr(self,'_gestures'):self._gestures=gesture_note.Tracker(lambda text:__import__('xbmc').log(text,__import__('xbmc').LOGINFO))
+            self._gestures.feed(action)
             if action.getId() in BACK_KEYS:
                 self.finish()
 
@@ -212,6 +265,7 @@ def run(args=()):
             if control == sp.BACK:
                 self.finish()
             elif control in (sp.REFRESH, sp.RETRY):
+                self.show(props_updating(self.last))   # the person asked: say it is trying
                 self.fetch(True)
             elif control == sp.edit_button.ID:
                 import sports_edit
@@ -226,7 +280,7 @@ def run(args=()):
                     xbmcgui.Dialog().notification('Sports', 'That page is coming in an update.', xbmcgui.NOTIFICATION_INFO, 3000, False)
             elif sp.NEXT <= control < sp.NEXT + 4 * sp.NEXT_ROWS:   # an Up next row opens that game
                 n = (control - sp.NEXT) // 4
-                coming = sorted((g for g in getattr(self, 'games', []) if g.get('state') == 'upcoming' and g['start'] >= time.time()), key=lambda g: g['start'])
+                coming = up_next(getattr(self, 'games', []), time.time(), sm.device_offset(time.time()))
                 if n < len(coming):
                     import sports_game
                     sports_game.run(coming[n], provider=sports_provider.get(), search=True)
@@ -237,16 +291,24 @@ def run(args=()):
 
     here = HERE
     skin = xbmcvfs.translatePath('special://skin/')
+    began = time.monotonic()
     try:
         page = Page(sp.WINDOW, here, 'Default', '1080i')
     except RuntimeError:
         # Written while Kodi was running: its directory cache may not list it yet (build 173). Re-read and try once more.
         xbmcvfs.listdir(os.path.join(skin, 'portrait') + '/')
         page = Page(sp.WINDOW, here, 'Default', '1080i')
+    made = (time.monotonic() - began) * 1000
+    laps = []
+    first = draw_first(page, sports_provider, laps)   # owner, build 623: "needs to be instant like every other page": the first frame already holds the games
+    steps = ', '.join('%s %.0f' % (step, ms - (laps[n - 1][1] if n else 0)) for n, (step, ms) in enumerate(laps))
+    log('hub: first frame %s (%.0f ms: window %.0f, %s)' % ('from the saved answer' if first else 'waits for ESPN', (time.monotonic() - began) * 1000, made, steps or 'no steps'))
     # No Crew window under the hub any more (owner, 2026-11-20: "no more Crew UI"): ESPN supplies the lists, and Crew's code runs only when a
     # game's page looks for its sources (sports_provider.crew_sources).
     try:
-        page.doModal()
+        import page_cover
+        with page_cover.covering():   # the window under this opaque page stops drawing while it is open
+            page.doModal()
     finally:
         if hasattr(page, 'stop'):
             page.stop.set()

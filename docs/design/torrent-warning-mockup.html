@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Torrent Download Warning</title>
+<style>
+/* MOCKUP (evidence class: mockup, APPLE-UI-POLICY §9). Not a render of Kodi. Alert card as the app's other confirmations (round-4 "Remove this subtitle?"): 90%+ opaque surface, centred, two text buttons divided by a hairline. */
+:root{--surface:#2c2c2e;--grey:rgba(235,235,245,.6);--sep:rgba(235,235,245,.16);--blue:#4fa8ff;--green:#30d158;--amber:#ffb340;--red:#ff453a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;padding:28px 16px 60px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto}
+.tag{display:inline-block;background:#3a2a00;color:#ffd60a;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:30px;font-weight:800;margin-bottom:8px}p.lead{color:#b4b4ba;line-height:1.5;max-width:720px;margin-bottom:26px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:28px}
+.cap{color:var(--blue);font-size:12px;font-weight:700;letter-spacing:.06em;margin-bottom:6px}.note{color:var(--grey);font-size:13px;line-height:1.4;margin:10px 0 0}
+.phone{position:relative;width:100%;max-width:340px;aspect-ratio:402/874;border-radius:44px;background:#000;box-shadow:0 0 0 7px #2a2a2d,0 30px 70px rgba(0,0,0,.6);overflow:hidden;margin:0 auto}
+.page{position:absolute;inset:0;padding:70px 18px 0;background:linear-gradient(180deg,#14161a,#0b0c0e)}
+.page b{display:block;font-size:26px;margin-bottom:14px}.page .row{height:64px;border-radius:14px;background:rgba(255,255,255,.07);margin-bottom:10px}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.alert{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:78%;background:rgba(44,44,46,.97);border-radius:20px;overflow:hidden;text-align:center}
+.body{padding:20px 16px 14px}.title{font-size:17px;font-weight:700;margin-bottom:8px}.text{font-size:13px;line-height:1.4;color:rgba(235,235,245,.78)}
+.vpn{display:flex;align-items:center;justify-content:center;gap:7px;margin:12px 0 2px;font-size:13px;font-weight:600}
+.dot{width:9px;height:9px;border-radius:50%}.vpn small{display:block;color:var(--grey);font-weight:500;font-size:11px}
+.btns{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--sep)}
+.btns div{padding:13px 4px;font-size:16px;color:var(--blue)}.btns div+div{border-left:1px solid var(--sep)}.btns .def{font-weight:700}
+.btns.stack{grid-template-columns:1fr}.btns.stack div+div{border-left:0;border-top:1px solid var(--sep)}
+</style></head><body><div class="wrap">
+<span class="tag">MOCKUP · not Kodi</span>
+<h1>Download a torrent directly?</h1>
+<p class="lead">Shown only when a request would reach Elementum's own torrent engine, that is, when it is not going through AllDebrid. It asks first, says what it means, and says whether a VPN looks active. Cancel is the default.</p>
+<div class="grid">
+
+<div><div class="cap">1 · NO VPN DETECTED</div><div class="phone"><div class="page"><b>Interstellar</b><div class="row"></div><div class="row"></div><div class="row"></div></div><div class="scrim"></div>
+<div class="alert"><div class="body"><div class="title">Download this torrent directly?</div>
+<div class="text">This one is not coming through AllDebrid. It would download from other people over BitTorrent, and they can see your IP address. Turn your VPN on first.</div>
+<div class="vpn"><span class="dot" style="background:var(--amber)"></span><span>No VPN detected</span></div></div>
+<div class="btns"><div class="def">Cancel</div><div>Download anyway</div></div></div></div>
+<p class="note">Cancel is the bold default. "Download anyway" is the only way on. The status is a hint from the phone's network list, never a guarantee.</p></div>
+
+<div><div class="cap">2 · A VPN LOOKS ACTIVE</div><div class="phone"><div class="page"><b>Interstellar</b><div class="row"></div><div class="row"></div><div class="row"></div></div><div class="scrim"></div>
+<div class="alert"><div class="body"><div class="title">Download this torrent directly?</div>
+<div class="text">This one is not coming through AllDebrid. It would download from other people over BitTorrent, and they can see the address your VPN gives them.</div>
+<div class="vpn"><span class="dot" style="background:var(--green)"></span><span>A VPN looks active<small>Not verified. Keep your VPN's kill switch on.</small></span></div></div>
+<div class="btns"><div class="def">Cancel</div><div>Download</div></div></div></div>
+<p class="note">With a VPN interface present the second button is just "Download". Still a hint: nothing here proves the traffic goes through it.</p></div>
+
+<div><div class="cap">3 · AFTER CANCEL</div><div class="phone"><div class="page"><b>Interstellar</b><div class="row"></div><div class="row"></div><div class="row"></div></div>
+<div style="position:absolute;left:12px;right:12px;top:46px;background:rgba(44,44,46,.97);border-radius:16px;padding:12px 14px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.5)"><b style="font-size:13px;margin:0 0 2px">Not downloaded</b><span style="color:var(--grey)">Nothing was started. Pick another source to use AllDebrid.</span></div></div>
+<p class="note">A short banner, no dialog. Nothing is queued and no torrent connection is made.</p></div>
+
+</div></div></body></html>
