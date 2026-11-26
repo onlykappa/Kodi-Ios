@@ -253,6 +253,7 @@ jobs:
           python3 -B scripts/test_undefined_names.py
           python3 -B scripts/test_stream_fallback.py
           python3 -B scripts/test_provider_fallback.py
+          python3 -B scripts/test_source_contract.py
           python3 -B scripts/test_provider_probe.py
           python3 -B scripts/test_provider_queue_bridge.py
           python3 -B scripts/test_provider_worker.py
