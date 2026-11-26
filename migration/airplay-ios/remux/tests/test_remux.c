@@ -689,6 +689,7 @@ static int picture_times(const char *file, double *out, int max, int *leading) {
     av_packet_free(&p); avformat_close_input(&in);
     return n;
 }
+static int start_session(const char *url, int compat, char *m3u8, size_t len);
 static void test_open_gop_times(const char *http_base, const char *work) {
     enum { MAX = 2000 };
     static double source[MAX], served[MAX];
