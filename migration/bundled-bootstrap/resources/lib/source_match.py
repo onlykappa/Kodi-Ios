@@ -36,6 +36,7 @@ VERSION = 1
 PROPERTY = 'KodiIOS.SourceMatch'          # Home window: the identity Burst checked, for the version page
 FRESH = 1800
 CACHE_TTL = 7 * 86400
+STALE_TTL = 90 * 86400      # during a TMDb outage an older answer is still used, marked `stale` (step 20); beyond this it is gone
 CACHE_PATH = 'special://profile/addon_data/service.kodi.ios.bootstrap/source_match_cache.json'
 TMDB = 'https://api.themoviedb.org/3'
 HELPER = 'plugin.video.themoviedb.helper'
@@ -514,7 +515,7 @@ def _load_cache():
         with open(path, encoding='utf-8') as f:
             data = json.load(f)
         now = time.time()
-        _cache.update((k, v) for k, v in data.items() if now - v.get('t', 0) < CACHE_TTL)
+        _cache.update((k, v) for k, v in data.items() if now - v.get('t', 0) < STALE_TTL)
     except Exception:
         pass
 
@@ -534,6 +535,15 @@ def _save_cache():
         pass
 
 
+_seen = threading.local()
+
+
+def _used(kind):
+    kinds = getattr(_seen, 'kinds', None)
+    if kinds is not None:
+        kinds.add(kind)
+
+
 def tmdb_get(path, query, key, get=None):
     """TMDb JSON for /path?query (cached a week, without the key), or None when TMDb cannot be reached."""
     try:
@@ -543,19 +553,26 @@ def tmdb_get(path, query, key, get=None):
     slot = path + '?' + urlencode(sorted(query.items()))
     with _lock:
         _load_cache()
-        if slot in _cache:
-            return _cache[slot]['d']
-    if not key:
-        return None
-    try:
-        data = json.loads((get or _http)(TMDB + path + '?' + urlencode(sorted(dict(query, api_key=key).items()))))
-    except Exception as e:
-        log(u'TMDb %s failed: %s' % (path, e))
-        return None
-    with _lock:
-        _cache[slot] = {'t': time.time(), 'd': data}
-        _save_cache()
-    return data
+        entry = _cache.get(slot)
+        if entry is not None and time.time() - entry.get('t', 0) < CACHE_TTL:
+            _used('cached')
+            return entry['d']
+    data = None
+    if key:
+        try:
+            data = json.loads((get or _http)(TMDB + path + '?' + urlencode(sorted(dict(query, api_key=key).items()))))
+        except Exception as e:
+            log(u'TMDb %s failed: %s' % (path, e))
+    if data is not None:
+        with _lock:
+            _cache[slot] = {'t': time.time(), 'd': data}
+            _save_cache()
+        _used('live')
+        return data
+    if entry is not None and time.time() - entry.get('t', 0) < STALE_TTL:
+        _used('stale')                              # TMDb cannot be reached: the last answer, older than a week, is used and said to be old
+        return entry['d']
+    return None
 
 
 def _theatrical_years(details):
@@ -574,6 +591,7 @@ def enrich(exp, key=None, get=None):
         return exp
     exp = dict(exp)
     key = tmdb_key() if key is None else key
+    _seen.kinds = set()
     try:
         if exp['kind'] == 'movie':
             _enrich_movie(exp, key, get)
@@ -582,6 +600,8 @@ def enrich(exp, key=None, get=None):
     except Exception as e:
         log(u'TMDb details for %s failed: %s' % (exp.get('label'), e))
     exp['enriched'] = True
+    kinds = _seen.kinds
+    exp['metadata'] = 'stale' if 'stale' in kinds else 'live' if 'live' in kinds else 'cached' if 'cached' in kinds else 'none'   # where the TMDb facts came from
     return exp
 
 

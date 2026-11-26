@@ -13,6 +13,7 @@ import source_contract
 import sports_merge
 
 LIVE_TTL = 300             # a listing older than this is re-asked, never played
+LIVE_SNAPSHOT_MAX = 15 * 60  # ESPN unreachable: a remembered answer this old cannot say a game is still live (score, state unknown)
 MAX_LIVE_AGE = 8 * 3600    # ESPN says live but it began over 8 h ago: its state is stale
 MAX_UPCOMING_LATE = 3 * 3600  # ESPN says upcoming but the start passed over 3 h ago
 EARLY = 24 * 3600          # a source more than a day before the game is not for this game
@@ -20,22 +21,25 @@ SAME_LISTING = 120         # two matching listings whose starts differ by less t
 PERSIST = ('id', 'addon', 'quality', 'language', 'also')
 
 
-def status(game, now=None):
-    """'live' | 'upcoming' | 'stale' from ESPN's own state and start; unknown states are stale (never guess)."""
+def status(game, now=None, as_of=None):
+    """'live' | 'upcoming' | 'stale' from ESPN's own state and start; unknown states are stale (never guess). `as_of` is when the answer was
+    fetched, for a remembered snapshot: a live game from a snapshot older than LIVE_SNAPSHOT_MAX is stale."""
     now = time.time() if now is None else now
     start = game.get('start') or 0
     state = game.get('state')
     if state == 'live':
+        if as_of is not None and now - as_of > LIVE_SNAPSHOT_MAX:
+            return 'stale'
         return 'live' if start and now - start <= MAX_LIVE_AGE else 'stale'
     if state == 'upcoming':
         return 'upcoming' if start and now - start <= MAX_UPCOMING_LATE and start - now <= EARLY else 'stale'
     return 'stale'
 
 
-def unique_match(game, listings, now=None):
+def unique_match(game, listings, now=None, as_of=None):
     """-> listing. Raises Outcome(empty) for none, Outcome(unsupported) for stale or ambiguous."""
     now = time.time() if now is None else now
-    if status(game, now) == 'stale':
+    if status(game, now, as_of) == 'stale':
         raise source_contract.Outcome(source_contract.UNSUPPORTED)
     found = [x for x in listings if x.get('sources') and sports_merge.same_game(game, x)]
     if not found:
@@ -72,7 +76,7 @@ class Launcher:
         self.lock = threading.Lock()
         self.opening = set()
 
-    def start(self, game, listings, listed_at, launch, now=None, cancel=None, current=None, source_id=None, health=None):
+    def start(self, game, listings, listed_at, launch, now=None, cancel=None, current=None, source_id=None, health=None, as_of=None):
         """Returns the persistable record of what was started. Raises Outcome: empty, unsupported (stale/ambiguous), expired, canceled."""
         now = time.time() if now is None else now
         key = game.get('id') or ''
@@ -81,7 +85,7 @@ class Launcher:
                 raise source_contract.Outcome(source_contract.UNSUPPORTED)
             self.opening.add(key)
         try:
-            listing = unique_match(game, listings, now)
+            listing = unique_match(game, listings, now, as_of)
             if not fresh(listed_at, now):
                 raise source_contract.Outcome(source_contract.EXPIRED)
             sources = listing['sources']
@@ -127,10 +131,10 @@ def independent_resolver(address, resolve, now=time.time, verify=None):
     return go
 
 
-def start_independent(game, address, playback, resolve, now=None, cancel=None, current=None, verify=None, health=None):
+def start_independent(game, address, playback, resolve, now=None, cancel=None, current=None, verify=None, health=None, as_of=None):
     """Game -> fresh embed playlist -> player, with the same stale, cancel and duplicate rules as native Crew starts."""
     now = time.time() if now is None else now
-    if status(game, now) == 'stale':
+    if status(game, now, as_of) == 'stale':
         raise source_contract.Outcome(source_contract.UNSUPPORTED)
     if cancel and cancel():
         raise source_contract.Outcome(source_contract.CANCELED)
