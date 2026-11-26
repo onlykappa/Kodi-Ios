@@ -612,3 +612,9 @@ The owner requested investigation and repair of Crew's missing segment proxy usi
 - **Decision:** the phone's Sports provider is `sports_hybrid.HybridProvider`: ESPN supplies the games, leagues (including UFC, F1 and golf), start times, live scores and clocks. Crew's collector (`sports_jet_run`) is started only when a game's page asks for its sources (`sports_provider.crew_sources`), never by a list. Sources found for a game stay for the session; none found is "None yet".
 - **Supersedes:** DEC-061 (the real provider is JetExtractors) and DEC-063 (Crew discovery for live games). `KODI_IOS_SPORTS=espn` runs the same ESPN provider without Crew.
 - **Consequence:** list rows show "No sources yet" until a game is opened; a reminder finds sources on its own schedule (sports_reminders, every 10 minutes for games within 3 hours).
+
+## DEC-066: Unlicensed preserved archives stay private; PR #56 may be merged once CI is green (owner, 2026-11-26)
+
+- **Owner:** "sure do the 4 backups update pr and merge it if this is good".
+- **Decision:** the four preserved archives without a stated license (plugin.video.jetproxy, repository.umbrella, crew-remote-modules, script.module.go; see docs/SOURCE-PRESERVED-ARCHIVES-RIGHTS.md) stay in this private repository only. They are never published in a public release or a shared IPA. A public release of the app is a separate decision.
+- **Merge:** the owner authorized merging PR #56 into `main` if the workflow run and checks are green. No release is published by the merge; the IPA from the manual workflow run is a prerelease test build.
