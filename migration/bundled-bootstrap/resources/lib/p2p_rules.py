@@ -54,9 +54,10 @@ def stream_best(candidates, request, playback, home, gate, health=None, force=Fa
             raise source_contract.Outcome(source_contract.CANCELED)
         wait = min(FIRST_WAIT if number == 0 else NEXT_WAIT, left)
         if show:
-            show(status_text(0, wait))
+            show(status_text(0, wait), 0)
         try:
-            result = direct_stream.stream(candidate, request, playback, home, (lambda: None) if asked else gate, health=None, force=force, cancel=cancel, wait=wait)
+            result = direct_stream.stream(candidate, request, playback, home, (lambda: None) if asked else gate, health=None, force=force, cancel=cancel, wait=wait,
+                                          tick=(lambda elapsed, wait=wait: show(status_text(elapsed, wait), int(min(100, 100 * elapsed / wait)))) if show else None)
             asked = True
         except source_contract.Outcome as outcome:
             if outcome.kind in (source_contract.CANCELED, source_contract.REFUSED):

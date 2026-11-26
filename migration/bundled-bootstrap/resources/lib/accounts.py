@@ -20,6 +20,8 @@ SERVICES=[
             ('Real-Debrid','realdebridusername','realdebridtoken'),('Premiumize','premiumizeusername','premiumizetoken'),
             ('TorBox','','torboxtoken')],
   'sign_in':'Addon.OpenSettings(plugin.video.umbrella)','manage':'Addon.OpenSettings(plugin.video.umbrella)'},
+ {'key':'alldebrid','name':'AllDebrid','addon':'service.kodi.ios.bootstrap','section':0,'icon':'cloud-arrow-down.png','tint':'FFE8A317',
+  'own':'alldebrid','sign_in':'RunScript(service.kodi.ios.bootstrap,debrid_signin_page)','manage':'RunScript(service.kodi.ios.bootstrap,debrid_signin_page,manage)'},
  {'key':'drive','name':'Google Drive','addon':'plugin.googledrive','section':1,'icon':'cloud.png','tint':'FF1A9E5C',
   'drive':True,'sign_in':DRIVE,'manage':DRIVE},
  {'key':'trakt','name':'Trakt','addon':'script.trakt','section':1,'icon':'circle-check.png','tint':'FFED1C24',
@@ -33,12 +35,16 @@ SERVICES=[
 # Extra rows under the services (ids 9611...).
 LINKS=[('Profiles & Login Screen','user.png','FF0A84FF','RunScript(service.kodi.ios.bootstrap,profiles_page)')]
 
-def status(service,installed,get_setting,drive_accounts=()):
+def status(service,installed,get_setting,drive_accounts=(),own=None):
  """{'signed','text','button','action'} for one service. get_setting(id) reads the add-on's setting ('' if unset);
  drive_accounts: Google Drive's saved accounts (dicts with a 'name')."""
  prefix=service.get('prefix','')
  if not installed:
   return {'signed':False,'text':'Not installed','button':'Install','action':'InstallAddon(%s)'%service['addon']}
+ if service.get('own'):   # the app's own sign-in (debrid_token): not an add-on setting
+  signed=bool(own and own(service['own']))
+  if signed:return {'signed':True,'text':'Signed in','button':'','action':service['manage']}
+  return {'signed':False,'text':'Not signed in','button':'Sign In','action':service['sign_in']}
  if service.get('drive'):
   names=[str(a.get('name') or '').strip() for a in drive_accounts]
   if drive_accounts:

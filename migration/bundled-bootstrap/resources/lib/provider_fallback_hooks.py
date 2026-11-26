@@ -126,15 +126,25 @@ def direct_wanted():
 def direct(selected,request,cancel=None):
  """Step 18: stream the chosen torrent from peers with the bundled Elementum engine. True when playing; False when declined, canceled or no peers."""
  import xbmcgui,elementum_download,backup_playback,p2p_rules,debrid_account,source_contract
- home=xbmcgui.Window(10000)
- def show(text):
-  try:home.setProperty(p2p_rules.STATUS,text) if text else home.clearProperty(p2p_rules.STATUS)   # the loading state's words ("Waiting for peers · 80 s")
+ home=xbmcgui.Window(10000);bar=[]
+ def show(text,percent=0):
+  """Kodi's own progress dialog, in the skin's style, with its Cancel button: "Streaming from peers" / "Waiting for peers · 80 s". Closed when done."""
+  try:
+   home.setProperty(p2p_rules.STATUS,text) if text else home.clearProperty(p2p_rules.STATUS)
+   if not text:
+    if bar:bar.pop().close()
+    return
+   if not bar:
+    dialog=xbmcgui.DialogProgress();dialog.create('Streaming from peers',text);bar.append(dialog)
+   bar[0].update(percent or 0,text)
   except Exception:pass
+ def stop():return bool((cancel and cancel()) or (bar and bar[0].iscanceled()))     # its Cancel button ends the wait and never moves on to another swarm
  try:
-  p2p_rules.stream_best([selected['candidate']],request,backup_playback.Playback(backup_playback.KodiPlayer()),home,elementum_download._torrent_gate,
-                        health=debrid_account.shared_health(),cancel=cancel,show=show)
+  p2p_rules.stream_best([selected['candidate']],request,backup_playback.Playback(backup_playback.KodiPlayer()),home,lambda:elementum_download._torrent_gate(stream=True),
+                        health=debrid_account.shared_health(),cancel=stop,show=show)
   return True
  except source_contract.Outcome:return False
+ finally:show('')
 
 
 def dispatch(selected,auto=None,cancel=None):

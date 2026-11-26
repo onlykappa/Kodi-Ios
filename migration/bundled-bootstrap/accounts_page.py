@@ -29,11 +29,15 @@ def run():
    return list((store.get_accounts() or {}).values())
   except Exception as error:
    xbmc.log('Kodi iOS accounts: Google Drive accounts unreadable: '+type(error).__name__,xbmc.LOGWARNING);return []
+ def own_signed(key):
+  try:
+   import debrid_token;return debrid_token.has()
+  except Exception:return False
  def states():
   out=[]
   for s in accounts.SERVICES:
-   ok=installed(s['addon'])
-   out.append(accounts.status(s,ok,reader(s['addon']) if ok else (lambda key:''),drive_accounts() if ok and s.get('drive') else ()))
+   ok=True if s.get('own') else installed(s['addon'])
+   out.append(accounts.status(s,ok,reader(s['addon']) if ok else (lambda key:''),drive_accounts() if ok and s.get('drive') else (),own=own_signed))
   return out
 
  class Page(xbmcgui.WindowXMLDialog):

@@ -38,7 +38,7 @@ class Chain(unittest.TestCase):
  def setUp(self):self.home=Home();self.patch=patch('debrid_token.has',return_value=False);self.patch.start();self.addCleanup(self.patch.stop)
  def test_the_first_swarm_that_starts_wins_and_the_prompt_is_asked_once(self):
   a,b=cand(1,60),cand(2,40);clk,pl,pb=setup([b['torrent_hash']]);asked=[];shown=[];hl=sh.Health('',clk)
-  got,res=p2p.stream_best([a,b],REQ,pb,self.home,lambda:asked.append(1),health=hl,clock=clk,show=shown.append)
+  got,res=p2p.stream_best([a,b],REQ,pb,self.home,lambda:asked.append(1),health=hl,clock=clk,show=lambda text,pct=0:shown.append(text))
   self.assertEqual((got['torrent_hash'][-1],res,len(asked)),('2','playing',1));self.assertEqual(len(pl.calls),2);self.assertEqual(pl.stops,1,'the dead swarm was stopped')
   self.assertEqual((hl.state(p2p.key(a)),hl.state(p2p.key(b))),('cooldown','recent'));self.assertEqual(shown[0],'Waiting for peers · 90 s');self.assertEqual(shown[-1],'')
  def test_nothing_viable_is_empty_and_all_dead_is_a_timeout_within_the_total_bound(self):

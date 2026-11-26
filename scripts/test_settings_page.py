@@ -33,10 +33,10 @@ class AccountStatus(unittest.TestCase):
   self.assertEqual((out['signed'],out['action']),(False,accounts.DRIVE))
  def test_summary_initials_and_properties(self):
   states=[accounts.status(s,s['key']!='tmdb',reader({'user':'k'})) for s in accounts.SERVICES]
-  self.assertEqual(accounts.summary(states),'1 of 4 services signed in')
+  self.assertEqual(accounts.summary(states),'1 of 5 services signed in')
   self.assertEqual(accounts.initials('Master user'),'MU');self.assertEqual(accounts.initials(''),'?')
   props=accounts.properties(states,'Kodi')
-  self.assertEqual(props['acct.4.signed'],'true');self.assertEqual(props['acct.5.button'],'Install');self.assertEqual(props['initials'],'K')
+  self.assertEqual(props['acct.5.signed'],'true');self.assertEqual(props['acct.6.button'],'Install');self.assertEqual(props['initials'],'K')
  def test_every_service_has_an_icon_tint_and_actions(self):
   for s in accounts.SERVICES:
    self.assertTrue(s['icon'].endswith('.png') and len(s['tint'])==8 and s['sign_in'] and s['manage'],s['key'])

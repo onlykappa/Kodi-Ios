@@ -68,7 +68,7 @@ def _interruptible_get(url,timeout,cancel):
  if cancel():raise Canceled('Source search canceled')
  if 'error' in result:raise result['error']
 
-def _torrent_gate():
+def _torrent_gate(stream=False):
  """Before anything reaches Elementum's own torrent engine: ask (torrent_prompt.py), with a hint whether a VPN looks active. Raises Canceled (quietly ends the caller) when
  declined. A no-op outside Kodi, so the host tests run without it."""
  try:
@@ -76,9 +76,10 @@ def _torrent_gate():
  except ImportError:return
  found=vpn_hint.current(cache_tune.local_address,cache_tune.interfaces)
  log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)
- if not torrent_prompt.ask(found,xbmcgui.Dialog(),log):
-  xbmcgui.Dialog().notification(torrent_prompt.DECLINED[0],torrent_prompt.DECLINED[1],xbmcgui.NOTIFICATION_INFO,4000)
-  raise Canceled(torrent_prompt.DECLINED[1])
+ if not torrent_prompt.ask(found,xbmcgui.Dialog(),log,stream):
+  declined=torrent_prompt.STREAM_DECLINED if stream else torrent_prompt.DECLINED
+  xbmcgui.Dialog().notification(declined[0],declined[1],xbmcgui.NOTIFICATION_INFO,4000)
+  raise Canceled(declined[1])
 
 def background_gate():
  """The gate for work nobody asked for at that moment (the follow-shows job): if AllDebrid does not take it, nothing starts and nothing is asked. Owner, 2026-11-23,

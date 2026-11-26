@@ -58,7 +58,7 @@ def plan(candidate, request, health=None, force=False):
     return found
 
 
-def stream(candidate, request, playback, home, gate, health=None, force=False, cancel=None, wait=WAIT, now=None):
+def stream(candidate, request, playback, home, gate, health=None, force=False, cancel=None, wait=WAIT, now=None, tick=None):
     """Ask, approve, hand Elementum's play URL to the player. Returns 'playing' / 'duplicate' or raises Outcome (refused if declined, canceled, timeout...)."""
     found = plan(candidate, request, health, force)
     try:
@@ -76,7 +76,7 @@ def stream(candidate, request, playback, home, gate, health=None, force=False, c
         import fresh_resolve
         return fresh_resolve.Resolved(url, {}, time.time(), ttl=GRANT_TTL)
     try:
-        return playback.start_resolved(('direct', found), resolve, cancel=cancel, wait=wait)
+        return playback.start_resolved(('direct', found), resolve, cancel=cancel, wait=wait, tick=tick)
     except BaseException:
         revoke(home)
         raise
