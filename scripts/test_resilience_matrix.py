@@ -13,7 +13,9 @@ class Matrix(unittest.TestCase):
   self.assertGreaterEqual(len(self.rows),24);self.assertEqual({r['group'] for r in self.rows},{'outage','correctness','privacy','hygiene'})
  def test_the_committed_report_matches_this_run(self):
   report=json.loads((ROOT/'reports/source-resilience-matrix.json').read_text())['rows']
-  now=[(r['group'],r['scenario'],r['status']) for r in self.rows];kept=[(r['group'],r['scenario'],r['status']) for r in report]
+  # A scenario that needs a network-less namespace is 'pass' where `unshare -rn` works and 'skipped' where it does not (GitHub's runners): either is a match.
+  env=lambda r:r['status'] if 'network-less namespace' not in r['scenario'] or r['status']=='fail' else 'pass-or-skipped'
+  now=[(r['group'],r['scenario'],env(r)) for r in self.rows];kept=[(r['group'],r['scenario'],env(r)) for r in report]
   self.assertEqual(now,kept,'refresh with: python3 scripts/resilience_matrix.py --write')
  def test_the_report_holds_no_secret_link_or_address(self):
   text=(ROOT/'reports/source-resilience-matrix.json').read_text()

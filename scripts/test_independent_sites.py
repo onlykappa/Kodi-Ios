@@ -45,6 +45,21 @@ class Parsers(unittest.TestCase):
  def test_eztv_requires_imdb_and_site_numbers(self):
   self.assertFalse(s.Eztv().applies(dict(EP,imdb='')));self.assertFalse(s.Eztv().applies(MOVIE));self.assertTrue(s.Eztv().applies(EP))
   self.assertEqual([r['name'] for r in s.Eztv().parse(eztv(('A.S02E05',H(1),1,1,2,5),('B',H(2),1,1,2,4)),EP)],['A.S02E05'])
+ def test_torrentio_and_torrents_csv_real_shapes(self):
+  tio=json.dumps({'streams':[{'name':'Torrentio\n4k','title':'Big Buck Bunny 4K WEB-DL 2160p\n\U0001F464 7 \U0001F4BE 531.71 MB \u2699\ufe0f MagnetDL','infoHash':'69033cebd0f892bf7e9181b8002923936b9ac604','fileIdx':0},{'title':'no hash','infoHash':''}]})
+  rows=s.Torrentio().parse(tio,MOVIE)
+  self.assertEqual([(r['name'],r['torrent_hash'],r['seeders']) for r in rows],[('Big Buck Bunny 4K WEB-DL 2160p','69033cebd0f892bf7e9181b8002923936b9ac604',7)])
+  self.assertGreater(rows[0]['size'],5e8)
+  self.assertTrue(s.Torrentio().plan(MOVIE)[0].endswith('/stream/movie/tt1234567.json'))
+  self.assertTrue(s.Torrentio().plan(EP)[0].endswith('/stream/series/tt7654321:2:5.json'))
+  self.assertFalse(s.Torrentio().applies(dict(MOVIE,imdb='')))
+  for bad in ('{"streams":3}','[]'):
+   with self.assertRaises(ValueError):s.Torrentio().parse(bad,MOVIE)
+  csv=json.dumps({'torrents':[{'infohash':'dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c','name':'Big Buck Bunny','size_bytes':276445467,'seeders':348}],'next':1})
+  r=s.TorrentsCsv().parse(csv,MOVIE)[0];self.assertEqual((r['torrent_hash'],r['seeders']),('dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c',348))
+  with self.assertRaises(ValueError):s.TorrentsCsv().parse('{"torrents":"x"}',MOVIE)
+  self.assertTrue(s.TorrentsCsv().plan(MOVIE)[0].endswith('q=Example+Film'),'a year hides every hit in this index');self.assertTrue(s.TorrentsCsv().plan(EP)[0].endswith('S02E05'))
+
  def test_knaben_layout_and_rows(self):
   self.assertEqual(s.Knaben().parse(knaben(('Example.Film.2024',H(1),5,1)),MOVIE)[0]['torrent_hash'],H(1))
   with self.assertRaises(ValueError):s.Knaben().parse('{"hits":3}',MOVIE)

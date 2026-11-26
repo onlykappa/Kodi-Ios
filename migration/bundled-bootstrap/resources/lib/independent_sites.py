@@ -284,6 +284,67 @@ class Nyaa:
         return rows
 
 
+# ---- Torrentio (captured 2026-11-26): one lookup by IMDb id that fans out over about ten trackers; the answer carries the info hash ----
+class Torrentio:
+    name, host = 'torrentio', 'https://torrentio.strem.fun'
+
+    def applies(self, request):
+        return bool(re.fullmatch(r'tt\d{5,9}', str(request.get('imdb') or '')))
+
+    def plan(self, request):
+        key = str(request['imdb'])
+        if request.get('media_type') == 'episode':
+            key += ':%d:%d' % (int(request['season']), int(request['episode']))
+            return ['%s/stream/series/%s.json' % (self.host, key)]
+        return ['%s/stream/movie/%s.json' % (self.host, key)]
+
+    def parse(self, text, request):
+        data = json.loads(text)
+        if not isinstance(data, dict) or not isinstance(data.get('streams'), list):
+            raise ValueError('layout changed')
+        rows = []
+        for item in data['streams'][:MAX_ROWS * 3]:
+            if not isinstance(item, dict):
+                raise ValueError('layout changed')
+            found = _hash(item.get('infoHash'))
+            lines = str(item.get('title') or '').split('\n')
+            hint = item.get('behaviorHints') if isinstance(item.get('behaviorHints'), dict) else {}
+            name = (lines[0] if lines and lines[0] else str(hint.get('filename') or '')).strip()
+            if not found or not name:
+                continue
+            tail = ' '.join(lines[1:])
+            seeds = re.search(r'\U0001F464\s*([\d,]+)', tail)
+            size = re.search(r'\U0001F4BE\s*([\d.,]+\s*[KMGT]B)', tail)
+            rows.append({'name': name, 'torrent_hash': found, 'seeders': _count(seeds), 'size': _size(size.group(1)) if size else 0.0})
+        return rows[:MAX_ROWS]
+
+
+# ---- torrents-csv (captured 2026-11-26): an open index published as a JSON search API ----
+class TorrentsCsv:
+    name, host = 'torrents-csv', 'https://torrents-csv.com'
+
+    def applies(self, request):
+        return True
+
+    def plan(self, request):
+        # its index matches the title words exactly: a film's year would hide every hit, so films are searched by title alone (the year is checked afterwards)
+        words = _words(request) if request.get('media_type') == 'episode' else _title(request)[0]
+        return ['%s/service/search?size=%d&q=%s' % (self.host, MAX_ROWS, urllib.parse.quote_plus(words))]
+
+    def parse(self, text, request):
+        data = json.loads(text)
+        if not isinstance(data, dict) or not isinstance(data.get('torrents'), list):
+            raise ValueError('layout changed')
+        rows = []
+        for item in data['torrents'][:MAX_ROWS]:
+            if not isinstance(item, dict):
+                raise ValueError('layout changed')
+            found = _hash(item.get('infohash'))
+            if found and item.get('name'):
+                rows.append({'name': str(item['name']), 'torrent_hash': found, 'seeders': int(_num(item.get('seeders'))), 'size': _num(item.get('size_bytes'))})
+        return rows
+
+
 class Leet:
     """The 1337x list/detail adapter from independent_search, as one more family (its pages are not JSON)."""
     name, host = '1337x', independent_search.DOMAINS[0]
@@ -292,7 +353,7 @@ class Leet:
         return True
 
 
-SIMPLE = (Apibay(), Yts(), Eztv(), Knaben(), Bitsearch(), TorrentDownload(), Lime(), Kick(), Nyaa())
+SIMPLE = (Apibay(), Yts(), Eztv(), Knaben(), Bitsearch(), TorrentDownload(), Lime(), Kick(), Nyaa(), Torrentio(), TorrentsCsv())
 SITES = tuple(a.name for a in SIMPLE) + (Leet.name,)
 # family -> (media, transport, needs, notes): the coverage matrix kept in docs/SOURCE-COVERAGE.md
 COVERAGE = {
@@ -305,6 +366,8 @@ COVERAGE = {
     'limetorrents': ('movie+episode', 'HTML list page (host redirects)', 'none', 'remote index'),
     'kick4ss': ('movie+episode', 'HTML list page', 'none', 'remote index'),
     'nyaa': ('episode (anime)', 'RSS feed', 'none', 'remote index'),
+    'torrentio': ('movie+episode (IMDb id)', 'public JSON API', 'none', 'aggregator over about ten trackers'),
+    'torrents-csv': ('movie+episode', 'public JSON API', 'none', 'open index'),
     '1337x': ('movie+episode', 'HTML list + detail pages', 'none', 'remote index; Cloudflare on mirrors'),
 }
 

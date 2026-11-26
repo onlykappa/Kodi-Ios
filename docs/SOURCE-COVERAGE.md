@@ -15,6 +15,8 @@ Code: `migration/bundled-bootstrap/resources/lib/independent_sites.py` (one adap
 | LimeTorrents | movie, episode | HTML list page (the .lol host redirects to another domain) | nothing | same: real capture |
 | Kick4ss | movie, episode | HTML list page | nothing | same: real capture |
 | Nyaa | episode | RSS feed | nothing | same: real capture; anime names rarely carry SxxEyy, so the strict check keeps only exact matches |
+| Torrentio | movie, episode (needs an IMDb id) | public JSON API | nothing | adapter, parser checked against a real answer captured 2026-11-26; one lookup fans out over about ten trackers (ThePirateBay, MagnetDL, EXT, Rutor, Rutracker and others), so it is the widest single source, but it is one service: if it is down those trackers are not reached through it |
+| torrents-csv | movie, episode | public JSON API | nothing | same: real capture; its index matches title words exactly, so films are searched by title alone (a year hides every hit) and episodes by title plus SxxEyy |
 | 1337x | HTML list + detail pages | nothing | adapter + fixtures (step 5) |
 | Add-on backups | movie, episode (otaku: anime) | Jacktook, POV, Otaku, Crew, Prism through their own add-ons | each add-on's upstream, usually a debrid account | wired in step 8; share backends (Torrentio/Comet and others) |
 | Burst (84 definitions), CocoScrapers (26 torrent modules: 14 direct site/API scrapers, 12 aggregator or self-hosted service adapters, counted from each module's base link) | movie, episode | not adapted | varies | locked only; next increments |
