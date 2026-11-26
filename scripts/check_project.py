@@ -11,6 +11,7 @@ import json
 import io
 import zipfile
 import stat
+import sys
 from pathlib import Path
 import re
 import subprocess
@@ -142,7 +143,12 @@ def check(source_userdata=None, git_history=False):
         rel=p.relative_to(ROOT)
         if p.is_symlink():issue(p,'symlink-not-publishable');continue
         if rel.as_posix()=='.gitattributes':
-            if p.read_text()!='migration/source-baseline/*.zip filter=lfs diff=lfs merge=lfs -text\n':issue(p,'unexpected-lfs-policy')
+            if p.read_text()!='migration/source-baseline/*.zip filter=lfs diff=lfs merge=lfs -text\nmigration/addon-preserve/*.zip filter=lfs diff=lfs merge=lfs -text\n':issue(p,'unexpected-lfs-policy')
+            continue
+        if rel.parts[:2]==('migration','addon-preserve') and p.suffix=='.zip':
+            try:
+                sys.path.insert(0,str(ROOT/'scripts'));import preserve_addons;preserve_addons.verify(rel.as_posix(),needles)
+            except Exception:issue(p,'invalid-preserved-addon-archive')
             continue
         if rel.parts[:2]==('migration','source-baseline') and p.suffix=='.zip':
             try:
