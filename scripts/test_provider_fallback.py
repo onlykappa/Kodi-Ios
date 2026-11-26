@@ -72,4 +72,22 @@ class Typed(unittest.TestCase):
    self.assertIn(want,text)
   self.assertNotIn('SECRET',text);self.assertNotIn('private.invalid',text)
 
+class Independent(unittest.TestCase):
+ req={'media_type':'movie','title':'Example Film','year':2024,'quality':'1080p','profile':{}}
+ def test_local_search_runs_only_after_every_add_on_failed_and_is_never_default_in_tests(self):
+  t=Transport({'jacktook':[],'pov':ConnectionError()});calls=[]
+  def local(request,cancel=None,timeout=0):calls.append(1);return 'ok',[{'provider':'local','name':'Example.Film.2024.1080p','torrent_hash':'a'*40,'magnet':'magnet:?xt=urn:btih:'+'a'*40}]
+  self.assertEqual(f.search(self.req,transport=t),[]);self.assertEqual(calls,[])
+  self.assertEqual(f.search(self.req,transport=t,independent=local)[0]['provider'],'local');self.assertEqual(calls,[1])
+  ok=Transport({'jacktook':[{'name':'Example.Film.2024.1080p.mkv','quality':'1080p','url':'https://fixture.invalid/m.mkv','size':1,'seeders':0}]})
+  f.search(self.req,transport=ok,independent=local);self.assertEqual(calls,[1],'an add-on result means no local search')
+ def test_local_excluded_cancel_and_resolve_uses_the_magnet(self):
+  t=Transport({})
+  def local(request,cancel=None,timeout=0):return 'canceled',[]
+  self.assertEqual(f.search(self.req,transport=t,independent=local,exclude=('local',)),[])
+  with self.assertRaises(f.Canceled):f.search(self.req,transport=t,independent=local)
+  cand=dict(f.normalize({'name':'Example.Film.2024.1080p','torrent_hash':'a'*40,'magnet':'magnet:?xt=urn:btih:'+'a'*40,'seeders':4},'local'))
+  cand['magnet']='magnet:?xt=urn:btih:'+'a'*40
+  self.assertEqual(f.resolve(cand,dict(self.req,purpose='download'),transport=t),cand['magnet'])
+
 if __name__=='__main__':unittest.main()

@@ -47,7 +47,7 @@ def _check(cancel, deadline, clock=time.monotonic):
 def note(provider, status, count=0):
     try:
         import xbmc
-        if provider not in PROVIDERS:
+        if provider not in PROVIDERS + INDEPENDENT:
             provider = 'primary'
         if status not in ('search', 'ready', 'unconfigured', 'resolve', 'resolved') + source_contract.OUTCOMES:
             status = 'offline'
@@ -168,7 +168,7 @@ def verified(candidates, request, provider):
     return kept
 
 
-def search(request, primary='elementum', cancel=None, timeout=TOTAL_SECONDS, transport=None, exclude=(), clock=time.monotonic):
+def search(request, primary='elementum', cancel=None, timeout=TOTAL_SECONDS, transport=None, exclude=(), clock=time.monotonic, independent=None):
     """Called only after primary failure/empty results. First usable backup wins; success remains lazy."""
     if not eligible(request):
         return []
@@ -198,7 +198,24 @@ def search(request, primary='elementum', cancel=None, timeout=TOTAL_SECONDS, tra
         note(provider, 'ready' if found else 'empty', len(found))
         if found:
             return found
-    return []
+    return _independent(request, independent, transport, cancel, deadline, skipped, clock)
+
+
+def _independent(request, search_fn, transport, cancel, deadline, skipped, clock):
+    """Last resort once every add-on backup came back empty or failed: the first-party site search (independent_search).
+    Only with the real transport unless a function is given, so tests never touch the network."""
+    if search_fn is None and isinstance(transport, KodiTransport):
+        import independent_search
+        search_fn = independent_search.search
+    if search_fn is None or 'local' in skipped:
+        return []
+    _check(cancel, deadline, clock)
+    note('local', 'search')
+    outcome, found = search_fn(request, cancel=cancel, timeout=max(.5, deadline - clock()))
+    note('local', 'ready' if found else outcome, len(found))
+    if outcome == 'canceled':
+        raise Canceled('Source search canceled')
+    return found
 
 
 def safe_url(value):
@@ -238,7 +255,10 @@ def resolve(candidate, request, cancel=None, transport=None, timeout=RESOLVE_SEC
     deadline = clock() + max(0, float(timeout))
     _check(cancel, deadline, clock)
     note(provider, 'resolve')
-    result = transport.resolve(provider, candidate, request, deadline, cancel)
+    if provider in INDEPENDENT:
+        result = candidate.get('magnet') or ''       # no add-on to ask: the hash is the handle
+    else:
+        result = transport.resolve(provider, candidate, request, deadline, cancel)
     _check(cancel, deadline, clock)
     result = safe_url(result)
     if request.get('purpose') == 'stream' and result.startswith('magnet:'):

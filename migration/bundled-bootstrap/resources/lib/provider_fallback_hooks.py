@@ -22,6 +22,29 @@ def cancel_callback(cancel=None):
  except ImportError:return lambda:False
 
 
+def playback_uncertain():
+ """A player is open, opening or buffering: a backup would start a second one. Unknown (no Kodi) counts as certain."""
+ try:
+  import xbmc
+  return bool(xbmc.getCondVisibility('Player.HasMedia | Player.Caching'))
+ except Exception:return False
+
+
+def candidate_key(candidate):
+ """Same torrent (info hash) or same release name and size is one source."""
+ return str(candidate.get('torrent_hash') or '').lower() or (str(candidate.get('name') or '').lower(),round(float(candidate.get('size') or 0),1))
+
+
+def dedupe(candidates):
+ """One row per source within a picker round, keeping the best-seeded copy. A failed origin is not remembered here: another
+ provider's copy of the same release must stay available as the next round's alternative."""
+ best={}
+ for c in candidates:
+  k=candidate_key(c)
+  if k not in best or (c.get('seeders') or 0)>(best[k].get('seeders') or 0):best[k]=c
+ return [c for c in candidates if best[candidate_key(c)] is c]
+
+
 def usable(deck,items,profile=None):
  profile=profile or {}
  kept=[p for p in items if p.get('seeds',0)>0 and not deck.is_bad(p)]
@@ -41,16 +64,23 @@ def _mark(home,auto=None):
 
 def _resolved(deck,exp,title,mode,auto=None,cancel=None,timeout=60):
  """Reuse the existing picker, retry only failed resolver origins, and bound the whole fallback turn."""
- pf=broker();cancel=cancel_callback(cancel);deadline=time.monotonic()+max(0,float(timeout));excluded=set()
+ pf=broker();base_cancel=cancel_callback(cancel);deadline=time.monotonic()+max(0,float(timeout));excluded=set()
+ if playback_uncertain():return None
  profile=dict((auto or {}).get('profile') or {})
  purpose=(auto or {}).get('purpose') or ('stream' if mode=='stream' else 'download')
  request=pf.request_from_expected(exp,purpose,profile)
  home=deck._home()
+ generation=_attempt(home,auto)
+ def cancel():
+  # A newer request replaced this one (its id left the Home window): this search is stale and must stop.
+  return base_cancel() or (bool(generation) and home is not None and _attempt(home,auto)!=generation)
  _mark(home,auto)
  while len(excluded)<len(pf.PROVIDERS) and time.monotonic()<deadline:
   if cancel():raise pf.Canceled('Source search canceled')
   candidates=pf.search(request,primary='umbrella' if mode=='stream' else 'elementum',cancel=cancel,
                        timeout=max(.1,deadline-time.monotonic()),exclude=tuple(excluded))
+  if cancel():raise pf.Canceled('Source search canceled')    # replaced or cancelled while searching: never show or start it
+  candidates=dedupe(candidates)
   if not candidates:return None
   # Broker identity/quality checks and the current picker's codec/size checks both apply.
   labels=pf.picker_items(candidates);parsed=deck.parse_all(labels) or []

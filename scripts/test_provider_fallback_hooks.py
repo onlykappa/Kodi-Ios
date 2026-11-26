@@ -57,6 +57,29 @@ class Hooks(unittest.TestCase):
   with patch.object(pf,'search',side_effect=[[tiny],[good]]) as search,patch.object(pf,'resolve',return_value=good['url']):
    result=hooks._resolved(self.profile,self.exp,'Film','download',auto={'profile':{'strict_quality':True,'quality':'1080p','runtime':120}},cancel=lambda:False)
   self.assertEqual(result['candidate'],good);self.assertEqual(search.call_count,2)
+ def test_policy_uncertain_playback_stale_generation_and_dedupe(self):
+  found=candidate()
+  with patch.object(hooks,'playback_uncertain',return_value=True),patch.object(pf,'search') as search:
+   self.assertIsNone(hooks._resolved(self.profile,self.exp,'Film','stream',cancel=lambda:False));search.assert_not_called()
+  self.home.p[hooks.MANUAL]='first'
+  def replaced(*a,**k):self.home.p[hooks.MANUAL]='second';return [found]
+  with patch.object(pf,'search',side_effect=replaced),patch.object(pf,'resolve') as resolve:
+   with self.assertRaises(pf.Canceled):hooks._resolved(self.profile,self.exp,'Film','stream',cancel=lambda:False)
+  resolve.assert_not_called();self.profile.run.assert_not_called()
+  a=dict(candidate('jacktook'),torrent_hash='a'*40,seeders=3);b=dict(candidate('jacktook'),name='Film.2020.720p.WEB',torrent_hash='A'*40,seeders=9)
+  self.assertEqual(hooks.dedupe([a,b,candidate('pov')]),[b,candidate('pov')])
+ def test_episode_failure_goes_to_backup_once_and_healthy_primary_does_no_work(self):
+  exp=source_match.expected('episode',['Show'],season=1,episode=2,tmdb='9');ep=candidate(name='Show.S01E02.1080p.WEB-DL.H264')
+  with patch.object(pf,'search',return_value=[ep]) as search,patch.object(pf,'resolve',return_value=ep['url']) as resolve:
+   result=hooks._resolved(self.profile,exp,'Show','stream',cancel=lambda:False)
+  self.assertEqual((search.call_count,resolve.call_count,result['url']),(1,1,ep['url']))
+  with patch.object(pf,'search') as search:
+   self.assertEqual(deck.run('Show',[line('Show.S01E02.1080p.WEB-DL.H264')],expect=exp),0);search.assert_not_called()
+ def test_no_source_and_cancel_are_safe(self):
+  with patch.object(pf,'search',return_value=[]):self.assertIsNone(hooks._resolved(self.profile,self.exp,'Film','stream',cancel=lambda:False))
+  with patch.object(pf,'search') as search:
+   with self.assertRaises(pf.Canceled):hooks._resolved(self.profile,self.exp,'Film','stream',cancel=lambda:True)
+   search.assert_not_called()
  def test_primary_strict_quality_miss_searches_backups_before_original_lower_quality_fallback(self):
   exp=source_match.expected('episode',['Show'],tmdb='2',season=1,episode=1)
   auto={'request_id':'Q','until':10**12,'purpose':'queue','target':{'tmdb':'2','season':1,'episode':1},'profile':{'quality':'1080p','strict_quality':True}}
