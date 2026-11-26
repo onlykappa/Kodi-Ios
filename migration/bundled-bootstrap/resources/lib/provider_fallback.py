@@ -18,6 +18,7 @@ import urllib.parse
 PROVIDERS = ('jacktook', 'pov', 'otaku', 'thecrew', 'prism')
 ADDONS = {'jacktook': 'plugin.video.jacktook', 'pov': 'plugin.video.pov',
           'otaku': 'plugin.video.otaku', 'thecrew': 'plugin.video.thecrew', 'prism': 'plugin.video.prism'}
+INDEPENDENT = ('local',)   # first-party search that needs no add-on (independent_search.py); not in the add-on loop
 TOTAL_SECONDS = 60
 PROVIDER_SECONDS = 12
 RESOLVE_SECONDS = 15
@@ -100,7 +101,7 @@ def eligible(request):
 
 
 def normalize(candidate, provider):
-    if provider not in PROVIDERS or not isinstance(candidate, dict):
+    if provider not in PROVIDERS + INDEPENDENT or not isinstance(candidate, dict):
         return None
     name = str(candidate.get('name') or '').strip()
     if not name or len(name) > 2048:

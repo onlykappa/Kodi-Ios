@@ -246,7 +246,8 @@ experiment stays recorded. Later work can expose a need to revisit earlier steps
 | 2 | COMPLETE (controlled baseline) | [Rig baseline](SOURCE-RIG-BASELINE.md); 13 fixture scenarios pass after isolated artwork repair; generated-video picker/start/advancing clock/stop pass. Production engine and phone unverified. |
 | 3 | IN PROGRESS — BLOCKED | [Offline staging and license evidence](SOURCE-PRESERVATION-STEP3.md): 29 verified provider inputs restored locally with Python network connects blocked; durable approved backup, license closure, Elementum inputs and actual Kodi runtime closure remain open. |
 | 4 | CONTRACT DONE (host tests) | [SOURCE-BACKUP-CONTRACT.md](SOURCE-BACKUP-CONTRACT.md): typed outcomes, expiry, capabilities, redaction and the pre-playback gate, 13 tests. Not yet wired into the search loop. |
-| 5–16 | NOT STARTED | Do not start until separately authorized. |
+| 5 | ADAPTER DONE (host tests, fixtures only) | [SOURCE-INDEPENDENT-SEARCH.md](SOURCE-INDEPENDENT-SEARCH.md): one first-party site adapter, no add-on needed; not wired into the playback loop, no live check. |
+| 6–16 | NOT STARTED | Do not start until separately authorized. |
 
 On completing a step, replace its row range with individual rows and record dates,
 commands, expected/observed results and links to sanitized reports. Do not renumber
