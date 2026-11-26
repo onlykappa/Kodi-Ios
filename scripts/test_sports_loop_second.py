@@ -32,20 +32,35 @@ class LoopSecond(unittest.TestCase):
         def boom(**k):raise RuntimeError('loop listing unavailable')
         with patch.object(sports_jet,'_folder',lambda id:'/x/'+id),patch.object(sports_loop_routes,'discover',boom):
             self.assertEqual(sports_provider.loop_sources(GAME,sleep=lambda s:None),[])
-    def test_all_sources_crew_wins_and_the_loop_is_not_asked_when_crew_answers_quickly(self):
-        called=[]
-        self.assertEqual(sports_provider.all_sources(GAME,after=2,crew=lambda:[{'id':'crew'}],loop=lambda:called.append(1) or [{'id':'loop'}]),[{'id':'crew'}])
-        self.assertEqual(called,[])
+    def test_both_places_sources_are_merged_crew_first_without_duplicates(self):
+        got=sports_provider.all_sources(GAME,after=1,grace=2,crew=lambda:[{'id':'c','play':'p1'}],loop=lambda:[{'id':'l','play':'p2'},{'id':'dup','play':'p1'}])
+        self.assertEqual([s['play'] for s in got],['p1','p2'])
+    def test_the_sources_that_worked_before_come_first_and_are_tagged_best_and_good(self):
+        import sports_stream_health as h
+        health=h.Health(None,lambda:1000.0);health.ok('Loop BckDr2',{'height':1080,'kbps':5000});health.ok('Crew CCS',{'height':720,'kbps':2000});health.fail('Loop TimStreams','no picture')
+        found=[{'addon':'Crew CCS','play':'a','tag':''},{'addon':'Loop TimStreams','play':'b','tag':''},{'addon':'Loop BckDr2','play':'c','tag':''},{'addon':'Loop New','play':'d','tag':''}]
+        ranked=sports_provider.rank_sources(found,health)
+        self.assertEqual([s['addon'] for s in ranked],['Loop BckDr2','Crew CCS','Loop New','Loop TimStreams'])
+        self.assertEqual([s['tag'] for s in ranked],['best','good','',''],'never-tried and recently failed sources are not promoted')
+    def test_ranking_never_raises_or_drops_sources(self):
+        class Broken:
+            def score(self,*a):raise RuntimeError('x')
+        self.assertEqual(len(sports_provider.rank_sources([{'addon':'a'}],Broken())),1,'a failing memory file never drops the sources')
+    def test_a_quick_crew_does_not_hide_the_loops_sources_but_a_slow_loop_does_not_hold_the_page(self):
+        import threading;release=threading.Event();began=time.monotonic()
+        got=sports_provider.all_sources(GAME,after=1,grace=2,crew=lambda:[{'id':'c','play':'p1'}],loop=lambda:release.wait(30) and [{'id':'l','play':'p2'}])
+        release.set()
+        self.assertEqual([s['play'] for s in got],['p1']);self.assertLess(time.monotonic()-began,8)
     def test_the_loop_starts_when_crew_answers_empty_without_waiting_out_the_delay(self):
         began=time.monotonic()
-        self.assertEqual(sports_provider.all_sources(GAME,after=30,crew=lambda:[],loop=lambda:[{'id':'loop'}]),[{'id':'loop'}])
+        self.assertEqual(sports_provider.all_sources(GAME,after=30,grace=1,crew=lambda:[],loop=lambda:[{'id':'loop','play':'p'}]),[{'id':'loop','play':'p'}])
         self.assertLess(time.monotonic()-began,5)
     def test_a_silent_crew_does_not_hold_the_page_for_minutes(self):
         import threading;release=threading.Event()
         began=time.monotonic()
-        got=sports_provider.all_sources(GAME,after=1,crew=lambda:release.wait(30) and [],loop=lambda:[{'id':'loop'}])
+        got=sports_provider.all_sources(GAME,after=1,grace=1,crew=lambda:release.wait(30) and [],loop=lambda:[{'id':'loop','play':'p'}])
         release.set()
-        self.assertEqual(got,[{'id':'loop'}]);self.assertLess(time.monotonic()-began,8)
+        self.assertEqual(got,[{'id':'loop','play':'p'}]);self.assertLess(time.monotonic()-began,8)
     def test_when_both_are_empty_or_fail_the_answer_is_empty(self):
         def boom():raise RuntimeError('x')
         self.assertEqual(sports_provider.all_sources(GAME,after=1,crew=boom,loop=lambda:[]),[])

@@ -193,17 +193,59 @@ def jet_busy(jet):
     return running is not None and not running.is_set()
 
 
-LOOP_AFTER = 20   # seconds The Crew may be silent before The Loop starts looking too (Crew can keep reading its menus for minutes when a game is not there)
+LOOP_AFTER = 6    # seconds The Crew may take before The Loop starts looking too (it starts at once when The Crew answers, empty or not)
+LOOP_GRACE = 12   # seconds the slower of the two gets once the first has sources, so a game shows both places' sources, not only the quicker one's
 
 
-def all_sources(game, fresh=False, after=None, crew=None, loop=None, **kwargs):
-    """The Crew's sources, or The Loop's when The Crew has none. The Loop starts as soon as The Crew has answered empty, or after `after` seconds of Crew silence, so a dry Crew
-    never keeps the page waiting for minutes; the first non-empty answer wins (The Crew's when both have some)."""
+def merge_sources(*lists):
+    """Every source once (same play request), in the order given: The Crew's first, then The Loop's. Ranking is the page's (sports_model.order_sources) and the Auto button's."""
+    seen, out = set(), []
+    for found in lists:
+        for source in found or []:
+            key = source.get('play') or source.get('id')
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(source)
+    return out
+
+
+def rank_sources(sources, health=None):
+    """The best first: what played well before (this phone's own memory per source: a recent success and its sharpness and bitrate count, a recent failure with no success since counts against),
+    then the add-on's own quality, then the order given (The Crew's before The Loop's). The first source that has worked before is tagged 'best' and the next two 'good', so the page's
+    "Best" and "Also good" rows show them; sources never tried keep whatever tag they had."""
+    import sports_merge
+    import sports_stream_health
+    try:
+        health = health or sports_stream_health.open_health()
+    except Exception:
+        return list(sources)
+    key = lambda s: s.get('addon') or s.get('id') or ''
+    try:
+        score = lambda s: health.score(key(s), sports_merge.quality_rank(s.get('quality')))
+        ranked = sorted(sources, key=lambda s: -score(s))
+        out, shown = [], 0
+        for source in ranked:
+            known = (health.data.get(key(source)) or {}).get('ok_at') and not health.dead(key(source))
+            if known and shown < 3:
+                source = dict(source, tag='best' if shown == 0 else 'good')
+                shown += 1
+            out.append(source)
+        return out
+    except Exception:
+        return list(sources)   # a memory file that cannot be read never hides a source
+
+
+def all_sources(game, fresh=False, after=None, crew=None, loop=None, grace=None, health=None, **kwargs):
+    """The sources of both places for one game (owner, 2026-11-26: "show me the best sources", Loop's options too): The Crew's and The Loop's, merged. The Loop starts as soon as The
+    Crew has answered, or after `after` seconds of Crew silence (a dry Crew can keep reading its menus for minutes); once one place has sources the other gets `grace` more seconds,
+    then the page gets what there is. Neither having any is an empty list."""
     import threading
     crew = crew or (lambda: crew_sources(game, fresh=fresh, **kwargs))
     loop = loop or (lambda: loop_sources(game))
     after = LOOP_AFTER if after is None else after
-    answers, lock, ready, crew_done = {}, threading.Lock(), threading.Event(), threading.Event()
+    grace = LOOP_GRACE if grace is None else grace
+    answers, lock, changed, crew_done = {}, threading.Lock(), threading.Event(), threading.Event()
 
     def run(name, work):
         try:
@@ -214,24 +256,24 @@ def all_sources(game, fresh=False, after=None, crew=None, loop=None, **kwargs):
             answers[name] = found
         if name == 'crew':
             crew_done.set()
-        if found or ('crew' in answers and 'loop' in answers):
-            ready.set()
+        changed.set()
     threading.Thread(target=run, args=('crew', crew), daemon=True).start()
     crew_done.wait(after)
-    with lock:
-        crew_found = answers.get('crew')
-    if crew_found:
-        return crew_found
     threading.Thread(target=run, args=('loop', loop), daemon=True).start()
+    first_found = None
     while True:
-        ready.wait(1)
+        changed.wait(1)
+        changed.clear()
         with lock:
-            if answers.get('crew'):
-                return answers['crew']
-            if answers.get('loop'):
-                return answers['loop']
-            if 'crew' in answers and 'loop' in answers:
-                return []
+            done = set(answers)
+            have = any(answers.get(n) for n in answers)
+            merged = merge_sources(answers.get('crew'), answers.get('loop'))
+        if done == {'crew', 'loop'}:
+            return rank_sources(merged, health)
+        if have:
+            first_found = first_found if first_found is not None else time.monotonic()
+            if time.monotonic() - first_found >= grace:
+                return rank_sources(merged, health)
 
 
 def sm_unavailable():
