@@ -13,13 +13,15 @@ import re
 import time
 import urllib.parse
 import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
 import independent_search
 import provider_fallback
 import source_contract
 
 MAX_ROWS = 40
+EARLY_CANDIDATES = 5      # once this many verified candidates are in, ...
+GRACE = 1.5               # ... the rest get this many seconds more, then the search returns (a slow site no longer holds up the others)
 MAX_WORKERS = 4
 HASH = re.compile(r'[0-9a-fA-F]{40}')
 
@@ -316,6 +318,31 @@ def _one(adapter, request, fetch, deadline, clock):
     return rows
 
 
+def absorb(job, adapter, request, report, found, waits):
+    """Fold one finished site into the report and the candidate list (an error becomes its typed outcome and its Retry-After)."""
+    try:
+        result = job.result()
+    except Exception as error:
+        report[adapter.name] = source_contract.classify(error)
+        try:
+            import source_health
+            waits[adapter.name] = source_health.retry_after(error)
+        except Exception:
+            pass
+        return
+    if adapter.name == '1337x':
+        outcome, items = result
+        report[adapter.name] = outcome
+        found.extend(items)
+        return
+    kept = provider_fallback.verified(result, request, independent_search.PROVIDER)     # seeders must be > 0: the hash is the handle
+    report[adapter.name] = source_contract.OK if kept else source_contract.EMPTY
+    for item in kept:
+        item['magnet'] = 'magnet:?xt=urn:btih:' + item['torrent_hash']
+        item['site'] = adapter.name
+        found.append(source_contract.stamp(item))
+
+
 def search_all(request, fetch=independent_search.default_fetch, cancel=None, timeout=independent_search.TOTAL_SECONDS,
                clock=time.monotonic, disabled=(), health=None):
     """-> (outcome, candidates, {site: outcome}). `disabled` skips a site entirely (used by tests and a future setting)."""
@@ -331,33 +358,23 @@ def search_all(request, fetch=independent_search.default_fetch, cancel=None, tim
         jobs = {pool.submit(_one, a, request, fetch, deadline, clock): a for a in adapters}
         if '1337x' not in disabled:
             jobs[pool.submit(lambda: independent_search.search(request, fetch=fetch, cancel=cancel, timeout=max(.5, deadline - clock())))] = Leet()
-        done, pending = wait(jobs, timeout=max(0, deadline - clock()))
-        for job in pending:
+        waiting, first_at = set(jobs), None
+        while waiting:
+            left = deadline - clock()
+            if left <= 0:
+                break
+            if first_at is not None and clock() - first_at >= GRACE:
+                break                                         # enough candidates and the grace has passed: the slow ones are not waited for
+            step = min(left, GRACE if first_at is None else max(.05, GRACE - (clock() - first_at)))
+            done, waiting = wait(waiting, timeout=step, return_when=FIRST_COMPLETED)
+            for job in done:
+                absorb(job, jobs[job], request, report, found, waits)
+            if first_at is None and len(found) >= EARLY_CANDIDATES:
+                first_at = clock()
+        for job in waiting:
             job.cancel()
-            report[jobs[job].name] = source_contract.TIMEOUT
-        for job in done:
-            adapter = jobs[job]
-            try:
-                result = job.result()
-            except Exception as error:
-                report[adapter.name] = source_contract.classify(error)
-                try:
-                    import source_health
-                    waits[adapter.name] = source_health.retry_after(error)
-                except Exception:
-                    pass
-                continue
-            if adapter.name == '1337x':
-                outcome, items = result
-                report[adapter.name] = outcome
-                found.extend(items)
-                continue
-            kept = provider_fallback.verified(result, request, independent_search.PROVIDER)     # seeders must be > 0: the hash is the handle
-            report[adapter.name] = source_contract.OK if kept else source_contract.EMPTY
-            for item in kept:
-                item['magnet'] = 'magnet:?xt=urn:btih:' + item['torrent_hash']
-                item['site'] = adapter.name
-                found.append(source_contract.stamp(item))
+            # Late, not failed: a site still answering when we had enough (or when time ran out) is not penalised in health.
+            report[jobs[job].name] = source_contract.TIMEOUT if clock() >= deadline else 'pending'
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
     if cancel and cancel():

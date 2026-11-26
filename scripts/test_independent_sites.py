@@ -2,7 +2,7 @@
 import json,sys,unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'))
-import independent_sites as s, source_contract as c
+import independent_sites as s, source_contract as c, source_health as sh
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from fixtures_site_captures import CAPTURES
 
@@ -116,5 +116,28 @@ class RealCaptures(unittest.TestCase):
   with self.assertRaises(ValueError):s.Nyaa().parse('<rss><!DOCTYPE x [<!ENTITY a "b">]></rss>',ONE)
  def test_nyaa_only_for_episodes(self):
   self.assertTrue(s.Nyaa().applies(ONE));self.assertFalse(s.Nyaa().applies(BBB))
+
+import time as _time
+class Early(unittest.TestCase):
+ def slow_pages(self):
+  p=pages();return p
+ def test_a_slow_site_does_not_hold_up_enough_candidates(self):
+  old=(s.GRACE,s.EARLY_CANDIDATES);s.GRACE=.3;s.EARLY_CANDIDATES=2;self.addCleanup(lambda:(setattr(s,'GRACE',old[0]),setattr(s,'EARLY_CANDIDATES',old[1])))
+  base=Fetch(pages())
+  def fetch(url,timeout):
+   if url.startswith('https://bitsearch.eu'):_time.sleep(2.0);return base.pages['https://apibay.org'] if False else '<x/>'
+   return base(url,timeout)
+  h=sh.Health('',lambda:1e6);t0=_time.time();out,found,rep=s.search_all(MOVIE,fetch=fetch,health=h);took=_time.time()-t0
+  self.assertEqual(out,c.OK);self.assertLess(took,1.5,'returned without waiting two seconds for bitsearch');self.assertEqual(rep['bitsearch'],'pending')
+  self.assertEqual(h.state('bitsearch'),'unknown','a site that was merely late is not penalised')
+ def test_with_too_few_candidates_it_still_waits_for_the_slow_site(self):
+  old=(s.GRACE,s.EARLY_CANDIDATES);s.GRACE=.2;s.EARLY_CANDIDATES=50;self.addCleanup(lambda:(setattr(s,'GRACE',old[0]),setattr(s,'EARLY_CANDIDATES',old[1])))
+  base=Fetch(pages());done=[]
+  def fetch(url,timeout):
+   if url.startswith('https://bitsearch.eu'):_time.sleep(.8);done.append(1);return CAPTURES['bitsearch']
+   return base(url,timeout)
+  out,found,rep=s.search_all(MOVIE,fetch=fetch);self.assertTrue(done);self.assertNotEqual(rep['bitsearch'],'pending')
+ def test_nothing_pending_when_everything_answers_fast(self):
+  out,found,rep=s.search_all(MOVIE,fetch=Fetch(pages()));self.assertNotIn('pending',rep.values())
 
 if __name__=='__main__':unittest.main()
