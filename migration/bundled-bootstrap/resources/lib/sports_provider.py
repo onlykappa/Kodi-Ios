@@ -193,10 +193,45 @@ def jet_busy(jet):
     return running is not None and not running.is_set()
 
 
-def all_sources(game, fresh=False, **kwargs):
-    """Crew first; The Loop only when Crew had nothing for the game (Crew's sites answer faster and are the ones the page already knows)."""
-    found = crew_sources(game, fresh=fresh, **kwargs)
-    return found if found else loop_sources(game)
+LOOP_AFTER = 20   # seconds The Crew may be silent before The Loop starts looking too (Crew can keep reading its menus for minutes when a game is not there)
+
+
+def all_sources(game, fresh=False, after=None, crew=None, loop=None, **kwargs):
+    """The Crew's sources, or The Loop's when The Crew has none. The Loop starts as soon as The Crew has answered empty, or after `after` seconds of Crew silence, so a dry Crew
+    never keeps the page waiting for minutes; the first non-empty answer wins (The Crew's when both have some)."""
+    import threading
+    crew = crew or (lambda: crew_sources(game, fresh=fresh, **kwargs))
+    loop = loop or (lambda: loop_sources(game))
+    after = LOOP_AFTER if after is None else after
+    answers, lock, ready, crew_done = {}, threading.Lock(), threading.Event(), threading.Event()
+
+    def run(name, work):
+        try:
+            found = list(work() or [])
+        except Exception:
+            found = []
+        with lock:
+            answers[name] = found
+        if name == 'crew':
+            crew_done.set()
+        if found or ('crew' in answers and 'loop' in answers):
+            ready.set()
+    threading.Thread(target=run, args=('crew', crew), daemon=True).start()
+    crew_done.wait(after)
+    with lock:
+        crew_found = answers.get('crew')
+    if crew_found:
+        return crew_found
+    threading.Thread(target=run, args=('loop', loop), daemon=True).start()
+    while True:
+        ready.wait(1)
+        with lock:
+            if answers.get('crew'):
+                return answers['crew']
+            if answers.get('loop'):
+                return answers['loop']
+            if 'crew' in answers and 'loop' in answers:
+                return []
 
 
 def sm_unavailable():

@@ -32,11 +32,24 @@ class LoopSecond(unittest.TestCase):
         def boom(**k):raise RuntimeError('loop listing unavailable')
         with patch.object(sports_jet,'_folder',lambda id:'/x/'+id),patch.object(sports_loop_routes,'discover',boom):
             self.assertEqual(sports_provider.loop_sources(GAME,sleep=lambda s:None),[])
-    def test_all_sources_asks_the_loop_only_when_crew_had_none(self):
-        with patch.object(sports_provider,'crew_sources',return_value=[{'id':'crew'}]) as crew,patch.object(sports_provider,'loop_sources') as loop:
-            self.assertEqual(sports_provider.all_sources(GAME),[{'id':'crew'}]);loop.assert_not_called()
-        with patch.object(sports_provider,'crew_sources',return_value=[]),patch.object(sports_provider,'loop_sources',return_value=[{'id':'loop'}]) as loop:
-            self.assertEqual(sports_provider.all_sources(GAME,fresh=True),[{'id':'loop'}]);loop.assert_called_once()
+    def test_all_sources_crew_wins_and_the_loop_is_not_asked_when_crew_answers_quickly(self):
+        called=[]
+        self.assertEqual(sports_provider.all_sources(GAME,after=2,crew=lambda:[{'id':'crew'}],loop=lambda:called.append(1) or [{'id':'loop'}]),[{'id':'crew'}])
+        self.assertEqual(called,[])
+    def test_the_loop_starts_when_crew_answers_empty_without_waiting_out_the_delay(self):
+        began=time.monotonic()
+        self.assertEqual(sports_provider.all_sources(GAME,after=30,crew=lambda:[],loop=lambda:[{'id':'loop'}]),[{'id':'loop'}])
+        self.assertLess(time.monotonic()-began,5)
+    def test_a_silent_crew_does_not_hold_the_page_for_minutes(self):
+        import threading;release=threading.Event()
+        began=time.monotonic()
+        got=sports_provider.all_sources(GAME,after=1,crew=lambda:release.wait(30) and [],loop=lambda:[{'id':'loop'}])
+        release.set()
+        self.assertEqual(got,[{'id':'loop'}]);self.assertLess(time.monotonic()-began,8)
+    def test_when_both_are_empty_or_fail_the_answer_is_empty(self):
+        def boom():raise RuntimeError('x')
+        self.assertEqual(sports_provider.all_sources(GAME,after=1,crew=boom,loop=lambda:[]),[])
+        self.assertEqual(sports_provider.all_sources(GAME,after=1,crew=lambda:[],loop=boom),[])
     def test_the_hybrid_provider_uses_crew_then_loop(self):
         import inspect;self.assertIn('all_sources',inspect.getsource(sports_provider))
 if __name__=='__main__':unittest.main()
