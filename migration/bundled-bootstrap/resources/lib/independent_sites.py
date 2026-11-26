@@ -121,6 +121,34 @@ class Eztv:
         return rows
 
 
+# ---- Knaben public search API: an index over many trackers (an aggregator, not a single site) ----
+class Knaben:
+    name, host = 'knaben', 'https://api.knaben.org'
+
+    def applies(self, request):
+        return True
+
+    def plan(self, request):
+        title, exp = _title(request)
+        episode = request.get('media_type') == 'episode'
+        tail = ('S%02dE%02d' % (int(exp['season']), int(exp['episode']))) if episode else str(exp.get('year') or '')
+        query = urllib.parse.quote_plus(('%s %s' % (title, tail)).strip())
+        return ['%s/v2/search?dead&o=date&c=%s&q=%s' % (self.host, '2000000' if episode else '3000000', query)]
+
+    def parse(self, text, request):
+        data = json.loads(text)
+        if not isinstance(data, dict) or not isinstance(data.get('hits'), list):
+            raise ValueError('layout changed')
+        rows = []
+        for item in data['hits'][:MAX_ROWS]:
+            if not isinstance(item, dict):
+                raise ValueError('layout changed')
+            found = _hash(item.get('hash'))
+            if found and item.get('title'):
+                rows.append({'name': str(item['title']), 'torrent_hash': found, 'seeders': int(_num(item.get('seeders'))), 'size': _num(item.get('bytes'))})
+        return rows
+
+
 class Leet:
     """The 1337x list/detail adapter from independent_search, as one more family (its pages are not JSON)."""
     name, host = '1337x', independent_search.DOMAINS[0]
@@ -129,13 +157,14 @@ class Leet:
         return True
 
 
-SIMPLE = (Apibay(), Yts(), Eztv())
+SIMPLE = (Apibay(), Yts(), Eztv(), Knaben())
 SITES = tuple(a.name for a in SIMPLE) + (Leet.name,)
 # family -> (media, transport, needs, notes): the coverage matrix kept in docs/SOURCE-COVERAGE.md
 COVERAGE = {
     'apibay': ('movie+episode', 'public JSON API', 'none', 'remote index'),
     'yts': ('movie', 'public JSON API', 'none', 'remote index'),
     'eztv': ('episode (IMDb id)', 'public JSON API', 'none', 'remote index'),
+    'knaben': ('movie+episode', 'public JSON API', 'none', 'aggregator over many trackers'),
     '1337x': ('movie+episode', 'HTML list + detail pages', 'none', 'remote index; Cloudflare on mirrors'),
 }
 
@@ -197,4 +226,10 @@ def search_all(request, fetch=independent_search.default_fetch, cancel=None, tim
     if merged:
         return source_contract.OK, merged, report
     outcomes = set(report.values())
-    return (source_contract.EMPTY if source_contract.EMPTY in outcomes or not outcomes else next(iter(outcomes))), [], report
+    if source_contract.EMPTY in outcomes or not outcomes:
+        return source_contract.EMPTY, [], report
+    for kind in (source_contract.ACCOUNT_REQUIRED, source_contract.REFUSED, source_contract.UNSUPPORTED, source_contract.EXPIRED,
+                 source_contract.TIMEOUT, source_contract.OFFLINE):      # the most actionable failure wins, deterministically
+        if kind in outcomes:
+            return kind, [], report
+    return source_contract.OFFLINE, [], report
