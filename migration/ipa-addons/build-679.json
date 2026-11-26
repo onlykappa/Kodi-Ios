@@ -1,0 +1,759 @@
+{
+ "schema": 1,
+ "ipa": {
+  "label": "build-679",
+  "sha256": "8f612c0b9e96ff351285d7f1936f65d62724e9d5e46da01132199dd81eac1fe0"
+ },
+ "addons": {
+  "audioencoder.kodi.builtin.aac": {
+   "version": "1.0.2",
+   "files": 81,
+   "bytes": 128648,
+   "tree_sha256": "f607e4ae1b24ec9a2ff19f3cb594538b94fd3859f61a02b84103d5b9460b847a"
+  },
+  "audioencoder.kodi.builtin.wma": {
+   "version": "1.0.2",
+   "files": 81,
+   "bytes": 116869,
+   "tree_sha256": "f8ed2123f948f8437993e4b63e5f84fd3b148c98d6ed8fd9cf0c6e63f329bb8c"
+  },
+  "context.otaku": {
+   "version": "1.0.35",
+   "files": 445,
+   "bytes": 6685400,
+   "tree_sha256": "f40ad23013904aacf0e38ce4d2b215cb1d2d3f08c16c30c681be947975e4bb53"
+  },
+  "context.prism": {
+   "version": "4.0.2",
+   "files": 17,
+   "bytes": 75784,
+   "tree_sha256": "fcfc292f8b30082f5c987f63781201c26e1c4e6fb2c65b768768c17e3891fe94"
+  },
+  "game.controller.default": {
+   "version": "1.0.46",
+   "files": 79,
+   "bytes": 725987,
+   "tree_sha256": "bf5daa4df31f82060cd6e8a5e57b0a417835da802869ad93e72eb2c53cd4e790"
+  },
+  "game.controller.keyboard": {
+   "version": "1.1.47",
+   "files": 80,
+   "bytes": 1236530,
+   "tree_sha256": "65bf054fd760213cb423c45e95d291557160cb51d37822fe62fa997725480639"
+  },
+  "game.controller.mouse": {
+   "version": "1.0.30",
+   "files": 80,
+   "bytes": 528386,
+   "tree_sha256": "1eae8c2de7c27892b08e6e3a5caf77a8b4bc1e47766681405832f9e5b0aa70a3"
+  },
+  "game.controller.snes": {
+   "version": "1.0.46",
+   "files": 80,
+   "bytes": 525628,
+   "tree_sha256": "300625b887b11010997b3e6c2d0e1ae45ba43fb3856dac3a6c147aa1dcbb4fa8"
+  },
+  "imagedecoder.heif": {
+   "version": "21.0.3",
+   "files": 80,
+   "bytes": 2058973,
+   "tree_sha256": "9bf4d72dabf0319faac36a5abf9edbebb516b6abd2791ab4959d1cc04b950817"
+  },
+  "include": {
+   "version": "",
+   "files": 1,
+   "bytes": 33710,
+   "tree_sha256": "9d44ddd58f687a0db5053f1b8163eabedfbefcdb0c55a4eecf02ef9582d9c3f7"
+  },
+  "inputstream.adaptive": {
+   "version": "21.5.18",
+   "files": 78,
+   "bytes": 3265990,
+   "tree_sha256": "6995bd6cb54bd7a86aa90a7b949bd77941f2d3d2823286b177c257ab077a80da"
+  },
+  "inputstream.ffmpegdirect": {
+   "version": "21.3.8",
+   "files": 79,
+   "bytes": 23979886,
+   "tree_sha256": "6fbdb1770238e9e9971f0143391937910e851c06204ce3e0818afc01f4556fd6"
+  },
+  "kodi.binary.global.audioengine": {
+   "version": "1.1.1",
+   "files": 1,
+   "bytes": 250,
+   "tree_sha256": "1f55009f8395025c12caffd5d3d08324831d54f8008ee837166a17c4ec7fbe62"
+  },
+  "kodi.binary.global.filesystem": {
+   "version": "1.1.9",
+   "files": 1,
+   "bytes": 249,
+   "tree_sha256": "9280e1f09d670232f144ba28f59a47437367de3b296e67a27786576761c2e108"
+  },
+  "kodi.binary.global.general": {
+   "version": "1.0.5",
+   "files": 1,
+   "bytes": 246,
+   "tree_sha256": "01ad702af79002082447115ce0e747b1107947522b633753cd351b0e1554f6d2"
+  },
+  "kodi.binary.global.gui": {
+   "version": "5.15.0",
+   "files": 1,
+   "bytes": 244,
+   "tree_sha256": "d5b3176301170ec664ae8e3061ef6d57ddb022c4f273137dc663a9f157ca8901"
+  },
+  "kodi.binary.global.main": {
+   "version": "2.0.2",
+   "files": 1,
+   "bytes": 243,
+   "tree_sha256": "6c7f4ca83264dc51b9d6b2bda253b123daa16acd295e8606c107cda7deaadaca"
+  },
+  "kodi.binary.global.network": {
+   "version": "1.0.4",
+   "files": 1,
+   "bytes": 246,
+   "tree_sha256": "2bb35456760c4c849bb43b83c9a96a2107438d8d66ac0121405902ccdf28375a"
+  },
+  "kodi.binary.global.tools": {
+   "version": "1.0.4",
+   "files": 1,
+   "bytes": 244,
+   "tree_sha256": "28f417a2e16aae2df50b60663dcea8b9852483aed3ec3dad903050790cd81ab3"
+  },
+  "kodi.binary.instance.audiodecoder": {
+   "version": "4.0.0",
+   "files": 1,
+   "bytes": 253,
+   "tree_sha256": "a99c50d62a5f9722b6206c7ba2bc65d979d78e5fa5617fca5e1d4ad56f106e43"
+  },
+  "kodi.binary.instance.audioencoder": {
+   "version": "3.0.0",
+   "files": 1,
+   "bytes": 253,
+   "tree_sha256": "a214804f90e195701640d68b2bd6b4a1d86050059792adbbfbe41080dc3f7a1f"
+  },
+  "kodi.binary.instance.game": {
+   "version": "3.0.2",
+   "files": 1,
+   "bytes": 300,
+   "tree_sha256": "06d11be9c5f0b9ed7817ddb0889988391394592662d4172f07170a882675f57f"
+  },
+  "kodi.binary.instance.imagedecoder": {
+   "version": "3.0.1",
+   "files": 1,
+   "bytes": 253,
+   "tree_sha256": "7affdbc27879a3fec3cbb60703e856845a25c845a779762d70884bd643a4a850"
+  },
+  "kodi.binary.instance.inputstream": {
+   "version": "3.3.0",
+   "files": 1,
+   "bytes": 252,
+   "tree_sha256": "1cc99bfb139a353258fe5cf396cf8b688857c360fa53d3566a96a4f15f98814a"
+  },
+  "kodi.binary.instance.peripheral": {
+   "version": "3.0.2",
+   "files": 1,
+   "bytes": 247,
+   "tree_sha256": "b892c741cb144776eb135a0af0af43775f2233e053895ffc64d21393a2607a10"
+  },
+  "kodi.binary.instance.pvr": {
+   "version": "8.3.0",
+   "files": 1,
+   "bytes": 244,
+   "tree_sha256": "a5fc2bfb8cc6a7760b080f584389dd881147c345ab723fbe247913af8ff53993"
+  },
+  "kodi.binary.instance.screensaver": {
+   "version": "2.2.0",
+   "files": 1,
+   "bytes": 252,
+   "tree_sha256": "aa85a8d8316702248cd91508aed210c64a64f6771ba019995289a3e414f49422"
+  },
+  "kodi.binary.instance.vfs": {
+   "version": "3.0.1",
+   "files": 1,
+   "bytes": 244,
+   "tree_sha256": "3d51b3923fdf2c103b07b86c90bd61f38a14de49ab0953bec8e81903674939a8"
+  },
+  "kodi.binary.instance.videocodec": {
+   "version": "2.1.0",
+   "files": 1,
+   "bytes": 251,
+   "tree_sha256": "bd2719bd6257a00eebd089fd1af2e67495c1c649d286cf145a49f8dec02c03e2"
+  },
+  "kodi.binary.instance.visualization": {
+   "version": "4.0.0",
+   "files": 1,
+   "bytes": 254,
+   "tree_sha256": "5a055d8d6ea38f4e5e711ef609575f79bfb0fccdc6c4b2a37a0d696429ea96b8"
+  },
+  "kodi.resource": {
+   "version": "1.0.0",
+   "files": 6,
+   "bytes": 13606,
+   "tree_sha256": "c524bbdefb34036bad832aea142325c49c6270213c536d6521a55fb7917c535f"
+  },
+  "metadata.album.universal": {
+   "version": "3.1.4",
+   "files": 59,
+   "bytes": 147939,
+   "tree_sha256": "7837334fd0d50b750b54db4f8eb39c577bc4723abbbe64f1a94654491289a245"
+  },
+  "metadata.artists.universal": {
+   "version": "4.3.3",
+   "files": 59,
+   "bytes": 204469,
+   "tree_sha256": "402fff1c3ef0b6cf479766bdf7f0332995393f6541454208db98ffe639d7ceab"
+  },
+  "metadata.common.allmusic.com": {
+   "version": "3.2.2",
+   "files": 3,
+   "bytes": 27651,
+   "tree_sha256": "7a90bb9fc4ad7cf13cd1f66f5c3872387fddc209644e0813586c495ee1c3eb94"
+  },
+  "metadata.common.fanart.tv": {
+   "version": "3.6.3",
+   "files": 3,
+   "bytes": 67181,
+   "tree_sha256": "9a4992f162517d21fbcff896376009a3b2c4fd393fad090ef0939a426e766f96"
+  },
+  "metadata.common.musicbrainz.org": {
+   "version": "2.2.4",
+   "files": 3,
+   "bytes": 21913,
+   "tree_sha256": "396b4163c631c900b98f0dcad71cbcdcc9dc5c2ef4c4d37704f89fbe07988fd8"
+  },
+  "metadata.common.theaudiodb.com": {
+   "version": "2.0.3",
+   "files": 3,
+   "bytes": 49239,
+   "tree_sha256": "29c687eb2baf7e2beffd900d568b1d8f17ae0a7ea47b30273e431d4767f7bce6"
+  },
+  "metadata.generic.albums": {
+   "version": "1.0.14",
+   "files": 91,
+   "bytes": 306728,
+   "tree_sha256": "6a3fd1a92c363021bb4c885782a32ff0e6f39081bcf9504ad617d056a3132e5b"
+  },
+  "metadata.generic.artists": {
+   "version": "1.0.18",
+   "files": 92,
+   "bytes": 325202,
+   "tree_sha256": "849a80899f7d04f9b1f483fccbd2abe4b01f02a9b6e09b5b143e6b5dbe7b1715"
+  },
+  "metadata.local": {
+   "version": "1.0.1",
+   "files": 3,
+   "bytes": 4902,
+   "tree_sha256": "9f18d1b4cb5404d615c3781b834f438d06ff3e0b262d8f0f2dde4cbd70f819c9"
+  },
+  "metadata.themoviedb.org.python": {
+   "version": "1.3.1+matrix.1",
+   "files": 71,
+   "bytes": 159484,
+   "tree_sha256": "0c34b47efe992692315356ce2f6c8b1086a82d60221bc7f5bb8cd3acaf139972"
+  },
+  "metadata.tvshows.themoviedb.org.python": {
+   "version": "1.6.0",
+   "files": 17,
+   "bytes": 140522,
+   "tree_sha256": "b87b90bb4870b1259d2f1793aafac68434b967e57a11ecacd40a0aa3cbd8488f"
+  },
+  "peripheral.joystick": {
+   "version": "21.1.23",
+   "files": 231,
+   "bytes": 906241,
+   "tree_sha256": "0746758eb85fd1fd20f47800369090940905ac38fb806ed137f8d220825df35d"
+  },
+  "plugin.googledrive": {
+   "version": "1.6.8",
+   "files": 19,
+   "bytes": 177769,
+   "tree_sha256": "051f0c2a1fef9ee31789ec4d63b0e12d793675ac2f1691b872903ac657be437b"
+  },
+  "plugin.program.autocompletion": {
+   "version": "2.1.2",
+   "files": 15,
+   "bytes": 473101,
+   "tree_sha256": "7147c2ae8c012470b09cbbdfdb20790612889db3bee8eb7c30401b0a54ef228b"
+  },
+  "plugin.video.elementum": {
+   "version": "0.1.114",
+   "files": 181,
+   "bytes": 12511155,
+   "tree_sha256": "e982c07591c9e80d4ed5268df23367cdb11bca47fa8ea5831c9cc298adddbc87"
+  },
+  "plugin.video.jacktook": {
+   "version": "1.22.0",
+   "files": 524,
+   "bytes": 11569614,
+   "tree_sha256": "5bb93a5441b0a021af8083377b08566be46611d97d6a681bf132369c9e41ecfe"
+  },
+  "plugin.video.kodi.ios.watch": {
+   "version": "1.4.4",
+   "files": 12,
+   "bytes": 139662,
+   "tree_sha256": "aa4cd14df1aa2f64ed78da2192a6d7089aab5d997206c3d4cd68aa99fcb5e5bf"
+  },
+  "plugin.video.otaku": {
+   "version": "5.3.4",
+   "files": 196,
+   "bytes": 3975099,
+   "tree_sha256": "cc83227971843130b7bc3afb311534f285549d607a7fd88662686d3dd0a2bcb4"
+  },
+  "plugin.video.pov": {
+   "version": "6.11.03",
+   "files": 210,
+   "bytes": 1665077,
+   "tree_sha256": "e9153420c3d157de280b25932d59ca7af51ee03ac19d7eab400ab1a3828b6ceb"
+  },
+  "plugin.video.prism": {
+   "version": "5.0.69",
+   "files": 1301,
+   "bytes": 12486664,
+   "tree_sha256": "1e775c19391fc02d79432fd0bb9374a230d34d3058ab9adbf3a60f5ee523ec54"
+  },
+  "plugin.video.thecrew": {
+   "version": "3.2.2",
+   "files": 47,
+   "bytes": 3791016,
+   "tree_sha256": "4d5786b8ce90185aac1ae25084dbb8aeda81289cd0077bfbbce105365673213d"
+  },
+  "plugin.video.themoviedb.helper": {
+   "version": "6.18.1+ios.1",
+   "files": 491,
+   "bytes": 10398499,
+   "tree_sha256": "95652836ab7882112ceef23feec994f80fda0ecb77d3da3371642ee354500842"
+  },
+  "repository.cocoscrapers": {
+   "version": "1.0.0",
+   "files": 3,
+   "bytes": 73380,
+   "tree_sha256": "401219820273c0674b3bffbc7fd882f492e112d4f09aa1d933aa6e442743cb1f"
+  },
+  "repository.jurialmunkey": {
+   "version": "3.4",
+   "files": 2,
+   "bytes": 9575,
+   "tree_sha256": "5740dad0d28485319dccfb5581ef6d627be3c244f5a612a654085aff6ed50ed7"
+  },
+  "repository.loop": {
+   "version": "3.0.4",
+   "files": 3,
+   "bytes": 435582,
+   "tree_sha256": "cf902a208454607ce5fcfe2f9c0fc62760a913f45fd1f690a91aa2ebd52c9855"
+  },
+  "repository.xbmc.org": {
+   "version": "3.4.0",
+   "files": 79,
+   "bytes": 201100,
+   "tree_sha256": "ec977ff39141bcb64c12e0d0a4fa72acd1d72c874120854cdaafb7135852f889"
+  },
+  "resource.font.robotocjksc": {
+   "version": "0.0.3",
+   "files": 11,
+   "bytes": 84807649,
+   "tree_sha256": "2727611e681d0519dfc3fb11b15fdedb9d3d9c1528e61ae8a4190b6e393db45c"
+  },
+  "resource.images.arctic.splash": {
+   "version": "1.0.7",
+   "files": 663,
+   "bytes": 74649410,
+   "tree_sha256": "fdaf9b47e4ac41408a817f8dc7a5609154b9bdd75232b445c450a8e79213e1c1"
+  },
+  "resource.images.arctic.weather": {
+   "version": "1.0.4",
+   "files": 1036,
+   "bytes": 59526195,
+   "tree_sha256": "1b8d477145bed5ac9f8f1569b508705fd9440a616a9ae069382b2714c2cbd63b"
+  },
+  "resource.images.studios.coloured": {
+   "version": "0.0.24",
+   "files": 5,
+   "bytes": 72090533,
+   "tree_sha256": "b02f2aa975878d43eaf7057a707a2c3e1b4100aa020be5b3b3e8aea05f3f754d"
+  },
+  "resource.images.weathericons.default": {
+   "version": "1.1.9",
+   "files": 53,
+   "bytes": 4755341,
+   "tree_sha256": "f263d4676a11a60a9f5de960f8adb2a7435f4b169c5cb1ff3e521752a41c459d"
+  },
+  "resource.images.weathericons.white": {
+   "version": "0.0.6",
+   "files": 6,
+   "bytes": 101124,
+   "tree_sha256": "f00d8d4ef6652c28774e8a5ba285bf8718bf4d89fdab0cdcb00b759a06d60f4e"
+  },
+  "resource.language.en_gb": {
+   "version": "2.0.2",
+   "files": 4,
+   "bytes": 581787,
+   "tree_sha256": "95712c869bd8bef5472fee4610771d43c7c846f0547ea14350b74231bea882f5"
+  },
+  "resource.uisounds.kodi": {
+   "version": "1.0.1",
+   "files": 9,
+   "bytes": 134273,
+   "tree_sha256": "af9b55cf2867d94e3ec19faed0ce600178ca8c18484101bcac2ba74294ae637b"
+  },
+  "screensaver.xbmc.builtin.black": {
+   "version": "1.0.34",
+   "files": 2,
+   "bytes": 17153,
+   "tree_sha256": "4c8b91464d12043a72e880e75e2be15f0bbf0f3b14bcf4930f309512d71d7a5d"
+  },
+  "screensaver.xbmc.builtin.dim": {
+   "version": "1.0.66",
+   "files": 63,
+   "bytes": 112930,
+   "tree_sha256": "ee18ce882a7cbe648c724d9c6aa1f9a6baa79b56cf6c33d630345523ba7e6920"
+  },
+  "script.elementum.burst": {
+   "version": "0.0.99",
+   "files": 343,
+   "bytes": 6396650,
+   "tree_sha256": "eea0beb2ce79ac2e4403de379bca6b131a5a7f4cea66cb593e1dac625f11288d"
+  },
+  "script.embuary.helper": {
+   "version": "2.0.8",
+   "files": 34,
+   "bytes": 765580,
+   "tree_sha256": "e5c3883b092047da9426f7475e7e8314d0b0482f98a779e81620c5092c1c9cd2"
+  },
+  "script.embuary.info": {
+   "version": "2.0.8",
+   "files": 56,
+   "bytes": 1068532,
+   "tree_sha256": "4994bb23b0877984618c9bc7fcb0a894d808a931aa973fcc379869b50946bb3b"
+  },
+  "script.globalsearch": {
+   "version": "9.0.7",
+   "files": 226,
+   "bytes": 1440411,
+   "tree_sha256": "c61c17d2197639494444ee61f21500f0cce9f1009203e667f35d766997954c07"
+  },
+  "script.image.resource.select": {
+   "version": "3.0.2",
+   "files": 7,
+   "bytes": 45386,
+   "tree_sha256": "4ac4ab0f7b92ed68a9d9fe8b7a348799cd18fcbab0a31da6f47b152100042290"
+  },
+  "script.kodi.ios.first_run": {
+   "version": "1.0.0",
+   "files": 3,
+   "bytes": 4716,
+   "tree_sha256": "abcaa9e30807bcc338ea3ff2c6399c5a6053ce11c2e22cee8a07742a79b5b993"
+  },
+  "script.module.addon.signals": {
+   "version": "0.0.6+matrix.1",
+   "files": 5,
+   "bytes": 41497,
+   "tree_sha256": "2b2d986fe0bc126f7bc312212ec28dc1980437033d911b7242e526c2f12c649c"
+  },
+  "script.module.arrow": {
+   "version": "1.2.3",
+   "files": 13,
+   "bytes": 292290,
+   "tree_sha256": "86a2605a4ec0e5744835755a7220a47592885f7788a0f2103ff7c6abe42cb98f"
+  },
+  "script.module.autocompletion": {
+   "version": "2.1.1",
+   "files": 11,
+   "bytes": 386716,
+   "tree_sha256": "9bb73a8156b079d84dfa9245ead71488b086c2d3a105f451f8b52b60b29b05ba"
+  },
+  "script.module.beautifulsoup4": {
+   "version": "4.12.2",
+   "files": 13,
+   "bytes": 275115,
+   "tree_sha256": "75f8361729480a2ea2f4c0462dca2568f1619d9360a7a30fa2748590b3b8cb7c"
+  },
+  "script.module.certifi": {
+   "version": "2023.5.7",
+   "files": 7,
+   "bytes": 292693,
+   "tree_sha256": "0bd4dd73bf5a3d99221929d3ac2c837e517f4da39d6a441c4e455ddd89765738"
+  },
+  "script.module.chardet": {
+   "version": "5.1.0",
+   "files": 51,
+   "bytes": 1142240,
+   "tree_sha256": "a58b7b1f8c6932b22c89f99cf592b82f9689d54653dbc5ee82b7a521d4b55dda"
+  },
+  "script.module.clouddrive.common": {
+   "version": "1.5.11",
+   "files": 53,
+   "bytes": 360605,
+   "tree_sha256": "12ab0a2f833bf4087a2041fe63a0b5d7004c30375a8fdfd3e8691e0f9767871d"
+  },
+  "script.module.dateutil": {
+   "version": "2.8.2",
+   "files": 25,
+   "bytes": 509947,
+   "tree_sha256": "16f633a5e9dffbb4b2d252a50a6fd99c64d95c5fea7d4f7e59166f0efa1ea9eb"
+  },
+  "script.module.future": {
+   "version": "1.0.0+matrix.1",
+   "files": 214,
+   "bytes": 1532897,
+   "tree_sha256": "a9000da125d7460da20b1f9dc0bb467dda44dfe9d1017981f9a55bc5d02469c7"
+  },
+  "script.module.idna": {
+   "version": "3.10.0",
+   "files": 11,
+   "bytes": 346875,
+   "tree_sha256": "6a9869258b637e595403f5211c56e679330cdbaa4079472da7edff09270c188c"
+  },
+  "script.module.infotagger": {
+   "version": "0.1.0",
+   "files": 4,
+   "bytes": 38261,
+   "tree_sha256": "c9f508b5834af8aaf6cbb7c2a6d5dd73aa1373456f5cc710b59561f3f9166c6d"
+  },
+  "script.module.inputstreamhelper": {
+   "version": "0.8.6",
+   "files": 33,
+   "bytes": 325203,
+   "tree_sha256": "9217b66e4d1cbdd970ce95ff56d17b7bdf38b7a8c5b34c15cf29aa60bd1c67bf"
+  },
+  "script.module.jurialmunkey": {
+   "version": "0.2.35",
+   "files": 23,
+   "bytes": 132348,
+   "tree_sha256": "4aecc14e8c5880cea7605e3d1a6f8172775bc6a58e7620af2533f31c224bea3a"
+  },
+  "script.module.kodi-six": {
+   "version": "0.1.3.1",
+   "files": 11,
+   "bytes": 47656,
+   "tree_sha256": "106f67276046debd42e3628494a4fbf02fd86ec7c661a8aa08d92aed9a768d89"
+  },
+  "script.module.magneto": {
+   "version": "6.11.01",
+   "files": 54,
+   "bytes": 345497,
+   "tree_sha256": "05bc5d43a6c8ae7c6cf74720042ccad9edb1c2a9761dd0e5db5cdb1bb651e8ab"
+  },
+  "script.module.myconnpy": {
+   "version": "8.0.33",
+   "files": 79,
+   "bytes": 1591422,
+   "tree_sha256": "985ca67ed3fb13ecf4145c7e45e62c42cd68ecf7c67bc7832480ebde5c3e71db"
+  },
+  "script.module.pil": {
+   "version": "5.1.0",
+   "files": 111,
+   "bytes": 3015466,
+   "tree_sha256": "d1b5d33d5274901967168222226e2a2d694e9a8423b2e5cc094425a398406325"
+  },
+  "script.module.pycryptodome": {
+   "version": "3.4.3",
+   "files": 2,
+   "bytes": 7709,
+   "tree_sha256": "23ab2575c69dfd9ad58e584f09cb6e61d81270e03b749afe08aa7805b6852def"
+  },
+  "script.module.pyqrcode": {
+   "version": "1.2.1+matrix.4",
+   "files": 7,
+   "bytes": 213679,
+   "tree_sha256": "e2d072d81f4a276d5846fcb7cbfde21fcbd7247da825cd8d8c0019489064da99"
+  },
+  "script.module.qrcode": {
+   "version": "6.1.0+matrix.3",
+   "files": 19,
+   "bytes": 72478,
+   "tree_sha256": "840c11496cb187f782a7c578b5ce81a505e0f3758122d0855b3dea278eff4031"
+  },
+  "script.module.requests": {
+   "version": "2.31.0",
+   "files": 21,
+   "bytes": 197570,
+   "tree_sha256": "a9e19219b5c4141a0bd33632eaeb608411ff237fff50a731564166c813039ec5"
+  },
+  "script.module.resolveurl": {
+   "version": "5.1.212",
+   "files": 357,
+   "bytes": 2371255,
+   "tree_sha256": "a7f66a559ee296c1873f9d0de7184beedf2d64bbdf59189e875bda45a3a1bf98"
+  },
+  "script.module.routing": {
+   "version": "0.2.3+matrix.1",
+   "files": 6,
+   "bytes": 58017,
+   "tree_sha256": "1743b46f52291c8f5ef39243724bf2e0a946629582c6c0ae644bdcab5e5ae72c"
+  },
+  "script.module.simplecache": {
+   "version": "2.0.2",
+   "files": 5,
+   "bytes": 36449,
+   "tree_sha256": "f22dee2afb327face06b142b2cc44f257c6c4d0502b3234ddc74704e5d492cf9"
+  },
+  "script.module.simpleeval": {
+   "version": "0.9.13",
+   "files": 4,
+   "bytes": 34246,
+   "tree_sha256": "d5e477700d2fe0f1a4b58bef1c8b322f3e4d08ec54f23eeb21fa5fea63d1f100"
+  },
+  "script.module.simplejson": {
+   "version": "3.19.1+matrix.1",
+   "files": 11,
+   "bytes": 94927,
+   "tree_sha256": "c1d73837a21b102d155daf0aa5abac29623d5213132198aaf0c4807c654185bb"
+  },
+  "script.module.six": {
+   "version": "1.16.0+matrix.1",
+   "files": 4,
+   "bytes": 43600,
+   "tree_sha256": "1d808994b10c7ca059ddf2ca256351061cdd9ba58b0f529d378d60d751f89fb0"
+  },
+  "script.module.soupsieve": {
+   "version": "2.4.1",
+   "files": 10,
+   "bytes": 143580,
+   "tree_sha256": "764c8e141ab4a1df5a5fd42fd267ebbe56983cf7343df74a3751eea10e71c4fa"
+  },
+  "script.module.thecrew": {
+   "version": "3.2.29",
+   "files": 241,
+   "bytes": 7439510,
+   "tree_sha256": "ef6cb1f6254f812bb76555753ea8f8b95ac2377bde682a51d5bb96228f7ff2d8"
+  },
+  "script.module.typing_extensions": {
+   "version": "4.7.1",
+   "files": 4,
+   "bytes": 133096,
+   "tree_sha256": "9e6cc3c670179c968bca0563c9c0fc2a789eda2b9da6617dc14095a1e240872c"
+  },
+  "script.module.unidecode": {
+   "version": "1.3.6",
+   "files": 194,
+   "bytes": 880589,
+   "tree_sha256": "e1f2d9807dcee230bba536373c0e6838134ff0fdb97e029e54542e0325d86fa7"
+  },
+  "script.module.urllib3": {
+   "version": "2.2.3",
+   "files": 40,
+   "bytes": 406602,
+   "tree_sha256": "bdc9cc3b8c00192098ff59bf434c4d193e4b7dc0fe2665892e603eedb64ab27a"
+  },
+  "script.skinshortcuts": {
+   "version": "2.0.3",
+   "files": 123,
+   "bytes": 1433707,
+   "tree_sha256": "b33616252c6a027b60c7273fe536c555ae96bc0df4416b0cd4f89daf5dda9833"
+  },
+  "script.skinvariables": {
+   "version": "2.2.10",
+   "files": 49,
+   "bytes": 544897,
+   "tree_sha256": "27e958ffc96b420697cea68d6a791772fff2a16fee37c3e8f35bd63d875e59cc"
+  },
+  "script.texturemaker": {
+   "version": "0.2.11",
+   "files": 14,
+   "bytes": 270943,
+   "tree_sha256": "213d6ad7441fd8197bd469072050e099fb44fbf683f06475611f45f5882d4351"
+  },
+  "script.thecrew.artwork": {
+   "version": "3.2.0",
+   "files": 543,
+   "bytes": 44368598,
+   "tree_sha256": "e17cf24e36a4c54c1cc70ac07dd73806c97f0d1e7efcbeb62ef93806a7e605f4"
+  },
+  "script.trakt": {
+   "version": "3.9.0",
+   "files": 145,
+   "bytes": 3670623,
+   "tree_sha256": "be2d9477ea1bcb6c335fce4194ca857617fd316035d11f7ac34a3338da5c65f2"
+  },
+  "service.kodi.ios.bootstrap": {
+   "version": "1.0.0",
+   "files": 930,
+   "bytes": 22746266,
+   "tree_sha256": "b3be426f5b92ffdc132efffaf0538c2a3484a4c8a564abafbabdb31fb10c0585"
+  },
+  "service.xbmc.versioncheck": {
+   "version": "0.5.27+matrix.1",
+   "files": 103,
+   "bytes": 566911,
+   "tree_sha256": "c1daebb1ca43522f21c6607020f3350400d07a0e6a7987df7ef6a0aba696f515"
+  },
+  "skin.arctic.fuse.3": {
+   "version": "3.4.8",
+   "files": 3626,
+   "bytes": 87235521,
+   "tree_sha256": "561d34de1cdbce595b99cffeff78da1e5cd2c2eafb11963be728b2b54757d0cd"
+  },
+  "skin.arctic.zephyr.mod": {
+   "version": "3.0.3",
+   "files": 598,
+   "bytes": 91036343,
+   "tree_sha256": "b9a9b361b56b4b57201903a031b18a9511ccc632d987ca76f50d4ecc7c2dd7ca"
+  },
+  "skin.estuary": {
+   "version": "4.0.0",
+   "files": 243,
+   "bytes": 8070284,
+   "tree_sha256": "b2fc51c61fa57f7a821ba4616b9bab1f539c99455c78a8f66e9035557104cc92"
+  },
+  "vfs.libarchive": {
+   "version": "21.0.2",
+   "files": 80,
+   "bytes": 1242698,
+   "tree_sha256": "40bcdad8504466906d0c55ec06578708e8e987bc2c66733cb080e64db198ac9d"
+  },
+  "vfs.rar": {
+   "version": "21.0.2",
+   "files": 82,
+   "bytes": 1088730,
+   "tree_sha256": "2f1ce0faf251be641b5123ce509996413dfd36f538e4d0afb9ee99b7740f2fa2"
+  },
+  "webinterface.default": {
+   "version": "21.x-1.0.1",
+   "files": 205,
+   "bytes": 9707806,
+   "tree_sha256": "eeb217e548fa9e620d8168e4daaf9cdd0e55a57884f24b2ccc5fc6be0c172843"
+  },
+  "xbmc.addon": {
+   "version": "21.3.0",
+   "files": 3,
+   "bytes": 6033,
+   "tree_sha256": "11f5b5763617a11d0bae03d56199f148f80468c92d42a5674dc1bac6039e648f"
+  },
+  "xbmc.core": {
+   "version": "0.1.0",
+   "files": 1,
+   "bytes": 208,
+   "tree_sha256": "0be407f8d4875f8073d752fc14b22abe1230b26472e1ed1a38c3b981b5c0678a"
+  },
+  "xbmc.gui": {
+   "version": "5.17.0",
+   "files": 2,
+   "bytes": 1750,
+   "tree_sha256": "f8276a576ef871a13a9baa8bfb74f3929a1564ac4a5e232c35c7b62a2f414ef3"
+  },
+  "xbmc.json": {
+   "version": "13.5.0",
+   "files": 1,
+   "bytes": 230,
+   "tree_sha256": "612000f9afe84fefe3f699716b2b641c71c5eac1ae8e8ba53143a4fcfc3158f5"
+  },
+  "xbmc.metadata": {
+   "version": "2.1.0",
+   "files": 2,
+   "bytes": 1559,
+   "tree_sha256": "32b9c6970fddcd6a47c96b1488eb66494807f475e7a3452d223dafa12b28f122"
+  },
+  "xbmc.python": {
+   "version": "3.0.1",
+   "files": 6,
+   "bytes": 12009,
+   "tree_sha256": "ecfd8c14cac2b5bd52cc44d17a23f98aa047bb4505b848de50c19fa83953e35d"
+  },
+  "xbmc.webinterface": {
+   "version": "1.0.0",
+   "files": 2,
+   "bytes": 1340,
+   "tree_sha256": "02b1f0a588b43c60e92ecd085f5b085f113b7393d5c04ca2fb6a5fd26b75ce4c"
+  }
+ }
+}

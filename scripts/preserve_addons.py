@@ -85,6 +85,9 @@ def build(out=DIR):
             data=(Path(d)/(p['id']+'.zip')).read_bytes();z=zipfile.ZipFile(io.BytesIO(data));names=z.namelist()
             notice=next((n for n in names if re.search(r'(?i)(^|/)(license|copying)[^/]*$',n)),p['id']+'/addon.xml')
             archives.append(entry(p['id'],p['version'],data,'migration/loop-addons/source-lock.json',None,notice,None,rx))
+    import fetch_crew_remote
+    clock=json.loads((ROOT/'migration/crew-remote/source-lock.json').read_text());ca=clock['archive']
+    archives.append(entry(ca['id'],ca['version'],fetch_crew_remote.fetch(clock),'migration/crew-remote/source-lock.json','archive',ca['id']+'/README.txt',ca['id'],rx))
     for a in archives:(ROOT/a['path']).write_bytes(a.pop('_data'))
     MANIFEST.write_text(json.dumps({'schema':1,'scope':'Exact upstream archives of the add-ons the phone has beyond the IPA (see docs/ADDON-BACKUP-GAPS.md); Git LFS objects; pinned in the named locks','archives':archives},indent=1)+'\n')
     return archives

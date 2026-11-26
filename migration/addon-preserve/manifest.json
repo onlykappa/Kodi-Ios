@@ -202,6 +202,24 @@
    "bytes": 21259,
    "lock": "migration/loop-addons/source-lock.json",
    "notice": "script.module.tzlocal/LICENSE.txt"
+  },
+  {
+   "path": "migration/addon-preserve/crew-remote-modules-936547cf.zip",
+   "id": "crew-remote-modules",
+   "version": "936547cf",
+   "sha256": "db4e4e9ffa4762085d9e5ca901d610475467c08baecb26a957841d0e10f59683",
+   "bytes": 393824,
+   "lock": "migration/crew-remote/source-lock.json",
+   "notice": "crew-remote-modules/README.txt",
+   "lock_key": "archive",
+   "folder": "crew-remote-modules",
+   "reviewed_secret_shaped": [
+    {
+     "member": "crew-remote-modules/crewreplays.xml",
+     "pattern": "jwt",
+     "member_sha256": "871f8eee0e374f264150f7e85751d6f9ff46a9f913558a73ef4eb513a276f4b8"
+    }
+   ]
   }
  ]
 }

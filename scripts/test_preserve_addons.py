@@ -52,14 +52,14 @@ class Scanner(unittest.TestCase):
 
 class Committed(unittest.TestCase):
  def test_manifest_matches_the_locks_and_every_archive_verifies(self):
-  m=json.loads(pa.MANIFEST.read_text())['archives'];self.assertGreaterEqual(len(m),16)
-  ids=[a['id'] for a in m];self.assertEqual(len(ids),len(set(ids)));self.assertIn('plugin.video.umbrella',ids);self.assertIn('plugin.video.the-loop',ids);self.assertNotIn('plugin.video.youtube',ids)
+  m=json.loads(pa.MANIFEST.read_text())['archives'];self.assertGreaterEqual(len(m),17)
+  ids=[a['id'] for a in m];self.assertEqual(len(ids),len(set(ids)));self.assertIn('plugin.video.umbrella',ids);self.assertIn('plugin.video.the-loop',ids);self.assertIn('crew-remote-modules',ids);self.assertNotIn('plugin.video.youtube',ids)
   for a in m:
    self.assertEqual(pa.locked(a),(a['sha256'],a['bytes']),a['id'])
    p=ROOT/a['path']
    if p.exists() and p.stat().st_size>200:pa.verify(a['path'])      # a checkout without Git LFS holds pointer files: the digest check then needs `git lfs pull`
  def test_reviewed_matches_are_only_third_party_embedded_keys(self):
   for a in json.loads(pa.MANIFEST.read_text())['archives']:
-   for r in a.get('reviewed_secret_shaped',[]):self.assertIn(a['id'],('plugin.video.umbrella','plugin.video.the-loop'));self.assertTrue(r['member'].startswith(a['id']+'/'))
+   for r in a.get('reviewed_secret_shaped',[]):self.assertIn(a['id'],('plugin.video.umbrella','plugin.video.the-loop','crew-remote-modules'));self.assertTrue(r['member'].startswith(a['id']+'/'))
 
 if __name__=='__main__':unittest.main()

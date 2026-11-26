@@ -7037,3 +7037,9 @@ Build 646 is the Sports build line with the other agent's Live Now rows merged i
 - Seen: TMDb answers older than a week were dropped even while TMDb was unreachable, so strict matching lost its aliases and release years in an outage.
 - Fix: answers up to 90 days old are used when TMDb cannot be reached and the result says so (`metadata`: live, cached, stale, none); a title never seen fails safe.
 - Retest: test_metadata_snapshot. Host tests only.
+
+## ISSUE-496: Add-ons could change behind the owner's back, and Crew ran remote code with no fallback (source-resilience, 2026-11-26)
+- Seen: the phone log (build 722) shows eight add-ons updated from repositories and Umbrella checking its own repository at every start; Crew downloads four Python modules from a third-party branch at every use (`control.cdnImport`) with a disk copy as its only fallback, and Umbrella, the Loop add-ons and Crew's modules were in no lock.
+- Fix: Kodi add-on updates notify-only and Umbrella's own check off, once (`bootstrap.phone_housekeeping`); Umbrella 6.8.02, the Loop/Jet set and Crew's modules pinned by commit and digest and preserved in Git LFS behind a verifying scanner (`preserve_addons.py`, `check_project.py`); the IPA's 125 add-ons locked per add-on; Crew's pinned modules staged by the build and seeded as its fallback where none exists.
+- Retest: test_preserve_addons, test_fetch_umbrella, test_loop_addons_lock, test_ipa_addon_lock, test_crew_remote, test_updates_calibration. Host only: no IPA was built and nothing ran on the phone.
+- Open: the reviewed third-party keys inside the preserved archives; Elementum's native build inputs; a rebuild drill.
