@@ -776,7 +776,7 @@ def drive_uploads(monitor,home,profile):
    return debrid_drive.slow_cellular(cell_state,cache_tune.link_kind(),rate,time.time())
   except Exception:return False
  def debrid_loop():
-  import alldebrid,debrid_drive,prepare_downloads,transfer_control
+  import alldebrid,debrid_account,debrid_drive,prepare_downloads,transfer_control
   delay=10
   def remember_shows(jobs):
    try:
@@ -865,7 +865,7 @@ def drive_uploads(monitor,home,profile):
      except NameError:return None
      if q is None:return None
      addon=xbmcaddon.Addon()
-     import debrid_ready,slowdown,debrid_account
+     import debrid_ready,slowdown
      if not addon.getSettingBool('prepare_downloads') or not addon.getSettingBool('prepare_while_copying'):
       debrid_ready.check_quality(q,with_link,key,going,quality)   # ISSUE-236: a plain copy is checked too
       return None

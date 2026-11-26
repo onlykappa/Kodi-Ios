@@ -266,6 +266,7 @@ jobs:
           python3 -B scripts/test_direct_stream.py
           python3 -B scripts/test_p2p_rules.py
           python3 -B scripts/test_metadata_snapshot.py
+          python3 -B scripts/test_resilience_matrix.py
           python3 -B scripts/test_provider_probe.py
           python3 -B scripts/test_provider_queue_bridge.py
           python3 -B scripts/test_provider_worker.py
