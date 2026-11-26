@@ -1154,3 +1154,5 @@ Build 622 flicks and captions (ISSUE-424/425, branch claude/library-playback-fix
 - 2026-11-21: ISSUE-440/441: a live game's page keeps looking by itself; Crew walks answer for 3 minutes, visit productive folders and each game's last folder first; any recent Umbrella title reopens from its link. Host tests only; not built.
 
 - 2026-11-21 (build 653 logs 5ee55982, d63069c3): ISSUE-442: background source look at 25 s and only while the screen is idle, failed Sports sources retried and no longer taken for a cancel, debrid links read serially through the cache, Continue's subtitle search knows its show. Host tests only; not built.
+
+- 2026-11-25 (build 722 logs 51880851, f63176b1, 6d593313): ISSUE-495 AirPlay stutter: cause not proven; open-GOP picture-time defect reproduced on the host (scripts/airplay_ladder_check.py), not fixed; 5 s AirPlay samples added; native counters written but need a framework rebuild awaiting the owner. ISSUE-496: older issues moved to ISSUES-ARCHIVE.md. Host tests only.

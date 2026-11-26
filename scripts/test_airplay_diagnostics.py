@@ -89,6 +89,25 @@ class JudderSamples(unittest.TestCase):
   self.assertEqual([n for n,_ in j.observe(self.p(100),10)],[])                                   # seek back
   self.assertEqual([n for n,_ in j.observe(self.p(101,time_control=0,rate=0.0),15)],['state_change'])   # pause
   self.assertEqual([n for n,_ in j.observe(self.p(101),60)],['state_change'])                      # resumed after a 45 s gap: no slip
+ def test_a_counted_dropped_frame_or_stall_is_an_event(self):
+  j=recorder.Judder();j.observe(self.p(100,dropped_frames=0,stalls=0),0)
+  out=j.observe(self.p(105,dropped_frames=12,stalls=0),5)
+  self.assertEqual(out,[('counter_change',{'changes':{'dropped_frames':[0,12]},'position':105.0})])
+ def test_no_value_and_an_old_framework_are_not_changes(self):
+  j=recorder.Judder();j.observe(self.p(100),0);self.assertEqual(j.observe(self.p(105),5),[])
+  j=recorder.Judder();j.observe(self.p(100,dropped_frames=-1,stalls=-1),0)
+  self.assertEqual(j.observe(self.p(105,dropped_frames=3,stalls=-1),5),[])
+ def test_every_active_sample_is_logged_with_the_counters(self):
+  row=dict(sample()['player'],dropped_frames=4,stalls=1,buffered_ahead_s=31.5)
+  rows=iter([row]);turns=iter([False,True]);log=[]
+  with tempfile.TemporaryDirectory() as tmp,patch.object(airplay,'health',side_effect=lambda lib:next(rows)),patch.object(airplay,'network',return_value={}),patch.object(remote_media,'stats',return_value={}):
+   recorder.watch(SimpleNamespace(kodi_airplay_health=Mock()),tmp,Mock(),log.append,lambda sec:next(turns),clock=iter([0]).__next__)
+  lines=[x for x in log if x.startswith('Kodi iOS AirPlay sample: ')]
+  self.assertEqual(len(lines),1);got=json.loads(lines[0].split(': ',1)[1])
+  self.assertEqual((got['dropped_frames'],got['stalls'],got['buffered_ahead_s']),(4,1,31.5))
+ def test_the_native_snapshot_names_every_counter(self):
+  native=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  for key in recorder.COUNTERS:self.assertIn('\\"%s\\":'%key,native)
  def test_the_watch_loop_logs_them(self):
   text=(ROOT/'migration/bundled-bootstrap/resources/lib/airplay_diagnostics.py').read_text()
   self.assertIn("for name,fields in judder.observe(player,now):diagnostics.event(write,'airplay',name",text)

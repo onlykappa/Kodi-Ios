@@ -4,6 +4,10 @@ from pathlib import Path
 import diagnostics
 PLAYER=('generation','state','active','position','duration','rate','time_control','external','buffer_empty',
         'likely_to_keep_up','item_status','player_status','error_code','error_domain','stop_reason','sample_age_s')
+# ISSUE-495: Apple's access-log counters and the seconds loaded ahead; only a framework newer than r76 reports them (-1: no value).
+COUNTERS=('access_events','dropped_frames','stalls','observed_bps','indicated_bps','downloaded_s','transfer_s','buffered_ahead_s')
+SAMPLE=('position','rate','time_control','buffer_empty','likely_to_keep_up','external','sample_age_s')+COUNTERS
+PLAYER+=COUNTERS
 NETWORK=('phase','start_age_s','listen_age_s','tv_requests','tv_media','tv_video','first_tv_s','player_age_s','connect_age_s')
 SOURCE=('http_requests','http_retries','http_errors','last_status','request_ms','source_read_ms','cache_hits',
         'cache_misses','cache_waits','read_bytes','last_read','read_error')
@@ -56,6 +60,9 @@ class Judder:
   before,then=last;out=[]
   changes={k:[before.get(k),player.get(k)] for k in self.KEYS if before.get(k)!=player.get(k)}
   if changes:out.append(('state_change',{'changes':changes,'position':round(float(player.get('position') or 0),1)}))
+  # ISSUE-495: a dropped frame or a stall the TV player counted since the last sample. -1 or absent is "no value", not a change.
+  counted={k:[before.get(k),player.get(k)] for k in ('dropped_frames','stalls') if (before.get(k) is not None and before.get(k)>=0 and (player.get(k) or 0)>before.get(k))}
+  if counted:out.append(('counter_change',{'changes':counted,'position':round(float(player.get('position') or 0),1)}))
   wall=now-then
   playing=lambda p:p.get('time_control')==2 and p.get('rate')==1.0
   if 3<=wall<=12 and playing(before) and playing(player):
@@ -95,6 +102,8 @@ def watch(lib,profile,window,write,wait,clock=time.time,recover=None):
    try:
     for name,fields in judder.observe(player,now):diagnostics.event(write,'airplay',name,source=source,network=sample['network'],**fields)
    except Exception as error:diagnostics.exception(write,'airplay_judder',error)
+   # ISSUE-495: one short line per 5 s sample, so a stutter's clock time can be matched to the picture position.
+   if player.get('active'):write('Kodi iOS AirPlay sample: '+json.dumps(selected(player,SAMPLE),separators=(',',':')))
    if report:capture(profile,report,write,diagnostics.snapshot(profile))
    if was_playing and not player.get('active') and player.get('state',0)<=0:
     store(profile,'airplay-recent.json',{'generation':tracker.generation,'recent':list(tracker.rows)})

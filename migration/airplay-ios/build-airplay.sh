@@ -234,6 +234,29 @@ static void keepUpdate(void);
 // Python reads atomics, never dispatches synchronously to UIKit and never receives signed URLs.
 static _Atomic double healthPosition,healthDuration,healthRate,healthUpdated;
 static atomic_int healthGeneration,healthControl,healthExternal,healthEmpty,healthLikely,healthItem,healthPlayer,healthError,healthDomain,healthReason;
+// ISSUE-495: what Apple's access log says about the picture (-1: the log has no value, as it may when the TV fetches the stream),
+// and how many seconds are loaded ahead of the picture. Counts are summed over the log's events; the bit rates are the latest.
+static _Atomic double healthDropped=-1,healthStalls=-1,healthObserved=-1,healthIndicated=-1,healthDownloaded=-1,healthTransfer=-1,healthAhead=-1;
+static atomic_int healthAccessEvents;
+static void healthSum(double *total,double value){if(isfinite(value) && value>=0)*total=(*total<0?0:*total)+value;}
+static void healthAccess(AVPlayerItem *item,double position) {
+    double dropped=-1,stalls=-1,observed=-1,indicated=-1,downloaded=-1,transfer=-1,ahead=-1;
+    NSArray<AVPlayerItemAccessLogEvent *> *events=item.accessLog.events;
+    for(AVPlayerItemAccessLogEvent *event in events) {
+        healthSum(&dropped,(double)event.numberOfDroppedVideoFrames);healthSum(&stalls,(double)event.numberOfStalls);
+        healthSum(&downloaded,event.segmentsDownloadedDuration);healthSum(&transfer,event.transferDuration);
+    }
+    AVPlayerItemAccessLogEvent *last=events.lastObject;
+    if(last && isfinite(last.observedBitrate))observed=last.observedBitrate;
+    if(last && isfinite(last.indicatedBitrate))indicated=last.indicatedBitrate;
+    for(NSValue *value in item.loadedTimeRanges) {
+        CMTimeRange range=value.CMTimeRangeValue;double start=CMTimeGetSeconds(range.start),end=CMTimeGetSeconds(CMTimeRangeGetEnd(range));
+        if(isfinite(start) && isfinite(end) && start<=position+0.5 && end>=position)ahead=end-position;
+    }
+    atomic_store(&healthDropped,dropped);atomic_store(&healthStalls,stalls);atomic_store(&healthObserved,observed);
+    atomic_store(&healthIndicated,indicated);atomic_store(&healthDownloaded,downloaded);atomic_store(&healthTransfer,transfer);
+    atomic_store(&healthAhead,ahead);atomic_store(&healthAccessEvents,(int)events.count);
+}
 static void healthSample(AVPlayer *player,unsigned generation) {
     if(!player || generation!=atomic_load(&playGeneration))return;
     double pos=CMTimeGetSeconds(player.currentTime),duration=CMTimeGetSeconds(player.currentItem.duration);
@@ -245,12 +268,14 @@ static void healthSample(AVPlayer *player,unsigned generation) {
     NSError *error=player.currentItem.error ?: player.error;
     atomic_store(&healthError,(int)error.code);
     atomic_store(&healthDomain,[error.domain isEqualToString:NSURLErrorDomain]?1:[error.domain isEqualToString:AVFoundationErrorDomain]?2:error?3:0);
+    healthAccess(player.currentItem,isfinite(pos)?fmax(0,pos):0);
     atomic_store(&healthUpdated,NSDate.timeIntervalSinceReferenceDate);
 }
 __attribute__((visibility("default"))) int kodi_airplay_health(char *out,int size) {
     if(!out || size<=0)return 0;
-    snprintf(out,(size_t)size,"{\"generation\":%d,\"state\":%d,\"active\":%d,\"position\":%.3f,\"duration\":%.3f,\"rate\":%.3f,\"time_control\":%d,\"external\":%d,\"buffer_empty\":%d,\"likely_to_keep_up\":%d,\"item_status\":%d,\"player_status\":%d,\"error_code\":%d,\"error_domain\":%d,\"stop_reason\":%d,\"sample_age_s\":%.3f}",
-        atomic_load(&healthGeneration),atomic_load(&airplayState),atomic_load(&playbackActive),atomic_load(&healthPosition),atomic_load(&healthDuration),atomic_load(&healthRate),atomic_load(&healthControl),atomic_load(&healthExternal),atomic_load(&healthEmpty),atomic_load(&healthLikely),atomic_load(&healthItem),atomic_load(&healthPlayer),atomic_load(&healthError),atomic_load(&healthDomain),atomic_load(&healthReason),atomic_load(&healthUpdated)?fmax(0,NSDate.timeIntervalSinceReferenceDate-atomic_load(&healthUpdated)):0);
+    snprintf(out,(size_t)size,"{\"generation\":%d,\"state\":%d,\"active\":%d,\"position\":%.3f,\"duration\":%.3f,\"rate\":%.3f,\"time_control\":%d,\"external\":%d,\"buffer_empty\":%d,\"likely_to_keep_up\":%d,\"item_status\":%d,\"player_status\":%d,\"error_code\":%d,\"error_domain\":%d,\"stop_reason\":%d,\"sample_age_s\":%.3f,\"access_events\":%d,\"dropped_frames\":%.0f,\"stalls\":%.0f,\"observed_bps\":%.0f,\"indicated_bps\":%.0f,\"downloaded_s\":%.3f,\"transfer_s\":%.3f,\"buffered_ahead_s\":%.3f}",
+        atomic_load(&healthGeneration),atomic_load(&airplayState),atomic_load(&playbackActive),atomic_load(&healthPosition),atomic_load(&healthDuration),atomic_load(&healthRate),atomic_load(&healthControl),atomic_load(&healthExternal),atomic_load(&healthEmpty),atomic_load(&healthLikely),atomic_load(&healthItem),atomic_load(&healthPlayer),atomic_load(&healthError),atomic_load(&healthDomain),atomic_load(&healthReason),atomic_load(&healthUpdated)?fmax(0,NSDate.timeIntervalSinceReferenceDate-atomic_load(&healthUpdated)):0,
+        atomic_load(&healthAccessEvents),atomic_load(&healthDropped),atomic_load(&healthStalls),atomic_load(&healthObserved),atomic_load(&healthIndicated),atomic_load(&healthDownloaded),atomic_load(&healthTransfer),atomic_load(&healthAhead));
     return (int)strlen(out);
 }
 
