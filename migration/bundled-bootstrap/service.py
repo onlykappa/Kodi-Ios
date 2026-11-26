@@ -477,14 +477,15 @@ def run():
                       lambda name:xbmc.executebuiltin('Dialog.Close(%s,true)'%name),monitor.waitForAbort,
                       log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
  threading.Thread(target=busy_watchdog_loop,daemon=True).start()
- # The Loop's background work stays off (owner, 2026-11-20; loop_quiet.py): checked at start and every 15 minutes, in case an update switched it on.
+ # The Loop's background work is off only when the setting asks for it (owner, 2026-11-20; loop_quiet.py). Since build 771 the setting is `loop_quiet_v2`, off by default: Sports
+ # reads The Loop's routes as a second source (build 770 log: the old default had switched the Loop off, `Unknown addon id`), and an add-on this app switched off is switched back on.
  def loop_quiet_loop():
   import loop_quiet
   def rpc(method,params):
    return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result') or {}
   if monitor.waitForAbort(2):return   # before the Loop's own service has imported its scrapers (build 616 log: 45 failing imports at launch)
   while True:
-   try:loop_quiet.apply(xbmcaddon.Addon().getSettingBool('loop_quiet'),rpc,str(profile/'addon_data/service.kodi.ios.bootstrap/loop-quiet.json'),log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+   try:loop_quiet.apply(xbmcaddon.Addon().getSettingBool('loop_quiet_v2'),rpc,str(profile/'addon_data/service.kodi.ios.bootstrap/loop-quiet.json'),log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
    except Exception as error:xbmc.log('Kodi iOS loop: check failed (%s)'%type(error).__name__,xbmc.LOGWARNING)
    if monitor.waitForAbort(900):return
  threading.Thread(target=loop_quiet_loop,daemon=True).start()

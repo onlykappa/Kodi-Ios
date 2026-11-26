@@ -168,7 +168,9 @@ def loop_sources(game, sleep=time.sleep, clock=time.monotonic, make=None):
     import sports_jet
     try:
         if not sports_jet._folder('plugin.video.the-loop'):
+            sports_jet.log('sports: Loop search skipped (The Loop is not installed or is switched off)')
             return []
+        sports_jet.log('sports: Loop search started')
         jet = make() if make else sports_jet.JetProvider(loop_only=True, loop_schedule=[game], wait=2)
         began = clock()
         while True:
