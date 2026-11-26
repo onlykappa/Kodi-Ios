@@ -94,3 +94,30 @@ The existing macOS engine CI run 45481166561 for PR head `50282fa` reports succe
 On 2026-11-25 the isolated bookworm x11 build completed from Kodi `21.3-Omega`, after adding its SHA-512-verified FFmpeg 6.0.1 archive to the rig mirror. JSON-RPC reported Kodi 21.3, revision `20251031-a3a448d-dirty`. The scratch build has local dvd checksum adjustments made by the existing rig recipe. Its fresh profile used build-621's packaged add-ons and Fuse; verified current locked Crew plugin, module and artwork were separately staged with the existing lock's manifest edits and exclusions. Other profile dependencies initially came from that release, not a fully lock-only restore.
 
 The first controlled Crew adapter case failed because soupsieve was missing. Installing and enabling the current locked `script.module.soupsieve` 2.4.1 fixed this fixture; it passed 1/1 both before and after Kodi restart. Kodi's Crew service logged `SegmentProxy started` and accepted a local TCP connection, but its service thread also logged a buffer-write exception on both starts; cause and effects remain undetermined. The fixture substitutes search/resolve responses, and TCP acceptance is not proof of proxy requests or playback. The test used a private null ALSA sink; network-disconnected startup failed to expose JSON-RPC, and the successful run used the connected container. No full offline runtime, iOS or phone claim follows. Initial failures and limits are retained in ISSUE-407.
+
+## Step 3 restart (2026-11-26): merge, network-namespace outage test, disposition table
+
+- **Merge.** `main` was merged into this branch (conflicts in the lock, workflow, roadmap and logs resolved by keeping both sides). `main` independently vendored POV/Magneto from build 679's IPA (`from_ipa`) with the same SHA256 as the private release archive, so the two sources now agree on those bytes; `original_pin` is kept. `docs/ISSUES.md` passed 1 MB, so `check_project.py`'s size limit rose to 1.1 MB. After the merge `check_project.py`, `check_ui_guidance.py` and all 240 tests listed in `import-review.yml` passed under Python 3.11 (host test).
+- **Real outage test (host test).** `test_source_offline_restore.py` (6 tests) and `test_provider_addons.py` (34 tests, 1 skipped) were rerun inside `unshare -rn`, a Linux network namespace with no interface; a socket connect there fails with "Network is unreachable". They pass, so restoring from local copies no longer depends on the Python socket guard alone. This still restores from local files: the authenticated download from the private release was not exercised offline and cannot be.
+- **Store.** Owner choice: the existing private `provider-sources-1` release is the durable, owner-controlled copy. Nothing was uploaded in this pass; only inputs with settled rights go there, each by digest, and only on the owner's explicit request.
+- **LFS note.** The four preserved archives are Git LFS objects; run `git lfs install --local && git lfs pull` before the restore test. They restore as clean archives only under Python 3.11 for the `future` import check (Python 3.13 lacks `uu`).
+
+### Proposed disposition (owner decides; nothing here is a legal determination)
+
+| Input | Proposal | Reason |
+| --- | --- | --- |
+| requests, six, simplejson, urllib3, idna, soupsieve, beautifulsoup4, certifi, chardet, routing, pyqrcode, unidecode, kodi-six, myconnpy, inputstreamhelper | Keep | License file inside archive matches manifest. |
+| Jacktook | Keep with notice | GPL file present; Segno BSD text added separately; its Segno files are modified, so do not call them upstream copies. |
+| Prism/a4kScrapers | Keep with notice | MIT and BSD files retained; cloudscraper MIT added; 10 cloudscraper files differ from 1.2.60. |
+| POV, Magneto | Keep, needs owner acceptance | Magneto files equal upstream's later revision; POV original commit still missing. No license file; 103 images lack provenance. |
+| Crew plugin/module, ResolveURL | Needs owner decision | GPL headers/manifests only, no license file; corresponding-source duty if shipped modified. |
+| Crew artwork (436 images) | Needs owner decision, exclude if unresolved | No licensor established; 2 images carry EXIF artist fields. |
+| Otaku, Otaku context, Prism context, Loop repo | Needs owner decision | No license file; 480+ images with no provenance; Loop has no license text. |
+| `otaku-mappings.db` | Exclude from mirror | No license recorded. |
+| Elementum client | Keep with notice | MIT plus separate icon attribution (CC BY 3.0) to retain. |
+| Elementum Burst | Needs owner decision | Manifest WTFPL vs bundled MIT. |
+| `script.module.future` | Keep sanitized snapshot only | Upstream tree has test private keys; transform manifest records the removal. |
+| Go modules, `napping`, libtorrent, SWIG | Not mirrored | Notices to preserve; `napping` has GPL headers but no license text. |
+
+### Still open after this pass
+Owner decisions in the table; an approved upload to the private release; native build closure and SDK; a lock-only Kodi runtime check (the rig profile still came partly from build 621); the Crew `SegmentProxy` buffer-write exception; phone evidence.
