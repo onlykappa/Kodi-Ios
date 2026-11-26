@@ -1,6 +1,6 @@
 # Packaging that survives upstream shutdown (roadmap step 12)
 
-Code: `scripts/provider_addons.py` (`preserved_store`, `source(..., preserved)`, `run(..., preserved)`, CLI `--preserved DIR`, environment `KODI_IOS_PRESERVED_INPUTS`). Tests: `scripts/test_packaging_offline.py` (8 tests, host only; the staged-bundle test runs inside a network-less Linux namespace when `unshare` is available).
+Code: `scripts/provider_addons.py` (`preserved_store`, `source(..., preserved)`, `run(..., preserved)`, CLI `--preserved DIR`, environment `KODI_IOS_PRESERVED_INPUTS`). Tests: `scripts/test_packaging_offline.py` (11 tests, host only; the staged-bundle test runs inside a network-less Linux namespace when `unshare` is available).
 
 **Build time vs runtime.**
 * *Build time* (a build machine or CI, may use the network): fetch the pinned inputs, verify every SHA-256, stage them into the IPA. A folder of preserved inputs (the owner's private release downloads, `migration/source-baseline`, the Elementum offline stage from step 3) is now looked up first, **by digest only**: a renamed, damaged or tampered file is not found, never trusted by name, and a wrong download is still rejected with a digest error. Only inputs missing from the folder are downloaded, so a build with every input preserved touches no upstream host (tested with the socket layer blocked and with a failing downloader).
@@ -13,4 +13,6 @@ Code: `scripts/provider_addons.py` (`preserved_store`, `source(..., preserved)`,
 * Metadata APIs at run time: TMDb (title matching), ESPN (Sports); step 20 covers an outage snapshot.
 * Content services: the source sites, trackers and peers, the debrid service (steps 17–19), Google Drive, and Crew's own remote modules, which the Crew add-on itself downloads at run time (`control.cdnImport`): that is third-party add-on behaviour this project does not control, so the independent searches, not Crew, are the outage path.
 
-**Not done.** The Elementum framework and engine inputs have their own offline stager (`source_elementum_offline.py`, step 3) but are not yet read through `--preserved`. A full IPA build with all hosts blocked was not run (needs the macOS toolchain and the preserved Apple inputs). No device evidence.
+**Elementum inputs.** `scripts/fetch_elementum_inputs.py` now takes the same `--preserved DIR` / `KODI_IOS_PRESERVED_INPUTS`: the client, the engine framework, Burst, the extras and the AirPlay framework are found by digest in the folder before any download (tests: no network, a tampered file is never used, unchanged behaviour without a folder). The five pinned Git module trees still come from `git` or the step 3 stager (`source_elementum_offline.py`).
+
+**Not done.** A full IPA build with all hosts blocked was not run (needs the macOS toolchain and the preserved Apple inputs). No device evidence.

@@ -37,6 +37,26 @@ class Offline(unittest.TestCase):
  def test_symlinks_and_empty_folders_are_ignored(self):
   (self.keep/'link').symlink_to(self.keep/'any-name-one.bin');self.assertEqual(len(providers.preserved_store(self.keep)),2);self.assertEqual(providers.preserved_store(None),{})
 
+class ElementumInputs(unittest.TestCase):
+ def setUp(self):
+  import fetch_elementum_inputs as fe;self.fe=fe
+  self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.keep=self.root/'keep';self.keep.mkdir();self.out=self.root/'out'
+  self.blobs={'client':b'client-bytes','framework':b'framework-bytes','burst':b'burst-bytes','extra':b'extra-bytes'}
+  d=providers.digest
+  self.lock={'plugin_release':{'client_zip_url':'https://x.invalid/client.zip','client_zip_sha256':d(self.blobs['client'])},
+   'framework_release':{'tag':'t','asset':'a.zip','sha256':d(self.blobs['framework'])},'burst':{'url':'https://x.invalid/burst.zip','sha256':d(self.blobs['burst'])},
+   'extras':{'script.extra':{'url':'https://x.invalid/e.zip','sha256':d(self.blobs['extra']),'install':'app'}},'modules':[]}
+  for i,(k,v) in enumerate(self.blobs.items()):(self.keep/('f%d.bin'%i)).write_bytes(v)
+ def tearDown(self):self.tmp.cleanup()
+ def run_it(self,get,preserved):return self.fe.run(self.out,self.lock,get=get,modules=lambda specs,dest:dest.mkdir(parents=True,exist_ok=True),airplay={'tag':'t','asset':'a'},mirror=None,preserved=preserved)
+ def test_client_framework_burst_and_extras_come_from_the_preserved_folder_with_no_network(self):
+  receipt=self.run_it(blocked,self.keep);self.assertTrue(receipt['elementum']);self.assertEqual((self.out/'framework.zip').read_bytes(),self.blobs['framework']);self.assertEqual((self.out/'extras-app/script.extra.zip').read_bytes(),self.blobs['extra'])
+ def test_a_tampered_preserved_file_is_not_used(self):
+  for f in self.keep.iterdir():f.write_bytes(f.read_bytes()+b'x')
+  with self.assertRaises(OSError):self.run_it(blocked,self.keep)
+ def test_without_a_preserved_folder_behaviour_is_unchanged(self):
+  with self.assertRaises(OSError):self.run_it(blocked,None)
+
 class Staged(unittest.TestCase):
  def test_a_staged_bundle_restarts_and_searches_with_no_network_and_no_repo(self):
   tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup);boot=Path(tmp.name)/'service.kodi.ios.bootstrap'

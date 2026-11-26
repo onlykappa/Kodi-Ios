@@ -64,10 +64,12 @@ def git_tree(spec,dest):
   for id in spec['trees']:tar.add(dest/id,arcname=id)
  source_mirror.keep(tar_name(spec),buffer.getvalue())
 
-def verified(get,url,sha,what,mirror=None):
+def verified(get,url,sha,what,mirror=None,preserved=None):
  """The download, checked against its pinned digest. Third-party files (`mirror` = a fetcher for the kept copies, source_mirror) fall back to the kept copy when the
  upstream address fails, and are kept again for the next emergency; our own releases are not mirrored."""
  def check(data):assert hashlib.sha256(data).hexdigest()==sha,what+' digest mismatch'
+ if preserved and sha in preserved:   # the owner's preserved copy first, matched by digest only (a tampered file is never found); no network
+  data=preserved[sha].read_bytes();check(data);return data
  if mirror is None:data=get(url);check(data);return data
  import source_mirror
  def primary(u):
@@ -76,19 +78,21 @@ def verified(get,url,sha,what,mirror=None):
  if not kept:source_mirror.keep(source_mirror.asset_name(url),data)
  return data
 
-def run(out,lock=None,get=fetch,modules=git_modules,airplay=None,mirror=None):
+def run(out,lock=None,get=fetch,modules=git_modules,airplay=None,mirror=None,preserved=None):
+ if isinstance(preserved,(str,Path)):
+  import provider_addons;preserved=provider_addons.preserved_store(preserved)
  mirror=mirror if mirror is not None else (fetch if get is fetch else None)
  lock=lock or json.loads(LOCK.read_text());fw=lock.get('framework_release') or {}
  airplay=airplay or json.loads(AIRPLAY.read_text())['framework_release']
  if not fw.get('sha256'):return {'elementum':False,'reason':'framework release not pinned'}
- client=verified(get,lock['plugin_release']['client_zip_url'],lock['plugin_release']['client_zip_sha256'],'Elementum client',mirror)
- framework=verified(get,'https://github.com/onlykappa/Kodi-Ios/releases/download/'+fw['tag']+'/'+fw['asset'],fw['sha256'],'Elementum framework')
- burst=verified(get,lock['burst']['url'],lock['burst']['sha256'],'Elementum Burst',mirror)
- extras={id:verified(get,x['url'],x['sha256'],id,mirror) for id,x in sorted(lock.get('extras',{}).items())}
+ client=verified(get,lock['plugin_release']['client_zip_url'],lock['plugin_release']['client_zip_sha256'],'Elementum client',mirror,preserved)
+ framework=verified(get,'https://github.com/onlykappa/Kodi-Ios/releases/download/'+fw['tag']+'/'+fw['asset'],fw['sha256'],'Elementum framework',None,preserved)
+ burst=verified(get,lock['burst']['url'],lock['burst']['sha256'],'Elementum Burst',mirror,preserved)
+ extras={id:verified(get,x['url'],x['sha256'],id,mirror,preserved) for id,x in sorted(lock.get('extras',{}).items())}
  # Other native frameworks for Kodi.app/Frameworks, each published once per tag by its own macOS workflow.
  frameworks={}
  if airplay.get('sha256'):
-  frameworks['KodiAirPlay']=verified(get,'https://github.com/onlykappa/Kodi-Ios/releases/download/'+airplay['tag']+'/'+airplay['asset'],airplay['sha256'],'AirPlay framework')
+  frameworks['KodiAirPlay']=verified(get,'https://github.com/onlykappa/Kodi-Ios/releases/download/'+airplay['tag']+'/'+airplay['asset'],airplay['sha256'],'AirPlay framework',None,preserved)
  out.mkdir(parents=True,exist_ok=True);modules(lock['modules'],out/'modules')
  # 'app' add-ons ship inside Kodi.app; 'profile' ones are copied into the writable add-ons folder at first start.
  for id,data in extras.items():
@@ -99,4 +103,7 @@ def run(out,lock=None,get=fetch,modules=git_modules,airplay=None,mirror=None):
  return {'elementum':True,'client_sha256':lock['plugin_release']['client_zip_sha256'],'framework_sha256':fw['sha256'],'burst_sha256':lock['burst']['sha256'],'modules':sorted(id for spec in (lock['modules'] if isinstance(lock['modules'],list) else [lock['modules']]) for id in spec['trees']),'extras':sorted(extras),'frameworks':sorted(frameworks)}
 
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True);a=p.parse_args();print(json.dumps(run(a.output)))
+ import os
+ p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True)
+ p.add_argument('--preserved',type=Path,default=os.environ.get('KODI_IOS_PRESERVED_INPUTS') or None,help='folder of preserved inputs, matched by SHA-256 and used before any download')
+ a=p.parse_args();print(json.dumps(run(a.output,preserved=a.preserved)))
