@@ -286,13 +286,21 @@ figcaption p{color:var(--grey);font-size:14px;line-height:1.45}
     <div class="scroll"><div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Install from zip file</div></div>
   <div class="gap" style="height:12px"></div>
   <div class="sh">Choose where the file is</div>
-  <div class="group"><div class="row"><span class="ic" style="--c:#0a84ff"><svg><use href="#folder"/></svg></span><div class="lb">Home folder</div><svg class="chev"><use href="#chev"/></svg></div><div class="row"><span class="ic" style="--c:#64d2ff"><svg><use href="#globe"/></svg></span><div class="lb">umbrellaplug.github.io</div><svg class="chev"><use href="#chev"/></svg></div><div class="row"><span class="ic" style="--c:#ff9f0a"><svg><use href="#tray"/></svg></span><div class="lb">Inbox</div><svg class="chev"><use href="#chev"/></svg></div><div class="row"><span class="ic" style="--c:#8e8e93"><svg><use href="#net"/></svg></span><div class="lb">Network File System (NFS)</div><svg class="chev"><use href="#chev"/></svg></div><div class="row"><span class="ic" style="--c:#8e8e93"><svg><use href="#net"/></svg></span><div class="lb">Windows network (SMB)</div><svg class="chev"><use href="#chev"/></svg></div><div class="row"><span class="ic" style="--c:#8e8e93"><svg><use href="#net"/></svg></span><div class="lb">Zeroconf browser</div><svg class="chev"><use href="#chev"/></svg></div></div>
+  <div class="group">
+    <div class="row"><span class="ic" style="--c:#0a84ff"><svg><use href="#folder"/></svg></span><div class="lb">Files<small>Downloads, iCloud Drive and other apps</small></div><svg class="chev"><use href="#chev"/></svg></div>
+    <div class="row"><span class="ic" style="--c:#30d158"><svg><use href="#down"/></svg></span><div class="lb">Shared with Kodi<small>Zips you sent with Share or AirDrop</small></div><svg class="chev"><use href="#chev"/></svg></div>
+    <div class="row"><span class="ic" style="--c:#ff9f0a"><svg><use href="#tray"/></svg></span><div class="lb">Kodi folder<small>Files you copied in with the Files app</small></div><svg class="chev"><use href="#chev"/></svg></div>
+  </div>
+  <div class="gap"></div><div class="sh">Sources you added</div>
+  <div class="group"><div class="row"><span class="ic" style="--c:#64d2ff"><svg><use href="#globe"/></svg></span><div class="lb">umbrellaplug.github.io</div><svg class="chev"><use href="#chev"/></svg></div></div>
+  <div class="gap"></div>
+  <div class="group"><div class="row"><span class="ic" style="--c:#8e8e93"><svg><use href="#net"/></svg></span><div class="lb">Network and other sources<small>NFS, Windows network (SMB), Zeroconf</small></div><svg class="chev"><use href="#chev"/></svg></div></div>
   <div class="foot" style="color:var(--grey);font-size:13px;line-height:1.4;padding:8px 36px 0">Only install add-ons from people you trust. You then pick the .zip file and Kodi installs it.</div>
 </div>
     
     <div class="home-ind"></div>
   </div></div>
-  <figcaption><div class="n">5 · MOCKUP</div><h2>Install from zip file</h2><p>Today this is a small landscape dialog in the middle of a black screen, with a Close and a Mirror button. It becomes a normal page with a list of places to look and a back button. The wording is plain and explains what happens next.</p></figcaption>
+  <figcaption><div class="n">5 · MOCKUP</div><h2>Install from zip file</h2><p>iPhone first. "Files" opens the iPhone Files picker, where Downloads, iCloud Drive and other apps live. Home folder is gone, and the network sources sit under one "advanced" row at the bottom. Sources you added yourself (a web address) only show when you have some. NOTE: Kodi can only read its own folders today, so "Files" needs a small native picker added to the app (decision needed). "Shared with Kodi" and "Kodi folder" work without it.</p></figcaption>
 </figure>
 
 <figure>
@@ -337,7 +345,7 @@ figcaption p{color:var(--grey);font-size:14px;line-height:1.45}
     <tr><td>Pills and rows show the same choices twice (Add-ons page)</td><td>One grouped list (frame 1)</td></tr>
     <tr><td>Pill row clipped at the right edge, "My Add-ons" cut at the left (several pages)</td><td>No pill rows. Choices are rows or header icons (frames 1 to 3, 7)</td></tr>
     <tr><td>"Cloud Drive Common Mod…" cut off</td><td>Names wrap in full (frames 2, 3)</td></tr>
-    <tr><td>Install from zip is a small landscape dialog on a black screen</td><td>A normal page (frame 5)</td></tr>
+    <tr><td>Install from zip is a small landscape dialog on a black screen, listing sources like Home folder that mean nothing on an iPhone</td><td>A normal page, led by the iPhone Files app, with the rest tucked away (frame 5)</td></tr>
     <tr><td>"Enter search string" low-contrast and half behind the keyboard; <code>GetDirectory - Error getting addons://search/</code> in the logs</td><td>Real search field (frame 6). The load error is a separate bug to fix when this is built.</td></tr>
     <tr><td>Event log pills clipped, "Descending" without a background</td><td>Settings rows (frame 7)</td></tr>
     <tr><td>A rounded black shape covering the title on Available updates (screenshot 3)</td><td>Not explained by the logs. To check in the rig and on your phone.</td></tr>
