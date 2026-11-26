@@ -18,7 +18,8 @@ GIVE_UP = 120.0
 NAMES = (('resolved', 'resolve'), ('media', 'handoff'), ('video', 'open'))
 _seen = {}      # mark time -> {'armed': {flag: True}, 'at': {flag: time}}
 WAITING = {}    # mark time -> (when streams were ready, route): videos whose playback clock has not moved yet (first picture)
-MOVING_GIVE_UP = 30.0
+MOVING_GIVE_UP = 30.0   # seconds after the tap (kept for the log line)
+MOVING_AFTER_READY = 20.0   # ISSUE-494: seconds after "streams ready" before a video that has not started counts as no picture
 LATE = []       # fn(ok, via, seconds): told when the first picture came (ok, seconds after the tap) or never came (not ok); the source's real speed is judged here
 LISTENERS = []  # fn(ok, via): told once per open that finished (streams ready) or gave up; source_speed credits the Umbrella source just chosen
 RECENT = []     # roadmap 3.5: (seconds, route, stages text) of the opens since perf_summary last asked
@@ -162,7 +163,7 @@ def check_moving(log, moving, now=None, home=None, alive=None):
             DETAIL.pop(started, None)
             del WAITING[started]
             done = True
-        elif now - started > MOVING_GIVE_UP:
+        elif now - max(ready, started) > MOVING_AFTER_READY and now - started > MOVING_GIVE_UP:
             log('Kodi iOS open timing: playback clock still not moving %d s after the tap via %s' % (int(now - started), via))
             DETAIL.pop(started, None)
             _tell_late(False, via, now - started)

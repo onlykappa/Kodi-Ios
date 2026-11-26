@@ -1222,7 +1222,10 @@ def video_nav(original):
  # Owner (build 229): "If i scroll down after i select a season the season selecter disappears". Once the page has
  # scrolled, the same seasons (the folder's own listing, cached by the add-on) stay pinned under the Back button. A tap
  # selects that season in the page's own row (SetFocus absolute takes a 0-based index; CurrentItem is 1-based).
- pinned_visible='Container.Content(seasons) + Container(9900).HasPrevious'
+ # ISSUE-493 (owner screenshot IMG_0693, 2026-11-26: "the season bar appears at top when it shouldn't, it should only appear when I scroll down"): HasPrevious on a group list is true
+ # from the first pixel of scroll (Kodi's CGUIControlGroupList::GetCondition: scroll value > 0), so the pinned row appeared above the page's own season row and hid the header. The page's
+ # own row is the last thing before the episode list, so the list is scrolled to its end (!HasNext) exactly when that row has left the screen.
+ pinned_visible='Container.Content(seasons) + Container(9900).HasPrevious + !Container(9900).HasNext'
  pinned=('<control type="group"><visible>%s</visible>'%pinned_visible+
   '<animation effect="fade" start="0" end="100" time="180">Visible</animation><animation effect="fade" start="100" end="0" time="120">Hidden</animation>'+
   image(0,0,WIDTH,300,MEDIA+'white.png','FF000000')+image(0,300,WIDTH,60,MEDIA+'fade_down.png')+

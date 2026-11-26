@@ -51,6 +51,38 @@ class Hook(unittest.TestCase):
    for source in ('class Unknown: pass\n','invalid python !',self.SOURCE.replace('response = self._get(url, url_append)','response = {}')):
     path=Path(tmp)/'alldebrid.py';path.write_text(source);self.assertFalse(recovery.hook(path));self.assertEqual(path.read_text(),source)
 
+class UnlockCache(unittest.TestCase):
+ # ISSUE-494: a second pass over a pack makes no AllDebrid calls
+ SOURCE=Hook.SOURCE.replace("class AllDebrid:\n","class AllDebrid:\n\tdef _get(self, url, url_append=''):\n\t\tself.calls = getattr(self, 'calls', 0) + 1\n\t\treturn {'link': 'https://h.example/f/' + url_append + '.mkv', 'filename': url_append, 'filesize': 5}\n")
+ def klass(self,clock):
+  recovery.UNLOCK_CACHE.clear()
+  ns={};exec(compile(self.SOURCE,'x','exec'),ns);cls=ns['AllDebrid'];self.assertTrue(recovery.wrap_get(cls,clock));return cls
+ def test_a_repeated_unlock_is_answered_from_memory_for_ten_minutes(self):
+  now=[1000.0];cls=self.klass(lambda:now[0]);one=cls()
+  first=one._get('link/unlock','L1');one._get('link/unlock','L2')
+  self.assertEqual(one.calls,2)
+  again=one._get('link/unlock','L1');self.assertEqual(again,first);self.assertIsNot(again,first);self.assertEqual(one.calls,2)   # a copy, no call
+  now[0]+=recovery.UNLOCK_FRESH+1;one._get('link/unlock','L1');self.assertEqual(one.calls,3)                                   # stale: asked again
+ def test_only_a_successful_unlock_is_kept_and_other_calls_pass_through(self):
+  cls=self.klass(lambda:1000.0);one=cls()
+  one._get('magnet/status','M');one._get('magnet/status','M');self.assertEqual(one.calls,2)
+  cls._get=lambda self,url,url_append='':{'error':'x'}
+  recovery.UNLOCK_CACHE.clear()
+  self.assertTrue(recovery.wrap_get(cls,lambda:1000.0));cls()._get('link/unlock','B');self.assertEqual(recovery.UNLOCK_CACHE,{})
+ def test_the_file_is_patched_once_and_still_runs_the_one_check_per_pick(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   path=Path(tmp)/'alldebrid.py';path.write_text(self.SOURCE)
+   self.assertTrue(recovery.hook(path));self.assertTrue(recovery.cache_hook(path));self.assertFalse(recovery.cache_hook(path))
+   code=path.read_text();self.assertEqual(code.count(recovery.CACHE_MARK),1);recovery.UNLOCK_CACHE.clear();home=Home()
+   with patch.dict(sys.modules,{'xbmcvfs':types.SimpleNamespace(translatePath=lambda p:str(LIB)),'xbmcgui':types.SimpleNamespace(Window=lambda n:home)}):
+    ns={};exec(compile(code,str(path),'exec'),ns);one=ns['AllDebrid']()
+    one.unrestrict_link('L1');one.unrestrict_link('L1');self.assertEqual(one.calls,1)
+    self.assertEqual(recovery.selected('https://h.example/f/L1.mkv',home)['link'],'L1')   # the selected-file record still runs on the cached answer
+ def test_unrecognised_modules_are_left_alone(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   for source in ('class Unknown: pass\n','invalid python !',Hook.SOURCE):
+    path=Path(tmp)/'alldebrid.py';path.write_text(source);self.assertFalse(recovery.cache_hook(path));self.assertEqual(path.read_text(),source)
+
 class ExpiredLink(unittest.TestCase):
  def source(self,opener,renew=lambda record:NEW):
   source=remote_media.Foreground(OLD+'|User-Agent=Player&Cookie=a%3Db',open_url=opener)

@@ -281,6 +281,7 @@ def run():
     provider_fallback_hooks.install(str(source_window.parent.parent/'modules/sources.py'))
     resolver=source_window.parents[1]/'debrid/alldebrid.py'
     if umbrella_recovery.hook(resolver):xbmc.log('Kodi iOS setup added selected-stream link recovery to Umbrella AllDebrid',xbmc.LOGINFO)
+    if umbrella_recovery.cache_hook(resolver):xbmc.log('Kodi iOS setup added the unlock cache to Umbrella AllDebrid',xbmc.LOGINFO)
    if xbmc.getCondVisibility('System.HasAddon(plugin.video.umbrella)') and xbmc.getCondVisibility('System.HasAddon(script.module.cocoscrapers)'):
     umbrella=xbmcaddon.Addon('plugin.video.umbrella')
     if umbrella_defaults(umbrella.getSetting,umbrella.setSetting):xbmc.log('Kodi iOS setup set Umbrella to CocoScrapers',xbmc.LOGINFO)

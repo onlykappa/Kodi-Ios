@@ -133,5 +133,17 @@ class Wiring(unittest.TestCase):
         finally:
             ot.LATE.pop(); ot.WAITING.clear()
 
+    def test_a_slow_resolution_is_not_a_no_picture_verdict(self):
+        # ISSUE-494 (owner log e41f48ad): streams ready 38 s after the tap (Umbrella scanning a 158-file pack) was judged "no picture" in the same instant
+        ot.WAITING.clear(); told = []; ot.LATE.append(lambda ok, via, seconds: told.append(ok))
+        try:
+            ot.WAITING[100.0] = (138.0, 'umbrella'); lines = []
+            self.assertFalse(ot.check_moving(lines.append, lambda: False, now=143.0))      # 43 s after the tap, 5 s after ready: still opening
+            self.assertEqual(told, [])
+            self.assertTrue(ot.check_moving(lines.append, lambda: False, now=160.0))       # 22 s after ready: really no picture
+            self.assertEqual(told, [False])
+        finally:
+            ot.LATE.pop(); ot.WAITING.clear()
+
 
 if __name__=='__main__':unittest.main()
