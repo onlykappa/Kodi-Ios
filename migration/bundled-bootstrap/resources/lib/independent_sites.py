@@ -7,10 +7,12 @@ changes the others: adapters share no state and no host. The sites stay external
 
 Fixtures in the tests are synthetic pages in each site's documented format, not live responses.
 """
+import html
 import json
 import re
 import time
 import urllib.parse
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, wait
 
 import independent_search
@@ -149,6 +151,137 @@ class Knaben:
         return rows
 
 
+UNITS = {'b': 1, 'kb': 1 << 10, 'kib': 1 << 10, 'mb': 1 << 20, 'mib': 1 << 20, 'gb': 1 << 30, 'gib': 1 << 30, 'tb': 1 << 40, 'tib': 1 << 40}
+
+
+def _size(text):
+    found = re.search(r'([\d.,]+)\s*([KMGT]?i?B)\b', str(text or ''), re.I)
+    return float(found.group(1).replace(',', '')) * UNITS[found.group(2).lower()] if found else 0.0
+
+
+def _text(fragment):
+    return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', '', fragment or ''))).strip()
+
+
+def _words(request):
+    """'Title S02E05' for an episode, 'Title 2024' for a film (the query words every HTML site gets)."""
+    title, exp = _title(request)
+    tail = ('S%02dE%02d' % (int(exp['season']), int(exp['episode']))) if request.get('media_type') == 'episode' else str(exp.get('year') or '')
+    return ('%s %s' % (title, tail)).strip()
+
+
+def _count(match):
+    return int(match.group(1).replace(',', '')) if match else 0
+
+
+class _Html:
+    """Shared parts of the HTML list-page families: the page must contain the family's marker or it is `layout changed`."""
+    marker = ''
+
+    def applies(self, request):
+        return True
+
+    def check(self, text):
+        if not isinstance(text, str) or self.marker not in text:
+            raise ValueError('layout changed')
+
+    def _rows(self, text, pattern, link_group_hash=1, link_group_name=2):
+        rows = []
+        for row in re.findall(r'<tr[^>]*>(.*?)</tr>', text, re.S):
+            link = re.search(pattern, row, re.S)
+            if not link:
+                continue
+            found = _hash(link.group(link_group_hash))
+            if found:
+                rows.append({'name': _text(link.group(link_group_name)), 'torrent_hash': found,
+                             'seeders': _count(re.search(r'class="(?:tdseed|green center)">\s*([\d,]+)\s*<', row)),
+                             'size': _size((re.search(r'class="(?:tdnormal|nobr center)">\s*([\d.,]+\s*[KMGT]B)', row) or [None, ''])[1])})
+        return rows[:MAX_ROWS]
+
+
+# ---- Bitsearch (captured 2026-11-26): cards with the info hash in the torrent download link ----
+class Bitsearch(_Html):
+    name, host, marker = 'bitsearch', 'https://bitsearch.eu', 'torrent-result-card'
+
+    def plan(self, request):
+        return ['%s/search?limit=100&q=%s' % (self.host, urllib.parse.quote_plus(_words(request)))]
+
+    def parse(self, text, request):
+        self.check(text)
+        rows = []
+        for card in text.split('torrent-result-card')[1:MAX_ROWS + 1]:
+            title = re.search(r'<h3[^>]*>.*?<a [^>]*>(.*?)</a>', card, re.S)
+            link = re.search(r'/download/torrent/([0-9A-Fa-f]{40})', card) or re.search(r'btih(?:&#x3D;|=|:)([0-9A-Fa-f]{40})', card)
+            seeds = re.search(r'<span class="font-medium">\s*([\d,]+)\s*</span>\s*<span>seeders', card)
+            size = re.search(r'fa-download"></i>\s*<span>([^<]+)</span>', card)
+            if title and link and _hash(link.group(1)):
+                rows.append({'name': _text(title.group(1)), 'torrent_hash': _hash(link.group(1)), 'seeders': _count(seeds), 'size': _size(size.group(1)) if size else 0.0})
+        return rows
+
+
+# ---- TorrentDownload (captured 2026-11-26): rows whose link is /<40-hex hash>/<release-name> ----
+class TorrentDownload(_Html):
+    name, host, marker = 'torrentdownload', 'https://www.torrentdownload.info', 'tt-name'
+
+    def plan(self, request):
+        return ['%s/search?q=%s' % (self.host, urllib.parse.quote_plus(_words(request)))]
+
+    def parse(self, text, request):
+        self.check(text)
+        return self._rows(text, r'<a href="/([0-9A-Fa-f]{40})/[^"]*">(.*?)</a>')
+
+
+# ---- LimeTorrents (captured 2026-11-26; the .lol host redirects to another domain): hash in the itorrents link ----
+class Lime(_Html):
+    name, host, marker = 'limetorrents', 'https://www.limetorrents.lol', 'tt-name'
+
+    def plan(self, request):
+        return ['%s/search/all/%s/' % (self.host, urllib.parse.quote(re.sub(r'\s+', '-', _words(request))))]
+
+    def parse(self, text, request):
+        self.check(text)
+        return self._rows(text, r'/torrent/([0-9A-Fa-f]{40})\.torrent[^>]*>\s*</a>\s*<a href="[^"]*">(.*?)</a>')
+
+
+# ---- Kick4ss (captured 2026-11-26): the hash is inside the URL-encoded magnet of each row ----
+class Kick(_Html):
+    name, host, marker = 'kick4ss', 'https://kick4ss.com', 'cellMainLink'
+
+    def plan(self, request):
+        return ['%s/usearch/%s/' % (self.host, urllib.parse.quote(_words(request)))]
+
+    def parse(self, text, request):
+        self.check(text)
+        return self._rows(text, r'btih(?:%3A|:)([0-9A-Fa-f]{40}).*?class="cellMainLink">(.*?)</a>')
+
+
+# ---- Nyaa RSS (captured 2026-11-26): anime releases; the info hash is in the feed ----
+class Nyaa:
+    name, host = 'nyaa', 'https://nyaa.si'
+    NS = '{https://nyaa.si/xmlns/nyaa}'
+
+    def applies(self, request):
+        return request.get('media_type') == 'episode'
+
+    def plan(self, request):
+        return ['%s/?page=rss&q=%s' % (self.host, urllib.parse.quote_plus(_words(request)))]
+
+    def parse(self, text, request):
+        if not isinstance(text, str) or '<rss' not in text[:500]:
+            raise ValueError('layout changed')
+        if '<!DOCTYPE' in text.upper() or '<!ENTITY' in text.upper():
+            raise ValueError('layout changed')        # no entity tricks in a feed
+        rows = []
+        for item in ET.fromstring(text).iter('item'):
+            found = _hash(item.findtext(self.NS + 'infoHash'))
+            title = item.findtext('title')
+            if found and title:
+                rows.append({'name': _text(title), 'torrent_hash': found, 'seeders': int(_num(item.findtext(self.NS + 'seeders'))), 'size': _size(item.findtext(self.NS + 'size'))})
+            if len(rows) >= MAX_ROWS:
+                break
+        return rows
+
+
 class Leet:
     """The 1337x list/detail adapter from independent_search, as one more family (its pages are not JSON)."""
     name, host = '1337x', independent_search.DOMAINS[0]
@@ -157,7 +290,7 @@ class Leet:
         return True
 
 
-SIMPLE = (Apibay(), Yts(), Eztv(), Knaben())
+SIMPLE = (Apibay(), Yts(), Eztv(), Knaben(), Bitsearch(), TorrentDownload(), Lime(), Kick(), Nyaa())
 SITES = tuple(a.name for a in SIMPLE) + (Leet.name,)
 # family -> (media, transport, needs, notes): the coverage matrix kept in docs/SOURCE-COVERAGE.md
 COVERAGE = {
@@ -165,6 +298,11 @@ COVERAGE = {
     'yts': ('movie', 'public JSON API', 'none', 'remote index'),
     'eztv': ('episode (IMDb id)', 'public JSON API', 'none', 'remote index'),
     'knaben': ('movie+episode', 'public JSON API', 'none', 'aggregator over many trackers'),
+    'bitsearch': ('movie+episode', 'HTML list page', 'none', 'remote index'),
+    'torrentdownload': ('movie+episode', 'HTML list page', 'none', 'remote index'),
+    'limetorrents': ('movie+episode', 'HTML list page (host redirects)', 'none', 'remote index'),
+    'kick4ss': ('movie+episode', 'HTML list page', 'none', 'remote index'),
+    'nyaa': ('episode (anime)', 'RSS feed', 'none', 'remote index'),
     '1337x': ('movie+episode', 'HTML list + detail pages', 'none', 'remote index; Cloudflare on mirrors'),
 }
 

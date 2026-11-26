@@ -250,7 +250,7 @@ experiment stays recorded. Later work can expose a need to revisit earlier steps
 | 6 | FRESH RESOLUTION DONE (host tests, loopback server) | [SOURCE-FRESH-RESOLUTION.md](SOURCE-FRESH-RESOLUTION.md): resolve at use, header/cookie continuity through master, variant, key and segment, typed 401/403/429/expired failures. Not wired into playback. |
 | 7 | TRANSPORT/PLAYBACK MODULE DONE (host tests) | [SOURCE-BACKUP-PLAYBACK.md](SOURCE-BACKUP-PLAYBACK.md): one-session player hand-off with time-advance check, torrent hash verification and the existing Elementum route. Not yet called by the picker (step 8). |
 | 8 | PICKER POLICY DONE (host tests) | [SOURCE-FALLBACK-POLICY.md](SOURCE-FALLBACK-POLICY.md): policy, uncertain-playback and stale-search guards, dedupe, first-party search as last resort. Hooks still use their existing player calls. |
-| 9 | FIRST INCREMENT DONE (host tests, fixtures only) | [SOURCE-COVERAGE.md](SOURCE-COVERAGE.md): five independent site families (apibay, YTS, EZTV, Knaben, 1337x) merged by hash, failure isolation proven; Burst/Coco/Umbrella/Crew paths and live checks remain. |
+| 9 | FIRST INCREMENT DONE (host tests, fixtures only) | [SOURCE-COVERAGE.md](SOURCE-COVERAGE.md): ten independent site families (apibay, YTS, EZTV, Knaben, Bitsearch, TorrentDownload, LimeTorrents, Kick4ss, Nyaa, 1337x), five parsed from real captures merged by hash, failure isolation proven; Burst/Coco/Umbrella/Crew paths and live checks remain. |
 | 10–16 | NOT STARTED | Do not start until separately authorized. |
 
 On completing a step, replace its row range with individual rows and record dates,

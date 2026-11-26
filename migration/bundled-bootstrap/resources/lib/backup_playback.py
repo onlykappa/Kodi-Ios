@@ -121,25 +121,46 @@ class Playback:
             session['closed'] = True
             self.player.stop()
 
-    def start(self, candidate, request, transport=None, cancel=None, resume=0, torrent_file=None):
-        """Returns ('playing' | 'sent' | 'duplicate', None) or raises source_contract.Outcome. Typed failures only."""
-        route = route_of(candidate)
-        if route is None:
-            raise source_contract.Outcome(source_contract.UNSUPPORTED)
-        key = self.key(request)
+    def _open(self, key):
+        """A new session, or None when this key is already running. Replaces (and closes) a different running session."""
         with self.lock:
             if self.current and self.current['key'] == key:
-                return 'duplicate'
+                return None
             old = self.current
             session = self.current = {'key': key, 'stop': threading.Event(), 'started': False}
         if old:
             self._close(old)
+        return session
+
+    def start(self, candidate, request, transport=None, cancel=None, resume=0, torrent_file=None):
+        """Returns ('playing' | 'sent' | 'duplicate') or raises source_contract.Outcome. Typed failures only."""
+        route = route_of(candidate)
+        if route is None:
+            raise source_contract.Outcome(source_contract.UNSUPPORTED)
+        session = self._open(self.key(request))
+        if session is None:
+            return 'duplicate'
         stopped = lambda: session['stop'].is_set() or (cancel is not None and cancel())
         try:
             if route == 'torrent':
                 return self._torrent(candidate, request, torrent_file, stopped)
-            return self._play(candidate, request, transport, stopped, session, resume)
+            return self._play(lambda: fresh_resolve.play_ready(candidate, request, transport, cancel=stopped), stopped, session, resume)
         except provider_fallback.Canceled:
+            raise source_contract.Outcome(source_contract.CANCELED)
+        except BaseException:
+            self._finish(session)
+            raise
+
+    def start_resolved(self, key, resolve, cancel=None, resume=0):
+        """Same hand-off for a source with its own resolver (live sports): `resolve()` returns a fresh fresh_resolve.Resolved, already verified."""
+        session = self._open(('resolved',) + tuple(key))
+        if session is None:
+            return 'duplicate'
+        stopped = lambda: session['stop'].is_set() or (cancel is not None and cancel())
+        try:
+            return self._play(resolve, stopped, session, resume)
+        except provider_fallback.Canceled:
+            self._finish(session)
             raise source_contract.Outcome(source_contract.CANCELED)
         except BaseException:
             self._finish(session)
@@ -168,8 +189,8 @@ class Playback:
             raise source_contract.Outcome(source_contract.REFUSED)       # declined at the app's own prompt, or the route refused
         return 'sent'
 
-    def _play(self, candidate, request, transport, stopped, session, resume):
-        resolved = fresh_resolve.play_ready(candidate, request, transport, cancel=stopped)
+    def _play(self, resolve, stopped, session, resume):
+        resolved = resolve()
         if stopped():                                                       # cancel or stop while resolving: nothing started
             raise source_contract.Outcome(source_contract.CANCELED)
         session['started'] = True

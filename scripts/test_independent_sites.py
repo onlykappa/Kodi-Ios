@@ -3,6 +3,8 @@ import json,sys,unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'))
 import independent_sites as s, source_contract as c
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+from fixtures_site_captures import CAPTURES
 
 H=lambda n:('%040x'%n)
 MOVIE={'media_type':'movie','title':'Example Film','year':2024,'imdb':'tt1234567','profile':{}}
@@ -57,7 +59,7 @@ class Search(unittest.TestCase):
   self.assertEqual(out,c.OK);names=[i['name'] for i in found]
   self.assertEqual(sorted(i['torrent_hash'] for i in found),[H(1),H(4),H(12)]);self.assertNotIn(H(2),[i['torrent_hash'] for i in found])
   self.assertEqual(found[0]['torrent_hash'],H(1),'best-seeded first, one row for a hash two sites share');self.assertEqual(found[0]['seeders'],70)
-  self.assertEqual(report,{'apibay':c.OK,'yts':c.OK,'knaben':c.OK,'1337x':c.EMPTY});self.assertNotIn('eztv',report,'eztv is TV only')
+  self.assertEqual({k:report[k] for k in ('apibay','yts','knaben','1337x')},{'apibay':c.OK,'yts':c.OK,'knaben':c.OK,'1337x':c.EMPTY});self.assertNotIn('eztv',report,'eztv is TV only')
   self.assertTrue(all(i['magnet'].startswith('magnet:?xt=urn:btih:') and 'download' in i['capabilities'] for i in found))
  def test_episode_exact_numbers_only(self):
   out,found,report=s.search_all(EP,fetch=Fetch(pages(False)))
@@ -85,5 +87,34 @@ class Search(unittest.TestCase):
   self.assertEqual(s.search_all({'media_type':'movie','title':'X','profile':{}},fetch=Fetch({}))[0],c.UNSUPPORTED)
  def test_coverage_table_matches_the_adapters(self):
   self.assertEqual(set(s.COVERAGE),set(s.SITES))
+
+BBB={'media_type':'movie','title':'Big Buck Bunny','year':2008,'profile':{}}
+ONE={'media_type':'episode','show_title':'One Piece','title':'One Piece','year':1999,'season':23,'episode':6,'profile':{}}
+class RealCaptures(unittest.TestCase):
+ """Excerpts of real pages captured 2026-11-26: they prove each parser against the sites' actual markup at that date, not that the markup stays."""
+ def test_each_parser_reads_its_real_page(self):
+  want={'bitsearch':(BBB,'dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c','Big Buck Bunny',48),
+   'torrentdownload':(BBB,'c39fe3eefbdb62da9c27eb6398ff4a7d2e26e7ab','Big Buck Bunny BDRip XviD MEDiC',161),
+   'limetorrents':(BBB,'3180e68a4ec7c6f181cdba8cb37b2d3ac8e50ae2','Big Buck Bunny trailer',7),
+   'kick4ss':(BBB,'5b8c29a1e13d409422089cf113851dec9e2f4e97','Big Buck Bunny 4K UHD HFR 60 fps FLAC WEBRip 2160p X265 ZMachine',1),
+   'nyaa':(ONE,'611e5b6bcfa317ea580a40da2e7befda5caf3a9f','[AnoZu] One Piece S23E06 1080p CR WEB-DL Dual-Audio DDP 2.0 H.264',197)}
+  adapters={a.name:a for a in s.SIMPLE}
+  for name,(req,h,title,seeds) in want.items():
+   rows=adapters[name].parse(CAPTURES[name],req)
+   self.assertEqual(len(rows),2,name);self.assertEqual((rows[0]['torrent_hash'],rows[0]['name'],rows[0]['seeders']),(h,title,seeds),name);self.assertGreater(rows[0]['size'],1e6,name)
+ def test_real_pages_end_to_end_apply_the_strict_identity_check(self):
+  # A real page for Big Buck Bunny has no row that is verifiably the 2008 film by name alone (no year in the names), so none passes.
+  p={'https://bitsearch.eu':CAPTURES['bitsearch'],'https://www.torrentdownload.info':CAPTURES['torrentdownload'],'https://www.limetorrents.lol':CAPTURES['limetorrents'],'https://kick4ss.com':CAPTURES['kick4ss']}
+  out,found,report=s.search_all(BBB,fetch=Fetch(p),disabled=('apibay','yts','knaben','1337x'))
+  self.assertEqual(found,[]);self.assertTrue(all(report[k]==c.EMPTY for k in ('bitsearch','torrentdownload','limetorrents','kick4ss')),report)
+  out,found,report=s.search_all(ONE,fetch=Fetch({'https://nyaa.si':CAPTURES['nyaa']}),disabled=('apibay','knaben','1337x','bitsearch','torrentdownload','limetorrents','kick4ss','eztv'))
+  self.assertEqual([i['torrent_hash'] for i in found],['611e5b6bcfa317ea580a40da2e7befda5caf3a9f'],'only the exact S23E06 row; S01E1161 is another episode')
+ def test_changed_layout_per_family_is_unsupported_and_feed_tricks_rejected(self):
+  for a in (s.Bitsearch(),s.TorrentDownload(),s.Lime(),s.Kick()):
+   with self.assertRaises(ValueError):a.parse('<html>redesigned</html>',BBB)
+  with self.assertRaises(ValueError):s.Nyaa().parse('<html>',ONE)
+  with self.assertRaises(ValueError):s.Nyaa().parse('<rss><!DOCTYPE x [<!ENTITY a "b">]></rss>',ONE)
+ def test_nyaa_only_for_episodes(self):
+  self.assertTrue(s.Nyaa().applies(ONE));self.assertFalse(s.Nyaa().applies(BBB))
 
 if __name__=='__main__':unittest.main()
