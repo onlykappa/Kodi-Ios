@@ -71,7 +71,7 @@ class Pages(unittest.TestCase):
   cls.tmp=tempfile.TemporaryDirectory();skin=Path(cls.tmp.name)/'skin.arctic.fuse.3';(skin/'1080i').mkdir(parents=True)
   (skin/'addon.xml').write_text('<addon id="skin.arctic.fuse.3"><extension point="xbmc.gui.skin"><res aspect="16:9" default="true" folder="1080i" width="1920" height="1080" /></extension></addon>')
   plain='<window><controls><control type="label" id="1"><label>x</label></control></controls></window>'
-  for name in ('Font.xml','Includes.xml','DialogConfirm.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',
+  for name in ('Font.xml','Includes.xml','DialogConfirm.xml','AddonBrowser.xml','DialogAddonInfo.xml','FileBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',
                'DialogTextViewer.xml','DialogSettings.xml','Home.xml','VideoOSD.xml','DialogSeekBar.xml','Settings.xml'):
    (skin/'1080i'/name).write_text('<fonts><fontset id="Default" /></fonts>' if name=='Font.xml' else '<includes />' if name=='Includes.xml'
                                  else plain.replace('<window>','<window><views>50</views>') if name in ('AddonBrowser.xml','EventLog.xml') else plain)
@@ -85,7 +85,10 @@ class Pages(unittest.TestCase):
  def test_kodi_control_ids(self):
   for name,need in (('DialogConfirm.xml',{'1':'label','9':'textbox','10':'button','11':'button','12':'button','20':'progress'}),
                     ('DialogTextViewer.xml',{'1':'label','5':'textbox'}),
-                    ('AddonBrowser.xml',{'50':'list'}),
+                    ('AddonBrowser.xml',{'50':'list','9001':'button','9020':'button'}),
+                    # Kodi writes the labels and states of these into the dialog; the page draws rows that press them.
+                    ('DialogAddonInfo.xml',{'6':'button','7':'button','8':'button','9':'button','10':'button','12':'button','13':'radiobutton','14':'button'}),
+                    ('FileBrowser.xml',{'450':'list','411':'label','412':'label','413':'button','414':'button','415':'button','416':'radiobutton'}),
                     ('EventLog.xml',{'50':'list','20':'button','21':'button','22':'togglebutton','4':'togglebutton'}),
                     ('SettingsSystemInfo.xml',dict({str(i):'label' for i in range(2,12)},**{'30':'textbox','94':'button','100':'button','52':'label'})),
                     ('FileManager.xml',{'20':'list','21':'list','101':'label','102':'label','12':'label','13':'label'}),
@@ -93,6 +96,22 @@ class Pages(unittest.TestCase):
                     ('source_progress.xml',{'2001':'textbox'})):
    _,ids=self.ids('portrait/'+name)
    self.assertEqual({k:ids.get(k) for k in need},need,name)
+ def test_addon_info_is_one_page_that_presses_kodis_buttons(self):
+  # Owner-approved docs/design/addon-info-mockups.html: the drawn rows press the real controls, never duplicate their ids.
+  root,_=self.ids('portrait/DialogAddonInfo.xml')
+  self.assertEqual(root.get('type'),'dialog');self.assertIsNone(root.find('menucontrol'))
+  ids=[c.get('id') for c in root.iter('control') if c.get('id')];self.assertEqual(len(ids),len(set(ids)),'duplicate control ids')
+  clicks={o.text for o in root.iter('onclick')}
+  for need in ('SendClick(6)','SendClick(7)','SendClick(8)','SendClick(9)','SendClick(10)','SendClick(12)','SendClick(14)'):self.assertIn(need,clicks)
+  text=(self.skin/'portrait/DialogAddonInfo.xml').read_text()
+  self.assertIn('ListItem.AddonDescription',text);self.assertNotIn('…',text)
+ def test_addons_front_page_has_no_pill_row(self):
+  text=(self.skin/'portrait/AddonBrowser.xml').read_text()
+  for gone in ('9011','9012','9013','9014','From Zip','My Add-ons'):self.assertNotIn(gone,text)
+  self.assertIn('Browse add-ons by category',text);self.assertIn('Container.Update(addons://search/,replace)',text)
+ def test_event_log_rows_keep_kodis_ids(self):
+  root,ids=self.ids('portrait/EventLog.xml')
+  self.assertEqual({k:ids.get(k) for k in ('20','21','22','4','50')},{'20':'button','21':'button','22':'togglebutton','4':'togglebutton','50':'list'})
  def test_system_info_focuses_a_tab_after_fuse(self):
   root,_=self.ids('portrait/SettingsSystemInfo.xml');self.assertEqual([o.text for o in root.findall('onload')][-1],'SetFocus(95)')
  def test_media_windows_keep_their_views(self):
