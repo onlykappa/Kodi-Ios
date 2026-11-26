@@ -125,10 +125,14 @@ def direct_wanted():
 
 def direct(selected,request,cancel=None):
  """Step 18: stream the chosen torrent from peers with the bundled Elementum engine. True when playing; False when declined, canceled or no peers."""
- import xbmcgui,elementum_download,backup_playback,direct_stream,debrid_account,source_contract
+ import xbmcgui,elementum_download,backup_playback,p2p_rules,debrid_account,source_contract
+ home=xbmcgui.Window(10000)
+ def show(text):
+  try:home.setProperty(p2p_rules.STATUS,text) if text else home.clearProperty(p2p_rules.STATUS)   # the loading state's words ("Waiting for peers · 80 s")
+  except Exception:pass
  try:
-  direct_stream.stream(selected['candidate'],request,backup_playback.Playback(backup_playback.KodiPlayer()),xbmcgui.Window(10000),
-                       elementum_download._torrent_gate,health=debrid_account.shared_health(),cancel=cancel)
+  p2p_rules.stream_best([selected['candidate']],request,backup_playback.Playback(backup_playback.KodiPlayer()),home,elementum_download._torrent_gate,
+                        health=debrid_account.shared_health(),cancel=cancel,show=show)
   return True
  except source_contract.Outcome:return False
 

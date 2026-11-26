@@ -112,12 +112,12 @@ class Hook(unittest.TestCase):
    with self.assertRaises(ValueError):hooks.dispatch(sel,cancel=lambda:False)
   calls=[]
   fake_direct=types.SimpleNamespace(stream=lambda *a,**k:calls.append(k.get('health')) or 'playing')
-  mods={'xbmc':MagicMock(),'xbmcgui':MagicMock(),'elementum_download':types.SimpleNamespace(_torrent_gate=lambda:None,Canceled=Canceled),'direct_stream':fake_direct,'backup_playback':MagicMock()}
+  mods={'xbmc':MagicMock(),'xbmcgui':MagicMock(),'elementum_download':types.SimpleNamespace(_torrent_gate=lambda:None,Canceled=Canceled),'p2p_rules':types.SimpleNamespace(stream_best=lambda *a,**k:calls.append(k.get('health')) or (CAND,'playing'),STATUS='s'),'backup_playback':MagicMock()}
   with patch.object(hooks,'direct_wanted',return_value=True),patch.dict(sys.modules,mods):
    self.assertTrue(hooks.dispatch(sel,cancel=lambda:False))
   self.assertEqual(len(calls),1)
   def refuse(*a,**k):raise c.Outcome(c.REFUSED)
-  mods['direct_stream']=types.SimpleNamespace(stream=refuse)
+  mods['p2p_rules']=types.SimpleNamespace(stream_best=refuse,STATUS='s')
   with patch.object(hooks,'direct_wanted',return_value=True),patch.dict(sys.modules,mods):
    self.assertFalse(hooks.dispatch(sel,cancel=lambda:False))
 
