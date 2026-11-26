@@ -247,7 +247,8 @@ experiment stays recorded. Later work can expose a need to revisit earlier steps
 | 3 | IN PROGRESS — BLOCKED | [Offline staging and license evidence](SOURCE-PRESERVATION-STEP3.md): 29 verified provider inputs restored locally with Python network connects blocked; durable approved backup, license closure, Elementum inputs and actual Kodi runtime closure remain open. |
 | 4 | CONTRACT DONE (host tests) | [SOURCE-BACKUP-CONTRACT.md](SOURCE-BACKUP-CONTRACT.md): typed outcomes, expiry, capabilities, redaction and the pre-playback gate, 13 tests. Not yet wired into the search loop. |
 | 5 | ADAPTER DONE (host tests, fixtures only) | [SOURCE-INDEPENDENT-SEARCH.md](SOURCE-INDEPENDENT-SEARCH.md): one first-party site adapter, no add-on needed; not wired into the playback loop, no live check. |
-| 6–16 | NOT STARTED | Do not start until separately authorized. |
+| 6 | FRESH RESOLUTION DONE (host tests, loopback server) | [SOURCE-FRESH-RESOLUTION.md](SOURCE-FRESH-RESOLUTION.md): resolve at use, header/cookie continuity through master, variant, key and segment, typed 401/403/429/expired failures. Not wired into playback. |
+| 7–16 | NOT STARTED | Do not start until separately authorized. |
 
 On completing a step, replace its row range with individual rows and record dates,
 commands, expected/observed results and links to sanitized reports. Do not renumber
