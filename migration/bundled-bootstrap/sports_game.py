@@ -332,12 +332,22 @@ def run(game, provider=None, clock=time.time, search=False):
 
         def start_play(self,source):
             self.setProperty('play.error','')
+            import sports_match
+            try:latest=provider.game(game_id) or self.data
+            except Exception:latest=self.data
+            if sports_match.blocked(latest,clock()):   # ESPN says it is over (or its state is stale): a source for it would only open a dead stream
+                self.setProperty('play.error','This game is not live any more.')
+                return
+            if not sports_match.LAUNCH.begin(game_id):return   # a tap is already opening this game
+            release=lambda:sports_match.LAUNCH.end(game_id)
             pending=[]
             try:sports_provider.play(source,log,launch=lambda *args:pending.append(args))
             except Exception as error:
+                release()
                 log('sports: play: %s: %s' % (type(error).__name__,diagnostics.error_text(error)))
                 self.setProperty('play.error',"Can't play this source right now. Try another source.")
                 return
+            if not pending:release()   # nothing left to hand over: the start is done
             if pending:
                 # Native Loop may open its own selector. Dismiss the Sports modal
                 # stack before dispatch, instead of opening over this callback.
@@ -352,6 +362,7 @@ def run(game, provider=None, clock=time.time, search=False):
                         log('sports: player handoff failed (%s)' % type(error).__name__)
                         try:xbmcgui.Dialog().notification('Sports',"Can't open the player right now. Try again.",xbmcgui.NOTIFICATION_WARNING,4000)
                         except Exception:pass
+                    finally:release()   # a second tap during the hand-off did nothing; later taps work again
                 threading.Thread(target=handoff,daemon=True).start()
 
         def find_sources(self, fresh=False):

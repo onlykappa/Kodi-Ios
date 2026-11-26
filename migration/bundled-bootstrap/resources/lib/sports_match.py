@@ -36,10 +36,10 @@ def status(game, now=None, as_of=None):
     return 'stale'
 
 
-def unique_match(game, listings, now=None, as_of=None):
+def unique_match(game, listings, now=None, as_of=None, strict=True):
     """-> listing. Raises Outcome(empty) for none, Outcome(unsupported) for stale or ambiguous."""
     now = time.time() if now is None else now
-    if status(game, now, as_of) == 'stale':
+    if (strict or (game.get('state') and game.get('start'))) and status(game, now, as_of) == 'stale':
         raise source_contract.Outcome(source_contract.UNSUPPORTED)
     found = [x for x in listings if x.get('sources') and sports_merge.same_game(game, x)]
     if not found:
@@ -56,6 +56,11 @@ def unique_match(game, listings, now=None, as_of=None):
             merged.extend(s for s in other['sources'] if s.get('id') not in seen)
         return dict(first, sources=merged)
     return found[0]
+
+
+def blocked(game, now=None):
+    """True only when ESPN's own state and start say the game is over or its state is stale; a game missing either field is never blocked (nothing to judge by)."""
+    return bool(game and game.get('state') and game.get('start') and status(game, now) == 'stale')
 
 
 def fresh(listed_at, now=None):
@@ -75,6 +80,18 @@ class Launcher:
     def __init__(self):
         self.lock = threading.Lock()
         self.opening = set()
+
+    def begin(self, key):
+        """True when this game may start now; False when a start for it is already opening (the Sports page uses this around its play call)."""
+        with self.lock:
+            if key in self.opening:
+                return False
+            self.opening.add(key)
+            return True
+
+    def end(self, key):
+        with self.lock:
+            self.opening.discard(key)
 
     def start(self, game, listings, listed_at, launch, now=None, cancel=None, current=None, source_id=None, health=None, as_of=None):
         """Returns the persistable record of what was started. Raises Outcome: empty, unsupported (stale/ambiguous), expired, canceled."""
@@ -151,3 +168,6 @@ def start_independent(game, address, playback, resolve, now=None, cancel=None, c
     if health is not None and result == 'playing':
         health.record('sports:independent', source_contract.OK)
     return result
+
+
+LAUNCH = Launcher()      # the Sports page's one shared launcher
