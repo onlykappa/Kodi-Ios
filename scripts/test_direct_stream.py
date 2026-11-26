@@ -107,9 +107,15 @@ class Hook(unittest.TestCase):
  def test_dispatch_streams_a_magnet_from_peers_only_when_debrid_is_marked_unavailable(self):
   import provider_fallback_hooks as hooks,types
   sel={'candidate':CAND,'url':'magnet:?xt=urn:btih:'+HASH,'request':dict(REQ,purpose='stream')}
-  self.assertFalse(hooks.direct_wanted())
-  with patch.dict(sys.modules,{'xbmc':MagicMock()}):
-   with self.assertRaises(ValueError):hooks.dispatch(sel,cancel=lambda:False)
+  import debrid_token,debrid_account
+  with patch.object(debrid_token,'has',return_value=True),patch.object(debrid_account,'is_unavailable',return_value=False):
+   self.assertFalse(hooks.direct_wanted(),'a working key keeps the old refusal')
+   with patch.dict(sys.modules,{'xbmc':MagicMock()}):
+    with self.assertRaises(ValueError):hooks.dispatch(sel,cancel=lambda:False)
+  with patch.object(debrid_token,'has',return_value=False):
+   self.assertTrue(hooks.direct_wanted(),'no debrid key at all: peers are the way')
+  with patch.object(debrid_token,'has',return_value=True),patch.object(debrid_account,'is_unavailable',return_value=True):
+   self.assertTrue(hooks.direct_wanted())
   calls=[]
   fake_direct=types.SimpleNamespace(stream=lambda *a,**k:calls.append(k.get('health')) or 'playing')
   mods={'xbmc':MagicMock(),'xbmcgui':MagicMock(),'elementum_download':types.SimpleNamespace(_torrent_gate=lambda:None,Canceled=Canceled),'p2p_rules':types.SimpleNamespace(stream_best=lambda *a,**k:calls.append(k.get('health')) or (CAND,'playing'),STATUS='s'),'backup_playback':MagicMock()}

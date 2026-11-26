@@ -115,10 +115,11 @@ def stream_url(url,request=None):
 
 
 def direct_wanted():
- """Only once debrid has been failing (three service-level failures in a row, still cooling down): then a torrent Stream may go to peers, behind the
- torrent prompt. A working debrid or an unknown state keeps the old refusal."""
+ """A torrent Stream may go to peers (behind the torrent prompt) when there is no debrid key at all, or once debrid has been failing (three
+ service-level failures in a row, still cooling down). A working debrid or an unknown state keeps the old refusal."""
  try:
-  import debrid_account
+  import debrid_account,debrid_token
+  if not debrid_token.has():return True
   return debrid_account.is_unavailable()
  except Exception:return False
 
