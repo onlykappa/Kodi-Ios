@@ -34,3 +34,6 @@ The phone; real AllDebrid (sign-in, errors); real swarms and the iOS Elementum e
 * **Secret redaction.** No log line, notice, health file or report carries a key, link, header or magnet (matrix privacy rows; `Resolved` hides its link; `scrub()` for logs); the key lives only in the phone's profile folder.
 * **Forbidden traffic.** A tripwire recorded zero non-loopback connections from the search and fallback paths during the matrix; offline behaviour was tested in a real network-less namespace, not a fixture firewall. No VPN or network setting is touched, and direct torrenting only happens after the existing prompt.
 * **Remote work preserved.** No force-push; main was merged into the branch; the PR stays draft.
+
+## Update 2026-11-26 (add-on backup pass)
+Full suite of 261 registered tests, 4 in parallel: everything passed except `test_sports_stream_health.py`, which printed its normal OK (28 tests) and then the interpreter segfaulted at exit once; it passed 3 of 3 reruns alone. This is the same behaviour seen once earlier in `test_umbrella_recovery.py`: Python 3.11 in this container crashing at exit under parallel load after a finished test run, not a failing assertion. It is recorded, not explained. `check_project.py` 0 issues, `check_ui_guidance.py` clean.
