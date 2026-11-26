@@ -339,4 +339,21 @@ class OneEpisodeFirst(unittest.TestCase):
   kept=dp.mark_multi(self.items()[3:],{'kind':'episode','season':1,'episode':5})
   self.assertEqual(dp.auto_choose(kept,{'quality':'1080p','strict_quality':True})['idx'],3)
 
+class PacksLast(unittest.TestCase):
+ # ISSUE-492 (owner log 4e3d5e2c): a pick whose release names no episode makes Umbrella list the pack and unlock its files one by one (3 files 2.2 s, 92 files 27.3 s)
+ def item(self,name,n):return {'name':name,'tags_text':'','providers':[],'quality':'1080p','seeds':5,'size':1.0+n,'icon':'','idx':n}
+ def test_for_a_streamed_episode_releases_naming_it_come_before_packs_and_nothing_is_dropped(self):
+  items=[self.item('Show.S01.Complete.1080p.BluRay',0),self.item('Show.1999.Series.Pack',1),self.item('Show.S01E01.1080p.WEB',2),self.item('Show.S02E01.1080p.WEB',3),self.item('Show 1x01 1080p',4)]
+  old=(dp.MODE[0],dp._CONTEXT.get('exp'))
+  try:
+   dp.MODE[0]=u'stream';dp._CONTEXT['exp']={'kind':'episode','season':1,'episode':1}
+   self.assertEqual([i['idx'] for i in dp.pick(list(items),10)],[2,4,0,1,3])
+   dp._CONTEXT['exp']={'kind':'movie'};self.assertEqual([i['idx'] for i in dp.pick(list(items),10)],[0,1,2,3,4])      # a film: unchanged
+   dp.MODE[0]=u'download';dp._CONTEXT['exp']={'kind':'episode','season':1,'episode':1};self.assertEqual([i['idx'] for i in dp.pick(list(items),10)],[0,1,2,3,4])   # a download: unchanged
+  finally:dp.MODE[0],dp._CONTEXT['exp']=old
+ def test_episode_names(self):
+  for name in ('Show.S01E01.mkv','show s1 e1','Show.1x01','Show Season 1 Episode 1'):self.assertTrue(dp.names_episode(name,1,1),name)
+  for name in ('Show.S01.Complete','Show.S01E02','Show.S01E011','Show.S11E01',''):self.assertFalse(dp.names_episode(name,1,1),name)
+  self.assertFalse(dp.names_episode('Show.S01E01','x',1))
+
 if __name__=='__main__':unittest.main()

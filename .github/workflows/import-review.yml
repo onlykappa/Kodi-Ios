@@ -313,6 +313,7 @@ jobs:
           python3 -B scripts/test_favourites_flow.py
           python3 -B scripts/test_season_sources.py
           python3 -B scripts/test_airplay_diagnostics.py
+          python3 -B scripts/test_drive_read_stats.py
           python3 -B scripts/test_playback_retention.py
           python3 -B scripts/test_fast_open.py
           python3 -B scripts/test_remote_media.py

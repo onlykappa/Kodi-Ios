@@ -325,6 +325,19 @@ def live_conversion(item):
     return slow_to_prepare(item) or converts_for_tv(item) or dv_only(item)
 
 
+def names_episode(name, season, episode):
+    """True when a release name carries exactly this season and episode (S01E01, 1x01, Season 1 Episode 1). A season or series pack does not."""
+    import re
+    text = (name or u'').lower()
+    try:
+        s, e = int(season), int(episode)
+    except (TypeError, ValueError):
+        return False
+    patterns = (r'(?<![a-z0-9])s0*%d[ ._-]*e0*%d(?!\d)' % (s, e), r'(?<!\d)%dx0*%d(?!\d)' % (s, e),
+                r'season[ ._-]*0*%d[ ._-]*(?:episode|ep|e)[ ._-]*0*%d(?!\d)' % (s, e))
+    return any(re.search(p, text) for p in patterns)
+
+
 def pick(items, top_n=TOP_N):
     """items: one quality, already in Elementum's order. Returns up to top_n varied links."""
     items = dedupe(items)
@@ -339,6 +352,13 @@ def pick(items, top_n=TOP_N):
     # Downloads (Elementum) are prepared once on Drive, so those stay in Elementum's order there.
     if MODE[0] == u'stream':
         good = [i for i in good if not live_conversion(i)] + [i for i in good if live_conversion(i)]
+    # ISSUE-492 (owner log 4e3d5e2c, build 710): after an episode is picked Umbrella lists the whole pack and unlocks its files one by one until it reaches the episode:
+    # 3 files 2.2 s, a series pack of 92 files 27.3 s (Dragon Ball Z), against 3-4 s for a movie. A release that names this very season and episode opens fastest, so for a
+    # stream of one episode those come before packs (stable: the order inside each group is unchanged, and the packs are still offered).
+    if MODE[0] == u'stream':
+        exp = _CONTEXT.get('exp') or {}
+        if exp.get('kind') == 'episode' and exp.get('season') is not None and exp.get('episode') is not None:
+            good = [i for i in good if names_episode(i.get('name'), exp['season'], exp['episode'])] + [i for i in good if not names_episode(i.get('name'), exp['season'], exp['episode'])]
     good_ids = set(id(i) for i in good)
     rest = [i for i in items if id(i) not in good_ids]
     ranked = good + rest                                   # dead / bad copies only if nothing better

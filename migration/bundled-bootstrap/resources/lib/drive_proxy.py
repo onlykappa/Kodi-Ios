@@ -206,6 +206,50 @@ class Tee(object):
             self.buf = bytearray()
 
 
+class ReadStats(object):
+    """ISSUE-491: one line a minute about the reads to Drive (AirPlay's and Kodi's source reads share them): how many, how many needed a second try and why, how long
+    the first byte took (median, 90th percentile, slowest), so a late segment can be set against the line it was read over. No ids, no addresses."""
+    EVERY = 60.0
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.since = None
+        self.headers = []
+        self.retries = {}
+        self.statuses = {}
+
+    def add(self, status, attempt, headers_ms, now):
+        with self.lock:
+            if self.since is None:
+                self.since = now
+            self.headers.append(headers_ms)
+            self.statuses[status] = self.statuses.get(status, 0) + 1
+            del self.headers[:-5000]
+
+    def retried(self, reason, now):
+        with self.lock:
+            if self.since is None:
+                self.since = now
+            self.retries[reason] = self.retries.get(reason, 0) + 1
+
+    def line(self, now):
+        """The summary text once EVERY seconds have passed (and the counts start again), else None."""
+        with self.lock:
+            if self.since is None or now - self.since < self.EVERY or not self.headers:
+                return None
+            ordered = sorted(self.headers)
+            text = 'Kodi iOS Drive reads %d s: %d reads, %d second tries (%s), first byte median %d ms, 90th %d ms, slowest %d ms, statuses %s' % (
+                int(now - self.since), len(ordered), sum(self.retries.values()),
+                ', '.join('%s %d' % kv for kv in sorted(self.retries.items())) or 'none', ordered[len(ordered) // 2],
+                ordered[min(len(ordered) - 1, int(len(ordered) * 0.9))], ordered[-1],
+                ', '.join('%s %d' % kv for kv in sorted(self.statuses.items())))
+            self.since, self.headers, self.retries, self.statuses = now, [], {}, {}
+            return text
+
+
+READS = ReadStats()
+
+
 class Upstream(object):
     """One kept-alive HTTPS connection per thread to Drive; token(force) gives a bearer token (force: a fresh one)."""
 
@@ -344,17 +388,24 @@ class Upstream(object):
             try:
                 conn.request('GET', path, headers=headers)
                 resp = conn.getresponse()
-            except (http.client.HTTPException, OSError):
+            except (http.client.HTTPException, OSError) as error:
+                READS.retried(type(error).__name__, time.monotonic())
                 if attempt == attempts-1:
                     raise
                 continue
             if resp.status == 401 and not force and attempt < attempts-1:
+                READS.retried('401', time.monotonic())
                 resp.read()
                 force = access
                 continue
+            headers_ms = (time.monotonic() - authenticated) * 1000
             self.log('Kodi iOS Drive read: kind=%s status=%d attempt=%d auth_ms=%.0f headers_ms=%.0f' %
                      ('range' if rng else 'metadata', resp.status, attempt + 1,
-                      (authenticated - began) * 1000, (time.monotonic() - authenticated) * 1000))
+                      (authenticated - began) * 1000, headers_ms))
+            READS.add(resp.status, attempt + 1, headers_ms, time.monotonic())
+            summary = READS.line(time.monotonic())
+            if summary:
+                self.log(summary)
             return resp
         return resp
 
