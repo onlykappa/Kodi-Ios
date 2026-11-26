@@ -294,9 +294,10 @@ profile (`debrid_token.py`, commit 4914392), so removing Umbrella no longer remo
 | 9 | FIRST INCREMENT DONE (host tests, fixtures only) | [SOURCE-COVERAGE.md](SOURCE-COVERAGE.md): ten independent site families (apibay, YTS, EZTV, Knaben, Bitsearch, TorrentDownload, LimeTorrents, Kick4ss, Nyaa, 1337x), five parsed from real captures merged by hash, failure isolation proven; Burst/Coco/Umbrella/Crew paths and live checks remain. |
 | 10 | SPORTS POLICY DONE (host tests; one live ESPN read) | [SOURCE-SPORTS.md](SOURCE-SPORTS.md): unique current game match, stale/ambiguous rejection, live expiry, duplicate/cancel guards, independent HLS start. No live stream check. |
 | 11 | HEALTH DONE (host tests) | [SOURCE-HEALTH.md](SOURCE-HEALTH.md): per-source cooldowns (Retry-After honoured), deliberate retry, recent winners first, cancel never penalised, one calm Notifications line, wired into the add-on chain, the site searches and the Sports routes. Cooldown tables untuned on phone traffic. |
-| 12–16 | NOT STARTED | Do not start until separately authorized. |
+| 12 | PACKAGING DONE (host tests, network-less) | [SOURCE-PACKAGING.md](SOURCE-PACKAGING.md): preserved inputs used by digest before any download (`--preserved` / `KODI_IOS_PRESERVED_INPUTS`), tampering refused, a staged bundle restarts and searches with no network; runtime never runs downloaded code. Unavoidable external build tools listed. |
+| 13–16 | NOT STARTED | Do not start until separately authorized. |
 | 17–20 | ADDED, NOT STARTED | Extension for self-reliance (own debrid account and failure detection, peer-to-peer fallback, health rules, metadata snapshot). Prerequisite done: debrid key mirrored into the app profile (4914392). Each needs separate authorization. |
 
 On completing a step, replace its row range with individual rows and record dates,
 commands, expected/observed results and links to sanitized reports. Do not renumber
-steps when adding subtasks. Next owner commands: "Start 12" (or 17–20).
+steps when adding subtasks. Next owner commands: "Start 13" (or 17–20).

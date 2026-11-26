@@ -139,11 +139,21 @@ def mirror_url(lock,spec):
  base=(lock or {}).get('mirror_base')
  return base.rstrip('/')+'/'+urllib.parse.quote(asset_name(spec)) if base else None
 
-def source(spec,get,lock=None):
+def preserved_store(folder):
+ """Content-addressed view of a folder of preserved inputs: {sha256: bytes of the file}. Files are only ever matched by their digest, so a renamed, damaged or
+ tampered file is simply not found (and never trusted by name)."""
+ store={}
+ if folder:
+  for path in sorted(Path(folder).rglob('*')):
+   if path.is_file() and not path.is_symlink() and path.stat().st_size<=1<<30:store.setdefault(digest(path.read_bytes()),path)
+ return store
+
+def source(spec,get,lock=None,preserved=None):
  """The bytes of a pinned package, whose digest matches the lock: rebuilt from a preserved build when the lock names one (`from_ipa`), else downloaded from its pinned
  address, and when that fails or answers something else, from the project's own copy (`mirror_base`, the release that scripts/preserve_provider_sources.py fills).
  (2026-11-24: POV's upstream repository began answering 404 and stopped a build; every pinned source now has a copy that cannot go away.)"""
  name=spec.get('id',spec.get('name'))
+ if preserved and spec['sha256'] in preserved:return preserved[spec['sha256']].read_bytes()   # the owner's preserved copy first: no network, same pinned digest
  if spec.get('from_ipa'):return from_ipa(spec['from_ipa'],spec['id'],get)
  mirror=mirror_url(lock,spec);failure=None
  for address in [spec['url']]+([mirror] if mirror else []):
@@ -153,16 +163,17 @@ def source(spec,get,lock=None):
   failure=failure or ValueError('Provider download digest mismatch: '+name)
  raise failure
 
-def run(output,lock=None,get=fetch):
+def run(output,lock=None,get=fetch,preserved=None):
  lock=lock or json.loads(LOCK.read_text());output=Path(output);output.mkdir(parents=True,exist_ok=True);receipts=[]
+ if isinstance(preserved,(str,Path)):preserved=preserved_store(preserved)
  for spec in lock['packages']+lock.get('provider_packages',[]):
-  name=spec.get('id',spec.get('name'));data=source(spec,get,lock)
+  name=spec.get('id',spec.get('name'));data=source(spec,get,lock,preserved)
   if digest(data)!=spec['sha256']:raise ValueError('Provider download digest mismatch: '+name)
   members(data,spec.get('root',name+'/'))
   if 'id' in spec:manifest(members(data,name+'/')['addon.xml'],spec)
   (output/(name+'.zip')).write_bytes(data);receipts.append({'id':name,'sha256':spec['sha256']})
  for spec in lock.get('data_assets',[]):
-  data=source(spec,get,lock)
+  data=source(spec,get,lock,preserved)
   if digest(data)!=spec['sha256']:raise ValueError('Provider data asset digest mismatch: '+spec['name'])
   validate_asset(data,spec);(output/spec['file']).write_bytes(data);receipts.append({'id':spec['name'],'sha256':spec['sha256']})
  (output/'source-lock.json').write_text(json.dumps(lock,sort_keys=True)+'\n')
@@ -232,5 +243,8 @@ def install(inputs,addonroot,bootstrap,lock=None):
  return receipt
 
 if __name__=='__main__':
- parser=argparse.ArgumentParser();parser.add_argument('--output',type=Path,required=True);args=parser.parse_args()
- print(json.dumps(run(args.output),sort_keys=True))
+ import os
+ parser=argparse.ArgumentParser();parser.add_argument('--output',type=Path,required=True)
+ parser.add_argument('--preserved',type=Path,default=os.environ.get('KODI_IOS_PRESERVED_INPUTS') or None,help='folder of preserved inputs, matched by SHA-256 and used before any download')
+ args=parser.parse_args()
+ print(json.dumps(run(args.output,preserved=args.preserved),sort_keys=True))
