@@ -238,6 +238,47 @@ experiment stays recorded. Later work can expose a need to revisit earlier steps
   remain open. No merge/release from roadmap approval alone. Final report distinguishes
   preserved software, independent discovery and unavoidable external content availability.
 
+### Extension (owner request 2026-11-26): fewer third-party single points of failure
+
+Goal restated by the owner: sources may be third-party, but the app should not depend on Umbrella, Burst or Crew discovery, or on one debrid
+service, to keep working. Steps 1–16 above are unchanged and keep their numbers; these four are appended and each needs its own owner
+authorization ("Start 17" and so on). Prerequisite already done: the AllDebrid key is read from Umbrella first and mirrored into the app's own
+profile (`debrid_token.py`, commit 4914392), so removing Umbrella no longer removes the key. First-time sign-in still goes through Umbrella.
+
+### 17. Own the debrid account and detect debrid failure
+
+- [ ] Give the app its own AllDebrid sign-in (the service's PIN/device flow) writing to the profile store of `debrid_token.py`, so a fresh
+  install needs no Umbrella. Map AllDebrid's error codes (service unreachable, key rejected, account not premium, magnet not cached, too many
+  active torrents) to the `source_contract` outcomes and tell "debrid is gone" (offline/refused across several calls) from "this title is not
+  cached". Keep the key out of Git, logs and the IPA.
+- Acceptance: sign-in, refresh and sign-out against a controlled fake service; each error code maps to one typed outcome; a circuit state
+  ("debrid unavailable") appears only after repeated failures and clears on success. Real AllDebrid only with explicit owner authorization.
+
+### 18. Direct peer-to-peer stream route when debrid is unavailable
+
+- [ ] When step 17 reports debrid unavailable, offer "Stream directly (peer-to-peer)" for a verified torrent candidate and let the bundled
+  Elementum engine stream it instead of the debrid/Drive redirect, behind the existing torrent prompt and its VPN hint. Never start silently,
+  never turn a Stream into a Drive download, never change VPN or network settings (coordinate with PR #55).
+- Acceptance: with the debrid route forced unavailable, a controlled torrent (local seeder and tracker on the rig) starts, time advances,
+  cancel and stop close the engine session, no duplicate player. Host and rig success do not prove iOS engine behaviour, background limits or
+  real-swarm speed: those need the owner's phone.
+
+### 19. Peer-to-peer start-up, seeder and health rules
+
+- [ ] Rank candidates by seeders and size for direct streaming, show a visible "waiting for peers" state, give up after a bounded time with a
+  typed outcome and move to the next candidate, and keep one failed swarm from blocking others. Record per-source results through the step 11
+  health mechanism.
+- Acceptance: controlled swarms with zero, few and many seeders produce the expected ranking, waiting state, timeout and fallback; no source is
+  retried without bound.
+
+### 20. Metadata snapshot for outages of TMDb and ESPN
+
+- [ ] Keep a bounded, expiring local snapshot of the title, alias, year, season/episode and sports schedule data the matching code needs, so the
+  strict identity check and sports matching keep working through a temporary outage of TMDb or ESPN. Stale data must be marked and never
+  presented as live; sports state older than its limit is rejected (step 10 rules).
+- Acceptance: with the metadata services blocked, a title with a prior snapshot still matches strictly, one without a snapshot fails with a typed
+  outcome, and an old sports game is rejected. No claim that metadata stays correct without the services.
+
 ## Step execution record
 
 | Step | Status | Commit / evidence / blocker |
@@ -253,7 +294,8 @@ experiment stays recorded. Later work can expose a need to revisit earlier steps
 | 9 | FIRST INCREMENT DONE (host tests, fixtures only) | [SOURCE-COVERAGE.md](SOURCE-COVERAGE.md): ten independent site families (apibay, YTS, EZTV, Knaben, Bitsearch, TorrentDownload, LimeTorrents, Kick4ss, Nyaa, 1337x), five parsed from real captures merged by hash, failure isolation proven; Burst/Coco/Umbrella/Crew paths and live checks remain. |
 | 10 | SPORTS POLICY DONE (host tests; one live ESPN read) | [SOURCE-SPORTS.md](SOURCE-SPORTS.md): unique current game match, stale/ambiguous rejection, live expiry, duplicate/cancel guards, independent HLS start. No live stream check. |
 | 11–16 | NOT STARTED | Do not start until separately authorized. |
+| 17–20 | ADDED, NOT STARTED | Extension for self-reliance (own debrid account and failure detection, peer-to-peer fallback, health rules, metadata snapshot). Prerequisite done: debrid key mirrored into the app profile (4914392). Each needs separate authorization. |
 
 On completing a step, replace its row range with individual rows and record dates,
 commands, expected/observed results and links to sanitized reports. Do not renumber
-steps when adding subtasks. Next owner command: "Start 3".
+steps when adding subtasks. Next owner commands: "Start 11" (or 17–20).
