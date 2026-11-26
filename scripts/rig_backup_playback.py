@@ -43,7 +43,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         Handler.hits.append((path,self.headers.get('X-Token'),self.headers.get('Cookie'),self.headers.get('Range')))
         if path.startswith('/guarded/'):
             if self.headers.get('X-Token')!=TOKEN:self.send_error(403);return False
-            if not path.endswith('master.m3u8') and COOKIE not in (self.headers.get('Cookie') or ''):self.send_error(403);return False
+            if path.startswith('/guarded/hls/') and COOKIE not in (self.headers.get('Cookie') or ''):self.send_error(403);return False
         return True
     def do_GET(self):
         if self.guard():super().do_GET()
@@ -74,10 +74,11 @@ def torrent_case(folder):
     hl=leech.add_torrent({'ti':info,'save_path':str(down)});hl.connect_peer(('127.0.0.1',seed.listen_port()))
     t0=time.time()
     while not hl.status().is_seeding and time.time()-t0<60:time.sleep(.3)
-    return {'data':data,'hash':str(info.info_hash()),'done':hl.status().is_seeding,'file':down/'clip.mp4','sessions':(seed,leech,h,hl)}
+    return {'data':data,'hash':str(info.info_hashes().v1),'done':hl.status().is_seeding,'file':down/'clip.mp4','sessions':(seed,leech,h,hl)}
 
 
 def run(args):
+    sys.path.insert(0,str(ROOT/'scripts'));global kodi_rig;import kodi_rig
     work=Path(tempfile.mkdtemp(prefix='rig-backup-'));media=make_media(work/'media');server=serve(media);port=server.server_address[1]
     cases={'file_header':{'kind':'file','url':'http://127.0.0.1:%d/guarded/clip.mp4'%port,'headers':{'X-Token':TOKEN}},
            'hls_header_cookie':{'kind':'hls','url':'http://127.0.0.1:%d/guarded/master.m3u8'%port,'headers':{'X-Token':TOKEN}},
@@ -91,9 +92,8 @@ def run(args):
     report={}
     for name,case in cases.items():
         out=RIG/('backup-'+name+'.json');out.unlink(missing_ok=True)
-        (RIG/'builtins.txt').write_text('RunScript(%s,--inside-kodi,%s,%s)\n'%(Path(__file__).resolve(),name,out))
         (RIG/('backup-'+name+'.case')).write_text(json.dumps(case))
-        subprocess.run([sys.executable,'-B',str(ROOT/'scripts/kodi_rig.py'),'open','rig_builtin'],capture_output=True)
+        kodi_rig.run_builtins('RunScript(%s,--inside-kodi,%s,%s)'%(Path(__file__).resolve(),name,out))
         t0=time.time()
         while not out.exists() and time.time()-t0<90:time.sleep(.5)
         report[name]=json.loads(out.read_text()) if out.exists() else {'error':'no answer from Kodi in 90 s'}

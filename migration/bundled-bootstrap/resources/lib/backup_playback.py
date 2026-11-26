@@ -120,6 +120,11 @@ class Playback:
         if session['started'] and not session.get('closed'):
             session['closed'] = True
             self.player.stop()
+        for closer in session.pop('closers', []):
+            try:
+                closer()
+            except Exception:
+                pass
 
     def _open(self, key):
         """A new session, or None when this key is already running. Replaces (and closes) a different running session."""
@@ -193,8 +198,12 @@ class Playback:
         resolved = resolve()
         if stopped():                                                       # cancel or stop while resolving: nothing started
             raise source_contract.Outcome(source_contract.CANCELED)
+        import hls_bridge
+        url, headers, closer = hls_bridge.prepare(resolved)      # a guarded HLS stream goes through the local proxy: Kodi sends headers only to the first request
+        if closer is not None:
+            session.setdefault('closers', []).append(closer)
         session['started'] = True
-        self.player.play(resolved.url, resolved.headers, resume)
+        self.player.play(url, headers, resume)
         begin, base = self.clock(), self.player.time()
         while True:
             if stopped():
