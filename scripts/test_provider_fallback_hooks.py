@@ -128,7 +128,8 @@ class Hooks(unittest.TestCase):
   self.assertEqual(result['candidate'],second);self.assertEqual(search.call_args.kwargs['exclude'],('jacktook',))
  def test_stream_magnet_never_reaches_download_interception_or_player(self):
   magnet='magnet:?xt=urn:btih:'+'a'*40
-  with patch.object(pf,'queue_download') as queue,self.assertRaises(ValueError):
+  import debrid_token,debrid_account   # a working AllDebrid key (with no key, or a failing service, a Stream goes to peers instead: test_direct_stream)
+  with patch.object(debrid_token,'has',return_value=True),patch.object(debrid_account,'is_unavailable',return_value=False),patch.object(pf,'queue_download') as queue,self.assertRaises(ValueError):
    hooks.dispatch({'url':magnet,'request':{'purpose':'stream','tmdb':'2','season':1,'episode':3}})
   self.xbmc.Player.return_value.play.assert_not_called();queue.assert_not_called()
  def test_http_download_calls_durable_queue_and_never_starts_live_player(self):
