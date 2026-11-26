@@ -7,6 +7,7 @@ private/
 *.tgz
 *.zip
 !migration/source-baseline/*.zip
+!migration/addon-preserve/*.zip
 *.7z
 *.zst
 *.bak
