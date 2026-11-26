@@ -17,4 +17,17 @@ class Tests(unittest.TestCase):
   self.assertIn('https://source.invalid/sub/segment.ts?token=fixture',env['child_body']);self.assertIn('https://source.invalid/sub/key',env['child_body'])
  def test_rejects_unknown_source(self):
   with self.assertRaises(ValueError):compat.patched('proxy_server.py',b'import requests\n')
+
+ def test_the_decks_working_3_3_34_proxy_is_accepted_and_still_compiles(self):
+  # The real file (jetextractors 3.3.34, from the preserved archive) gets the same two changes; skipped when Git LFS content is not checked out.
+  import zipfile
+  archive=Path(__file__).resolve().parents[1]/'migration/addon-preserve/script.module.jetextractors-3.3.34.zip'
+  try:z=zipfile.ZipFile(archive)
+  except (zipfile.BadZipFile,OSError):self.skipTest('Git LFS archive not checked out')
+  base='script.module.jetextractors/lib/jetextractors/util/'
+  for name in ('proxy_server.py','manifest_rewriter.py'):
+   data=z.read(base+name);out=compat.patched(name,data).decode()
+   self.assertIn(compat.MARKER,out);compile(out,name,'exec');self.assertEqual(compat.patched(name,out.encode()),out.encode(),'patching twice changes nothing')
+  proxy=compat.patched('proxy_server.py',z.read(base+'proxy_server.py')).decode()
+  self.assertLess(proxy.index('kodi-loop-proxy-compat-v1'),proxy.index('import requests\n'),'the alias comes before the first use of quote')
 if __name__=='__main__':unittest.main()
