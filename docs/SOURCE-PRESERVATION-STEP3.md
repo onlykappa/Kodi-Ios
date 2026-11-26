@@ -121,3 +121,6 @@ The first controlled Crew adapter case failed because soupsieve was missing. Ins
 
 ### Still open after this pass
 Owner decisions in the table; an approved upload to the private release; native build closure and SDK; a lock-only Kodi runtime check (the rig profile still came partly from build 621); the Crew `SegmentProxy` buffer-write exception; phone evidence.
+
+### Owner decision (2026-11-26)
+The owner delegated every open row: the app's source copy is a private backup only, and the recommended dispositions above apply. Recorded as: keep and back up everything marked keep or needs-decision (POV/Magneto bytes accepted, Crew, ResolveURL, Otaku, Prism, Loop, artwork and Burst stay in the private backup with their notices); `otaku-mappings.db` and unmirrored native toolchain inputs stay excluded until their terms are known. Because the backup is private and not redistributed, this is a preservation decision, not a redistribution clearance: the notices stay in the packages, and nothing here lets a public release carry these files without the review above. All 29 provider archives and the Elementum framework already sit in the private `provider-sources-1` release and the four module trees are in LFS, so no new upload is needed now. What is left for Step 3 is technical: native build closure, a lock-only runtime check and phone evidence.
