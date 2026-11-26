@@ -112,7 +112,8 @@ def route(url,quiet=False,request_id=None):
     try:
         choice = selected(url)
         if choice is None:return False
-        if not xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken'):
+        import debrid_token
+        if not debrid_token.has():
             raise RuntimeError('Sign in to AllDebrid in Umbrella › Accounts first.')
         # The Drive add-on owns its account registry; use the same registry as the service.
         import pinned_addons

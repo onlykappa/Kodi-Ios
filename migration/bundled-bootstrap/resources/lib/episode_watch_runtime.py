@@ -54,7 +54,8 @@ def pass_once(profile,window,keep_going,log,auto_allowed=True):
  def download(show,episode):
   if not keep_going() or watch.active_request(window) or watch.batch_active(window):return False
   # Do not launch a source search only to discover a missing account in a dialog.
-  if not xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken'):return False
+  import debrid_token
+  if not debrid_token.has():return False
   import elementum_engine
   if not elementum_engine.ensure_here():return False   # started on demand, not at launch
   ident=uuid.uuid4().hex;target={'tmdb':show['tmdb'],'season':episode['season_number'],'episode':episode['episode_number']}

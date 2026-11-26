@@ -813,7 +813,8 @@ def drive_uploads(monitor,home,profile):
      xbmc.log('Kodi iOS transfers: AirPlay is over, resumed %s'%', '.join(lifted),xbmc.LOGINFO)
      notices.note('info','Uploads running again','AirPlay is over, so downloads and uploads to Google Drive continue.')
    except Exception as error:xbmc.log('Kodi iOS transfers: AirPlay pause check failed: %s'%diagnostics.error_text(error),xbmc.LOGWARNING)
-   try:token=xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken')
+   try:
+    import debrid_token;token=debrid_token.get()
    except Exception:token=''
    # A version played from the source page keeps downloading onto the phone after playback (Elementum's keep
    # downloading): once nothing plays, AllDebrid takes it to Drive and Elementum drops it (owner, build 160).
