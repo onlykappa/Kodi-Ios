@@ -1,16 +1,16 @@
 {
  "framework_release": {
+  "tag": "kodi-airplay-r77",
+  "asset": "KodiAirPlay.framework.zip",
+  "sha256": "5e26637e0db0c8495723f8253f9f239b5ee0dc7891ceb6ed6b736a207631736f"
+ },
+ "previous": {
   "tag": "kodi-airplay-r76",
   "asset": "KodiAirPlay.framework.zip",
   "sha256": "45ea9033a8c0d0dca5525f6626694d70713688a692d389ccb2cc07ee878aa979"
  },
- "previous": {
-  "tag": "kodi-airplay-r75",
-  "asset": "KodiAirPlay.framework.zip",
-  "sha256": "c6f73e807f3445720e1c528f836eee56d7f4c4f8d4dc4871c61eda4abaa9f1e9"
- },
- "source_commit": "0c082163625559f36b6d5db806d157735d0d06df",
- "pin_note": "r76 candidate for ISSUE-473 (owner, build 686 log b142eafc: a Drive movie's strip took 72 s to open): kodi_thumbs_open2 takes the length the player knows and opens a fragmented MP4 by its fragment index (use_mfra_for), as the player does; with no length the file is opened the old way; kr_thumbs_close waits for a fill or frame still running in another thread (a heap corruption found in test_thumb_strip). Run 45434777933 on 0c08216: host tests (3978 checks plus scripts/test_thumb_strip.py, 37 tests incl. a fragmented MP4 opened with and without the length, and a close during a fill and a frame) and the iPhoneOS framework compile with the export checks (7 exports) passed; the framework archive sha256 is the pin. Host evidence only: no phone result.",
- "verified_run": 45434777933,
- "verified_host_run": 45434777933
+ "source_commit": "62b3656ea4439c92bfcd2fb5e12e31e5d4e20597",
+ "pin_note": "r77 candidate for ISSUE-495 (owner, 2026-11-25: AirPlay picture stutters; cause not proven): copied HEVC gets a 16-frame decode ladder so open-GOP picture times are kept, and kodi_airplay_health reports the TV player's access-log counters and seconds loaded ahead. Run 45838061070 on 62b3656: host tests (3990 checks plus the preview strip and end-to-end conversion) and the iPhoneOS framework compile passed; the framework archive sha256 is the pin. Host evidence only: no phone result.",
+ "verified_run": 45838061070,
+ "verified_host_run": 45838061070
 }
