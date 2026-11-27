@@ -171,26 +171,43 @@ class HybridProvider:
         except Exception:
             return True
 
-    def _more(self, game, have):
+    def _more(self, game, have, progress=None):
         try:
-            extra = list(self.more_sources(game) or [])
+            try:
+                extra = list(self.more_sources(game, progress=progress) or []) if progress else list(self.more_sources(game) or [])
+            except TypeError:   # a second source without the progress argument (tests)
+                extra = list(self.more_sources(game) or [])
         except Exception as error:
             log('second source for %s: %s' % (game.get('id'), type(error).__name__))
             extra = []
         merged = self.merge(have, extra) if self.merge else list(have) + extra
+        log('sources for %s: %d from the first place, %d from the second, %d in all' % (game.get('id'), len(have), len(extra), len(merged)))
         return merged
 
     def _top_up(self, game_id, game):
         if not self._ask_more(game_id):
             return
 
+        def grow(extra):
+            """The second place has sources for the game now (more may follow): they join the list at once."""
+            with self.lock:
+                have = list(self.found.get(game_id, []))
+                merged = self.merge(have, list(extra)) if self.merge else have + list(extra)
+                if len(merged) <= len(have):
+                    return
+                self.found[game_id] = merged
+            self._publish(game_id, merged)
+
         def work():
             with self.lock:
                 have = list(self.found.get(game_id, []))
-            merged = self._more(game, have)
-            if len(merged) > len(have):
-                with self.lock:
+            merged = self._more(game, have, progress=grow)
+            with self.lock:
+                if len(merged) > len(self.found.get(game_id, [])):
                     self.found[game_id] = merged
+                else:
+                    merged = None
+            if merged is not None:
                 self._publish(game_id, merged)
         threading.Thread(target=work, daemon=True).start()
 

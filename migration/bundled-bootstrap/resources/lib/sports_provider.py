@@ -7,6 +7,7 @@ For building and looking at pages in the desktop Kodi rig and in tests, set KODI
 data), =quiet (nothing live: the grey Live Now tile) or =down (every call fails).
 """
 import os
+import threading
 import time
 
 import sports_model
@@ -160,26 +161,35 @@ def crew_sources(game, sleep=time.sleep, clock=time.monotonic, fresh=False):
                 home.clearProperty('KodiIOS.SportsCrewOnlyLeague')
 
 
-def loop_sources(game, sleep=time.sleep, clock=time.monotonic, make=None):
+def loop_sources(game, sleep=time.sleep, clock=time.monotonic, make=None, progress=None):
     """The sources The Loop's routes list for this one game: the second place to look when The Crew has none (owner, 2026-11-26: the Crew's one site had no feed for a live game
     while The Loop's many sites did). The Loop must be installed from its repository (Kodi records where it came from, and The Loop refuses to run without that). Its routes
     are read through Kodi's own directory listing (nothing of its code is imported or bypassed), only this game's league and teams are matched, and the same strict one-listing
     rule as Crew applies. No match, no Loop, or an error is an empty list."""
     import sports_jet
     jet = None
+    quiet = threading.Event()
     try:
         if not sports_jet._folder('plugin.video.the-loop'):
             sports_jet.log('sports: Loop search skipped (The Loop is not installed or is switched off)')
             return []
         sports_jet.log('sports: Loop search started')
         jet = make() if make else sports_jet.JetProvider(loop_only=True, loop_schedule=[game], wait=2)
-        began, first = clock(), None
+        began, first, shown = clock(), None, 0
+        quiet = _quiet_progress_boxes()
+        sports_jet.log('sports: Loop search for %s' % game.get('id'))
         while True:
             try:
                 games = list(jet.live_games()) + list(jet.upcoming_games())
             except sm_unavailable():
                 games = []
             found = _match(game, games)
+            if found and (progress is not None) and len(found) > shown:
+                shown = len(found)
+                try:
+                    progress(found)   # the page gets each site's sources as they come in, not only when the search ends
+                except Exception:
+                    pass
             if found and first is None:
                 first = clock()
             if found and (clock() - first >= LOOP_MORE or not jet_busy(jet)):
@@ -195,6 +205,30 @@ def loop_sources(game, sleep=time.sleep, clock=time.monotonic, make=None):
             jet.stop()   # whatever the answer, the rest of The Loop's routes are not walked in the background
         except Exception:
             pass
+        try:
+            quiet.set()
+        except Exception:
+            pass
+
+
+def _quiet_progress_boxes(close=None, every=0.15):
+    """The Loop draws its own progress box ("JetExtractor: EmbedHD API, Fetched 0 items" with Cancel) for every route it reads, over the Sports page (build 774 screenshot). While a
+    Loop search runs, Kodi's progress boxes are closed as soon as they appear. Returns an Event: set it to stop. Closing is not cancelling: the route's script goes on."""
+    done = threading.Event()
+    if close is None:
+        def close():
+            import xbmc
+            xbmc.executebuiltin('Dialog.Close(progressdialog,true)')
+            xbmc.executebuiltin('Dialog.Close(extendedprogressdialog,true)')
+
+    def work():
+        while not done.wait(every):
+            try:
+                close()
+            except Exception:
+                return
+    threading.Thread(target=work, daemon=True).start()
+    return done
 
 
 def jet_busy(jet):

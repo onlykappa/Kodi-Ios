@@ -1,5 +1,5 @@
 """The Loop as the second place to look for one game's sources (after The Crew), through its own routes. Host tests only."""
-import sys,time,types,unittest
+import sys,threading,time,types,unittest
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'));sys.path.insert(0,str(Path(__file__).resolve().parent))
@@ -160,4 +160,25 @@ class Claim(unittest.TestCase):
             self.assertTrue(sports_provider.claim_loop('g',now=lambda:1100.0))
             props['KodiIOS.SportsGameOpen']='900'
             self.assertFalse(sports_provider.claim_loop('h',now=lambda:1200.0),'an expired page marker does not count')
+
+class Quiet(unittest.TestCase):
+    def test_progress_boxes_are_closed_during_a_loop_search_and_not_after(self):
+        calls=[]
+        done=sports_provider._quiet_progress_boxes(close=lambda:calls.append(1),every=0.01)
+        time.sleep(0.15);done.set();n=len(calls);time.sleep(0.1)
+        self.assertGreater(n,3);self.assertLessEqual(len(calls),n+1,'closing stops with the search')
+    def test_each_sites_sources_are_handed_to_the_page_as_they_arrive(self):
+        seen=[];state={'n':0}
+        class Jet:
+            running=types.SimpleNamespace(is_set=lambda:False)
+            def live_games(self):
+                state['n']+=1
+                srcs=[{'addon':'Loop A','play':'a','tag':''}]+([{'addon':'Loop B','play':'b','tag':''}] if state['n']>=3 else [])
+                return [dict(GAME,sources=srcs)]
+            def upcoming_games(self):return []
+            def stop(self):pass
+        t={'v':0}
+        with patch.object(sports_jet,'_folder',lambda id:'/x/'+id),patch.object(sports_provider,'_quiet_progress_boxes',lambda **k:threading.Event()):
+            sports_provider.loop_sources(GAME,sleep=lambda s:t.__setitem__('v',t['v']+1),clock=lambda:t['v'],make=lambda:Jet(),progress=lambda f:seen.append(sorted(x['play'] for x in f)))
+        self.assertEqual(seen,[['a'],['a','b']])
 if __name__=='__main__':unittest.main()
