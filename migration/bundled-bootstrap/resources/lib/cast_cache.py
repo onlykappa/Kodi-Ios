@@ -193,6 +193,10 @@ class Pacing(object):
 # --- one line every 30 s while a TV is fed (so the next owner log says which cause is still true) ------------------------------------------
 SEG_MADE = re.compile(r'^copy: video segment (\d+) in (\d+) ms')
 SEG_SENT = re.compile(r'^GET /video/seg(\d+)\.m4s 200 (\d+) B (\d+) ms')
+SEG_IO = re.compile(r'^copy: video segment (\d+) in (\d+) ms, source I/O (\d+) ms')
+BLOCK = re.compile(r'^cache block: index=\d+ at=\+[\d.]+s took=([\d.]+)s bytes=(\d+)')
+BAND = re.compile(r'^master: BANDWIDTH=(\d+)')
+SOURCE = re.compile(r'^source: video codec=(\w+) .*?dimensions=(\d+x\d+)')
 SEGMENT_SECONDS = 6
 INTERVAL = 30.0
 
@@ -205,6 +209,7 @@ class CastDiag(object):
 
     def reset(self):
         self.began = None
+        self.total = {'made': [], 'io': [], 'blocks': [], 'band': 0, 'video': ''}   # the whole cast, for the closing summary
         self.made, self.sent_to = [], []
         self.top_made = self.top_sent = 0
         self.last = None
@@ -215,6 +220,7 @@ class CastDiag(object):
             text = str(line).strip()
             made = SEG_MADE.match(text)
             sent = SEG_SENT.match(text)
+            self._measure(text)
             if made:
                 self.began = now if self.began is None else self.began
                 self.made.append(int(made.group(2)))
@@ -224,6 +230,7 @@ class CastDiag(object):
                 self.sent_to.append((int(sent.group(2)), int(sent.group(3))))
                 self.top_sent = max(self.top_sent, int(sent.group(1)))
             elif text.startswith(('player: closed', 'player: stopped')):
+                self.summary()
                 self.reset()
         if self.began is None:
             return None
@@ -233,6 +240,45 @@ class CastDiag(object):
             return None
         self.last = now
         return self.emit()
+
+    def _measure(self, text):
+        io, block, band, source = SEG_IO.match(text), BLOCK.match(text), BAND.match(text), SOURCE.match(text)
+        if io:
+            self.total['made'].append(int(io.group(2)))
+            self.total['io'].append(int(io.group(3)))
+        elif block:
+            self.total['blocks'].append((float(block.group(1)), int(block.group(2))))
+        elif band:
+            self.total['band'] = int(band.group(1))
+        elif source:
+            self.total['video'] = '%s %s' % (source.group(1), source.group(2))
+
+    def verdict(self):
+        """One sentence: can the phone make video as fast as the TV plays it, and does the source deliver what the video needs? '' until a segment was made."""
+        t = self.total
+        if not t['made']:
+            return ''
+        made_s = sum(t['made']) / float(len(t['made'])) / 1000.0
+        ratio = made_s / float(SEGMENT_SECONDS)
+        parts = ['%s: making %d s of video takes %.1f s (%.1fx real time)' % ('TOO SLOW' if ratio > 1.0 else 'keeping up', SEGMENT_SECONDS, made_s, ratio)]
+        if t['io']:
+            io_s = sum(t['io']) / float(len(t['io'])) / 1000.0
+            parts.append('%.0f%% of that is reading the source' % (100.0 * io_s / made_s if made_s else 0))
+        if t['blocks']:
+            seconds = sum(sec for sec, size in t['blocks'])
+            speed = sum(size for sec, size in t['blocks']) / max(seconds, 0.001) / 1e6
+            parts.append('source delivered %.1f MB/s over %d reads (slowest %.1f s)' % (speed, len(t['blocks']), max(sec for sec, size in t['blocks'])))
+        if t['band']:
+            parts.append('the video needs up to %.1f MB/s (%.0f Mbit/s)' % (t['band'] / 8e6, t['band'] / 1e6))
+        if t['video']:
+            parts.append('video ' + t['video'])
+        return ', '.join(parts)
+
+    def summary(self):
+        text = self.verdict()
+        if text:
+            self.log('Kodi iOS Play on TV: cast summary: ' + text)
+        return text
 
     def emit(self):
         made, sent = self.made, self.sent_to
@@ -248,6 +294,7 @@ class CastDiag(object):
             parts.append(self.state() or '')
         except Exception:
             pass
+        parts.append(self.verdict())
         text = 'Kodi iOS Play on TV: cast: ' + ', '.join(p for p in parts if p)
         self.log(text)
         return text

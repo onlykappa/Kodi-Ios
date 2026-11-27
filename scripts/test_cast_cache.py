@@ -270,4 +270,25 @@ class Wiring(unittest.TestCase):
         self.assertIn('except Exception as error:diagnostics.log_exception(xbmc,\'airplay_cushion\',error)',text)   # a failing wait never stops the cast
         self.assertNotIn("if method=='Player.OnStop':\n        try:drive_proxy.clear_cache()",text)
 
+class CastVerdict(unittest.TestCase):
+    """The 4K cast of owner log cba25415: segments took 5 to 42 s for 6 s of video from a source delivering under 1 MB/s; the log now says so in one line."""
+    LINES=['source: video codec=hevc profile=2 pixel_format=yuv420p10le bit_depth=10 dimensions=3840x2160 level=150',
+           'master: BANDWIDTH=51335106,CODECS="hvc1.2.4.L150.90,ec-3"',
+           'cache block: index=0 at=+0.04s took=12.97s bytes=4194304','cache block: index=1 at=+13s took=3.50s bytes=4194304',
+           'copy: video segment 0 in 20922 ms, source I/O 6910 ms, result 0','copy: video segment 1 in 8561 ms, source I/O 1 ms, result 0']
+    def test_too_slow_is_said_with_the_numbers(self):
+        d=cc.CastDiag();d.feed(self.LINES,0.0);text=d.verdict()
+        self.assertIn('TOO SLOW',text);self.assertIn('x real time',text)
+        self.assertIn('source delivered 0.5 MB/s over 2 reads (slowest 13.0 s)',text);self.assertIn('needs up to 6.4 MB/s (51 Mbit/s)',text);self.assertIn('hevc 3840x2160',text)
+    def test_fast_enough_says_keeping_up_and_nothing_is_said_before_a_segment(self):
+        d=cc.CastDiag();self.assertEqual(d.verdict(),'')
+        d.feed(['copy: video segment 0 in 2000 ms, source I/O 500 ms, result 0'],0.0)
+        self.assertTrue(d.verdict().startswith('keeping up: making 6 s of video takes 2.0 s'))
+    def test_the_summary_is_logged_when_the_cast_ends_then_cleared(self):
+        out=[];d=cc.CastDiag(out.append);d.feed(self.LINES,0.0);d.feed(['player: stopped: The TV could not play the converted stream.'],5.0)
+        self.assertTrue(any('cast summary: TOO SLOW' in x for x in out));self.assertEqual(d.verdict(),'')
+    def test_the_thirty_second_line_carries_the_verdict(self):
+        out=[];d=cc.CastDiag(out.append);d.feed(self.LINES,0.0);d.feed([],40.0)
+        self.assertTrue(any('TOO SLOW' in x and 'cast: segment' in x for x in out),out)
+
 if __name__=='__main__':unittest.main()
