@@ -13,7 +13,7 @@ settings_page.py supplies the shared row/header pieces.
 """
 UPDATES='!String.IsEmpty(System.AddonUpdateCount) + !String.IsEqual(System.AddonUpdateCount,0)'
 BLUE='FF0A84FF';RED='FFFF453A';GREEN='FF30D158';ORANGE='FFFF9F0A'
-ROW=140;TOP=200;ROWT=180
+ROW=140;TOP=200;ROWT=190
 
 def sp(p):return p.settings_page
 
@@ -166,6 +166,7 @@ def settings_dialog(p,original):
 # --- Add-ons ---------------------------------------------------------------------------------------------
 ADDON_ROOT='String.IsEqual(Container.FolderPath,addons://) | String.IsEmpty(Container.FolderPath)'
 ADDON_UPDATES_PAGE='String.StartsWith(Container.FolderPath,addons://outdated)'
+ADDON_SEARCH_PAGE='String.StartsWith(Container.FolderPath,addons://search)'
 ADDON_ROOT_SUBS=[('[%s] + String.StartsWith(ListItem.FolderPath,%s)'%(ADDON_ROOT,path),text) for path,text in (
   ('addons://user','Add-ons on this iPhone'),('addons://outdated','$INFO[System.AddonUpdateCount] can update'),
   ('addons://recently_updated','Add-ons that changed lately'),('addons://downloading','Add-ons being installed'),
@@ -189,10 +190,12 @@ def addon_browser(p,original):
   dot='String.StartsWith(%s,addons://outdated) + %s + [%s]'%(fp,UPDATES,root)
   return (p.image(0,0,w,h,p.MEDIA+'white.png',p.SURFACE2 if f else p.SURFACE)+p.image(x,h-2,w-x,2,p.MEDIA+'white.png',p.SEP)+
           p.surface(40,(h-84)//2,84,84,'tile84.png','FF0F0F10',24)+p.image(48,(h-68)//2,68,68,'$INFO[ListItem.Icon]',p.WHITE,'','>keep')+
-          p.label(x,0,w-x-330,108,'$INFO[ListItem.Label]','p_body',p.WHITE,'left','<wrapmultiline>true</wrapmultiline><scroll>false</scroll><visible>%s</visible>'%has).replace('<aligny>center</aligny>','<aligny>bottom</aligny>',1)+
+          # A textbox wraps inside a list row (a label there cuts the name off with "...").
+          '<control type="textbox"><left>%d</left><top>10</top><width>%d</width><height>112</height><font>p_body</font><textcolor>%s</textcolor>'
+          '<align>left</align><autoscroll>false</autoscroll><label>$INFO[ListItem.Label]</label><visible>%s</visible></control>'%(x,w-x-330,p.WHITE,has)+
           p.label(x,0,w-x-330,h,'$INFO[ListItem.Label]','p_body',p.WHITE,'left','<wrapmultiline>true</wrapmultiline><scroll>false</scroll><visible>![%s]</visible>'%has)+
-          p.label(x,92,w-x-130,50,sub,'p_foot',p.GREY,'left','<scroll>false</scroll><visible>%s</visible>'%generic)+
-          ''.join(p.label(x,92,w-x-130,50,text,'p_foot',p.GREY,'left','<scroll>false</scroll><visible>%s</visible>'%c) for c,text in ADDON_ROOT_SUBS)+
+          p.label(x,126,w-x-130,50,sub,'p_foot',p.GREY,'left','<scroll>false</scroll><visible>%s</visible>'%generic)+
+          ''.join(p.label(x,126,w-x-130,50,text,'p_foot',p.GREY,'left','<scroll>false</scroll><visible>%s</visible>'%c) for c,text in ADDON_ROOT_SUBS)+
           p.surface(w-200,(h-58)//2,58,58,'tile84.png',RED,24,'<visible>%s</visible>'%dot)+
           p.label(w-200,(h-58)//2,58,58,'$INFO[System.AddonUpdateCount]','p_cap',p.WHITE,'center','<visible>%s</visible>'%dot)+
           # Install, Update or Installed on the right, for add-ons in a repository list (Kodi's own properties on each item).
@@ -204,16 +207,24 @@ def addon_browser(p,original):
  lists=media_list(p,50,TOP+30,40,tall,ROWT)
  title='$INFO[Container.FolderName]'
  search=p.nav_button(9020,p.WIDTH-p.SIDE-108,36,'magnifying-glass.png','Container.Update(addons://search/,replace)',
-                     '<ondown>50</ondown><onleft>9001</onleft>','![%s]'%root)
+                     '<ondown>50</ondown><onleft>9001</onleft>','![%s] + ![%s]'%(root,ADDON_SEARCH_PAGE))
  empty=(p.label(p.SIDE,TOP+300,w,80,'Everything is up to date','p_h3',p.GREY,'center',
                 '<visible>%s + Integer.IsEqual(Container(50).NumItems,0)</visible>'%ADDON_UPDATES_PAGE)+
         p.label(p.SIDE,TOP+300,w,80,'Nothing here yet','p_h3',p.GREY,'center',
-                '<visible>![%s] + ![%s] + Integer.IsEqual(Container(50).NumItems,0)</visible>'%(root,ADDON_UPDATES_PAGE)))
+                '<visible>![%s] + ![%s] + ![%s] + Integer.IsEqual(Container(50).NumItems,0)</visible>'%(root,ADDON_UPDATES_PAGE,ADDON_SEARCH_PAGE))+
+        # Search: Kodi asks for the name with the phone's keyboard first, and a cancelled or empty search leaves this page empty
+        # (the "GetDirectory ... addons://search/" line in the log is that, not a failure).
+        p.icon((p.WIDTH-104)//2,TOP+250,104,'magnifying-glass.png',p.GREY,'<visible>%s + Integer.IsEqual(Container(50).NumItems,0)</visible>'%ADDON_SEARCH_PAGE)+
+        p.label(p.SIDE,TOP+380,w,80,'Search add-ons','p_h3',p.GREY,'center','<visible>%s + Integer.IsEqual(Container(50).NumItems,0)</visible>'%ADDON_SEARCH_PAGE)+
+        p.label(p.SIDE+60,TOP+460,w-120,120,'Type a name, then tap the blue key.','p_foot',p.GREY,'center',
+                '<wrapmultiline>true</wrapmultiline><visible>%s + Integer.IsEqual(Container(50).NumItems,0)</visible>'%ADDON_SEARCH_PAGE))
  body=(lists+empty+
        p.image(0,0,p.WIDTH,TOP-10,p.MEDIA+'white.png',p.BG)+
        back_header(p,'')+search+
        p.label(260,36,p.WIDTH-520,108,'[B]Add-ons[/B]','p_h3',p.WHITE,'center','<visible>%s</visible>'%root)+
-       p.label(260,36,p.WIDTH-520,108,title,'p_h3',p.WHITE,'center','<visible>![%s]</visible>'%root))
+       p.label(260,36,p.WIDTH-520,108,title,'p_h3',p.WHITE,'center','<visible>![%s] + ![%s]</visible>'%(root,ADDON_SEARCH_PAGE))+
+       # A search has no folder name of its own while it waits for the keyboard.
+       p.label(260,36,p.WIDTH-520,108,'[B]Search[/B]','p_h3',p.WHITE,'center','<visible>%s</visible>'%ADDON_SEARCH_PAGE))
  return page(p,original,body,'50')
 
 # --- File browser (Install from zip file, pick a folder) ----------------------------------------------------
