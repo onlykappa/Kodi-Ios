@@ -11,11 +11,11 @@ cast=load('cast');airplay=load('airplay')
 
 class Routing(unittest.TestCase):
  def test_old_framework_sends_only_apple_containers(self):
-  self.assertTrue(cast.apple_playable('http://192.168.1.4:65220/files/a/Movie.mp4'))
-  self.assertFalse(cast.apple_playable('http://192.168.1.4:65220/files/a/Movie.mkv'))
+  self.assertTrue(cast.apple_playable('http://192.168.1.4:9220/files/a/Movie.mp4'))
+  self.assertFalse(cast.apple_playable('http://192.168.1.4:9220/files/a/Movie.mkv'))
   self.assertFalse(cast.apple_playable('https://drive.google.com/uc?id=1&export=download'))
  def test_r5_converts_mkv_avi_webm_ts_and_unknown_links(self):
-  for url in ('http://127.0.0.1:65220/files/Show/S01E01.mkv','http://x/a.AVI','http://x/a.webm','http://x/a.ts','http://x/a.m2ts'):
+  for url in ('http://127.0.0.1:9220/files/Show/S01E01.mkv','http://x/a.AVI','http://x/a.webm','http://x/a.ts','http://x/a.m2ts'):
    self.assertTrue(cast.apple_playable(url,converts=True),url)
   self.assertTrue(cast.apple_playable('https://drive.google.com/uc?id=1&export=download',converts=True))
   self.assertTrue(cast.apple_playable('http://x/a.mkv|User-Agent=Kodi',converts=True))
@@ -56,7 +56,7 @@ class SeasonDownload(unittest.TestCase):
         '/download':'plugin://plugin.video.elementum/play?uri=x&type=episode&background=true'}
   class Opener:
    def open(self,url,timeout):
-    seen.append(url);path=url.split('65220',1)[1].split('?')[0]
+    seen.append(url);path=url.split('9220',1)[1].split('?')[0]
     if path in hops:
      h=email.message.Message();h['Location']=hops[path];raise urllib.error.HTTPError(url,302,'Found',h,None)
     class R:
@@ -64,8 +64,8 @@ class SeasonDownload(unittest.TestCase):
      def close(self):pass
     return R()
   last=dl.follow('plugin://plugin.video.elementum/show/95350/season/1/download',opener=Opener())
-  self.assertEqual(seen[0],'http://127.0.0.1:65220/show/95350/season/1/download')
-  self.assertEqual(last,'http://127.0.0.1:65220/play?uri=x&type=episode&background=true')
+  self.assertEqual(seen[0],'http://127.0.0.1:9220/show/95350/season/1/download')
+  self.assertEqual(last,'http://127.0.0.1:9220/play?uri=x&type=episode&background=true')
   self.assertIn("dl.follow(url)",(ROOT/'migration/bundled-bootstrap/download.py').read_text())
 
 class KodiStaysPaused(unittest.TestCase):
