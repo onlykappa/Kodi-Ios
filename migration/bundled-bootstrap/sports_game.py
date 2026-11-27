@@ -23,6 +23,14 @@ def _lines(text, width):
     return choice_sheet.lines(words,width)
 
 
+SHOWN = {'IndependentLiveFeeds': 'LiveFeeds', 'Independent720pStream': '720pStream', 'IndependentFawaNews': 'FawaNews', 'IndependentStreamsCenter': 'StreamsCenter'}
+
+
+def shown(name):
+    """The name a source goes by on the page: our own scrapers' internal names are long ("IndependentLiveFeeds" ran out of its row), the person reads the site's name."""
+    return SHOWN.get(name, name)
+
+
 WHITE_B = '[COLOR FFFFFFFF][B]%s[/B][/COLOR]'   # "Best source:" is bold white inside its grey line (the owner's live mockup)
 NEUTRAL,TINT = '445F6B7A','B8'   # a team without a colour gets a soft grey glow; ESPN's colours are 6 hex digits
 
@@ -89,7 +97,8 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
                       'checked':checked_text(checked,now),
                       'info.title':game.get('league_name','')+(' · Week %d' % week if week else ''),
                       'info.sub':sm.day_label(game['start'],now,offset)+' at '+sm.clock_text(game['start'],offset)})
-        props.update({'hero.lines':str(min(3,max(_lines(props[side+'.name'],11) for side in ('away','home')))),
+        one_name = not props['home.name']   # a Grand Prix or a tournament: the name sits in the middle, in a wide column (sports_hero.event_height)
+        props.update({'hero.lines':str(min(3,_lines(props['away.name'],26) if one_name else max(_lines(props[side+'.name'],11) for side in ('away','home')))),
                       'league':game['league'],'starts':sm.start_text(game['start'],now,offset),
                       'clock':sm.clock_text(game['start'],offset),'day':sm.day_label(game['start'],now,offset),
                       'sources.count':str(len(sources)) if sources else '',
@@ -110,7 +119,7 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
         try:
             import sports_loop_router
             best = sports_loop_router.automatic_source(sources)
-            props['play.best'] = (WHITE_B % 'Best source:') + ' ' + ' · '.join(v for v in (best.get('addon'),best.get('quality'),best.get('language')) if v)
+            props['play.best'] = (WHITE_B % 'Best source:') + ' ' + ' · '.join(v for v in (shown(best.get('addon')),best.get('quality'),best.get('language')) if v)
         except Exception:
             props['play.best'] = ''
         props['other.text'] = 'Other sources (%d)' % (len(sources)-1) if len(sources)>1 else ''
@@ -119,9 +128,9 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
         if n < len(sources):
             source = sources[n]
             tag = source.get('tag') if source.get('tag') in ('best','good') else 'plain'
-            title = source['addon']
+            title = shown(source['addon'])
             detail = ' · '.join(value for value in (source['quality'],source['language']) if value) or 'Quality not reported'
-            if source.get('also'):detail += '\nAlso on '+', '.join(source['also'])
+            if source.get('also'):detail += '\nAlso on '+', '.join(shown(name) for name in source['also'])
             title_cols,detail_cols = {'best':(20,22),'good':(16,18),'plain':(27,30)}[tag]
             title_lines = _lines(title,title_cols)
             detail_lines = sum(_lines(line,detail_cols) for line in detail.splitlines())

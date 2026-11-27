@@ -425,4 +425,23 @@ class RemindThenPlay(unittest.TestCase):
         self.assertIn('ident in (page.REMIND,page.REMIND_ON)',src);self.assertIn('sports_remind.ask(',src)
 
 
+class OneNameEvents(unittest.TestCase):
+    """A Grand Prix or a tournament (owner screenshot 2026-11-27): no opponent, so the page draws the name in the middle; sources go by the site's name."""
+    EVENT={'id':'espn:F1:1','league':'F1','league_name':'Formula 1','sport':'Motorsport','state':'live','start':NOW-1800,'joiner':'vs','clock':'Practice 2',
+           'away':{'name':'Qatar Airways Qatar Grand Prix','code':'F1','score':None},'home':{'name':'','code':'','score':None},
+           'sources':[{'id':'a','addon':'IndependentLiveFeeds','quality':'1080p','language':'English','tag':'best','play':'x','also':['Independent720pStream']}]}
+    def test_the_event_name_is_wide_and_its_lines_are_counted_for_the_wide_column(self):
+        props,_=game_page.model(self.EVENT,NOW,0)
+        self.assertEqual(props['home.name'],'');self.assertEqual(props['hero.lines'],'2')   # 30 letters: one line in the 900-unit column would be too tight, two are reserved
+    def test_a_team_game_still_counts_its_lines_in_the_narrow_column(self):
+        game=copy.deepcopy(self.EVENT);game['home']={'name':'Buffalo Bills','short':'Bills','code':'BUF','score':17};game['away']={'name':'Kansas City Chiefs','short':'Chiefs','code':'KC','score':14}
+        props,_=game_page.model(game,NOW,0);self.assertEqual(props['hero.lines'],'1')
+    def test_the_page_has_a_centred_event_hero_and_the_team_hero_needs_an_opponent(self):
+        src=(BOOT/'resources/lib/sports_hero.py').read_text()
+        self.assertIn('def _event(p)',src);self.assertIn("u.neg(u.has('home.name'))",src);self.assertIn("u.has('home.name')))",src)
+    def test_our_own_scrapers_are_named_short_on_the_page(self):
+        props,_=game_page.model(self.EVENT,NOW,0)
+        self.assertEqual(props['source.0.title'],'LiveFeeds');self.assertIn('Also on 720pStream',props['source.0.detail']);self.assertIn('LiveFeeds',props['play.best']);self.assertNotIn('Independent',props['play.best'])
+
+
 if __name__=='__main__':unittest.main()
