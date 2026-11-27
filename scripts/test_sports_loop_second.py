@@ -181,4 +181,34 @@ class Quiet(unittest.TestCase):
         with patch.object(sports_jet,'_folder',lambda id:'/x/'+id),patch.object(sports_provider,'_quiet_progress_boxes',lambda **k:threading.Event()):
             sports_provider.loop_sources(GAME,sleep=lambda s:t.__setitem__('v',t['v']+1),clock=lambda:t['v'],make=lambda:Jet(),progress=lambda f:seen.append(sorted(x['play'] for x in f)))
         self.assertEqual(seen,[['a'],['a','b']])
+class OwnSources(unittest.TestCase):
+    """Our own scrapers answer quietly and run ahead of time; The Loop is added only while the page is open."""
+    def jet(self,srcs):
+        class Jet:
+            running=types.SimpleNamespace(is_set=lambda:True)
+            def live_games(self):return [dict(GAME,sources=srcs)]
+            def upcoming_games(self):return []
+            def stop(self):pass
+        return Jet()
+    def test_own_sources_match_the_game(self):
+        found=sports_provider.own_sources(GAME,sleep=lambda s:None,make=lambda:self.jet([{'addon':'IndependentFawaNews','play':'o1','tag':''}]))
+        self.assertEqual([x['play'] for x in found],['o1'])
+    def test_own_search_never_raises(self):
+        def boom():raise RuntimeError('x')
+        self.assertEqual(sports_provider.own_sources(GAME,sleep=lambda s:None,make=boom),[])
+    def test_loop_is_asked_only_when_the_page_claims_it_and_own_always(self):
+        own=lambda game,progress=None:[{'addon':'IndependentFawaNews','play':'o1','tag':''}]
+        loop=lambda game,progress=None:[{'addon':'Loop XYZ','play':'l1','tag':''}]
+        quiet=sports_provider.second_sources(GAME,own=own,loop=loop,claim=lambda gid:False)
+        self.assertEqual([x['play'] for x in quiet],['o1'])
+        both=sports_provider.second_sources(GAME,own=own,loop=loop,claim=lambda gid:True)
+        self.assertEqual([x['play'] for x in both],['o1','l1'])
+    def test_each_part_reaches_the_page_as_it_arrives_and_a_failing_part_is_skipped(self):
+        seen=[]
+        def own(game,progress=None):
+            progress([{'addon':'O','play':'o1','tag':''}]);return [{'addon':'O','play':'o1','tag':''}]
+        def loop(game,progress=None):raise RuntimeError('loop down')
+        out=sports_provider.second_sources(GAME,own=own,loop=loop,claim=lambda gid:True,progress=lambda f:seen.append([x['play'] for x in f]))
+        self.assertEqual([x['play'] for x in out],['o1']);self.assertEqual(seen[0],['o1'])
+
 if __name__=='__main__':unittest.main()

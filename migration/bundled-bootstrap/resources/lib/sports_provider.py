@@ -55,7 +55,7 @@ def real():
         else:
             import sports_hybrid
             espn.ttl = sports_hybrid.TTL
-            _real[0] = sports_hybrid.HybridProvider(espn, crew_sources, more_sources=loop_sources, merge=merge_ranked, claim=claim_loop)
+            _real[0] = sports_hybrid.HybridProvider(espn, crew_sources, more_sources=second_sources, merge=merge_ranked)
     return _real[0]
 
 
@@ -209,6 +209,92 @@ def loop_sources(game, sleep=time.sleep, clock=time.monotonic, make=None, progre
             quiet.set()
         except Exception:
             pass
+
+
+OWN_SECONDS = 25   # our own scrapers answer in a few seconds; a site that has not answered by then is left out of this search
+
+
+def own_extractors():
+    """The sites we read ourselves (no The Loop, no JetExtractors, so no boxes and nothing to install): their lists are plain web requests."""
+    import sports_fawa
+    import sports_independent
+    import sports_livefeeds
+    import sports_p720
+    return [sports_independent.StreamsCenter(), sports_fawa.FawaNews(), sports_livefeeds.LiveFeeds(), sports_p720.P720Stream()]
+
+
+def own_sources(game, sleep=time.sleep, clock=time.monotonic, make=None, progress=None):
+    """The sources our own scrapers have for this one game. Quiet (no dialogs), so unlike The Loop it may run ahead of time (prefetch) as Crew's does."""
+    import sports_jet
+    jet = None
+    try:
+        jet = make() if make else sports_jet.JetProvider(loader=lambda: (own_extractors(), 'independent'), wait=2)
+        began, shown = clock(), 0
+        while True:
+            try:
+                games = list(jet.live_games()) + list(jet.upcoming_games())
+            except sm_unavailable():
+                games = []
+            found = _match(game, games)
+            if found and progress is not None and len(found) > shown:
+                shown = len(found)
+                try:
+                    progress(found)
+                except Exception:
+                    pass
+            if not jet_busy(jet) or clock() - began > OWN_SECONDS:
+                if found:
+                    sports_jet.log('sports: own sources for %s: %d' % (game.get('id'), len(found)))
+                return found or []
+            sleep(.5)
+    except Exception as error:
+        sports_jet.log('sports: own search ended (%s)' % type(error).__name__)
+        return []
+    finally:
+        try:
+            jet.stop()
+        except Exception:
+            pass
+
+
+def second_sources(game, sleep=time.sleep, clock=time.monotonic, progress=None, own=None, loop=None, claim=None):
+    """Everything beyond Crew: our own scrapers (quiet, so they also run ahead of time) and, only while the game page is open, The Loop's routes (which draw boxes).
+    Both run at once and each site's sources reach the page as they arrive; own sources are listed before The Loop's twins."""
+    own = own or own_sources
+    loop = loop or loop_sources
+    claim = claim if claim is not None else claim_loop
+    lock = threading.Lock()
+    parts = {'own': [], 'loop': []}
+
+    def push(key):
+        def put(found):
+            with lock:
+                parts[key] = list(found)
+                merged = merge_sources(parts['own'], parts['loop'])
+            if progress is not None:
+                progress(merged)
+        return put
+    result = {}
+
+    def run_own():
+        try:
+            result['own'] = own(game, progress=push('own'))
+        except Exception:
+            result['own'] = []
+    worker = threading.Thread(target=run_own, daemon=True)
+    worker.start()
+    try:
+        asked = bool(claim(game.get('id')))
+    except Exception:
+        asked = True
+    result['loop'] = []
+    if asked:
+        try:
+            result['loop'] = loop(game, progress=push('loop'))
+        except Exception:
+            result['loop'] = []
+    worker.join(OWN_SECONDS + 5)
+    return merge_sources(result.get('own', []), result.get('loop', []))
 
 
 def _quiet_progress_boxes(close=None, every=0.08):
