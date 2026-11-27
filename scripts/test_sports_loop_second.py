@@ -42,6 +42,21 @@ class LoopSecond(unittest.TestCase):
         with patch.object(sports_jet,'_folder',lambda id:'/x/'+id):
             sources=sports_provider.loop_sources(GAME,sleep=lambda s:t.__setitem__('v',t['v']+1),clock=lambda:t['v'],make=lambda:Jet())
         self.assertEqual(sorted(s['play'] for s in sources),['a','b'])
+    def test_the_rest_of_the_loops_routes_are_not_walked_once_the_search_is_over(self):
+        opened=[]
+        def mk(name,block=None):
+            return fake_source(name,[GAME])
+        def discover(schedule=None,**k):
+            sources=[]
+            for n in range(8):
+                src=fake_source('Site%d'%n,[GAME]);orig=src.get_items
+                src.get_items=(lambda o=orig,n=n:opened.append(n) or o())
+                sources.append(src)
+            return sources
+        with patch.object(sports_jet,'_folder',lambda id:'/x/'+id),patch.object(sports_loop_routes,'discover',discover):
+            found=sports_provider.loop_sources(GAME,sleep=lambda s:time.sleep(0.01),clock=time.monotonic)
+        n=len(opened);time.sleep(0.5)
+        self.assertTrue(found);self.assertEqual(len(opened),n,'nothing more is opened after the search returned')
     def test_a_failing_loop_is_an_empty_list_not_an_error(self):
         def boom(**k):raise RuntimeError('loop listing unavailable')
         with patch.object(sports_jet,'_folder',lambda id:'/x/'+id),patch.object(sports_loop_routes,'discover',boom):
@@ -128,4 +143,21 @@ class HybridTopUp(unittest.TestCase):
         prov.request_game(gid);time.sleep(0.4);prov.request_game(gid);time.sleep(0.4)
         self.assertEqual(len(asked),1)
 
+
+class Claim(unittest.TestCase):
+    def home(self,props):
+        class Win:
+            def getProperty(self,k):return props.get(k,'')
+            def setProperty(self,k,v):props[k]=v
+        return types.SimpleNamespace(Window=lambda i:Win())
+    def test_the_loop_is_only_asked_while_a_sports_game_page_is_open(self):
+        props={}
+        with patch.dict(sys.modules,{'xbmcgui':self.home(props)}):
+            self.assertFalse(sports_provider.claim_loop('g',now=lambda:1000.0),'a prefetch or reminder with no page open never starts The Loop')
+            props['KodiIOS.SportsGameOpen']=str(1000.0+3600)
+            self.assertTrue(sports_provider.claim_loop('g',now=lambda:1000.0))
+            self.assertFalse(sports_provider.claim_loop('g',now=lambda:1010.0),'one asker per game at a time')
+            self.assertTrue(sports_provider.claim_loop('g',now=lambda:1100.0))
+            props['KodiIOS.SportsGameOpen']='900'
+            self.assertFalse(sports_provider.claim_loop('h',now=lambda:1200.0),'an expired page marker does not count')
 if __name__=='__main__':unittest.main()

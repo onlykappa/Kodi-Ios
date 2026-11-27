@@ -329,6 +329,7 @@ class JetProvider:
 
     def __init__(self, loader=None, clock=time.time, wait=LOAD_SECONDS, remote=False, publish=None, window=None, launch=None, score_loader=None, crew_only=False, crew_session=None, loop_only=False, loop_schedule=None):
         self.loader, self.clock, self.wait = loader, clock, wait
+        self.stopped = False
         self.loop_only, self.loop_schedule = loop_only, loop_schedule   # loop_only: read The Loop's routes even when The Crew is installed (the second source for one game)
         self.crew_session = crew_session
         self.crew_only = crew_only
@@ -426,6 +427,8 @@ class JetProvider:
 
         def guarded(ext):
             with gate:
+                if self.stopped:
+                    return   # the search that wanted these routes is over (stop()): the rest are never opened
                 work(ext)
         for ext in extractors:
             threading.Thread(target=guarded, args=(ext,), daemon=True).start()
@@ -731,6 +734,10 @@ class JetProvider:
 
     def refresh(self):
         self._load(force=True)
+
+    def stop(self):
+        """No further source routes are opened for this provider (routes already open finish). The Loop's 38 routes took 11 minutes in the background after one search (build 773 log)."""
+        self.stopped = True
 
     def live_games(self, league=None):
         return sm.filter_league(sm.order_live(self._load()['live']), league)

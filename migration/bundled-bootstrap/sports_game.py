@@ -174,6 +174,9 @@ def warm_best(sources, warm=None):
         return False
 
 
+OPEN = 'KodiIOS.SportsGameOpen'   # a time (an hour ahead) while a Sports game page is open
+
+
 def run(game, provider=None, clock=time.time, search=False):
     import xbmc
     import xbmcgui
@@ -399,8 +402,20 @@ def run(game, provider=None, clock=time.time, search=False):
         xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'portrait')+'/')
         window=Game(page.WINDOW,HERE,'Default','1080i')
     import page_cover
-    with page_cover.covering():   # the window under this opaque page stops drawing while it is open
-        window.doModal()
+    home = None
+    try:   # while this page is open The Loop may be asked about the game; at any other time its own pop-up progress boxes would land on whatever is on screen (build 773 log)
+        home = xbmcgui.Window(10000)
+        home.setProperty(OPEN, str(time.time() + 3600))
+    except Exception:
+        home = None
+    try:
+        with page_cover.covering():   # the window under this opaque page stops drawing while it is open
+            window.doModal()
+    finally:
+        try:
+            if home is not None:home.clearProperty(OPEN)
+        except Exception:
+            pass
     if hasattr(window,'stop'):window.stop.set()
     del window
 

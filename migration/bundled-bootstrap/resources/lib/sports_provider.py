@@ -166,6 +166,7 @@ def loop_sources(game, sleep=time.sleep, clock=time.monotonic, make=None):
     are read through Kodi's own directory listing (nothing of its code is imported or bypassed), only this game's league and teams are matched, and the same strict one-listing
     rule as Crew applies. No match, no Loop, or an error is an empty list."""
     import sports_jet
+    jet = None
     try:
         if not sports_jet._folder('plugin.video.the-loop'):
             sports_jet.log('sports: Loop search skipped (The Loop is not installed or is switched off)')
@@ -189,6 +190,11 @@ def loop_sources(game, sleep=time.sleep, clock=time.monotonic, make=None):
     except Exception as error:
         sports_jet.log('sports: Loop search ended (%s)' % type(error).__name__)
         return []
+    finally:
+        try:
+            jet.stop()   # whatever the answer, the rest of The Loop's routes are not walked in the background
+        except Exception:
+            pass
 
 
 def jet_busy(jet):
@@ -287,17 +293,24 @@ def merge_ranked(have, extra):
 
 
 def claim_loop(game_id, now=time.time, ttl=90):
-    """Only one Kodi script at a time asks The Loop about a game (the page, the prefetch and the reminders all can): the Home window holds when it was last asked."""
+    """Whether this Kodi script may ask The Loop about a game now. Only while a Sports game page is open (`sports_game.OPEN` holds a time in the future): The Loop draws its own
+    progress boxes ("JetExtractor: Backdoor1, Fetched 0 items") while its routes are read, and from the prefetch or a reminder they landed on whatever was on screen, for example
+    a movie page (build 773 log). And only one script at a time: the Home window holds when it was last asked."""
     try:
         import xbmcgui
+    except ImportError:
+        return True   # outside Kodi (tests)
+    try:
         home = xbmcgui.Window(10000)
+        if float(home.getProperty('KodiIOS.SportsGameOpen') or 0) <= now():
+            return False
         key = 'KodiIOS.SportsLoopAsked.' + str(game_id)
         if now() - float(home.getProperty(key) or 0) < ttl:
             return False
         home.setProperty(key, str(now()))
         return True
     except Exception:
-        return True
+        return False
 
 
 def sm_unavailable():
