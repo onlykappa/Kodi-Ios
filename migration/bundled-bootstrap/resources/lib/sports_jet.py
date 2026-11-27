@@ -375,8 +375,8 @@ class JetProvider:
             import sports_independent
             import sports_fawa
             crew = (self.crew_only or _folder('plugin.video.thecrew')) and not (self.loop_only and _folder('plugin.video.the-loop'))
-            import sports_livefeeds
-            extractors = [] if (crew or self.loop_only) else ([sports_fawa.FawaNews()] if _folder('plugin.video.the-loop') else [sports_independent.StreamsCenter(), sports_fawa.FawaNews(), sports_livefeeds.LiveFeeds()])
+            import sports_livefeeds, sports_p720
+            extractors = [] if (crew or self.loop_only) else ([sports_fawa.FawaNews()] if _folder('plugin.video.the-loop') else [sports_independent.StreamsCenter(), sports_fawa.FawaNews(), sports_livefeeds.LiveFeeds(), sports_p720.P720Stream()])
             how = 'Crew routes' if crew else ('Loop routes' if _folder('plugin.video.the-loop') else 'independent')
             discover_jet = True
         done = threading.Event()
@@ -1118,7 +1118,12 @@ def play_one(play_value, logger=log):
         _play_session.proxy_url = address
         logger('sports: playing FawaNews via local proxy')
         return True
-    import sports_livefeeds
+    import sports_livefeeds, sports_p720
+    if value.get('e') == sports_p720.NAME:
+        address, headers = sports_p720.resolve(value['l']['address'], note=logger)
+        logger('sports: playing 720pStream via JetProxy')
+        xbmc.Player().play(proxy_path(address, headers))
+        return True
     if value.get('e') == sports_livefeeds.NAME:
         address, headers = sports_livefeeds.resolve(value['l']['address'], note=logger)
         logger('sports: playing LiveFeeds via JetProxy')

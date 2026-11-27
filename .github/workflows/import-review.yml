@@ -206,6 +206,7 @@ jobs:
           python3 -B scripts/test_sports_pause.py
           python3 -B scripts/test_sports_fawa.py
           python3 -B scripts/test_sports_livefeeds.py
+          python3 -B scripts/test_sports_p720.py
           python3 -B scripts/test_sports_hls_proxy.py
           python3 -B scripts/test_sports_crew_routes.py
           python3 -B scripts/test_sports_loop_routes.py
