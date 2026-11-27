@@ -375,7 +375,8 @@ class JetProvider:
             import sports_independent
             import sports_fawa
             crew = (self.crew_only or _folder('plugin.video.thecrew')) and not (self.loop_only and _folder('plugin.video.the-loop'))
-            extractors = [] if (crew or self.loop_only) else ([sports_fawa.FawaNews()] if _folder('plugin.video.the-loop') else [sports_independent.StreamsCenter(), sports_fawa.FawaNews()])
+            import sports_livefeeds
+            extractors = [] if (crew or self.loop_only) else ([sports_fawa.FawaNews()] if _folder('plugin.video.the-loop') else [sports_independent.StreamsCenter(), sports_fawa.FawaNews(), sports_livefeeds.LiveFeeds()])
             how = 'Crew routes' if crew else ('Loop routes' if _folder('plugin.video.the-loop') else 'independent')
             discover_jet = True
         done = threading.Event()
@@ -1116,6 +1117,12 @@ def play_one(play_value, logger=log):
         xbmc.Player().play(address, item)
         _play_session.proxy_url = address
         logger('sports: playing FawaNews via local proxy')
+        return True
+    import sports_livefeeds
+    if value.get('e') == sports_livefeeds.NAME:
+        address, headers = sports_livefeeds.resolve(value['l']['address'], note=logger)
+        logger('sports: playing LiveFeeds via JetProxy')
+        xbmc.Player().play(proxy_path(address, headers))
         return True
     if value.get('e') == sports_independent.NAME:
         address, headers = sports_independent.resolve(value['l']['address'], note=logger)

@@ -27,3 +27,6 @@ Date: 2026-11-26. Scope: the 17 archives in `migration/addon-preserve/` (list an
 ## Decision needed from the owner
 
 Keep the four unresolved archives private only (recommended: the repository is private and the app is for personal use), or drop them from the backup. Record the answer in `docs/DECISIONS.md`.
+
+## Own ports of JetExtractors scrapers (DEC-066 follow-up, 2026-11-27)
+JetExtractors is MIT-licensed ((c) 2020 t4ils). Scrapers we port keep that notice in their module docstring. Its `jsunpack.py` is GPL v3 (urlresolver) and is NOT copied: `sports_embed.unpack` is our own code. Ported so far: LiveFeeds (`sports_livefeeds.py`, listing and links; stream resolution through `sports_embed.py`). Still read through The Loop: ReedStreams, Embedsport2, EmbedHD API, XYZAlt, 720pStream. The sites themselves remain third parties.
