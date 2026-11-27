@@ -10,13 +10,33 @@ class EngineGuardTests(unittest.TestCase):
   notes=[]
   ns={'os':os,'time':__import__('time'),'threading':__import__('threading'),'binary_platform':{},
       'translatePath':lambda p:str(tmp/'Kodi.app/AppData/AppHome')+'/','get_addon_profile_dir':lambda:str(tmp/'profile'),
-      'ADDON':types.SimpleNamespace(getSetting=lambda k:'',setSetting=lambda k,v:None),
+      'ADDON':types.SimpleNamespace(getSetting=lambda k:self.free_port() if k=='remote_port' else '',setSetting=lambda k,v:None),
       'log':types.SimpleNamespace(error=notes.append,info=notes.append),
-      'xbmc':types.SimpleNamespace(executebuiltin=notes.append)}
+      'xbmc':types.SimpleNamespace(executebuiltin=notes.append,Monitor=lambda:types.SimpleNamespace(waitForAbort=lambda t:False))}
   exec(ELEMENTUM_IOS.decode(),ns)
   (tmp/'Kodi.app/Frameworks/elementum.framework').mkdir(parents=True);(tmp/'Kodi.app/Frameworks/elementum.framework/elementum').write_bytes(b'x')
   (tmp/'profile').mkdir()
   return ns,notes
+ def free_port(self):
+  import socket
+  with socket.socket() as s:
+   s.bind(('127.0.0.1',0));return str(s.getsockname()[1])
+ def test_a_busy_engine_port_is_reported_and_waited_for(self):
+  # Owner logs of builds 762 to 775: "listen tcp :65220: bind: address already in use" at every launch.
+  import socket
+  with tempfile.TemporaryDirectory() as t:
+   tmp=Path(t);ns,notes=self.env(tmp)
+   holder=socket.socket();holder.bind(('0.0.0.0',0));holder.listen(1);port=holder.getsockname()[1]
+   ns['ADDON'].getSetting=lambda k:str(port) if k=='remote_port' else ''
+   try:
+    ns['ios_engine']()
+   finally:holder.close()
+   self.assertTrue(any('is taken' in str(n) for n in notes))
+   self.assertTrue(any('still taken after 20 s' in str(n) for n in notes))
+ def test_a_free_engine_port_says_nothing(self):
+  with tempfile.TemporaryDirectory() as t:
+   tmp=Path(t);ns,notes=self.env(tmp);ns['ios_engine']()
+   self.assertFalse(any('engine port' in str(n) for n in notes))
  def test_a_skipped_engine_starts_again_next_time(self):
   # Owner log: after two starts that never reached the engine, Elementum stayed off at every later start.
   with tempfile.TemporaryDirectory() as t:

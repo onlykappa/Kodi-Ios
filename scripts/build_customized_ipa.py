@@ -241,7 +241,61 @@ ELEMENTUM_IOS=b'''def ios_engine():
     if not os.path.isfile(os.path.join(framework, "elementum")):
         log.error("Elementum engine not found at %s" % framework)
         return False, False
+    ios_port_wait()
     return framework, os.path.join(framework, "elementum")
+
+def ios_port_wait():
+    # The engine panics with "listen tcp :65220: bind: address already in use" and exits (owner logs of builds 762 to 775: at every launch, never before build 762), and the
+    # crash guard then skips the next start, so Elementum stays off: no quality page, no download. Before loading the engine, try the port the way Go does and say what
+    # the phone answers; give a busy port up to 20 s. Nothing here changes a port that is free.
+    import errno, socket
+    try:
+        port = int(ADDON.getSetting("remote_port") or 65220)
+    except ValueError:
+        port = 65220
+
+    def attempt():
+        problems = []
+        for family, host in ((socket.AF_INET6, "::"), (socket.AF_INET, "0.0.0.0")):
+            probe = None
+            try:
+                probe = socket.socket(family, socket.SOCK_STREAM)
+                probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                if family == socket.AF_INET6:
+                    try:
+                        probe.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+                    except Exception:
+                        pass
+                probe.bind((host, port))
+            except OSError as error:
+                if error.errno in (errno.EADDRINUSE, errno.EACCES):
+                    problems.append("%s: %s" % (host, error))
+            finally:
+                if probe is not None:
+                    probe.close()
+        return problems
+
+    monitor = xbmc.Monitor()
+    for waited in range(20):
+        problems = attempt()
+        if not problems:
+            if waited:
+                log.error("Kodi-iOS: engine port %d is free after %d s" % (port, waited))
+            return
+        if waited == 0:
+            try:
+                tester = socket.socket()
+                tester.settimeout(1)
+                answer = tester.connect_ex(("127.0.0.1", port))
+                own = tester.getsockname() if answer == 0 else None
+                peer = tester.getpeername() if answer == 0 else None
+                tester.close()
+            except Exception as error:
+                answer, own, peer = repr(error), None, None
+            log.error("Kodi-iOS: engine port %d is taken (%s); a connection to it answers %s (own %s, peer %s); waiting up to 20 s" % (port, "; ".join(problems), answer, own, peer))
+        if monitor.waitForAbort(1):
+            return
+    log.error("Kodi-iOS: engine port %d is still taken after 20 s; starting the engine anyway" % port)
 
 def ios_follow_container():
     # iOS gives the app a new data folder (.../Data/Application/<UUID>/) when it is reinstalled, so folders saved
