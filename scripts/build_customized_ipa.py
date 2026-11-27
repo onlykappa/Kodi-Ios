@@ -465,7 +465,10 @@ ELEMENTUM_PATCHES += [
  ('resources/site-packages/elementum/daemon.py',b'    if ADDON.getSetting("local_port") != "":\n        args.append("-remotePort=" + ADDON.getSetting("local_port"))\n        shared_args += " -remotePort=" + ADDON.getSetting("local_port")\n',b'    args.append("-remotePort=9221")\n    shared_args += " -remotePort=9221"\n'),
  ('resources/site-packages/elementum/daemon.py',b'    if ADDON.getSetting("remote_port") != "":\n        args.append("-localPort=" + ADDON.getSetting("remote_port"))\n        shared_args += " -localPort=" + ADDON.getSetting("remote_port")\n',b'    args.append("-localPort=9220")\n    shared_args += " -localPort=9220"\n'),
  ('resources/site-packages/elementum/navigation.py',b'def _json(url):\n',ELEMENTUM_CLOUD+b'def _json(url):\n    if _kodi_cloud(url):return None\n    _kodi_engine()\n'),
- ('resources/site-packages/elementum/navigation.py',b'        if response.code == 300:\n',b'        if location and _kodi_cloud(location):return None\n        if response.code == 300:\n')]
+ ('resources/site-packages/elementum/navigation.py',b'        if response.code == 300:\n',b'        if location and _kodi_cloud(location):return None\n        if response.code == 300:\n'),
+ # The engine answers a "Choose a version" request only after the owner has picked: the request waited with no limit of its own, so a default socket timeout (and a phone that slept) ended it
+ # and the pick, made 9 minutes later, went to nobody (owner log 6bcfc38d: forcelinks open for 9m19s, TimeoutError in navigation._json, nothing queued).
+ ('resources/site-packages/elementum/navigation.py',b'    with closing(urllib_request.urlopen(url)) as response:\n        info = response.info()\n',b'    with closing(urllib_request.urlopen(url, timeout=3600)) as response:\n        info = response.info()\n')]
 
 # Kodi-iOS source check (service.kodi.ios.bootstrap/resources/lib/source_match.py) inside Burst, where every provider's
 # results arrive: a torrent of another title ("Fall" 2026 for "Fall" 2022) never reaches Elementum, so its dialog, its
