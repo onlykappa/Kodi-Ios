@@ -488,6 +488,14 @@ def run():
    except Exception as error:xbmc.log('Kodi iOS loop: check failed (%s)'%type(error).__name__,xbmc.LOGWARNING)
    if monitor.waitForAbort(900):return
  threading.Thread(target=loop_quiet_loop,daemon=True).start()
+ # The Loop's own notice window as a portrait sheet (owner, 2026-11-27; loop_notice.py): only the exact pinned file, checked every 20 s.
+ def loop_notice_loop():
+  import loop_notice
+  def folder():
+   if not xbmc.getCondVisibility('System.HasAddon(%s)'%loop_notice.ADDON):return ''
+   return xbmcvfs.translatePath(xbmcaddon.Addon(loop_notice.ADDON).getAddonInfo('path'))
+  loop_notice.watch(folder,monitor.waitForAbort,lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+ threading.Thread(target=loop_notice_loop,daemon=True).start()
  # Crew's client lacks the parseDOM name its own downloaded streamers call (build 616 log: "Streamer [generic] failed"): added once at start, for Movies and TV too.
  def crew_alias():
   try:
