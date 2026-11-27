@@ -25,6 +25,29 @@ class Tests(unittest.TestCase):
   entries={root:[{'label':'Scraper Zone','file':zone,'filetype':'directory'}],zone:[{'label':'FawaNews','file':route,'filetype':'directory'}, {'label':'HomeIPTV','file':root+'iptv','filetype':'directory'}, {'label':'Full Replays','file':root+'replay','filetype':'directory'}, {'label':'CollegeVideo','file':root+'old-games','filetype':'directory'}, {'label':'Foxxy','file':root+'channels','filetype':'directory'}]}
   found=lr.discover(read=lambda path:entries[path],schedule=[])
   self.assertEqual([x.name for x in found],['Loop FawaNews'])
+ def test_the_route_list_is_kept_for_hours_and_only_the_best_sites_are_read(self):
+  import tempfile,os
+  root='plugin://plugin.video.the-loop/';zone=root+'zone'
+  names=['FawaNews','LiveFeeds','ReedStreams']+['Other%d'%n for n in range(30)]
+  entries={root:[{'label':'Scraper Zone','file':zone,'filetype':'directory'}],zone:[{'label':n,'file':root+'r%d'%i,'filetype':'directory'} for i,n in enumerate(names)]}
+  calls=[]
+  def read(path):calls.append(path);return entries[path]
+  with tempfile.TemporaryDirectory() as d:
+   cache=os.path.join(d,'loop-routes.json')
+   first=lr.discover(read=read,schedule=[],cache=cache,now=1000.0)
+   self.assertEqual([x.name for x in first][:3],['Loop FawaNews','Loop LiveFeeds','Loop ReedStreams']);self.assertEqual(len(first),lr.MAX_ROUTES)
+   self.assertEqual(len(calls),2)
+   again=lr.discover(read=read,schedule=[],cache=cache,now=1000.0+3600)
+   self.assertEqual(len(calls),2,'the second search reads nothing from The Loop to find its routes');self.assertEqual([x.name for x in again],[x.name for x in first])
+   lr.discover(read=read,schedule=[],cache=cache,now=1000.0+lr.ROUTES_TTL+1)
+   self.assertEqual(len(calls),4,'after the keeping time the list is read again')
+   self.assertNotIn('token',open(cache).read())
+ def test_loop_links_carry_the_game_so_the_opening_card_has_teams(self):
+  import sports_opening
+  game={'league':'NFL','start':1000,'state':'live','away':{'name':'Kansas City Chiefs','code':'KC','crest':'c1'},'home':{'name':'Buffalo Bills','code':'BUF','crest':'c2'}}
+  link=lr.LoopLink('plugin://plugin.video.the-loop/play_video/x',game)
+  src={'play':json.dumps({'e':lr.NAME,'l':link.to_dict()})}
+  self.assertEqual(sports_opening.matchup(src),'Kansas City Chiefs\nBuffalo Bills');self.assertEqual(sports_opening.game_of(src)['state'],'live')
  def test_real_loop_discovery_feeds_provider_without_direct_jet(self):
   import sports_fawa
   game={'away':{'name':'Alpha'},'home':{'name':'Beta'},'league_name':'NBA','state':'live','start':1000}

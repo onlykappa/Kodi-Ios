@@ -220,13 +220,24 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
         playlist.clear()
         stage(current_index)
         check, choice_began = health_mod.Watch(), clock()
-        player.play(playlist, startpos=0)
+        begin(playlist, startpos=0)
 
+    watching = threading.Event()
+
+    def begin(*args, **kwargs):
+        """player.play() on a helper thread. It returns once Crew has resolved the link, but when the add-on plays the stream itself, as The Loop does, its script stays
+        alive for the whole playback and play() never returns (build 775 log): on the script thread that stopped Kodi's Player callbacks from being served, so the opening card
+        never learned the picture had started and no source was ever judged. The script thread below keeps sleeping, which is what delivers the callbacks."""
+        def run():
+            try:
+                player.play(*args, **kwargs)
+            except Exception as error:
+                logger('sports: native play call ended (%s)' % type(error).__name__)
+        threading.Thread(target=run, daemon=True).start()
     try:
         stage(0)
         # Build 611 (phone log): player.play() does not return until Crew has resolved the link, and Crew's chooser appears during that wait, so
         # nothing answered it (the owner had to tap). A watcher answers it while play() is blocked; the loop below shares its state.
-        watching = threading.Event()
         def watch():
             while not watching.is_set():
                 try:
@@ -235,10 +246,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                     pass
                 time.sleep(.2)
         threading.Thread(target=watch, daemon=True).start()
-        try:
-            player.play(playlist)
-        finally:
-            watching.set()
+        begin(playlist)
         previous = clock()
         while not monitor.abortRequested():
             backend.sleep(200)  # permits native Player callbacks on the script thread
@@ -289,7 +297,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                 playlist.clear()
                 stage(current_index)
                 check, choice_began = health_mod.Watch(), clock()
-                player.play(playlist, startpos=0)
+                begin(playlist, startpos=0)
                 continue
             if position < 0 and not player.isPlayingVideo():
                 if backend.getCondVisibility('Window.IsActive(okdialog)'):
@@ -330,6 +338,7 @@ def play(queue, logger, backend=None, clock=time.monotonic, timeout=90, owner=No
                 raise InterruptedError('native sports opening timed out')
         raise InterruptedError('Kodi shutting down')
     finally:
+        watching.set()   # the chooser watcher stops with the queue, not when play() returns
         # This must not play another provider when the successful game ends.
         if owns_queue():
             playlist.clear()

@@ -135,8 +135,16 @@ class Tests(unittest.TestCase):
  def test_the_chooser_is_answered_while_play_is_still_blocked(self):
   # Build 611 phone log: play() blocked through Crew's chooser, the answering loop had not started, the owner had to tap.
   result,state,logs=self.exercise(select=True,slow_play=True)
+  import time
+  for _ in range(60):   # play() now runs on a helper thread (build 775): the queue goes on while it is blocked, so its end comes after the queue's
+   if 'picks_while_play_blocked' in state:break
+   time.sleep(.05)
   self.assertEqual(state['picks_while_play_blocked'],1)
   self.assertEqual(len([l for l in logs if 'picked the first link' in l]),1)
+ def test_a_play_call_that_stays_blocked_does_not_hide_a_picture_that_has_started(self):
+  # Build 775 log: The Loop plays the stream itself and its script (so play()) stays alive for the whole playback; the picture must still be judged and the queue return.
+  result,state,logs=self.exercise(ready=True,slow_play=True,timeout=3)
+  self.assertTrue(result);self.assertIn('sports: playing (native addon queue)',logs)
  def test_timeout_cancels_queue(self):
   result,state,_=self.exercise()
   self.assertIsInstance(result,InterruptedError);self.assertEqual(state['stops'],1);self.assertEqual(len(state['prepared']),1)

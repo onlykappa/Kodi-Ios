@@ -93,6 +93,11 @@ def sub_text(elapsed,choice='',slow=False):
     return ' · '.join(parts)
 
 
+def picture_on_screen(xbmc):
+    """True while Kodi is playing a video that is not paused (asked directly, so it works when the Player callbacks never reach this script)."""
+    return bool(xbmc.getCondVisibility('Player.HasVideo') and xbmc.getCondVisibility('Player.Playing') and not xbmc.getCondVisibility('Player.Paused'))
+
+
 class Opening:
     def __init__(self,source,home):
         self.source,self.home=source,home
@@ -141,6 +146,13 @@ class Opening:
             while not self.closed.wait(.2):
                 if self.owner and self.home.getProperty(OWNER)!=self.owner:
                     self.close();return
+                if not self.started.is_set() and time.monotonic()-self.began>=2:
+                    try:   # a picture is on screen: close the card even when Kodi never told this script (The Loop plays the stream from its own script, build 775 log)
+                        if picture_on_screen(xbmc):
+                            import sports_jet
+                            sports_jet.log('sports: opening surface saw the picture playing %.3fs after dispatch' % (time.monotonic()-self.began))
+                            self.started.set()
+                    except Exception:pass
                 if self.started.is_set():self.close();return
                 try:   # this card is the loader: Crew's own busy circle drew over its text (owner, build 618)
                     for name in ('busydialognocancel','busydialog'):

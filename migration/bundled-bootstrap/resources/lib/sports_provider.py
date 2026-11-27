@@ -211,7 +211,7 @@ def loop_sources(game, sleep=time.sleep, clock=time.monotonic, make=None, progre
             pass
 
 
-def _quiet_progress_boxes(close=None, every=0.15):
+def _quiet_progress_boxes(close=None, every=0.08):
     """The Loop draws its own progress box ("JetExtractor: EmbedHD API, Fetched 0 items" with Cancel) for every route it reads, over the Sports page (build 774 screenshot). While a
     Loop search runs, Kodi's progress boxes are closed as soon as they appear. Returns an Event: set it to stop. Closing is not cancelling: the route's script goes on."""
     done = threading.Event()

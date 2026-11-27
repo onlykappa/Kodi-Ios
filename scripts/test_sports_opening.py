@@ -27,6 +27,13 @@ class Tests(unittest.TestCase):
   obj=self.make()
   with patch.dict(sys.modules,{'xbmc':NS(Player=lambda:NS(stop=lambda:self.calls.append('stop')))}):obj.wait(timeout=0)
   self.assertTrue(obj.cancelled);self.assertEqual(self.calls,['stop','close'])
+ def test_a_playing_picture_closes_the_card_even_without_a_player_callback(self):
+  # Build 775: The Loop plays the stream from its own script; the callbacks never reached this one and the card stayed over the picture.
+  states={'Player.HasVideo':True,'Player.Playing':True,'Player.Paused':False}
+  xbmc=NS(getCondVisibility=lambda c:states[c])
+  self.assertTrue(opening.picture_on_screen(xbmc))
+  states['Player.Paused']=True;self.assertFalse(opening.picture_on_screen(xbmc))
+  states.update({'Player.Paused':False,'Player.HasVideo':False});self.assertFalse(opening.picture_on_screen(xbmc))
  def test_matchup_from_descriptor_not_url(self):
   self.assertEqual(opening.matchup({'play':json.dumps({'l':{'game':{'away':{'name':'Alpha'},'home':{'name':'Beta'}}}})}),'Alpha\nBeta')
   self.assertEqual(opening.matchup({'play':'not-json'}),'Live game')
