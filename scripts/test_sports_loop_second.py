@@ -2,7 +2,7 @@
 import sys,time,types,unittest
 from pathlib import Path
 from unittest.mock import patch
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'));sys.path.insert(0,str(Path(__file__).resolve().parent))
 import sports_jet,sports_provider,sports_loop_routes,sports_independent
 NOW=time.time()
 GAME={'id':'espn:NFL:1','league':'NFL','league_name':'NFL','sport':'football','state':'live','start':NOW-1800,
@@ -28,6 +28,20 @@ class LoopSecond(unittest.TestCase):
         self.assertGreaterEqual(len(sources),1)
         self.assertTrue(all(str(s.get('play') or '').startswith('{') or s.get('play') for s in sources))
         self.assertTrue(any('Loop' in str(s.get('addon') or s.get('label') or s) for s in sources),sources)
+    def test_sites_answering_soon_after_the_first_are_in_the_list_too(self):
+        import threading
+        state={'n':0}
+        class Jet:
+            running=types.SimpleNamespace(is_set=lambda:False)
+            def live_games(self):
+                state['n']+=1
+                srcs=[{'addon':'Loop A','play':'a','tag':''}]+([{'addon':'Loop B','play':'b','tag':''}] if state['n']>=3 else [])
+                return [dict(GAME,sources=srcs)]
+            def upcoming_games(self):return []
+        clock=iter(range(0,1000));t={'v':0}
+        with patch.object(sports_jet,'_folder',lambda id:'/x/'+id):
+            sources=sports_provider.loop_sources(GAME,sleep=lambda s:t.__setitem__('v',t['v']+1),clock=lambda:t['v'],make=lambda:Jet())
+        self.assertEqual(sorted(s['play'] for s in sources),['a','b'])
     def test_a_failing_loop_is_an_empty_list_not_an_error(self):
         def boom(**k):raise RuntimeError('loop listing unavailable')
         with patch.object(sports_jet,'_folder',lambda id:'/x/'+id),patch.object(sports_loop_routes,'discover',boom):
@@ -67,4 +81,51 @@ class LoopSecond(unittest.TestCase):
         self.assertEqual(sports_provider.all_sources(GAME,after=1,crew=lambda:[],loop=boom),[])
     def test_the_hybrid_provider_uses_crew_then_loop(self):
         import inspect;self.assertIn('all_sources',inspect.getsource(sports_provider))
+
+class HybridTopUp(unittest.TestCase):
+    """The page's provider: Crew's sources at once, The Loop's merged in when they arrive; The Loop is the only source when Crew has none."""
+    def make(self,crew,loop,claim=None):
+        import threading,test_sports_hybrid as th,sports_hybrid
+        espn=th.Espn();espn.ttl=sports_hybrid.TTL
+        store={'v':''}
+        prov=sports_hybrid.HybridProvider(espn,crew,clock=lambda:th.NOW,store=(lambda:store['v'],lambda t:store.__setitem__('v',t)),
+                                          more_sources=loop,merge=sports_provider.merge_ranked,claim=claim)
+        game=(prov.live_games()+prov.upcoming_games())[0]
+        return prov,game['id'],th
+    def wait(self,th,predicate,seconds=3.0):
+        end=time.time()+seconds
+        while time.time()<end:
+            if predicate():return True
+            time.sleep(0.02)
+        return False
+    def test_crew_sources_show_at_once_and_the_loops_join_them_later(self):
+        import threading;release=threading.Event()
+        crew=lambda game,**k:[{'id':'c','addon':'Crew CS','play':'p1','tag':''}]
+        loop=lambda game:release.wait(5) and [{'id':'l','addon':'Loop FawaNews','play':'p2','tag':''}]
+        prov,gid,th=self.make(crew,loop)
+        token=prov.request_game(gid)
+        self.assertTrue(self.wait(th,lambda:not prov.searching_game(gid,token)))
+        self.assertEqual([s['play'] for s in prov.game(gid)['sources']],['p1'],'Crew is not held up by The Loop')
+        release.set()
+        self.assertTrue(self.wait(th,lambda:len(prov.game(gid)['sources'])==2))
+        self.assertEqual(sorted(s['play'] for s in prov.game(gid)['sources']),['p1','p2'])
+    def test_with_no_crew_sources_the_page_keeps_searching_until_the_loop_answers(self):
+        import threading;release=threading.Event()
+        prov,gid,th=self.make(lambda game,**k:[],lambda game:release.wait(5) and [{'id':'l','addon':'Loop FawaNews','play':'p2','tag':''}])
+        token=prov.request_game(gid)
+        time.sleep(0.3);self.assertTrue(prov.searching_game(gid,token),'still looking, not "no sources"')
+        release.set()
+        self.assertTrue(self.wait(th,lambda:not prov.searching_game(gid,token)))
+        self.assertEqual([s['play'] for s in prov.game(gid)['sources']],['p2'])
+    def test_another_script_already_asking_means_this_one_does_not(self):
+        asked=[]
+        prov,gid,th=self.make(lambda game,**k:[{'id':'c','addon':'Crew CS','play':'p1','tag':''}],lambda game:asked.append(1) or [],claim=lambda g:False)
+        token=prov.request_game(gid);self.wait(th,lambda:not prov.searching_game(gid,token));time.sleep(0.3)
+        self.assertEqual(asked,[])
+    def test_the_loop_is_not_asked_twice_in_90_seconds(self):
+        asked=[]
+        prov,gid,th=self.make(lambda game,**k:[{'id':'c','addon':'Crew CS','play':'p1','tag':''}],lambda game:asked.append(1) or [])
+        prov.request_game(gid);time.sleep(0.4);prov.request_game(gid);time.sleep(0.4)
+        self.assertEqual(len(asked),1)
+
 if __name__=='__main__':unittest.main()

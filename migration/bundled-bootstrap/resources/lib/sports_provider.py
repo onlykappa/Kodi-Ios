@@ -54,7 +54,7 @@ def real():
         else:
             import sports_hybrid
             espn.ttl = sports_hybrid.TTL
-            _real[0] = sports_hybrid.HybridProvider(espn, all_sources)
+            _real[0] = sports_hybrid.HybridProvider(espn, crew_sources, more_sources=loop_sources, merge=merge_ranked, claim=claim_loop)
     return _real[0]
 
 
@@ -172,17 +172,19 @@ def loop_sources(game, sleep=time.sleep, clock=time.monotonic, make=None):
             return []
         sports_jet.log('sports: Loop search started')
         jet = make() if make else sports_jet.JetProvider(loop_only=True, loop_schedule=[game], wait=2)
-        began = clock()
+        began, first = clock(), None
         while True:
             try:
                 games = list(jet.live_games()) + list(jet.upcoming_games())
             except sm_unavailable():
                 games = []
             found = _match(game, games)
-            if found:
-                return found
+            if found and first is None:
+                first = clock()
+            if found and (clock() - first >= LOOP_MORE or not jet_busy(jet)):
+                return found   # the sites that answered within LOOP_MORE seconds of the first one are in the list too
             if clock() - began > LOOP_SECONDS or not jet_busy(jet):
-                return []
+                return found or []
             sleep(1)
     except Exception as error:
         sports_jet.log('sports: Loop search ended (%s)' % type(error).__name__)
@@ -195,6 +197,7 @@ def jet_busy(jet):
     return running is not None and not running.is_set()
 
 
+LOOP_MORE = 15    # seconds The Loop's other sites get after the first one has a stream for the game (build 772 log: first site 27 s after the search began, 37 more still working)
 LOOP_AFTER = 6    # seconds The Crew may take before The Loop starts looking too (it starts at once when The Crew answers, empty or not)
 LOOP_GRACE = 12   # seconds the slower of the two gets once the first has sources, so a game shows both places' sources, not only the quicker one's
 
@@ -276,6 +279,25 @@ def all_sources(game, fresh=False, after=None, crew=None, loop=None, grace=None,
             first_found = first_found if first_found is not None else time.monotonic()
             if time.monotonic() - first_found >= grace:
                 return rank_sources(merged, health)
+
+
+def merge_ranked(have, extra):
+    """Two lists of sources as one, each source once, ranked by what played well before (rank_sources)."""
+    return rank_sources(merge_sources(have, extra))
+
+
+def claim_loop(game_id, now=time.time, ttl=90):
+    """Only one Kodi script at a time asks The Loop about a game (the page, the prefetch and the reminders all can): the Home window holds when it was last asked."""
+    try:
+        import xbmcgui
+        home = xbmcgui.Window(10000)
+        key = 'KodiIOS.SportsLoopAsked.' + str(game_id)
+        if now() - float(home.getProperty(key) or 0) < ttl:
+            return False
+        home.setProperty(key, str(now()))
+        return True
+    except Exception:
+        return True
 
 
 def sm_unavailable():

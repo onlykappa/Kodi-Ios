@@ -42,8 +42,10 @@ def log(text):
 class HybridProvider:
     """The contract the pages use (sports_model.py), backed by ESPN for the games and by `crew_sources(game)` for sources."""
 
-    def __init__(self, espn, crew_sources, clock=time.time, store=None):
+    def __init__(self, espn, crew_sources, clock=time.time, store=None, more_sources=None, merge=None, claim=None):
         self.espn, self.crew_sources, self.clock = espn, crew_sources, clock
+        self.more_sources, self.merge, self.claim = more_sources, merge, claim   # a second place to look (The Loop), how to merge and rank two lists, and a cross-script "someone is already asking" check
+        self.topped = {}     # game id -> when this script last asked the second place
         self.read, self.write = store if store is not None else window_store()
         self.shared_at = {}   # game id -> when the shared list that gave its sources was published
         self.lock = threading.Lock()
@@ -130,17 +132,21 @@ class HybridProvider:
             known = bool(self.found.get(game_id))
             self.searches[token] = {'game': game_id, 'state': 'done' if known else 'searching'}   # sources already found for it: nothing to look for
         if known:
+            self._top_up(game_id, game)   # Crew's sources are on the page already; The Loop's join them when they arrive
             return token
 
         def work():
             state = 'error'
             try:
                 sources = list((self.crew_sources(game, fresh=True) if fresh else self.crew_sources(game)) or [])
+                if self.more_sources and not sources and self._ask_more(game_id, fresh):
+                    sources = self._more(game, [])   # nothing from Crew: the page keeps saying "searching" while The Loop is asked
                 with self.lock:
                     if sources:
                         self.found[game_id] = sources
                 if sources:
                     self._publish(game_id, sources)
+                    self._top_up(game_id, game)
                 state = 'done'
             except Exception as error:   # Crew not open, a scan that never answered: the page says so
                 log('sources for %s: %s' % (game_id, type(error).__name__))
@@ -149,6 +155,44 @@ class HybridProvider:
                     self.searches[token]['state'] = state
         threading.Thread(target=work, daemon=True).start()
         return token
+
+    # -- the second place to look (The Loop): its sources are merged into the game's list whenever they arrive
+    def _ask_more(self, game_id, fresh=False):
+        """True when this script should ask The Loop about the game now: not asked in the last 90 s here, and no other script is asking (claim)."""
+        if not self.more_sources:
+            return False
+        now = self.clock()
+        with self.lock:
+            if not fresh and now - self.topped.get(game_id, -1e9) < 90:
+                return False
+            self.topped[game_id] = now
+        try:
+            return bool(self.claim(game_id)) if self.claim else True
+        except Exception:
+            return True
+
+    def _more(self, game, have):
+        try:
+            extra = list(self.more_sources(game) or [])
+        except Exception as error:
+            log('second source for %s: %s' % (game.get('id'), type(error).__name__))
+            extra = []
+        merged = self.merge(have, extra) if self.merge else list(have) + extra
+        return merged
+
+    def _top_up(self, game_id, game):
+        if not self._ask_more(game_id):
+            return
+
+        def work():
+            with self.lock:
+                have = list(self.found.get(game_id, []))
+            merged = self._more(game, have)
+            if len(merged) > len(have):
+                with self.lock:
+                    self.found[game_id] = merged
+                self._publish(game_id, merged)
+        threading.Thread(target=work, daemon=True).start()
 
     def searching_game(self, game_id, token):
         with self.lock:
