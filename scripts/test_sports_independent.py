@@ -57,7 +57,7 @@ class Independent(unittest.TestCase):
   def blocked():
    release.wait(3)
    return None,'blocked'
-  with patch.object(si.StreamsCenter,'get_items',return_value=[item]),patch.object(sj,'import_jet',side_effect=blocked):
+  with patch.object(si.StreamsCenter,'get_items',return_value=[item]),patch('sports_livefeeds.LiveFeeds.get_items',return_value=[]),patch('sports_p720.P720Stream.get_items',return_value=[]),patch('sports_fawa.FawaNews.get_items',return_value=[]),patch.object(sj,'import_jet',side_effect=blocked):
    provider=sj.JetProvider(publish=lambda data:published.append(data))
    done=provider._start()
    for _ in range(100):
@@ -73,7 +73,7 @@ class Independent(unittest.TestCase):
    def setProperty(self,key,value):self.values[key]=value
   home=Window();calls=[]
   def blocked(module):calls.append(1);raise Exception('User is banned')
-  with patch.object(si.StreamsCenter,'get_items',return_value=[]),patch.object(sj,'import_jet',return_value=(object(),None)),patch.object(sj,'load_extractors',side_effect=blocked):
+  with patch.object(si.StreamsCenter,'get_items',return_value=[]),patch('sports_livefeeds.LiveFeeds.get_items',return_value=[]),patch('sports_p720.P720Stream.get_items',return_value=[]),patch('sports_fawa.FawaNews.get_items',return_value=[]),patch.object(sj,'import_jet',return_value=(object(),None)),patch.object(sj,'load_extractors',side_effect=blocked):
    self.assertTrue(sj.JetProvider(window=home)._start().wait(2))
    self.assertTrue(home.getProperty('KodiIOS.SportsJetPause'))
    self.assertTrue(sj.JetProvider(window=home)._start().wait(2))

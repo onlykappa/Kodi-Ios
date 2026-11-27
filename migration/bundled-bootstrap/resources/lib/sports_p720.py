@@ -58,14 +58,19 @@ class P720Stream:
     def get_items(self):
         from sports_independent import Link
         get = self.get or make_get()
+        from concurrent.futures import ThreadPoolExecutor
         items, failures = [], 0
-        for slug in self.slugs:
+
+        def one(slug):
             try:
                 status, _, page = get('%s/%s' % (BASE, slug), {'Referer': BASE + '/'})
             except Exception:
-                failures += 1
-                continue
-            if status != 200:
+                return slug, None
+            return slug, page if status == 200 else None
+        with ThreadPoolExecutor(max_workers=4) as pool:   # nine league pages one after another could take over a minute
+            pages = list(pool.map(one, self.slugs))
+        for slug, page in pages:
+            if page is None:
                 failures += 1
                 continue
             league = CATEGORIES.get(slug, slug.upper())
