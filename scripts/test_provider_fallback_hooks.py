@@ -138,12 +138,12 @@ class Hooks(unittest.TestCase):
   self.assertEqual(queue.call_args.args[:2],(selected['candidate'],selected['url']));self.xbmc.Player.assert_not_called()
  def test_primary_download_redirect_success_does_not_search_again(self):
   with patch.object(hooks,'deck_fallback') as fallback:
-   reached=hooks.download_follow('plugin://plugin.video.elementum/movie/1/links',self.exp,lambda url:'http://127.0.0.1:65220/play?uri=chosen')
+   reached=hooks.download_follow('plugin://plugin.video.elementum/movie/1/links',self.exp,lambda url:'http://127.0.0.1:9220/play?uri=chosen')
   self.assertIn('/play?',reached);fallback.assert_not_called();self.assertFalse(self.home.p)
  def test_dismissed_primary_picker_cannot_start_backup_after_follow_returns(self):
   def primary(url):
    self.assertEqual(deck._selection_result(-1),-1)
-   return 'http://127.0.0.1:65220/movie/1/links'
+   return 'http://127.0.0.1:9220/movie/1/links'
   with patch.object(hooks,'deck_fallback') as fallback,self.assertRaises(elementum_download.Canceled):
    hooks.download_follow('plugin://plugin.video.elementum/movie/1/links',self.exp,primary)
   fallback.assert_not_called();self.assertFalse(self.home.p)

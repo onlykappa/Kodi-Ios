@@ -61,7 +61,7 @@ def finished_names(get=None,strict=False):
  seeds, before Elementum moves it to Kodi Downloads)."""
  import json,urllib.request
  get=get or (lambda url:urllib.request.urlopen(url,timeout=3).read())
- try:return {t.get('name','') for t in json.loads(get('http://127.0.0.1:65220/torrents/list')) if float(t.get('progress') or 0)>=100 and t.get('name')}
+ try:return {t.get('name','') for t in json.loads(get('http://127.0.0.1:9220/torrents/list')) if float(t.get('progress') or 0)>=100 and t.get('name')}
  except Exception:
   if strict:raise LookupError('Could not verify completion of an existing torrent')
   return set()

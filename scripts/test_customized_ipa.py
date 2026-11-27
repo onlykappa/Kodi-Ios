@@ -27,12 +27,12 @@ class EngineGuardTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as t:
    tmp=Path(t);ns,notes=self.env(tmp)
    holder=socket.socket();holder.bind(('0.0.0.0',0));holder.listen(1);port=holder.getsockname()[1]
-   ns['ADDON'].getSetting=lambda k:str(port) if k=='remote_port' else ''
+   ns['ENGINE_PORT']=port
    try:
     ns['ios_engine']()
    finally:holder.close()
    self.assertTrue(any('is taken' in str(n) for n in notes))
-   self.assertTrue(any('still taken after 20 s' in str(n) for n in notes))
+   self.assertTrue(any('still taken after 3 s' in str(n) for n in notes))
  def test_a_free_engine_port_says_nothing(self):
   with tempfile.TemporaryDirectory() as t:
    tmp=Path(t);ns,notes=self.env(tmp);ns['ios_engine']()
@@ -175,7 +175,7 @@ class BundleTests(unittest.TestCase):
   return inputs
  def test_elementum_engine_bundled_in_frameworks_and_patched_for_ios(self):
   app,receipt=prepare(self.app,self.bundle,self.sha,self.root/'work',self.elementum_inputs());base=app/'AppData/AppHome'
-  self.assertTrue((app/'Frameworks/elementum.framework/elementum').is_file());self.assertTrue((app/'Frameworks/KodiAirPlay.framework/KodiAirPlay').is_file());self.assertEqual(receipt['elementum']['frameworks'],['Frameworks/KodiAirPlay.framework']);self.assertEqual(len(receipt['elementum']['patches']),5)
+  self.assertTrue((app/'Frameworks/elementum.framework/elementum').is_file());self.assertTrue((app/'Frameworks/KodiAirPlay.framework/KodiAirPlay').is_file());self.assertEqual(receipt['elementum']['frameworks'],['Frameworks/KodiAirPlay.framework']);self.assertEqual(len(receipt['elementum']['patches']),6)
   daemon=(base/'addons'/ELEMENTUM/'resources/site-packages/elementum/daemon.py').read_bytes()
   site=base/'addons'/ELEMENTUM/'resources/site-packages/elementum'
   for _,_,after in ELEMENTUM_PATCHES:self.assertIn(after,daemon+(site/'osarch.py').read_bytes()+(site/'service.py').read_bytes()+(site/'rpc.py').read_bytes()+(site/'navigation.py').read_bytes())

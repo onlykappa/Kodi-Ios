@@ -244,15 +244,15 @@ ELEMENTUM_IOS=b'''def ios_engine():
     ios_port_wait()
     return framework, os.path.join(framework, "elementum")
 
+ENGINE_PORT = 9220   # the engine's HTTP port on iOS; 65220 was held by something else at every launch since build 762 (owner log b461d146: bind on :: refused while nothing listened)
+ENGINE_RPC_PORT = 9221
+
 def ios_port_wait():
     # The engine panics with "listen tcp :65220: bind: address already in use" and exits (owner logs of builds 762 to 775: at every launch, never before build 762), and the
     # crash guard then skips the next start, so Elementum stays off: no quality page, no download. Before loading the engine, try the port the way Go does and say what
     # the phone answers; give a busy port up to 20 s. Nothing here changes a port that is free.
     import errno, socket
-    try:
-        port = int(ADDON.getSetting("remote_port") or 65220)
-    except ValueError:
-        port = 65220
+    port = ENGINE_PORT
 
     def attempt():
         problems = []
@@ -276,7 +276,7 @@ def ios_port_wait():
         return problems
 
     monitor = xbmc.Monitor()
-    for waited in range(20):
+    for waited in range(3):
         problems = attempt()
         if not problems:
             if waited:
@@ -292,10 +292,10 @@ def ios_port_wait():
                 tester.close()
             except Exception as error:
                 answer, own, peer = repr(error), None, None
-            log.error("Kodi-iOS: engine port %d is taken (%s); a connection to it answers %s (own %s, peer %s); waiting up to 20 s" % (port, "; ".join(problems), answer, own, peer))
+            log.error("Kodi-iOS: engine port %d is taken (%s); a connection to it answers %s (own %s, peer %s); waiting up to 3 s" % (port, "; ".join(problems), answer, own, peer))
         if monitor.waitForAbort(1):
             return
-    log.error("Kodi-iOS: engine port %d is still taken after 20 s; starting the engine anyway" % port)
+    log.error("Kodi-iOS: engine port %d is still taken after 3 s; starting the engine anyway" % port)
 
 def ios_follow_container():
     # iOS gives the app a new data folder (.../Data/Application/<UUID>/) when it is reinstalled, so folders saved
@@ -458,6 +458,12 @@ def _kodi_cloud(url):
 
 """
 ELEMENTUM_PATCHES += [
+ # Engine ports on iOS: 9220 (HTTP) and 9221 (Python RPC) instead of 65220/65221. The old ports sit in iOS's range for temporary outgoing
+ # connections; at every launch since build 762 something held 65220 and the engine panicked "address already in use" (owner logs).
+ ('resources/site-packages/elementum/config.py',b'JSONRPC_EXT_PORT = 65221\nELEMENTUMD_HOST = "http://127.0.0.1:65220"\n',b'JSONRPC_EXT_PORT = 9221\nELEMENTUMD_HOST = "http://127.0.0.1:9220"\n'),
+ ('resources/site-packages/elementum/config.py',b'        ELEMENTUMD_HOST = "http://" + ADDON.getSetting("remote_host") + ":" + ADDON.getSetting("remote_port")\n        JSONRPC_EXT_PORT = int(ADDON.getSetting("local_port"))\n',b'        ELEMENTUMD_HOST = "http://127.0.0.1:9220"\n        JSONRPC_EXT_PORT = 9221\n'),
+ ('resources/site-packages/elementum/daemon.py',b'    if ADDON.getSetting("local_port") != "":\n        args.append("-remotePort=" + ADDON.getSetting("local_port"))\n        shared_args += " -remotePort=" + ADDON.getSetting("local_port")\n',b'    args.append("-remotePort=9221")\n    shared_args += " -remotePort=9221"\n'),
+ ('resources/site-packages/elementum/daemon.py',b'    if ADDON.getSetting("remote_port") != "":\n        args.append("-localPort=" + ADDON.getSetting("remote_port"))\n        shared_args += " -localPort=" + ADDON.getSetting("remote_port")\n',b'    args.append("-localPort=9220")\n    shared_args += " -localPort=9220"\n'),
  ('resources/site-packages/elementum/navigation.py',b'def _json(url):\n',ELEMENTUM_CLOUD+b'def _json(url):\n    if _kodi_cloud(url):return None\n    _kodi_engine()\n'),
  ('resources/site-packages/elementum/navigation.py',b'        if response.code == 300:\n',b'        if location and _kodi_cloud(location):return None\n        if response.code == 300:\n')]
 

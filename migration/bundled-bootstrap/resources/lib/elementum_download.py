@@ -4,7 +4,7 @@ Elementum searches the sources; selected /download and /play redirects are inter
 before its local downloader starts. These helpers retain the existing movie/season/episode picker entry points.
 """
 import http.client,json,socket,threading,time,urllib.parse,urllib.request
-ENGINE='http://127.0.0.1:65220'
+ENGINE='http://127.0.0.1:9220'
 PLUGIN='plugin://plugin.video.elementum'
 
 def ids(kind,path='',values=None):

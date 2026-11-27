@@ -71,7 +71,7 @@ def selected(url, read=None):
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme == 'plugin':
         if parsed.netloc != 'plugin.video.elementum':return None
-    elif parsed.hostname not in ('127.0.0.1', 'localhost') or parsed.port != 65220:return None
+    elif parsed.hostname not in ('127.0.0.1', 'localhost') or parsed.port != 9220:return None
     if parsed.path.rstrip('/') not in ('/play', '/download'):return None
     q = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
     uri = q.get('uri') or q.get('resume') or ''

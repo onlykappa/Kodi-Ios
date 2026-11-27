@@ -121,7 +121,7 @@ class PlayOnTV(unittest.TestCase):
    calls.append(url)
    return json.dumps(next(lists)).encode() if url.endswith('/torrents/list') else b''
   self.assertEqual(dl.download_all_when_added({'old'},lambda:False,get),'pack')
-  self.assertEqual(calls[-1],'http://127.0.0.1:65220/torrents/downloadall/pack')
+  self.assertEqual(calls[-1],'http://127.0.0.1:9220/torrents/downloadall/pack')
   self.assertIsNone(dl.download_all_when_added({'old'},lambda:True,lambda u:b'[]'))
  def test_choose_episodes(self):
   dl=load('elementum_download')

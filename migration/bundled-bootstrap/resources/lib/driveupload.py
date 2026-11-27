@@ -153,7 +153,7 @@ def seeding_pending(root,torrents):
    found.append((path,parts,tid))
  return found
 
-def remove_torrent(tid,get=None,engine='http://127.0.0.1:65220'):
+def remove_torrent(tid,get=None,engine='http://127.0.0.1:9220'):
  """Elementum drops the torrent and its files (it stops seeding a copy Drive now has)."""
  get=get or (lambda url:urllib.request.urlopen(url,timeout=15).read())
  get('%s/torrents/delete/%s?torrent=true&files=true&confirmation=true'%(engine,urllib.parse.quote(tid,safe='')))

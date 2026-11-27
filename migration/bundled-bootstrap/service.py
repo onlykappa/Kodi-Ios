@@ -985,7 +985,7 @@ def drive_uploads(monitor,home,profile):
   # Finished torrents still seeding in Elementum's folder go to Drive too (owner: nothing should stay on the phone).
   seeding=[]
   try:
-   torrents=json.loads(urllib.request.urlopen('http://127.0.0.1:65220/torrents/list',timeout=5).read())
+   torrents=json.loads(urllib.request.urlopen('http://127.0.0.1:9220/torrents/list',timeout=5).read())
    download=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.elementum').getSetting('download_path') or '')
    if download:seeding=driveupload.seeding_pending(download,torrents)
   except Exception:seeding=[]

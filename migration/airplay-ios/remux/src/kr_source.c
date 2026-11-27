@@ -150,7 +150,7 @@ static kr_source *open_with(const char *url, int timeout_s, int (*interrupt)(voi
     s->extra_interrupt=interrupt;s->interrupt_context=context;
     if (!s->url) { free(s); return NULL; }
     // Elementum's server waits for torrent pieces: a quiet connection there is normal, and reconnecting cannot help.
-    s->stall_check=(!strncmp(url,"http://",7) || !strncmp(url,"https://",8)) && !strstr(url,":65220/");
+    s->stall_check=(!strncmp(url,"http://",7) || !strncmp(url,"https://",8)) && !strstr(url,":65220/") && !strstr(url,":9220/");
     s->last_block=-1;
     s->cache=calloc(1,sizeof *s->cache);
     if(!s->cache){free(s->url);free(s);return NULL;}

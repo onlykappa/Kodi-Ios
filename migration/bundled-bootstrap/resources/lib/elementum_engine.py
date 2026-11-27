@@ -5,7 +5,7 @@ runtime for nothing); whoever needs it asks here. The patched Elementum service 
 the window property below and then starts the engine in the same session, without restarting the add-on."""
 import urllib.error,urllib.request
 ADDON='plugin.video.elementum'
-URL='http://127.0.0.1:65220/'
+URL='http://127.0.0.1:9220/'
 WANTED='KodiIOS.ElementumEngine'  # Home window property; the service starts the engine when it reads '1'
 
 def running(url=URL,open_url=urllib.request.urlopen):

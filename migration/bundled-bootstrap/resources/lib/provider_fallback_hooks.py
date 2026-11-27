@@ -163,7 +163,7 @@ def dispatch(selected,auto=None,cancel=None):
   params={'uri':url}
   for field in ('season','episode'):
    if request.get(field) not in (None,''):params[field]=request[field]
-  return bool(elementum_cloud.route('http://127.0.0.1:65220/play?'+urllib.parse.urlencode(params),
+  return bool(elementum_cloud.route('http://127.0.0.1:9220/play?'+urllib.parse.urlencode(params),
                  quiet=auto is not None,request_id=(auto or {}).get('request_id')))
  return bool(pf.queue_download(selected['candidate'],url,request,auto=auto,cancel=cancel))
 
