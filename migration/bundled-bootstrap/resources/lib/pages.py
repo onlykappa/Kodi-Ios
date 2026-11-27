@@ -176,7 +176,7 @@ def addon_browser(p,original):
  """portrait/AddonBrowser.xml (owner-approved docs/design/addon-pages-mockups.html frames 1-4): Kodi's addons:// folders
  in list 50 as App Store-style rows (icon, name, version). The front page has a plain line under each choice and a count on
  Available updates; no pill row (it repeated the same choices and clipped at the screen edge). A sub-list has the
- folder name as its title and a Search button in the header. Control ids stay Kodi's (50, 9001)."""
+ folder name as its title; a Search field (9030) under the title opens the add-on search (addon_search.py). Control ids stay Kodi's (50, 9001)."""
  root=ADDON_ROOT
  w=p.WIDTH-2*p.SIDE
  def tall(f):
@@ -204,26 +204,40 @@ def addon_browser(p,original):
             ('Installed',GREEN,'String.IsEqual(ListItem.Property(Addon.IsInstalled),true) + !String.IsEqual(ListItem.Property(Addon.HasUpdate),true)'),
             ('Install',p.ACCENT,'String.IsEqual(ListItem.Property(Addon.IsInstalled),false)')))+
           p.icon(w-74,(h-34)//2,34,'chevron-right.png',p.DIM))
- lists=media_list(p,50,TOP+30,40,tall,ROWT)
+ # Kodi's own Search row would open its keyboard dialog first; the search field above the list (9030) takes its place, so the
+ # row draws nothing. The list starts under the field, and a little lower again while a search is open (the phone's native
+ # search field sits there, as on Settings search).
+ field_y=TOP+10;field_h=124;list_top=field_y+field_h+30;field_room=140
+ hidden_row='![String.IsEqual(ListItem.FolderPath,addons://search/)] + ![String.IsEqual(ListItem.Label,..)]'   # Kodi's own Search row, and the ".." row a search page lists
+ lists=media_list(p,50,list_top,40,lambda f:'<control type="group"><visible>%s</visible>%s</control>'%(hidden_row,tall(f)),ROWT,
+                  extra='<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(field_room,ADDON_SEARCH_PAGE))
  title='$INFO[Container.FolderName]'
- search=p.nav_button(9020,p.WIDTH-p.SIDE-108,36,'magnifying-glass.png','Container.Update(addons://search/,replace)',
-                     '<ondown>50</ondown><onleft>9001</onleft>','![%s] + ![%s]'%(root,ADDON_SEARCH_PAGE))
- empty=(p.label(p.SIDE,TOP+300,w,80,'Everything is up to date','p_h3',p.GREY,'center',
-                '<visible>%s + Integer.IsEqual(Container(50).NumItems,0)</visible>'%ADDON_UPDATES_PAGE)+
-        p.label(p.SIDE,TOP+300,w,80,'Nothing here yet','p_h3',p.GREY,'center',
-                '<visible>![%s] + ![%s] + ![%s] + Integer.IsEqual(Container(50).NumItems,0)</visible>'%(root,ADDON_UPDATES_PAGE,ADDON_SEARCH_PAGE))+
-        # Search: Kodi asks for the name with the phone's keyboard first, and a cancelled or empty search leaves this page empty
-        # (the "GetDirectory ... addons://search/" line in the log is that, not a failure).
-        p.icon((p.WIDTH-104)//2,TOP+250,104,'magnifying-glass.png',p.GREY,'<visible>%s + Integer.IsEqual(Container(50).NumItems,0)</visible>'%ADDON_SEARCH_PAGE)+
-        p.label(p.SIDE,TOP+380,w,80,'Search add-ons','p_h3',p.GREY,'center','<visible>%s + Integer.IsEqual(Container(50).NumItems,0)</visible>'%ADDON_SEARCH_PAGE)+
-        p.label(p.SIDE+60,TOP+460,w-120,120,'Type a name, then tap the blue key.','p_foot',p.GREY,'center',
-                '<wrapmultiline>true</wrapmultiline><visible>%s + Integer.IsEqual(Container(50).NumItems,0)</visible>'%ADDON_SEARCH_PAGE))
+ blank='String.Contains(Container.FolderPath,%E2%80%8B)'
+ none='Integer.IsEqual(Container(50).NumItems,0)'
+ field=('<control type="button" id="9030"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><label></label>'
+        '<texturefocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturefocus><texturenofocus border="62" colordiffuse="%s">%spill_124.png</texturenofocus>'
+        '<onclick>RunScript(service.kodi.ios.bootstrap,addon_search)</onclick><onup>9001</onup><ondown>50</ondown>'
+        '<visible>![%s]</visible></control>')%(p.SIDE,field_y,w,field_h,p.MEDIA,p.SURFACE,p.MEDIA,ADDON_SEARCH_PAGE)
+ field+=(p.icon(p.SIDE+36,field_y+(field_h-44)//2,44,'magnifying-glass.png',p.GREY,'<visible>![%s]</visible>'%ADDON_SEARCH_PAGE)+
+         p.label(p.SIDE+100,field_y,w-140,field_h,'Search add-ons','p_body',p.GREY,'left','<visible>![%s]</visible>'%ADDON_SEARCH_PAGE))
+ hint_y=list_top+field_room+160
+ empty=(p.label(p.SIDE,list_top+260,w,80,'Everything is up to date','p_h3',p.GREY,'center',
+                '<visible>%s + %s</visible>'%(ADDON_UPDATES_PAGE,none))+
+        p.label(p.SIDE,list_top+260,w,80,'Nothing here yet','p_h3',p.GREY,'center',
+                '<visible>![%s] + ![%s] + ![%s] + %s</visible>'%(root,ADDON_UPDATES_PAGE,ADDON_SEARCH_PAGE,none))+
+        # Search: nothing typed yet, then no match (the field itself is the phone's native one).
+        p.icon((p.WIDTH-104)//2,hint_y,104,'magnifying-glass.png',p.GREY,'<visible>%s + %s + %s</visible>'%(ADDON_SEARCH_PAGE,blank,none))+
+        p.label(p.SIDE,hint_y+130,w,80,'Search add-ons','p_h3',p.GREY,'center','<visible>%s + %s + %s</visible>'%(ADDON_SEARCH_PAGE,blank,none))+
+        p.label(p.SIDE+60,hint_y+210,w-120,120,'Type a name in the field above.','p_foot',p.GREY,'center',
+                '<wrapmultiline>true</wrapmultiline><visible>%s + %s + %s</visible>'%(ADDON_SEARCH_PAGE,blank,none))+
+        p.label(p.SIDE,hint_y+130,w,80,'No add-ons found','p_h3',p.GREY,'center','<visible>%s + ![%s] + %s</visible>'%(ADDON_SEARCH_PAGE,blank,none))+
+        p.label(p.SIDE+60,hint_y+210,w-120,120,'Try a shorter word or check the spelling.','p_foot',p.GREY,'center',
+                '<wrapmultiline>true</wrapmultiline><visible>%s + ![%s] + %s</visible>'%(ADDON_SEARCH_PAGE,blank,none)))
  body=(lists+empty+
        p.image(0,0,p.WIDTH,TOP-10,p.MEDIA+'white.png',p.BG)+
-       back_header(p,'')+search+
+       back_header(p,'','Action(Back)','9030')+field+
        p.label(260,36,p.WIDTH-520,108,'[B]Add-ons[/B]','p_h3',p.WHITE,'center','<visible>%s</visible>'%root)+
        p.label(260,36,p.WIDTH-520,108,title,'p_h3',p.WHITE,'center','<visible>![%s] + ![%s]</visible>'%(root,ADDON_SEARCH_PAGE))+
-       # A search has no folder name of its own while it waits for the keyboard.
        p.label(260,36,p.WIDTH-520,108,'[B]Search[/B]','p_h3',p.WHITE,'center','<visible>%s</visible>'%ADDON_SEARCH_PAGE))
  return page(p,original,body,'50')
 

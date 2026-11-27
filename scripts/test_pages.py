@@ -85,7 +85,7 @@ class Pages(unittest.TestCase):
  def test_kodi_control_ids(self):
   for name,need in (('DialogConfirm.xml',{'1':'label','9':'textbox','10':'button','11':'button','12':'button','20':'progress'}),
                     ('DialogTextViewer.xml',{'1':'label','5':'textbox'}),
-                    ('AddonBrowser.xml',{'50':'list','9001':'button','9020':'button'}),
+                    ('AddonBrowser.xml',{'50':'list','9001':'button','9030':'button'}),
                     # Kodi writes the labels and states of these into the dialog; the page draws rows that press them.
                     ('DialogAddonInfo.xml',{'6':'button','7':'button','8':'button','9':'button','10':'button','12':'button','13':'radiobutton','14':'button'}),
                     ('FileBrowser.xml',{'450':'list','411':'label','412':'label','413':'button','414':'button','415':'button','416':'radiobutton'}),
@@ -108,7 +108,7 @@ class Pages(unittest.TestCase):
  def test_addons_front_page_has_no_pill_row(self):
   text=(self.skin/'portrait/AddonBrowser.xml').read_text()
   for gone in ('9011','9012','9013','9014','From Zip','My Add-ons'):self.assertNotIn(gone,text)
-  self.assertIn('Browse add-ons by category',text);self.assertIn('Container.Update(addons://search/,replace)',text)
+  self.assertIn('Browse add-ons by category',text);self.assertIn('RunScript(service.kodi.ios.bootstrap,addon_search)',text)
  def test_event_log_rows_keep_kodis_ids(self):
   root,ids=self.ids('portrait/EventLog.xml')
   self.assertEqual({k:ids.get(k) for k in ('20','21','22','4','50')},{'20':'button','21':'button','22':'togglebutton','4':'togglebutton','50':'list'})
