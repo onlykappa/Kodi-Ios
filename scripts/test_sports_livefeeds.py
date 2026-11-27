@@ -46,4 +46,34 @@ class Feeds(unittest.TestCase):
         feed=lf.LiveFeeds(get=feeds)
         self.assertEqual(lf.resolve('https://cdnsport.ru/#g1',feed=feed,get=get)[0],'https://v.example/a.m3u8')
         with self.assertRaises(RuntimeError):lf.resolve('https://cdnsport.ru/#g1',feed=feed,get=lambda u,r:(u,'nothing'))
+
+class Events(unittest.TestCase):
+    """F1 (owner screenshot 2026-11-27: "Searching for sources" for Practice 2): a Grand Prix has one name and no two sides; the sessions of a weekend share it."""
+    GP={'matches':[{'slug':'a','matchstr':'Qatar Grand Prix','team1':'Qatar Grand Prix','team2':None,'league':'Formula 1','startTimestamp':1795798800000,'channels':[{'name':'S','links':['https://s3.vertex.st/ch?id=7']}]},
+                   {'slug':'b','matchstr':'Qatar Grand Prix','team1':'Qatar Grand Prix','team2':None,'league':'Formula 1','startTimestamp':1795872600000,'channels':[]}]}
+    def test_sessions_with_one_name_are_all_listed_but_a_game_in_both_feeds_once(self):
+        get=lambda url,ref:(url,json.dumps({'matches':[]} if 'cdnsport' in url else self.GP))
+        items=lf.LiveFeeds(get=get).get_items()
+        self.assertEqual([i.starttime is not None for i in items],[True,True])
+    def test_a_one_name_event_becomes_a_record_and_matches_the_session_at_its_own_time(self):
+        import sports_jet as sj,sports_merge as sm
+        from types import SimpleNamespace as NS
+        from datetime import datetime
+        item=NS(title='Qatar Grand Prix',league='Formula 1',status='',links=[NS(address='https://topsurge.st/#a',name='',links=False,to_dict=lambda:{'address':'https://topsurge.st/#a'})],starttime=datetime.fromtimestamp(1795798800))
+        rec=sj.records(item,'IndependentLiveFeeds',1795801200)[0]
+        self.assertEqual((rec['league'],rec['away']['name'],rec['home']['name'],rec['state']),('F1','Qatar Grand Prix','','live'))
+        espn={'league':'F1','start':1795798800,'away':{'name':'Qatar Airways Qatar Grand Prix'},'home':{'name':''}}
+        self.assertTrue(sm.same_game(espn,rec))
+        self.assertFalse(sm.same_game(dict(espn,start=1795798800+3*3600),rec),'another session of the weekend')
+        self.assertFalse(sm.same_game(dict(espn,away={'name':'Abu Dhabi Grand Prix'}),rec))
+        self.assertFalse(sm.same_game(dict(espn,league='MGP'),rec))
+class ApiPlayer(unittest.TestCase):
+    def test_channel_pages_that_ask_an_api_for_the_player_are_followed(self):
+        page='<script>window.loadPlayerChannel = function(i){fetch("api/player.php?id=" + i)}; window.loadPlayerChannel(7);</script>'
+        pages={'https://s3.example/ch?id=7':page,'https://s3.example/api/player.php?id=7':'{"url":"https:\\/\\/p.example\\/embed?c=1"}','https://p.example/embed?c=1':'<script>var s="https://h.example/x/index.m3u8";</script>','https://h.example/x/index.m3u8':'#EXTM3U'}
+        url,headers=embed.resolve('https://s3.example/ch?id=7','https://r.example/',lambda u,r:(u,pages[u]))
+        self.assertEqual(url,'https://h.example/x/index.m3u8')
+    def test_json_url_only_takes_a_web_address(self):
+        self.assertEqual(embed.json_url('{"url":"https://a.example/b"}'),'https://a.example/b')
+        self.assertIsNone(embed.json_url('{"url":"javascript:x"}'));self.assertIsNone(embed.json_url('<html>'))
 if __name__=='__main__':unittest.main()

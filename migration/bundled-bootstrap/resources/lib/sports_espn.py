@@ -170,6 +170,7 @@ def parse_events(code, name, sport, joiner, kind, body, now):
                     coming = next((c for st, c in states if st == 'pre'), None)
                     if found is not None:
                         state, session = 'in', found
+                        start = _epoch(found.get('date')) or start   # the session that is on now: sources are listed at its own time
                     elif coming is not None and _epoch(coming.get('date')) is not None:
                         state, session, start = 'pre', coming, _epoch(coming.get('date'))
             if state not in ('pre', 'in', 'post') or start is None:

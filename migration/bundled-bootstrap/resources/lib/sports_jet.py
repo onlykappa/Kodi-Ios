@@ -132,6 +132,7 @@ LEAGUES = (
     ('nascar', 'NASC', 'NASCAR', 'Motorsport', 'vs'),
     ('soccer', 'SOC', 'Soccer', 'Soccer', 'vs'), ('football', 'SOC', 'Soccer', 'Soccer', 'vs'),
 )
+EVENT_SPORTS = ('Motorsport', 'Golf')   # leagues whose games are one-name events
 _SPLIT = re.compile(r'\s+(?:vs\.?|v|@|at|-|–|—)\s+', re.I)
 
 
@@ -215,6 +216,11 @@ def descriptor(extractor, link):
 def records(item, extractor, now):
     """The merge records of one JetItem (one per stream); [] for what is not a game of two sides or has no stream."""
     pair = teams(getattr(item, 'title', ''))
+    event = False
+    if not pair and str(getattr(item, 'title', '') or '').strip():
+        # One name, no two sides: a Grand Prix or a tournament is a game of its own (sports_espn lists it the same way: the event's name as `away`, nothing as `home`).
+        if league_of(getattr(item, 'league', None), item.title)[2] in EVENT_SPORTS:
+            pair, event = (re.sub(r'\s+', ' ', str(item.title)).strip(), '', 'vs'), True
     links = [l for l in (getattr(item, 'links', None) or []) if getattr(l, 'address', None)]
     start = epoch_of(getattr(item, 'starttime', None))
     state = state_of(item, start, now)
@@ -229,8 +235,8 @@ def records(item, extractor, now):
         address = getattr(link, 'address', '')
         label = '%s %s' % (getattr(link, 'name', '') or '', address if not getattr(link, 'links', False) and not str(address).startswith('plugin://') else '')
         out.append({'addon': (getattr(link, 'source_name', '') or extractor) if str(address).startswith('plugin://plugin.video.thecrew/') else extractor, 'league': code, 'league_name': name, 'sport': sport, 'state': state, 'start': start if start is not None else now,
-                    'away': {'code': code_of(away), 'name': away, 'score': None},
-                    'home': {'code': code_of(home), 'name': home, 'score': None},
+                    'away': {'code': code if event else code_of(away), 'name': away, 'score': None},
+                    'home': {'code': '' if event else code_of(home), 'name': home, 'score': None},
                     'joiner': joiner, 'clock': '', 'left': None, 'quality': quality_of(label), 'language': language_of(label),
                     'play': descriptor(extractor, link), 'separate_source': str(address).startswith(('plugin://plugin.video.the-loop/', 'plugin://plugin.video.thecrew/'))})
     return out

@@ -92,6 +92,27 @@ def find_frames(page, base):
     return frames
 
 
+def api_frames(page, base):
+    """Pages that load their player with `fetch("api/player.php?id=" + n)` then `loadPlayerChannel(7)` (the vertex.st channel pages): the JSON address that answers with the player's address."""
+    if 'api/player.php?id=' not in page:
+        return []
+    ids = re.findall(r'loadPlayerChannel\(\s*(\d+)\s*\)', page)
+    return [urljoin(base, 'api/player.php?id=' + ids[-1])] if ids else []
+
+
+def json_url(text):
+    """The `url` of a small JSON answer {"url": "..."}, else None."""
+    text = text.strip()
+    if not text.startswith('{'):
+        return None
+    try:
+        import json
+        value = json.loads(text).get('url')
+    except (ValueError, AttributeError):
+        return None
+    return value if isinstance(value, str) and value.startswith(('http://', 'https://')) else None
+
+
 def headers_for(page_url):
     parts = urlsplit(page_url)
     return {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile Safari/604.1',
@@ -113,6 +134,9 @@ def resolve(url, referer, get, note=lambda message: None, depth=0, seen=None):
         return None
     if page.lstrip().startswith('#EXTM3U'):
         return final, headers_for(referer or final)
+    forwarded = json_url(page)
+    if forwarded:
+        return resolve(forwarded, referer, get, note, depth + 1, seen)
     for playlist in find_playlists(page, final)[:3]:
         if playlist in seen:
             continue
@@ -124,7 +148,7 @@ def resolve(url, referer, get, note=lambda message: None, depth=0, seen=None):
             continue
         if body.lstrip().startswith('#EXTM3U'):
             return address, headers_for(final)
-    for frame in find_frames(page, final):
+    for frame in find_frames(page, final) + api_frames(page, final):
         result = resolve(frame, final, get, note, depth + 1, seen)
         if result:
             return result

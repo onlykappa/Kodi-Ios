@@ -54,9 +54,20 @@ def same_team(a, b):
     return all(x == y or (len(x) >= 3 and y.startswith(x)) or (len(y) >= 3 and x.startswith(y)) for x, y in pairs)
 
 
+EVENT_WITHIN = 90 * 60   # a race weekend's sessions are hours apart: the listing's start has to be the session's own
+
+
+def same_event(a, b):
+    """One-name events (a Grand Prix, a golf tournament): 'Qatar Grand Prix' = 'Qatar Airways Qatar Grand Prix' when every word of the shorter name is in the longer."""
+    ta, tb = set(tokens(a)), set(tokens(b))
+    return bool(ta and tb and (ta <= tb or tb <= ta))
+
+
 def same_game(a, b):
     if (a.get('league') or '') != (b.get('league') or ''):
         return False
+    if not tokens(a['home'].get('name')) and not tokens(b['home'].get('name')):   # an event with one name (F1, golf), not two sides
+        return abs((a.get('start') or 0) - (b.get('start') or 0)) <= EVENT_WITHIN and same_event(a['away'].get('name'), b['away'].get('name'))
     if abs((a.get('start') or 0) - (b.get('start') or 0)) > SAME_GAME_WITHIN:
         return False
     return same_team(a['away'].get('name'), b['away'].get('name')) and same_team(a['home'].get('name'), b['home'].get('name'))

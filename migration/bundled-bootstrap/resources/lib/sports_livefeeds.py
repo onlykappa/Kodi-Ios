@@ -56,16 +56,15 @@ class LiveFeeds:
     def get_items(self):
         from sports_independent import Link
         cdn, top = self.feeds()
-        items, seen = [], set()
+        items, seen = [], []
         for source, key, host in ((cdn, 'id', 'https://cdnsport.ru/#'), (top, 'slug', 'https://topsurge.st/#')):
             for match in source.get('matches') or []:
                 if not isinstance(match, dict) or not match.get(key):
                     continue
                 one, two = (match.get('team1') or '').strip(), (match.get('team2') or '').strip()
                 title = one + ' vs ' + two if two else one
-                if not title or norm(title) in seen:
+                if not title:
                     continue
-                seen.add(norm(title))
                 status = (match.get('status') or '').strip().lower()
                 start = None
                 stamp = match.get('datetime_utc')
@@ -79,6 +78,11 @@ class LiveFeeds:
                         start = datetime.fromtimestamp(int(match['startTimestamp']) / 1000)
                     except (ValueError, OSError):
                         pass
+                # One game once (both feeds list it), but the sessions of a race weekend share a name and differ by time.
+                at = int(start.timestamp()) if start else None
+                if any(t == norm(title) and (a is None or at is None or abs(a - at) < 1800) for t, a in seen):
+                    continue
+                seen.append((norm(title), at))
                 items.append(SimpleNamespace(title=title, links=[Link(host + str(match[key]))], starttime=start,
                                              status='LIVE' if status == 'live' else status.capitalize(), league=match.get('league') or ''))
         return items
