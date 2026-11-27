@@ -76,6 +76,9 @@ class Parse(unittest.TestCase):
         far=weekend('pre');far['competitions'][1]['status']['type']['state']='post'
         live,up,done=se.parse(entry[0],entry[1],entry[2],entry[4],entry[5],body(far),_epoch_of('2026-11-21T05:00Z'));self.assertEqual((len(live),len(up),done),(0,1,0))   # the race still to come: upcoming at ITS time
         self.assertEqual(up[0]['start'],_epoch_of('2026-11-22T04:00Z'))
+        # the session on now: the game starts at ITS time (listings are matched by it), and the series' own logo stands for the event
+        live,up,done=run(weekend('pre',qual_state='in'));self.assertEqual(live[0]['start'],_epoch_of('2026-11-21T04:00Z'))
+        self.assertEqual(live[0]['away']['crest'],'https://a.espncdn.com/i/teamlogos/leagues/500-dark/f1.png');self.assertEqual(live[0]['home']['crest'],'')
     def test_a_live_nba_game_has_score_clock_and_what_is_left(self):
         live, up, done = self.go('NBA', [event('1', '2025-11-16T17:00Z', 'in', team('IND', 'Indiana Pacers', '88', False), team('PHI', 'Philadelphia 76ers', '91'),
                                                 period=3, clock='8:41', kind='STATUS_IN_PROGRESS')])

@@ -187,6 +187,11 @@ def parse_events(code, name, sport, joiner, kind, body, now):
             else:
                 away, home = _person(title), _person('')
                 away['code'] = code
+                try:   # the tour's or series' own logo stands in the middle of the page (owner, 2026-11-27: "it needs a real logo not just F1 in a grey circle")
+                    import sports_logos
+                    away['crest'] = sports_logos.dark_url(code) or sports_logos.url_for(code)
+                except ImportError:
+                    pass
             game = {'id': 'espn:%s:%s' % (code, event.get('id')), 'league': code, 'league_name': name, 'sport': sport,
                     'state': 'live' if state == 'in' else 'upcoming', 'away': away, 'home': home, 'joiner': joiner, 'start': start,
                     'sources': [], 'path': path_of(code), 'venue': _venue((comps[0] or {}).get('venue')), 'title': title}
