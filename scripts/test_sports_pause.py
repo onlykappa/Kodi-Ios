@@ -28,8 +28,9 @@ class TestPause(unittest.TestCase):
     sp.Pause(window=home).pause()
     jet=json.dumps({'e':'JetScraper','l':{}}); alt=json.dumps({'e':'IndependentStreamsCenter','l':{'address':'fixture'}})
     import sports_independent
-    with patch.object(sj,'import_jet',side_effect=AssertionError('paused Jet called')),patch.object(sports_independent,'resolve',return_value=('https://video.invalid/live.m3u8',{})),patch.dict(sys.modules,{'xbmc':NS(Player=lambda:NS(play=lambda path:None))}):
-     self.assertTrue(sj.play({'play':jet,'alts':[alt]},lambda s:None))
+    with patch.object(sj,'import_jet',side_effect=AssertionError('paused Jet called')),patch.object(sports_independent,'resolve',return_value=('https://video.invalid/live.m3u8',{})),patch.object(sj,'play_local',lambda address,headers,logger,name:played.append((address,name)) or True),patch.dict(sys.modules,{'xbmc':NS(Player=lambda:NS(play=lambda path:None))}):
+     played=[]
+     self.assertTrue(sj.play({'play':jet,'alts':[alt]},lambda s:None));self.assertEqual(played,[('https://video.invalid/live.m3u8','StreamsCenter')])   # the paused Jet source is skipped, our own site plays
  def test_paused_candidate_does_not_expand_or_resolve(self):
   calls=[];extractor=NS(get_links=lambda link:calls.append('links'),get_link=lambda link:calls.append('link'))
   for link in (NS(links=True),NS(links=False,direct=False,resolveurl=False)):
