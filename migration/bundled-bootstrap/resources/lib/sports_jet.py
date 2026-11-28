@@ -1080,6 +1080,31 @@ def watch_resolved(route, playing_file, log, clock=None, sleep=None, limit=40.0,
     return False
 
 
+_LOCAL = []   # our own loopback proxies; the playing script keeps them alive (hold_local_proxy)
+
+
+def play_local(address, headers, logger, name):
+    """Play one of our own sources through our own loopback HLS proxy (sports_hls_proxy), not JetProxy. Owner log 98052c56 (build 786): the playlist was verified, then JetProxy asked
+    the site for a different address (the `?` and `&` of the stream's address came through still encoded) and with none of the headers (`headers=[]`), and got the site's HTML error page:
+    "failed, nothing opened". The loopback proxy keeps the address and the headers exactly, and Kodi plays a plain local playlist."""
+    import xbmc
+    import xbmcgui
+    import sports_hls_proxy
+    add_module_paths('script.module.requests', _folder)
+    proxy = sports_hls_proxy.Proxy(address, headers)
+    _LOCAL.append(proxy)
+    del _LOCAL[:-3]
+    item = xbmcgui.ListItem(path=proxy.url)
+    item.setMimeType('application/x-mpegURL')
+    item.setProperty('inputstream', 'inputstream.adaptive')   # as JetProxy does on this phone (player_engine=adaptive)
+    item.setProperty('inputstream.adaptive.manifest_type', 'hls')
+    item.setProperty('inputstream.adaptive.play_timeshift_buffer', 'false')
+    xbmc.Player().play(proxy.url, item)
+    _play_session.proxy_url = proxy.url
+    logger('sports: playing %s via our own proxy' % name)
+    return True
+
+
 def play_one(play_value, logger=log):
     """One add-on's stream of a game. Raises when it cannot be opened."""
     import xbmc
@@ -1127,19 +1152,13 @@ def play_one(play_value, logger=log):
     import sports_livefeeds, sports_p720
     if value.get('e') == sports_p720.NAME:
         address, headers = sports_p720.resolve(value['l']['address'], note=logger)
-        logger('sports: playing 720pStream via JetProxy')
-        xbmc.Player().play(proxy_path(address, headers))
-        return True
+        return play_local(address, headers, logger, '720pStream')
     if value.get('e') == sports_livefeeds.NAME:
         address, headers = sports_livefeeds.resolve(value['l']['address'], note=logger)
-        logger('sports: playing LiveFeeds via JetProxy')
-        xbmc.Player().play(proxy_path(address, headers))
-        return True
+        return play_local(address, headers, logger, 'LiveFeeds')
     if value.get('e') == sports_independent.NAME:
         address, headers = sports_independent.resolve(value['l']['address'], note=logger)
-        logger('sports: playing independent source via JetProxy')
-        xbmc.Player().play(proxy_path(address, headers))
-        return True
+        return play_local(address, headers, logger, 'StreamsCenter')
     import sports_pause
     try:
         home = xbmcgui.Window(10000)

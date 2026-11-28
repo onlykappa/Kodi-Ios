@@ -79,8 +79,18 @@ class Independent(unittest.TestCase):
    self.assertTrue(sj.JetProvider(window=home)._start().wait(2))
   self.assertEqual(len(calls),1)
  def test_play_request_routes_independent_without_jet_import(self):
-  calls=[]
-  with patch.object(si,'resolve',return_value=('https://video.invalid/live.m3u8',{})),patch.object(sj,'import_jet',side_effect=AssertionError('Jet called')),patch.dict(sys.modules,{'xbmc':NS(Player=lambda:NS(play=lambda path:calls.append(path))),'xbmcgui':NS()}):
-   self.assertTrue(sj.play_one(json.dumps({'e':si.NAME,'l':{'address':si.BASE+'/watch/test'}}),lambda s:None))
-  self.assertTrue(calls[0].startswith(sj.JETPROXY))
+  # Owner log 98052c56: through JetProxy our streams got the site's HTML error page (address mangled, headers=[]): our own sources play through our own loopback proxy.
+  import sports_livefeeds as lf,sports_p720 as p7
+  for module,name,logname in ((si,si.NAME,'StreamsCenter'),(lf,lf.NAME,'LiveFeeds'),(p7,p7.NAME,'720pStream')):
+   calls,proxies,props=[],[],{}
+   class Item:
+    def __init__(self,path=''):self.path=path
+    def setMimeType(self,m):props['mime']=m
+    def setProperty(self,k,v):props[k]=v
+   fake=NS(Proxy=lambda address,headers:proxies.append((address,dict(headers))) or NS(url='http://127.0.0.1:5/abc/0.m3u8'))
+   with patch.object(module,'resolve',return_value=('https://video.invalid/live.m3u8?e=1&sig=2',{'Referer':'https://r.invalid/','Origin':'https://r.invalid'})),patch.object(sj,'import_jet',side_effect=AssertionError('Jet called')),patch.dict(sys.modules,{'xbmc':NS(Player=lambda:NS(play=lambda path,item=None:calls.append((path,item)))),'xbmcgui':NS(ListItem=Item),'sports_hls_proxy':fake}),patch.object(sj,'add_module_paths',lambda *a,**k:None):
+    self.assertTrue(sj.play_one(json.dumps({'e':name,'l':{'address':'https://x.invalid/g'}}),lambda s:None))
+   self.assertEqual(calls[0][0],'http://127.0.0.1:5/abc/0.m3u8',logname)                       # Kodi plays the local playlist, never JetProxy
+   self.assertEqual(proxies,[('https://video.invalid/live.m3u8?e=1&sig=2',{'Referer':'https://r.invalid/','Origin':'https://r.invalid'})])   # address and headers reach the proxy untouched
+   self.assertEqual((props['inputstream'],props['inputstream.adaptive.manifest_type']),('inputstream.adaptive','hls'))
 if __name__=='__main__':unittest.main()
