@@ -220,6 +220,7 @@ HEAVY_GB = 40.0
 STREAM_MBPS = 10.0
 LIMIT = [0.0]   # ISSUE-498: the limit for this list from what the connection has delivered (connection_speed.allowed), set by umbrella_picker; 0 = STREAM_MBPS
 RUNTIME = [0.0]
+RUNTIME_GUESSED = [False]   # the length is a typical one for the kind of title, not the title's own: lines say 'about'
 WIFI = [0.0]   # ISSUE-500: what this network has delivered lately in Mbit/s (connection_speed), set by umbrella_picker; 0 = not measured: the page then looks as before
 DISC_WORDS = (' M2TS ', ' BDMV ', ' ISO ', ' BD25 ', ' BD50 ', ' BD66 ', ' BD100 ', ' COMPLETE BLURAY ', ' COMPLETE UHD BLURAY ',
               ' COMPLETE BLU RAY ', ' UHD BD ', ' DISC ')
@@ -423,6 +424,31 @@ def badges(shown):
     return out
 
 
+def badge_for(it, n, b):
+    """The badge on a version: its own warnings first, then the Wi-Fi's MAY BUFFER (never over BEST MATCH), then BEST MATCH / SMALLEST / MOST SEEDS."""
+    cover = it.get('coverage')
+    return (cover.upper() if cover else u'FULL SEASON' if cover == u'' else
+            u'MAY STUTTER' if too_heavy(it) else u'AV1 \u00b7 SLOW TO PREPARE' if slow_to_prepare(it)
+            else u'10-BIT \u00b7 SLOW ON AIRPLAY' if converts_for_tv(it)
+            else (u'MAY BUFFER' if too_heavy_for_wifi(it) and b.get(n, u'') != u'BEST MATCH' else b.get(n, u'')))
+
+
+LIVE = [None]   # the open version page (set while it is up): apply_wifi() refreshes it when a live reading comes back
+
+
+def apply_wifi(mbps, allowed):
+    """A live reading finished: the page's speed, limit, subtitle, per-version lines and badges follow it."""
+    PROBING[0] = False
+    if mbps and mbps > 0:
+        WIFI[0], LIMIT[0] = float(mbps), float(allowed)
+    page = LIVE[0]
+    if page is not None:
+        try:
+            page.refresh_live()
+        except Exception:
+            pass
+
+
 def build_rows(shown, total_label=u''):
     b = badges(shown)
     rows = []
@@ -436,10 +462,8 @@ def build_rows(shown, total_label=u''):
         rows.append({'headline': head, 'tags': DOT.join(tags), 'meta': meta_text(it),
                      # All Links page (board 16): up to four tag pills, AV1 flagged; size and seeds to sort by.
                      'pills': tags[:4], 'size': it.get('size') or 0, 'seeds': it.get('seeds') or 0,
-                     'badge': cover.upper() if cover else u'FULL SEASON' if cover == u'' else
-                     u'MAY STUTTER' if too_heavy(it) else u'AV1 \u00b7 SLOW TO PREPARE' if slow_to_prepare(it)
-                     else u'10-BIT \u00b7 SLOW ON AIRPLAY' if converts_for_tv(it) else (u'MAY BUFFER' if too_heavy_for_wifi(it) and b.get(n, u'') != u'BEST MATCH' else b.get(n, u'')),
-                     'fit': fit_text(it), 'fitwarn': u'1' if too_heavy_for_wifi(it) else u'', 'icon': it['icon']})
+                     'badge': badge_for(it, n, b), 'fit': fit_text(it), 'fitwarn': u'1' if too_heavy_for_wifi(it) else u'', 'icon': it['icon'],
+                     '_item': it, '_n': n, '_b': b})
     return rows
 
 
@@ -459,9 +483,17 @@ def quality_menu_labels(keys, groups, top_n=TOP_N):
     return labels
 
 
+PROBING = [False]   # ISSUE-503: a live reading of the line is running; the subtitle says so until it is back
+BLUE = u'FF0A84FF'
+
+
 def wifi_text():
-    """' \u00b7 Wi-Fi 14 Mbit/s' for the page's subtitle once this network has a measured speed (streams only), else nothing. One line, never wraps."""
-    return u' \u00b7 Wi-Fi %d Mbit/s' % max(1, int(round(WIFI[0]))) if MODE[0] == u'stream' and WIFI[0] > 0 else u''
+    """' \u00b7 Wi-Fi 14 Mbit/s' in blue for the page's subtitle once this network has a speed (streams only), 'measuring\u2026' while a live reading runs, else nothing. One line."""
+    if MODE[0] != u'stream':
+        return u''
+    if WIFI[0] > 0:
+        return u' \u00b7 [COLOR %s]Wi-Fi %d Mbit/s%s[/COLOR]' % (BLUE, max(1, int(round(WIFI[0]))), u' \u00b7 measuring\u2026' if PROBING[0] else u'')
+    return u' \u00b7 [COLOR %s]Wi-Fi measuring\u2026[/COLOR]' % BLUE if PROBING[0] else u''
 
 
 def too_heavy_for_wifi(item):
@@ -474,17 +506,18 @@ def fit_text(item):
     if MODE[0] != u'stream' or WIFI[0] <= 0 or need <= 0:
         return u''
     need = max(1, int(round(need)))
+    about = u'about ' if RUNTIME_GUESSED[0] else u''
     if too_heavy_for_wifi(item):
         if need <= int(round(WIFI[0])):
-            return u'Tight on your Wi-Fi \u00b7 needs %d Mbit/s' % need
-        return u'Needs %d Mbit/s \u00b7 Wi-Fi gives %d' % (need, max(1, int(round(WIFI[0]))))
-    return u'Fits your Wi-Fi \u00b7 needs %d Mbit/s' % need
+            return u'Tight on your Wi-Fi \u00b7 needs %s%d Mbit/s' % (about, need)
+        return u'Needs %s%d Mbit/s \u00b7 Wi-Fi gives %d' % (about, need, max(1, int(round(WIFI[0]))))
+    return u'Fits your Wi-Fi \u00b7 needs %s%d Mbit/s' % (about, need)
 
 
 def count_label(shown_n, uniq_n):
     if uniq_n > shown_n:
-        return u'Top %d of %d versions%s' % (shown_n, uniq_n, wifi_text())
-    return u'%d version%s%s' % (shown_n, u'' if shown_n == 1 else u's', wifi_text())
+        return u'Top %d of %d versions' % (shown_n, uniq_n)
+    return u'%d version%s' % (shown_n, u'' if shown_n == 1 else u's')
 
 
 # ---------------------------------------------------------------------------------
@@ -606,7 +639,8 @@ def _window_class():
         def onInit(self):
             self.setProperty('deck.subject', self.subject)
             self.setProperty('deck.quality_label', self.quality)
-            self.setProperty('deck.count_label', self.count_text)
+            self.setProperty('deck.count_label', self.count_text + wifi_text())
+            LIVE[0] = self
             self.setProperty('deck.poster', self.poster)
             for key in ('fanart', 'title', 'meta', 'plot'):
                 self.setProperty('deck.' + key, self.details.get(key, u''))
@@ -616,6 +650,25 @@ def _window_class():
 
         def list_id(self):
             return 32504 if self.mode == u'all' else 32503
+
+        def refresh_live(self):
+            """ISSUE-503: the speed changed while the page is open: new subtitle, and each version's line, warning colour and badge."""
+            self.setProperty('deck.count_label', self.count_text + wifi_text())
+            for r in self.rows:
+                if '_item' not in r:
+                    continue
+                it = r['_item']
+                r['fit'], r['fitwarn'], r['badge'] = fit_text(it), (u'1' if too_heavy_for_wifi(it) else u''), badge_for(it, r['_n'], r['_b'])
+            try:
+                control = self.getControl(self.list_id())
+                for position in range(control.size()):
+                    item = control.getListItem(position)
+                    r = self.rows[int(item.getProperty('index'))]
+                    item.setProperty('fit', r['fit'])
+                    item.setProperty('fitwarn', r['fitwarn'])
+                    item.setProperty('badge', r['badge'])
+            except Exception:
+                pass
 
         def fill(self):
             self.setProperty('deck.sort', SORTS[self.sort][1])
@@ -684,7 +737,10 @@ def choose_source(title, rows, quality, count_text, mode=u''):
     details = _details_for(title)
     window = _window_class()("DeckSourceSelect.xml", ADDON_PATH, "Default", rows=rows, subject=title,
                              quality=quality, count_text=count_text, poster=details['poster'], details=details, mode=mode)
-    window.doModal()
+    try:
+        window.doModal()
+    finally:
+        LIVE[0] = None
     retval = window.retval
     del window
     return _selection_result(retval)

@@ -14,6 +14,23 @@ EVERY=10.0            # a stream records at most this often
 HEADROOM=0.7          # a version may need at most this share of the measured rate (the rest is for stalls and the peaks above the average)
 FLOOR,CAP,DEFAULT=4.0,20.0,10.0   # Mbit/s limits for versions listed first; DEFAULT while nothing is known
 FILE='connection-speed.json'
+PROBE_URL='https://speed.cloudflare.com/__down?bytes=4000000'   # a few MB from a fast public host; what the line to the internet gives right now
+PROBE_BYTES,PROBE_SECONDS,PROBE_MIN_BYTES=4000000,3.0,400000
+
+def probe(opener,clock=time.time,url=PROBE_URL):
+    """ISSUE-503 (owner: "it doesn't seem to be reading live"): the Mbit/s the line gives right now, from reading up to PROBE_BYTES (or PROBE_SECONDS) of a public file, or None when
+    it could not be read or too little came. `opener(url)` returns a file-like object. A short read under-reads a fast line (TCP is still ramping up), never over-reads it."""
+    began=clock();got=0
+    try:
+        with opener(url) as response:
+            while got<PROBE_BYTES and clock()-began<PROBE_SECONDS:
+                chunk=response.read(65536)
+                if not chunk:break
+                got+=len(chunk)
+    except Exception:return None
+    took=clock()-began
+    if got<PROBE_MIN_BYTES or took<=0.05:return None
+    return round(got*8/took/1e6,2)
 
 def network_key(kind,address):
     """'wifi:3f2a9c1b' for a connection type and a local address: only the first three parts of an IPv4 address (the subnet) go into the hash."""

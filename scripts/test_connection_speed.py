@@ -88,5 +88,26 @@ class Wiring(unittest.TestCase):
         self.assertEqual(len(f.speed_meter.items), 1)
 
 
+class Probe(unittest.TestCase):
+    # ISSUE-503: a live reading of the line
+    def opener(self, chunks, tick):
+        class R:
+            def __init__(me): me.n = 0
+            def __enter__(me): return me
+            def __exit__(me, *a): return False
+            def read(me, size):
+                tick[0] += 0.2
+                me.n += 1
+                return b'x' * 65536 if me.n <= chunks else b''
+        return lambda url: R()
+    def test_the_rate_comes_from_bytes_over_time_and_a_short_read_says_nothing(self):
+        t = [0.0]
+        got = cs.probe(self.opener(40, t), lambda: t[0])                  # 40 chunks of 64 KiB in 8 s would be capped at 3 s: 15 chunks
+        self.assertTrue(got and 2 < got < 4); t = [0.0]
+        self.assertIsNone(cs.probe(self.opener(2, t), lambda: t[0]))      # 128 KiB: too little to judge
+        def broken(url): raise OSError('x')
+        self.assertIsNone(cs.probe(broken))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -46,7 +46,12 @@ def fetch(rpc, query):
         from ios_library import boot_path
         boot_path(xbmcvfs)
         import onepace_show
-        found['tv'] = onepace_show.search_rows(query) + (found.get('tv') or [])
+        profile = xbmcvfs.translatePath('special://profile')
+        mine = onepace_show.search_rows(query, profile)
+        if mine and not mine[0].get('art'):   # no saved copy yet: read the site once so the entry has its picture (ISSUE-503)
+            onepace_show.seasons(profile)
+            mine = onepace_show.search_rows(query, profile)
+        found['tv'] = mine + (found.get('tv') or [])
     except Exception:
         pass
     return [(kind, title, found.get(kind) or []) for kind, title in SECTIONS]

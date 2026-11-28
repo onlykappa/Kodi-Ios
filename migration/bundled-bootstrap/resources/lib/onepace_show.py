@@ -107,11 +107,20 @@ def download(profile,seasons_list,queue_direct,season=None,episode=None,log=lamb
    failed+=1;log('One Pace: could not queue S%sE%s: %s: %s'%(request['season'],request['episode'],type(error).__name__,str(error)[:100]))
  return queued,failed,japanese
 
-def search_rows(query):
+def show_art(profile):
+ """The picture for One Pace in a search result (ISSUE-503): the first arc's picture from the saved copy (no network). {} when there is none yet."""
+ try:
+  for arc in read_json(folder(profile)/CACHE,{}).get('seasons') or []:
+   small,large=onepace.image_url(arc.get('image'),640),onepace.image_url(arc.get('image'),1920)
+   if small:return {'poster':small,'thumb':small,'icon':small,'fanart':large or small}
+ except Exception:pass
+ return {}
+
+def search_rows(query,profile=None):
  """The One Pace entry for the TV SHOWS part of a search, when the query is about it ('one pace', 'onepace', 'pace', 'one piece' fan edit); else []."""
  text=re.sub(r'[^a-z0-9]+','',str(query or '').lower())
  if text and (text.startswith('onepace') or text in ('pace','onepac','onepa')):
-  return [{'label':onepace.SHOW_TITLE,'title':onepace.SHOW_TITLE,'plot':'The One Piece anime re-cut to follow the manga. Arcs are the seasons; English dub where it exists, otherwise Japanese with English subtitles.','file':'plugin://plugin.video.kodi.ios.watch/?action=onepace','filetype':'directory'}]
+  return [{'label':onepace.SHOW_TITLE,'title':onepace.SHOW_TITLE,'plot':'The One Piece anime re-cut to follow the manga. Arcs are the seasons; English dub where it exists, otherwise Japanese with English subtitles.','file':'plugin://plugin.video.kodi.ios.watch/?action=onepace','filetype':'directory','art':show_art(profile) if profile else {}}]
  return []
 
 def sentence(change):

@@ -134,7 +134,7 @@ class Search(unittest.TestCase):
     def test_the_search_list_puts_it_first_in_tv_shows(self):
         import ios_search
         text = (OVERLAY / 'resources/lib/ios_search.py').read_text()
-        self.assertIn("found['tv'] = onepace_show.search_rows(query) + (found.get('tv') or [])", text)
+        self.assertIn("mine = onepace_show.search_rows(query, profile)", text); self.assertIn("found['tv'] = mine + (found.get('tv') or [])", text)
 
 
 class Menus(unittest.TestCase):
@@ -181,6 +181,18 @@ class FakeKodi:
                                                          setResolvedUrl=lambda h, ok, li: k.resolved.append((ok, li)))}
 TMP = ['']
 KEEP = []
+
+
+class SearchArt(unittest.TestCase):
+    # ISSUE-503 (owner screenshot IMG_0754): One Pace had no picture in the search results
+    def test_the_entry_has_the_first_arcs_picture_from_the_saved_copy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(show.show_art(tmp), {}); self.assertEqual(show.search_rows('one pace', tmp)[0]['art'], {})
+            found = with_pictures(onepace.seasons(onepace.parse_watch(PAGE)))
+            show.write_json(show.folder(tmp) / show.CACHE, {'at': 1.0, 'schema': show.SCHEMA, 'seasons': found})
+            art = show.search_rows('one pace', tmp)[0]['art']
+            self.assertTrue(art['poster'].startswith('https://onepace.net/_next/image?url=') and 'w=640' in art['poster']); self.assertIn('w=1920', art['fanart'])
+        self.assertEqual(show.search_rows('one pace')[0]['art'], {})   # no profile: no picture, as before
 
 
 class Pages(unittest.TestCase):

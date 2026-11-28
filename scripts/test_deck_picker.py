@@ -366,14 +366,15 @@ class WifiLine(unittest.TestCase):
  def test_subtitle_and_lines_when_the_speed_is_known(self):
   old=self.run_state(14.0,9.8)
   try:
-   self.assertEqual(dp.count_label(5,5),u'5 versions \u00b7 Wi-Fi 14 Mbit/s');self.assertEqual(dp.count_label(5,12),u'Top 5 of 12 versions \u00b7 Wi-Fi 14 Mbit/s')
+   self.assertEqual(dp.wifi_text(),u' \u00b7 [COLOR FF0A84FF]Wi-Fi 14 Mbit/s[/COLOR]');self.assertEqual(dp.count_label(5,12),u'Top 5 of 12 versions')   # the page adds the Wi-Fi text, so a live reading can change it
+   dp.PROBING[0]=True;self.assertIn('Wi-Fi 14 Mbit/s \u00b7 measuring',dp.wifi_text());dp.WIFI[0]=0.0;self.assertIn('Wi-Fi measuring',dp.wifi_text());dp.WIFI[0]=14.0;dp.PROBING[0]=False
    self.assertEqual(dp.fit_text({'size':4.5}),u'Fits your Wi-Fi \u00b7 needs 5 Mbit/s');self.assertEqual(dp.fit_text({'size':16.0}),u'Needs 19 Mbit/s \u00b7 Wi-Fi gives 14');self.assertEqual(dp.fit_text({'size':9.0}),u'Tight on your Wi-Fi \u00b7 needs 11 Mbit/s')
    self.assertFalse(dp.too_heavy_for_wifi({'size':4.5}));self.assertTrue(dp.too_heavy_for_wifi({'size':16.0}))
   finally:self.restore(old)
  def test_nothing_changes_without_a_measured_speed_or_for_downloads(self):
   for wifi,mode in ((0.0,u'stream'),(14.0,u'download')):
    old=self.run_state(wifi,0.0,mode)
-   try:self.assertEqual(dp.count_label(5,5),u'5 versions');self.assertEqual(dp.fit_text({'size':4.5}),u'');self.assertFalse(dp.too_heavy_for_wifi({'size':16.0}))
+   try:self.assertEqual(dp.wifi_text(),u'');self.assertEqual(dp.fit_text({'size':4.5}),u'');self.assertFalse(dp.too_heavy_for_wifi({'size':16.0}))
    finally:self.restore(old)
  def test_rows_carry_the_line_and_a_may_buffer_badge(self):
   old=self.run_state(14.0,9.8)
@@ -382,6 +383,21 @@ class WifiLine(unittest.TestCase):
    dp._CONTEXT['exp']=None;rows=dp.build_rows(dp.pick(items,10))
    self.assertEqual([r['badge'] for r in rows],[u'BEST MATCH',u'MAY BUFFER']);self.assertEqual([bool(r['fitwarn']) for r in rows],[False,True]);self.assertTrue(rows[0]['fit'].startswith(u'Fits'))
   finally:self.restore(old)
+ def test_a_guessed_length_says_about_and_a_live_reading_updates_the_page(self):
+  old=self.run_state(14.0,9.8)
+  try:
+   dp.RUNTIME_GUESSED[0]=True;self.assertEqual(dp.fit_text({'size':4.5}),u'Fits your Wi-Fi \u00b7 needs about 5 Mbit/s');dp.RUNTIME_GUESSED[0]=False
+   shown=[dict(name='Film.1080p.WEB-DL.x264',tags_text='',providers=[],quality='1080p',seeds=5,size=9.0,icon='',idx=0),dict(name='Film.1080p.WEB.x265',tags_text='',providers=[],quality='1080p',seeds=4,size=1.0,icon='',idx=1)]
+   dp._CONTEXT['exp']=None;rows=dp.build_rows(dp.pick(shown,10))
+   class Page:
+    def __init__(s):s.calls=0
+    def refresh_live(s):s.calls+=1
+   page=Page();dp.LIVE[0]=page;dp.PROBING[0]=True
+   dp.apply_wifi(40.0,28.0);self.assertEqual((dp.WIFI[0],dp.LIMIT[0],dp.PROBING[0],page.calls),(40.0,20.0 if False else 28.0,False,1))
+   dp.apply_wifi(None,None);self.assertEqual((dp.WIFI[0],page.calls),(40.0,2))   # a failed reading keeps what was known
+   self.assertEqual([r['badge'] for r in rows][0] in (u'BEST MATCH',u'SMALLEST'),True);dp.LIVE[0]=None
+  finally:
+   dp.LIVE[0]=None;dp.PROBING[0]=False;self.restore(old)
 
 class LighterFirst(unittest.TestCase):
  # ISSUE-497 (owner log c703d50a): an 11-15 Mbit/s HDR stream could not be made at real time from an AllDebrid link that gave 13.7 Mbit/s
@@ -408,6 +424,10 @@ class LighterFirst(unittest.TestCase):
   self.assertEqual(self.order(0.0),[0,1,2,3]);self.assertEqual(self.order(7200.0,u'download'),[0,1,2,3])
  def test_the_umbrella_picker_gives_the_list_the_titles_length(self):
   text=(ROOT/'migration/bundled-bootstrap/resources/lib/umbrella_picker.py').read_text()
-  self.assertIn("deck.RUNTIME[0]=float((meta or {}).get('duration') or 0)",text)
+  self.assertIn("deck.RUNTIME[0],deck.RUNTIME_GUESSED[0]=title_seconds(meta)",text)
+  import importlib.util
+  spec=importlib.util.spec_from_file_location('up_t',ROOT/'migration/bundled-bootstrap/resources/lib/umbrella_picker.py');up=importlib.util.module_from_spec(spec);spec.loader.exec_module(up)
+  self.assertEqual(up.title_seconds({'duration':1320}),(1320.0,False));self.assertEqual(up.title_seconds({'duration':22}),(1320.0,False));self.assertEqual(up.title_seconds({'runtime':22}),(1320.0,False))   # seconds, or a small number of minutes
+  self.assertEqual(up.title_seconds({'tvshowtitle':'New Girl'}),(2700.0,True));self.assertEqual(up.title_seconds({'title':'Heat'}),(6600.0,True)); self.assertEqual(up.title_seconds(None),(6600.0,True))   # no length: a typical one, marked as a guess
 
 if __name__=='__main__':unittest.main()
