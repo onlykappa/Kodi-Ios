@@ -39,7 +39,7 @@ class Projection(unittest.TestCase):
         self.assertEqual((props['league'],props['starts'],props['clock'],props['day']),
                          ('EPL','Starts in 45 min','7:30 PM','Today'))
         self.assertEqual((props['away.code'],props['away.name'],props['home.code']),('ARS','Arsenal','CHE'))
-        self.assertEqual(props['source.0.detail'],'1080p · English\nAlso on Loop TV')
+        self.assertEqual(props['source.0.detail'],'1080p · English\nChecked when played\nAlso on Loop TV')
         self.assertEqual((props['source.0.code'],props['source.1.code']),('TL','LG'))
         self.assertEqual((props['source.0.tag'],props['source.1.tag']),('best','good'))
         self.assertEqual(props['sources.count'],'2')
@@ -50,7 +50,7 @@ class Projection(unittest.TestCase):
         self.game['sources']=self.game['sources'][:1]
         self.game['sources'][0].update(quality='',language='',also=[],tag='')
         props,_=game_page.model(self.game,NOW,0)
-        self.assertEqual(props['source.0.detail'],'Quality not reported')
+        self.assertEqual(props['source.0.detail'],'Quality not reported\nChecked when played')
 
     def test_a_white_or_light_team_colour_never_washes_the_hero_out(self):
         # Owner, 2026-11-20: "the colors seem to flash white ... then goes to all white". Cologne's ESPN colour is ffffff.

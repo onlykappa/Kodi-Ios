@@ -182,6 +182,7 @@ jobs:
           python3 -B scripts/test_sports_reminders.py
           python3 -B scripts/test_sports_game_info.py
           python3 -B scripts/test_sports_game_detail.py
+          python3 -B scripts/test_sports_probe.py
           python3 -B scripts/test_header_icons.py
           python3 -B scripts/test_sports_hybrid.py
           python3 -B scripts/test_sports_sources_prefetch.py

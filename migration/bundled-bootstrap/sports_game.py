@@ -131,6 +131,7 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
             title = shown(source['addon'])
             detail = ' · '.join(value for value in (source['quality'],source['language']) if value) or 'Quality not reported'
             if source.get('record'):detail += '\nSeen on this phone: '+source['record']
+            detail += check_line(source)
             if source.get('also'):detail += '\nAlso on '+', '.join(shown(name) for name in source['also'])
             title_cols,detail_cols = {'best':(20,22),'good':(16,18),'plain':(27,30)}[tag]
             title_lines = _lines(title,title_cols)
@@ -141,6 +142,21 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
                       'pos':'only' if len(sources)==1 else 'first' if n==0 else 'last' if n==len(sources)-1 else 'mid'}
         for key in ('title','detail','tag','code','form','pos'):props['source.%d.%s' % (n,key)] = values.get(key,'')
     return props,sources
+
+
+def check_line(source):
+    """The row's line about the check made on opening (sports_probe): measured for our own sites, 'Checked when played' for Crew and The Loop (only a play can measure those)."""
+    try:
+        import sports_probe
+        play = str(source.get('play') or '')
+        if not sports_probe.own_name(play):
+            return '' if source.get('record') else '\nChecked when played'
+        found = sports_probe.cached(play)
+        if found is None:
+            return '\nChecking…'
+        return '\nChecked: ' + sports_probe.describe(found)
+    except Exception:
+        return ''
 
 
 AUTO_SEARCH = 180   # seconds a live game's page keeps looking for sources by itself
@@ -262,6 +278,11 @@ def run(game, provider=None, clock=time.time, search=False):
                 # The tap handler also writes play.error; a refresh must still clear it.
                 if key=='play.error' or getattr(self,'_shown',{}).get(key)!=value:self.setProperty(key,value)
             self._shown = props.copy()
+            if self.sources:   # our own sites' streams are measured now, in the background, and drawn when each answers (sports_probe)
+                try:
+                    import sports_probe
+                    sports_probe.start(self.sources,done=lambda:None,log=log)
+                except Exception:pass
             if self.sources:   # the best source's Crew folder is listed now, not at the tap
                 best = str((self.sources[0] if self.sources else {}).get('play') or '')
                 if getattr(self, '_warmed', None) != best:
