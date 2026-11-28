@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sports game page: sources and info (mockup)</title>
+<style>
+:root{--bg:#000;--s1:#1C1C1E;--s2:#2C2C2E;--grey:rgba(235,235,245,.6);--sep:rgba(235,235,245,.2);--blue:#0A84FF;--bluet:#4FA8FF;--green:#30D158;--orange:#FF9F0A;--red:#FF453A}
+*{box-sizing:border-box}
+body{margin:0;background:#111;color:#fff;font-family:Inter,-apple-system,"SF Pro Text",system-ui,sans-serif;padding:24px 16px}
+h1{font-size:20px;margin:0 0 4px}.note{color:var(--grey);font-size:13px;margin:0 0 20px;max-width:900px;line-height:1.45}
+.row{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+.col{width:402px}.cap{font-size:13px;font-weight:600;margin:0 0 8px}.cap span{color:var(--grey);font-weight:400}
+.phone{width:402px;background:var(--bg);border-radius:34px;border:1px solid #333;padding:14px 16px 22px;overflow:hidden}
+.play{height:60px;border-radius:30px;background:#fff;color:#000;font-weight:700;font-size:17px;display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0 8px}
+.auto{text-align:center;color:var(--grey);font-size:13px;line-height:1.35;margin-bottom:22px}.auto b{color:#fff;font-weight:600}
+h2{font-size:22px;margin:0;font-weight:700}
+.head{display:flex;justify-content:space-between;align-items:baseline;margin:6px 0 10px}
+.link{color:var(--bluet);font-size:15px;font-weight:500}
+.group{background:var(--s1);border-radius:13px;overflow:hidden;margin-bottom:12px}
+.src{display:flex;gap:12px;align-items:center;padding:12px 12px;border-bottom:1px solid var(--sep)}.src:last-child{border-bottom:0}
+.tile{width:44px;height:44px;border-radius:10px;background:var(--s2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none}
+.mid{flex:1;min-width:0}
+.name{font-size:17px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tag{font-size:12px;font-weight:700;color:var(--bluet);background:rgba(10,132,255,.2);border-radius:9px;padding:2px 8px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.chip{font-size:12px;font-weight:600;background:var(--s2);border-radius:7px;padding:2px 7px}
+.chip.q{background:rgba(48,209,88,.18);color:var(--green)}
+.meta{font-size:13px;color:var(--grey);margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}.g{background:var(--green)}.o{background:var(--orange)}.r{background:var(--red)}.n{background:#636366}
+.go{width:44px;height:44px;border-radius:50%;background:#fff;flex:none;display:flex;align-items:center;justify-content:center}
+.go:after{content:"";border-left:14px solid #000;border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:4px}
+.more{display:flex;justify-content:space-between;align-items:center;padding:14px 12px;color:var(--bluet);font-size:15px;font-weight:500}
+.chev{color:var(--grey)}
+.info{padding:4px 12px}.irow{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--sep);font-size:15px}.irow:last-child{border-bottom:0}.irow span:first-child{color:var(--grey)}.irow span:last-child{text-align:right}
+.prog{height:4px;border-radius:2px;background:rgba(255,255,255,.2);margin:8px 12px 12px;overflow:hidden}.prog i{display:block;height:100%;width:60%;background:var(--blue)}
+.legend{font-size:12.5px;color:var(--grey);line-height:1.5;max-width:850px;margin-top:22px}
+.legend b{color:#fff}
+.badge{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:1px 6px;margin-left:4px;background:#3a3a3c;color:#fff}
+</style></head><body>
+<h1>Game page, lower half: sources and info <span class="badge">MOCKUP</span></h1>
+<p class="note">Mockup in a browser (not the app, not Kodi). The top of the page (the hero, the team or event, LIVE) stays as it is. Everything below Play is new: each source says what it delivers and how it has done on this phone, the best one is chosen by evidence, and Game info moves under the sources with more facts.</p>
+<div class="row">
+
+<div class="col"><p class="cap">A · A game with no history yet <span>(a new phone, first look)</span></p>
+<div class="phone">
+ <div class="play">▶ Play</div>
+ <div class="auto">Plays <b>LiveFeeds</b> first<br>Nothing tried on this phone yet</div>
+ <div class="head"><h2>Sources</h2><span class="link">Check quality</span></div>
+ <div class="group">
+  <div class="src"><div class="tile">LF</div><div class="mid"><div class="name">LiveFeeds</div><div class="meta"><span class="dot n"></span>Not tried yet</div></div><div class="go"></div></div>
+  <div class="src"><div class="tile">72</div><div class="mid"><div class="name">720pStream</div><div class="meta"><span class="dot n"></span>Not tried yet</div></div><div class="go"></div></div>
+  <div class="src"><div class="tile">CM</div><div class="mid"><div class="name">Crew MUT</div><div class="meta"><span class="dot n"></span>Not tried yet</div></div><div class="go"></div></div>
+  <div class="more"><span>Other sources (4)</span><span class="chev">›</span></div>
+ </div>
+ <div class="head"><h2>Game info</h2></div>
+ <div class="group"><div class="info">
+  <div class="irow"><span>League</span><span>NBA</span></div>
+  <div class="irow"><span>Starts</span><span>Today at 4:00 PM</span></div>
+  <div class="irow"><span>Venue</span><span>Madison Square Garden, New York</span></div>
+  <div class="irow"><span>Records</span><span>Heat 24 – 18 · Knicks 28 – 14</span></div>
+ </div></div>
+</div></div>
+
+<div class="col"><p class="cap">B · While “Check quality” runs <span>(tap it; own sites only, a few seconds)</span></p>
+<div class="phone">
+ <div class="play">▶ Play</div>
+ <div class="auto">Plays <b>LiveFeeds</b> first<br>Checking 2 of 3…</div>
+ <div class="head"><h2>Sources</h2><span class="link">Checking…</span></div>
+ <div class="group">
+  <div class="src"><div class="tile">LF</div><div class="mid"><div class="name">LiveFeeds</div>
+    <div class="chips"><span class="chip q">1080p</span><span class="chip">30 fps</span><span class="chip">4.2 Mbps</span></div>
+    <div class="meta"><span class="dot g"></span>Stream found and answering</div></div><div class="go"></div></div>
+  <div class="src"><div class="tile">72</div><div class="mid"><div class="name">720pStream</div><div class="meta"><span class="dot o"></span>Checking…</div></div><div class="go"></div></div>
+  <div class="prog"><i></i></div>
+  <div class="src"><div class="tile">CM</div><div class="mid"><div class="name">Crew MUT</div><div class="meta"><span class="dot n"></span>Checked when played</div></div><div class="go"></div></div>
+ </div>
+</div></div>
+
+<div class="col"><p class="cap">C · After a few plays <span>(the page learns from this phone)</span></p>
+<div class="phone">
+ <div class="play">▶ Play</div>
+ <div class="auto">Plays <b>720pStream</b> first<br>Best on this phone: 1080p · 4.8 Mbps · worked 5 of 5</div>
+ <div class="head"><h2>Sources</h2><span class="link">Check quality</span></div>
+ <div class="group">
+  <div class="src"><div class="tile">72</div><div class="mid"><div class="name">720pStream <span class="tag">Best</span></div>
+    <div class="chips"><span class="chip q">1080p</span><span class="chip">30 fps</span><span class="chip">4.8 Mbps</span></div>
+    <div class="meta"><span class="dot g"></span>Worked 5 of 5 · 2 h ago</div></div><div class="go"></div></div>
+  <div class="src"><div class="tile">CM</div><div class="mid"><div class="name">Crew MUT</div>
+    <div class="chips"><span class="chip">720p</span><span class="chip">30 fps</span><span class="chip">2.4 Mbps</span></div>
+    <div class="meta"><span class="dot g"></span>Worked 3 of 4 · yesterday</div></div><div class="go"></div></div>
+  <div class="src"><div class="tile">LF</div><div class="mid"><div class="name">LiveFeeds</div>
+    <div class="chips"><span class="chip">480p</span><span class="chip">25 fps</span><span class="chip">0.9 Mbps</span></div>
+    <div class="meta"><span class="dot o"></span>Worked 1 of 3 · stalled twice</div></div><div class="go"></div></div>
+  <div class="src"><div class="tile">LR</div><div class="mid"><div class="name">Loop ReedStreams</div>
+    <div class="meta"><span class="dot r"></span>Failed 2 of 2 · today</div></div><div class="go"></div></div>
+  <div class="more"><span>Other sources (3)</span><span class="chev">›</span></div>
+ </div>
+ <div class="head"><h2>Game info</h2></div>
+ <div class="group"><div class="info">
+  <div class="irow"><span>League</span><span>NBA</span></div>
+  <div class="irow"><span>Starts</span><span>Today at 4:00 PM</span></div>
+  <div class="irow"><span>Venue</span><span>Madison Square Garden, New York</span></div>
+ </div></div>
+</div></div>
+
+</div>
+<div class="legend">
+<b>What each part says.</b> The picture chips (<b>1080p · 30 fps · 4.8 Mbps</b>) are measured: either by “Check quality” (for our own sites: the app opens the stream's playlist and reads its size and bitrate, without playing it) or from what Kodi reported the last time you played that source. A source whose size is not known shows no chips. The dot is the track record on this phone: <b>green</b> worked recently, <b>orange</b> shaky, <b>red</b> failed lately, <b>grey</b> never tried. “Best” is given to one source only, and only from evidence (a source that worked, with the sharpest picture and the steadiest record); until something has been played nothing is called best. Play uses the same order. Crew's and The Loop's links cannot be tested ahead; they get their chips after their first play.<br><br>
+<b>Game info</b> keeps what is shown today (league, start, venue, records when ESPN has them). It moves under the sources and becomes a card of facts instead of one tappable row. Nothing here is added that the app cannot know.<br><br>
+<b>Text rules.</b> Names and lines wrap, never cut off with “…”. Row height grows with the text. Colours follow the Kodi iOS tokens (grey 60 %, blue text 4FA8FF, green, orange, red as status only).
+</div>
+</body></html>

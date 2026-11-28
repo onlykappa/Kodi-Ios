@@ -228,7 +228,7 @@ def own_sources(game, sleep=time.sleep, clock=time.monotonic, make=None, progres
     import sports_jet
     jet = None
     try:
-        jet = make() if make else sports_jet.JetProvider(loader=lambda: (own_extractors(), 'independent'), wait=2)
+        jet = make() if make else own_provider()
         began, shown = clock(), 0
         while True:
             try:
@@ -251,10 +251,23 @@ def own_sources(game, sleep=time.sleep, clock=time.monotonic, make=None, progres
         sports_jet.log('sports: own search ended (%s)' % type(error).__name__)
         return []
     finally:
-        try:
-            jet.stop()
-        except Exception:
-            pass
+        if make:   # the shared provider is never stopped: the next game's search reuses what it already listed
+            try:
+                jet.stop()
+            except Exception:
+                pass
+
+
+_own = [None]
+
+
+def own_provider():
+    """One provider for all of our own sites, shared by every game's search: each game used to start its own run (every site's list fetched and parsed again, game after game: owner log
+    98052c56, the hub's first frame took 3.9 to 5.4 s while the look-ahead ran). It lists again only when its answer is older than sports_jet.TTL."""
+    import sports_jet
+    if _own[0] is None:
+        _own[0] = sports_jet.JetProvider(loader=lambda: (own_extractors(), 'independent'), wait=2)
+    return _own[0]
 
 
 def second_sources(game, sleep=time.sleep, clock=time.monotonic, progress=None, own=None, loop=None, claim=None):
@@ -344,7 +357,7 @@ def merge_sources(*lists):
 def rank_sources(sources, health=None):
     """The best first: what played well before (this phone's own memory per source: a recent success and its sharpness and bitrate count, a recent failure with no success since counts against),
     then the add-on's own quality, then the order given (The Crew's before The Loop's). The first source that has worked before is tagged 'best' and the next two 'good', so the page's
-    "Best" and "Also good" rows show them; sources never tried keep whatever tag they had."""
+    "Best" and "Also good" rows show them; a source never played on this phone carries no tag."""
     import sports_merge
     import sports_stream_health
     try:
@@ -358,10 +371,12 @@ def rank_sources(sources, health=None):
         out, shown = [], 0
         for source in ranked:
             known = (health.data.get(key(source)) or {}).get('ok_at') and not health.dead(key(source))
+            # Every list a source came from tagged its own first one "best" (owner screenshot, build 786: two rows were "Best"); one ranking now decides, from this phone's own plays.
+            tag = ''
             if known and shown < 3:
-                source = dict(source, tag='best' if shown == 0 else 'good')
+                tag = 'best' if shown == 0 else 'good'
                 shown += 1
-            out.append(source)
+            out.append(dict(source, tag=tag) if (tag or source.get('tag')) else source)
         return out
     except Exception:
         return list(sources)   # a memory file that cannot be read never hides a source

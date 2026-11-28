@@ -211,4 +211,23 @@ class OwnSources(unittest.TestCase):
         out=sports_provider.second_sources(GAME,own=own,loop=loop,claim=lambda gid:True,progress=lambda f:seen.append([x['play'] for x in f]))
         self.assertEqual([x['play'] for x in out],['o1']);self.assertEqual(seen[0],['o1'])
 
+
+class SharedOwnProvider(unittest.TestCase):
+    def test_every_games_search_uses_one_provider_so_the_sites_are_listed_once(self):
+        a=sports_provider.own_provider();b=sports_provider.own_provider();self.assertIs(a,b)
+    def test_the_shared_provider_is_not_stopped_by_a_search(self):
+        shared=sports_provider.own_provider();before=shared.stopped
+        class J:
+            running=types.SimpleNamespace(is_set=lambda:True)
+            def live_games(self):return []
+            def upcoming_games(self):return []
+            def stop(self):raise AssertionError('stopped')
+        with patch.object(sports_provider,'own_provider',lambda:J()):
+            self.assertEqual(sports_provider.own_sources(GAME,sleep=lambda s:None),[])
+        self.assertEqual(shared.stopped,before)
+class OneBest(unittest.TestCase):
+    def test_two_lists_that_each_tagged_their_first_source_best_give_one_ranking(self):
+        a=[{'addon':'Crew A','play':'1','tag':'best'}];b=[{'addon':'LiveFeeds','play':'2','tag':'best'}]
+        merged=sports_provider.merge_ranked(a,b)
+        self.assertEqual([x.get('tag','') for x in merged].count('best'),0)   # nothing was played on this test phone: no source is "best" yet
 if __name__=='__main__':unittest.main()
