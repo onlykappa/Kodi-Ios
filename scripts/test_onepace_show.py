@@ -184,15 +184,15 @@ KEEP = []
 
 
 class SearchArt(unittest.TestCase):
-    # ISSUE-503 (owner screenshot IMG_0754): One Pace had no picture in the search results
-    def test_the_entry_has_the_first_arcs_picture_from_the_saved_copy(self):
+    # ISSUE-503 (owner screenshots IMG_0754, IMG_0757): One Pace had no picture in search; the owner chose a poster
+    def test_the_entry_has_the_chosen_poster_and_the_first_arcs_picture_as_fanart(self):
         with tempfile.TemporaryDirectory() as tmp:
-            self.assertEqual(show.show_art(tmp), {}); self.assertEqual(show.search_rows('one pace', tmp)[0]['art'], {})
-            found = with_pictures(onepace.seasons(onepace.parse_watch(PAGE)))
-            show.write_json(show.folder(tmp) / show.CACHE, {'at': 1.0, 'schema': show.SCHEMA, 'seasons': found})
             art = show.search_rows('one pace', tmp)[0]['art']
-            self.assertTrue(art['poster'].startswith('https://onepace.net/_next/image?url=') and 'w=640' in art['poster']); self.assertIn('w=1920', art['fanart'])
-        self.assertEqual(show.search_rows('one pace')[0]['art'], {})   # no profile: no picture, as before
+            self.assertEqual((art['poster'], art['thumb'], art['icon']), (onepace.POSTER_URL,) * 3); self.assertNotIn('fanart', art)   # no saved copy yet
+            show.write_json(show.folder(tmp) / show.CACHE, {'at': 1.0, 'schema': show.SCHEMA, 'seasons': with_pictures(onepace.seasons(onepace.parse_watch(PAGE)))})
+            art = show.search_rows('one pace', tmp)[0]['art']; self.assertIn('w=1920', art['fanart']); self.assertEqual(art['poster'], onepace.POSTER_URL)
+        self.assertEqual(show.search_rows('one pace')[0]['art']['poster'], onepace.POSTER_URL)
+        self.assertTrue(onepace.POSTER_URL.startswith('https://m.media-amazon.com/images/M/MV5B') and onepace.POSTER_URL.endswith('.jpg'))
 
 
 class Pages(unittest.TestCase):

@@ -47,10 +47,7 @@ def fetch(rpc, query):
         boot_path(xbmcvfs)
         import onepace_show
         profile = xbmcvfs.translatePath('special://profile')
-        mine = onepace_show.search_rows(query, profile)
-        if mine and not mine[0].get('art'):   # no saved copy yet: read the site once so the entry has its picture (ISSUE-503)
-            onepace_show.seasons(profile)
-            mine = onepace_show.search_rows(query, profile)
+        mine = onepace_show.search_rows(query, profile)   # with the chosen poster (ISSUE-503)
         found['tv'] = mine + (found.get('tv') or [])
     except Exception:
         pass

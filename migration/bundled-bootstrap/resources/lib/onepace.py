@@ -22,6 +22,8 @@ def strip_tags(fragment):
  return clean(re.sub(r'<[^>]+>',' ',re.sub(r'<!--.*?-->','',fragment,flags=re.S)))
 
 SITE='https://onepace.net'
+# The poster the owner chose for One Pace (IMDb's image of the show, found from the file name the owner sent). Loaded from the web by Kodi; no image is stored in the repository.
+POSTER_URL='https://m.media-amazon.com/images/M/MV5BZWIwZGM5MzUtNzgwYS00MWZkLTljNDQtNzc2NTJjZDM2OWJlXkEyXkFqcGc@._V1_QL75_UX380_.jpg'
 WIDTHS=(640,750,828,1080,1200,1920,2048,3840)   # the sizes the site's image service offers
 
 def image_source(fragment):
