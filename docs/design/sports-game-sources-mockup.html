@@ -39,15 +39,15 @@ h2{font-size:22px;margin:0;font-weight:700}
 <p class="note">Mockup in a browser (not the app, not Kodi). The top of the page (the hero, the team or event, LIVE) stays as it is. Everything below Play is new: each source says what it delivers and how it has done on this phone, the best one is chosen by evidence, and Game info moves under the sources with more facts.</p>
 <div class="row">
 
-<div class="col"><p class="cap">A · A game with no history yet <span>(a new phone, first look)</span></p>
+<div class="col"><p class="cap">A · The moment you open the game <span>(nothing tried yet; checking starts by itself)</span></p>
 <div class="phone">
  <div class="play">▶ Play</div>
- <div class="auto">Plays <b>LiveFeeds</b> first<br>Nothing tried on this phone yet</div>
- <div class="head"><h2>Sources</h2><span class="link">Check quality</span></div>
+ <div class="auto">Play works right away<br>Looking at each source in the background…</div>
+ <div class="head"><h2>Sources</h2><span class="link" style="color:var(--grey)">Checking…</span></div>
  <div class="group">
-  <div class="src"><div class="tile">LF</div><div class="mid"><div class="name">LiveFeeds</div><div class="meta"><span class="dot n"></span>Not tried yet</div></div><div class="go"></div></div>
-  <div class="src"><div class="tile">72</div><div class="mid"><div class="name">720pStream</div><div class="meta"><span class="dot n"></span>Not tried yet</div></div><div class="go"></div></div>
-  <div class="src"><div class="tile">CM</div><div class="mid"><div class="name">Crew MUT</div><div class="meta"><span class="dot n"></span>Not tried yet</div></div><div class="go"></div></div>
+  <div class="src"><div class="tile">LF</div><div class="mid"><div class="name">LiveFeeds</div><div class="meta"><span class="dot o"></span>Checking…</div></div><div class="go"></div></div>
+  <div class="src"><div class="tile">72</div><div class="mid"><div class="name">720pStream</div><div class="meta"><span class="dot o"></span>Checking…</div></div><div class="go"></div></div>
+  <div class="src"><div class="tile">CM</div><div class="mid"><div class="name">Crew MUT</div><div class="meta"><span class="dot n"></span>Checked when played</div></div><div class="go"></div></div>
   <div class="more"><span>Other sources (4)</span><span class="chev">›</span></div>
  </div>
  <div class="head"><h2>Game info</h2></div>
@@ -59,26 +59,25 @@ h2{font-size:22px;margin:0;font-weight:700}
  </div></div>
 </div></div>
 
-<div class="col"><p class="cap">B · While “Check quality” runs <span>(tap it; own sites only, a few seconds)</span></p>
+<div class="col"><p class="cap">B · A few seconds later <span>(the checks came back by themselves)</span></p>
 <div class="phone">
  <div class="play">▶ Play</div>
- <div class="auto">Plays <b>LiveFeeds</b> first<br>Checking 2 of 3…</div>
- <div class="head"><h2>Sources</h2><span class="link">Checking…</span></div>
+ <div class="auto">Plays <b>LiveFeeds</b> first<br>Sharpest picture found: 1080p</div>
+ <div class="head"><h2>Sources</h2><span class="link" style="color:var(--grey)">Checked 12 s ago</span></div>
  <div class="group">
   <div class="src"><div class="tile">LF</div><div class="mid"><div class="name">LiveFeeds</div>
     <div class="chips"><span class="chip q">1080p</span><span class="chip">30 fps</span><span class="chip">4.2 Mbps</span></div>
     <div class="meta"><span class="dot g"></span>Stream found and answering</div></div><div class="go"></div></div>
-  <div class="src"><div class="tile">72</div><div class="mid"><div class="name">720pStream</div><div class="meta"><span class="dot o"></span>Checking…</div></div><div class="go"></div></div>
-  <div class="prog"><i></i></div>
+  <div class="src"><div class="tile">72</div><div class="mid"><div class="name">720pStream</div><div class="chips"><span class="chip">720p</span><span class="chip">30 fps</span><span class="chip">2.6 Mbps</span></div><div class="meta"><span class="dot g"></span>Stream found and answering</div></div><div class="go"></div></div>
   <div class="src"><div class="tile">CM</div><div class="mid"><div class="name">Crew MUT</div><div class="meta"><span class="dot n"></span>Checked when played</div></div><div class="go"></div></div>
  </div>
 </div></div>
 
-<div class="col"><p class="cap">C · After a few plays <span>(the page learns from this phone)</span></p>
+<div class="col"><p class="cap">C · After a few plays <span>(it also remembers how each source did on this phone)</span></p>
 <div class="phone">
  <div class="play">▶ Play</div>
  <div class="auto">Plays <b>720pStream</b> first<br>Best on this phone: 1080p · 4.8 Mbps · worked 5 of 5</div>
- <div class="head"><h2>Sources</h2><span class="link">Check quality</span></div>
+ <div class="head"><h2>Sources</h2><span class="link" style="color:var(--grey)">Checked 2 min ago</span></div>
  <div class="group">
   <div class="src"><div class="tile">72</div><div class="mid"><div class="name">720pStream <span class="tag">Best</span></div>
     <div class="chips"><span class="chip q">1080p</span><span class="chip">30 fps</span><span class="chip">4.8 Mbps</span></div>
@@ -103,7 +102,7 @@ h2{font-size:22px;margin:0;font-weight:700}
 
 </div>
 <div class="legend">
-<b>What each part says.</b> The picture chips (<b>1080p · 30 fps · 4.8 Mbps</b>) are measured: either by “Check quality” (for our own sites: the app opens the stream's playlist and reads its size and bitrate, without playing it) or from what Kodi reported the last time you played that source. A source whose size is not known shows no chips. The dot is the track record on this phone: <b>green</b> worked recently, <b>orange</b> shaky, <b>red</b> failed lately, <b>grey</b> never tried. “Best” is given to one source only, and only from evidence (a source that worked, with the sharpest picture and the steadiest record); until something has been played nothing is called best. Play uses the same order. Crew's and The Loop's links cannot be tested ahead; they get their chips after their first play.<br><br>
+<b>What each part says.</b> The picture chips (<b>1080p · 30 fps · 4.8 Mbps</b>) are measured: either by the checks the page runs by itself when it opens (for our own sites: the app opens the stream's playlist and reads its size and bitrate, without playing it; about 3 to 8 seconds, on Wi-Fi, and again every couple of minutes while the page stays open) or from what Kodi reported the last time you played that source. A source whose size is not known shows no chips. The dot is the track record on this phone: <b>green</b> worked recently, <b>orange</b> shaky, <b>red</b> failed lately, <b>grey</b> never tried. “Best” is given to one source only, and only from evidence (a source that worked, with the sharpest picture and the steadiest record); until something has been played nothing is called best. Play uses the same order. Crew's and The Loop's links cannot be tested ahead; they get their chips after their first play.<br><br>
 <b>Game info</b> keeps what is shown today (league, start, venue, records when ESPN has them). It moves under the sources and becomes a card of facts instead of one tappable row. Nothing here is added that the app cannot know.<br><br>
 <b>Text rules.</b> Names and lines wrap, never cut off with “…”. Row height grows with the text. Colours follow the Kodi iOS tokens (grey 60 %, blue text 4FA8FF, green, orange, red as status only).
 </div>

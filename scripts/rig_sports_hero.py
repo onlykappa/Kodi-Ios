@@ -1,5 +1,5 @@
 """Run inside the desktop Kodi rig (RunScript with this file's path, argument f1 | long | team | upcoming): opens the real game page (IOSSportsGame.xml) with sample data so the
-hero can be looked at. Sample data only; no provider, no network.  usage (inside Kodi): RunScript(/path/to/rig_sports_hero.py, f1)"""
+hero can be looked at. Sample data only; no provider, no network.  usage (inside Kodi): RunScript(/path/to/rig_sports_hero.py, f1)   or live ESPN data: RunScript(..., espn:F1) / espn:NBA / espn"""
 import os
 import sys
 import time
@@ -24,7 +24,17 @@ GAMES = {
              'away': {'name': 'Kansas City Chiefs', 'short': 'Chiefs', 'code': 'KC', 'score': 14, 'color': 'E31837'}, 'home': {'name': 'Buffalo Bills', 'short': 'Bills', 'code': 'BUF', 'score': 17, 'color': '00338D'}, 'clock': '', 'sources': SRC},
 }
 GAMES['upcoming'] = dict(GAMES['f1'], state='upcoming', start=now + 5400, sources=[])
-game = GAMES[(sys.argv[1] if len(sys.argv) > 1 else 'f1')]
+mode = sys.argv[1] if len(sys.argv) > 1 else 'f1'
+if mode.startswith('espn'):
+    # LIVE data, exactly as the app gets it: the app's own provider reads ESPN (espn / espn:F1 / espn:NBA ...): the first live game of that league, else the first upcoming one.
+    import sports_provider
+    provider = sports_provider.get()
+    wanted = mode.split(':', 1)[1].upper() if ':' in mode else ''
+    pool = list(provider.live_games()) + list(provider.upcoming_games())
+    game = next((g for g in pool if not wanted or g['league'] == wanted), None) or pool[0]
+    xbmc.log('RIGHERO live game %s %s %s' % (game['id'], game['league'], game['state']), xbmc.LOGINFO)
+else:
+    game = GAMES[mode]
 import sports_logos
 import xbmcvfs
 crests = sports_logos.crests(xbmcvfs.translatePath('special://profile/'), [game['away'].get('crest', ''), game['home'].get('crest', '')])
