@@ -8,5 +8,6 @@
     "tag": "kodi-glassbar-r5",
     "asset": "KodiGlassBar.framework.zip",
     "sha256": "d4afde35835827a57ac93b327d9f8d94bf373bc28d20e9614acf9594c3441ece"
-  }
+  },
+  "build_tag": "kodi-glassbar-r7"
 }
