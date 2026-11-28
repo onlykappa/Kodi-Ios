@@ -102,5 +102,11 @@ class NewThings(unittest.TestCase):
         self.assertIn(('dub', 'Romance Dawn'), kinds); self.assertIn(('dub', 'Whisky Peak'), kinds)
 
 
+class ChipName(unittest.TestCase):
+    def test_long_arc_names_are_cut_at_a_word_for_the_chip(self):
+        self.assertEqual(op.chip_name('Romance Dawn'), 'Romance Dawn'); self.assertEqual(op.chip_name('Special: One Piece Fan Letter'), 'One Piece Fan\u2026')
+        self.assertEqual(op.chip_name('Sabaody Archipelago'), 'Sabaody\u2026'); self.assertEqual(op.chip_name(''), ''); self.assertTrue(len(op.chip_name('x' * 40)) <= 16)
+
+
 if __name__ == '__main__':
     unittest.main()

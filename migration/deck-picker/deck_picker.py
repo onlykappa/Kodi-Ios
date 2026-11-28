@@ -220,6 +220,7 @@ HEAVY_GB = 40.0
 STREAM_MBPS = 10.0
 LIMIT = [0.0]   # ISSUE-498: the limit for this list from what the connection has delivered (connection_speed.allowed), set by umbrella_picker; 0 = STREAM_MBPS
 RUNTIME = [0.0]
+WIFI = [0.0]   # ISSUE-500: what this network has delivered lately in Mbit/s (connection_speed), set by umbrella_picker; 0 = not measured: the page then looks as before
 DISC_WORDS = (' M2TS ', ' BDMV ', ' ISO ', ' BD25 ', ' BD50 ', ' BD66 ', ' BD100 ', ' COMPLETE BLURAY ', ' COMPLETE UHD BLURAY ',
               ' COMPLETE BLU RAY ', ' UHD BD ', ' DISC ')
 
@@ -437,7 +438,8 @@ def build_rows(shown, total_label=u''):
                      'pills': tags[:4], 'size': it.get('size') or 0, 'seeds': it.get('seeds') or 0,
                      'badge': cover.upper() if cover else u'FULL SEASON' if cover == u'' else
                      u'MAY STUTTER' if too_heavy(it) else u'AV1 \u00b7 SLOW TO PREPARE' if slow_to_prepare(it)
-                     else u'10-BIT \u00b7 SLOW ON AIRPLAY' if converts_for_tv(it) else b.get(n, u''), 'icon': it['icon']})
+                     else u'10-BIT \u00b7 SLOW ON AIRPLAY' if converts_for_tv(it) else (u'MAY BUFFER' if too_heavy_for_wifi(it) and b.get(n, u'') != u'BEST MATCH' else b.get(n, u'')),
+                     'fit': fit_text(it), 'fitwarn': u'1' if too_heavy_for_wifi(it) else u'', 'icon': it['icon']})
     return rows
 
 
@@ -457,10 +459,32 @@ def quality_menu_labels(keys, groups, top_n=TOP_N):
     return labels
 
 
+def wifi_text():
+    """' \u00b7 Wi-Fi 14 Mbit/s' for the page's subtitle once this network has a measured speed (streams only), else nothing. One line, never wraps."""
+    return u' \u00b7 Wi-Fi %d Mbit/s' % max(1, int(round(WIFI[0]))) if MODE[0] == u'stream' and WIFI[0] > 0 else u''
+
+
+def too_heavy_for_wifi(item):
+    return MODE[0] == u'stream' and WIFI[0] > 0 and stream_mbps(item) > (LIMIT[0] or STREAM_MBPS)
+
+
+def fit_text(item):
+    """One short line under a version: 'Fits your Wi-Fi \u00b7 needs 13 Mbit/s' or 'Needs 19 Mbit/s \u00b7 Wi-Fi gives 14'; empty when the speed or the length is unknown."""
+    need = stream_mbps(item)
+    if MODE[0] != u'stream' or WIFI[0] <= 0 or need <= 0:
+        return u''
+    need = max(1, int(round(need)))
+    if too_heavy_for_wifi(item):
+        if need <= int(round(WIFI[0])):
+            return u'Tight on your Wi-Fi \u00b7 needs %d Mbit/s' % need
+        return u'Needs %d Mbit/s \u00b7 Wi-Fi gives %d' % (need, max(1, int(round(WIFI[0]))))
+    return u'Fits your Wi-Fi \u00b7 needs %d Mbit/s' % need
+
+
 def count_label(shown_n, uniq_n):
     if uniq_n > shown_n:
-        return u'Top %d of %d versions' % (shown_n, uniq_n)
-    return u'%d version%s' % (shown_n, u'' if shown_n == 1 else u's')
+        return u'Top %d of %d versions%s' % (shown_n, uniq_n, wifi_text())
+    return u'%d version%s%s' % (shown_n, u'' if shown_n == 1 else u's', wifi_text())
 
 
 # ---------------------------------------------------------------------------------
@@ -613,6 +637,8 @@ def _window_class():
                 item.setProperty('tags', r['tags'])
                 item.setProperty('meta', r['meta'])
                 item.setProperty('badge', r['badge'])
+                item.setProperty('fit', r.get('fit', u''))
+                item.setProperty('fitwarn', r.get('fitwarn', u''))
                 for k, tag in enumerate(r.get('pills') or [], 1):
                     item.setProperty('tag%d' % k, tag)
                     item.setProperty('tag%d.kind' % k, u'av1' if u'AV1' in tag.upper() else u'')

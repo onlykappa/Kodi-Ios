@@ -356,6 +356,33 @@ class PacksLast(unittest.TestCase):
   for name in ('Show.S01.Complete','Show.S01E02','Show.S01E011','Show.S11E01',''):self.assertFalse(dp.names_episode(name,1,1),name)
   self.assertFalse(dp.names_episode('Show.S01E01','x',1))
 
+class WifiLine(unittest.TestCase):
+ # ISSUE-500 (owner mockup): the version page says what this network gives and whether each version fits, on one line each
+ def run_state(self,wifi,limit,mode=u'stream'):
+  old=(dp.MODE[0],dp.RUNTIME[0],dp.WIFI[0],dp.LIMIT[0])
+  dp.MODE[0]=mode;dp.RUNTIME[0]=7200.0;dp.WIFI[0]=wifi;dp.LIMIT[0]=limit
+  return old
+ def restore(self,old):dp.MODE[0],dp.RUNTIME[0],dp.WIFI[0],dp.LIMIT[0]=old
+ def test_subtitle_and_lines_when_the_speed_is_known(self):
+  old=self.run_state(14.0,9.8)
+  try:
+   self.assertEqual(dp.count_label(5,5),u'5 versions \u00b7 Wi-Fi 14 Mbit/s');self.assertEqual(dp.count_label(5,12),u'Top 5 of 12 versions \u00b7 Wi-Fi 14 Mbit/s')
+   self.assertEqual(dp.fit_text({'size':4.5}),u'Fits your Wi-Fi \u00b7 needs 5 Mbit/s');self.assertEqual(dp.fit_text({'size':16.0}),u'Needs 19 Mbit/s \u00b7 Wi-Fi gives 14');self.assertEqual(dp.fit_text({'size':9.0}),u'Tight on your Wi-Fi \u00b7 needs 11 Mbit/s')
+   self.assertFalse(dp.too_heavy_for_wifi({'size':4.5}));self.assertTrue(dp.too_heavy_for_wifi({'size':16.0}))
+  finally:self.restore(old)
+ def test_nothing_changes_without_a_measured_speed_or_for_downloads(self):
+  for wifi,mode in ((0.0,u'stream'),(14.0,u'download')):
+   old=self.run_state(wifi,0.0,mode)
+   try:self.assertEqual(dp.count_label(5,5),u'5 versions');self.assertEqual(dp.fit_text({'size':4.5}),u'');self.assertFalse(dp.too_heavy_for_wifi({'size':16.0}))
+   finally:self.restore(old)
+ def test_rows_carry_the_line_and_a_may_buffer_badge(self):
+  old=self.run_state(14.0,9.8)
+  try:
+   items=[dict(name='Film.1080p.WEB-DL.x264',tags_text='',providers=[],quality='1080p',seeds=5,size=4.5,icon='',idx=0),dict(name='Film.1080p.WEB.x265',tags_text='',providers=[],quality='1080p',seeds=4,size=16.0,icon='',idx=1)]
+   dp._CONTEXT['exp']=None;rows=dp.build_rows(dp.pick(items,10))
+   self.assertEqual([r['badge'] for r in rows],[u'BEST MATCH',u'MAY BUFFER']);self.assertEqual([bool(r['fitwarn']) for r in rows],[False,True]);self.assertTrue(rows[0]['fit'].startswith(u'Fits'))
+  finally:self.restore(old)
+
 class LighterFirst(unittest.TestCase):
  # ISSUE-497 (owner log c703d50a): an 11-15 Mbit/s HDR stream could not be made at real time from an AllDebrid link that gave 13.7 Mbit/s
  def item(self,name,n,gb):return {'name':name,'tags_text':'','providers':[],'quality':'1080p','seeds':5,'size':gb,'icon':'','idx':n}

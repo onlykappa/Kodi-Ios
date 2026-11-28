@@ -223,12 +223,14 @@ class Plugin(unittest.TestCase):
         k = self.run_route({'action': 'onepace'}, pictures=True)
         self.assertEqual((k.content, len(k.items)), ('seasons', 3)); self.assertTrue(all(folder for _, _, folder in k.items)); self.assertIn('season=1', k.items[0][0])
         arc = k.items[0][1]   # named by the arc, with its summary, picture and show-level metadata
+        self.assertEqual(arc.props['KodiIOS.ChipShort'], 'Romance Dawn')
         self.assertEqual((arc.label, arc.props['KodiIOS.ChipLabel'], arc.tag.v['Genres'], arc.tag.v['Year']), ('Romance Dawn', 'Romance Dawn', ['Animation', 'Action & Adventure'], 1999))
         self.assertIn('Monkey D. Luffy', arc.tag.v['Plot']); self.assertIn('Manga chapters', arc.tag.v['Plot']); self.assertIn('fanart', arc.art); self.assertIn('poster', arc.art)
         e = self.run_route({'action': 'onepace', 'season': '2'}, pictures=True)
         self.assertEqual((e.content, len(e.items)), ('episodes', 2))
         path, li, folder = e.items[0]; self.assertFalse(folder); self.assertIn('action=onepace_play', path); self.assertEqual(li.props['IsPlayable'], 'true'); self.assertEqual(li.props['onepace_japanese_only'], 'true')
         self.assertEqual(li.tag.v['TvShowTitle'], 'One Pace'); self.assertIn('Japanese only', li.label2)
+        self.assertEqual(li.props['KodiIOS.EpisodeNote'], 'Japanese only')   # drawn after the length on the show page
         # ISSUE-499: the arc row stays on the episode page, and the pictures come from the site
         self.assertEqual(li.props['KodiIOS.SeasonsPath'], 'plugin://plugin.video.kodi.ios.watch/?action=onepace')
         self.assertTrue(li.art['thumb'].startswith('https://onepace.net/_next/image?url=') and 'w=640' in li.art['thumb']); self.assertIn('tvshow.fanart', li.art)

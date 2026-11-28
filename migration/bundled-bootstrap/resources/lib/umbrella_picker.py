@@ -144,7 +144,7 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
  try:   # ISSUE-498: how much this network has delivered to streams lately sets how heavy a version may be to come first (connection_speed.py)
   import connection_speed,xbmc
   speeds=connection_speed.open_speeds();estimate=speeds.estimate(connection_speed.current_key())
-  deck.LIMIT[0]=connection_speed.allowed(estimate)
+  deck.LIMIT[0]=connection_speed.allowed(estimate);deck.WIFI[0]=float(estimate or 0)
   xbmc.log(connection_speed.advice(estimate,deck.LIMIT[0]),xbmc.LOGINFO)
  except Exception:pass
  title=(meta or {}).get('tvshowtitle') or (meta or {}).get('title') or ''

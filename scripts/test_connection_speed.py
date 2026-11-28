@@ -74,7 +74,7 @@ class Wiring(unittest.TestCase):
         lib = ROOT / 'migration/bundled-bootstrap/resources/lib'
         self.assertIn("connection_speed.record(meter,now)", (lib / 'remote_media.py').read_text())
         picker = (lib / 'umbrella_picker.py').read_text()
-        self.assertIn("deck.LIMIT[0]=connection_speed.allowed(estimate)", picker); self.assertIn("connection_speed.advice(estimate,deck.LIMIT[0])", picker)
+        self.assertIn("deck.LIMIT[0]=connection_speed.allowed(estimate);deck.WIFI[0]=float(estimate or 0)", picker); self.assertIn("connection_speed.advice(estimate,deck.LIMIT[0])", picker)
         self.assertIn("limit = LIMIT[0] or STREAM_MBPS", (ROOT / 'migration/deck-picker/deck_picker.py').read_text())
 
     def test_the_block_trace_records_a_sample(self):

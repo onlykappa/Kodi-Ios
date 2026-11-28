@@ -69,6 +69,7 @@ def directory(handle, params):
             li.setProperty('KodiIOS.SeasonsPath', url())   # the arc row on the episode page (portrait.py library_chips reads it), as for a downloaded show
             li.setArt(art(r, 'thumb'))
             li.setProperty('onepace_japanese_only', 'true' if r['japanese_only'] else '')
+            li.setProperty('KodiIOS.EpisodeNote', 'Japanese only' if r['japanese_only'] else 'English dub')   # shown after the length on the show page (portrait.py)
             li.setLabel2(('%dm' % r['minutes'] if r['minutes'] else '') + (' · Japanese only' if r['japanese_only'] else ''))
             rows.append((play_url(r['season'], r['episode']), li, False))
         xbmcplugin.setContent(handle, 'episodes')
@@ -84,6 +85,7 @@ def directory(handle, params):
             tag.setGenres(GENRES)
             tag.setYear(YEAR)
             li.setProperty('onepace', 'true')
+            li.setProperty('KodiIOS.ChipShort', show.onepace.chip_name(r['label']))
             li.setProperty('KodiIOS.ChipLabel', r['label'])   # the arc's name on the row and on the Play and Download buttons (portrait.py), not "Season N"
             li.setArt(art(r, 'poster'))
             rows.append((url(season=r['season']), li, True))

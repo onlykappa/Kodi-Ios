@@ -155,3 +155,12 @@ def changes(before,seasons):
    if len(s['episodes'])>old[0]:new.append({'kind':'episode','arc':s['title'],'count':len(s['episodes'])-old[0],'latest':s['episodes'][-1]['number']})
    if s['dubbed']>old[1]:new.append({'kind':'dub','arc':s['title'],'count':s['dubbed']-old[1]})
  return new
+
+
+def chip_name(title, limit=16):
+    """The arc's name for a season chip (ISSUE-499): without "Special: ", cut at a word with an ellipsis when it is longer than `limit`."""
+    text = re.sub(r'^\s*special:\s*', '', str(title or ''), flags=re.I).strip()
+    if len(text) <= limit:
+        return text
+    cut = text[:limit - 1].rsplit(' ', 1)[0] if ' ' in text[:limit - 1] else text[:limit - 1]
+    return cut.rstrip(' .,:;') + '\u2026'

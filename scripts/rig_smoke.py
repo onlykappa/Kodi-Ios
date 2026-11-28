@@ -87,6 +87,9 @@ CHECKS = (
     {'name': 'resume_sheet', 'script': ['rig_smoke_sheet.py', 'resume'], 'expect': 'rig smoke: sheet resume opened'},
     {'name': 'bell_sheet', 'script': ['rig_smoke_sheet.py', 'bell'], 'expect': 'rig smoke: sheet bell opened'},
     {'name': 'quality_sheet', 'script': ['rig_smoke_sheet.py', 'quality'], 'expect': 'rig smoke: sheet quality opened'},
+    # ISSUE-500: the Deck's Choose a version page, with the Wi-Fi line (speed known) and as before (not measured).
+    {'name': 'deck_wifi', 'script': ['rig_smoke_deck.py', 'wifi'], 'expect': 'rig smoke: deck wifi opened'},
+    {'name': 'deck_plain', 'script': ['rig_smoke_deck.py', 'plain'], 'expect': 'rig smoke: deck plain opened'},
     # The show page: the Library's show listing in Kodi's video window (empty in the rig: no Drive, which is the empty state).
     {'name': 'show_page', 'builtin': 'ActivateWindow(videos,plugin://plugin.video.kodi.ios.watch/?action=library&type=tv&show=Smoke&merge=1,return)',
      'expect': 'Kodi iOS Library:'},
