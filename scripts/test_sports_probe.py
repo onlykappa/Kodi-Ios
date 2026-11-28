@@ -74,16 +74,33 @@ class Start(unittest.TestCase):
         self.assertEqual(sp.start([{'play': own}], run=run, clock=lambda: now[0], spawn=lambda t: t()), 1)   # expired
         self.assertEqual(len(calls), 2)
 
-    def test_row_lines(self):
+    def test_row_view_and_heading(self):
+        import sports_source_view as sv
         import sports_livefeeds
+        import time
         own = play(sports_livefeeds.NAME)
-        self.assertEqual(sports_game.check_line({'play': own}), '\nChecking…')
-        sp._results[own] = (__import__('time').time(), {'ok': True, 'height': 1080, 'fps': 60, 'kbps': 5200})
-        self.assertEqual(sports_game.check_line({'play': own}), '\nChecked: 1080p · 60 fps · 5.2 Mbps')
+        now = time.time()
+        self.assertEqual((sv.view({'play': own}, now)['dot'], sv.view({'play': own}, now)['status']), ('o', 'Checking…'))
+        self.assertEqual(sv.header([{'play': own}], now), 'Checking…')
+        sp._results[own] = (now - 30, {'ok': True, 'height': 1080, 'fps': 60, 'kbps': 5200})
+        v = sv.view({'play': own}, now)
+        self.assertEqual((v['chips'], v['sharp'], v['dot'], v['status']), (['1080p', '60 fps', '5.2 Mbps'], True, 'g', 'Stream found and answering'))
+        self.assertEqual(sv.header([{'play': own}], now), 'Checked 30 s ago')
+        sp._results[own] = (now, {'ok': True, 'kbps': 1400, 'speed': 1.1})
+        v = sv.view({'play': own}, now)
+        self.assertEqual((v['chips'], v['sharp'], v['dot']), (['1.4 Mbps'], False, 'o'))
+        self.assertIn('slowly', v['status'])
+        sp._results[own] = (now, {'ok': False, 'why': 'RuntimeError'})
+        self.assertEqual(sv.view({'play': own}, now)['status'], "Didn't answer just now")
         crew = json.dumps({'e': 'TheCrewRoute', 'l': {}})
-        self.assertEqual(sports_game.check_line({'play': crew}), '\nChecked when played')
-        self.assertEqual(sports_game.check_line({'play': crew, 'record': '720p'}), '')
-
+        self.assertEqual((sv.view({'play': crew}, now)['dot'], sv.view({'play': crew}, now)['status']), ('n', 'Checked when played'))
+        self.assertEqual(sv.header([{'play': crew}], now), '')
+        seen = {'ok': 3, 'ok_at': now - 7200, 'height': 720, 'fps': 30, 'kbps': 2400}
+        v = sv.view({'play': crew, 'seen': seen}, now)
+        self.assertEqual((v['chips'], v['dot'], v['status']), (['720p', '30 fps', '2.4 Mbps'], 'g', 'Worked 3 times, 2 h ago'))
+        v = sv.view({'play': crew, 'seen': dict(seen, dead=True, fail=2, fail_at=now)}, now)
+        self.assertEqual(v['dot'], 'r')
+        self.assertEqual(sv.ago(now - 90000, now), 'yesterday')
 
 if __name__ == '__main__':
     unittest.main()

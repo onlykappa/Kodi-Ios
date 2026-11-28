@@ -1,13 +1,15 @@
 """The game page (owner mockup page 6, 2026-11-19): the two teams on their colours, the time, Remind me / Play, Sources, Game info."""
 import status_ui as u
 import sports_hero as hero
+import sports_game_facts_page as facts
 
 WINDOW = 'IOSSportsGame.xml'
 BACK, REFRESH, LIST, RETRY = 9001, 9002, 9300, 9003
 SEARCH_RETRY = 9004
 AUTO = 9005
 REMIND, REMIND_ON = 9006, 9008      # Remind me / Reminder on (two buttons, one visible at a time) (board C of docs/design/sports-game-mockups.html)
-INFO_OPEN = 9011                    # the "Game info" card (opens the game's Info / Standings page)
+INFO_OPEN = 9011                    # (the old "Game info" card; the facts are now drawn below the sources)
+TABS = (9212, 9214, 9213)           # the Game info tabs below the sources: Stats, Play-By-Play, Standings (ids of this page; the strip for a game with no standings adds 20)
 OTHER = 9012                        # "Other sources (3)" under the best-source line: jumps to the list
 SOURCE, SLOTS = 50000, 24
 FORMS = tuple((title, detail) for title in range(1, 5) for detail in range(1, 10))
@@ -27,6 +29,35 @@ def _badge(p, x, y, w, text, tint=None, fill=None):
             u.text(p,x,y,w,56,text,'p_foot_b',tint or p.WHITE,'center'))
 
 
+CHIP_W = (150, 150, 190)    # picture size, frame rate, bitrate: fixed widths (Kodi cannot size a pill to its text)
+CHIP_H, CHIP_GAP = 42, 12
+DOT = {'g': 'FF30D158', 'o': 'FFFF9F0A', 'r': 'FFFF453A', 'n': 'FF636366'}   # status only: worked / checking or shaky / failed / unknown (mockup)
+GREEN_CHIP, GREEN_TEXT = '2E30D158', 'FF30D158'
+
+
+def _chips(p, key, y):
+    """The picture chips (mockup: 1080p and sharper in green, the rest grey): one row, each shown only when it has text."""
+    out, x = '', 231
+    for i, width in enumerate(CHIP_W):
+        name = '%schip%d' % (key, i)
+        has = u.has('%schip%d' % (key, i))
+        for sharp in (True, False):
+            cond = has + ' + ' + ('String.IsEqual(Window().Property(%schipq),true)' % key if (sharp and i == 0) else ('!String.IsEqual(Window().Property(%schipq),true)' % key if i == 0 else 'true'))
+            if i and not sharp:
+                continue
+            back = p.image(x, y + 5 + (DETAIL_LINE - CHIP_H) // 2, width, CHIP_H, p.MEDIA + 'r21.png', GREEN_CHIP if sharp and i == 0 else p.SURFACE2, '<visible>%s</visible>' % cond, border=21)
+            label = u.text(p, x, y + 5 + (DETAIL_LINE - CHIP_H) // 2, width, CHIP_H, u.P(name), 'p_cap', GREEN_TEXT if sharp and i == 0 else p.WHITE, 'center').replace('</control>', '<visible>%s</visible></control>' % cond)
+            out += back + label
+        x += width + CHIP_GAP
+    return out
+
+
+def _dot(p, key, y):
+    """The status dot beside the status line (first line of the text)."""
+    return ''.join(p.image(231, y + (DETAIL_LINE - 22) // 2, 22, 22, p.MEDIA + 'pill_96.png', color,
+                           '<visible>String.IsEqual(Window().Property(%sdot),%s)</visible>' % (key, name)) for name, color in DOT.items())
+
+
 def _sources(p):
     out = ''
     for n in range(SLOTS):
@@ -41,11 +72,20 @@ def _sources(p):
             for kind,badge_w in (('best',119),('good',207),('plain',0)):
                 text_w = 635-(badge_w+32 if badge_w else 0)
                 inside = p.textbox(231,top,text_w,TITLE_LINE*title,u.P(key+'title'),'p_h3')
-                inside += p.textbox(231,top+TITLE_LINE*title,text_w,DETAIL_LINE*detail,u.P(key+'detail'),'p_sub',p.GREY)
-                if badge_w:
-                    inside += _badge(p,866-badge_w,(h-56)//2,badge_w,'Best' if kind=='best' else 'Also good',
+                if badge_w:   # the badge sits on the title line, at the right (mockup), so the chips below keep the whole width
+                    inside += _badge(p,866-badge_w,top+(TITLE_LINE-56)//2,badge_w,'Best' if kind=='best' else 'Also good',
                                      p.ACCENT if kind=='best' else p.GREY,'330A84FF' if kind=='best' else '24EBEBF5')
                 b += ('<control type="group"><visible>String.IsEqual(Window().Property(%stag),%s)</visible>%s</control>') % (key,kind,inside)
+            below = top+TITLE_LINE*title
+            # with chips the first detail line is the chip row and the status starts under it; without, the status starts at once
+            for with_chips in (True, False):
+                y = below + (DETAIL_LINE if with_chips else 0)
+                lines = detail - (1 if with_chips else 0)
+                if lines < 1:
+                    continue
+                inner = (_chips(p,key,below) if with_chips else '') + _dot(p,key,y)
+                inner += p.textbox(265,y,601,DETAIL_LINE*lines,u.P(key+'detail'),'p_sub',p.GREY)
+                b += '<control type="group"><visible>%s</visible>%s</control>' % (u.has(key+'chip0') if with_chips else 'String.IsEmpty(Window().Property(%schip0))' % key, inner)
             b += p.image(898,(h-92)//2,92,92,p.MEDIA+'pill_96.png',p.WHITE,border=46)
             b += p.image(924,(h-43)//2,43,43,p.MEDIA+'play.png','FF000000',aspect='>keep')
             out += u.group(p,h,b,'String.IsEqual(Window().Property(%sform),%d)' % (key,form))
@@ -69,7 +109,7 @@ def page(p):
     content += u.group(p, 182, on, no_source + ' + !String.IsEmpty(Window().Property(remind.on))')
     content += u.group(p, 134, p.textbox(92, 0, 896, 120, u.P('remind.note'), 'p_sub', p.GREY).replace('<autoscroll>', '<align>center</align><autoscroll>'),
                        'String.IsEqual(Window().Property(state),empty) + !String.IsEmpty(Window().Property(remind.note))')
-    heading = u.text(p, p.SIDE, 43, 700, 70, 'Sources', 'p_h2')
+    heading = u.text(p, p.SIDE, 43, 600, 70, 'Sources', 'p_h2') + u.text(p, 600, 52, 426, 56, u.P('sources.checked'), 'p_sub', p.GREY, 'right')   # "Checking…" / "Checked 12 s ago"
     content += u.group(p, 134, heading, u.has('hero.lines')) + _sources(p)
     # None yet: when it was last looked at, and a link to look again now (mockup page 6).
     none = u.card(p, p.SIDE, 0, 972, 190)
@@ -83,13 +123,11 @@ def page(p):
     error += p.pill_button(RETRY, 270, 320, 540, 134, 'Try again', [('', 'noop')], 'primary', extra='<visible>String.IsEqual(Window().Property(state),error)</visible>')
     content += u.group(p, 520, error, u.has('error.title'))
     content += u.group(p, 160, p.textbox(92, 21, 896, 120, u.P('play.error'), 'p_sub', p.GREY), u.has('play.error'))
-    # Game info: one card that opens the facts page (kickoff, venue, recent form, standings).
-    content += u.group(p, 134, u.text(p, p.SIDE, 43, 700, 70, 'Game info', 'p_h2'), u.has('hero.lines') + ' + !String.IsEqual(Window().Property(state),error)')
-    info = u.card(p, p.SIDE, 0, 972, 190)
-    info += u.text(p, 92, 28, 760, 70, u.P('info.title'), 'p_h3') + u.text(p, 92, 98, 760, 56, u.P('info.sub'), 'p_sub', p.GREY)
-    info += u.glyph(p, 940, 79, 32, 'chevron-right.png', p.GREY)
-    info += u.tap(p, INFO_OPEN, p.SIDE, 0, 972, 190)
-    content += u.group(p, 230, info, u.has('hero.lines') + ' + !String.IsEqual(Window().Property(state),error)')
+    # Game info, below the sources (owner, 2026-11-28: "the game info tabs should be when I scroll down"): the Stats / Play-By-Play / Standings tabs and their cards,
+    # the same ones the Info window drew (sports_game_facts_page.inline), filled by sports_game_facts.Section.
+    shown = u.has('hero.lines') + ' + !String.IsEqual(Window().Property(state),error)'
+    content += u.group(p, 134, u.text(p, p.SIDE, 43, 700, 70, 'Game info', 'p_h2'), shown)
+    content += facts.inline(p, TABS, shown)
     content += u.group(p, 260, '')
     body = p.backdrop()
     body += ('<control type="grouplist" id="%d"><top>0</top><width>1080</width><bottom>0</bottom>'

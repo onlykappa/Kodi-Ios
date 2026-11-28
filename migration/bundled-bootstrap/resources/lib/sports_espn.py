@@ -299,6 +299,7 @@ class EspnProvider:
         self.snapshot_path = snapshot_path      # the last answer is kept here, so a page opened after a restart draws it at once (owner: "a black screen for a second")
         self.saved_at = 0.0
         self.disk_seen = 0.0   # modification time of the file the in-memory answer came from or was last compared with
+        self._quick = threading.local()
         self.ttl = TTL   # the phone's provider lowers it (sports_hybrid.TTL) so scores stay live
         self.league_defs = tuple(entry for entry in LEAGUES if leagues is None or entry[0] in leagues)
         self.lock = threading.Lock()
@@ -370,6 +371,19 @@ class EspnProvider:
         data = self._read_disk()
         return data is not None and self.clock() - data['at'] > FRESH_DISK   # younger than that, the service kept it current: nothing is on its way
 
+    def quick(self):
+        """`with provider.quick():` reads in this thread never wait for ESPN while an answer (even an old one) is in hand."""
+        import contextlib
+
+        @contextlib.contextmanager
+        def scope():
+            self._quick.on = True
+            try:
+                yield
+            finally:
+                self._quick.on = False
+        return scope()
+
     def has_answer(self):
         """True when an answer (this run's or the one kept on the phone) can be drawn at once, without asking ESPN: a page may draw before it opens."""
         if self.snapshot is not None:
@@ -417,6 +431,12 @@ class EspnProvider:
             stale = self.snapshot
         # The network is asked with the lock NOT held (owner, 2026-11-23, log e38980c3: every Sports page waited 2.2-3.0 s for its own background refresh, which held the
         # lock across the whole ESPN fetch while the page's first read waited for it). A reader with any answer in hand never waits for a fetch that is already running.
+        if not force and stale is not None and getattr(self._quick, 'on', False):
+            # Owner, build 792 log d5fb39c5: Sports opened in 2.5-4.6 s and needed two or three taps; the step was "load": an answer a little over ttl old made a page's first frame fetch
+            # ESPN itself. Under quick() a reader with any answer in hand shows it now and the fresh one comes in the background (the pages re-read every second or two).
+            if not self.fetch_lock.locked():
+                self._refresh_later()
+            return stale
         if not force and stale is not None and self.fetch_lock.locked():
             return stale
         with self.fetch_lock:

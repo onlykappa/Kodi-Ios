@@ -266,5 +266,35 @@ class Provider(unittest.TestCase):
             sports_provider.reset()
 
 
+class FirstFrameNeverWaits(unittest.TestCase):
+    def test_a_stale_answer_is_shown_at_once_under_quick(self):
+        import threading
+        t = [1000]
+        gate, asked, slow = threading.Event(), [], []
+
+        def fetch(url):
+            asked.append(url)
+            if slow:   # after the first answer: ESPN is slow
+                gate.wait(5)
+            return body()
+        p = se.EspnProvider(fetch=fetch, clock=lambda: t[0])
+        p.overview()
+        first = len(asked)
+        slow.append(1)
+        t[0] += p.ttl + 5
+        done = []
+        worker = threading.Thread(target=lambda: done.append(self._quick(p)), daemon=True)
+        worker.start()
+        worker.join(2)
+        gate.set()
+        self.assertTrue(done, 'quick() read waited for ESPN')
+        self.assertGreaterEqual(first, 1)
+
+    @staticmethod
+    def _quick(p):
+        with p.quick():
+            return p.overview()
+
+
 if __name__ == '__main__':
     unittest.main()

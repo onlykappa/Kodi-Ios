@@ -262,7 +262,9 @@ def first_frame(page, provider_module, chosen, profile, clock=None):
             clock.lap('provider')
         if not getattr(provider, 'has_answer', lambda: False)():
             return False
-        props, chosen_now, slots = load(provider, chosen)
+        import contextlib
+        with getattr(provider, 'quick', contextlib.nullcontext)():   # a first frame never waits for ESPN
+            props, chosen_now, slots = load(provider, chosen)
         if clock:
             clock.lap('saved answer')
         if props.get('state') not in ('ok', 'none'):

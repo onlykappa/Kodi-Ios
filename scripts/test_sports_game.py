@@ -13,6 +13,7 @@ ROOT=Path(__file__).resolve().parents[1]
 BOOT=ROOT/'migration/bundled-bootstrap'
 sys.path[:0]=[str(BOOT),str(BOOT/'resources/lib')]
 import sports_game as game_page
+import sports_game_facts
 import sports_game_page as page
 import sports_model as sm
 import sports_upcoming
@@ -39,7 +40,8 @@ class Projection(unittest.TestCase):
         self.assertEqual((props['league'],props['starts'],props['clock'],props['day']),
                          ('EPL','Starts in 45 min','7:30 PM','Today'))
         self.assertEqual((props['away.code'],props['away.name'],props['home.code']),('ARS','Arsenal','CHE'))
-        self.assertEqual(props['source.0.detail'],'1080p · English\nChecked when played\nAlso on Loop TV')
+        self.assertEqual(props['source.0.detail'],'Checked when played\nEnglish\nAlso on Loop TV')
+        self.assertEqual((props['source.0.chip0'],props['source.0.chipq'],props['source.0.dot']),('1080p','true','n'))   # the add-on's own size is the chip; nothing measured: grey dot
         self.assertEqual((props['source.0.code'],props['source.1.code']),('TL','LG'))
         self.assertEqual((props['source.0.tag'],props['source.1.tag']),('best','good'))
         self.assertEqual(props['sources.count'],'2')
@@ -50,7 +52,7 @@ class Projection(unittest.TestCase):
         self.game['sources']=self.game['sources'][:1]
         self.game['sources'][0].update(quality='',language='',also=[],tag='')
         props,_=game_page.model(self.game,NOW,0)
-        self.assertEqual(props['source.0.detail'],'Quality not reported\nChecked when played')
+        self.assertEqual((props['source.0.detail'],props['source.0.chip0']),('Checked when played',''))   # no size known: no chip, no empty separator
 
     def test_a_white_or_light_team_colour_never_washes_the_hero_out(self):
         # Owner, 2026-11-20: "the colors seem to flash white ... then goes to all white". Cologne's ESPN colour is ffffff.
@@ -92,7 +94,7 @@ class Projection(unittest.TestCase):
         self.assertEqual(props['away.crest'],self.game['away']['crest'])
         title,detail=page.FORMS[int(props['source.1.form'])]
         self.assertGreater(title,1);self.assertGreater(detail,1)
-        self.assertGreaterEqual(detail,6)  # This fixture needs six lines in the desktop Kodi text column.
+        self.assertGreaterEqual(detail,5)  # status, language and a long Also-on line: five lines in the desktop Kodi text column.
         self.assertEqual(props['source.1.title'],source['addon'])
         self.assertIn('French Canadian commentary',props['source.1.detail'])
         self.assertIn('Sports Hub',props['source.1.detail'])
@@ -204,7 +206,7 @@ class Structure(unittest.TestCase):
         self.assertIn('None yet',xml)
         self.assertIn('Check now',xml)
         self.assertIn('Window().Property(away.tint)',xml)
-        self.assertIn('Window().Property(info.title)',xml)
+        self.assertIn('Window().Property(info.kickoff)',xml);self.assertIn('Window().Property(play.0.detail)',xml);self.assertIn('id="%d"' % page.TABS[1],xml)   # the Game info tabs sit below the sources
         self.assertIn('Searching for sources',xml)
         self.assertIn('Window().Property(away.crest)',xml)
         self.assertIn('Window().Property(home.crest)',xml)
@@ -243,7 +245,8 @@ class Controller(unittest.TestCase):
             executebuiltin=lambda text:None,sleep=lambda ms:None)
         vfs=types.SimpleNamespace(translatePath=lambda x:x,listdir=lambda x:None)
         with patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':types.SimpleNamespace(WindowXMLDialog=Window),'xbmcvfs':vfs}),\
-             patch.object(game_page.sports_provider,'play',side_effect=play) as played:
+             patch.object(game_page.sports_provider,'play',side_effect=play) as played,\
+             patch.object(sports_game_facts.Section,'start',lambda self:None):   # the Game info section asks ESPN: never in a test
             game_page.run(seed,provider=provider,clock=lambda:NOW,search=search)
         self.assertFalse(writes_after_close)
         return windows[0],played

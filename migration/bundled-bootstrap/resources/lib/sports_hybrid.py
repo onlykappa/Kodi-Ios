@@ -60,6 +60,10 @@ class HybridProvider:
         else:   # a provider without the block argument (tests, the sample)
             self.espn.refresh()
 
+    def quick(self):
+        import contextlib
+        return getattr(self.espn, 'quick', contextlib.nullcontext)()
+
     def has_answer(self):
         return bool(getattr(self.espn, 'has_answer', lambda: False)())
 

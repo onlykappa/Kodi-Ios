@@ -76,7 +76,7 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
     """Project the contract without losing source identities or opaque play values."""
     props = {'state':state,'hero.lines':'','league':'','starts':'','clock':'','day':'',
              'sources.count':'','error.title':'','play.error':'','empty.text':'','game.live':'',
-             'play.best':'','remind.on':'true' if reminder else '','remind.note':'Reminders are set for this game.' if reminder else '',
+             'play.best':'','sources.checked':'','remind.on':'true' if reminder else '','remind.note':'Reminders are set for this game.' if reminder else '',
              'other.text':'','when':'','checked':'','info.title':'','info.sub':'','away.record':'','home.record':'','away.tint':NEUTRAL,'home.tint':NEUTRAL}
     sources = sm.order_sources(game['sources']) if game else []
     for side in ('away','home'):
@@ -98,7 +98,7 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
                       'info.title':game.get('league_name','')+(' · Week %d' % week if week else ''),
                       'info.sub':sm.day_label(game['start'],now,offset)+' at '+sm.clock_text(game['start'],offset)})
         one_name = not props['home.name']   # a Grand Prix or a tournament: the name sits in the middle, in a wide column (sports_hero.event_height)
-        props.update({'hero.lines':str(min(3,_lines(props['away.name'],26) if one_name else max(_lines(props[side+'.name'],11) for side in ('away','home')))),
+        props.update({'hero.lines':str(min(3,_lines(props['away.name'],26) if one_name else max(_lines(props[side+'.name'],13) for side in ('away','home')))),
                       'league':game['league'],'starts':sm.start_text(game['start'],now,offset),
                       'clock':sm.clock_text(game['start'],offset),'day':sm.day_label(game['start'],now,offset),
                       'sources.count':str(len(sources)) if sources else '',
@@ -115,6 +115,11 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
     else:props.update(state='gone',**{'error.title':'This game is no longer listed'})
     if game and not sources and state != 'error' and not reminder and not game.get('state')=='live':
         props['remind.note'] = "No source yet. Tap Remind me for a notification when one is ready."
+    if sources:
+        try:
+            import sports_source_view
+            props['sources.checked'] = sports_source_view.header(sources,now)
+        except Exception:props['sources.checked'] = ''
     if sources:   # the best source, named under Play (the same choice the Play button makes)
         try:
             import sports_loop_router
@@ -129,34 +134,23 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
             source = sources[n]
             tag = source.get('tag') if source.get('tag') in ('best','good') else 'plain'
             title = shown(source['addon'])
-            detail = ' · '.join(value for value in (source['quality'],source['language']) if value) or 'Quality not reported'
-            if source.get('record'):detail += '\nSeen on this phone: '+source['record']
-            detail += check_line(source)
-            if source.get('also'):detail += '\nAlso on '+', '.join(shown(name) for name in source['also'])
-            title_cols,detail_cols = {'best':(20,22),'good':(16,18),'plain':(27,30)}[tag]
+            import sports_source_view
+            view = sports_source_view.view(source,now)
+            lines = [view['status']]
+            if source.get('language'):lines.append(source['language'])
+            if source.get('also'):lines.append('Also on '+', '.join(shown(name) for name in source['also']))
+            detail = '\n'.join(lines)
+            chips = view['chips']
+            title_cols = {'best':20,'good':16,'plain':27}[tag]
             title_lines = _lines(title,title_cols)
-            detail_lines = sum(_lines(line,detail_cols) for line in detail.splitlines())
-            values = {'title':title,'detail':detail,'tag':tag,
+            detail_lines = min(9,sum(_lines(line,28) for line in lines) + (1 if chips else 0))
+            values = {'title':title,'detail':detail,'tag':tag,'dot':view['dot'],'chipq':'true' if view['sharp'] and chips else '',
                       'code':''.join(w[0] for w in title.split())[:2].upper(),
                       'form':str(page.FORMS.index((title_lines,detail_lines))),
                       'pos':'only' if len(sources)==1 else 'first' if n==0 else 'last' if n==len(sources)-1 else 'mid'}
-        for key in ('title','detail','tag','code','form','pos'):props['source.%d.%s' % (n,key)] = values.get(key,'')
+            for i in range(3):values['chip%d' % i] = chips[i] if i < len(chips) else ''
+        for key in ('title','detail','tag','code','form','pos','dot','chipq','chip0','chip1','chip2'):props['source.%d.%s' % (n,key)] = values.get(key,'')
     return props,sources
-
-
-def check_line(source):
-    """The row's line about the check made on opening (sports_probe): measured for our own sites, 'Checked when played' for Crew and The Loop (only a play can measure those)."""
-    try:
-        import sports_probe
-        play = str(source.get('play') or '')
-        if not sports_probe.own_name(play):
-            return '' if source.get('record') else '\nChecked when played'
-        found = sports_probe.cached(play)
-        if found is None:
-            return '\nChecking…'
-        return '\nChecked: ' + sports_probe.describe(found)
-    except Exception:
-        return ''
 
 
 AUTO_SEARCH = 180   # seconds a live game's page keeps looking for sources by itself
@@ -228,7 +222,10 @@ def run(game, provider=None, clock=time.time, search=False):
             self.auto_asked = time.monotonic()   # the page's own first search (find_sources at open) counts as the first ask
             self.sources = []
             self.crests = {}
+            import sports_game_facts
+            self.section = sports_game_facts.Section(game,xbmcvfs.translatePath('special://profile/'),self.lock,self.stop,self.draw,log)
             threading.Thread(target=self.load_crests,daemon=True).start()
+            self.section.start()   # the Game info below the sources: ESPN's facts, stats and plays
             if search:
                 self.find_sources()
             self.draw()
@@ -272,6 +269,11 @@ def run(game, provider=None, clock=time.time, search=False):
             searching = searching or auto_wanted((self.data or {}).get('state') == 'live', bool(self.sources), clock(), self.auto_until, self.search_failed)
             props,self.sources = model(self.data,clock(),sm.device_offset(clock()),'error' if error else 'ready',searching,
                                        sr.get(xbmcvfs.translatePath('special://profile/'),game_id),self.checked,self.crests)
+            more,bars = self.section.props(clock(),sm.device_offset(clock()))   # the Game info section's rows and bars
+            props.update(more)
+            for ident,percent in bars.items():
+                try:self.getControl(ident).setPercent(float(percent))
+                except Exception:pass
             if self.search_failed and not self.sources:
                 props['state']='error';props['error.title']="Can't search for sources right now"
             for key,value in props.items():
@@ -328,6 +330,7 @@ def run(game, provider=None, clock=time.time, search=False):
             elif ident==page.RETRY and self.search_failed:
                 self.find_sources(fresh=True)
                 self.draw()
+            elif self.section.click(ident,page.TABS):pass
             elif ident in (page.REFRESH,page.RETRY):self.refresh()
             elif ident==page.SEARCH_RETRY:
                 self.find_sources(fresh=True)   # "Check now": Crew's menus are walked again

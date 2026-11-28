@@ -104,6 +104,31 @@ def _standings_tab(p):
 
 
 
+def tab_row(p, items, bump=0):
+    """The tab strip (a card, the shown tab lifted in white): items are (control id, label, value of the `tab` property while shown); `bump` is added to the ids (the two-tab strip)."""
+    width = 972 // len(items)
+    seg = u.card(p, p.SIDE, 0, 972, 134)
+    for k, (ident, label, value) in enumerate(items):
+        x = p.SIDE + 6 + k * width
+        w = width - 12
+        seg += p.image(x, 8, w, 118, p.MEDIA + 'r27.png', p.WHITE, '<visible>String.IsEqual(Window().Property(tab),%s)</visible>' % value, border=27)
+        seg += u.tap(p, ident + bump, x, 8, w, 118, '', p.GREY)
+        seg += '<control type="group"><visible>String.IsEqual(Window().Property(tab),%s)</visible>%s</control>' % (value, u.text(p, x, 8, w, 118, label, 'p_foot_b', 'FF000000', 'center'))
+        seg += '<control type="group"><visible>!String.IsEqual(Window().Property(tab),%s)</visible>%s</control>' % (value, u.text(p, x, 8, w, 118, label, 'p_foot_b', p.GREY, 'center'))
+    return seg
+
+
+def inline(p, tabs, cond='true'):
+    """The Info as a section of another page's list (the game page, below its sources): the strip (3 tabs, or 2 for a game with no standings) and the chosen tab's cards.
+    `tabs` are the control ids (stats, plays, standings); `cond` is added to every block."""
+    stats, plays, table = tabs
+    three = ((stats, 'Stats', 'stats'), (plays, 'Play-By-Play', 'plays'), (table, 'Standings', 'standings'))
+    out = u.group(p, 164, tab_row(p, three), cond + ' + ' + u.has('has.tabs')) + u.group(p, 164, tab_row(p, three[:2], TAB_ALT), cond + ' + ' + u.neg(u.has('has.tabs')))
+    for name, xml in (('stats', _stats_tab(p)), ('plays', _plays_tab(p)), ('standings', u.group(p, 30, '') + _standings_tab(p))):
+        out += _gate(xml, cond + ' + String.IsEqual(Window().Property(tab),%s)' % name)
+    return out
+
+
 def _header(p):
     """Fixed at the top while the list scrolls (the owner's example: the score and the tabs stay): back, the compact score, the three tabs."""
     out = p.image(0, 0, 1080, HEAD_H, p.MEDIA + 'white.png', 'FF000000')
@@ -121,26 +146,15 @@ def _header(p):
     ev = p.image(170, 22, 96, 96, u.P('away.crest'), extra='<visible>' + u.has('away.crest') + '</visible>', aspect='>keep', background=True)
     ev += p.textbox(290, 14, 760, 112, u.P('away.name'), 'p_foot_b').replace('<autoscroll>', '<aligny>center</aligny><autoscroll>')
     out += '<control type="group"><visible>%s</visible>%s</control>' % (event, ev)
-    def row(items, bump=0):
-        width = 972 // len(items)
-        seg = u.card(p, p.SIDE, 0, 972, 104)
-        for k, (ident, label, value) in enumerate(items):
-            x = p.SIDE + 6 + k * width
-            w = width - 12
-            seg += p.image(x, 6, w, 92, p.MEDIA + 'r27.png', p.WHITE, '<visible>String.IsEqual(Window().Property(tab),%s)</visible>' % value, border=27)
-            seg += u.tap(p, ident + bump, x, 6, w, 92, '', p.GREY)
-            seg += '<control type="group"><visible>String.IsEqual(Window().Property(tab),%s)</visible>%s</control>' % (value, u.text(p, x, 6, w, 92, label, 'p_foot_b', 'FF000000', 'center'))
-            seg += '<control type="group"><visible>!String.IsEqual(Window().Property(tab),%s)</visible>%s</control>' % (value, u.text(p, x, 6, w, 92, label, 'p_foot_b', p.GREY, 'center'))
-        return seg
     three = ((TAB_INFO, 'Stats', 'stats'), (TAB_PLAYS, 'Play-By-Play', 'plays'), (TAB_STANDINGS, 'Standings', 'standings'))
-    out += '<control type="group"><top>164</top><visible>%s</visible>%s</control>' % (u.has('has.tabs'), row(three))
-    out += '<control type="group"><top>164</top><visible>%s</visible>%s</control>' % (u.neg(u.has('has.tabs')), row(three[:2], TAB_ALT))
+    out += '<control type="group"><top>150</top><visible>%s</visible>%s</control>' % (u.has('has.tabs'), tab_row(p, three))
+    out += '<control type="group"><top>150</top><visible>%s</visible>%s</control>' % (u.neg(u.has('has.tabs')), tab_row(p, three[:2], TAB_ALT))
     return out
 
 
 def _message(p):
     """While ESPN's answer is on its way, or has nothing: one plain line (the cards below draw only what exists)."""
-    out = u.group(p, 150, u.text(p, p.SIDE, 40, 972, 70, 'Loading the stats…', 'p_foot', p.GREY, 'center'), 'String.IsEqual(Window().Property(detail),loading)')
+    out = u.group(p, 150, u.text(p, p.SIDE, 40, 972, 70, 'Loading the stats', 'p_foot', p.GREY, 'center'), 'String.IsEqual(Window().Property(detail),loading)')
     out += u.group(p, 150, u.text(p, p.SIDE, 40, 972, 70, 'ESPN has no stats for this game yet.', 'p_foot', p.GREY, 'center'), 'String.IsEqual(Window().Property(detail),none)')
     return out
 
@@ -206,7 +220,7 @@ def _stats_tab(p):
 
 def _plays_tab(p):
     """One card per drive (football) or play: a colour stripe, what happened, the plain description (wraps up to three lines), a SCORE mark."""
-    out = _message(p).replace('Loading the stats…', 'Loading the plays…').replace('no stats for this game yet', 'no plays for this game yet')
+    out = _message(p).replace('Loading the stats', 'Loading the plays').replace('no stats for this game yet', 'no plays for this game yet')
     for n in range(PLAYS):
         key = 'play.%d.' % n
         for lines in (1, 2, 3):   # the window gives a play 1, 2 or 3 lines

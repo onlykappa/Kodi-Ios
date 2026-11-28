@@ -23,6 +23,29 @@ GAMES = {
     'team': {'id': 'espn:NFL:1', 'league': 'NFL', 'league_name': 'NFL', 'sport': 'American football', 'state': 'live', 'start': now - 3600, 'joiner': 'at',
              'away': {'name': 'Kansas City Chiefs', 'short': 'Chiefs', 'code': 'KC', 'score': 14, 'color': 'E31837'}, 'home': {'name': 'Buffalo Bills', 'short': 'Bills', 'code': 'BUF', 'score': 17, 'color': '00338D'}, 'clock': '', 'sources': SRC},
 }
+def _rows():
+    """Sample source rows in every state of the mockup (checking, measured, slow, failed, remembered): the probe results are put in by hand, no network."""
+    import json
+    import sports_probe
+    import sports_livefeeds
+    import sports_p720
+    import sports_fawa
+    def own(name, n):
+        return json.dumps({'e': name, 'l': {'address': 'https://x/%d' % n}})
+    live, p72, fawa = own(sports_livefeeds.NAME, 1), own(sports_p720.NAME, 2), own(sports_fawa.NAME, 3)
+    sports_probe._results[live] = (time.time() - 12, {'ok': True, 'height': 1080, 'fps': 30, 'kbps': 4200})
+    sports_probe._results[p72] = (time.time() - 12, {'ok': True, 'kbps': 1400, 'speed': 1.1})
+    crew = json.dumps({'e': 'TheCrewRoute', 'l': {}})
+    now = time.time()
+    return [{'id': 'a', 'addon': 'LiveFeeds', 'quality': '', 'language': '', 'tag': 'best', 'play': live, 'seen': {'ok': 5, 'ok_at': now - 7200, 'height': 1080, 'fps': 30, 'kbps': 4800}},
+            {'id': 'b', 'addon': '720pStream', 'quality': '', 'language': '', 'tag': 'good', 'play': p72},
+            {'id': 'c', 'addon': 'FawaNews', 'quality': '', 'language': '', 'play': fawa},
+            {'id': 'd', 'addon': 'Crew MUT', 'quality': '720p', 'language': 'English', 'play': crew, 'seen': {'ok': 3, 'ok_at': now - 90000, 'height': 720, 'fps': 30, 'kbps': 2400}},
+            {'id': 'e', 'addon': 'Loop ReedStreams', 'quality': '', 'language': '', 'play': crew + ' ', 'seen': {'fail': 2, 'fail_at': now, 'dead': True}},
+            {'id': 'f', 'addon': 'Loop Guide', 'quality': '', 'language': '', 'play': crew + '  ', 'also': ['Sports Hub']}]
+
+
+GAMES['rows'] = dict(GAMES['team'], sources=[])
 GAMES['upcoming'] = dict(GAMES['f1'], state='upcoming', start=now + 5400, sources=[])
 mode = sys.argv[1] if len(sys.argv) > 1 else 'f1'
 if mode.startswith('espn'):
@@ -43,6 +66,8 @@ if not crests:   # the rig's Kodi python cannot reach ESPN: use a copy fetched o
         local = '/tmp/claude-0/rig/crest-%s.png' % ('f1' if 'f1' in url else 'pga')
         if url and os.path.isfile(local):
             crests[url] = local
+if mode == 'rows':
+    game = dict(game, sources=_rows())
 props, _sources = sports_game.model(game, now, 0, crests=crests)
 
 

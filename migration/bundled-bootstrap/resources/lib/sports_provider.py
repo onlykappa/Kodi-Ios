@@ -378,6 +378,9 @@ def rank_sources(sources, health=None):
                 shown += 1
             record = sports_stream_health.record_text(health.data.get(key(source)))
             extra = {}
+            item = health.data.get(key(source))
+            if item:   # what this phone saw (the game page's chips and dot, sports_source_view)
+                extra['seen'] = dict(item, dead=health.dead(key(source)))
             if tag or source.get('tag'):
                 extra['tag'] = tag   # '' removes a tag the source's own list gave it
             if record:

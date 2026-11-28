@@ -132,6 +132,13 @@ def cached(play, clock=time.time):
     return held[1] if held and clock() - held[0] < KEEP else None
 
 
+def checked_at(play):
+    """When the kept result for this source was made (epoch seconds), or None."""
+    with _lock:
+        held = _results.get(play)
+    return held[0] if held else None
+
+
 def start(sources, done=None, run=probe, clock=time.time, spawn=None, log=None):
     """Check every own source that has no fresh result, each in its own thread; `done()` is called after each so the page can draw it. Returns how many were started."""
     spawn = spawn or (lambda target: threading.Thread(target=target, daemon=True).start())

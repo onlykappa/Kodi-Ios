@@ -211,7 +211,9 @@ def run(args=(), provider=None, clock=time.time, on_game=None):
     if _CACHE is None:
         try:
             if getattr(provider, 'has_answer', lambda: False)():
-                _CACHE = (provider.upcoming_games(), provider.overview()['updated'])
+                import contextlib
+                with getattr(provider, 'quick', contextlib.nullcontext)():   # never waits for ESPN
+                    _CACHE = (provider.upcoming_games(), provider.overview()['updated'])
         except Exception:
             _CACHE = None
     # The window with room for the games already known (remembered from the last open); a bigger list reopens into the long one.

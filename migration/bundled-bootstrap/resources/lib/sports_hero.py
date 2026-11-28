@@ -41,8 +41,8 @@ def hero(p):
             side_xml += p.image(x, 200, CREST, CREST, u.P(side + '.crest'), extra='<visible>' + u.has(side + '.crest') + '</visible>', aspect='>keep', background=True)
             side_xml += u.text(p, x, 200, CREST, CREST, u.P(side + '.code'), 'p_pill', align='center').replace(
                 '</control>', '<visible>' + u.neg(u.has(side + '.crest')) + '</visible></control>')
-            side_xml += p.textbox(x - 40, 450, CREST + 80, NAME_LINE * lines, u.P(side + '.name'), 'p_h3').replace('<autoscroll>', '<align>center</align><autoscroll>')
-            side_xml += u.text(p, x - 40, 450 + NAME_LINE * lines + 6, CREST + 80, 51, u.P(side + '.record'), 'p_foot', p.GREY, 'center')
+            side_xml += p.textbox(x - 60, 450, CREST + 120, NAME_LINE * lines, u.P(side + '.name'), 'p_h3').replace('<autoscroll>', '<align>center</align><autoscroll>')
+            side_xml += u.text(p, x - 60, 450 + NAME_LINE * lines + 6, CREST + 120, 51, u.P(side + '.record'), 'p_foot', p.GREY, 'center')
             # A tournament or a race weekend has a title and no opponent: only the first side is drawn.
             card += '<control type="group"><visible>%s</visible>%s</control>' % (u.has('home.name') if side == 'home' else 'true', side_xml)
         card += u.text(p, 325, 214, 430, 50, '[B]● LIVE[/B]', 'p_foot_b', 'FFFF453A', 'center').replace(

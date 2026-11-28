@@ -149,13 +149,16 @@ def draw_first(page, provider_module, laps=None):
             return False
         lap('saved answer')
         now = time.time()
-        props = load(provider, now=now)
+        import contextlib
+        with getattr(provider, 'quick', contextlib.nullcontext)():   # a first frame never waits for ESPN (build 792 log: "load" took 2.5-4.6 s)
+            props = load(provider, now=now)
         lap('load')
         if props.get('state') != 'ok':
             return False
         props.update(sf.edit_state(provider))
         lap('edit state')
-        games = provider.upcoming_games()
+        with getattr(provider, 'quick', contextlib.nullcontext)():
+            games = provider.upcoming_games()
         lap('upcoming')
         props.update(next_props(games, now, sm.device_offset(now)))
         if props.get('edit.summary'):
@@ -169,6 +172,10 @@ def draw_first(page, provider_module, laps=None):
         return True
     except Exception:
         return False
+
+
+OPENING = 'KodiIOS.SportsHubOpening'   # a time while the hub is being opened (taps in that moment are ignored)
+OPENING_FOR = 8   # seconds the mark counts (a hub that failed to open never blocks longer)
 
 
 def run(args=()):
@@ -289,6 +296,16 @@ def run(args=()):
             self.stop.set()
             self.guard.close()
 
+    # Owner, build 792 log d5fb39c5: "needs 2 or 3 taps". Each tap during the opening started another hub (three first frames within 1.5 s); only the first is wanted.
+    home = xbmcgui.Window(10000)
+    marked = home.getProperty(OPENING)
+    try:
+        if marked and 0 <= time.time() - float(marked) < OPENING_FOR:
+            log('hub: already opening, an extra tap is ignored')
+            return
+    except ValueError:
+        pass
+    home.setProperty(OPENING, str(time.time()))
     here = HERE
     skin = xbmcvfs.translatePath('special://skin/')
     began = time.monotonic()
@@ -307,6 +324,7 @@ def run(args=()):
     # game's page looks for its sources (sports_provider.crew_sources).
     try:
         import page_cover
+        home.clearProperty(OPENING)   # the page is up: a tap from here on is a new one
         with page_cover.covering():   # the window under this opaque page stops drawing while it is open
             page.doModal()
     finally:

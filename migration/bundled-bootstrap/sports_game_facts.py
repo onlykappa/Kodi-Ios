@@ -63,12 +63,98 @@ def info_props(game, info, view, now, offset, tab='stats', crests=None):
 
 
 
+class Section:
+    """The game's facts (kickoff, venue, form, ESPN's stats, plays and standings) for a window that shows them: the Info window and, below the sources, the game page (owner,
+    2026-11-28: "the game info tabs should be when I scroll down, so we don't need to press Game info"). It loads in background threads and calls `redraw()` (the window
+    draws under its own lock) when something arrived; `props()` gives the properties and the bar percentages to set."""
+
+    def __init__(self, game, profile, lock, stop, redraw, log=lambda text:None):
+        self.game, self.profile, self.lock, self.stop, self.redraw, self.log = game, profile, lock, stop, redraw, log
+        self.info = None
+        self.view = 0
+        self.tab = 'stats'
+        self.detail = None
+        self.detail_state = 'loading'
+        self.crests = {}
+
+    def start(self):
+        for work in (self.load, self.load_detail, self.load_crests):
+            threading.Thread(target=work,daemon=True).start()
+
+    def props(self, now, offset):
+        props = info_props(self.game,self.info,self.view,now,offset,self.tab,self.crests)
+        more,bars = detail_mod.props(self.detail,self.detail_state,self.crests,page.BAR_BASE)
+        props.update(more)
+        return props,bars
+
+    def load_crests(self,table=True):
+        """Real crests (the standings rows once the table is known, the players' team logos): downloaded once, kept on the phone."""
+        try:
+            import sports_logos
+            urls = [self.game[side].get('crest','') for side in ('away','home')]
+            if table and self.info and self.info.get('standings'):
+                urls += [r['crest'] for v in self.info['standings']['views'] for r in v['rows']]
+            urls += detail_mod.logos(self.detail)
+            found = sports_logos.crests(self.profile,urls)
+            with self.lock:
+                if found and not self.stop.is_set():
+                    self.crests.update(found)
+                    self.redraw()
+        except Exception as error:self.log('sports: crests: %s' % type(error).__name__)
+
+    def load_detail(self):
+        """ESPN's summary of the game (stats, plays); again every 25 s while the game is live and the window is open."""
+        while not self.stop.is_set():
+            try:found = detail_mod.fetch(self.game)
+            except Exception:found = None
+            with self.lock:
+                if self.stop.is_set():return
+                changed = found is not None and found != self.detail
+                if found is not None:self.detail,self.detail_state = found,'ready'
+                elif self.detail is None:self.detail_state = 'none'
+                self.redraw()
+            if changed:self.load_crests(table=False)
+            if self.game.get('state')!='live':return
+            if self.stop.wait(detail_mod.TTL_LIVE):return
+
+    def load(self):
+        try:facts = info_mod.build(self.game)
+        except Exception as error:
+            self.log('sports: game info: %s: %s' % (type(error).__name__,self.error_text(error)))
+            return
+        with self.lock:
+            if self.stop.is_set():return
+            self.info = facts
+            self.redraw()
+        self.load_crests()
+
+    @staticmethod
+    def error_text(error):
+        import diagnostics
+        return diagnostics.error_text(error)
+
+    def click(self, ident, tabs=None):
+        """True when `ident` was one of this section's controls (a tab or the Divisional / Wild Card switch); the caller holds no lock."""
+        if ident in (page.STANDINGS_SWITCH,page.STANDINGS_SWITCH_BACK):
+            with self.lock:
+                self.view = 1 if ident==page.STANDINGS_SWITCH else 0
+                self.redraw()
+            return True
+        stats,plays,table = tabs or (page.TAB_INFO,page.TAB_PLAYS,page.TAB_STANDINGS)
+        ident = ident-page.TAB_ALT if ident in (stats+page.TAB_ALT,plays+page.TAB_ALT) else ident
+        if ident in (stats,plays,table):
+            with self.lock:
+                self.tab = {table:'standings',plays:'plays'}.get(ident,'stats')
+                self.redraw()
+            return True
+        return False
+
+
 def run(game, clock=time.time):
     """Open the window. Returns True when Play was tapped (the caller plays the game's best source)."""
     import xbmc
     import xbmcgui
     import xbmcvfs
-    import diagnostics
     log = lambda text:xbmc.log(text,xbmc.LOGINFO)
     profile = xbmcvfs.translatePath('special://profile/')
     answer = {'play':False}
@@ -78,23 +164,15 @@ def run(game, clock=time.time):
             if hasattr(self,'stop'):return
             self.stop = threading.Event()
             self.lock = threading.Lock()
-            self.info = None
-            self.view = 0
-            self.tab = 'stats'
-            self.detail = None
-            self.detail_state = 'loading'
-            self.crests = {}
+            self.section = Section(game,profile,self.lock,self.stop,self.draw,log)
             self.draw()
-            threading.Thread(target=self.load,daemon=True).start()
-            threading.Thread(target=self.load_detail,daemon=True).start()
-            threading.Thread(target=self.load_crests,daemon=True).start()
+            self.section.start()
 
         def draw(self):
             now = clock()
             offset = sm.device_offset(now)
-            props,_ = game_page.model(game,now,offset,'ready',False,sr.get(profile,game['id']),now,self.crests)
-            props.update(info_props(game,self.info,self.view,now,offset,self.tab,self.crests))
-            more,bars = detail_mod.props(self.detail,self.detail_state,self.crests,page.BAR_BASE)
+            props,_ = game_page.model(game,now,offset,'ready',False,sr.get(profile,game['id']),now,self.section.crests)
+            more,bars = self.section.props(now,offset)
             props.update(more)
             for key,value in props.items():
                 if getattr(self,'_shown',{}).get(key)!=value:self.setProperty(key,value)
@@ -103,58 +181,9 @@ def run(game, clock=time.time):
                 try:self.getControl(ident).setPercent(float(percent))
                 except Exception:pass
 
-        def load_crests(self,table=True):
-            """Real crests for the hero (now) and the standings rows (once the table is known): downloaded once, kept on the phone."""
-            try:
-                import sports_logos
-                urls = [game[side].get('crest','') for side in ('away','home')]
-                if table and self.info and self.info.get('standings'):
-                    urls += [r['crest'] for v in self.info['standings']['views'] for r in v['rows']]
-                urls += detail_mod.logos(self.detail)
-                found = sports_logos.crests(profile,urls)
-                with self.lock:
-                    if found and not self.stop.is_set():
-                        self.crests.update(found)
-                        self.draw()
-            except Exception as error:log('sports: crests: %s' % type(error).__name__)
-
-        def load_detail(self):
-            """ESPN's summary of the game (stats, plays); again every 25 s while the game is live and the window is open."""
-            while not self.stop.is_set():
-                try:found = detail_mod.fetch(game)
-                except Exception:found = None
-                with self.lock:
-                    if self.stop.is_set():return
-                    changed = found is not None and found != self.detail
-                    if found is not None:self.detail,self.detail_state = found,'ready'
-                    elif self.detail is None:self.detail_state = 'none'
-                    self.draw()
-                if changed:self.load_crests(table=False)
-                if game.get('state')!='live':return
-                if self.stop.wait(detail_mod.TTL_LIVE):return
-
-        def load(self):
-            try:facts = info_mod.build(game)
-            except Exception as error:
-                log('sports: game info: %s: %s' % (type(error).__name__,diagnostics.error_text(error)))
-                return
-            with self.lock:
-                if self.stop.is_set():return
-                self.info = facts
-                self.draw()
-            self.load_crests()
-
         def onClick(self,ident):
             if ident==page.BACK:self.finish()
-            elif ident in (page.STANDINGS_SWITCH,page.STANDINGS_SWITCH_BACK):
-                with self.lock:
-                    self.view = 1 if ident==page.STANDINGS_SWITCH else 0
-                    self.draw()
-            elif (ident-page.TAB_ALT if ident in (page.TAB_INFO+page.TAB_ALT,page.TAB_PLAYS+page.TAB_ALT) else ident) in (page.TAB_INFO,page.TAB_PLAYS,page.TAB_STANDINGS):
-                ident = ident-page.TAB_ALT if ident in (page.TAB_INFO+page.TAB_ALT,page.TAB_PLAYS+page.TAB_ALT) else ident
-                with self.lock:
-                    self.tab = {page.TAB_STANDINGS:'standings',page.TAB_PLAYS:'plays'}.get(ident,'stats')
-                    self.draw()
+            elif self.section.click(ident):pass
             elif ident in (page.REMIND,page.REMIND_ON):
                 import sports_remind
                 sports_remind.ask(game,profile)
