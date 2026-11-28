@@ -350,6 +350,7 @@ jobs:
           python3 -B scripts/test_choose_source.py
           python3 -B scripts/test_onepace.py
           python3 -B scripts/test_onepace_show.py
+          python3 -B scripts/test_season_status.py
           python3 -B scripts/test_connection_speed.py
           python3 -B scripts/test_resume_now.py
           python3 -B scripts/test_slow_copy.py
@@ -385,6 +386,7 @@ jobs:
           python3 -B scripts/test_choose_source.py
           python3 -B scripts/test_onepace.py
           python3 -B scripts/test_onepace_show.py
+          python3 -B scripts/test_season_status.py
           python3 -B scripts/test_connection_speed.py
       - name: Acquire public pinned sources and build review ZIP
         run: |

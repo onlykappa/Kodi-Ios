@@ -156,7 +156,7 @@ class Menus(unittest.TestCase):
 class FakeKodi:
     """Just enough of xbmc / xbmcgui / xbmcplugin / xbmcvfs for the plugin routes."""
     def __init__(self, yes=True):
-        self.yes, self.items, self.resolved, self.notes, self.content, self.ended, self.questions = yes, [], [], [], None, None, []
+        self.answer = None; self.yes, self.items, self.resolved, self.notes, self.content, self.ended, self.questions = yes, [], [], [], None, None, []
         k = self
         class Tag:
             def __init__(s): s.v = {}
@@ -172,6 +172,7 @@ class FakeKodi:
         class Dialog:
             def notification(s, *a): k.notes.append(a[1])
             def yesno(s, title, text, **kw): k.questions.append((title, text, kw)); return k.yes
+            def yesnocustom(s, title, text, custom, **kw): k.questions.append((title, text, dict(kw, custom=custom))); return k.answer if k.answer is not None else (1 if k.yes else 0)
         self.mods = {'xbmc': types.SimpleNamespace(log=lambda *a: None, LOGINFO=1, LOGWARNING=2),
                      'xbmcgui': types.SimpleNamespace(ListItem=ListItem, Dialog=Dialog, NOTIFICATION_INFO=1),
                      'xbmcvfs': types.SimpleNamespace(translatePath=lambda p: TMP[0] if 'profile' in p else str(BOOT)),
@@ -179,6 +180,7 @@ class FakeKodi:
                                                          endOfDirectory=lambda h, succeeded=True, cacheToDisc=True: setattr(k, 'ended', succeeded),
                                                          setResolvedUrl=lambda h, ok, li: k.resolved.append((ok, li)))}
 TMP = ['']
+KEEP = []
 
 
 class Pages(unittest.TestCase):
@@ -210,10 +212,13 @@ def with_pictures(found):
 
 
 class Plugin(unittest.TestCase):
-    def run_route(self, params, yes=True, net=None, pictures=False):
+    def run_route(self, params, yes=True, net=None, pictures=False, answer=None, keep=False):
         import ios_onepace
-        kodi = FakeKodi(yes)
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(sys.modules, kodi.mods), mock.patch.object(show, 'fetch', net or Net()), mock.patch.object(show, 'seasons', *([lambda *a, **k: (with_pictures(onepace.seasons(onepace.parse_watch(PAGE))), '')] if pictures else [show.seasons])):
+        kodi = FakeKodi(yes); kodi.answer = answer
+        if keep and not KEEP: KEEP.append(tempfile.mkdtemp())
+        if not keep: KEEP.clear()
+        folder = type('F', (), {'__enter__': lambda me: KEEP[0] if keep else tempfile.mkdtemp(), '__exit__': lambda me, *a: None})()
+        with folder as tmp, mock.patch.dict(sys.modules, kodi.mods), mock.patch.object(show, 'fetch', net or Net()), mock.patch.object(show, 'seasons', *([lambda *a, **k: (with_pictures(onepace.seasons(onepace.parse_watch(PAGE))), '')] if pictures else [show.seasons])):
             TMP[0] = tmp
             if params.get('action') == 'onepace_play': ios_onepace.play(1, params)
             elif params.get('action') == 'onepace_download': ios_onepace.download(params)
@@ -243,10 +248,19 @@ class Plugin(unittest.TestCase):
         self.assertEqual(k.questions, []); ok, li = k.resolved[0]; self.assertTrue(ok); self.assertTrue(li.path.startswith('https://pixeldrain.net/api/file/'))
     def test_a_japanese_only_episode_asks_and_cancel_plays_nothing(self):
         k = self.run_route({'action': 'onepace_play', 'season': '2', 'episode': '1'}, yes=False)
-        self.assertEqual(k.questions[0][0], 'This episode is Japanese only'); self.assertEqual(k.questions[0][2], {'nolabel': 'Cancel', 'yeslabel': 'Continue'})
+        self.assertEqual(k.questions[0][0], 'This episode is Japanese only'); self.assertEqual(k.questions[0][2], {'nolabel': 'Cancel', 'yeslabel': 'Continue', 'custom': "Continue, don't ask again in this arc"})
         self.assertEqual(k.resolved[0][0], False)
         k = self.run_route({'action': 'onepace_play', 'season': '2', 'episode': '1'}, yes=True)
         self.assertTrue(k.resolved[0][0]); self.assertTrue(k.resolved[0][1].path.startswith('https://pixeldrain.net/api/file/'))
+    def test_dont_ask_again_in_this_arc_plays_and_remembers_the_arc(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertFalse(show.is_quiet(tmp, 2)); show.make_quiet(tmp, 2); show.make_quiet(tmp, 2); self.assertTrue(show.is_quiet(tmp, 2)); self.assertTrue(show.is_quiet(tmp, '2')); self.assertFalse(show.is_quiet(tmp, 3))
+        k = self.run_route({'action': 'onepace_play', 'season': '2', 'episode': '1'}, answer=2, keep=True)
+        self.assertTrue(k.resolved[0][0]); self.assertEqual(len(k.questions), 1)
+        again = self.run_route({'action': 'onepace_play', 'season': '2', 'episode': '1'}, answer=0, keep=True)   # the next episode of that arc: no question, it plays
+        self.assertEqual(again.questions, []); self.assertTrue(again.resolved[0][0])
+        other = self.run_route({'action': 'onepace_play', 'season': '3', 'episode': '1'}, answer=0, keep=True)   # another arc still asks (it may be dubbed: then it just plays)
+        self.assertIn(len(other.questions), (0, 1))
     def test_play_in_japanese_picks_the_japanese_file_without_asking(self):
         k = self.run_route({'action': 'onepace_play', 'season': '1', 'episode': '1', 'prefer': 'japanese'})
         self.assertEqual(k.questions, []); dub = self.run_route({'action': 'onepace_play', 'season': '1', 'episode': '1'})

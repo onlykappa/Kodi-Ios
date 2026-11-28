@@ -149,3 +149,26 @@ def run(monitor,profile,ready,foreground,notify,log,get=None,now=time.time):
    try:check(profile,get,notify,log,now)
    except Exception as error:log('One Pace: check failed (%s)'%type(error).__name__)
   if monitor.waitForAbort(CHECK_EVERY):return
+
+def arc_name(profile,season):
+ """The arc's name for a season number from the saved copy only (no network), or '' (Library status names a One Pace season by its arc)."""
+ try:
+  saved=read_json(folder(profile)/CACHE,{})
+  for arc in saved.get('seasons') or []:
+   if int(arc.get('season') or 0)==int(season):return str(arc.get('title') or '')
+ except Exception:pass
+ return ''
+
+QUIET='onepace-quiet-arcs.json'
+
+def is_quiet(profile,season):
+ """True when the owner chose "Continue, don't ask again in this arc" for this arc (ISSUE-502)."""
+ try:return int(season) in {int(n) for n in read_json(folder(profile)/QUIET,[])}
+ except (TypeError,ValueError):return False
+
+def make_quiet(profile,season):
+ """Remember that this arc plays its Japanese-only episodes without asking."""
+ try:
+  known={int(n) for n in read_json(folder(profile)/QUIET,[])}|{int(season)}
+  write_json(folder(profile)/QUIET,sorted(known))
+ except (OSError,TypeError,ValueError):pass

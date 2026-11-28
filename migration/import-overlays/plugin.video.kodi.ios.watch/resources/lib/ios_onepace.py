@@ -106,9 +106,13 @@ def play(handle, params):
         xbmcgui.Dialog().notification(SHOW, 'This episode is not available yet', xbmcgui.NOTIFICATION_INFO, 4000)
         xbmcplugin.setResolvedUrl(handle, False, xbmcgui.ListItem())
         return
-    if target['japanese_only'] and params.get('ok') != '1' and params.get('prefer') != 'japanese':
-        if not xbmcgui.Dialog().yesno('This episode is Japanese only', 'There is no English dub of this One Pace episode yet. It plays in Japanese with English subtitles. Do you want to continue?',
-                                      nolabel='Cancel', yeslabel='Continue'):
+    if target['japanese_only'] and params.get('ok') != '1' and params.get('prefer') != 'japanese' and not show.is_quiet(profile, target['season']):
+        # The app's alert card (DialogConfirm, approved mockup): Continue, "don't ask again in this arc" as the third line, Cancel last.
+        answer = xbmcgui.Dialog().yesnocustom('This episode is Japanese only', 'It plays in Japanese with English subtitles. Do you want to continue?',
+                                              "Continue, don't ask again in this arc", nolabel='Cancel', yeslabel='Continue')
+        if answer == 2:
+            show.make_quiet(profile, target['season'])
+        elif answer != 1:
             xbmcplugin.setResolvedUrl(handle, False, xbmcgui.ListItem())
             return
     li = xbmcgui.ListItem(target['title'], path=target['file'])
