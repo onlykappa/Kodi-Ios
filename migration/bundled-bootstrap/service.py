@@ -609,6 +609,10 @@ def run():
  import background_box
  threading.Thread(target=background_box.watch,args=(lambda:background_box.read_box(xbmc,xbmcgui),
   lambda text:notices.add(profile,'problem','Elementum Burst',text),monitor.waitForAbort),daemon=True).start()
+ # Add-on install progress for the add-on page (install_progress.py): Kodi's background box copied into Window(Home) properties.
+ import install_progress
+ threading.Thread(target=install_progress.watch,args=(lambda:install_progress.read(xbmc,xbmcgui),window.setProperty,window.clearProperty,
+  monitor.waitForAbort),daemon=True).start()
  # ISSUE-267: the add-ons the app patches stay its own copies (a repository update had hidden them; no copy ran).
  try:
   import pinned_addons

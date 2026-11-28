@@ -186,7 +186,8 @@ def addon_browser(p,original):
   generic='!String.IsEmpty(ListItem.AddonVersion) | !String.IsEmpty(ListItem.Label2)'
   has='[%s] | %s'%(generic,' | '.join('[%s]'%c for c,_ in ADDON_ROOT_SUBS))
   sub='$INFO[ListItem.AddonVersion]$INFO[ListItem.Label2, · ,]'
-  listing='![String.StartsWith(Container.FolderPath,addons://user)] + ![String.StartsWith(Container.FolderPath,addons://outdated)] + ![String.StartsWith(Container.FolderPath,addons://recently_updated)]'
+  listing='![String.StartsWith(Container.FolderPath,addons://user)] + ![String.StartsWith(Container.FolderPath,addons://outdated)] + ![String.StartsWith(Container.FolderPath,addons://recently_updated)] + ![String.StartsWith(Container.FolderPath,addons://downloading)]'
+  downloading='String.StartsWith(Container.FolderPath,addons://downloading)'
   dot='String.StartsWith(%s,addons://outdated) + %s + [%s]'%(fp,UPDATES,root)
   return (p.image(0,0,w,h,p.MEDIA+'white.png',p.SURFACE2 if f else p.SURFACE)+p.image(x,h-2,w-x,2,p.MEDIA+'white.png',p.SEP)+
           p.surface(40,(h-84)//2,84,84,'tile84.png','FF0F0F10',24)+p.image(48,(h-68)//2,68,68,'$INFO[ListItem.Icon]',p.WHITE,'','>keep')+
@@ -203,6 +204,8 @@ def addon_browser(p,original):
             ('Update',p.ACCENT,'String.IsEqual(ListItem.Property(Addon.HasUpdate),true)'),
             ('Installed',GREEN,'String.IsEqual(ListItem.Property(Addon.IsInstalled),true) + !String.IsEqual(ListItem.Property(Addon.HasUpdate),true)'),
             ('Install',p.ACCENT,'String.IsEqual(ListItem.Property(Addon.IsInstalled),false)')))+
+          # The Downloading list (Kodi gives no percentage per row): every row is on its way.
+          p.label(w-74-30-230,0,230,h,'Installing','p_foot_b',p.ACCENT,'right','<visible>%s</visible>'%downloading)+
           p.icon(w-74,(h-34)//2,34,'chevron-right.png',p.DIM))
  # Kodi's own Search row would open its keyboard dialog first; the search field above the list (9030) takes its place, so the
  # row draws nothing. The list starts under the field, and a little lower again while a search is open (the phone's native

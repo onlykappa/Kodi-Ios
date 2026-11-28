@@ -23,6 +23,11 @@ ENABLED = 'String.IsEqual(Control.GetLabel(7),$LOCALIZE[24021])'
 UPDATE = 'Control.IsVisible(8)'   # Kodi shows button 8 only when the add-on has an update (and hides 14, Versions, then)
 HAS_DATE = '!String.IsEmpty(ListItem.AddonLastUpdated) | !String.IsEmpty(ListItem.AddonInstallDate)'
 VERSION = '$INFO[ListItem.AddonVersion]'
+# install_progress.py copies Kodi's hidden install box into these Home properties while an add-on installs.
+HOME = 'Window(Home).Property(%s)'
+INSTALLING = '!String.IsEmpty(%s) + String.IsEqual(%s,ListItem.Label)' % (HOME % 'Addon.Install.Name', HOME % 'Addon.Install.Name')
+NOT_INSTALLING = '![%s]' % INSTALLING
+STAGES = ('Downloading', 'Checking the download', 'Adding what it needs', 'Installing')
 
 
 def spacer(h, visible=''):
@@ -97,10 +102,11 @@ def page_body(p):
     w = p.WIDTH - 2 * p.SIDE
     M = p.MEDIA
     status = lambda cond, text, color: p.label(0, 0, p.WIDTH, 60, text, 'p_foot_b', color, 'center', '<visible>%s</visible>' % cond)
-    st = (status('![%s]' % INSTALLED, 'Not installed · v%s' % VERSION, p.GREY) +
-          status('%s + %s' % (INSTALLED, UPDATE), 'Update available · v%s' % VERSION, p.ACCENT) +
-          status('%s + ![%s] + %s' % (INSTALLED, UPDATE, ENABLED), 'Enabled · v%s' % VERSION, p.GREY) +
-          status('%s + ![%s] + ![%s]' % (INSTALLED, UPDATE, ENABLED), 'Disabled · v%s' % VERSION, p.GREY))
+    st = (status('%s + ![%s]' % (NOT_INSTALLING, INSTALLED), 'Not installed · v%s' % VERSION, p.GREY) +
+          status('%s + %s + %s' % (NOT_INSTALLING, INSTALLED, UPDATE), 'Update available · v%s' % VERSION, p.ACCENT) +
+          status('%s + %s + ![%s] + %s' % (NOT_INSTALLING, INSTALLED, UPDATE, ENABLED), 'Enabled · v%s' % VERSION, p.GREY) +
+          status('%s + %s + ![%s] + ![%s]' % (NOT_INSTALLING, INSTALLED, UPDATE, ENABLED), 'Disabled · v%s' % VERSION, p.GREY) +
+          status(INSTALLING, 'Installing · v%s' % VERSION, p.ACCENT))
     tile = 256
     hero = ('<control type="group"><width>%d</width><height>640</height>' % p.WIDTH +
             p.surface((p.WIDTH - tile) // 2, 0, tile, tile, 'tile100.png', 'FF0F0F10', 56) +
@@ -115,22 +121,54 @@ def page_body(p):
     both = '%s + Control.IsEnabled(9)' % INSTALLED
     primary = lambda id, text, click, cond, x, wd, style: p.pill_button(
         id, x, 0, wd, cap_h, text, [('', click)], style, extra='<visible>%s</visible>' % cond)
-    open_cond = '![%s] + Control.IsEnabled(12)' % UPDATE
-    install_cond = '![%s] + Control.IsEnabled(6) + ![%s]' % (UPDATE, INSTALLED)
-    settings_here = 'Control.IsEnabled(9) + [%s | %s]' % (UPDATE, 'Control.IsEnabled(12)')
+    open_cond = '%s + ![%s] + Control.IsEnabled(12)' % (NOT_INSTALLING, UPDATE)
+    install_cond = '%s + ![%s] + Control.IsEnabled(6) + ![%s]' % (NOT_INSTALLING, UPDATE, INSTALLED)
+    settings_here = '%s + Control.IsEnabled(9) + [%s | %s]' % (NOT_INSTALLING, UPDATE, 'Control.IsEnabled(12)')
     half = (w - 20) // 2
     actions = ('<control type="group"><width>%d</width><height>%d</height>' % (p.WIDTH, cap_h + 40) +
                '<control type="group"><left>%d</left><top>20</top>' % p.SIDE +
                # Update: wide when alone, half with Settings.
-               primary(9108, 'Update', 'SendClick(8)', '%s + !Control.IsEnabled(9)' % UPDATE, 0, w, 'primary') +
-               primary(9118, 'Update', 'SendClick(8)', '%s + Control.IsEnabled(9)' % UPDATE, 0, half, 'primary') +
+               primary(9108, 'Update', 'SendClick(8)', '%s + %s + !Control.IsEnabled(9)' % (NOT_INSTALLING, UPDATE), 0, w, 'primary') +
+               primary(9118, 'Update', 'SendClick(8)', '%s + %s + Control.IsEnabled(9)' % (NOT_INSTALLING, UPDATE), 0, half, 'primary') +
                primary(9112, '$INFO[Control.GetLabel(12)]', 'SendClick(12)', '%s + !Control.IsEnabled(9)' % open_cond, 0, w, 'primary') +
                primary(9122, '$INFO[Control.GetLabel(12)]', 'SendClick(12)', '%s + Control.IsEnabled(9)' % open_cond, 0, half, 'primary') +
                primary(9106, '$INFO[Control.GetLabel(6)]', 'SendClick(6)', install_cond, 0, w, 'primary') +
                primary(9109, 'Settings', 'SendClick(9)', settings_here, half + 20, half, 'glass') +
-               primary(9119, 'Settings', 'SendClick(9)', 'Control.IsEnabled(9) + ![%s] + ![Control.IsEnabled(12)] + ![%s]' % (UPDATE, install_cond), 0, w, 'primary') +
+               # While this add-on installs: a grey capsule that says so and cannot be pressed twice.
+               ('<control type="group"><left>0</left><top>0</top><width>%d</width><height>%d</height><visible>%s</visible>' % (w, cap_h, INSTALLING) +
+                p.image(0, 0, w, cap_h, p.MEDIA + 'pill_128.png', 'FF2C2C2E', '', border='64') +
+                p.label(0, 0, w, cap_h, 'Installing', 'p_btn', p.GREY, 'center') + '</control>') +
+               primary(9119, 'Settings', 'SendClick(9)', '%s + Control.IsEnabled(9) + ![%s] + ![Control.IsEnabled(12)] + ![%s]' % (NOT_INSTALLING, UPDATE, install_cond), 0, w, 'primary') +
                '</control></control>')
-    rows = ''
+    # Stages and one thin bar while this add-on installs (Kodi's hidden install box, install_progress.py).
+    stage = HOME % 'Addon.Install.Stage'
+    pct = HOME % 'Addon.Install.Percent'
+    line = 84
+    stage_h = len(STAGES) * line + 120
+    sx = PAD
+    stages = ''
+    for n, name in enumerate(STAGES):
+        y = 24 + n * line
+        done, now = 'Integer.IsGreater(%s,%d)' % (stage, n), 'Integer.IsEqual(%s,%d)' % (stage, n)
+        stages += (p.icon(sx - 4, y + (line - 60) // 2, 60, 'circle-check.png', 'FF30D158', '<visible>%s</visible>' % done) +
+                   p.icon(sx - 4, y + (line - 60) // 2, 60, 'circle-regular.png', p.ACCENT, '<visible>%s</visible>' % now) +
+                   p.icon(sx - 4, y + (line - 60) // 2, 60, 'circle-regular.png', 'FF636366', '<visible>![%s] + ![%s]</visible>' % (done, now)) +
+                   p.label(sx + 76, y, w - 2 * PAD - 76, line, name, 'p_body', p.WHITE, 'left',
+                           '<scroll>false</scroll><visible>%s | %s</visible>' % (done, now)) +
+                   p.label(sx + 76, y, w - 2 * PAD - 76, line, name, 'p_body', p.GREY, 'left',
+                           '<scroll>false</scroll><visible>![%s] + ![%s]</visible>' % (done, now)))
+    bar_y = 24 + len(STAGES) * line + 16
+    # The bar: a grey track and a blue fill in 5 % steps (Home properties are not a number Kodi's progress control reads).
+    track_w = w - 2 * PAD
+    bar = p.image(sx, bar_y, track_w, 10, M + 'dot.png', '33FFFFFF', '', border='5')
+    for k in range(1, 21):
+        bar += p.image(sx, bar_y, max(10, track_w * k // 20), 10, M + 'dot.png', 'FF0A84FF',
+                       '<visible>Integer.IsGreater(%s,%d) + !Integer.IsGreater(%s,%d)</visible>' % (pct, (k - 1) * 5, pct, k * 5), border='5')
+    install_card = ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>' % (p.WIDTH, stage_h + GAP + 30, INSTALLING) +
+                    '<control type="group"><left>%d</left><top>30</top>' % p.SIDE + p.surface(0, 0, w, stage_h, 'round_s.png', p.SURFACE, RADIUS_CARD) +
+                    stages + bar +
+                    p.label(sx, bar_y + 14, w - 2 * PAD, 56, '$INFO[%s]%%' % pct, 'p_foot', p.GREY, 'left') + '</control></control>')
+    rows = install_card
     rows += card_row(p, 9107, 'Enabled', 'switch', 'Control.IsEnabled(7)', 'SendClick(7)', switch=ENABLED)
     rows += ('<control type="group"><width>%d</width><height>%d</height><visible>Control.IsEnabled(13)</visible>' % (p.WIDTH, ROW + GAP) +
              '<control type="group"><left>%d</left>' % p.SIDE + p.surface(0, 0, w, ROW, 'round_s.png', p.SURFACE, RADIUS_CARD) +
