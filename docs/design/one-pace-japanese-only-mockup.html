@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One Pace: Japanese only</title>
+<style>
+/* MOCKUP (evidence class: mockup, APPLE-UI-POLICY §9). Not a render of Kodi. Reuses the app's alert card (see torrent-warning-mockup.html): 90%+ opaque surface, centred, text buttons divided by a hairline, the safe choice bold. Episode rows follow the show page's episode card (thumbnail, number and title, duration line, description). No artwork: grey tiles. */
+:root{--surface:#2c2c2e;--grey:rgba(235,235,245,.6);--sep:rgba(235,235,245,.16);--blue:#4fa8ff;--green:#30d158;--amber:#ffb340}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;padding:28px 16px 60px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1100px;margin:0 auto}
+.tag{display:inline-block;background:#3a2a00;color:#ffd60a;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:30px;font-weight:800;margin-bottom:8px}p.lead{color:#b4b4ba;line-height:1.5;max-width:760px;margin-bottom:26px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:28px}
+.cap{color:var(--blue);font-size:12px;font-weight:700;letter-spacing:.06em;margin-bottom:6px}.note{color:var(--grey);font-size:13px;line-height:1.4;margin:10px 0 0}
+.phone{position:relative;width:100%;max-width:340px;aspect-ratio:402/874;border-radius:44px;background:#000;box-shadow:0 0 0 7px #2a2a2d,0 30px 70px rgba(0,0,0,.6);overflow:hidden;margin:0 auto}
+.page{position:absolute;inset:0;padding:64px 16px 0;background:#000}
+.back{font-size:26px;margin-bottom:8px}.pill{display:inline-block;border-radius:22px;padding:9px 18px;font-size:13px;font-weight:700;margin:0 6px 12px 0;background:#fff;color:#000}.pill.off{background:#1c1c1e;color:#fff;border:1px solid var(--sep)}
+.ep{display:grid;grid-template-columns:118px 1fr;gap:10px;margin-bottom:16px}.th{height:66px;border-radius:9px;background:#3a3a3c;position:relative}.th:after{content:"";position:absolute;left:46px;top:20px;border-left:16px solid #fff;border-top:10px solid transparent;border-bottom:10px solid transparent}
+.t{font-size:15px;font-weight:700}.m{font-size:11px;color:var(--grey);margin-top:3px}.badge{display:inline-block;font-size:10px;font-weight:700;color:var(--amber);border:1px solid var(--amber);border-radius:5px;padding:1px 5px;margin-left:6px;vertical-align:1px}
+.d{grid-column:1/-1;font-size:11px;line-height:1.35;color:var(--grey)}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.alert{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:80%;background:rgba(44,44,46,.97);border-radius:20px;overflow:hidden;text-align:center}
+.body{padding:20px 16px 14px}.title{font-size:17px;font-weight:700;margin-bottom:8px}.text{font-size:13px;line-height:1.4;color:rgba(235,235,245,.78)}
+.btns{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--sep)}.btns div{padding:13px 4px;font-size:16px;color:var(--blue)}.btns div+div{border-left:1px solid var(--sep)}.btns .def{font-weight:700}
+.btns.stack{grid-template-columns:1fr}.btns.stack div+div{border-left:0;border-top:1px solid var(--sep)}
+.menu{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:80%;background:rgba(44,44,46,.97);border-radius:18px;overflow:hidden}.menu div{padding:14px 16px;font-size:16px;border-top:1px solid var(--sep)}.menu div:first-child{border-top:0;font-weight:700;color:var(--grey);font-size:12px;letter-spacing:.05em}
+</style></head><body><div class="wrap">
+<span class="tag">MOCKUP · not Kodi</span>
+<h1>One Pace: episodes with no English dub</h1>
+<p class="lead">One Pace appears in search as a show; its arcs are the seasons. An episode plays in English dub when one exists. When it does not, it plays in Japanese with English subtitles (the subtitles are part of the picture in these files, so they cannot be switched off), and the app says so before it starts. Cancel is the bold default.</p>
+<div class="grid">
+
+<div><div class="cap">1 · SEASON PAGE (ARC)</div><div class="phone"><div class="page"><div class="back">‹</div>
+<span class="pill">Whisky Peak</span><span class="pill off">Little Garden</span>
+<div class="ep"><div class="th"></div><div><div class="t">1. Arrival at Whisky Peak<span class="badge">JA</span></div><div class="m">25m · Japanese only</div></div><div class="d">The Straw Hats are welcomed by a town that is a little too friendly.</div></div>
+<div class="ep"><div class="th"></div><div><div class="t">2. Miss Wednesday</div><div class="m">25m · English dub</div></div><div class="d">Nami and Vivi are not what they seem to be, and neither is the town.</div></div>
+</div></div><p class="note">A small amber "JA" on an episode that has no dub, and the duration line says it in words. Dubbed episodes carry no badge. Same episode card as every other show.</p></div>
+
+<div><div class="cap">2 · TAPPING A JAPANESE-ONLY EPISODE</div><div class="phone"><div class="page"><div class="back">‹</div><span class="pill">Whisky Peak</span><span class="pill off">Little Garden</span>
+<div class="ep"><div class="th"></div><div><div class="t">1. Arrival at Whisky Peak</div><div class="m">25m</div></div></div></div><div class="scrim"></div>
+<div class="alert"><div class="body"><div class="title">This episode is Japanese only</div>
+<div class="text">There is no English dub of this One Pace episode yet. It plays in Japanese with English subtitles. Do you want to continue?</div></div>
+<div class="btns"><div class="def">Cancel</div><div>Continue</div></div></div></div>
+<p class="note">Asked each time for an episode with no dub. Continue plays it; Cancel returns to the list. A season download queues Japanese-only episodes as they are, and its sheet says how many there are.</p></div>
+
+<div><div class="cap">3 · OPTION: ASK ONCE PER ARC</div><div class="phone"><div class="page"><div class="back">‹</div><span class="pill">Whisky Peak</span><span class="pill off">Little Garden</span>
+<div class="ep"><div class="th"></div><div><div class="t">1. Arrival at Whisky Peak</div><div class="m">25m</div></div></div></div><div class="scrim"></div>
+<div class="alert"><div class="body"><div class="title">This episode is Japanese only</div>
+<div class="text">It plays in Japanese with English subtitles. Do you want to continue?</div></div>
+<div class="btns stack"><div class="def">Cancel</div><div>Continue</div><div>Continue, don't ask again in this arc</div></div></div></div>
+<p class="note">Same card with a third line, so binge-watching an arc that has no dub does not ask on every episode. Skip this line if one question per episode is fine.</p></div>
+
+<div><div class="cap">4 · LONG PRESS ON A DUBBED EPISODE</div><div class="phone"><div class="page"><div class="back">‹</div><span class="pill">Whisky Peak</span><span class="pill off">Little Garden</span>
+<div class="ep"><div class="th"></div><div><div class="t">2. Miss Wednesday</div><div class="m">25m · English dub</div></div></div></div><div class="scrim"></div>
+<div class="menu"><div>MISS WEDNESDAY</div><div>Play</div><div>Play in Japanese (English subtitles)</div><div>Download</div><div>Choose source</div></div></div>
+<p class="note">For an episode that has a dub, "Play in Japanese" picks the Japanese file for that episode. It is a choice of file, not a subtitle switch: the English subtitles come with the Japanese file.</p></div>
+
+</div></div></body></html>

@@ -216,6 +216,10 @@ def run():
  if not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
   import episode_watch_runtime
   threading.Thread(target=episode_watch_runtime.run,args=(monitor,profile,setup_done.is_set),daemon=True).start()
+  # One Pace (onepace_show.py): new episodes, arcs and English dubs are looked for hourly while the app is in front, one notice each.
+  import onepace_show,app_state
+  threading.Thread(target=onepace_show.run,args=(monitor,profile,setup_done.is_set,app_state.foreground,
+                   lambda title,text:notices.add(profile,'drive',title,text),lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)),daemon=True).start()
   # The show page's bell (anticipated.py): shows only for a show with an episode still to come.
   import anticipated,source_match,xbmcgui
   threading.Thread(target=anticipated.bell_service,args=(monitor,profile,xbmcgui.Window(10000),xbmc.getInfoLabel,source_match.tmdb_key),daemon=True).start()
