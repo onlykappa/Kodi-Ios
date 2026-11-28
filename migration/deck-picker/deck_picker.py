@@ -213,6 +213,12 @@ def is_bad(item):
 # Kodi-iOS: what a phone cannot stream well. The owner's tests played a 72 GB UHD Blu-ray disc file (00030.m2ts, HEVC
 # 10-bit at 63 Mbps): it stalled, froze the controls while Kodi waited on it, and could not seek (no index).
 HEAVY_GB = 40.0
+# ISSUE-497 (owner log c703d50a, build 792): a 1080p HDR HEVC stream of about 11.4 Mbit/s on average (15 at its peaks) played from an AllDebrid link that delivered
+# about 13.7 Mbit/s: AirPlay could make its 6 s segments only at two thirds of real time and the TV buffered all the way. For a stream the versions whose average
+# bitrate (size over the title's length) is above STREAM_MBPS are listed after the lighter ones (still offered, same quality group). RUNTIME[0] is the title's
+# length in seconds, set by umbrella_picker from Umbrella's own metadata; 0 (unknown) changes nothing.
+STREAM_MBPS = 10.0
+RUNTIME = [0.0]
 DISC_WORDS = (' M2TS ', ' BDMV ', ' ISO ', ' BD25 ', ' BD50 ', ' BD66 ', ' BD100 ', ' COMPLETE BLURAY ', ' COMPLETE UHD BLURAY ',
               ' COMPLETE BLU RAY ', ' UHD BD ', ' DISC ')
 
@@ -338,6 +344,15 @@ def names_episode(name, season, episode):
     return any(re.search(p, text) for p in patterns)
 
 
+def stream_mbps(item):
+    """The average bitrate of a version in Mbit/s from its size and the title's length, or 0 when either is unknown."""
+    try:
+        seconds, size = float(RUNTIME[0]), float(item.get('size') or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return size * 8589.93 / seconds if seconds > 60 and size > 0 else 0.0   # GB (2^30 bytes) to megabits, over seconds
+
+
 def pick(items, top_n=TOP_N):
     """items: one quality, already in Elementum's order. Returns up to top_n varied links."""
     items = dedupe(items)
@@ -351,6 +366,7 @@ def pick(items, top_n=TOP_N):
     # hardware decoder on Apple devices), Dolby Vision without an HDR10 fallback (wrong colours on TVs without DV).
     # Downloads (Elementum) are prepared once on Drive, so those stay in Elementum's order there.
     if MODE[0] == u'stream':
+        good = [i for i in good if stream_mbps(i) <= STREAM_MBPS] + [i for i in good if stream_mbps(i) > STREAM_MBPS]   # ISSUE-497: lighter versions first
         good = [i for i in good if not live_conversion(i)] + [i for i in good if live_conversion(i)]
     # ISSUE-492 (owner log 4e3d5e2c, build 710): after an episode is picked Umbrella lists the whole pack and unlocks its files one by one until it reaches the episode:
     # 3 files 2.2 s, a series pack of 92 files 27.3 s (Dragon Ball Z), against 3-4 s for a movie. A release that names this very season and episode opens fastest, so for a

@@ -137,6 +137,9 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
  except Exception:pass
  deck=deck or load()
  share(meta)
+ try:   # the title's length in seconds, so the version list can put the lighter streams first (deck_picker.stream_mbps)
+  deck.RUNTIME[0]=float((meta or {}).get('duration') or 0)
+ except Exception:pass
  close_circle()
  title=(meta or {}).get('tvshowtitle') or (meta or {}).get('title') or ''
  labels=[label(item) for _,item in playable_items]

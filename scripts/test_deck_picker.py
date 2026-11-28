@@ -356,4 +356,31 @@ class PacksLast(unittest.TestCase):
   for name in ('Show.S01.Complete','Show.S01E02','Show.S01E011','Show.S11E01',''):self.assertFalse(dp.names_episode(name,1,1),name)
   self.assertFalse(dp.names_episode('Show.S01E01','x',1))
 
+class LighterFirst(unittest.TestCase):
+ # ISSUE-497 (owner log c703d50a): an 11-15 Mbit/s HDR stream could not be made at real time from an AllDebrid link that gave 13.7 Mbit/s
+ def item(self,name,n,gb):return {'name':name,'tags_text':'','providers':[],'quality':'1080p','seeds':5,'size':gb,'icon':'','idx':n}
+ def order(self,runtime,mode=u'stream'):
+  items=[self.item('Film.2160p.HDR.Remux.1080p',0,22.0),self.item('Film.1080p.WEB-DL.x264',1,4.5),self.item('Film.1080p.BluRay.x265',2,9.0),self.item('Film.1080p.Remux',3,16.0)]
+  old=(dp.MODE[0],dp.RUNTIME[0],dp._CONTEXT.get('exp'))
+  try:
+   dp.MODE[0]=mode;dp.RUNTIME[0]=runtime;dp._CONTEXT['exp']=None
+   return [i['idx'] for i in dp.pick(list(items),10)]
+  finally:dp.MODE[0],dp.RUNTIME[0],dp._CONTEXT['exp']=old
+ def test_the_bitrate_comes_from_size_and_length(self):
+  old=dp.RUNTIME[0]
+  try:
+   dp.RUNTIME[0]=7200.0;self.assertAlmostEqual(dp.stream_mbps({'size':9.0}),10.74,1);self.assertAlmostEqual(dp.stream_mbps({'size':4.5}),5.37,1)
+   for runtime in (0,None,30,'x'):
+    dp.RUNTIME[0]=runtime;self.assertEqual(dp.stream_mbps({'size':9.0}),0.0)
+   dp.RUNTIME[0]=7200.0;self.assertEqual(dp.stream_mbps({'size':0}),0.0);self.assertEqual(dp.stream_mbps({}),0.0)
+  finally:dp.RUNTIME[0]=old
+ def test_a_film_of_two_hours_lists_the_light_streams_first_and_keeps_the_heavy_ones(self):
+  got=self.order(7200.0)
+  self.assertEqual(got[0],1);self.assertEqual(sorted(got),[0,1,2,3]);self.assertLess(got.index(1),got.index(2));self.assertLess(got.index(2),got.index(3))   # 4.5 GB, 9 GB (10.7 Mbit/s: over), 16 GB, 22 GB
+ def test_unknown_length_and_downloads_are_left_alone(self):
+  self.assertEqual(self.order(0.0),[0,1,2,3]);self.assertEqual(self.order(7200.0,u'download'),[0,1,2,3])
+ def test_the_umbrella_picker_gives_the_list_the_titles_length(self):
+  text=(ROOT/'migration/bundled-bootstrap/resources/lib/umbrella_picker.py').read_text()
+  self.assertIn("deck.RUNTIME[0]=float((meta or {}).get('duration') or 0)",text)
+
 if __name__=='__main__':unittest.main()
