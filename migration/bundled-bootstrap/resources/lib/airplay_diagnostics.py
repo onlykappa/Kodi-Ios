@@ -44,6 +44,26 @@ class Tracker:
   self.last_report[why]=now
   return {'reason':why,'generation':generation,'at':now,'recent':list(self.rows)}
 
+class Judder:
+ """ISSUE-491 (owner, 2026-11-26: "the fps lags at random times, it almost never buffers"): the 30 s samples hide short trouble. Every 5 s sample is compared with the one before:
+ a change of the TV player's state (waiting / playing / buffer empty / likely to keep up / rate) is an event at once, and a stretch where the picture's clock advanced
+ less than the wall clock while it was playing is a `position_slip` with how much was lost. A seek, a pause, or an iOS suspension (a gap over 12 s) is not a slip."""
+ KEYS=('time_control','buffer_empty','likely_to_keep_up','rate','external')
+ def __init__(self):self.last=None
+ def observe(self,player,now):
+  last=self.last;self.last=(dict(player),now)
+  if not last:return []
+  before,then=last;out=[]
+  changes={k:[before.get(k),player.get(k)] for k in self.KEYS if before.get(k)!=player.get(k)}
+  if changes:out.append(('state_change',{'changes':changes,'position':round(float(player.get('position') or 0),1)}))
+  wall=now-then
+  playing=lambda p:p.get('time_control')==2 and p.get('rate')==1.0
+  if 3<=wall<=12 and playing(before) and playing(player):
+   moved=float(player.get('position') or 0)-float(before.get('position') or 0)
+   if 0<=moved and wall-moved>=1.5:   # moved<0 or far over the wall time is a seek
+    out.append(('position_slip',{'wall_s':round(wall,1),'advanced_s':round(moved,1),'lost_s':round(wall-moved,1),'position':round(float(player.get('position') or 0),1)}))
+  return out
+
 def capture(profile,report,write,queues=None):
  folder=Path(profile)/'addon_data/service.kodi.ios.bootstrap';folder.mkdir(parents=True,exist_ok=True)
  for name,next_name in (('airplay-stop-1.json','airplay-stop-2.json'),('airplay-stop-latest.json','airplay-stop-1.json')):
@@ -58,7 +78,7 @@ def capture(profile,report,write,queues=None):
 def watch(lib,profile,window,write,wait,clock=time.time,recover=None):
  import airplay,remote_media
  if not hasattr(lib,'kodi_airplay_health'):return
- tracker=Tracker();saved=logged=float('-inf')
+ tracker=Tracker();judder=Judder();saved=logged=float('-inf')
  while not wait(5):
   try:
    player=selected(airplay.health(lib),PLAYER)
@@ -72,6 +92,9 @@ def watch(lib,profile,window,write,wait,clock=time.time,recover=None):
     except Exception as error:diagnostics.exception(write,'airplay_recover',error)
    was_playing=tracker.played
    now=clock();report=tracker.observe(sample,now)
+   try:
+    for name,fields in judder.observe(player,now):diagnostics.event(write,'airplay',name,source=source,network=sample['network'],**fields)
+   except Exception as error:diagnostics.exception(write,'airplay_judder',error)
    if report:capture(profile,report,write,diagnostics.snapshot(profile))
    if was_playing and not player.get('active') and player.get('state',0)<=0:
     store(profile,'airplay-recent.json',{'generation':tracker.generation,'recent':list(tracker.rows)})

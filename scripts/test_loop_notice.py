@@ -1,5 +1,5 @@
 """The Loop's notice window as a portrait sheet (loop_notice.py): only the exact pinned file is replaced, and the control ids the
-add-on drives stay (ISSUE-497)."""
+add-on drives stay (ISSUE-504)."""
 import hashlib,os,sys,tempfile,unittest
 import xml.etree.ElementTree as ET
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','migration','bundled-bootstrap','resources','lib'))

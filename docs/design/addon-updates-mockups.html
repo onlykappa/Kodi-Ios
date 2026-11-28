@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add-on Updates</title>
+<style>
+/* MOCKUP (evidence class: mockup, APPLE-UI-POLICY §9). Not a render of Kodi. Settings > Add-on Updates with add-ons to update: one white primary capsule "Update All", rows in the app's grouped-row style (settings_page rows: SURFACE card, hairline separators, 44pt+ rows), a thin progress bar while updating, a green tick when a row is done, an amber retry on a failure. No add-on artwork: letter tiles. No new colour: white, SURFACE, grey, blue 4FA8FF, green 30D158, amber FFB340, red FF453A. */
+:root{--surface:#1c1c1e;--surface2:#2c2c2e;--grey:rgba(235,235,245,.6);--sep:rgba(235,235,245,.16);--blue:#4fa8ff;--green:#30d158;--amber:#ffb340;--red:#ff453a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;padding:28px 16px 60px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto}
+.tag{display:inline-block;background:#3a2a00;color:#ffd60a;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:30px;font-weight:800;margin-bottom:8px}p.lead{color:#b4b4ba;line-height:1.5;max-width:780px;margin-bottom:26px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:28px}
+.cap{color:var(--blue);font-size:12px;font-weight:700;letter-spacing:.06em;margin-bottom:6px}.note{color:var(--grey);font-size:13px;line-height:1.4;margin:10px 0 0}
+.phone{position:relative;width:100%;max-width:340px;aspect-ratio:402/874;border-radius:44px;background:#000;box-shadow:0 0 0 7px #2a2a2d,0 30px 70px rgba(0,0,0,.6);overflow:hidden;margin:0 auto}
+.page{position:absolute;inset:0;padding:58px 16px 0;background:#000}
+.top{display:flex;align-items:center;justify-content:center;position:relative;height:40px;margin-bottom:14px}.top .back{position:absolute;left:2px;font-size:28px}.top b{font-size:17px}
+.sum{text-align:center;margin:4px 0 14px}.sum .big{font-size:22px;font-weight:800}.sum .small{color:var(--grey);font-size:13px;margin-top:4px;line-height:1.35}
+.cta{display:block;margin:0 auto 6px;width:78%;text-align:center;padding:14px;border-radius:30px;background:#fff;color:#000;font-weight:800;font-size:16px}
+.cta.busy{background:var(--surface2);color:var(--blue)}.sub{text-align:center;color:var(--grey);font-size:12px;margin-bottom:14px}
+.bar{height:5px;border-radius:3px;background:var(--surface2);overflow:hidden;margin:0 6px 14px}.bar i{display:block;height:100%;background:var(--blue);border-radius:3px}
+.card{background:var(--surface);border-radius:16px;overflow:hidden}
+.row{display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--sep);min-height:60px}.row:first-child{border-top:0}
+.tile{width:42px;height:42px;border-radius:11px;background:var(--surface2);display:grid;place-items:center;font-weight:800;color:var(--grey)}
+.n{font-size:15px;font-weight:600}.v{font-size:12px;color:var(--grey);margin-top:2px}
+.st{font-size:13px;color:var(--grey);text-align:right;min-width:64px}.st.up{color:var(--blue);font-weight:600}.st.ok{color:var(--green);font-weight:700}.st.bad{color:var(--amber);font-weight:700}
+.spin{display:inline-block;width:16px;height:16px;border-radius:50%;border:2.5px solid var(--surface2);border-top-color:var(--blue);vertical-align:-3px;margin-right:5px}
+.mini{height:3px;border-radius:2px;background:var(--surface2);margin-top:6px;overflow:hidden}.mini i{display:block;height:100%;background:var(--blue)}
+.tick{display:grid;place-items:center;width:70px;height:70px;border-radius:20px;background:var(--surface);margin:60px auto 14px;font-size:34px;color:var(--green)}
+.check{display:block;margin:14px auto 0;width:52%;text-align:center;padding:13px;border-radius:28px;background:var(--surface2);color:var(--blue);font-weight:700;font-size:15px}
+</style></head><body><div class="wrap">
+<span class="tag">MOCKUP · not Kodi</span>
+<h1>Add-on Updates: the list, Update All, and updating</h1>
+<p class="lead">The page opens on the add-ons that have an update (today it says "Add-on List Unavailable" because the list could not be read; that is fixed separately). One white capsule updates them all, with a progress line while it runs, and each row shows its own state. Tapping a row updates just that add-on. No version number for the new release is shown: Kodi does not say it before the update.</p>
+<div class="grid">
+
+<div><div class="cap">1 · FOUR TO UPDATE</div><div class="phone"><div class="page">
+<div class="top"><span class="back">‹</span><b>Add-on Updates</b></div>
+<div class="sum"><div class="big">4 updates available</div><div class="small">Checked 2 minutes ago</div></div>
+<span class="cta">Update All</span><div class="sub">Add-ons restart by themselves when they finish</div>
+<div class="card">
+<div class="row"><div class="tile">U</div><div><div class="n">Umbrella</div><div class="v">Version 6.8.02</div></div><div class="st up">Update</div></div>
+<div class="row"><div class="tile">T</div><div><div class="n">The Crew</div><div class="v">Version 3.2.2</div></div><div class="st up">Update</div></div>
+<div class="row"><div class="tile">C</div><div><div class="n">CocoScrapers</div><div class="v">Version 1.0.0</div></div><div class="st up">Update</div></div>
+<div class="row"><div class="tile">T</div><div><div class="n">TMDb Helper</div><div class="v">Version 6.18.1</div></div><div class="st up">Update</div></div>
+</div></div></div><p class="note">The primary action is the only white capsule on the page. Rows are the same grouped card as Settings. "Update" on a row updates only that add-on.</p></div>
+
+<div><div class="cap">2 · UPDATING</div><div class="phone"><div class="page">
+<div class="top"><span class="back">‹</span><b>Add-on Updates</b></div>
+<div class="sum"><div class="big">Updating 2 of 4</div><div class="small">Keep this page open, or leave it: updates carry on</div></div>
+<span class="cta busy">Updating…</span><div class="bar"><i style="width:46%"></i></div>
+<div class="card">
+<div class="row"><div class="tile">U</div><div><div class="n">Umbrella</div><div class="v">Updated</div></div><div class="st ok">✓</div></div>
+<div class="row"><div class="tile">T</div><div><div class="n">The Crew</div><div class="v">Downloading</div><div class="mini"><i style="width:62%"></i></div></div><div class="st"><span class="spin"></span></div></div>
+<div class="row"><div class="tile">C</div><div><div class="n">CocoScrapers</div><div class="v">Waiting</div></div><div class="st">Next</div></div>
+<div class="row"><div class="tile">T</div><div><div class="n">TMDb Helper</div><div class="v">Waiting</div></div><div class="st">Next</div></div>
+</div></div></div><p class="note">One add-on at a time, in the list's order: a green tick when done, a small spinner and a thin bar on the one being updated, "Waiting" for the rest. The button turns into a quiet "Updating…" and cannot be tapped twice.</p></div>
+
+<div><div class="cap">3 · ALL DONE</div><div class="phone"><div class="page">
+<div class="top"><span class="back">‹</span><b>Add-on Updates</b></div>
+<div class="tick">✓</div>
+<div class="sum"><div class="big">Everything is up to date</div><div class="small">4 add-ons updated just now.<br>Add-ons update on their own when a new version is out.</div></div>
+<span class="check">Check Now</span>
+</div></div><p class="note">The page's existing "up to date" state, with a line saying what just happened. Check Now stays the only button.</p></div>
+
+<div><div class="cap">4 · ONE DID NOT UPDATE</div><div class="phone"><div class="page">
+<div class="top"><span class="back">‹</span><b>Add-on Updates</b></div>
+<div class="sum"><div class="big">3 updated, 1 failed</div><div class="small">The Crew could not be downloaded. Check your connection and try again.</div></div>
+<span class="cta">Try Again</span><div class="sub">Only the add-on that failed is tried again</div>
+<div class="card">
+<div class="row"><div class="tile">U</div><div><div class="n">Umbrella</div><div class="v">Updated</div></div><div class="st ok">✓</div></div>
+<div class="row"><div class="tile">T</div><div><div class="n">The Crew</div><div class="v">Could not download</div></div><div class="st bad">Retry</div></div>
+<div class="row"><div class="tile">C</div><div><div class="n">CocoScrapers</div><div class="v">Updated</div></div><div class="st ok">✓</div></div>
+<div class="row"><div class="tile">T</div><div><div class="n">TMDb Helper</div><div class="v">Updated</div></div><div class="st ok">✓</div></div>
+</div></div></div><p class="note">A failure never hides the ones that worked. The amber word on the row and the capsule both retry only that add-on.</p></div>
+
+</div></div></body></html>

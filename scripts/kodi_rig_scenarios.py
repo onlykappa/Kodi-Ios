@@ -22,7 +22,7 @@ import prepare_downloads  # noqa: E402
 import transfer_history  # noqa: E402
 import work_state  # noqa: E402
 
-SCENARIOS = ('running', 'airplay', 'paused', 'network', 'queued', 'idle', 'stale', 'long', 'lanes')
+SCENARIOS = ('running', 'airplay', 'paused', 'network', 'queued', 'idle', 'stale', 'long', 'lanes', 'season')
 GB = 1024 ** 3
 MB = 1024 ** 2
 LONG_TITLE = 'A.Very.Long.Movie.Title.That.Goes.On.And.On.Past.Sixty.Characters.2026.1080p.mkv'
@@ -33,7 +33,7 @@ def item(i, name, state, size_gb, folder='Movies'):
             'md5Checksum': 'x%d' % i}
 
 
-def library(extra_title=None):
+def library(extra_title=None, season=False):
     names = [('Interstellar.2014.2160p.mkv', 'ready', 52), ('Fall.2.Deadpoint.2026.2160p.mkv', 'ready', 16.9),
              ('Arrival.2016.1080p.mkv', 'ready', 9), ('Dune.Part.Two.2024.2160p.mkv', 'ready', 31),
              ('Oppenheimer.2023.2160p.mkv', 'ready', 44), ('Tenet.2020.1080p.mkv', 'ready', 12),
@@ -42,7 +42,9 @@ def library(extra_title=None):
              ('Inception.2010.2160p.mkv', 'todo', 22)]
     if extra_title:
         names.append((extra_title, 'todo', 3.1))
-    return [item(i, n, s, g, 'TV Shows' if 'S01' in n else 'Movies') for i, (n, s, g) in enumerate(names)]
+    if season:   # ISSUE-501: a season being downloaded: two episodes ready, three still to do
+        names += [('Naruto.Shippuuden.S02E0%d.1080p.mkv' % n, 'ready' if n < 3 else 'todo', 1.4) for n in range(1, 6)]
+    return [item(i, n, s, g, 'TV Shows' if ('S01' in n or 'S02' in n) else 'Movies') for i, (n, s, g) in enumerate(names)]
 
 
 def prep_state(now, current_name, kind, pct, rate, eta, items, kept=('Inception.2010.2160p.mkv',),
@@ -104,7 +106,7 @@ def failures(profile, now):
 def scenario(name, now):
     if name not in SCENARIOS:
         raise SystemExit('unknown scenario %r; one of %s' % (name, ', '.join(SCENARIOS)))
-    items = library(LONG_TITLE if name == 'long' else None)
+    items = library(LONG_TITLE if name == 'long' else None, name == 'season')
     slow, needs, network, paused, copying = '', [], [], {}, False
     cur, kind, pct, rate, eta = 'Lanterns.S01E01.2160p.mkv', 'repack', 42, 4.8 * MB, 360
     if name == 'long':
@@ -118,7 +120,7 @@ def scenario(name, now):
     if name == 'network':
         cur = None
         network = [{'key': 'drive', 'until': now + 60, 'why': 'Waiting for the network'}]
-    if name in ('queued', 'idle', 'stale'):
+    if name in ('queued', 'idle', 'stale', 'season'):
         cur = None
     if name == 'idle':
         items = [dict(e, state='ready') for e in items]

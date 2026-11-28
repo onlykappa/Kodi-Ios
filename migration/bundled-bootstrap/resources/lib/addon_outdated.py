@@ -23,6 +23,36 @@ def updates(files):
     return out
 
 
+def ids_from_listing(entries):
+    """Add-on ids from the names Kodi's own listing gives back (xbmcvfs.listdir of addons://outdated/: bare ids, or whole paths), in Kodi's order, without the
+    "Update all" / "Allow updates" entries. ISSUE-496 (owner screenshot IMG_0740, build 792): the page asked JSON-RPC Files.GetDirectory, which Kodi 21.3 refuses for
+    addons://outdated/ (CFileUtils::RemoteAccessAllowed lists only a few paths, among the add-on ones only addons://sources), so the list was never readable."""
+    out = []
+    for entry in entries or []:
+        text = str(entry or '').strip()
+        if text.startswith(LISTING):
+            text = text[len(LISTING):]
+        add_on = text.strip('/').rsplit('/', 1)[-1]
+        if add_on and add_on not in SPECIAL and add_on not in out:
+            out.append(add_on)
+    return out
+
+
+# ISSUE-499: the app's own patched copies (pinned_addons.PATCHED). A repository update would replace them with copies without the fixes.
+PINNED = ('plugin.googledrive', 'script.module.clouddrive.common', 'plugin.video.elementum', 'script.elementum.burst')
+
+
+def rows(ids, details):
+    """[{'id','name','icon','version'}] for the outdated ids; `details` is Addons.GetAddons' list ({'addonid','name','thumbnail','version'}). An id Kodi does not describe shows its id."""
+    known = {str(d.get('addonid') or ''): d for d in details or []}
+    out = []
+    for add_on in ids:
+        d = known.get(add_on) or {}
+        pinned = add_on in PINNED
+        out.append({'id': add_on, 'pinned': pinned, 'name': str(d.get('name') or add_on) + (' (kept by the app)' if pinned else ''), 'icon': str(d.get('thumbnail') or ''), 'version': str(d.get('version') or '')})
+    return out
+
+
 def ago(seconds):
     """'just now', '1 minute ago', '3 hours ago', '2 days ago'."""
     seconds = max(0, int(seconds))

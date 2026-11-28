@@ -137,7 +137,7 @@ class AddonUpdatesPage(unittest.TestCase):
         self.assertIn('settings_page.UPDATE_CHECK', script)
         self.assertIn("'UpdateAddonRepos'", script)
         self.assertIn('addon_outdated.LISTING', script)   # the directory the script reads
-        self.assertIn("'Files.GetDirectory'", script)
+        self.assertIn('xbmcvfs.listdir(addon_outdated.LISTING)', script)   # ISSUE-496: Kodi's own listing, not JSON-RPC Files.GetDirectory (refused for addons://outdated/)
 
     def test_a_row_opens_kodis_add_on_list_the_old_way(self):
         script = (BOOT / 'addon_updates.py').read_text()
@@ -167,6 +167,31 @@ class OutdatedAddOns(unittest.TestCase):
         self.assertEqual(outdated.updates(files), [{'id': 'script.trakt', 'name': 'Trakt', 'icon': '/a.png'},
                                                    {'id': 'plugin.video.x', 'name': 'X', 'icon': ''}])
         self.assertEqual(outdated.updates(None), [])
+
+    def test_ids_come_from_the_names_of_kodis_own_listing(self):
+        # ISSUE-496 (owner screenshot IMG_0740): JSON-RPC Files.GetDirectory is refused for addons://outdated/, so the ids are read with xbmcvfs.listdir
+        self.assertEqual(outdated.ids_from_listing(['script.trakt', 'update_all', 'plugin.video.x/', 'addons://outdated/repository.y', 'script.trakt', '', None, 'update_allowed']),
+                         ['script.trakt', 'plugin.video.x', 'repository.y'])
+        self.assertEqual(outdated.ids_from_listing(None), [])
+
+    def test_rows_use_what_kodi_knows_and_fall_back_to_the_id(self):
+        rows = outdated.rows(['script.trakt', 'plugin.video.x'], [{'addonid': 'script.trakt', 'name': 'Trakt', 'thumbnail': '/a.png', 'version': '3.0.1'}])
+        self.assertEqual(rows, [{'id': 'script.trakt', 'pinned': False, 'name': 'Trakt', 'icon': '/a.png', 'version': '3.0.1'},
+                                {'id': 'plugin.video.x', 'pinned': False, 'name': 'plugin.video.x', 'icon': '', 'version': ''}])
+        # ISSUE-499: the app's patched add-ons are marked, so a tap explains instead of replacing them
+        self.assertEqual([(r['pinned'], r['name']) for r in outdated.rows(['plugin.googledrive'], [{'addonid': 'plugin.googledrive', 'name': 'Google Drive'}])], [(True, 'Google Drive (kept by the app)')])
+
+    def test_the_page_reads_the_list_with_listdir_and_says_unavailable_only_when_that_fails(self):
+        page = load('addon_updates_t', BOOT / 'addon_updates.py')
+        logged = []
+        xbmc = types.SimpleNamespace(LOGWARNING=2, log=lambda *a: logged.append(a),
+                                     executeJSONRPC=lambda text: __import__('json').dumps({'result': {'addons': [{'addonid': 'script.trakt', 'name': 'Trakt', 'thumbnail': '/a.png', 'version': '3'}]}}))
+        listing = types.SimpleNamespace(listdir=lambda path: ([], ['script.trakt', 'update_all']))
+        self.assertEqual(page.outdated(xbmc, listing), [{'id': 'script.trakt', 'pinned': False, 'name': 'Trakt', 'icon': '/a.png', 'version': '3'}])
+        self.assertEqual(page.outdated(xbmc, types.SimpleNamespace(listdir=lambda path: ([], []))), [])            # nothing to update: an empty list, not "unavailable"
+        def broken(path): raise RuntimeError('x')
+        self.assertIsNone(page.outdated(xbmc, types.SimpleNamespace(listdir=broken))); self.assertTrue(logged)
+        self.assertNotIn("'Files.GetDirectory'", (BOOT / 'addon_updates.py').read_text().split('def outdated')[1].split('def read_stamp')[0])
 
     def test_times_read_as_words(self):
         self.assertEqual(outdated.ago(0), 'just now')

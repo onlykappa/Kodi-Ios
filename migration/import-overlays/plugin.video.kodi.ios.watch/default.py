@@ -45,6 +45,12 @@ def run(argv):
   from ios_search import directory;directory(handle,params.get('query',''));return
  if params.get('action')=='library':
   from ios_library import directory;directory(handle,params);return
+ if params.get('action')=='onepace':   # One Pace as a show: arcs are the seasons (ios_onepace.py)
+  from ios_onepace import directory;directory(handle,params);return
+ if params.get('action')=='onepace_play':
+  from ios_onepace import play;play(handle,params);return
+ if params.get('action')=='onepace_download':
+  from ios_onepace import download;download(params);return
  if params.get('action')=='library_remove':
   from ios_remove import run;run(params);return
  if params.get('action')=='library_play':

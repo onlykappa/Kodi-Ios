@@ -216,6 +216,10 @@ def run():
  if not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
   import episode_watch_runtime
   threading.Thread(target=episode_watch_runtime.run,args=(monitor,profile,setup_done.is_set),daemon=True).start()
+  # One Pace (onepace_show.py): new episodes, arcs and English dubs are looked for hourly while the app is in front, one notice each.
+  import onepace_show,app_state
+  threading.Thread(target=onepace_show.run,args=(monitor,profile,setup_done.is_set,app_state.foreground,
+                   lambda title,text:notices.add(profile,'drive',title,text),lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO)),daemon=True).start()
   # The show page's bell (anticipated.py): shows only for a show with an episode still to come.
   import anticipated,source_match,xbmcgui
   threading.Thread(target=anticipated.bell_service,args=(monitor,profile,xbmcgui.Window(10000),xbmc.getInfoLabel,source_match.tmdb_key),daemon=True).start()
@@ -281,6 +285,7 @@ def run():
     provider_fallback_hooks.install(str(source_window.parent.parent/'modules/sources.py'))
     resolver=source_window.parents[1]/'debrid/alldebrid.py'
     if umbrella_recovery.hook(resolver):xbmc.log('Kodi iOS setup added selected-stream link recovery to Umbrella AllDebrid',xbmc.LOGINFO)
+    if umbrella_recovery.cache_hook(resolver):xbmc.log('Kodi iOS setup added the unlock cache to Umbrella AllDebrid',xbmc.LOGINFO)
    if xbmc.getCondVisibility('System.HasAddon(plugin.video.umbrella)') and xbmc.getCondVisibility('System.HasAddon(script.module.cocoscrapers)'):
     umbrella=xbmcaddon.Addon('plugin.video.umbrella')
     if umbrella_defaults(umbrella.getSetting,umbrella.setSetting):xbmc.log('Kodi iOS setup set Umbrella to CocoScrapers',xbmc.LOGINFO)
@@ -537,7 +542,7 @@ def run():
  import cache_tune   # roadmap 1B.3: Kodi's cache read factor follows Wi-Fi / cellular, set as a video is about to open
  threading.Thread(target=open_timing.watch,args=(xbmcgui.Window(10000),lambda:xbmc.getCondVisibility('Player.HasVideo + Player.Playing'),
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),
-                  kwargs={'moving':lambda:xbmc.getCondVisibility('Player.Playing + !Player.Caching') and xbmc.Player().getTime()>0.4,'on_open':lambda:cache_tune.apply(xbmc,str(profile),lambda text:xbmc.log(text,xbmc.LOGINFO)),
+                  kwargs={'moving':lambda:xbmc.getCondVisibility('Player.Playing + !Player.Caching') and xbmc.Player().getTime()>0.4,'alive':lambda:xbmc.getCondVisibility('Player.HasVideo'),'on_open':lambda:cache_tune.apply(xbmc,str(profile),lambda text:xbmc.log(text,xbmc.LOGINFO)),
                           'probe':lambda:{'media':xbmc.getCondVisibility('Player.HasMedia'),'video':xbmc.getCondVisibility('Player.HasVideo')}},daemon=True).start()
  # DEC-039 V2: each video starts with its own Saturation (Picture menu: this video, its show, or the default).
  def saturation_loop():
@@ -621,19 +626,29 @@ def run():
  import install_progress
  threading.Thread(target=install_progress.watch,args=(lambda:install_progress.read(xbmc,xbmcgui),window.setProperty,window.clearProperty,
   monitor.waitForAbort),daemon=True).start()
- # ISSUE-267: the add-ons the app patches stay its own copies (a repository update had hidden them; no copy ran).
- try:
-  import pinned_addons
-  write=lambda text:xbmc.log(text,xbmc.LOGINFO)
-  pinned_addons.block_updates(pinned_addons.addons_database(xbmcvfs.translatePath('special://database/')),log=write)
-  moved=pinned_addons.restore(xbmcvfs.translatePath('special://home/addons/'),xbmcvfs.translatePath('special://xbmc/addons/'),
-                              xbmcvfs.translatePath('special://temp/shadowed-addons/'),log=write)
-  if moved:
-   xbmc.executebuiltin('UpdateLocalAddons');monitor.waitForAbort(3)
-   notices.add(profile,'general','Add-ons put back',"%s had been updated from a repository without the app's fixes; the app's own copies are back. Restart Kodi iOS to finish."%
-               ' and '.join({'plugin.googledrive':'Google Drive','script.module.clouddrive.common':'its library',
-                             'plugin.video.elementum':'Elementum','script.elementum.burst':'Burst'}.get(a,a) for a,_,_ in moved))
- except Exception as error:diagnostics.log_exception(xbmc,'pinned_addons',error)
+ # ISSUE-267, ISSUE-499: the add-ons the app patches stay its own copies. A repository update (at start, or one the owner runs from Add-on Updates
+ # while the app is open) had hidden them; no copy ran. Checked at start, on every add-on notification, and every 5 minutes.
+ def put_back():
+  try:
+   import pinned_addons
+   write=lambda text:xbmc.log(text,xbmc.LOGINFO)
+   pinned_addons.block_updates(pinned_addons.addons_database(xbmcvfs.translatePath('special://database/')),log=write)
+   moved=pinned_addons.restore(xbmcvfs.translatePath('special://home/addons/'),xbmcvfs.translatePath('special://xbmc/addons/'),
+                               xbmcvfs.translatePath('special://temp/shadowed-addons/'),log=write)
+   if moved:
+    xbmc.executebuiltin('UpdateLocalAddons');monitor.waitForAbort(3)
+    notices.add(profile,'general','Add-ons put back',"%s had been updated from a repository without the app's fixes; the app's own copies are back. Restart Kodi iOS to finish."%
+                ' and '.join({'plugin.googledrive':'Google Drive','script.module.clouddrive.common':'its library',
+                              'plugin.video.elementum':'Elementum','script.elementum.burst':'Burst'}.get(a,a) for a,_,_ in moved))
+  except Exception as error:diagnostics.log_exception(xbmc,'pinned_addons',error)
+ put_back()
+ class AddonWatch(xbmc.Monitor):
+  def onNotification(self,sender,method,data):
+   if str(method).startswith('Addon.'):threading.Timer(5,put_back).start()
+ addon_watch=AddonWatch()   # kept referenced for the life of the service
+ def pinned_loop():
+  while not monitor.waitForAbort(300):put_back()
+ threading.Thread(target=pinned_loop,daemon=True).start()
  # Kept Elementum videos go to Google Drive in the background, never during playback.
  try:
   if xbmcaddon.Addon().getSettingBool('drive_upload') or xbmcaddon.Addon().getSettingBool('prepare_downloads'):

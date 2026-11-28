@@ -53,9 +53,19 @@ class Fast(unittest.TestCase):
         self.assertFalse(run(self.seeded(player_name='elementum')))                       # not an Umbrella title
         self.assertFalse(run(self.seeded(),now=lambda:1000.0+m.STREAM_FRESH+1))           # the link is too old
         self.assertFalse(run(self.seeded(),alive=lambda url:False))                       # it no longer answers
-        self.assertFalse(run(self.seeded(position=2)))                                    # nothing to resume
         self.assertFalse(run(self.seeded(position=1350)))                                 # finished: the next episode is the normal way
         self.assertFalse(run(self.seeded(),dict(self.PARAMS,episode='2')))                # another episode has no link
+    def test_a_title_stopped_within_seconds_reopens_from_its_link_at_the_start(self):
+        # ISSUE-489: ten fresh titles opened and stopped within seconds all took the whole way again on their second open
+        m=self.load();played=[]
+        play=lambda handle,entry,url,position,total:played.append((url,position))
+        for stopped_at in (0,2,4):
+            played.clear()
+            ok=m.fast_stream(7,self.PARAMS,self.seeded(position=stopped_at),alive=lambda url:True,play=play,now=lambda:1500.0)
+            self.assertTrue(ok,stopped_at)
+            self.assertEqual(played[0][1],0.0)
+        self.assertFalse(m.fast_stream(7,self.PARAMS,self.seeded(position=1350),alive=lambda url:True,play=play,now=lambda:1500.0))   # finished: the normal way
+        self.assertFalse(m.fast_stream(7,self.PARAMS,self.seeded(position=2),alive=lambda url:False,play=play,now=lambda:1500.0))     # a dead link still goes the normal way
     def test_the_fast_copy_door_tries_a_stream_after_a_local_copy(self):
         text=(LIB/'ios_watch_dialog.py').read_text()
         self.assertIn('if _fast_local(handle,params,read_art,find,play,resume):return True\n return fast_stream(handle,params)',text)
@@ -107,7 +117,7 @@ class Fast(unittest.TestCase):
             self.assertEqual(m._link_alive('http://127.0.0.1:%d/x'%server.getsockname()[1],timeout=3),alive,code)
     def test_continue_says_why_it_took_the_normal_way(self):
         text=(Path(self.load().__file__)).read_text()
-        for reason in ('no remembered Umbrella link','older than','no place to resume','was refused'):self.assertIn(reason,text)
+        for reason in ('no remembered Umbrella link','older than','finished','was refused'):self.assertIn(reason,text)
         self.assertIn("setProperty('KodiIOS.OpenWanted'",text)
 
 if __name__=='__main__':unittest.main()

@@ -3,6 +3,7 @@
 Pure functions over prepare_downloads.library_view(): the list rows of each section, the page's summary text and one
 video's details with what can be done about it. No Kodi imports, so it is tested on its own.
 """
+import re
 GB = 1024 ** 3
 SECTIONS = (('preparing', 'Preparing now'), ('downloading', 'Downloading'), ('waiting', 'Waiting'),
             ('ready', 'Ready for Kodi and AirPlay'), ('kept', 'Kept as it is'))
@@ -44,6 +45,66 @@ def _folder_line(key, rows):
         return '%s · %s%s' % (first['title'], why, ' and %d more' % (len(rows) - 1) if len(rows) > 1 else '')
     shown = ', '.join(titles[:2])
     return shown + (' and %d more' % (len(titles) - 2) if len(titles) > 2 else '')
+
+
+_SHOW_SEASON = (re.compile(r'^(?P<show>.+?)\s+·\s+S(?P<s>\d+)\s*E(?P<e>\d+)\b'), re.compile(r'^S(?P<s>\d+)\s*E(?P<e>\d+)\s+·\s+(?P<show>.+)$'))
+
+
+def season_of(title):
+    """(show, season, episode) from a status row's title ('Show · S2 E48' or 'S2 E48 · Show'), or None."""
+    for pattern in _SHOW_SEASON:
+        m = pattern.match(str(title or '').strip())
+        if m:
+            return m.group('show').strip(), int(m.group('s')), int(m.group('e'))
+    return None
+
+
+def season_name(show, season, arc_title=None):
+    """'Show · Season 2'; for One Pace the arc's name when `arc_title(season)` knows it (ISSUE-501)."""
+    arc = arc_title(season) if arc_title and show.lower() == 'one pace' else ''
+    return '%s \u00b7 %s' % (show, arc or 'Season %d' % season)
+
+
+def group_seasons(items, ready_rows=(), arc_title=None):
+    """ISSUE-501 (owner: "if I download a season it should say blank left of blank, instead of one at a time"): the episodes of one show season that
+    are downloading or waiting become one row, 'Show · Season 2' with '3 of 10 episodes'. Two or more episodes make a season; a lone episode stays as
+    it is. `ready_rows` (the library's finished rows) give the episodes already done. The row stands where its first episode stood (a downloading
+    one first) and keeps that episode's actions; the ring shows the whole season's share."""
+    groups, order = {}, []
+    for n, item in enumerate(items):
+        if item.get('kind') != 'row' or item['props'].get('state') in ('preparing', 'ready', 'kept', 'problem', 'space'):
+            continue
+        found = season_of(item.get('label'))
+        if found:
+            key = (found[0].lower(), found[1])
+            if key not in groups:
+                groups[key] = []
+                order.append(key)
+            groups[key].append(n)
+    done = {}
+    for r in ready_rows or ():
+        found = season_of(r.get('title'))
+        if found:
+            done[(found[0].lower(), found[1])] = done.get((found[0].lower(), found[1]), 0) + 1
+    drop, out = set(), list(items)
+    for key in order:
+        members = groups[key]
+        if len(members) < 2:
+            continue
+        lead = min(members, key=lambda n: (0 if items[n]['props'].get('state') in ('downloading', 'uploading') else 1, n))
+        first = season_of(items[lead].get('label'))
+        total = len(members) + done.get(key, 0)
+        finished = done.get(key, 0)
+        share = (finished * 100.0 + sum(float(items[n]['props'].get('pct') or 0) for n in members)) / total
+        merged = dict(items[lead], props=dict(items[lead]['props']))
+        merged['label'] = season_name(first[0], first[1], arc_title)
+        parts = str(items[lead].get('label2') or '').split(' \u00b7 ')
+        count = '%d of %d episodes' % (finished, total)
+        merged['label2'] = ' \u00b7 '.join(parts[:1] + [count] + parts[1:]) if parts and parts[0] else count
+        merged['props'].update(pct=str(int(round(share))), ring=ring_name(share), season_group='true')
+        out[lead] = merged
+        drop.update(n for n in members if n != lead)
+    return [item for n, item in enumerate(out) if n not in drop]
 
 
 def list_items(view, filter_key='all'):

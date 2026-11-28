@@ -2,7 +2,7 @@
 
 The Loop opens its messages (first-run notice, news) in its own window, resources/skins/Default/720p/notify.xml: a 1280x720
 layout with a translucent white card, white text and a picture of the word "close". Stretched over the portrait screen
-that was an almost blank white sheet with a tiny "OK" (owner's build 766 screenshot, ISSUE-497).
+that was an almost blank white sheet with a tiny "OK" (owner's build 766 screenshot, ISSUE-504).
 
 This replaces that one file with a bottom sheet in the project's style: a dim backdrop, a dark sheet, the text, a thin scroll
 bar for a long text and a white OK capsule. The control ids the add-on drives stay: 300 (the text, paged by 301), 301 (scroll

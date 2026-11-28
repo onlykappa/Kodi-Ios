@@ -23,4 +23,9 @@ class SeasonRow(unittest.TestCase):
   self.assertIn("'KodiIOS.SeasonsPath':seasons",src)
   self.assertIn("seasons=page_url({k:v for k,v in params.items() if k in ('type','folder','show','year','local','loose','merge')})",src)   # the show's route, without the season
 
+ def test_the_pinned_season_row_waits_until_the_pages_own_row_has_scrolled_away(self):
+  # ISSUE-493: HasPrevious alone is true from the first pixel of scroll, so two season rows showed at once
+  src=(ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py').read_text()
+  self.assertIn("pinned_visible='Container.Content(seasons) + Container(9900).HasPrevious + !Container(9900).HasNext'",src)
+
 if __name__=='__main__':unittest.main()

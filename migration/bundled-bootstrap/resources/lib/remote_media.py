@@ -58,6 +58,21 @@ BLOCK_RETRIES=2  # ISSUE-317: more tries for a block a reader waits on (each try
 OPEN_BLOCKS=2    # ISSUE-317: leading blocks a Kodi source must hold before Kodi is handed it (with the last block)
 LOOP_WINDOW=90   # ISSUE-306: seconds in which a second hand-off after one Kodi never read means Umbrella is cycling its sources
 _LAST=[0.0]
+# ISSUE-488 (owner log ff742bd7, over mobile data): one Dragon Ball Z pick sent Umbrella round its 94 sources for the 7 minutes the log lasts, 1,571 hand-offs, each
+# one a cache attempt or a direct check (two 64 KB reads, about a second) on the phone's data line, while the owner opened five more videos. After CYCLE_MAX hand-offs
+# in CYCLE_WINDOW seconds the rest get no checks at all: the link goes straight through as Umbrella gave it, which is what a cycling Umbrella needs to finish.
+CYCLE_WINDOW,CYCLE_MAX=20.0,4
+_CALLS=[];_CYCLE_NOTE=[0.0]
+def cycling(now):
+ """Record an Umbrella unlock at `now` (umbrella_recovery.remember, the one caller: Continue, Play on TV and the library never count); True when this is more
+ than CYCLE_MAX in the last CYCLE_WINDOW seconds."""
+ _CALLS.append(now);del _CALLS[:-(CYCLE_MAX+2)]
+ yes=len(_CALLS)>CYCLE_MAX and now-_CALLS[0]<CYCLE_WINDOW
+ if yes and now-_CYCLE_NOTE[0]>=10:
+  _CYCLE_NOTE[0]=now
+  try:import xbmc;xbmc.log('Kodi iOS stream opening: Umbrella is cycling its sources (%d unlocks in %d s): no checks for these links'%(len(_CALLS),int(CYCLE_WINDOW)),xbmc.LOGINFO)
+  except Exception:pass
+ return yes
 
 
 def eligible(source):
@@ -325,6 +340,11 @@ class Foreground(drive_stream.DriveStream):
 
  def _trace(self,kind,index,began,size=0,error=''):
   now=time.monotonic()
+  if kind=='block' and size and not error:   # ISSUE-498: every fetched block is a throughput sample of the real path (connection_speed.py)
+   try:
+    import connection_speed
+    meter=self.__dict__.setdefault('speed_meter',connection_speed.Meter());meter.add(size,began,now);connection_speed.record(meter,now)
+   except Exception:pass
   self._log('Kodi iOS cache %s: index=%d at=+%.2fs took=%.2fs %s'%(kind,index,began-self.born,now-began,
             ('error=%s'%error) if error else 'bytes=%d'%size))
 

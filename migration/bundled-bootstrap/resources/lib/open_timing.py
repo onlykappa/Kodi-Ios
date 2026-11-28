@@ -18,7 +18,8 @@ GIVE_UP = 120.0
 NAMES = (('resolved', 'resolve'), ('media', 'handoff'), ('video', 'open'))
 _seen = {}      # mark time -> {'armed': {flag: True}, 'at': {flag: time}}
 WAITING = {}    # mark time -> (when streams were ready, route): videos whose playback clock has not moved yet (first picture)
-MOVING_GIVE_UP = 30.0
+MOVING_GIVE_UP = 30.0   # seconds after the tap (kept for the log line)
+MOVING_AFTER_READY = 20.0   # ISSUE-494: seconds after "streams ready" before a video that has not started counts as no picture
 LATE = []       # fn(ok, via, seconds): told when the first picture came (ok, seconds after the tap) or never came (not ok); the source's real speed is judged here
 LISTENERS = []  # fn(ok, via): told once per open that finished (streams ready) or gave up; source_speed credits the Umbrella source just chosen
 RECENT = []     # roadmap 3.5: (seconds, route, stages text) of the opens since perf_summary last asked
@@ -137,7 +138,7 @@ def record(started, via, picture, ready_after, home=None):
         via, prop(SOURCE), prop(ROUTE), tap, '%.1f s' % took if took is not None else '-', stages or '-', picture))
 
 
-def check_moving(log, moving, now=None, home=None):
+def check_moving(log, moving, now=None, home=None, alive=None):
     """Once a video that was logged as 'streams ready' has its playback clock moving, log the tap-to-picture time (owner, 2026-11-20: the open took about
     4.4 s from tap to first picture in build 615 while the line said 1.3 s). Returns True when something was logged."""
     if not WAITING:
@@ -155,13 +156,27 @@ def check_moving(log, moving, now=None, home=None):
             _tell_late(True, via, now - started)
             del WAITING[started]
             done = True
-        elif now - started > MOVING_GIVE_UP:
+        elif alive is not None and not _safe(alive, True):
+            # ISSUE-488 (owner log ff742bd7): the owner closed the player 3 s after "streams ready"; 12 s later this said "still not moving" and ranked a good
+            # source last. A video that is no longer there says nothing about its source.
+            log('Kodi iOS open timing: the player was closed before a picture (%d s after the tap via %s): no verdict on the source' % (int(now - started), via))
+            DETAIL.pop(started, None)
+            del WAITING[started]
+            done = True
+        elif now - max(ready, started) > MOVING_AFTER_READY and now - started > MOVING_GIVE_UP:
             log('Kodi iOS open timing: playback clock still not moving %d s after the tap via %s' % (int(now - started), via))
             DETAIL.pop(started, None)
             _tell_late(False, via, now - started)
             del WAITING[started]
             done = True
     return done
+
+
+def _safe(fn, default):
+    try:
+        return bool(fn())
+    except Exception:
+        return default
 
 
 def _tell_late(ok, via, seconds):
@@ -186,7 +201,7 @@ def _finish(home, started):
     home.clearProperty(RESOLVED)
 
 
-def watch(home, playing, log, wait, on_open=None, probe=None, moving=None):
+def watch(home, playing, log, wait, on_open=None, probe=None, moving=None, alive=None):
     """Service thread: 0.2 s checks while a mark is set, 1 s otherwise. on_open() runs once per new mark, before Kodi
     opens the file (roadmap 1B.3 sets the cache read factor for the current connection there)."""
     seen = None
@@ -202,6 +217,6 @@ def watch(home, playing, log, wait, on_open=None, probe=None, moving=None):
         if busy:
             check(home, playing, log, probe=probe)
         if WAITING and moving:
-            check_moving(log, moving, home=home)
+            check_moving(log, moving, home=home, alive=alive)
         if wait(0.2 if busy or WAITING else 1.0):
             return

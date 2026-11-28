@@ -213,6 +213,15 @@ def is_bad(item):
 # Kodi-iOS: what a phone cannot stream well. The owner's tests played a 72 GB UHD Blu-ray disc file (00030.m2ts, HEVC
 # 10-bit at 63 Mbps): it stalled, froze the controls while Kodi waited on it, and could not seek (no index).
 HEAVY_GB = 40.0
+# ISSUE-497 (owner log c703d50a, build 792): a 1080p HDR HEVC stream of about 11.4 Mbit/s on average (15 at its peaks) played from an AllDebrid link that delivered
+# about 13.7 Mbit/s: AirPlay could make its 6 s segments only at two thirds of real time and the TV buffered all the way. For a stream the versions whose average
+# bitrate (size over the title's length) is above STREAM_MBPS are listed after the lighter ones (still offered, same quality group). RUNTIME[0] is the title's
+# length in seconds, set by umbrella_picker from Umbrella's own metadata; 0 (unknown) changes nothing.
+STREAM_MBPS = 10.0
+LIMIT = [0.0]   # ISSUE-498: the limit for this list from what the connection has delivered (connection_speed.allowed), set by umbrella_picker; 0 = STREAM_MBPS
+RUNTIME = [0.0]
+RUNTIME_GUESSED = [False]   # the length is a typical one for the kind of title, not the title's own: lines say 'about'
+WIFI = [0.0]   # ISSUE-500: what this network has delivered lately in Mbit/s (connection_speed), set by umbrella_picker; 0 = not measured: the page then looks as before
 DISC_WORDS = (' M2TS ', ' BDMV ', ' ISO ', ' BD25 ', ' BD50 ', ' BD66 ', ' BD100 ', ' COMPLETE BLURAY ', ' COMPLETE UHD BLURAY ',
               ' COMPLETE BLU RAY ', ' UHD BD ', ' DISC ')
 
@@ -325,6 +334,28 @@ def live_conversion(item):
     return slow_to_prepare(item) or converts_for_tv(item) or dv_only(item)
 
 
+def names_episode(name, season, episode):
+    """True when a release name carries exactly this season and episode (S01E01, 1x01, Season 1 Episode 1). A season or series pack does not."""
+    import re
+    text = (name or u'').lower()
+    try:
+        s, e = int(season), int(episode)
+    except (TypeError, ValueError):
+        return False
+    patterns = (r'(?<![a-z0-9])s0*%d[ ._-]*e0*%d(?!\d)' % (s, e), r'(?<!\d)%dx0*%d(?!\d)' % (s, e),
+                r'season[ ._-]*0*%d[ ._-]*(?:episode|ep|e)[ ._-]*0*%d(?!\d)' % (s, e))
+    return any(re.search(p, text) for p in patterns)
+
+
+def stream_mbps(item):
+    """The average bitrate of a version in Mbit/s from its size and the title's length, or 0 when either is unknown."""
+    try:
+        seconds, size = float(RUNTIME[0]), float(item.get('size') or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return size * 8589.93 / seconds if seconds > 60 and size > 0 else 0.0   # GB (2^30 bytes) to megabits, over seconds
+
+
 def pick(items, top_n=TOP_N):
     """items: one quality, already in Elementum's order. Returns up to top_n varied links."""
     items = dedupe(items)
@@ -338,7 +369,16 @@ def pick(items, top_n=TOP_N):
     # hardware decoder on Apple devices), Dolby Vision without an HDR10 fallback (wrong colours on TVs without DV).
     # Downloads (Elementum) are prepared once on Drive, so those stay in Elementum's order there.
     if MODE[0] == u'stream':
+        limit = LIMIT[0] or STREAM_MBPS
+        good = [i for i in good if stream_mbps(i) <= limit] + [i for i in good if stream_mbps(i) > limit]   # ISSUE-497/498: versions the connection carries first
         good = [i for i in good if not live_conversion(i)] + [i for i in good if live_conversion(i)]
+    # ISSUE-492 (owner log 4e3d5e2c, build 710): after an episode is picked Umbrella lists the whole pack and unlocks its files one by one until it reaches the episode:
+    # 3 files 2.2 s, a series pack of 92 files 27.3 s (Dragon Ball Z), against 3-4 s for a movie. A release that names this very season and episode opens fastest, so for a
+    # stream of one episode those come before packs (stable: the order inside each group is unchanged, and the packs are still offered).
+    if MODE[0] == u'stream':
+        exp = _CONTEXT.get('exp') or {}
+        if exp.get('kind') == 'episode' and exp.get('season') is not None and exp.get('episode') is not None:
+            good = [i for i in good if names_episode(i.get('name'), exp['season'], exp['episode'])] + [i for i in good if not names_episode(i.get('name'), exp['season'], exp['episode'])]
     good_ids = set(id(i) for i in good)
     rest = [i for i in items if id(i) not in good_ids]
     ranked = good + rest                                   # dead / bad copies only if nothing better
@@ -384,6 +424,31 @@ def badges(shown):
     return out
 
 
+def badge_for(it, n, b):
+    """The badge on a version: its own warnings first, then the Wi-Fi's MAY BUFFER (never over BEST MATCH), then BEST MATCH / SMALLEST / MOST SEEDS."""
+    cover = it.get('coverage')
+    return (cover.upper() if cover else u'FULL SEASON' if cover == u'' else
+            u'MAY STUTTER' if too_heavy(it) else u'AV1 \u00b7 SLOW TO PREPARE' if slow_to_prepare(it)
+            else u'10-BIT \u00b7 SLOW ON AIRPLAY' if converts_for_tv(it)
+            else (u'MAY BUFFER' if too_heavy_for_wifi(it) and b.get(n, u'') != u'BEST MATCH' else b.get(n, u'')))
+
+
+LIVE = [None]   # the open version page (set while it is up): apply_wifi() refreshes it when a live reading comes back
+
+
+def apply_wifi(mbps, allowed):
+    """A live reading finished: the page's speed, limit, subtitle, per-version lines and badges follow it."""
+    PROBING[0] = False
+    if mbps and mbps > 0:
+        WIFI[0], LIMIT[0] = float(mbps), float(allowed)
+    page = LIVE[0]
+    if page is not None:
+        try:
+            page.refresh_live()
+        except Exception:
+            pass
+
+
 def build_rows(shown, total_label=u''):
     b = badges(shown)
     rows = []
@@ -397,9 +462,8 @@ def build_rows(shown, total_label=u''):
         rows.append({'headline': head, 'tags': DOT.join(tags), 'meta': meta_text(it),
                      # All Links page (board 16): up to four tag pills, AV1 flagged; size and seeds to sort by.
                      'pills': tags[:4], 'size': it.get('size') or 0, 'seeds': it.get('seeds') or 0,
-                     'badge': cover.upper() if cover else u'FULL SEASON' if cover == u'' else
-                     u'MAY STUTTER' if too_heavy(it) else u'AV1 \u00b7 SLOW TO PREPARE' if slow_to_prepare(it)
-                     else u'10-BIT \u00b7 SLOW ON AIRPLAY' if converts_for_tv(it) else b.get(n, u''), 'icon': it['icon']})
+                     'badge': badge_for(it, n, b), 'fit': fit_text(it), 'fitwarn': u'1' if too_heavy_for_wifi(it) else u'', 'icon': it['icon'],
+                     '_item': it, '_n': n, '_b': b})
     return rows
 
 
@@ -417,6 +481,37 @@ def quality_menu_labels(keys, groups, top_n=TOP_N):
         labels.append(u'[B]%s[/B]\x1f%d version%s%s \u00b7 from %s' % (quality_label(q), len(uniq), u'' if len(uniq) == 1 else u's',
                                                                      hdr, size_text(smallest)))
     return labels
+
+
+PROBING = [False]   # ISSUE-503: a live reading of the line is running; the subtitle says so until it is back
+BLUE = u'FF0A84FF'
+
+
+def wifi_text():
+    """' \u00b7 Wi-Fi 14 Mbit/s' in blue for the page's subtitle once this network has a speed (streams only), 'measuring\u2026' while a live reading runs, else nothing. One line."""
+    if MODE[0] != u'stream':
+        return u''
+    if WIFI[0] > 0:
+        return u' \u00b7 [COLOR %s]Wi-Fi %d Mbit/s%s[/COLOR]' % (BLUE, max(1, int(round(WIFI[0]))), u' \u00b7 measuring\u2026' if PROBING[0] else u'')
+    return u' \u00b7 [COLOR %s]Wi-Fi measuring\u2026[/COLOR]' % BLUE if PROBING[0] else u''
+
+
+def too_heavy_for_wifi(item):
+    return MODE[0] == u'stream' and WIFI[0] > 0 and stream_mbps(item) > (LIMIT[0] or STREAM_MBPS)
+
+
+def fit_text(item):
+    """One short line under a version: 'Fits your Wi-Fi \u00b7 needs 13 Mbit/s' or 'Needs 19 Mbit/s \u00b7 Wi-Fi gives 14'; empty when the speed or the length is unknown."""
+    need = stream_mbps(item)
+    if MODE[0] != u'stream' or WIFI[0] <= 0 or need <= 0:
+        return u''
+    need = max(1, int(round(need)))
+    about = u'about ' if RUNTIME_GUESSED[0] else u''
+    if too_heavy_for_wifi(item):
+        if need <= int(round(WIFI[0])):
+            return u'Tight on your Wi-Fi \u00b7 needs %s%d Mbit/s' % (about, need)
+        return u'Needs %s%d Mbit/s \u00b7 Wi-Fi gives %d' % (about, need, max(1, int(round(WIFI[0]))))
+    return u'Fits your Wi-Fi \u00b7 needs %s%d Mbit/s' % (about, need)
 
 
 def count_label(shown_n, uniq_n):
@@ -544,7 +639,8 @@ def _window_class():
         def onInit(self):
             self.setProperty('deck.subject', self.subject)
             self.setProperty('deck.quality_label', self.quality)
-            self.setProperty('deck.count_label', self.count_text)
+            self.setProperty('deck.count_label', self.count_text + wifi_text())
+            LIVE[0] = self
             self.setProperty('deck.poster', self.poster)
             for key in ('fanart', 'title', 'meta', 'plot'):
                 self.setProperty('deck.' + key, self.details.get(key, u''))
@@ -554,6 +650,25 @@ def _window_class():
 
         def list_id(self):
             return 32504 if self.mode == u'all' else 32503
+
+        def refresh_live(self):
+            """ISSUE-503: the speed changed while the page is open: new subtitle, and each version's line, warning colour and badge."""
+            self.setProperty('deck.count_label', self.count_text + wifi_text())
+            for r in self.rows:
+                if '_item' not in r:
+                    continue
+                it = r['_item']
+                r['fit'], r['fitwarn'], r['badge'] = fit_text(it), (u'1' if too_heavy_for_wifi(it) else u''), badge_for(it, r['_n'], r['_b'])
+            try:
+                control = self.getControl(self.list_id())
+                for position in range(control.size()):
+                    item = control.getListItem(position)
+                    r = self.rows[int(item.getProperty('index'))]
+                    item.setProperty('fit', r['fit'])
+                    item.setProperty('fitwarn', r['fitwarn'])
+                    item.setProperty('badge', r['badge'])
+            except Exception:
+                pass
 
         def fill(self):
             self.setProperty('deck.sort', SORTS[self.sort][1])
@@ -575,6 +690,8 @@ def _window_class():
                 item.setProperty('tags', r['tags'])
                 item.setProperty('meta', r['meta'])
                 item.setProperty('badge', r['badge'])
+                item.setProperty('fit', r.get('fit', u''))
+                item.setProperty('fitwarn', r.get('fitwarn', u''))
                 for k, tag in enumerate(r.get('pills') or [], 1):
                     item.setProperty('tag%d' % k, tag)
                     item.setProperty('tag%d.kind' % k, u'av1' if u'AV1' in tag.upper() else u'')
@@ -620,7 +737,10 @@ def choose_source(title, rows, quality, count_text, mode=u''):
     details = _details_for(title)
     window = _window_class()("DeckSourceSelect.xml", ADDON_PATH, "Default", rows=rows, subject=title,
                              quality=quality, count_text=count_text, poster=details['poster'], details=details, mode=mode)
-    window.doModal()
+    try:
+        window.doModal()
+    finally:
+        LIVE[0] = None
     retval = window.retval
     del window
     return _selection_result(retval)

@@ -22,10 +22,19 @@ def rpc(xbmc,method,params):
  answer=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params})))
  return None if 'error' in answer else answer.get('result') or {}
 
-def outdated(xbmc):
- """[{'id','name','icon'}] of the outdated add-ons, or None when Kodi's list cannot be read."""
- result=rpc(xbmc,'Files.GetDirectory',{'directory':addon_outdated.LISTING,'media':'files','properties':['thumbnail']})
- return None if result is None else addon_outdated.updates(result.get('files'))
+def outdated(xbmc,xbmcvfs=None):
+ """[{'id','name','icon','version'}] of the outdated add-ons, or None when Kodi's list cannot be read. The ids come from Kodi's own listing through xbmcvfs.listdir
+ (JSON-RPC Files.GetDirectory refuses addons://outdated/, ISSUE-496); the names, icons and installed versions from Addons.GetAddons."""
+ try:
+  if xbmcvfs is None:import xbmcvfs
+  dirs,files=xbmcvfs.listdir(addon_outdated.LISTING)
+  ids=addon_outdated.ids_from_listing(list(dirs)+list(files))
+ except Exception as error:
+  xbmc.log('Kodi iOS Add-on Updates: add-on list not read (%s)'%type(error).__name__,xbmc.LOGWARNING);return None
+ if not ids:return []
+ try:details=(rpc(xbmc,'Addons.GetAddons',{'properties':['name','thumbnail','version']}) or {}).get('addons') or []
+ except Exception:details=[]
+ return addon_outdated.rows(ids,details)
 
 def read_stamp(xbmcvfs):
  try:
@@ -49,7 +58,7 @@ def run():
    self.setProperty('button','Check Now')
    self.show(stamp=read_stamp(xbmcvfs))
   def show(self,stamp):
-   found=outdated(xbmc);rows=found or []
+   found=outdated(xbmc,xbmcvfs);rows=found or [];self.rows=rows
    self.setProperty('rows',str(min(len(rows),settings_page.UPDATE_ROWS)))
    for n in range(1,settings_page.UPDATE_ROWS+1):
     row=rows[n-1] if n<=len(rows) else {}
@@ -71,7 +80,10 @@ def run():
    self.checking=False
   def onClick(self,control):
    if control in CHECK:self.check()
-   elif ROW_BASE<control<=ROW_BASE+settings_page.UPDATE_ROWS:self.then=OPEN_LIST;self.finish()
+   elif ROW_BASE<control<=ROW_BASE+settings_page.UPDATE_ROWS:
+    row=(getattr(self,'rows',None) or [{}]*99)[control-ROW_BASE-1] if control-ROW_BASE-1<len(getattr(self,'rows',None) or []) else {}
+    if row.get('pinned'):xbmcgui.Dialog().notification('Kept by the app','The app updates this one itself, with its fixes. Updating it here would undo them.',xbmcgui.NOTIFICATION_INFO,6000)
+    else:self.then=OPEN_LIST;self.finish()
    elif control==BACK:self.finish()
   def onAction(self,action):
    if action.getId() in BACK_KEYS:self.finish()

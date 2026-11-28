@@ -1,5 +1,5 @@
 """The Crew's version window as a portrait sheet (crew_notice.py): only the exact pinned files are replaced; the ids and window
-properties The Crew uses stay (ISSUE-497)."""
+properties The Crew uses stay (ISSUE-504)."""
 import hashlib,os,sys,tempfile,unittest
 import xml.etree.ElementTree as ET
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','migration','bundled-bootstrap','resources','lib'))

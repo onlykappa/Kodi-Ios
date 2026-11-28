@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns="https://www.rssboard.org/rss-specification" xmlns:torrent="http://xmlns.ezrss.it/0.1/">
+  <channel>
+    <language>en</language>
+    <link>/en/releases</link>
+    <title>One Pace — The Definitive One Piece Viewing Experience (Beta)</title>
+    <description>One Pace feed sample</description>
+    <pubDate>Mon, 23 Nov 2026 15:30:00 GMT</pubDate>
+    <lastBuildDate>Mon, 23 Nov 2026 15:18:53 GMT</lastBuildDate>
+    <docs>https://www.rssboard.org/rss-specification</docs>
+    <managingEditor>onepaceproject@gmail.com (One Pace Team)</managingEditor>
+    <image>
+      <url>/_next/static/media/logo.3b-t7f20tomve.png</url>
+      <title>One Pace — The Definitive One Piece Viewing Experience (Beta)</title>
+      <link>/en/releases</link>
+      <width>2381</width>
+      <height>851</height>
+    </image>
+    <item>
+      <guid isPermaLink="false">urn:btih:632e2a5b62653bc2a7c962defaef8be8755a6d14</guid>
+      <title>[One Pace][1014-1015] Wano 63 [1080p][45539BC1].mkv</title>
+      <pubDate>Mon, 23 Nov 2026 15:30:00 GMT</pubDate>
+      <category domain="https://onepace.net/releases">cut/regular</category>
+      <link>https://nyaa.si/view/2189727</link>
+      <enclosure type="application/x-bittorrent" url="https://onepace.net/torrents/632e2a5b62653bc2a7c962defaef8be8755a6d14.torrent" length="65606"/>
+      <torrent:infoHash>632e2a5b62653bc2a7c962defaef8be8755a6d14</torrent:infoHash>
+      <torrent:magnetURI>magnet:?xt=urn:btih:sample</torrent:magnetURI>
+      <torrent:fileName>[One Pace][1014-1015] Wano 63 [1080p][45539BC1].mkv.torrent</torrent:fileName>
+      <description><![CDATA[
+        <dl>
+          <dt>Covered manga chapters</dt>
+          <dd>1014–1015</dd>
+          <dt>Covered anime episodes</dt>
+          <dd>1034–1036</dd>
+          <dt>Resolution</dt>
+          <dd>1080p</dd>
+          <dt>Subtitle tracks</dt>
+          <dd>de, en, fr, ja, tr</dd>
+          <dt>Dubtitles</dt>
+          <dd>en</dd>
+          <dt>Audio tracks</dt>
+          <dd>en, ja</dd>
+        </dl>
+        <p>
+          <strong>Download</strong>
+        </p>
+        <ul>
+          <li>
+            <a href="magnet:?xt=urn:btih:632e2a5b62653bc2a7c962defaef8be8755a6d14&amp;dn=%5BOne+Pace%5D%5B1014-1015%5D+Wano+63+%5B1080p%5D%5B45539BC1%5D.mkv&amp;tr=http%3A%2F%2Fnyaa.tracker.wf%3A7777%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&amp;tr=https%3A%2F%2Ftracker1.520.jp%3A443%2Fannounce&amp;tr=udp%3A%2F%2Fopentracker.i2p.rocks%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&amp;tr=http%3A%2F%2Ftracker.openbittorrent.com%3A80%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&amp;tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&amp;tr=http%3A%2F%2Fbt.endpot.com%3A80%2Fannounce&amp;tr=udp%3A%2F%2Ftracker1.bt.moack.co.kr%3A80%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&amp;tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&amp;tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&amp;tr=udp%3A%2F%2Fmovies.zsw.ca%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&amp;tr=https%3A%2F%2Ftracker.gbitt.info%3A443%2Fannounce&amp;tr=https%3A%2F%2Ftr.burnabyhighstar.com%3A443%2Fannounce&amp;tr=http%3A%2F%2Ftracker.gbitt.info%3A80%2Fannounce">Magnet</a>
+          </li>
+          <li>
+            <a href="https://onepace.net/torrents/632e2a5b62653bc2a7c962defaef8be8755a6d14.torrent">Torrent</a>
+          </li>
+          <li>
+            <a href="https://nyaa.si/view/2189727">Nyaa</a>
+          </li>
+          <li>
+            <a href="https://pixeldrain.net/u/MtzrTiBh">Pixeldrain</a>
+          </li>
+        </ul>
+      ]]></description>
+    </item><item>
+      <guid isPermaLink="false">urn:btih:b27dc0db934ab01f6bfa6b42a0f82aa82889cb85</guid>
+      <title>[One Pace][607-608] Fishman Island 03 [1080p][C3961CBC].mkv</title>
+      <pubDate>Mon, 16 Nov 2026 04:00:00 GMT</pubDate>
+      <category domain="https://onepace.net/releases">cut/regular</category>
+      <link>https://nyaa.si/view/2186833</link>
+      <enclosure type="application/x-bittorrent" url="https://onepace.net/torrents/b27dc0db934ab01f6bfa6b42a0f82aa82889cb85.torrent" length="34073"/>
+      <torrent:infoHash>b27dc0db934ab01f6bfa6b42a0f82aa82889cb85</torrent:infoHash>
+      <torrent:magnetURI>magnet:?xt=urn:btih:sample</torrent:magnetURI>
+      <torrent:fileName>[One Pace][607-608] Fishman Island 03 [1080p][C3961CBC].mkv.torrent</torrent:fileName>
+      <description><![CDATA[
+        <dl>
+          <dt>Covered manga chapters</dt>
+          <dd>607–608</dd>
+          <dt>Covered anime episodes</dt>
+          <dd>526–527</dd>
+          <dt>Resolution</dt>
+          <dd>1080p</dd>
+          <dt>Subtitle tracks</dt>
+          <dd>de, en, es-LatAm, fi, fr, ja, pt-BR, tr</dd>
+          <dt>Dubtitles</dt>
+          <dd>en</dd>
+          <dt>Audio tracks</dt>
+          <dd>en, ja</dd>
+        </dl>
+        <p>
+          <strong>Lightly edited subtitles:</strong>
+           
+          Polished for consistency, readability, and timing. A more intensive line-by-line review is still pending.
+        </p>
+        <p>
+          <strong>Download</strong>
+        </p>
+        <ul>
+          <li>
+            <a href="magnet:?xt=urn:btih:b27dc0db934ab01f6bfa6b42a0f82aa82889cb85&amp;dn=%5BOne+Pace%5D%5B607-608%5D+Fishman+Island+03+%5B1080p%5D%5BC3961CBC%5D.mkv&amp;tr=http%3A%2F%2Fnyaa.tracker.wf%3A7777%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&amp;tr=https%3A%2F%2Ftracker1.520.jp%3A443%2Fannounce&amp;tr=udp%3A%2F%2Fopentracker.i2p.rocks%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&amp;tr=http%3A%2F%2Ftracker.openbittorrent.com%3A80%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&amp;tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&amp;tr=http%3A%2F%2Fbt.endpot.com%3A80%2Fannounce&amp;tr=udp%3A%2F%2Ftracker1.bt.moack.co.kr%3A80%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&amp;tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&amp;tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&amp;tr=udp%3A%2F%2Fmovies.zsw.ca%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&amp;tr=https%3A%2F%2Ftracker.gbitt.info%3A443%2Fannounce&amp;tr=https%3A%2F%2Ftr.burnabyhighstar.com%3A443%2Fannounce&amp;tr=http%3A%2F%2Ftracker.gbitt.info%3A80%2Fannounce">Magnet</a>
+          </li>
+          <li>
+            <a href="https://onepace.net/torrents/b27dc0db934ab01f6bfa6b42a0f82aa82889cb85.torrent">Torrent</a>
+          </li>
+          <li>
+            <a href="https://nyaa.si/view/2186833">Nyaa</a>
+          </li>
+          <li>
+            <a href="https://pixeldrain.net/u/RKWW42A7">Pixeldrain</a>
+          </li>
+        </ul>
+        <details open="true">
+          <summary>Changelog</summary>
+          <ul role="list">
+            <li>Completely re-edited from scratch in 1080p.</li>
+            <li>Added the ED - "Sailing" (from FMI Log).</li>
+            <li>Lightly edited English subtitles.</li>
+            <li>Added English dub.</li>
+            <li>Added EN Dubtitles, Finnish, French, German, Japanese, Spanish, Portuguese, and Turkish subtitles.</li>
+          </ul>
+        </details>
+      ]]></description>
+    </item><item>
+      <guid isPermaLink="false">urn:btih:66080a838c1fab47e5c30e53b6436312e8d9f599</guid>
+      <title>[One Pace][436-437] Post-Enies Lobby 04 [1080p][C57AE4F8].mkv</title>
+      <pubDate>Mon, 09 Nov 2026 00:30:00 GMT</pubDate>
+      <category domain="https://onepace.net/releases">cut/regular</category>
+      <link>https://nyaa.si/view/2184163</link>
+      <enclosure type="application/x-bittorrent" url="https://onepace.net/torrents/66080a838c1fab47e5c30e53b6436312e8d9f599.torrent" length="55876"/>
+      <torrent:infoHash>66080a838c1fab47e5c30e53b6436312e8d9f599</torrent:infoHash>
+      <torrent:magnetURI>magnet:?xt=urn:btih:sample</torrent:magnetURI>
+      <torrent:fileName>[One Pace][436-437] Post-Enies Lobby 04 [1080p][C57AE4F8].mkv.torrent</torrent:fileName>
+      <description><![CDATA[
+        <dl>
+          <dt>Covered manga chapters</dt>
+          <dd>436–437</dd>
+          <dt>Covered anime episodes</dt>
+          <dd>321–322</dd>
+          <dt>Resolution</dt>
+          <dd>1080p</dd>
+          <dt>Subtitle tracks</dt>
+          <dd>de, en, es-LatAm, fr, ja, pt-BR, tr</dd>
+          <dt>Dubtitles</dt>
+          <dd>en</dd>
+          <dt>Audio tracks</dt>
+          <dd>en, ja</dd>
+        </dl>
+        <p>
+          <strong>Lightly edited subtitles:</strong>
+           
+          Polished for consistency, readability, and timing. A more intensive line-by-line review is still pending.
+        </p>
+        <p>
+          <strong>Download</strong>
+        </p>
+        <ul>
+          <li>
+            <a href="magnet:?xt=urn:btih:66080a838c1fab47e5c30e53b6436312e8d9f599&amp;dn=%5BOne+Pace%5D%5B436-437%5D+Post-Enies+Lobby+04+%5B1080p%5D%5BC57AE4F8%5D.mkv&amp;tr=http%3A%2F%2Fnyaa.tracker.wf%3A7777%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&amp;tr=https%3A%2F%2Ftracker1.520.jp%3A443%2Fannounce&amp;tr=udp%3A%2F%2Fopentracker.i2p.rocks%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&amp;tr=http%3A%2F%2Ftracker.openbittorrent.com%3A80%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&amp;tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&amp;tr=http%3A%2F%2Fbt.endpot.com%3A80%2Fannounce&amp;tr=udp%3A%2F%2Ftracker1.bt.moack.co.kr%3A80%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&amp;tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&amp;tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&amp;tr=udp%3A%2F%2Fmovies.zsw.ca%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&amp;tr=https%3A%2F%2Ftracker.gbitt.info%3A443%2Fannounce&amp;tr=https%3A%2F%2Ftr.burnabyhighstar.com%3A443%2Fannounce&amp;tr=http%3A%2F%2Ftracker.gbitt.info%3A80%2Fannounce">Magnet</a>
+          </li>
+          <li>
+            <a href="https://onepace.net/torrents/66080a838c1fab47e5c30e53b6436312e8d9f599.torrent">Torrent</a>
+          </li>
+          <li>
+            <a href="https://nyaa.si/view/2184163">Nyaa</a>
+          </li>
+          <li>
+            <a href="https://pixeldrain.net/u/rWzQ7EXd">Pixeldrain</a>
+          </li>
+        </ul>
+        <details open="true">
+          <summary>Changelog</summary>
+          <ul role="list">
+            <li>Completely re-edited from scratch in 1080p.</li>
+            <li>Lightly edited English subtitles.</li>
+            <li>Added English dub.</li>
+            <li>Added EN Dubtitles, French, German, Japanese, Portuguese, Spanish, and Turkish subtitles.</li>
+          </ul>
+        </details>
+      ]]></description>
+    </item>  </channel>
+</rss>

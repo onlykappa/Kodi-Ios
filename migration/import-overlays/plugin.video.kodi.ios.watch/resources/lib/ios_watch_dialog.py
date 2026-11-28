@@ -434,7 +434,11 @@ def fast_stream(handle,params,read=None,alive=None,play=None,now=None,route=None
   if entry.get('player')!='umbrella' or not url.startswith(('http://','https://')):return _declined('no remembered Umbrella link (player %s)'%(entry.get('player') or 'none'))
   if now()-float(stream.get('at') or 0)>STREAM_FRESH:return _declined('the remembered link is older than %d h'%(STREAM_FRESH//3600))
   position,total=float(entry.get('position') or 0),float(entry.get('total') or 0)
-  if position<5 or (total and position>=0.92*total):return _declined('no place to resume (%d of %d s)'%(position,total))   # nothing to resume: the normal way finds a fresh link
+  if total and position>=0.92*total:return _declined('finished (%d of %d s)'%(position,total))   # a finished title: the normal way finds a fresh link
+  # ISSUE-489 (owner, 2026-11-25, opening ten fresh titles and stopping each within seconds: "links that have been opened recently ... can also be as fast as they can"):
+  # a title stopped before 5 s has no place to resume, and every re-open took the whole way again (details, a 5-13 s scrape, the version list, the pick). Its remembered
+  # link is as good as one with a resume point: it starts again from the beginning, and the continue guard (service) plays the normal way if the link does not open.
+  if position<5:position=0.0
   if not (alive or _link_alive)(url):return _declined('the remembered link was refused')
   # Step 2 (owner, build 620 log 80ea6c76: Continue took 12.3 s to the first picture; Kodi read the debrid link itself over one connection: 2.8 s to
   # connect, 5.1 s for the file's start, 3.6 s for the resume seek). Umbrella's own path hands Kodi the service's cache (several connections, the

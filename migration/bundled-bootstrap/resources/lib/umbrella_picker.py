@@ -11,7 +11,7 @@ Kodi-iOS: only sources of the title being played (source_match.py, from Umbrella
 IMDb/TMDb ids, show/season/episode): the page hides the others behind a "N hidden (wrong title/year)" row, and when
 Umbrella's own list opens it has only the verified ones (all hidden: asked first).
 """
-import importlib.util,json,os,re,sys,time,types
+import importlib.util,json,os,re,sys,threading,time,types
 
 HERE=os.path.dirname(os.path.abspath(__file__))
 ROOT=os.path.dirname(os.path.dirname(HERE))   # service.kodi.ios.bootstrap: resources/skins/Default/720p/DeckSourceSelect.xml
@@ -54,6 +54,18 @@ def load(path=os.path.join(HERE,'deck_picker.py'),addon_path=ROOT):
  deck.meta_text=lambda it:deck.DOT.join([deck.size_text(it)]+([', '.join(it['providers'])] if it['providers'] else []))
  deck.SHOW_ALL_ROW=dict(deck.SHOW_ALL_ROW,tags=u"Umbrella's full list")
  return deck
+
+def title_seconds(meta):
+ """(seconds, guessed) for the title's length (ISSUE-503): Umbrella's duration (seconds; a small number is minutes), its runtime keys, else a typical length for the kind
+ (45 min an episode, 110 min a film) marked as a guess so the page says 'about'. The owner's New Girl list had no length at all, so no version could be judged."""
+ meta=meta or {}
+ for key,minutes in (('duration',False),('runtime',True),('episode_runtime',True)):
+  try:value=float(meta.get(key) or 0)
+  except (TypeError,ValueError):continue
+  if value<=0:continue
+  if minutes or value<300:value*=60
+  return value,False
+ return (45*60.0 if meta.get('tvshowtitle') else 110*60.0),True
 
 def share(meta,window=None):
  """Title, poster, background, year/runtime and plot for the page (what the watch menu does for Elementum)."""
@@ -138,6 +150,27 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
  deck=deck or load()
  share(meta)
  close_circle()
+ try:   # the title's length in seconds, so the version list can put the lighter streams first (deck_picker.stream_mbps)
+  deck.RUNTIME[0],deck.RUNTIME_GUESSED[0]=title_seconds(meta)
+ except Exception:pass
+ try:   # ISSUE-498: how much this network has delivered to streams lately sets how heavy a version may be to come first (connection_speed.py)
+  import connection_speed,xbmc
+  speeds=connection_speed.open_speeds();key=connection_speed.current_key();estimate=speeds.estimate(key)
+  deck.LIMIT[0]=connection_speed.allowed(estimate);deck.WIFI[0]=float(estimate or 0)
+  xbmc.log(connection_speed.advice(estimate,deck.LIMIT[0])+' (title length %d min%s)'%(deck.RUNTIME[0]//60,', a guess' if deck.RUNTIME_GUESSED[0] else ''),xbmc.LOGINFO)
+  # ISSUE-503: and a live reading of the line while the page is open; the page follows it when it is back
+  deck.PROBING[0]=True
+  def live():
+   try:
+    import urllib.request
+    mbps=connection_speed.probe(lambda url:urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'KodiIOS'}),timeout=4))
+    if mbps:speeds.note(key,mbps)
+    now=speeds.estimate(key) if mbps else None
+    xbmc.log('Kodi iOS stream advice: live reading %s Mbit/s; this network now %s'%(mbps,now),xbmc.LOGINFO)
+    deck.apply_wifi(now,connection_speed.allowed(now))
+   except Exception:deck.apply_wifi(None,None)
+  threading.Thread(target=live,daemon=True).start()
+ except Exception:pass
  title=(meta or {}).get('tvshowtitle') or (meta or {}).get('title') or ''
  labels=[label(item) for _,item in playable_items]
  # Umbrella is live playback (owner): versions AirPlay can send as they are come first.
@@ -151,6 +184,12 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
  try:
   import source_speed,xbmcgui as _g
   source_speed.picked(_g.Window(10000),item)
+ except Exception:pass
+ try:   # what Umbrella is about to unlock for: umbrella_recovery.worth_checking checks one file of this pick, and for an episode only the one that names it
+  import xbmcgui as _w,umbrella_recovery
+  m=meta or {};note={'t':time.time()}
+  if m.get('tvshowtitle') and str(m.get('season') or '').isdigit() and str(m.get('episode') or '').isdigit():note.update(season=int(m['season']),episode=int(m['episode']))
+  _w.Window(10000).setProperty(umbrella_recovery.WANT,json.dumps(note))
  except Exception:pass
  if make_item is None:
   import xbmcgui

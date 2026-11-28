@@ -40,6 +40,20 @@ def fetch(rpc, query):
         t.start()
     for t in threads:
         t.join(30)
+    # One Pace is not on TMDb as a show we can open: our own entry leads the TV SHOWS part when the query is about it (onepace_show.search_rows).
+    try:
+        import xbmcvfs
+        from ios_library import boot_path
+        boot_path(xbmcvfs)
+        import onepace_show
+        profile = xbmcvfs.translatePath('special://profile')
+        mine = onepace_show.search_rows(query, profile)
+        if mine and not mine[0].get('art'):   # no saved copy yet: read the site once so the entry has its picture (ISSUE-503)
+            onepace_show.seasons(profile)
+            mine = onepace_show.search_rows(query, profile)
+        found['tv'] = mine + (found.get('tv') or [])
+    except Exception:
+        pass
     return [(kind, title, found.get(kind) or []) for kind, title in SECTIONS]
 
 

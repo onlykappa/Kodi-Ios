@@ -51,6 +51,38 @@ class Hook(unittest.TestCase):
    for source in ('class Unknown: pass\n','invalid python !',self.SOURCE.replace('response = self._get(url, url_append)','response = {}')):
     path=Path(tmp)/'alldebrid.py';path.write_text(source);self.assertFalse(recovery.hook(path));self.assertEqual(path.read_text(),source)
 
+class UnlockCache(unittest.TestCase):
+ # ISSUE-494: a second pass over a pack makes no AllDebrid calls
+ SOURCE=Hook.SOURCE.replace("class AllDebrid:\n","class AllDebrid:\n\tdef _get(self, url, url_append=''):\n\t\tself.calls = getattr(self, 'calls', 0) + 1\n\t\treturn {'link': 'https://h.example/f/' + url_append + '.mkv', 'filename': url_append, 'filesize': 5}\n")
+ def klass(self,clock):
+  recovery.UNLOCK_CACHE.clear()
+  ns={};exec(compile(self.SOURCE,'x','exec'),ns);cls=ns['AllDebrid'];self.assertTrue(recovery.wrap_get(cls,clock));return cls
+ def test_a_repeated_unlock_is_answered_from_memory_for_ten_minutes(self):
+  now=[1000.0];cls=self.klass(lambda:now[0]);one=cls()
+  first=one._get('link/unlock','L1');one._get('link/unlock','L2')
+  self.assertEqual(one.calls,2)
+  again=one._get('link/unlock','L1');self.assertEqual(again,first);self.assertIsNot(again,first);self.assertEqual(one.calls,2)   # a copy, no call
+  now[0]+=recovery.UNLOCK_FRESH+1;one._get('link/unlock','L1');self.assertEqual(one.calls,3)                                   # stale: asked again
+ def test_only_a_successful_unlock_is_kept_and_other_calls_pass_through(self):
+  cls=self.klass(lambda:1000.0);one=cls()
+  one._get('magnet/status','M');one._get('magnet/status','M');self.assertEqual(one.calls,2)
+  cls._get=lambda self,url,url_append='':{'error':'x'}
+  recovery.UNLOCK_CACHE.clear()
+  self.assertTrue(recovery.wrap_get(cls,lambda:1000.0));cls()._get('link/unlock','B');self.assertEqual(recovery.UNLOCK_CACHE,{})
+ def test_the_file_is_patched_once_and_still_runs_the_one_check_per_pick(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   path=Path(tmp)/'alldebrid.py';path.write_text(self.SOURCE)
+   self.assertTrue(recovery.hook(path));self.assertTrue(recovery.cache_hook(path));self.assertFalse(recovery.cache_hook(path))
+   code=path.read_text();self.assertEqual(code.count(recovery.CACHE_MARK),1);recovery.UNLOCK_CACHE.clear();home=Home()
+   with patch.dict(sys.modules,{'xbmcvfs':types.SimpleNamespace(translatePath=lambda p:str(LIB)),'xbmcgui':types.SimpleNamespace(Window=lambda n:home)}):
+    ns={};exec(compile(code,str(path),'exec'),ns);one=ns['AllDebrid']()
+    one.unrestrict_link('L1');one.unrestrict_link('L1');self.assertEqual(one.calls,1)
+    self.assertEqual(recovery.selected('https://h.example/f/L1.mkv',home)['link'],'L1')   # the selected-file record still runs on the cached answer
+ def test_unrecognised_modules_are_left_alone(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   for source in ('class Unknown: pass\n','invalid python !',Hook.SOURCE):
+    path=Path(tmp)/'alldebrid.py';path.write_text(source);self.assertFalse(recovery.cache_hook(path));self.assertEqual(path.read_text(),source)
+
 class ExpiredLink(unittest.TestCase):
  def source(self,opener,renew=lambda record:NEW):
   source=remote_media.Foreground(OLD+'|User-Agent=Player&Cookie=a%3Db',open_url=opener)
@@ -123,5 +155,32 @@ class ExpiredLink(unittest.TestCase):
   self.assertGreater(status['stats']['http_requests'],0);self.assertEqual(status['stats']['last_status'],206)
   self.assertNotIn(OLD,json.dumps(status));self.assertNotIn(NEW,json.dumps(status))
   self.assertEqual(renewals,[1]);lease.close()
+
+class OneCheckPerPick(unittest.TestCase):
+ # ISSUE-490 (owner log f155938b): a movie pick unlocks one link, an episode pick 3-20, each checked for 1.3 s
+ def want(self,**k):return json.dumps(dict({'t':100.0},**k))
+ def test_episode_names(self):
+  for name in ('Show.S01E01.1080p.WEB.mkv','show s1 e1 720p.mkv','Show.1x01.avi','Show Season 1 Episode 1.mkv','show.s01.e01.mkv','Show.S01E01E02.mkv'):
+   self.assertTrue(recovery.episode_named(name,1,1),name)
+  for name in ('Show.S01E02.mkv','Show.S01E10.mkv','Show.S02E01.mkv','Show.S01.Complete.mkv','Show.S01E011.mkv'):
+   self.assertFalse(recovery.episode_named(name,1,1),name)
+  self.assertTrue(recovery.episode_named('',1,1))   # no name: cannot say
+ def test_only_the_file_that_names_the_episode_is_checked_and_only_once(self):
+  state={};want=self.want(season=1,episode=1)
+  self.assertFalse(recovery.worth_checking(want,'Show.S01E07.mkv',state))     # another file of a pack: handed back untouched
+  self.assertFalse(recovery.worth_checking(want,'Show.S01.Complete.mkv',state))
+  self.assertTrue(recovery.worth_checking(want,'Show.S01E01.1080p.mkv',state))
+  self.assertFalse(recovery.worth_checking(want,'Show.S01E01.720p.mkv',state))  # a second one of the same pick: no second check
+ def test_a_movie_pick_is_checked_once_and_a_new_pick_checks_again(self):
+  state={}
+  self.assertTrue(recovery.worth_checking(self.want(),'Movie.2026.1080p.mkv',state))
+  self.assertFalse(recovery.worth_checking(self.want(),'Movie.2026.2160p.mkv',state))
+  self.assertTrue(recovery.worth_checking(json.dumps({'t':200.0}),'Movie.2026.1080p.mkv',state))
+ def test_no_pick_note_checks_as_before(self):
+  for note in ('',None,'not json','{}'):self.assertTrue(recovery.worth_checking(note,'x.mkv',{}))
+ def test_the_picker_leaves_the_note_and_the_hook_reads_it(self):
+  lib=Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'
+  self.assertIn('umbrella_recovery.WANT',(lib/'umbrella_picker.py').read_text())
+  self.assertIn("worth_checking(home.getProperty(WANT),record['filename'],_CHECKED)",(lib/'umbrella_recovery.py').read_text())
 
 if __name__=='__main__':unittest.main()

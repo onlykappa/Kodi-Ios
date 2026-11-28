@@ -1,4 +1,4 @@
-"""Install from a zip file (zip_install.py, ISSUE-497)."""
+"""Install from a zip file (zip_install.py, ISSUE-504)."""
 import os,sys,tempfile,time,unittest,zipfile
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','migration','bundled-bootstrap','resources','lib'))
 import zip_install as z

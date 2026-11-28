@@ -1,4 +1,4 @@
-"""Add-on search follows the phone's native search field (addon_search.py, ISSUE-497)."""
+"""Add-on search follows the phone's native search field (addon_search.py, ISSUE-504)."""
 import os,sys,unittest
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','migration','bundled-bootstrap','resources','lib'))
 import addon_search as a

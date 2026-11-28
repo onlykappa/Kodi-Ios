@@ -67,4 +67,30 @@ class Evidence(unittest.TestCase):
  def test_old_framework_without_snapshot_api_is_compatible(self):
   wait=Mock();recorder.watch(SimpleNamespace(),'',None,Mock(),wait);wait.assert_not_called()
 
+class JudderSamples(unittest.TestCase):
+ # ISSUE-491 (owner log ad7d3e73): the 30 s samples caught a stall (position 2598 -> 2607 in 30 s) but nothing shorter
+ def p(self,position,**k):
+  d=dict(time_control=2,rate=1.0,buffer_empty=0,likely_to_keep_up=1,external=1,position=position);d.update(k);return d
+ def test_steady_playback_says_nothing(self):
+  j=recorder.Judder();self.assertEqual(j.observe(self.p(100),0),[])
+  self.assertEqual(j.observe(self.p(105),5),[]);self.assertEqual(j.observe(self.p(110.2),10),[])
+ def test_a_stretch_where_the_picture_clock_lagged_is_a_position_slip(self):
+  j=recorder.Judder();j.observe(self.p(100),0)
+  out=j.observe(self.p(102.5),5)
+  self.assertEqual([n for n,_ in out],['position_slip']);f=out[0][1]
+  self.assertEqual((f['wall_s'],f['advanced_s'],f['lost_s']),(5.0,2.5,2.5))
+ def test_state_changes_are_events_at_once(self):
+  j=recorder.Judder();j.observe(self.p(100),0)
+  out=j.observe(self.p(105,buffer_empty=1,likely_to_keep_up=0),5)
+  self.assertEqual(out[0][0],'state_change');self.assertEqual(out[0][1]['changes'],{'buffer_empty':[0,1],'likely_to_keep_up':[1,0]})
+ def test_a_seek_a_pause_and_an_ios_suspension_are_not_slips(self):
+  j=recorder.Judder();j.observe(self.p(100),0)
+  self.assertEqual([n for n,_ in j.observe(self.p(900),5)],[])                                   # seek forward
+  self.assertEqual([n for n,_ in j.observe(self.p(100),10)],[])                                   # seek back
+  self.assertEqual([n for n,_ in j.observe(self.p(101,time_control=0,rate=0.0),15)],['state_change'])   # pause
+  self.assertEqual([n for n,_ in j.observe(self.p(101),60)],['state_change'])                      # resumed after a 45 s gap: no slip
+ def test_the_watch_loop_logs_them(self):
+  text=(ROOT/'migration/bundled-bootstrap/resources/lib/airplay_diagnostics.py').read_text()
+  self.assertIn("for name,fields in judder.observe(player,now):diagnostics.event(write,'airplay',name",text)
+
 if __name__=='__main__':unittest.main()

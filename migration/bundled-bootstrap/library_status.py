@@ -264,7 +264,8 @@ def run(args=()):
     items=library_rows.list_items(view,self.filter)
     self.items=items
     # Build 194: one pool of rows per section (library_page.POOLS), as the approved boards draw them.
-    pools=library_rows.pools(items)
+    arc_title=lambda season:__import__('onepace_show').arc_name(profile,season)
+    pools=library_rows.pools(library_rows.group_seasons(items,(view.get('rows') or {}).get('ready') or [],arc_title))   # ISSUE-501: a season is one row
     self.pools=pools
     self.setProperty('empty','' if items or (view.get('model') or {}).get('jobs') or view.get('total') else 'No downloaded videos here yet.')
     model=view.get('model') or {}

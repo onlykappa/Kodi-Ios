@@ -1,4 +1,4 @@
-"""Add-on install progress copied from Kodi's hidden background box (install_progress.py, ISSUE-497)."""
+"""Add-on install progress copied from Kodi's hidden background box (install_progress.py, ISSUE-504)."""
 import os,sys,unittest
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','migration','bundled-bootstrap','resources','lib'))
 import install_progress as ip

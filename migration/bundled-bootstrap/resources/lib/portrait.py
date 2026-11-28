@@ -1123,9 +1123,10 @@ def show_header(ids_down):
   '<visible>%s</visible><onup>9001</onup><ondown condition="%s">52</ondown><ondown condition="%s">50</ondown><ondown condition="%s">9003</ondown>'%(
    play_visible,'Container.Content(episodes)','['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)] + Container.Content(seasons)','!'+DOWNLOADED_SHOW+' + Container.Content(seasons) + System.HasAddon(plugin.video.elementum)'),inline=True)
  header+='<control type="group"><width>%d</width><height>144</height><visible>%s</visible>%s</control>'%(WIDTH,play_visible,play_button)
- download_visible='Container.Content(seasons) + !'+DOWNLOADED_SHOW+' + System.HasAddon(plugin.video.elementum)'
+ ONE_PACE='!String.IsEmpty(Container(50).ListItem.Property(onepace))'   # ISSUE-499: One Pace arcs download through the app's own route, not Elementum
+ download_visible='Container.Content(seasons) + !'+DOWNLOADED_SHOW+' + [System.HasAddon(plugin.video.elementum) | '+ONE_PACE+']'
  header+='<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>%s</control>'%(WIDTH,DL_SHIFT,download_visible,
-  pill_button(9003,SIDE,0,WIDTH-2*SIDE,DL_H,'Download $VAR[Portrait_Season_Short]',[('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
+  pill_button(9003,SIDE,0,WIDTH-2*SIDE,DL_H,'Download $VAR[Portrait_Season_Short]',[(ONE_PACE,'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=onepace_download&season=$INFO[Container(50).ListItem.Season])'),('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
               '<visible>%s</visible><onup>9002</onup><ondown>50</ondown>'%download_visible,inline=True))
  header+='<control type="group"><width>%d</width><height>160</height><control type="textbox"><left>%d</left><top>0</top><width>%d</width><height>132</height><font>p_foot</font><textcolor>%s</textcolor><label>$VAR[Portrait_Show_Plot]</label><autoscroll>false</autoscroll></control></control>'%(WIDTH,SIDE,WIDTH-2*SIDE,GREY)
  return header
@@ -1162,14 +1163,21 @@ def episode_item(focused):
   image(SIDE+thumb_w//2-48,18+thumb_h//2-48,96,96,MEDIA+'glass_96.png')+icon(SIDE+thumb_w//2-18,18+thumb_h//2-20,40,MEDIA+'play.png')+
   episode_badges(SIDE,18,thumb_w,thumb_h)+
   textbox(SIDE+thumb_w+30,30,WIDTH-2*SIDE-thumb_w-30,116,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE)+
-  label(SIDE+thumb_w+30,160,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
+  label(SIDE+thumb_w+30,160,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]$INFO[ListItem.Property(KodiIOS.EpisodeNote),  ·  ]','p_cap',GREY)+
   label(SIDE+thumb_w+30,206,WIDTH-2*SIDE-thumb_w-30,40,'$INFO[Window(Home).Property(KodiIOS.ShowContinueLeft)]','p_cap',ACCENT,'left','<visible>%s</visible>'%SHOW_CONTINUE)+
   # Owner (build 698 screenshot): the description was cut after two lines. Four lines fit (about 36 units each) and the card is 20 units taller to hold them.
   textbox(SIDE,thumb_h+30,WIDTH-2*SIDE,150,'$INFO[ListItem.Plot]','p_cap',GREY)+'</control>')
 
+def chip_text(color,when=''):
+ """A season chip's text. An arc (One Pace, ISSUE-499) has a short name in KodiIOS.ChipShort: long arc names do not fit a 250-unit chip in the bold 35 size, so they use the 30 size."""
+ has='!String.IsEmpty(ListItem.Property(KodiIOS.ChipShort))'
+ both=lambda c:'<visible>%s</visible>'%(c if not when else '%s + %s'%(when,c))
+ return (label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b',color,'center','<scroll>false</scroll>'+both('!'+has))+
+         label(0,8,250,96,'$INFO[ListItem.Property(KodiIOS.ChipShort)]','p_cap',color,'center','<scroll>false</scroll>'+both(has)))
+
 def video_nav(original):
  chip=lambda on:('<control type="group"><visible>String.IsEqual(ListItem.DBType,season)</visible>'+surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
-  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b','FF000000' if on else WHITE,'center')+'</control>')
+  chip_text('FF000000' if on else WHITE)+'</control>')
  chips=('<control type="list" id="50"><left>%d</left><top>%d</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
   '<ondown>60</ondown><onup condition="%s">9002</onup><onup condition="%s">9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'
   '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,0,WIDTH-SIDE,'['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)]','!'+DOWNLOADED_SHOW+' + System.HasAddon(plugin.video.elementum)',chip(False),chip(True))
@@ -1222,7 +1230,10 @@ def video_nav(original):
  # Owner (build 229): "If i scroll down after i select a season the season selecter disappears". Once the page has
  # scrolled, the same seasons (the folder's own listing, cached by the add-on) stay pinned under the Back button. A tap
  # selects that season in the page's own row (SetFocus absolute takes a 0-based index; CurrentItem is 1-based).
- pinned_visible='Container.Content(seasons) + Container(9900).HasPrevious'
+ # ISSUE-493 (owner screenshot IMG_0693, 2026-11-26: "the season bar appears at top when it shouldn't, it should only appear when I scroll down"): HasPrevious on a group list is true
+ # from the first pixel of scroll (Kodi's CGUIControlGroupList::GetCondition: scroll value > 0), so the pinned row appeared above the page's own season row and hid the header. The page's
+ # own row is the last thing before the episode list, so the list is scrolled to its end (!HasNext) exactly when that row has left the screen.
+ pinned_visible='Container.Content(seasons) + Container(9900).HasPrevious + !Container(9900).HasNext'
  pinned=('<control type="group"><visible>%s</visible>'%pinned_visible+
   '<animation effect="fade" start="0" end="100" time="180">Visible</animation><animation effect="fade" start="100" end="0" time="120">Hidden</animation>'+
   image(0,0,WIDTH,300,MEDIA+'white.png','FF000000')+image(0,300,WIDTH,60,MEDIA+'fade_down.png')+
@@ -1243,16 +1254,14 @@ def season_chip(focused):
  on='String.IsEqual(ListItem.Season,Container(52).ListItem.Season)'
  return ('<control type="group"><visible>String.IsEqual(ListItem.DBType,season)</visible>'+
   surface(0,8,250,96,'pill_96.png',WHITE,48,'<visible>%s</visible>'%on)+surface(0,8,250,96,'glass_96.png',WHITE,48,'<visible>!%s</visible>'%on)+
-  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b','FF000000','center','<visible>%s</visible>'%on)+
-  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b',WHITE,'center','<visible>!%s</visible>'%on)+'</control>')
+  chip_text('FF000000',on)+chip_text(WHITE,'!'+on)+'</control>')
 
 def pinned_chip(focused):
  """A season in the pinned row: white when it is the season the page shows (the row on the page decides)."""
  on='String.IsEqual(ListItem.Label,Container(50).ListItem.Label)'
  return ('<control type="group"><visible>String.IsEqual(ListItem.DBType,season)</visible>'+
   surface(0,8,250,96,'pill_96.png',WHITE,48,'<visible>%s</visible>'%on)+surface(0,8,250,96,'glass_96.png',WHITE,48,'<visible>!%s</visible>'%on)+
-  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b','FF000000','center','<visible>%s</visible>'%on)+
-  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b',WHITE,'center','<visible>!%s</visible>'%on)+'</control>')
+  chip_text('FF000000',on)+chip_text(WHITE,'!'+on)+'</control>')
 
 GRID='Container.Content(movies) | Container.Content(tvshows)'
 GRID_LARGE='String.IsEqual(Skin.String(Portrait.Grid),large)'   # Settings › Customisation › View Types
@@ -1290,9 +1299,9 @@ SHOW_VARS=('<variable name="Portrait_Show_Art"><value condition="!String.IsEmpty
 SHOW_VARS+=''.join('<variable name="Portrait_Show_%s"><value condition="%s + !String.IsEmpty(Container.Property(KodiIOS.Show%s))">$INFO[Container.Property(KodiIOS.Show%s)]</value><value>$INFO[ListItem.%s]</value></variable>'%
  (name,DOWNLOADED_SHOW,name,name,label) for name,label in (('Plot','Plot'),('Year','Year'),('Rating','Rating'),('Genres','Genre')))
 SHOW_VARS+='<variable name="Portrait_Show_Play_Label"><value condition="%s + Container.Content(seasons) + !String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayLabel))">$INFO[Container(50).ListItem.Property(KodiIOS.PlayLabel)]</value><value condition="%s">$INFO[Container.Property(KodiIOS.PlayLabel)]</value><value>Play $VAR[Portrait_Season_Short]</value></variable>'%(DOWNLOADED_SHOW,DOWNLOADED_SHOW)
-SHOW_VARS+='<variable name="Portrait_Chip_Label"><value condition="String.IsEqual(ListItem.Season,0)">Specials</value><value condition="!String.IsEmpty(ListItem.Season)">Season $INFO[ListItem.Season]</value><value>$INFO[ListItem.Label]</value></variable>'
+SHOW_VARS+='<variable name="Portrait_Chip_Label"><value condition="!String.IsEmpty(ListItem.Property(KodiIOS.ChipLabel))">$INFO[ListItem.Property(KodiIOS.ChipLabel)]</value><value condition="String.IsEqual(ListItem.Season,0)">Specials</value><value condition="!String.IsEmpty(ListItem.Season)">Season $INFO[ListItem.Season]</value><value>$INFO[ListItem.Label]</value></variable>'
 # "Season 4" (or Specials), not the season's long name, on the Play and Download buttons (owner, build 229).
-SHOW_VARS+='<variable name="Portrait_Season_Short"><value condition="String.IsEqual(Container(50).ListItem.Season,0)">Specials</value><value condition="!String.IsEmpty(Container(50).ListItem.Season)">Season $INFO[Container(50).ListItem.Season]</value><value>$INFO[Container(50).ListItem.Label]</value></variable>'
+SHOW_VARS+='<variable name="Portrait_Season_Short"><value condition="!String.IsEmpty(Container(50).ListItem.Property(KodiIOS.ChipLabel))">$INFO[Container(50).ListItem.Property(KodiIOS.ChipLabel)]</value><value condition="String.IsEqual(Container(50).ListItem.Season,0)">Specials</value><value condition="!String.IsEmpty(Container(50).ListItem.Season)">Season $INFO[Container(50).ListItem.Season]</value><value>$INFO[Container(50).ListItem.Label]</value></variable>'
 
 # Settings › Customisation › Info Page: rows under the plot, from TMDb Helper, each behind Fuse's own switch
 # (settings_page.INFO). (key, title, TMDb Helper info, setting, only for, landscape thumbnails)
@@ -1573,7 +1582,7 @@ def context_menu(original):
 
 def deck_row(focused):
  """One version on the Deck page: headline, features, size and source; the best match carries a badge."""
- w=WIDTH-2*SIDE;h=236;dark='FF000000';text=dark if focused else WHITE;sub='B3000000' if focused else GREY;dim='80000000' if focused else DIM
+ w=WIDTH-2*SIDE;h=290;dark='FF000000';text=dark if focused else WHITE;sub='B3000000' if focused else GREY;dim='80000000' if focused else DIM
  card=surface(0,0,w,h-24,'round.png','FFF5F5F7' if focused else 'F22C2C2E',32)
  badge=('<control type="group"><right>28</right><top>26</top><width>250</width><height>56</height>'
   '<visible>!String.IsEmpty(ListItem.Property(badge))</visible>'+
@@ -1582,7 +1591,10 @@ def deck_row(focused):
  # Room for the badge; long headlines end in "..." instead of scrolling.
  return (card+label(40,22,w-320,70,'$INFO[ListItem.Property(headline)]','p_h3',text,'left','<scroll>false</scroll>')+
   label(40,92,w-80,56,'$INFO[ListItem.Property(tags)]','p_foot',sub)+
-  label(40,146,w-80,50,'$INFO[ListItem.Property(meta)]','p_foot',dim)+badge)
+  label(40,146,w-80,50,'$INFO[ListItem.Property(meta)]','p_foot',dim)+
+  # ISSUE-500: one line for this network's speed (streams, once measured); amber when the version is too heavy for it
+  label(40,196,w-80,50,'$INFO[ListItem.Property(fit)]','p_foot','FF1A8F3A' if focused else GREEN,'left','<scroll>false</scroll><visible>String.IsEmpty(ListItem.Property(fitwarn))</visible>')+
+  label(40,196,w-80,50,'$INFO[ListItem.Property(fit)]','p_foot','FFB26A00' if focused else 'FFFF9F0A','left','<scroll>false</scroll><visible>!String.IsEmpty(ListItem.Property(fitwarn))</visible>')+badge)
 
 def links_row(focused):
  """One link on the All Links page (board 16): the release as the title, up to four tag pills (AV1 in orange: it
@@ -1623,7 +1635,7 @@ def deck_page(original=''):
  sub=label(SIDE,top+poster_h+150,WIDTH-2*SIDE,56,'%s  ·  %s'%(prop('quality_label'),prop('count_label')),'p_sub',GREY)
  lst=('<control type="list" id="32503"><left>%d</left><top>%d</top><width>%d</width><bottom>40</bottom><orientation>vertical</orientation>'
   '<onup>32500</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
-  '<itemlayout height="236">%s</itemlayout><focusedlayout height="236">%s</focusedlayout></control>')%(SIDE,top+poster_h+230,WIDTH-2*SIDE,deck_row(False),deck_row(True))
+  '<itemlayout height="290">%s</itemlayout><focusedlayout height="290">%s</focusedlayout></control>')%(SIDE,top+poster_h+230,WIDTH-2*SIDE,deck_row(False),deck_row(True))
  back=nav_button(32500,SIDE,36,'chevron-left.png','Close','<ondown>32503</ondown><ondown>32504</ondown>')
  # Roadmap 2.1 (board 16): "Show All Links" opens this page in mode "all": a compact bar (back, All Links, the sort
  # menu), a large title, then every link with tag pills. The quality page keeps the poster header and list 32503.
