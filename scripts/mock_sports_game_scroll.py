@@ -59,17 +59,17 @@ def build():
 CSS = m.CSS + '''
 .vps{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}.vpw{width:402px}.vp{width:402px;height:778px;overflow:hidden;background:#000;border-radius:30px;border:1px solid #333;position:relative}
 .vp .scroll{height:100%;overflow-y:auto;padding:0 14px 40px;scrollbar-width:none}.vp .scroll::-webkit-scrollbar{display:none}
-.hero{margin:0 -14px 0;padding:70px 14px 26px;display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;position:relative}.hero .lg{width:100%;text-align:center;color:var(--grey);font-weight:700;font-size:14px;margin-bottom:6px}
+.hero{margin:0 -14px 0;padding:54px 14px 22px;display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;position:relative}.hero .lg{width:100%;text-align:center;color:var(--grey);font-weight:700;font-size:14px;margin-bottom:6px}
 .hteam{width:118px;text-align:center}.hteam img{width:84px;height:84px;object-fit:contain}.hteam b{display:block;font-size:19px;margin-top:6px}.hteam span{color:var(--grey);font-size:14px}
 .hmid{flex:1;text-align:center;padding-top:6px}.hmid .live{color:var(--red);font-weight:700;font-size:14px}.hsc{font-size:34px;font-weight:700;margin:4px 0}.hmid small{color:var(--grey);font-size:14px}
 .play{height:60px;border-radius:30px;background:#fff;color:#000;font-weight:700;font-size:17px;display:flex;align-items:center;justify-content:center;margin:4px 0 8px}.auto{text-align:center;color:var(--grey);font-size:13px;line-height:1.35;margin-bottom:22px}.auto b{color:#fff}
-.head{display:flex;justify-content:space-between;align-items:baseline;margin:6px 0 10px}.head h2{font-size:22px;margin:0}.gl{color:var(--grey);font-size:15px}
+.head{display:flex;justify-content:space-between;align-items:baseline;margin:6px 0 4px}.head h2{font-size:22px;margin:0}.gl{color:var(--grey);font-size:15px}
 .group{background:var(--s1);border-radius:13px;overflow:hidden;margin-bottom:16px}.src{display:flex;gap:12px;align-items:center;padding:12px;border-bottom:1px solid var(--sep)}.tile{width:44px;height:44px;border-radius:10px;background:var(--s2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none}.md{flex:1;min-width:0}
 .name{font-size:17px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.tag{font-size:12px;font-weight:700;color:var(--bluet);background:rgba(10,132,255,.2);border-radius:9px;padding:2px 8px}.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}.chip{font-size:12px;font-weight:600;background:var(--s2);border-radius:7px;padding:2px 7px}.chip.qq{background:rgba(48,209,88,.18);color:var(--green)}
 .meta{font-size:13px;color:var(--grey);margin-top:4px;display:flex;align-items:center;gap:6px}.dot{width:8px;height:8px;border-radius:50%;display:inline-block}.g{background:var(--green)}.o{background:#FF9F0A}.go{width:44px;height:44px;border-radius:50%;background:#fff;flex:none;display:flex;align-items:center;justify-content:center}.go:after{content:"";border-left:14px solid #000;border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:4px}
 .more{display:flex;justify-content:space-between;padding:14px 12px;color:var(--bluet);font-size:15px;font-weight:500}
-.pin{position:sticky;top:0;z-index:5;background:linear-gradient(#000 85%,transparent);margin:0 -14px;padding:0 14px 4px}.strip.compact{padding:46px 4px 6px}.pin .tabs{margin-bottom:10px}
-.end{text-align:center;color:var(--grey);font-size:13px;padding:14px 0}.sc2{display:none}
+.pin{position:sticky;top:0;z-index:5;background:linear-gradient(#000 92%,transparent);margin:0 -14px;padding:2px 14px 2px}.strip.compact{padding:2px 4px 4px}.pin .tabs{margin-bottom:10px}
+.pin .strip{display:none}.pin.stuck .strip{display:flex}.end{text-align:center;color:var(--grey);font-size:13px;padding:14px 0}.sc2{display:none}
 .cap2{font-size:12.5px;color:var(--grey);text-align:center;margin-top:8px}
 '''
 
@@ -80,9 +80,9 @@ def main():
     page = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Game page scrolled (mockup, live ESPN data)</title><style>%s</style></head><body>'
             '<h1>One game page, scrolled <span class="badge">MOCKUP</span></h1>'
             '<p class="note">Mockup in a browser (not the app, not Kodi). The same page in a phone-sized window (402 x 778 pt) at five scroll positions, live ESPN data. Top: hero, Play, Sources (checked by themselves). '
-            'Scrolling on: Game info with the tabs; once the tabs reach the top of the screen, the compact score strip and the tabs stay pinned while the stats scroll under them.</p>'
+            'Scrolling on: Game info with the tabs only (the score is already above). Once the tabs reach the top of the screen the compact score appears above them and both stay pinned while the stats scroll under.</p>'
             '<div class="vps">%s</div>'
-            '<script>document.querySelectorAll(".scroll").forEach(function(e){e.scrollTop=parseInt(e.dataset.y)})</script></body></html>') % (CSS, cells)
+            '<script>document.querySelectorAll(".scroll").forEach(function(e){var pin=e.querySelector(".pin");function f(){pin.classList.toggle("stuck",pin.getBoundingClientRect().top<=e.getBoundingClientRect().top+3)}e.addEventListener("scroll",f);e.scrollTop=parseInt(e.dataset.y);f()})</script></body></html>') % (CSS, cells)
     with open(OUT, 'w', encoding='utf-8') as handle:
         handle.write(page)
     print('wrote', OUT)
