@@ -42,11 +42,11 @@ def _info_tab(p):
     """Board D1: when and where, then each team's recent form."""
     out = ''
     card_x, card_w = p.SIDE, 972
-    # Kickoff (and Venue, when ESPN has one) in one grouped card.
+    # Starts / Started (and Venue, when ESPN has one) in one grouped card.
     for with_venue in (False, True):
         h = 290 if with_venue else 130
         body = u.card(p, card_x, 0, card_w, h)
-        body += u.text(p, 92, 0, 300, 130, 'Kickoff', 'p_foot_b')
+        body += u.text(p, 92, 0, 300, 130, u.P('info.when'), 'p_foot_b')
         body += u.text(p, 400, 0, 588, 130, u.P('info.kickoff'), 'p_foot', p.GREY, 'right')
         if with_venue:
             body += p.image(92, 130, 896, 3, p.MEDIA + 'white.png', '1FEBEBF5')

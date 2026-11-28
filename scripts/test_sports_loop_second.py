@@ -230,4 +230,14 @@ class OneBest(unittest.TestCase):
         a=[{'addon':'Crew A','play':'1','tag':'best'}];b=[{'addon':'LiveFeeds','play':'2','tag':'best'}]
         merged=sports_provider.merge_ranked(a,b)
         self.assertEqual([x.get('tag','') for x in merged].count('best'),0)   # nothing was played on this test phone: no source is "best" yet
+
+class SeenOnThisPhone(unittest.TestCase):
+    def test_row_carries_what_the_phone_saw_when_it_played(self):
+        import sports_stream_health as h
+        health=h.Health(None)
+        health.ok('LiveFeeds',{'height':1080,'fps':60,'kbps':5200});health.ok('LiveFeeds')
+        out=sports_provider.rank_sources([{'addon':'LiveFeeds','play':'1','quality':''},{'addon':'Other','play':'2','quality':''}],health)
+        self.assertEqual(out[0]['record'],'1080p · 60 fps · 5.2 Mbps · worked 2 times')
+        self.assertNotIn('record',out[1])
+        self.assertEqual(h.record_text({'fail':2}),'')
 if __name__=='__main__':unittest.main()

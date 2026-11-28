@@ -376,7 +376,13 @@ def rank_sources(sources, health=None):
             if known and shown < 3:
                 tag = 'best' if shown == 0 else 'good'
                 shown += 1
-            out.append(dict(source, tag=tag) if (tag or source.get('tag')) else source)
+            record = sports_stream_health.record_text(health.data.get(key(source)))
+            extra = {}
+            if tag or source.get('tag'):
+                extra['tag'] = tag   # '' removes a tag the source's own list gave it
+            if record:
+                extra['record'] = record
+            out.append(dict(source, **extra) if (extra or source.get('tag')) else source)
         return out
     except Exception:
         return list(sources)   # a memory file that cannot be read never hides a source

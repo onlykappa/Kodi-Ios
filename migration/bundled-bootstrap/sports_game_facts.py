@@ -20,7 +20,7 @@ BACK_KEYS = (9,10,92,110)
 
 def info_props(game, info, view, now, offset, tab='stats', crests=None):
     """The Info section's properties (board D3 / D4): empty strings hide a part."""
-    props = {'info.kickoff':'','info.venue':'','info.place':'','st.title':'','st.switch':'','st.n':'','matchup':sm.versus(game) if game else ''}
+    props = {'info.kickoff':'','info.when':'Starts','info.venue':'','info.place':'','st.title':'','st.switch':'','st.n':'','matchup':sm.versus(game) if game else ''}
     for n in range(2):
         for key in ('name','line'):props['form.%d.%s' % (n,key)] = ''
         for d in range(info_mod.FORM):props['form.%d.d%d' % (n,d)] = ''
@@ -39,6 +39,7 @@ def info_props(game, info, view, now, offset, tab='stats', crests=None):
                           'strip.sub':sm.live_clock(game,now) if live else sm.clock_text(game['start'],offset)})
         else:props.update({'strip.kind':'event','strip.status':'','strip.sub':''})
     if not game or not info:return props
+    props['info.when'] = 'Starts' if game.get('state')=='upcoming' else 'Started'
     props['info.kickoff'] = sm.day_label(game['start'],now,offset) + ' · ' + sm.clock_text(game['start'],offset)
     props['info.venue'],props['info.place'] = info.get('venue',''),info.get('place','')
     for n,team in enumerate(info.get('form') or []):

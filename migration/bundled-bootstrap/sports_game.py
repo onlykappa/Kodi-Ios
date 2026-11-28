@@ -130,6 +130,7 @@ def model(game, now, offset, state='ready', searching=False, reminder=None, chec
             tag = source.get('tag') if source.get('tag') in ('best','good') else 'plain'
             title = shown(source['addon'])
             detail = ' · '.join(value for value in (source['quality'],source['language']) if value) or 'Quality not reported'
+            if source.get('record'):detail += '\nSeen on this phone: '+source['record']
             if source.get('also'):detail += '\nAlso on '+', '.join(shown(name) for name in source['also'])
             title_cols,detail_cols = {'best':(20,22),'good':(16,18),'plain':(27,30)}[tag]
             title_lines = _lines(title,title_cols)

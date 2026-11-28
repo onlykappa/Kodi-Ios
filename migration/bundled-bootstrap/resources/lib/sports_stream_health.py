@@ -186,6 +186,22 @@ class Health:
         return ranked
 
 
+def record_text(item):
+    """What this phone saw when the source last played, for its row: '1080p · 60 fps · 5.2 Mbps · worked 3 times'. '' when it never played here (or only failed)."""
+    item = item or {}
+    if not item.get('ok'):
+        return ''
+    parts = []
+    if item.get('height'):
+        parts.append('%dp' % item['height'])
+    if item.get('fps'):
+        parts.append('%d fps' % item['fps'])
+    if item.get('kbps'):
+        parts.append('%.1f Mbps' % (item['kbps'] / 1000.0))
+    parts.append('worked %d time%s' % (item['ok'], '' if item['ok'] == 1 else 's'))
+    return ' · '.join(parts)
+
+
 def open_health(translate=None, clock=time.time):
     """The phone's Health file under the bootstrap add-on's data folder; memory-only when Kodi's path functions are not there."""
     try:
