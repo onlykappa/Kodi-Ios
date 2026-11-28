@@ -38,13 +38,18 @@ def ids_from_listing(entries):
     return out
 
 
+# ISSUE-499: the app's own patched copies (pinned_addons.PATCHED). A repository update would replace them with copies without the fixes.
+PINNED = ('plugin.googledrive', 'script.module.clouddrive.common', 'plugin.video.elementum', 'script.elementum.burst')
+
+
 def rows(ids, details):
     """[{'id','name','icon','version'}] for the outdated ids; `details` is Addons.GetAddons' list ({'addonid','name','thumbnail','version'}). An id Kodi does not describe shows its id."""
     known = {str(d.get('addonid') or ''): d for d in details or []}
     out = []
     for add_on in ids:
         d = known.get(add_on) or {}
-        out.append({'id': add_on, 'name': str(d.get('name') or add_on), 'icon': str(d.get('thumbnail') or ''), 'version': str(d.get('version') or '')})
+        pinned = add_on in PINNED
+        out.append({'id': add_on, 'pinned': pinned, 'name': str(d.get('name') or add_on) + (' (kept by the app)' if pinned else ''), 'icon': str(d.get('thumbnail') or ''), 'version': str(d.get('version') or '')})
     return out
 
 

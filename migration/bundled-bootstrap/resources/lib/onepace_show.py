@@ -7,6 +7,7 @@ import onepace
 FOLDER='addon_data/service.kodi.ios.bootstrap'
 CACHE='onepace-seasons.json'
 STATE='onepace-state.json'
+SCHEMA=2             # the saved copy's shape (2: pictures and arc descriptions); an older copy is read again at once
 FRESH=3600.0          # the page is read at most hourly; a saved copy older than this is used only when the site cannot be reached
 CHECK_EVERY=3600.0
 UA='Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) KodiIOS'
@@ -32,13 +33,13 @@ def seasons(profile,get=None,now=time.time,force=False):
  is used and the reason returned (a first run with no kept copy gives [] and the reason)."""
  get=get or fetch
  path=folder(profile)/CACHE;kept=read_json(path,{})
- if not force and kept.get('seasons') and 0<=now()-float(kept.get('at') or 0)<FRESH:return kept['seasons'],''
+ if not force and kept.get('seasons') and kept.get('schema')==SCHEMA and 0<=now()-float(kept.get('at') or 0)<FRESH:return kept['seasons'],''
  try:
   found=onepace.seasons(onepace.parse_watch(get(onepace.WATCH)))
   if not found:raise ValueError('the watch page listed no arcs')
  except Exception as error:
   return kept.get('seasons') or [],'%s: %s'%(type(error).__name__,str(error)[:120])
- write_json(path,{'at':now(),'seasons':found});return found,''
+ write_json(path,{'at':now(),'schema':SCHEMA,'seasons':found});return found,''
 
 def find(seasons_list,number):
  for s in seasons_list:
@@ -46,14 +47,16 @@ def find(seasons_list,number):
  return None
 
 def season_rows(seasons_list):
- """What the season row lists: one entry per arc."""
+ """What the arc row lists: one entry per arc, named by the arc (not "Season N"), with its summary, chapter range and picture."""
  rows=[]
  for s in seasons_list:
   plot=[]
-  if s['chapters']:plot.append('Manga chapters %s'%s['chapters'])
+  if s.get('description'):plot.append(s['description'])
+  if s['chapters']:plot.append('Manga chapters %s.'%s['chapters'])
   if s['upcoming']:plot.append('No episodes released yet.')
   elif s['dubbed']<len(s['episodes']):plot.append('%d of %d episodes have an English dub; the others play in Japanese with English subtitles.'%(s['dubbed'],len(s['episodes'])))
-  rows.append({'season':s['season'],'label':s['title'],'plot':' '.join(plot),'episodes':len(s['episodes']),'upcoming':s['upcoming']})
+  rows.append({'season':s['season'],'label':s['title'],'plot':' '.join(plot),'episodes':len(s['episodes']),'upcoming':s['upcoming'],
+               'fanart':onepace.image_url(s.get('image'),1920),'poster':onepace.image_url(s.get('image'),1080),'chapters':s['chapters']})
  return rows
 
 def episode_rows(season):
@@ -61,7 +64,7 @@ def episode_rows(season):
  rows=[]
  for e in season['episodes']:
   rows.append({'season':season['season'],'episode':e['number'],'label':e['title'],'minutes':e['minutes'],'plot':e['plot'],'japanese_only':e['japanese_only'],
-               'audio':e['audio'],'resolution':e['resolution']})
+               'audio':e['audio'],'resolution':e['resolution'],'thumb':onepace.image_url(e.get('image'),640),'fanart':onepace.image_url(season.get('image'),1920)})
  return rows
 
 def play_target(seasons_list,season,episode,prefer='dub'):

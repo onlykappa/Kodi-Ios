@@ -15,6 +15,23 @@ def _load():
     return onepace_show, xbmcvfs.translatePath('special://profile')
 
 
+GENRES = ['Animation', 'Action & Adventure']
+YEAR = 1999
+
+
+def art(row, kind):
+    """The art dictionary of a row: the site's own pictures (an arc's backdrop, an episode's still), the show-level keys the header reads, nothing where there is none."""
+    out = {}
+    picture = row.get('thumb') if kind == 'thumb' else row.get('poster')
+    fanart = row.get('fanart')
+    if picture:
+        out['thumb'] = picture
+        out['poster'] = row.get('poster') or picture
+    if fanart:
+        out.update({'fanart': fanart, 'tvshow.fanart': fanart, 'tvshow.poster': row.get('poster') or fanart})
+    return out
+
+
 def url(**params):
     return ME + '?' + urllib.parse.urlencode(dict(action='onepace', **{k: v for k, v in params.items() if v not in (None, '')}))
 
@@ -49,6 +66,8 @@ def directory(handle, params):
             tag.setPlot(r['plot'])
             li.setProperty('IsPlayable', 'true')
             li.setProperty('onepace', 'true')
+            li.setProperty('KodiIOS.SeasonsPath', url())   # the arc row on the episode page (portrait.py library_chips reads it), as for a downloaded show
+            li.setArt(art(r, 'thumb'))
             li.setProperty('onepace_japanese_only', 'true' if r['japanese_only'] else '')
             li.setLabel2(('%dm' % r['minutes'] if r['minutes'] else '') + (' · Japanese only' if r['japanese_only'] else ''))
             rows.append((play_url(r['season'], r['episode']), li, False))
@@ -62,7 +81,11 @@ def directory(handle, params):
             tag.setTvShowTitle(SHOW)
             tag.setSeason(r['season'])
             tag.setPlot(r['plot'])
+            tag.setGenres(GENRES)
+            tag.setYear(YEAR)
             li.setProperty('onepace', 'true')
+            li.setProperty('KodiIOS.ChipLabel', r['label'])   # the arc's name on the row and on the Play and Download buttons (portrait.py), not "Season N"
+            li.setArt(art(r, 'poster'))
             rows.append((url(season=r['season']), li, True))
         xbmcplugin.setContent(handle, 'seasons')
     xbmcplugin.addDirectoryItems(handle, rows)

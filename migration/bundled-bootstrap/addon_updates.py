@@ -58,7 +58,7 @@ def run():
    self.setProperty('button','Check Now')
    self.show(stamp=read_stamp(xbmcvfs))
   def show(self,stamp):
-   found=outdated(xbmc,xbmcvfs);rows=found or []
+   found=outdated(xbmc,xbmcvfs);rows=found or [];self.rows=rows
    self.setProperty('rows',str(min(len(rows),settings_page.UPDATE_ROWS)))
    for n in range(1,settings_page.UPDATE_ROWS+1):
     row=rows[n-1] if n<=len(rows) else {}
@@ -80,7 +80,10 @@ def run():
    self.checking=False
   def onClick(self,control):
    if control in CHECK:self.check()
-   elif ROW_BASE<control<=ROW_BASE+settings_page.UPDATE_ROWS:self.then=OPEN_LIST;self.finish()
+   elif ROW_BASE<control<=ROW_BASE+settings_page.UPDATE_ROWS:
+    row=(getattr(self,'rows',None) or [{}]*99)[control-ROW_BASE-1] if control-ROW_BASE-1<len(getattr(self,'rows',None) or []) else {}
+    if row.get('pinned'):xbmcgui.Dialog().notification('Kept by the app','The app updates this one itself, with its fixes. Updating it here would undo them.',xbmcgui.NOTIFICATION_INFO,6000)
+    else:self.then=OPEN_LIST;self.finish()
    elif control==BACK:self.finish()
   def onAction(self,action):
    if action.getId() in BACK_KEYS:self.finish()

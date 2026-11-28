@@ -168,6 +168,7 @@ class FakeKodi:
             def getVideoInfoTag(s): return s.tag
             def setProperty(s, a, b): s.props[a] = b
             def setLabel2(s, t): s.label2 = t
+            def setArt(s, a): s.art = dict(a)
         class Dialog:
             def notification(s, *a): k.notes.append(a[1])
             def yesno(s, title, text, **kw): k.questions.append((title, text, kw)); return k.yes
@@ -180,23 +181,57 @@ class FakeKodi:
 TMP = ['']
 
 
+class Pages(unittest.TestCase):
+    def test_arc_names_and_pictures_in_the_rows(self):
+        found = onepace.seasons(onepace.parse_watch(PAGE)); found = with_pictures(found)
+        rows = show.season_rows(found)
+        self.assertIn('Monkey D. Luffy', rows[0]['plot']); self.assertTrue(rows[0]['fanart'].startswith('https://onepace.net/_next/image?url=')); self.assertIn('w=1920', rows[0]['fanart']); self.assertIn('w=1080', rows[0]['poster'])
+        eps = show.episode_rows(show.find(found, 1)); self.assertIn('w=640', eps[0]['thumb'])
+        self.assertEqual(onepace.image_url('https://evil.example/x.jpg'), ''); self.assertEqual(onepace.image_url(''), '')
+    def test_an_older_saved_copy_is_read_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            show.write_json(show.folder(tmp) / show.CACHE, {'at': 1000.0, 'seasons': [{'season': 1}]})            # no schema: from before the pictures
+            net = Net(); found, error = show.seasons(tmp, net, lambda: 1001.0)
+            self.assertEqual((net.calls, len(found)), (1, 3))
+    def test_the_show_page_reads_the_arc_name_and_downloads_through_our_route(self):
+        text = (LIB / 'portrait.py').read_text()
+        self.assertIn('Portrait_Chip_Label"><value condition="!String.IsEmpty(ListItem.Property(KodiIOS.ChipLabel))">', text)
+        self.assertIn('Portrait_Season_Short"><value condition="!String.IsEmpty(Container(50).ListItem.Property(KodiIOS.ChipLabel))">', text)
+        self.assertIn("action=onepace_download&season=$INFO[Container(50).ListItem.Season]", text)
+        self.assertIn("[System.HasAddon(plugin.video.elementum) | '+ONE_PACE+']", text)
+
+
+SRC = '/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fa.png&w=640&q=75'
+def with_pictures(found):
+    for arc in found:
+        arc['image'] = SRC
+        for ep in arc.get('episodes', []): ep['image'] = SRC
+    return found
+
+
 class Plugin(unittest.TestCase):
-    def run_route(self, params, yes=True, net=None):
+    def run_route(self, params, yes=True, net=None, pictures=False):
         import ios_onepace
         kodi = FakeKodi(yes)
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(sys.modules, kodi.mods), mock.patch.object(show, 'fetch', net or Net()):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(sys.modules, kodi.mods), mock.patch.object(show, 'fetch', net or Net()), mock.patch.object(show, 'seasons', *([lambda *a, **k: (with_pictures(onepace.seasons(onepace.parse_watch(PAGE))), '')] if pictures else [show.seasons])):
             TMP[0] = tmp
             if params.get('action') == 'onepace_play': ios_onepace.play(1, params)
             elif params.get('action') == 'onepace_download': ios_onepace.download(params)
             else: ios_onepace.directory(1, params)
         return kodi
     def test_the_season_row_lists_arcs_and_an_arc_lists_playable_episodes(self):
-        k = self.run_route({'action': 'onepace'})
+        k = self.run_route({'action': 'onepace'}, pictures=True)
         self.assertEqual((k.content, len(k.items)), ('seasons', 3)); self.assertTrue(all(folder for _, _, folder in k.items)); self.assertIn('season=1', k.items[0][0])
-        e = self.run_route({'action': 'onepace', 'season': '2'})
+        arc = k.items[0][1]   # named by the arc, with its summary, picture and show-level metadata
+        self.assertEqual((arc.label, arc.props['KodiIOS.ChipLabel'], arc.tag.v['Genres'], arc.tag.v['Year']), ('Romance Dawn', 'Romance Dawn', ['Animation', 'Action & Adventure'], 1999))
+        self.assertIn('Monkey D. Luffy', arc.tag.v['Plot']); self.assertIn('Manga chapters', arc.tag.v['Plot']); self.assertIn('fanart', arc.art); self.assertIn('poster', arc.art)
+        e = self.run_route({'action': 'onepace', 'season': '2'}, pictures=True)
         self.assertEqual((e.content, len(e.items)), ('episodes', 2))
         path, li, folder = e.items[0]; self.assertFalse(folder); self.assertIn('action=onepace_play', path); self.assertEqual(li.props['IsPlayable'], 'true'); self.assertEqual(li.props['onepace_japanese_only'], 'true')
         self.assertEqual(li.tag.v['TvShowTitle'], 'One Pace'); self.assertIn('Japanese only', li.label2)
+        # ISSUE-499: the arc row stays on the episode page, and the pictures come from the site
+        self.assertEqual(li.props['KodiIOS.SeasonsPath'], 'plugin://plugin.video.kodi.ios.watch/?action=onepace')
+        self.assertTrue(li.art['thumb'].startswith('https://onepace.net/_next/image?url=') and 'w=640' in li.art['thumb']); self.assertIn('tvshow.fanart', li.art)
     def test_an_unreachable_site_with_no_saved_copy_says_so(self):
         net = Net(); net.down = True
         k = self.run_route({'action': 'onepace'}, net=net)

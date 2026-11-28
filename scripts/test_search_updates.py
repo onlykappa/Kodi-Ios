@@ -176,8 +176,10 @@ class OutdatedAddOns(unittest.TestCase):
 
     def test_rows_use_what_kodi_knows_and_fall_back_to_the_id(self):
         rows = outdated.rows(['script.trakt', 'plugin.video.x'], [{'addonid': 'script.trakt', 'name': 'Trakt', 'thumbnail': '/a.png', 'version': '3.0.1'}])
-        self.assertEqual(rows, [{'id': 'script.trakt', 'name': 'Trakt', 'icon': '/a.png', 'version': '3.0.1'},
-                                {'id': 'plugin.video.x', 'name': 'plugin.video.x', 'icon': '', 'version': ''}])
+        self.assertEqual(rows, [{'id': 'script.trakt', 'pinned': False, 'name': 'Trakt', 'icon': '/a.png', 'version': '3.0.1'},
+                                {'id': 'plugin.video.x', 'pinned': False, 'name': 'plugin.video.x', 'icon': '', 'version': ''}])
+        # ISSUE-499: the app's patched add-ons are marked, so a tap explains instead of replacing them
+        self.assertEqual([(r['pinned'], r['name']) for r in outdated.rows(['plugin.googledrive'], [{'addonid': 'plugin.googledrive', 'name': 'Google Drive'}])], [(True, 'Google Drive (kept by the app)')])
 
     def test_the_page_reads_the_list_with_listdir_and_says_unavailable_only_when_that_fails(self):
         page = load('addon_updates_t', BOOT / 'addon_updates.py')
@@ -185,7 +187,7 @@ class OutdatedAddOns(unittest.TestCase):
         xbmc = types.SimpleNamespace(LOGWARNING=2, log=lambda *a: logged.append(a),
                                      executeJSONRPC=lambda text: __import__('json').dumps({'result': {'addons': [{'addonid': 'script.trakt', 'name': 'Trakt', 'thumbnail': '/a.png', 'version': '3'}]}}))
         listing = types.SimpleNamespace(listdir=lambda path: ([], ['script.trakt', 'update_all']))
-        self.assertEqual(page.outdated(xbmc, listing), [{'id': 'script.trakt', 'name': 'Trakt', 'icon': '/a.png', 'version': '3'}])
+        self.assertEqual(page.outdated(xbmc, listing), [{'id': 'script.trakt', 'pinned': False, 'name': 'Trakt', 'icon': '/a.png', 'version': '3'}])
         self.assertEqual(page.outdated(xbmc, types.SimpleNamespace(listdir=lambda path: ([], []))), [])            # nothing to update: an empty list, not "unavailable"
         def broken(path): raise RuntimeError('x')
         self.assertIsNone(page.outdated(xbmc, types.SimpleNamespace(listdir=broken))); self.assertTrue(logged)

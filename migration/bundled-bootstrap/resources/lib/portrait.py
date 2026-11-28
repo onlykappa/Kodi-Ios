@@ -1123,9 +1123,10 @@ def show_header(ids_down):
   '<visible>%s</visible><onup>9001</onup><ondown condition="%s">52</ondown><ondown condition="%s">50</ondown><ondown condition="%s">9003</ondown>'%(
    play_visible,'Container.Content(episodes)','['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)] + Container.Content(seasons)','!'+DOWNLOADED_SHOW+' + Container.Content(seasons) + System.HasAddon(plugin.video.elementum)'),inline=True)
  header+='<control type="group"><width>%d</width><height>144</height><visible>%s</visible>%s</control>'%(WIDTH,play_visible,play_button)
- download_visible='Container.Content(seasons) + !'+DOWNLOADED_SHOW+' + System.HasAddon(plugin.video.elementum)'
+ ONE_PACE='!String.IsEmpty(Container(50).ListItem.Property(onepace))'   # ISSUE-499: One Pace arcs download through the app's own route, not Elementum
+ download_visible='Container.Content(seasons) + !'+DOWNLOADED_SHOW+' + [System.HasAddon(plugin.video.elementum) | '+ONE_PACE+']'
  header+='<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>%s</control>'%(WIDTH,DL_SHIFT,download_visible,
-  pill_button(9003,SIDE,0,WIDTH-2*SIDE,DL_H,'Download $VAR[Portrait_Season_Short]',[('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
+  pill_button(9003,SIDE,0,WIDTH-2*SIDE,DL_H,'Download $VAR[Portrait_Season_Short]',[(ONE_PACE,'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=onepace_download&season=$INFO[Container(50).ListItem.Season])'),('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
               '<visible>%s</visible><onup>9002</onup><ondown>50</ondown>'%download_visible,inline=True))
  header+='<control type="group"><width>%d</width><height>160</height><control type="textbox"><left>%d</left><top>0</top><width>%d</width><height>132</height><font>p_foot</font><textcolor>%s</textcolor><label>$VAR[Portrait_Show_Plot]</label><autoscroll>false</autoscroll></control></control>'%(WIDTH,SIDE,WIDTH-2*SIDE,GREY)
  return header
@@ -1293,9 +1294,9 @@ SHOW_VARS=('<variable name="Portrait_Show_Art"><value condition="!String.IsEmpty
 SHOW_VARS+=''.join('<variable name="Portrait_Show_%s"><value condition="%s + !String.IsEmpty(Container.Property(KodiIOS.Show%s))">$INFO[Container.Property(KodiIOS.Show%s)]</value><value>$INFO[ListItem.%s]</value></variable>'%
  (name,DOWNLOADED_SHOW,name,name,label) for name,label in (('Plot','Plot'),('Year','Year'),('Rating','Rating'),('Genres','Genre')))
 SHOW_VARS+='<variable name="Portrait_Show_Play_Label"><value condition="%s + Container.Content(seasons) + !String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayLabel))">$INFO[Container(50).ListItem.Property(KodiIOS.PlayLabel)]</value><value condition="%s">$INFO[Container.Property(KodiIOS.PlayLabel)]</value><value>Play $VAR[Portrait_Season_Short]</value></variable>'%(DOWNLOADED_SHOW,DOWNLOADED_SHOW)
-SHOW_VARS+='<variable name="Portrait_Chip_Label"><value condition="String.IsEqual(ListItem.Season,0)">Specials</value><value condition="!String.IsEmpty(ListItem.Season)">Season $INFO[ListItem.Season]</value><value>$INFO[ListItem.Label]</value></variable>'
+SHOW_VARS+='<variable name="Portrait_Chip_Label"><value condition="!String.IsEmpty(ListItem.Property(KodiIOS.ChipLabel))">$INFO[ListItem.Property(KodiIOS.ChipLabel)]</value><value condition="String.IsEqual(ListItem.Season,0)">Specials</value><value condition="!String.IsEmpty(ListItem.Season)">Season $INFO[ListItem.Season]</value><value>$INFO[ListItem.Label]</value></variable>'
 # "Season 4" (or Specials), not the season's long name, on the Play and Download buttons (owner, build 229).
-SHOW_VARS+='<variable name="Portrait_Season_Short"><value condition="String.IsEqual(Container(50).ListItem.Season,0)">Specials</value><value condition="!String.IsEmpty(Container(50).ListItem.Season)">Season $INFO[Container(50).ListItem.Season]</value><value>$INFO[Container(50).ListItem.Label]</value></variable>'
+SHOW_VARS+='<variable name="Portrait_Season_Short"><value condition="!String.IsEmpty(Container(50).ListItem.Property(KodiIOS.ChipLabel))">$INFO[Container(50).ListItem.Property(KodiIOS.ChipLabel)]</value><value condition="String.IsEqual(Container(50).ListItem.Season,0)">Specials</value><value condition="!String.IsEmpty(Container(50).ListItem.Season)">Season $INFO[Container(50).ListItem.Season]</value><value>$INFO[Container(50).ListItem.Label]</value></variable>'
 
 # Settings › Customisation › Info Page: rows under the plot, from TMDb Helper, each behind Fuse's own switch
 # (settings_page.INFO). (key, title, TMDb Helper info, setting, only for, landscape thumbnails)

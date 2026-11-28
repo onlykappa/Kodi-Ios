@@ -21,6 +21,22 @@ def clean(text):
 def strip_tags(fragment):
  return clean(re.sub(r'<[^>]+>',' ',re.sub(r'<!--.*?-->','',fragment,flags=re.S)))
 
+SITE='https://onepace.net'
+WIDTHS=(640,750,828,1080,1200,1920,2048,3840)   # the sizes the site's image service offers
+
+def image_source(fragment):
+ """The site's own address (path and query) of the first picture in a piece of the page, or '' (only its image service for its own pictures is accepted)."""
+ for tag in re.findall(r'<img\b[^>]*>',str(fragment or '')):
+  m=re.search(r'\bsrc="(/_next/image\?url=%2F_next%2Fstatic%2Fmedia%2F[^"]+)"',tag)
+  if m:return html.unescape(m.group(1))
+ return ''
+
+def image_url(source,width=1080):
+ """A full address for a picture at one of the site's offered widths, or '' for anything that is not its image service."""
+ if not str(source or '').startswith('/_next/image?url=%2F_next%2Fstatic%2Fmedia%2F'):return ''
+ width=min((w for w in WIDTHS if w>=int(width)),default=WIDTHS[-1])
+ return SITE+re.sub(r'([?&])w=\d+',r'\g<1>w=%d'%width,source)
+
 def pixeldrain_id(url):
  m=re.match(r'https://pixeldrain\.(?:net|com)/u/([A-Za-z0-9]+)$',str(url or ''))
  return m.group(1) if m else ''
@@ -43,6 +59,7 @@ def parse_watch(page):
   heading=re.search(r'<h2\b[^>]*>(.*?)</h2>',block,re.S)
   parts=re.split(r'(?=<li\b[^>]*\bid="%s-\d+"[^>]*\bvalue="\d+")'%re.escape(slug),block)
   head=strip_tags(parts[0])
+  summary=re.search(r'<p\b[^>]*>(.*?)</p>',parts[0],re.S)
   chapters=re.search(r'Covered manga chapters\s*([0-9][0-9,\s–\-]*)',head)
   anime=re.search(r'Covered anime episodes\s*(.+?)(?:Duration|Covered|$)',head)
   episodes=[]
@@ -63,9 +80,9 @@ def parse_watch(page):
       if res:found[res]=url
    if ident and number:
     episodes.append({'id':ident.group(1),'number':int(number.group(1)),'title':re.sub(r'^\d+\s*:\s*','',strip_tags(title.group(1))) if title else '',
-                     'minutes':int(minutes.group(1)) if minutes else 0,'plot':strip_tags(plot.group(1)) if plot else '','variants':variants})
+                     'minutes':int(minutes.group(1)) if minutes else 0,'plot':strip_tags(plot.group(1)) if plot else '','image':image_source(part),'variants':variants})
   arcs.append({'slug':slug,'title':strip_tags(heading.group(1)) if heading else slug,'chapters':clean(chapters.group(1)) if chapters else '',
-               'anime':clean(anime.group(1)) if anime else '','episodes':episodes})
+               'anime':clean(anime.group(1)) if anime else '','description':strip_tags(summary.group(1)) if summary else '','image':image_source(parts[0]),'episodes':episodes})
  return arcs
 
 DUB_VARIANTS=('English Dub','English Dub with Dubtitles','English Dub with Closed Captions')   # best first: plain dub, then a dub whose captions are burned in
@@ -103,7 +120,7 @@ def seasons(arcs):
   for episode in arc['episodes']:
    got=choose(episode)
    if got:episodes.append(dict(episode,**got))
-  out.append({'season':number,'slug':arc['slug'],'title':arc['title'],'chapters':arc['chapters'],'episodes':episodes,'upcoming':not episodes,
+  out.append({'season':number,'slug':arc['slug'],'title':arc['title'],'chapters':arc['chapters'],'description':arc.get('description',''),'image':arc.get('image',''),'episodes':episodes,'upcoming':not episodes,
               'released':len(arc['episodes']),'dubbed':sum(1 for e in episodes if not e['japanese_only'])})
  return out
 
