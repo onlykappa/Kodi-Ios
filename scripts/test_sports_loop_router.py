@@ -180,4 +180,18 @@ class Tests(unittest.TestCase):
   result,state,logs=self.exercise(select=True)
   self.assertEqual(state['error_dialog_closed'],'Action(Select)')   # the fake backend keeps the last builtin it was given
   self.assertEqual(len([l for l in logs if 'picked the first link' in l]),1)   # one answer for one appearance of the chooser
+class OwnSiteTap(unittest.TestCase):
+  """Owner log e84f1f03: a tap on StreamsCenter (HTTP 403) played nothing else; the game's other sources now follow."""
+  def test_a_tapped_own_site_falls_back_to_the_other_sources_best_first(self):
+    a={'addon':'IndependentStreamsCenter','play':'p-a'};b={'addon':'Crew X','play':'p-b'};c={'addon':'IndependentFawaNews','play':'p-c'}
+    chosen=router.tapped_source(a,[b,a,c])
+    self.assertEqual((chosen['play'],chosen['alts']),('p-a',['p-b','p-c']))
+  def test_a_lone_own_site_is_played_as_it_is_and_the_original_is_not_changed(self):
+    a={'addon':'IndependentStreamsCenter','play':'p-a'}
+    self.assertIs(router.tapped_source(a,[a]),a)
+    router.tapped_source(a,[a,{'addon':'x','play':'p-x'}]);self.assertNotIn('alts',a)
+class WarmUp(unittest.TestCase):
+  def test_the_service_warms_the_sports_modules_in_the_background(self):
+    text=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/service.py').read_text()
+    self.assertIn('def sports_warm():',text);self.assertIn('threading.Thread(target=sports_warm,daemon=True).start()',text);self.assertIn("m.name.startswith('sports_')",text)
 if __name__=='__main__':unittest.main()

@@ -469,6 +469,21 @@ def run():
    return False
   sports_sources_prefetch.watch(sports_provider.get,busy,monitor.waitForAbort,log=lambda text:xbmc.log('Kodi iOS Sports: '+text,xbmc.LOGINFO),poke=poke,first=sports_sources_prefetch.WARM_AFTER)
  threading.Thread(target=sports_prefetch_loop,daemon=True).start()
+ # The first Sports page after a launch took 3-6 s (owner log e84f1f03: the Sports tile pressed twice): its modules were read and its provider built on the tap. Done once, early, in the background.
+ def sports_warm():
+  try:
+   if monitor.waitForAbort(1.5):return
+   import importlib,pkgutil
+   lib=os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib')
+   for name in sorted(m.name for m in pkgutil.iter_modules([lib]) if m.name.startswith('sports_')):
+    if monitor.abortRequested():return
+    try:importlib.import_module(name)
+    except Exception:pass
+   import sports_provider
+   sports_provider.get()
+   xbmc.log('Kodi iOS Sports: warmed up',xbmc.LOGINFO)
+  except Exception:pass
+ threading.Thread(target=sports_warm,daemon=True).start()
  # Safety net: a modal busy dialog nobody lowers is closed after 4 s unless a video is opening or playing (busy_watchdog.py).
  def busy_watchdog_loop():
   import busy_watchdog

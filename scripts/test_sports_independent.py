@@ -57,7 +57,7 @@ class Independent(unittest.TestCase):
   def blocked():
    release.wait(3)
    return None,'blocked'
-  with patch.object(si.StreamsCenter,'get_items',return_value=[item]),patch('sports_livefeeds.LiveFeeds.get_items',return_value=[]),patch('sports_p720.P720Stream.get_items',return_value=[]),patch('sports_fawa.FawaNews.get_items',return_value=[]),patch.object(sj,'import_jet',side_effect=blocked):
+  with patch('sports_livefeeds.LiveFeeds.get_items',return_value=[item]),patch('sports_p720.P720Stream.get_items',return_value=[]),patch('sports_fawa.FawaNews.get_items',return_value=[]),patch.object(sj,'import_jet',side_effect=blocked):
    provider=sj.JetProvider(publish=lambda data:published.append(data))
    done=provider._start()
    for _ in range(100):

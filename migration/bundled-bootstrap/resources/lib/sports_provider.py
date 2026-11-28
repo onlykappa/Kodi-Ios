@@ -217,10 +217,10 @@ OWN_SECONDS = 25   # our own scrapers answer in a few seconds; a site that has n
 def own_extractors():
     """The sites we read ourselves (no The Loop, no JetExtractors, so no boxes and nothing to install): their lists are plain web requests."""
     import sports_fawa
-    import sports_independent
     import sports_livefeeds
     import sports_p720
-    return [sports_independent.StreamsCenter(), sports_fawa.FawaNews(), sports_livefeeds.LiveFeeds(), sports_p720.P720Stream()]
+    # StreamsCenter is left out: since 2026-11-17 its playlists come only through its own authorised-delivery script and every request from here answers HTTP 403 (ISSUE-509).
+    return [sports_fawa.FawaNews(), sports_livefeeds.LiveFeeds(), sports_p720.P720Stream()]
 
 
 def own_sources(game, sleep=time.sleep, clock=time.monotonic, make=None, progress=None):

@@ -42,7 +42,14 @@ def tapped_source(source, sources):
     """What a tap on one source plays: that source first, then the game's other native sources (best first), so a dead link is never the end.
     The tap is a request, not an order for a stream that is known dead: the queue puts it behind working ones (see Health.order)."""
     if not native_route(source):
-        return source
+        # One of our own sites (not a Crew or Loop route): the tap is still never the end. If it cannot open (owner log e84f1f03: StreamsCenter's playlist answered HTTP 403 and
+        # nothing else was tried), the game's other sources follow, best first (sports_jet.play tries up to TRIES in all).
+        rest = [s['play'] for s in sources if s is not source and s.get('play') and s.get('play') != source.get('play')]
+        if not rest:
+            return source
+        result = dict(source)
+        result['alts'] = list(source.get('alts') or []) + rest
+        return result
     others = [s for s in sources if s is not source and native_route(s) and s.get('play') != source.get('play')]
     result = dict(source)
     result['native_queue'] = [{'play': s['play'], 'addon': s.get('addon', '')} for s in [source] + others[:MAX_CHOICES - 1]]

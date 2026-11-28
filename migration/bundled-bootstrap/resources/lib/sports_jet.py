@@ -382,7 +382,7 @@ class JetProvider:
             import sports_fawa
             crew = (self.crew_only or _folder('plugin.video.thecrew')) and not (self.loop_only and _folder('plugin.video.the-loop'))
             import sports_livefeeds, sports_p720
-            extractors = [] if (crew or self.loop_only) else ([sports_fawa.FawaNews()] if _folder('plugin.video.the-loop') else [sports_independent.StreamsCenter(), sports_fawa.FawaNews(), sports_livefeeds.LiveFeeds(), sports_p720.P720Stream()])
+            extractors = [] if (crew or self.loop_only) else ([sports_fawa.FawaNews()] if _folder('plugin.video.the-loop') else [sports_fawa.FawaNews(), sports_livefeeds.LiveFeeds(), sports_p720.P720Stream()])
             how = 'Crew routes' if crew else ('Loop routes' if _folder('plugin.video.the-loop') else 'independent')
             discover_jet = True
         done = threading.Event()
