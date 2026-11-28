@@ -220,6 +220,7 @@ HEAVY_GB = 40.0
 STREAM_MBPS = 10.0
 LIMIT = [0.0]   # ISSUE-498: the limit for this list from what the connection has delivered (connection_speed.allowed), set by umbrella_picker; 0 = STREAM_MBPS
 RUNTIME = [0.0]
+STREAM = [0.0]   # what streams get here in Mbit/s (measured, else the typical one), set by umbrella_picker; the lines judge versions against it
 RUNTIME_GUESSED = [False]   # the length is a typical one for the kind of title, not the title's own: lines say 'about'
 WIFI = [0.0]   # ISSUE-500: what this network has delivered lately in Mbit/s (connection_speed), set by umbrella_picker; 0 = not measured: the page then looks as before
 DISC_WORDS = (' M2TS ', ' BDMV ', ' ISO ', ' BD25 ', ' BD50 ', ' BD66 ', ' BD100 ', ' COMPLETE BLURAY ', ' COMPLETE UHD BLURAY ',
@@ -437,7 +438,7 @@ LIVE = [None]   # the open version page (set while it is up): apply_wifi() refre
 
 
 def apply_wifi(mbps, allowed):
-    """A live reading finished: the page's speed, limit, subtitle, per-version lines and badges follow it."""
+    """A live reading of the line finished: the page's Wi-Fi figure, limit, subtitle, per-version lines and badges follow it."""
     PROBING[0] = False
     if mbps and mbps > 0:
         WIFI[0], LIMIT[0] = float(mbps), float(allowed)
@@ -496,22 +497,29 @@ def wifi_text():
     return u' \u00b7 [COLOR %s]Wi-Fi measuring\u2026[/COLOR]' % BLUE if PROBING[0] else u''
 
 
+def _rate():
+    return STREAM[0] if STREAM[0] > 0 else WIFI[0]
+
+
 def too_heavy_for_wifi(item):
-    return MODE[0] == u'stream' and WIFI[0] > 0 and stream_mbps(item) > (LIMIT[0] or STREAM_MBPS)
+    """A version whose bitrate is over the limit for this connection (streams only, once there is a speed to judge by)."""
+    return MODE[0] == u'stream' and _rate() > 0 and stream_mbps(item) > (LIMIT[0] or STREAM_MBPS)
 
 
 def fit_text(item):
-    """One short line under a version: 'Fits your Wi-Fi \u00b7 needs 13 Mbit/s' or 'Needs 19 Mbit/s \u00b7 Wi-Fi gives 14'; empty when the speed or the length is unknown."""
+    """One short line under a version (ISSUE-503): 'Fits your connection \u00b7 needs 5 Mbit/s', 'Tight \u00b7 needs 12 Mbit/s' (over the safe share, still under what streams get) or
+    'Needs 47 Mbit/s \u00b7 streams get about 13' (over it: the debrid server's stream speed is the limit, not the Wi-Fi). Empty when the speed or the length is unknown."""
     need = stream_mbps(item)
-    if MODE[0] != u'stream' or WIFI[0] <= 0 or need <= 0:
+    if MODE[0] != u'stream' or _rate() <= 0 or need <= 0:
         return u''
     need = max(1, int(round(need)))
     about = u'about ' if RUNTIME_GUESSED[0] else u''
-    if too_heavy_for_wifi(item):
-        if need <= int(round(WIFI[0])):
-            return u'Tight on your Wi-Fi \u00b7 needs %s%d Mbit/s' % (about, need)
-        return u'Needs %s%d Mbit/s \u00b7 Wi-Fi gives %d' % (about, need, max(1, int(round(WIFI[0]))))
-    return u'Fits your Wi-Fi \u00b7 needs %s%d Mbit/s' % (about, need)
+    rate = max(1, int(round(_rate())))
+    if not too_heavy_for_wifi(item):
+        return u'Fits your connection \u00b7 needs %s%d Mbit/s' % (about, need)
+    if need <= rate:
+        return u'Tight \u00b7 needs %s%d Mbit/s' % (about, need)
+    return u'Needs %s%d Mbit/s \u00b7 streams get about %d' % (about, need, rate)
 
 
 def count_label(shown_n, uniq_n):
@@ -734,6 +742,11 @@ def sort_order(rows, how):
 
 def choose_source(title, rows, quality, count_text, mode=u''):
     from elementum.addon import ADDON_PATH
+    try:   # ISSUE-503: what the page is about to show, so a screenshot that disagrees with the code can be traced from the log
+        from kodi_six import xbmc as _xbmc
+        _xbmc.log(u'Kodi iOS deck rows: %s' % u' | '.join(u'%s/%s/%s' % (r.get('meta', u'').split(u' \u00b7 ')[0], r.get('badge', u''), r.get('fit', u'')) for r in rows[:6]), _xbmc.LOGINFO)
+    except Exception:
+        pass
     details = _details_for(title)
     window = _window_class()("DeckSourceSelect.xml", ADDON_PATH, "Default", rows=rows, subject=title,
                              quality=quality, count_text=count_text, poster=details['poster'], details=details, mode=mode)

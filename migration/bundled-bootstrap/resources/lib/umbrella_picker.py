@@ -155,9 +155,10 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
  except Exception:pass
  try:   # ISSUE-498: how much this network has delivered to streams lately sets how heavy a version may be to come first (connection_speed.py)
   import connection_speed,xbmc
-  speeds=connection_speed.open_speeds();key=connection_speed.current_key();estimate=speeds.estimate(key)
-  deck.LIMIT[0]=connection_speed.allowed(estimate);deck.WIFI[0]=float(estimate or 0)
-  xbmc.log(connection_speed.advice(estimate,deck.LIMIT[0])+' (title length %d min%s)'%(deck.RUNTIME[0]//60,', a guess' if deck.RUNTIME_GUESSED[0] else ''),xbmc.LOGINFO)
+  speeds=connection_speed.open_speeds();key=connection_speed.current_key()
+  stream=speeds.estimate(connection_speed.stream_key(key));line=speeds.estimate(key)   # what streams got here, and the line's own speed (kept apart)
+  deck.STREAM[0]=connection_speed.delivery(stream);deck.WIFI[0]=float(line or 0);deck.LIMIT[0]=connection_speed.allowed(stream,line)
+  xbmc.log(connection_speed.advice(stream,deck.LIMIT[0],line)+' (title length %d min%s)'%(deck.RUNTIME[0]//60,', a guess' if deck.RUNTIME_GUESSED[0] else ''),xbmc.LOGINFO)
   # ISSUE-503: and a live reading of the line while the page is open; the page follows it when it is back
   deck.PROBING[0]=True
   def live():
@@ -166,8 +167,8 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
     mbps=connection_speed.probe(lambda url:urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'KodiIOS'}),timeout=4))
     if mbps:speeds.note(key,mbps)
     now=speeds.estimate(key) if mbps else None
-    xbmc.log('Kodi iOS stream advice: live reading %s Mbit/s; this network now %s'%(mbps,now),xbmc.LOGINFO)
-    deck.apply_wifi(now,connection_speed.allowed(now))
+    xbmc.log('Kodi iOS stream advice: live reading %s Mbit/s; the line is now %s'%(mbps,now),xbmc.LOGINFO)
+    deck.apply_wifi(now,connection_speed.allowed(stream,now))
    except Exception:deck.apply_wifi(None,None)
   threading.Thread(target=live,daemon=True).start()
  except Exception:pass

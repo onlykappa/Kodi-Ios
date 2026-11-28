@@ -14,6 +14,8 @@ EVERY=10.0            # a stream records at most this often
 HEADROOM=0.7          # a version may need at most this share of the measured rate (the rest is for stalls and the peaks above the average)
 FLOOR,CAP,DEFAULT=4.0,20.0,10.0   # Mbit/s limits for versions listed first; DEFAULT while nothing is known
 FILE='connection-speed.json'
+STREAM_SUFFIX='#stream'   # the figure of what streams really got (the real path to the debrid server) is kept apart from the line's own speed (the live reading)
+STREAM_TYPICAL=13.0       # what an AllDebrid stream usually gives (owner logs c703d50a, f821266d: 6.6 to 17.7 Mbit/s) until this network has a measured figure
 PROBE_URL='https://speed.cloudflare.com/__down?bytes=4000000'   # a few MB from a fast public host; what the line to the internet gives right now
 PROBE_BYTES,PROBE_SECONDS,PROBE_MIN_BYTES=4000000,3.0,400000
 
@@ -87,15 +89,25 @@ class Speeds:
             return float(found['mbps']) if 0<=self.clock()-float(found['at'])<STALE else None
         except (KeyError,TypeError,ValueError):return None
 
-def allowed(estimate):
-    """The most a version may average, in Mbit/s, to be listed first: HEADROOM of the measured rate between FLOOR and CAP; DEFAULT when nothing is known."""
-    if not estimate or estimate<=0:return DEFAULT
-    return round(max(FLOOR,min(CAP,estimate*HEADROOM)),1)
+def stream_key(key):
+    return (key or '')+STREAM_SUFFIX if key else ''
 
-def advice(estimate,limit):
+def delivery(stream):
+    """What streams get here in Mbit/s: the measured figure, else the typical one for a debrid stream."""
+    return float(stream) if stream and stream>0 else STREAM_TYPICAL
+
+def allowed(stream,line=None):
+    """The most a version may average, in Mbit/s, to be listed first: HEADROOM of what streams delivered (DEFAULT when that is unknown), between FLOOR and CAP, and never more than
+    HEADROOM of the line's own speed when that is known (ISSUE-503: the line's speed alone says nothing about a stream, which the debrid server limits)."""
+    limit=DEFAULT if not stream or stream<=0 else round(max(FLOOR,min(CAP,stream*HEADROOM)),1)
+    if line and line>0:limit=min(limit,round(max(FLOOR,line*HEADROOM),1))
+    return limit
+
+def advice(estimate,limit,line=None):
     """One log line for the version list."""
-    if not estimate:return 'Kodi iOS stream advice: no speed measured on this network yet; versions up to %.0f Mbit/s first'%limit
-    return 'Kodi iOS stream advice: this network delivered %.1f Mbit/s; versions up to %.1f Mbit/s first'%(estimate,limit)
+    seen=' (line %.0f Mbit/s)'%line if line else ''
+    if not estimate:return 'Kodi iOS stream advice: no stream speed measured on this network yet (typical %.0f); versions up to %.0f Mbit/s first%s'%(STREAM_TYPICAL,limit,seen)
+    return 'Kodi iOS stream advice: streams delivered %.1f Mbit/s here; versions up to %.1f Mbit/s first%s'%(estimate,limit,seen)
 
 def open_speeds(translate=None,clock=time.time):
     try:
@@ -120,5 +132,5 @@ def record(meter,now=None,speeds=None,key=None):
         got=meter.rate(now)
         if not got:return None
         speeds=speeds or open_speeds();key=key or current_key()
-        return speeds.note(key,got[0]*8/1e6) if key else None
+        return speeds.note(stream_key(key),got[0]*8/1e6) if key else None
     except Exception:return None

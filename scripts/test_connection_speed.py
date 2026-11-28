@@ -55,7 +55,13 @@ class Advice(unittest.TestCase):
         self.assertEqual(cs.allowed(13.7), 9.6)                # the owner's AllDebrid link: an 11.4 Mbit/s HDR stream is over it
         self.assertEqual(cs.allowed(3.0), cs.FLOOR); self.assertEqual(cs.allowed(100.0), cs.CAP); self.assertEqual(cs.allowed(30.0), 20.0)
     def test_the_log_line_says_what_was_used(self):
-        self.assertIn('no speed measured', cs.advice(None, 10.0)); self.assertIn('13.7 Mbit/s', cs.advice(13.7, 9.6))
+        self.assertIn('no stream speed measured', cs.advice(None, 10.0)); self.assertIn('13.7 Mbit/s', cs.advice(13.7, 9.6)); self.assertIn('line 82 Mbit/s', cs.advice(13.7, 9.6, 82.0))
+    def test_a_slow_line_lowers_the_limit_but_a_fast_one_never_raises_it(self):
+        # ISSUE-503 (owner log f821266d): the line did 82 Mbit/s while streams got 6.6 to 17.7: the line's speed says nothing about a stream
+        self.assertEqual(cs.allowed(13.7, 82.0), 9.6); self.assertEqual(cs.allowed(None, 82.0), cs.DEFAULT); self.assertEqual(cs.allowed(30.0, 82.0), 20.0)
+        self.assertEqual(cs.allowed(30.0, 8.0), 5.6); self.assertEqual(cs.allowed(13.7, 3.0), cs.FLOOR)
+        self.assertEqual(cs.delivery(None), cs.STREAM_TYPICAL); self.assertEqual(cs.delivery(0), cs.STREAM_TYPICAL); self.assertEqual(cs.delivery(8.5), 8.5)
+        self.assertEqual(cs.stream_key('wifi:aaaa'), 'wifi:aaaa#stream'); self.assertEqual(cs.stream_key(''), '')
     def test_record_stores_a_figure_once_enough_was_read(self):
         with tempfile.TemporaryDirectory() as tmp:
             s = cs.Speeds(os.path.join(tmp, cs.FILE), lambda: 5.0); m = cs.Meter()
@@ -63,7 +69,7 @@ class Advice(unittest.TestCase):
             m = cs.Meter()
             for i in range(6): m.add(4 * MB, i * 2.0, i * 2.0 + 2.0)
             got = cs.record(m, 12.0, s, 'wifi:aaaa')
-            self.assertAlmostEqual(got, 16.8, 0); self.assertAlmostEqual(s.estimate('wifi:aaaa'), 16.8, 0)
+            self.assertAlmostEqual(got, 16.8, 0); self.assertAlmostEqual(s.estimate(cs.stream_key('wifi:aaaa')), 16.8, 0); self.assertIsNone(s.estimate('wifi:aaaa'))   # kept apart from the line's own figure
             self.assertIsNone(cs.record(m, 13.0, s, 'wifi:aaaa'))             # not again within ten seconds
     def test_recording_never_raises(self):
         self.assertIsNone(cs.record(None, 1.0, None, 'k'))
@@ -74,7 +80,7 @@ class Wiring(unittest.TestCase):
         lib = ROOT / 'migration/bundled-bootstrap/resources/lib'
         self.assertIn("connection_speed.record(meter,now)", (lib / 'remote_media.py').read_text())
         picker = (lib / 'umbrella_picker.py').read_text()
-        self.assertIn("deck.LIMIT[0]=connection_speed.allowed(estimate);deck.WIFI[0]=float(estimate or 0)", picker); self.assertIn("connection_speed.advice(estimate,deck.LIMIT[0])", picker)
+        self.assertIn("deck.STREAM[0]=connection_speed.delivery(stream);deck.WIFI[0]=float(line or 0);deck.LIMIT[0]=connection_speed.allowed(stream,line)", picker); self.assertIn("connection_speed.advice(stream,deck.LIMIT[0],line)", picker)
         self.assertIn("limit = LIMIT[0] or STREAM_MBPS", (ROOT / 'migration/deck-picker/deck_picker.py').read_text())
 
     def test_the_block_trace_records_a_sample(self):

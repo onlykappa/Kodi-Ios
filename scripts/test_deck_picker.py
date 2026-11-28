@@ -357,45 +357,44 @@ class PacksLast(unittest.TestCase):
   self.assertFalse(dp.names_episode('Show.S01E01','x',1))
 
 class WifiLine(unittest.TestCase):
- # ISSUE-500 (owner mockup): the version page says what this network gives and whether each version fits, on one line each
- def run_state(self,wifi,limit,mode=u'stream'):
-  old=(dp.MODE[0],dp.RUNTIME[0],dp.WIFI[0],dp.LIMIT[0])
-  dp.MODE[0]=mode;dp.RUNTIME[0]=7200.0;dp.WIFI[0]=wifi;dp.LIMIT[0]=limit
+ # ISSUE-503 (owner mockup, then log f821266d: the line did 82 Mbit/s but streams got about 13): the page says what the line gives and judges each version by what streams get
+ def run_state(self,wifi,limit,stream=13.0,mode=u'stream'):
+  old=(dp.MODE[0],dp.RUNTIME[0],dp.WIFI[0],dp.LIMIT[0],dp.STREAM[0],dp.RUNTIME_GUESSED[0])
+  dp.MODE[0]=mode;dp.RUNTIME[0]=7200.0;dp.WIFI[0]=wifi;dp.LIMIT[0]=limit;dp.STREAM[0]=stream;dp.RUNTIME_GUESSED[0]=False
   return old
- def restore(self,old):dp.MODE[0],dp.RUNTIME[0],dp.WIFI[0],dp.LIMIT[0]=old
- def test_subtitle_and_lines_when_the_speed_is_known(self):
-  old=self.run_state(14.0,9.8)
+ def restore(self,old):dp.MODE[0],dp.RUNTIME[0],dp.WIFI[0],dp.LIMIT[0],dp.STREAM[0],dp.RUNTIME_GUESSED[0]=old
+ def test_subtitle_and_lines_judge_against_what_streams_get_not_the_line(self):
+  old=self.run_state(82.0,9.1)
   try:
-   self.assertEqual(dp.wifi_text(),u' \u00b7 [COLOR FF0A84FF]Wi-Fi 14 Mbit/s[/COLOR]');self.assertEqual(dp.count_label(5,12),u'Top 5 of 12 versions')   # the page adds the Wi-Fi text, so a live reading can change it
-   dp.PROBING[0]=True;self.assertIn('Wi-Fi 14 Mbit/s \u00b7 measuring',dp.wifi_text());dp.WIFI[0]=0.0;self.assertIn('Wi-Fi measuring',dp.wifi_text());dp.WIFI[0]=14.0;dp.PROBING[0]=False
-   self.assertEqual(dp.fit_text({'size':4.5}),u'Fits your Wi-Fi \u00b7 needs 5 Mbit/s');self.assertEqual(dp.fit_text({'size':16.0}),u'Needs 19 Mbit/s \u00b7 Wi-Fi gives 14');self.assertEqual(dp.fit_text({'size':9.0}),u'Tight on your Wi-Fi \u00b7 needs 11 Mbit/s')
-   self.assertFalse(dp.too_heavy_for_wifi({'size':4.5}));self.assertTrue(dp.too_heavy_for_wifi({'size':16.0}))
+   self.assertEqual(dp.wifi_text(),u' \u00b7 [COLOR FF0A84FF]Wi-Fi 82 Mbit/s[/COLOR]');self.assertEqual(dp.count_label(5,12),u'Top 5 of 12 versions')   # the page adds the Wi-Fi text, so a live reading can change it
+   dp.PROBING[0]=True;self.assertIn('Wi-Fi 82 Mbit/s \u00b7 measuring',dp.wifi_text());dp.WIFI[0]=0.0;self.assertIn('Wi-Fi measuring',dp.wifi_text());dp.WIFI[0]=82.0;dp.PROBING[0]=False
+   self.assertEqual(dp.fit_text({'size':4.5}),u'Fits your connection \u00b7 needs 5 Mbit/s')          # 4.5 GB over 2 h
+   self.assertEqual(dp.fit_text({'size':8.0}),u'Tight \u00b7 needs 10 Mbit/s')                          # over the safe 9.1, under the 13 streams get
+   self.assertEqual(dp.fit_text({'size':16.0}),u'Needs 19 Mbit/s \u00b7 streams get about 13')         # the Wi-Fi (82) is not the limit
+   self.assertFalse(dp.too_heavy_for_wifi({'size':4.5}));self.assertTrue(dp.too_heavy_for_wifi({'size':8.0}));self.assertTrue(dp.too_heavy_for_wifi({'size':16.0}))
   finally:self.restore(old)
- def test_nothing_changes_without_a_measured_speed_or_for_downloads(self):
-  for wifi,mode in ((0.0,u'stream'),(14.0,u'download')):
-   old=self.run_state(wifi,0.0,mode)
+ def test_nothing_changes_for_downloads_or_without_any_speed(self):
+  for wifi,stream,mode in ((0.0,0.0,u'stream'),(14.0,13.0,u'download')):
+   old=self.run_state(wifi,0.0,stream,mode)
    try:self.assertEqual(dp.wifi_text(),u'');self.assertEqual(dp.fit_text({'size':4.5}),u'');self.assertFalse(dp.too_heavy_for_wifi({'size':16.0}))
    finally:self.restore(old)
  def test_rows_carry_the_line_and_a_may_buffer_badge(self):
-  old=self.run_state(14.0,9.8)
+  old=self.run_state(82.0,9.1)
   try:
    items=[dict(name='Film.1080p.WEB-DL.x264',tags_text='',providers=[],quality='1080p',seeds=5,size=4.5,icon='',idx=0),dict(name='Film.1080p.WEB.x265',tags_text='',providers=[],quality='1080p',seeds=4,size=16.0,icon='',idx=1)]
    dp._CONTEXT['exp']=None;rows=dp.build_rows(dp.pick(items,10))
    self.assertEqual([r['badge'] for r in rows],[u'BEST MATCH',u'MAY BUFFER']);self.assertEqual([bool(r['fitwarn']) for r in rows],[False,True]);self.assertTrue(rows[0]['fit'].startswith(u'Fits'))
   finally:self.restore(old)
  def test_a_guessed_length_says_about_and_a_live_reading_updates_the_page(self):
-  old=self.run_state(14.0,9.8)
+  old=self.run_state(14.0,9.1)
   try:
-   dp.RUNTIME_GUESSED[0]=True;self.assertEqual(dp.fit_text({'size':4.5}),u'Fits your Wi-Fi \u00b7 needs about 5 Mbit/s');dp.RUNTIME_GUESSED[0]=False
-   shown=[dict(name='Film.1080p.WEB-DL.x264',tags_text='',providers=[],quality='1080p',seeds=5,size=9.0,icon='',idx=0),dict(name='Film.1080p.WEB.x265',tags_text='',providers=[],quality='1080p',seeds=4,size=1.0,icon='',idx=1)]
-   dp._CONTEXT['exp']=None;rows=dp.build_rows(dp.pick(shown,10))
+   dp.RUNTIME_GUESSED[0]=True;self.assertEqual(dp.fit_text({'size':4.5}),u'Fits your connection \u00b7 needs about 5 Mbit/s');dp.RUNTIME_GUESSED[0]=False
    class Page:
     def __init__(s):s.calls=0
     def refresh_live(s):s.calls+=1
    page=Page();dp.LIVE[0]=page;dp.PROBING[0]=True
-   dp.apply_wifi(40.0,28.0);self.assertEqual((dp.WIFI[0],dp.LIMIT[0],dp.PROBING[0],page.calls),(40.0,20.0 if False else 28.0,False,1))
+   dp.apply_wifi(40.0,9.1);self.assertEqual((dp.WIFI[0],dp.LIMIT[0],dp.PROBING[0],page.calls),(40.0,9.1,False,1))
    dp.apply_wifi(None,None);self.assertEqual((dp.WIFI[0],page.calls),(40.0,2))   # a failed reading keeps what was known
-   self.assertEqual([r['badge'] for r in rows][0] in (u'BEST MATCH',u'SMALLEST'),True);dp.LIVE[0]=None
   finally:
    dp.LIVE[0]=None;dp.PROBING[0]=False;self.restore(old)
 

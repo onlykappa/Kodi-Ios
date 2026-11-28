@@ -22,8 +22,9 @@ import deck_picker as dp
 
 dp.MODE[0] = u'stream'
 dp.RUNTIME[0] = 3300.0                    # a 55 minute episode
-dp.WIFI[0] = 14.0 if name == 'wifi' else 0.0
-dp.LIMIT[0] = 9.8 if name == 'wifi' else 0.0
+dp.WIFI[0] = 82.0 if name == 'wifi' else 0.0
+dp.STREAM[0] = 13.0 if name == 'wifi' else 0.0
+dp.LIMIT[0] = 9.1 if name == 'wifi' else 0.0
 
 
 def item(n, size, seeds, tags):
