@@ -496,6 +496,14 @@ def run():
    return xbmcvfs.translatePath(xbmcaddon.Addon(loop_notice.ADDON).getAddonInfo('path'))
   loop_notice.watch(folder,monitor.waitForAbort,lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
  threading.Thread(target=loop_notice_loop,daemon=True).start()
+ # The Crew's version window as a portrait sheet (owner-approved board, crew_notice.py): only the exact pinned files, checked every 20 s.
+ def crew_notice_loop():
+  import crew_notice
+  def folder():
+   if not xbmc.getCondVisibility('System.HasAddon(%s)'%crew_notice.ADDON):return ''
+   return xbmcvfs.translatePath(xbmcaddon.Addon(crew_notice.ADDON).getAddonInfo('path'))
+  crew_notice.watch(folder,monitor.waitForAbort,lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+ threading.Thread(target=crew_notice_loop,daemon=True).start()
  # Crew's client lacks the parseDOM name its own downloaded streamers call (build 616 log: "Streamer [generic] failed"): added once at start, for Movies and TV too.
  def crew_alias():
   try:

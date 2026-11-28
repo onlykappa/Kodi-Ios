@@ -11,6 +11,8 @@
 # its own thread, so the bar is up as Home opens instead of when Python starts (2-4.5 s later on the phone). The
 # setup add-on reads kodi_glassbar_native_owner() and then leaves the bar alone (no second owner). The first show
 # appears at once, without the fade.
+# r7: the iPhone Files picker for "Install from zip file" (kodi_pick_zip, kodi_pick_take; addon_zip.py). Written on Linux and NOT yet
+# compiled or run anywhere: the first macOS build is its first test.
 # Usage: build-glassbar.sh OUT_DIR
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }
@@ -483,6 +485,76 @@ __attribute__((visibility("default"))) int kodi_search_take(char *buffer, int si
     }
     return events;
 }
+// ---- r7: the iPhone Files picker, for "Install from zip file" ---------------------------------------------------------
+// Python calls kodi_pick_zip() (the system document picker opens over Kodi) and then polls kodi_pick_take() for the answer:
+// 0 still open, 1 a file was chosen (buffer holds the path of a COPY the app owns, in its temporary folder), 2 cancelled,
+// -1 the copy failed. Import mode makes the system hand the app its own copy, so no security-scoped bookmark is kept.
+static atomic_int pickState = 0;
+static NSString *pickPath = @"";
+
+@interface KodiPickHandler : NSObject <UIDocumentPickerDelegate>
+@end
+
+@implementation KodiPickHandler
+- (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+    NSURL *url = urls.firstObject;
+    NSString *copy = nil;
+    if (url) {
+        BOOL scoped = [url startAccessingSecurityScopedResource];
+        NSFileManager *files = NSFileManager.defaultManager;
+        NSString *folder = [NSTemporaryDirectory() stringByAppendingPathComponent:@"kodi-zip-pick"];
+        [files createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil error:nil];
+        NSString *destination = [folder stringByAppendingPathComponent:url.lastPathComponent];
+        [files removeItemAtPath:destination error:nil];
+        NSError *error = nil;
+        if ([files copyItemAtURL:url toURL:[NSURL fileURLWithPath:destination] error:&error]) copy = destination;
+        if (scoped) [url stopAccessingSecurityScopedResource];
+    }
+    if (copy) {
+        @synchronized (KodiPickHandler.class) { pickPath = copy; }
+        atomic_store(&pickState, 1);
+    } else {
+        atomic_store(&pickState, -1);
+    }
+}
+- (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
+    atomic_store(&pickState, 2);
+}
+@end
+
+static KodiPickHandler *pickHandler;
+
+// Opens the Files picker for zip files. Any thread.
+__attribute__((visibility("default"))) void kodi_pick_zip(void) {
+    atomic_store(&pickState, 0);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *window = kodiWindow();
+        UIViewController *top = window.rootViewController;
+        while (top.presentedViewController) top = top.presentedViewController;
+        if (!top) { atomic_store(&pickState, -1); return; }
+        if (!pickHandler) pickHandler = [KodiPickHandler new];
+        // (initWithDocumentTypes:inMode: is deprecated from iOS 14 but still works and needs no extra framework.)
+        UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initWithDocumentTypes:@[@"public.zip-archive"] inMode:UIDocumentPickerModeImport];
+        picker.delegate = pickHandler;
+        picker.allowsMultipleSelection = NO;
+        [top presentViewController:picker animated:YES completion:nil];
+    });
+}
+
+// The picker's answer (0 still open, 1 chosen, 2 cancelled, -1 failed) and, for 1, the file's path as UTF-8 in buffer. Any thread.
+__attribute__((visibility("default"))) int kodi_pick_take(char *buffer, int size) {
+    int state = atomic_load(&pickState);
+    if (state == 1 && buffer && size > 0) {
+        NSString *path;
+        @synchronized (KodiPickHandler.class) { path = pickPath; }
+        const char *utf8 = path.UTF8String ?: "";
+        strncpy(buffer, utf8, (size_t)size - 1);
+        buffer[size - 1] = 0;
+    }
+    if (state != 0) atomic_store(&pickState, 0);
+    return state;
+}
+
 OBJC
 FW="$OUT/KodiGlassBar.framework"; rm -rf "$FW"; mkdir -p "$FW"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
@@ -502,6 +574,6 @@ cat > "$FW/Info.plist" <<PLIST
 <key>MinimumOSVersion</key><string>$MIN_IOS</string>
 </dict></plist>
 PLIST
-nm -gU "$FW/KodiGlassBar" | grep -E ' _kodi_(glassbar_(show|select|take_tap|set_native_owner|native_owner)|search_(show|focus|set|take|context))$'
+nm -gU "$FW/KodiGlassBar" | grep -E ' _kodi_(glassbar_(show|select|take_tap|set_native_owner|native_owner)|search_(show|focus|set|take|context)|pick_(zip|take))$'
 lipo -info "$FW/KodiGlassBar"
 (cd "$OUT" && zip -qry KodiGlassBar.framework.zip KodiGlassBar.framework && shasum -a 256 KodiGlassBar.framework.zip | tee KodiGlassBar.framework.zip.sha256)

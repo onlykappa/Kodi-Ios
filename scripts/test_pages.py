@@ -109,6 +109,16 @@ class Pages(unittest.TestCase):
   text=(self.skin/'portrait/AddonBrowser.xml').read_text()
   for gone in ('9011','9012','9013','9014','From Zip','My Add-ons'):self.assertNotIn(gone,text)
   self.assertIn('Browse add-ons by category',text);self.assertIn('RunScript(service.kodi.ios.bootstrap,addon_search)',text)
+ def test_front_page_rows_are_our_own_buttons(self):
+  # Kodi's list rows run Kodi's own actions (its zip file browser, its search keyboard); ours run the new flows.
+  text=(self.skin/'portrait/AddonBrowser.xml').read_text()
+  for action in ('RunScript(service.kodi.ios.bootstrap,addon_zip)','Container.Update(addons://repos/)','Container.Update(addons://user/)','RunScript(service.kodi.ios.bootstrap,addon_search)'):
+   self.assertIn(action,text)
+  self.assertNotIn('InstallFromZip',text)
+ def test_select_dialog_shows_koditis_ok_button(self):
+  # The install prompt ("The following additional add-ons will be installed") confirms with the select dialog's button 5.
+  root,ids=self.ids('portrait/DialogSelect.xml');self.assertEqual(ids.get('5'),'button')
+  five=[c for c in root.iter('control') if c.get('id')=='5'][0];self.assertIsNone(five.find('visible'))
  def test_event_log_rows_keep_kodis_ids(self):
   root,ids=self.ids('portrait/EventLog.xml')
   self.assertEqual({k:ids.get(k) for k in ('20','21','22','4','50')},{'20':'button','21':'button','22':'togglebutton','4':'togglebutton','50':'list'})

@@ -86,7 +86,7 @@ def confirm_dialog(p,original):
  (the likely choice on the trailing side, bold) and a custom third stacks all three, Cancel last. The buttons keep
  their ids and a 118-unit height but draw nothing themselves: the rows are separate images and labels that follow
  which buttons Kodi shows (their text is read back with Control.GetLabel). A destructive verb is red."""
- w=800;rh=118;top=400;h_two=top+rh;h_three=top+3*rh;M=p.MEDIA
+ w=800;rh=118;top=480;h_two=top+rh;h_three=top+3*rh;M=p.MEDIA
  v=lambda i:'Control.IsVisible(%d)'%i
  three=v(12);two='%s + %s + !%s'%(v(10),v(11),v(12));only10='%s + !%s + !%s'%(v(10),v(11),v(12));only11='%s + !%s + !%s'%(v(11),v(10),v(12))
  x=(p.WIDTH-w)//2;y=(p.HEIGHT-h_two)//2
@@ -214,6 +214,32 @@ def addon_browser(p,original):
  hidden_row='![String.IsEqual(ListItem.FolderPath,addons://search/)] + ![String.IsEqual(ListItem.Label,..)]'   # Kodi's own Search row, and the ".." row a search page lists
  lists=media_list(p,50,list_top,40,lambda f:'<control type="group"><visible>%s</visible>%s</control>'%(hidden_row,tall(f)),ROWT,
                   extra='<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(field_room,ADDON_SEARCH_PAGE))
+
+ # The front page's choices are our own buttons (Kodi's list items run Kodi's own actions: its zip file browser and its search
+ # keyboard cannot be replaced from the skin), so the list is not drawn at the root. Each does what Kodi's own row did.
+ DOWNLOADING='!String.IsEmpty(Window(Home).Property(Addon.Install.Name))'
+ root_rows=[('user','My add-ons','Add-ons on this iPhone','database.png','Container.Update(addons://user/)',''),
+            ('updates','Available updates','$INFO[System.AddonUpdateCount] can update','arrows-rotate.png','Container.Update(addons://outdated/)',UPDATES),
+            ('recent','Recently updated','Add-ons that changed lately','clock-rotate-left.png','Container.Update(addons://recently_updated/)','!%s'%('['+UPDATES+']')),
+            ('down','Downloading','$INFO[Window(Home).Property(Addon.Install.Name)] is being installed','cloud-arrow-down.png','Container.Update(addons://downloading/)',DOWNLOADING),
+            ('repos','Install from repository','Browse add-ons by category','database.png','Container.Update(addons://repos/)',''),
+            ('zip','Install from zip file','Add-ons you downloaded yourself','file-zipper.png','RunScript(service.kodi.ios.bootstrap,addon_zip)','')]
+ def root_row(n,key,label,sub,glyph,action,vis):
+  x=40+84+34;h=ROWT
+  btn=('<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
+       '<texturefocus colordiffuse="%s">%swhite.png</texturefocus><texturenofocus colordiffuse="%s">%swhite.png</texturenofocus>'
+       '<onclick>%s</onclick><onup>%s</onup><ondown>%s</ondown></control>')%(9040+n,w,h,p.SURFACE2,p.MEDIA,p.SURFACE,p.MEDIA,action,'9030','9030')
+  dot=''
+  if key=='updates':
+   dot=(p.surface(w-200,(h-58)//2,58,58,'tile84.png',RED,24)+p.label(w-200,(h-58)//2,58,58,'$INFO[System.AddonUpdateCount]','p_cap',p.WHITE,'center'))
+  return ('<control type="group"><width>%d</width><height>%d</height>%s'%(w,h,('<visible>%s</visible>'%vis) if vis else '')+btn+
+          p.image(x,h-2,w-x,2,p.MEDIA+'white.png',p.SEP)+p.surface(40,(h-84)//2,84,84,'tile84.png','FF0F0F10',24)+
+          p.icon(40+9,(h-66)//2,66,glyph,p.WHITE)+p.label(x,24,w-x-200,70,label,'p_body',p.WHITE,'left','<scroll>false</scroll>')+
+          p.label(x,92,w-x-200,56,sub,'p_foot',p.GREY,'left','<scroll>false</scroll>')+dot+
+          p.icon(w-74,(h-34)//2,34,'chevron-right.png',p.DIM)+'</control>')
+ root_list=('<control type="grouplist" id="9039"><left>%d</left><top>%d</top><width>%d</width><bottom>40</bottom><orientation>vertical</orientation><itemgap>0</itemgap>'
+            '<visible>%s</visible>'%(p.SIDE,list_top,w,root)+''.join(root_row(i,*r) for i,r in enumerate(root_rows))+'</control>')
+ lists=lists.replace('<control type="list" id="50">','<control type="list" id="50"><visible>![%s]</visible>'%root,1)+root_list
  title='$INFO[Container.FolderName]'
  blank='String.Contains(Container.FolderPath,%E2%80%8B)'
  none='Integer.IsEqual(Container(50).NumItems,0)'
