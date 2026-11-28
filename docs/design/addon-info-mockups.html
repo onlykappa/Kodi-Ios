@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Add-on Page Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* MOCKUP: browser rendering only. Not evidence of how Kodi draws it (APPLE-UI-POLICY §9).
+   Tokens are the portrait.py / pages.py tokens (policy §4.3). Inter is the approved font (§4.2). */
+:root{
+  --bg:#000;
+  --surface:#1c1c1e;      /* SURFACE  */
+  --surface2:#2c2c2e;     /* SURFACE2 */
+  --white:#fff;
+  --grey:rgba(235,235,245,.6);   /* GREY: secondary text */
+  --sep:rgba(235,235,245,.2);    /* SEP  */
+  --blue:#0a84ff;         /* fills */
+  --blue-text:#4fa8ff;    /* blue text and glyphs */
+  --green:#30d158;
+  --red:#ff453a;
+  --orange:#ff9f0a;
+  --tile:#0f0f10;
+  --radius:10px;          /* RADIUS 26 units */
+  --page:#0a0a0b;
+  --font:Inter,-apple-system,system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--page);color:var(--white);font-family:var(--font);-webkit-font-smoothing:antialiased}
+svg{display:block}
+
+.intro{max-width:1240px;margin:0 auto;padding:48px 16px 8px}
+.eyebrow{color:var(--grey);font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.intro h1{font-size:clamp(28px,5vw,42px);font-weight:800;letter-spacing:-.02em;margin:8px 0 12px}
+.intro p{color:#b4b4ba;font-size:16px;line-height:1.5;max-width:820px;margin-bottom:10px}
+.intro b{color:#fff}
+.grid{max-width:1400px;margin:0 auto;padding:24px 16px 64px;display:flex;flex-wrap:wrap;gap:56px 40px;justify-content:center}
+figure{display:flex;flex-direction:column;align-items:center;gap:16px;width:min(422px,100%)}
+figcaption{width:100%;max-width:402px}
+figcaption .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+figcaption h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+figcaption p{color:var(--grey);font-size:14px;line-height:1.45}
+
+/* ---- phone: 402 x 778 pt safe area like the iPhone 16 Pro portrait skin ---- */
+.phone{width:min(422px,100%);height:874px;border-radius:60px;padding:10px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.screen{position:relative;width:100%;height:100%;border-radius:50px;overflow:hidden;background:var(--bg)}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:120px;height:34px;background:#000;border-radius:20px;z-index:40}
+.status{position:absolute;top:0;left:0;right:0;height:56px;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:8px 32px 0 40px;font-weight:600;font-size:16px;background:#000}
+.home-ind{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#fff;z-index:40}
+.scroll{position:absolute;inset:0;overflow-y:auto;padding:56px 0 48px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+
+/* header: nav_button chevron (no circle, 150-unit area) + centred title */
+.nav{position:sticky;top:0;z-index:20;height:56px;background:#000;display:flex;align-items:center;justify-content:center}
+.nav .back{position:absolute;left:4px;top:0;width:56px;height:56px;display:grid;place-items:center}
+.nav .back svg{width:14px;height:24px}
+.nav .t{font-size:17px;font-weight:700;letter-spacing:-.01em}
+
+/* hero: tile + name + author + meta chips; wraps, never cut off */
+.hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:14px 24px 4px}
+.tile{width:96px;height:96px;border-radius:23px;background:var(--tile);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.14);display:grid;place-items:center;overflow:hidden}
+.tile .lt{font-weight:800;font-size:42px;letter-spacing:-.03em}
+.tile svg{width:46px;height:46px}
+.hero h1{font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.15;margin-top:16px;max-width:330px}
+.hero .by{color:var(--grey);font-size:15px;margin-top:6px;line-height:1.3}
+.status-chip{display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-size:13px;font-weight:600;padding:5px 11px;border-radius:99px;background:var(--surface)}
+.status-chip i{width:8px;height:8px;border-radius:50%;background:var(--green);display:block}
+.status-chip.off i{background:#8e8e93}
+.status-chip.upd i{background:var(--blue)}
+.status-chip.new i{background:transparent;box-shadow:inset 0 0 0 1.5px #8e8e93}
+
+/* actions: one primary (white capsule), secondary dark capsule, 50 pt high */
+.actions{display:flex;gap:10px;padding:20px 20px 6px}
+.btn{flex:1;height:50px;border-radius:25px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:17px;font-weight:600;background:var(--surface2);color:#fff;white-space:nowrap}
+.btn.primary{background:#fff;color:#000}
+.btn svg{width:19px;height:19px}
+
+/* grouped lists */
+.gap{height:28px}
+.sh{color:var(--grey);font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:0 36px 8px}
+.group{background:var(--surface);border-radius:var(--radius);margin:0 20px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;min-height:52px;padding:0 16px;position:relative}
+.row + .row::before{content:"";position:absolute;left:16px;right:0;top:0;height:.5px;background:var(--sep)}
+.row .lb{flex:1;font-size:17px;letter-spacing:-.015em;padding:13px 0;line-height:1.25}
+.row .lb small{display:block;color:var(--grey);font-size:13px;margin-top:2px;letter-spacing:0;line-height:1.3}
+.row .val{color:var(--grey);font-size:17px;text-align:right;max-width:58%;line-height:1.25;padding:13px 0}
+.row .chev{width:8px;height:14px;color:rgba(235,235,245,.3);flex:none}
+.ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;background:var(--tile);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.12);color:var(--c,#8e8e93)}
+.ic svg{width:18px;height:18px}
+.tg{width:51px;height:31px;border-radius:16px;background:#39393d;position:relative;flex:none}
+.tg::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25)}
+.tg.on{background:var(--green)}
+.tg.on::after{left:22px}
+.blue{color:var(--blue-text)}
+.red{color:var(--red)}
+
+/* description card: full text, whole-page scroll, never truncated */
+.desc{padding:14px 16px 16px;font-size:16px;line-height:1.5;color:rgba(255,255,255,.88)}
+.desc p + p{margin-top:12px}
+.desc.warn{display:flex;gap:12px;align-items:flex-start}
+.desc.warn svg{width:22px;height:22px;color:var(--orange);flex:none;margin-top:1px}
+
+/* sheet (Versions): dimmed page + SURFACE2 sheet with a visibly larger top radius, grabber, X close */
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:50}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:60;background:var(--surface2);border-radius:28px 28px 0 0;padding:8px 0 34px;box-shadow:0 -10px 40px rgba(0,0,0,.5)}
+.sheet .grab{width:36px;height:5px;border-radius:3px;background:rgba(235,235,245,.3);margin:0 auto 6px}
+.sheet .hd{display:flex;align-items:center;justify-content:space-between;padding:6px 20px 12px 20px}
+.sheet .hd h3{font-size:22px;font-weight:800;letter-spacing:-.02em}
+.sheet .x{width:44px;height:44px;margin:-6px -10px -6px 0;display:grid;place-items:center}
+.sheet .x i{width:30px;height:30px;border-radius:50%;background:rgba(235,235,245,.14);display:grid;place-items:center}
+.sheet .x svg{width:12px;height:12px}
+.sheet .group{background:var(--surface)}
+.sheet .note{color:var(--grey);font-size:13px;line-height:1.4;padding:10px 36px 0}
+.ver{font-weight:600}
+.pill{font-size:12px;font-weight:700;padding:3px 9px;border-radius:99px;background:rgba(10,132,255,.22);color:var(--blue-text)}
+.check{width:20px;height:20px;color:var(--blue-text)}
+.legend{max-width:1240px;margin:0 auto;padding:0 16px 56px}
+.legend h2{font-size:22px;font-weight:800;margin:28px 0 10px}
+.legend table{border-collapse:collapse;width:100%;font-size:14px}
+.legend th,.legend td{text-align:left;padding:9px 12px;border-bottom:1px solid #26262a;vertical-align:top;line-height:1.4}
+.legend th{color:var(--grey);font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.legend td:first-child{white-space:nowrap;color:#fff;font-weight:600}
+.legend td{color:#c8c8ce}
+.legend code{background:#1c1c1e;padding:1px 6px;border-radius:5px;font-size:13px}
+@media(max-width:700px){.legend{overflow-x:auto}}
+
+/* install flow */
+.nav .act{position:absolute;right:4px;top:0;width:56px;height:56px;display:grid;place-items:center;color:var(--blue-text)}
+.nav .act svg{width:22px;height:22px}
+.arow{display:flex;align-items:center;gap:14px;padding:12px 16px;min-height:76px;position:relative}
+.arow + .arow::before{content:"";position:absolute;left:82px;right:0;top:0;height:.5px;background:var(--sep)}
+.arow .tile{width:52px;height:52px;border-radius:13px;flex:none}
+.arow .tile .lt{font-size:22px}
+.arow .nm{flex:1;font-size:17px;font-weight:600;letter-spacing:-.015em;line-height:1.25}
+.arow .nm small{display:block;color:var(--grey);font-size:13px;font-weight:400;margin-top:2px;letter-spacing:0}
+.arow .st{font-size:13px;font-weight:600;color:var(--blue-text);white-space:nowrap}
+.arow .st.ok{color:var(--green)}
+.alert{position:absolute;left:51px;right:51px;top:50%;transform:translateY(-50%);z-index:60;background:var(--surface2);border-radius:26px;overflow:hidden;text-align:center}
+.alert .b{padding:24px 20px 20px}
+.alert h3{font-size:19px;font-weight:700;letter-spacing:-.01em;line-height:1.25}
+.alert p{color:var(--grey);font-size:14px;line-height:1.4;margin-top:6px}
+.alert .two{display:flex;border-top:.5px solid var(--sep)}
+.alert .two div{flex:1;height:56px;display:grid;place-items:center;font-size:17px;color:var(--blue-text)}
+.alert .two div + div{border-left:.5px solid var(--sep);font-weight:700}
+.bar{height:4px;border-radius:2px;background:rgba(255,255,255,.2);overflow:hidden;margin-top:12px}
+.bar i{display:block;height:100%;background:var(--blue);border-radius:2px}
+.card2{position:absolute;left:20px;right:20px;bottom:44px;z-index:60;background:var(--surface2);border-radius:22px;padding:14px 16px 16px;display:flex;flex-direction:column}
+.card2 .r{display:flex;align-items:center;gap:12px}
+.card2 .tile{width:44px;height:44px;border-radius:11px;flex:none}
+.card2 .tile .lt{font-size:19px}
+.card2 b{font-size:16px;font-weight:700;letter-spacing:-.01em;display:block}
+.card2 span.s{color:var(--grey);font-size:13px;display:block;margin-top:2px}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="tick" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="chev" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="back" viewBox="0 0 14 24"><path d="M12 2L3 12l9 10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="x" viewBox="0 0 12 12"><path d="M1 1l10 10M11 1L1 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="puzzle" viewBox="0 0 24 24"><path fill="currentColor" d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.7 2.7 0 0 1 0 5.4H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.7 2.7 0 0 1 5.4 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></symbol>
+    <symbol id="play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.5v13a1 1 0 0 0 1.5.9l10.5-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z"/></symbol>
+    <symbol id="gear" viewBox="0 0 24 24"><path fill="currentColor" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm8.4-2.6l1.6 1.2-2 3.5-1.9-.6a7 7 0 0 1-1.6.9l-.4 2.1h-4l-.4-2.1a7 7 0 0 1-1.6-.9l-1.9.6-2-3.5 1.6-1.2a7 7 0 0 1 0-1.8L3.6 9.9l2-3.5 1.9.6a7 7 0 0 1 1.6-.9l.4-2.1h4l.4 2.1c.6.2 1.1.5 1.6.9l1.9-.6 2 3.5-1.6 1.2a7 7 0 0 1 0 1.8z"/></symbol>
+    <symbol id="down" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"/></symbol>
+    <symbol id="branch" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M7 4v12m0 0a3 3 0 1 0 0 .01M7 8a3 3 0 1 0 0-.01m10 0a3 3 0 1 0 0-.01M17 11c0 4-10 2-10 5"/></symbol>
+    <symbol id="graph" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M6 8a2.5 2.5 0 1 0 0 .01M18 5a2.5 2.5 0 1 0 0 .01M18 19a2.5 2.5 0 1 0 0 .01M8.3 7l7.4-1.4M8 9.5l8 8"/></symbol>
+    <symbol id="clock" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4M12 7v5l3 2"/></symbol>
+    <symbol id="doc" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></symbol>
+    <symbol id="trash" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+    <symbol id="warn" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3l10 18H2zm-1 7v5h2v-5zm0 7v2h2v-2z"/></symbol>
+    <symbol id="refresh" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/></symbol>
+  </defs>
+</svg>
+
+<header class="intro">
+  <div class="eyebrow">MOCKUP · browser rendering, not Kodi · for approval</div>
+  <h1>Add-on page, one design for every add-on</h1>
+  <p>Today, tapping an add-on in <b>My add-ons</b> opens Arctic Fuse's landscape <code>DialogAddonInfo</code> squeezed into the phone: a small dialog,
+  tiny type, a column of five small buttons, a description that cuts off mid-sentence and a scroll area inside a dialog.</p>
+  <p>Proposed: a <b>full portrait page</b>, the same pattern as the other portrait pages (back chevron, grouped rows, one white primary capsule).
+  The same layout serves every add-on. What changes per add-on is only its data (icon, name, author, version, description) and which actions apply,
+  so <b>Open</b>, <b>Install</b>, <b>Update</b> and <b>Enable</b> are the same slot with different wording.
+  Nothing is truncated: long names and descriptions wrap and the whole page scrolls. Three states follow, plus the Versions sheet and a scrolled view, then the install-from-repository flow (frames 6 to 8).</p>
+  <p>Add-on names and descriptions below are sample text only. Tiles use a letter or a generic puzzle piece, because each add-on's own icon is
+  supplied by the add-on at runtime.</p>
+</header>
+
+<main class="grid">
+
+<!-- 1. Installed, enabled -->
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll">
+      <div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Add-on</div></div>
+      <div class="hero">
+        <div class="tile"><span class="lt">O</span></div>
+        <h1>Otaku</h1>
+        <div class="by">TeamOtaku · Media sources</div>
+        <div class="status-chip"><i></i>Enabled · v5.3.4</div>
+      </div>
+      <div class="actions">
+        <div class="btn primary"><svg><use href="#play"/></svg>Open</div>
+        <div class="btn"><svg><use href="#gear"/></svg>Settings</div>
+      </div>
+      <div class="gap"></div>
+      <div class="group">
+        <div class="row"><div class="lb">Enabled</div><div class="tg on"></div></div>
+        <div class="row"><span class="ic" style="--c:#64d2ff"><svg><use href="#branch"/></svg></span><div class="lb">Versions<small>5.3.4 installed</small></div><svg class="chev"><use href="#chev"/></svg></div>
+        <div class="row"><span class="ic" style="--c:#bf5af2"><svg><use href="#graph"/></svg></span><div class="lb">Dependencies<small>4 add-ons</small></div><svg class="chev"><use href="#chev"/></svg></div>
+        <div class="row"><span class="ic" style="--c:#ff9f0a"><svg><use href="#doc"/></svg></span><div class="lb">Changelog</div><svg class="chev"><use href="#chev"/></svg></div>
+      </div>
+      <div class="gap"></div>
+      <div class="sh">About</div>
+      <div class="group">
+        <div class="row"><div class="lb">Author</div><div class="val">TeamOtaku</div></div>
+        <div class="row"><div class="lb">Category</div><div class="val">Media sources</div></div>
+        <div class="row"><div class="lb">Version</div><div class="val">5.3.4</div></div>
+        <div class="row"><div class="lb">Updated</div><div class="val">15 Nov 2026, 4:36 PM</div></div>
+      </div>
+      <div class="gap"></div>
+      <div class="sh">Description</div>
+      <div class="group"><div class="desc">
+        <p>Otaku is a provider-based streaming add-on that is tightly interwoven with MAL. It gives you the freedom to view media from a single menu system, from the service providers you choose.</p>
+        <p>Please note: we do not host any content.</p>
+      </div></div>
+      <div class="gap"></div>
+      <div class="group"><div class="row"><div class="lb red" style="text-align:center">Uninstall</div></div></div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">1 · MOCKUP</div><h2>Installed and enabled</h2>
+  <p>Open is the one primary action. Settings sits beside it. Enable, Versions, Dependencies and Changelog become grouped rows. Uninstall is red, last, and asks to confirm.</p></figcaption>
+</figure>
+
+<!-- 2. Disabled + update + long title -->
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll">
+      <div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Add-on</div></div>
+      <div class="hero">
+        <div class="tile"><span class="lt">O</span></div>
+        <h1>Otaku - Global Context Menu</h1>
+        <div class="by">TeamOtaku · Context menu</div>
+        <div class="status-chip upd"><i></i>Update available · v1.0.35 → v1.0.36</div>
+      </div>
+      <div class="actions">
+        <div class="btn primary"><svg><use href="#down"/></svg>Update to 1.0.36</div>
+      </div>
+      <div class="gap"></div>
+      <div class="group">
+        <div class="row"><div class="lb">Enabled</div><div class="tg"></div></div>
+        <div class="row"><span class="ic" style="--c:#64d2ff"><svg><use href="#branch"/></svg></span><div class="lb">Versions<small>1.0.35 installed</small></div><svg class="chev"><use href="#chev"/></svg></div>
+        <div class="row"><span class="ic" style="--c:#bf5af2"><svg><use href="#graph"/></svg></span><div class="lb">Dependencies<small>2 add-ons</small></div><svg class="chev"><use href="#chev"/></svg></div>
+        <div class="row"><span class="ic" style="--c:#ff9f0a"><svg><use href="#doc"/></svg></span><div class="lb">Changelog</div><svg class="chev"><use href="#chev"/></svg></div>
+      </div>
+      <div class="gap"></div>
+      <div class="sh">About</div>
+      <div class="group">
+        <div class="row"><div class="lb">Author</div><div class="val">TeamOtaku</div></div>
+        <div class="row"><div class="lb">Category</div><div class="val">Context menu item</div></div>
+        <div class="row"><div class="lb">Version</div><div class="val">1.0.35</div></div>
+      </div>
+      <div class="gap"></div>
+      <div class="sh">Description</div>
+      <div class="group"><div class="desc"><p>Adds Otaku actions to the long-press menu of any media item, so you can search or play it from Otaku without leaving the page you are on.</p></div></div>
+      <div class="gap"></div>
+      <div class="group"><div class="row"><div class="lb red" style="text-align:center">Uninstall</div></div></div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">2 · MOCKUP</div><h2>Update available, disabled, long name</h2>
+  <p>Same page. The primary slot becomes Update, with the version change in the status chip. The long name wraps onto a second line and nothing is cut off. Rows with no value (no Updated date) simply do not appear.</p></figcaption>
+</figure>
+
+<!-- 3. Not installed -->
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll">
+      <div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Add-on</div></div>
+      <div class="hero">
+        <div class="tile" style="color:#8e8e93"><svg><use href="#puzzle"/></svg></div>
+        <h1>Studio Icons - Coloured</h1>
+        <div class="by">Add-on author · Icon pack</div>
+        <div class="status-chip new"><i></i>Not installed · v0.0.24</div>
+      </div>
+      <div class="actions">
+        <div class="btn primary"><svg><use href="#down"/></svg>Install</div>
+      </div>
+      <div class="gap"></div>
+      <div class="group">
+        <div class="row"><span class="ic" style="--c:#64d2ff"><svg><use href="#branch"/></svg></span><div class="lb">Versions<small>Choose a version to install</small></div><svg class="chev"><use href="#chev"/></svg></div>
+        <div class="row"><span class="ic" style="--c:#bf5af2"><svg><use href="#graph"/></svg></span><div class="lb">Dependencies<small>Installs 1 more add-on</small></div><svg class="chev"><use href="#chev"/></svg></div>
+        <div class="row"><span class="ic" style="--c:#ff9f0a"><svg><use href="#doc"/></svg></span><div class="lb">Changelog</div><svg class="chev"><use href="#chev"/></svg></div>
+      </div>
+      <div class="gap"></div>
+      <div class="sh">About</div>
+      <div class="group">
+        <div class="row"><div class="lb">Author</div><div class="val">Add-on author</div></div>
+        <div class="row"><div class="lb">Category</div><div class="val">Icon pack</div></div>
+        <div class="row"><div class="lb">Version</div><div class="val">0.0.24</div></div>
+        <div class="row"><div class="lb">Repository</div><div class="val">Kodi Add-on repository</div></div>
+      </div>
+      <div class="gap"></div>
+      <div class="sh">Description</div>
+      <div class="group"><div class="desc"><p>Coloured studio logos for use in skin widgets and lists.</p></div></div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">3 · MOCKUP</div><h2>Not installed</h2>
+  <p>No Enabled toggle, no Settings, no Uninstall (they do not apply yet). Install is the primary action and the dependency row says what else will come with it. A tile with no icon falls back to the generic puzzle piece.</p></figcaption>
+</figure>
+
+<!-- 4. Versions sheet -->
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll">
+      <div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Add-on</div></div>
+      <div class="hero">
+        <div class="tile"><span class="lt">O</span></div>
+        <h1>Otaku</h1>
+        <div class="by">TeamOtaku · Media sources</div>
+        <div class="status-chip"><i></i>Enabled · v5.3.4</div>
+      </div>
+      <div class="actions">
+        <div class="btn primary"><svg><use href="#play"/></svg>Open</div>
+        <div class="btn"><svg><use href="#gear"/></svg>Settings</div>
+      </div>
+      <div class="gap"></div>
+      <div class="group">
+        <div class="row"><div class="lb">Enabled</div><div class="tg on"></div></div>
+        <div class="row"><span class="ic" style="--c:#64d2ff"><svg><use href="#branch"/></svg></span><div class="lb">Versions<small>5.3.4 installed</small></div><svg class="chev"><use href="#chev"/></svg></div>
+      </div>
+    </div>
+    <div class="dim"></div>
+    <div class="sheet">
+      <div class="grab"></div>
+      <div class="hd"><h3>Versions</h3><div class="x"><i><svg><use href="#x"/></svg></i></div></div>
+      <div class="group">
+        <div class="row"><div class="lb"><span class="ver">5.3.4</span><small>Installed · 15 Nov 2026</small></div><svg class="check"><use href="#tick"/></svg></div>
+        <div class="row"><div class="lb"><span class="ver">5.3.3</span><small>Repository</small></div><span class="pill">Roll back</span></div>
+        <div class="row"><div class="lb"><span class="ver">5.3.2</span><small>Repository</small></div><span class="pill">Roll back</span></div>
+        <div class="row"><div class="lb"><span class="ver">5.3.1</span><small>Repository</small></div><span class="pill">Roll back</span></div>
+      </div>
+      <div class="note">Rolling back replaces the installed version and turns off automatic updates for this add-on until you change it.</div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">4 · MOCKUP</div><h2>Versions sheet</h2>
+  <p>Versions and Dependencies open as a sheet in the project's sheet style (grabber, larger top radius, ✕ to close), replacing Kodi's stacked select dialogs. Rolling back always asks first.</p></figcaption>
+</figure>
+
+<!-- 5. Same page scrolled -->
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll" data-scroll="700">
+      <div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Add-on</div></div>
+      <div class="hero">
+        <div class="tile"><span class="lt">O</span></div>
+        <h1>Otaku</h1>
+        <div class="by">TeamOtaku · Media sources</div>
+        <div class="status-chip"><i></i>Enabled · v5.3.4</div>
+      </div>
+      <div class="actions">
+        <div class="btn primary"><svg><use href="#play"/></svg>Open</div>
+        <div class="btn"><svg><use href="#gear"/></svg>Settings</div>
+      </div>
+      <div class="gap"></div>
+      <div class="group">
+        <div class="row"><div class="lb">Enabled</div><div class="tg on"></div></div>
+        <div class="row"><span class="ic" style="--c:#64d2ff"><svg><use href="#branch"/></svg></span><div class="lb">Versions<small>5.3.4 installed</small></div><svg class="chev"><use href="#chev"/></svg></div>
+        <div class="row"><span class="ic" style="--c:#bf5af2"><svg><use href="#graph"/></svg></span><div class="lb">Dependencies<small>4 add-ons</small></div><svg class="chev"><use href="#chev"/></svg></div>
+        <div class="row"><span class="ic" style="--c:#ff9f0a"><svg><use href="#doc"/></svg></span><div class="lb">Changelog</div><svg class="chev"><use href="#chev"/></svg></div>
+      </div>
+      <div class="gap"></div>
+      <div class="sh">About</div>
+      <div class="group">
+        <div class="row"><div class="lb">Author</div><div class="val">TeamOtaku</div></div>
+        <div class="row"><div class="lb">Category</div><div class="val">Media sources</div></div>
+        <div class="row"><div class="lb">Version</div><div class="val">5.3.4</div></div>
+        <div class="row"><div class="lb">Updated</div><div class="val">15 Nov 2026, 4:36 PM</div></div>
+      </div>
+      <div class="gap"></div>
+      <div class="sh">Description</div>
+      <div class="group"><div class="desc">
+        <p>Otaku is a provider-based streaming add-on that is tightly interwoven with MAL. It gives you the freedom to view media from a single menu system, from the service providers you choose.</p>
+        <p>Please note: we do not host any content.</p>
+      </div></div>
+      <div class="gap"></div>
+      <div class="group"><div class="row"><div class="lb red" style="text-align:center">Uninstall</div></div></div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">5 · MOCKUP</div><h2>Same page, scrolled down</h2><p>The whole page scrolls (no inner scroll box). The full description is always readable and Uninstall sits at the very end, clear of the home indicator.</p></figcaption>
+</figure>
+
+
+
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll">
+      <div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Video add-ons</div>
+        <div class="act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></div></div>
+      <div class="sh" style="padding-top:8px">Loop Repository</div>
+      <div class="group"><div class="arow"><div class="tile"><span class="lt">J</span></div><div class="nm">JetProxy<small>1.1.0 · Add-on author</small></div><span class="st ok">Installed</span></div><div class="arow"><div class="tile"><span class="lt">S</span></div><div class="nm">SMR Link Tester<small>1.1.22 · Add-on author</small></div><span class="st ">Install</span></div><div class="arow"><div class="tile"><span class="lt">L</span></div><div class="nm">The Loop<small>8.4 · Loop Repository</small></div><span class="st ">Install</span></div><div class="arow"><div class="tile"><span class="lt">U</span></div><div class="nm">Umbrella Streams With A Very Long Name<small>6.8.02 · Umbrella repository</small></div><span class="st ">Update</span></div><div class="arow"><div class="tile"><span class="lt">P</span></div><div class="nm">POV<small>6.11.03 · POV repository</small></div><span class="st ok">Installed</span></div></div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">6 · MOCKUP</div><h2>Install from repository: the list</h2><p>The same rows as My add-ons, with the state on the right (Install, Update, Installed). The row of four pills, which clipped its text at the screen edge, is gone from sub-lists. Search is the icon in the header. Tapping a row opens the add-on page (frame 3), where Install is the primary action.</p></figcaption>
+</figure>
+
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll">
+      <div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Add-on</div></div>
+      <div class="hero"><div class="tile"><span class="lt">L</span></div><h1>The Loop</h1><div class="by">Loop Repository · Video add-on</div>
+      <div class="status-chip new"><i></i>Not installed · v8.4</div></div>
+      <div class="actions"><div class="btn primary">Install</div></div>
+    </div>
+    <div class="dim"></div>
+    <div class="alert"><div class="b"><h3>Install The Loop?</h3>
+      <p>It also needs 8 more add-ons, such as Timezone data and JetExtractors. They install with it.</p></div>
+      <div class="two"><div>Cancel</div><div>Install</div></div></div>
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">7 · MOCKUP</div><h2>The prompt that showed only "OK"</h2><p>Replaces the blank white box. It uses the same alert card as the project confirm dialogs: a short title, one wrapped sentence saying what happens, and Cancel / Install as hairline-divided buttons. The full dependency list stays one tap away on the Dependencies row of the add-on page.</p></figcaption>
+</figure>
+
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll">
+      <div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Add-on</div></div>
+      <div class="hero"><div class="tile"><span class="lt">L</span></div><h1>The Loop</h1><div class="by">Loop Repository · Video add-on</div>
+      <div class="status-chip upd"><i></i>Installing</div></div>
+      <div class="actions"><div class="btn" style="color:var(--grey)">Installing</div></div>
+    </div>
+    <div class="card2"><div class="r"><div class="tile"><span class="lt">L</span></div><div><b>Installing The Loop</b><span class="s">Add-on 3 of 9 · 34 %</span></div></div>
+      <div class="bar"><i style="width:34%"></i></div></div>
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">8 · MOCKUP</div><h2>While it installs</h2><p>One thin progress bar (the project progress style), the stage as "3 of 9" and the percentage. When it finishes the button becomes Open and the chip turns green. A failure says what failed in plain words, with a Retry button.</p></figcaption>
+</figure>
+</main>
+<script>document.querySelectorAll("[data-scroll]").forEach(e=>e.scrollTop=+e.dataset.scroll)</script>
+
+<section class="legend">
+  <h2>Where each element comes from today</h2>
+  <table>
+    <tr><th>Element</th><th>Kodi control today (Fuse <code>DialogAddonInfo</code>)</th><th>Note</th></tr>
+    <tr><td>Open / Install / Update</td><td>Install-or-update button, Open button</td><td>One primary slot; wording follows the add-on's state. Control ids to be confirmed against Kodi 21.3 when building.</td></tr>
+    <tr><td>Enabled toggle</td><td>Enable/Disable button</td><td>Becomes a switch row.</td></tr>
+    <tr><td>Settings</td><td>Settings button</td><td>Opens the existing portrait add-on settings sheet (<code>addon_settings_window</code>).</td></tr>
+    <tr><td>Versions, Dependencies, Changelog</td><td>Versions, Dependencies, Changelog buttons</td><td>Rows with chevrons. Versions and Dependencies become sheets.</td></tr>
+    <tr><td>Hero and About</td><td>Summary labels and icon</td><td>Name, author, category, version, date from <code>ListItem.*</code> / <code>Container.*</code>.</td></tr>
+    <tr><td>Description</td><td>Scrolling text box</td><td>Full text in a card on the page. The page scrolls; no inner scroll box.</td></tr>
+  </table>
+  <h2>Reused from the project</h2>
+  <p style="color:#c8c8ce;font-size:14px;line-height:1.5;max-width:900px">Colour tokens <code>BG</code>, <code>SURFACE</code>, <code>SURFACE2</code>, <code>GREY</code>, <code>SEP</code>, system blue for fills and <code>4FA8FF</code> for blue text (no new blue).
+  Inter. <code>RADIUS</code> 10 pt for cards. The white capsule primary and dark capsule secondary from <code>portrait.pill_button</code>. The back chevron from <code>nav_button</code>. Grouped rows as in <code>settings_page.py</code>. The sheet shape of the activity and Play on TV sheets. All hit areas are at least 44 pt (118 units).
+  No new colour, font size, radius or button variant is introduced.</p>
+</section>
+
+</body>
+</html>

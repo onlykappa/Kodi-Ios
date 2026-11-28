@@ -13,7 +13,7 @@ settings_page.py supplies the shared row/header pieces.
 """
 UPDATES='!String.IsEmpty(System.AddonUpdateCount) + !String.IsEqual(System.AddonUpdateCount,0)'
 BLUE='FF0A84FF';RED='FFFF453A';GREEN='FF30D158';ORANGE='FFFF9F0A'
-ROW=140;TOP=200
+ROW=140;TOP=200;ROWT=190
 
 def sp(p):return p.settings_page
 
@@ -34,7 +34,7 @@ def back_header(p,title,back='Action(Back)',down='50'):
  return s.header(p,[('',back)],[(title,'')]).replace('<ondown>9300</ondown>','<ondown>%s</ondown>'%down)
 
 def row_layout(p,w,focused,icon='$INFO[ListItem.Icon]',label='$INFO[ListItem.Label]',sub='$INFO[ListItem.Label2]',right='',
-               tint='FF0F0F10',extra='',height=ROW,selected='',sub_cond=''):
+               tint='FF0F0F10',extra='',height=ROW,selected='',sub_cond='',sub_map=()):
  """iOS row for list items: icon tile, title, grey subtitle, right value, chevron, hairline."""
  x=40+84+34
  xml=(p.image(0,0,w,height,p.MEDIA+'white.png',p.SURFACE2 if focused else p.SURFACE)+
@@ -44,10 +44,14 @@ def row_layout(p,w,focused,icon='$INFO[ListItem.Icon]',label='$INFO[ListItem.Lab
  if sub:
   # Two lines when there is a subtitle, the title centred alone when it is empty (Kodi leaves Label2 blank often).
   has=sub_cond or '!String.IsEmpty(ListItem.Label2)'
+  if sub_map:has='[%s] | [%s]'%(' | '.join('[%s]'%c for c,_ in sub_map),has)
   scroll='<scroll>%s</scroll>'%('true' if focused else 'false')
   xml+=(p.label(x,height//2-58,w-x-260,60,label,'p_body',p.WHITE,'left',scroll+'<visible>%s</visible>'%has)+
         p.label(x,height//2+2,w-x-200,52,sub,'p_foot',p.GREY,'left','<visible>%s</visible>'%has)+
         p.label(x,0,w-x-260,height,label,'p_body',p.WHITE,'left',scroll+'<visible>![%s]</visible>'%has))
+  # A fixed line for a given folder (the add-ons front page): drawn over the generic subtitle, which stays hidden for it.
+  for cond,text in sub_map:
+   xml+=p.label(x,height//2+2,w-x-200,52,text,'p_foot',p.GREY,'left','<visible>%s</visible>'%cond)
  else:
   xml+=p.label(x,0,w-x-260,height,label,'p_body',p.WHITE,'left','<scroll>%s</scroll>'%('true' if focused else 'false'))
  if right:xml+=p.label(w-460,0,380,height,right,'p_foot',p.GREY,'right')
@@ -82,7 +86,7 @@ def confirm_dialog(p,original):
  (the likely choice on the trailing side, bold) and a custom third stacks all three, Cancel last. The buttons keep
  their ids and a 118-unit height but draw nothing themselves: the rows are separate images and labels that follow
  which buttons Kodi shows (their text is read back with Control.GetLabel). A destructive verb is red."""
- w=800;rh=118;top=400;h_two=top+rh;h_three=top+3*rh;M=p.MEDIA
+ w=800;rh=118;top=480;h_two=top+rh;h_three=top+3*rh;M=p.MEDIA
  v=lambda i:'Control.IsVisible(%d)'%i
  three=v(12);two='%s + %s + !%s'%(v(10),v(11),v(12));only10='%s + !%s + !%s'%(v(10),v(11),v(12));only11='%s + !%s + !%s'%(v(11),v(10),v(12))
  x=(p.WIDTH-w)//2;y=(p.HEIGHT-h_two)//2
@@ -160,29 +164,152 @@ def settings_dialog(p,original):
  return sp(p).addon_settings_window(p,original,categories=False)
 
 # --- Add-ons ---------------------------------------------------------------------------------------------
+ADDON_ROOT='String.IsEqual(Container.FolderPath,addons://) | String.IsEmpty(Container.FolderPath)'
+ADDON_UPDATES_PAGE='String.StartsWith(Container.FolderPath,addons://outdated)'
+ADDON_SEARCH_PAGE='String.StartsWith(Container.FolderPath,addons://search)'
+ADDON_ROOT_SUBS=[('[%s] + String.StartsWith(ListItem.FolderPath,%s)'%(ADDON_ROOT,path),text) for path,text in (
+  ('addons://user','Add-ons on this iPhone'),('addons://outdated','$INFO[System.AddonUpdateCount] can update'),
+  ('addons://recently_updated','Add-ons that changed lately'),('addons://downloading','Add-ons being installed'),
+  ('addons://repos','Browse add-ons by category'),('addons://install','Add-ons you downloaded yourself'),
+  ('addons://search','Find an add-on by name'))]+[('String.StartsWith(ListItem.FolderPath,addons://update_all)','Updates every add-on in one go')]
 def addon_browser(p,original):
- """portrait/AddonBrowser.xml: Kodi's addons:// folders in list 50 as App Store-style rows (icon, name, version),
- with the folder name as the title and shortcuts for updates and zip installs on the root page."""
- root='String.IsEqual(Container.FolderPath,addons://) | String.IsEmpty(Container.FolderPath)'
+ """portrait/AddonBrowser.xml (owner-approved docs/design/addon-pages-mockups.html frames 1-4): Kodi's addons:// folders
+ in list 50 as App Store-style rows (icon, name, version). The front page has a plain line under each choice and a count on
+ Available updates; no pill row (it repeated the same choices and clipped at the screen edge). A sub-list has the
+ folder name as its title; a Search field (9030) under the title opens the add-on search (addon_search.py). Control ids stay Kodi's (50, 9001)."""
+ root=ADDON_ROOT
  w=p.WIDTH-2*p.SIDE
- def item(f):
-  return row_layout(p,w,f,sub='$INFO[ListItem.AddonVersion]$INFO[ListItem.Label2, · ,]',tint='FF0F0F10',
-                    sub_cond='!String.IsEmpty(ListItem.AddonVersion) | !String.IsEmpty(ListItem.Label2)')
+ def tall(f):
+  # One list for every folder (a second list with the same id is not allowed). Rows are tall enough for a name that wraps to
+  # a second line (an add-on's own title, "jurialmunkey Alpha Repository"), so no name ends in "..." (owner rule, DEC-050).
+  h=ROWT;x=40+84+34;fp='ListItem.FolderPath'
+  generic='!String.IsEmpty(ListItem.AddonVersion) | !String.IsEmpty(ListItem.Label2)'
+  has='[%s] | %s'%(generic,' | '.join('[%s]'%c for c,_ in ADDON_ROOT_SUBS))
+  sub='$INFO[ListItem.AddonVersion]$INFO[ListItem.Label2, · ,]'
+  listing='![String.StartsWith(Container.FolderPath,addons://user)] + ![String.StartsWith(Container.FolderPath,addons://outdated)] + ![String.StartsWith(Container.FolderPath,addons://recently_updated)] + ![String.StartsWith(Container.FolderPath,addons://downloading)]'
+  downloading='String.StartsWith(Container.FolderPath,addons://downloading)'
+  dot='String.StartsWith(%s,addons://outdated) + %s + [%s]'%(fp,UPDATES,root)
+  return (p.image(0,0,w,h,p.MEDIA+'white.png',p.SURFACE2 if f else p.SURFACE)+p.image(x,h-2,w-x,2,p.MEDIA+'white.png',p.SEP)+
+          p.surface(40,(h-84)//2,84,84,'tile84.png','FF0F0F10',24)+p.image(48,(h-68)//2,68,68,'$INFO[ListItem.Icon]',p.WHITE,'','>keep')+
+          # A textbox wraps inside a list row (a label there cuts the name off with "...").
+          '<control type="textbox"><left>%d</left><top>10</top><width>%d</width><height>112</height><font>p_body</font><textcolor>%s</textcolor>'
+          '<align>left</align><autoscroll>false</autoscroll><label>$INFO[ListItem.Label]</label><visible>%s</visible></control>'%(x,w-x-330,p.WHITE,has)+
+          p.label(x,0,w-x-330,h,'$INFO[ListItem.Label]','p_body',p.WHITE,'left','<wrapmultiline>true</wrapmultiline><scroll>false</scroll><visible>![%s]</visible>'%has)+
+          p.label(x,126,w-x-130,50,sub,'p_foot',p.GREY,'left','<scroll>false</scroll><visible>%s</visible>'%generic)+
+          ''.join(p.label(x,126,w-x-130,50,text,'p_foot',p.GREY,'left','<scroll>false</scroll><visible>%s</visible>'%c) for c,text in ADDON_ROOT_SUBS)+
+          p.surface(w-200,(h-58)//2,58,58,'tile84.png',RED,24,'<visible>%s</visible>'%dot)+
+          p.label(w-200,(h-58)//2,58,58,'$INFO[System.AddonUpdateCount]','p_cap',p.WHITE,'center','<visible>%s</visible>'%dot)+
+          # Install, Update or Installed on the right, for add-ons in a repository list (Kodi's own properties on each item).
+          ''.join(p.label(w-74-30-230,0,230,h,text,'p_foot_b',color,'right','<visible>%s + %s</visible>'%(listing,c)) for text,color,c in (
+            ('Update',p.ACCENT,'String.IsEqual(ListItem.Property(Addon.HasUpdate),true)'),
+            ('Installed',GREEN,'String.IsEqual(ListItem.Property(Addon.IsInstalled),true) + !String.IsEqual(ListItem.Property(Addon.HasUpdate),true)'),
+            ('Install',p.ACCENT,'String.IsEqual(ListItem.Property(Addon.IsInstalled),false)')))+
+          # The Downloading list (Kodi gives no percentage per row): every row is on its way.
+          p.label(w-74-30-230,0,230,h,'Installing','p_foot_b',p.ACCENT,'right','<visible>%s</visible>'%downloading)+
+          p.icon(w-74,(h-34)//2,34,'chevron-right.png',p.DIM))
+ # Kodi's own Search row would open its keyboard dialog first; the search field above the list (9030) takes its place, so the
+ # row draws nothing. The list starts under the field, and a little lower again while a search is open (the phone's native
+ # search field sits there, as on Settings search).
+ field_y=TOP+10;field_h=124;list_top=field_y+field_h+30;field_room=140
+ hidden_row='![String.IsEqual(ListItem.FolderPath,addons://search/)] + ![String.IsEqual(ListItem.Label,..)]'   # Kodi's own Search row, and the ".." row a search page lists
+ lists=media_list(p,50,list_top,40,lambda f:'<control type="group"><visible>%s</visible>%s</control>'%(hidden_row,tall(f)),ROWT,
+                  extra='<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(field_room,ADDON_SEARCH_PAGE))
+
+ # The front page's choices are our own buttons (Kodi's list items run Kodi's own actions: its zip file browser and its search
+ # keyboard cannot be replaced from the skin), so the list is not drawn at the root. Each does what Kodi's own row did.
+ DOWNLOADING='!String.IsEmpty(Window(Home).Property(Addon.Install.Name))'
+ root_rows=[('user','My add-ons','Add-ons on this iPhone','database.png','Container.Update(addons://user/)',''),
+            ('updates','Available updates','$INFO[System.AddonUpdateCount] can update','arrows-rotate.png','Container.Update(addons://outdated/)',UPDATES),
+            ('recent','Recently updated','Add-ons that changed lately','clock-rotate-left.png','Container.Update(addons://recently_updated/)','!%s'%('['+UPDATES+']')),
+            ('down','Downloading','$INFO[Window(Home).Property(Addon.Install.Name)] is being installed','cloud-arrow-down.png','Container.Update(addons://downloading/)',DOWNLOADING),
+            ('repos','Install from repository','Browse add-ons by category','database.png','Container.Update(addons://repos/)',''),
+            ('zip','Install from zip file','Add-ons you downloaded yourself','file-zipper.png','RunScript(service.kodi.ios.bootstrap,addon_zip)','')]
+ def root_row(n,key,label,sub,glyph,action,vis):
+  x=40+84+34;h=ROWT
+  btn=('<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
+       '<texturefocus colordiffuse="%s">%swhite.png</texturefocus><texturenofocus colordiffuse="%s">%swhite.png</texturenofocus>'
+       '<onclick>%s</onclick><onup>%s</onup><ondown>%s</ondown></control>')%(9040+n,w,h,p.SURFACE2,p.MEDIA,p.SURFACE,p.MEDIA,action,'9030','9030')
+  dot=''
+  if key=='updates':
+   dot=(p.surface(w-200,(h-58)//2,58,58,'tile84.png',RED,24)+p.label(w-200,(h-58)//2,58,58,'$INFO[System.AddonUpdateCount]','p_cap',p.WHITE,'center'))
+  return ('<control type="group"><width>%d</width><height>%d</height>%s'%(w,h,('<visible>%s</visible>'%vis) if vis else '')+btn+
+          p.image(x,h-2,w-x,2,p.MEDIA+'white.png',p.SEP)+p.surface(40,(h-84)//2,84,84,'tile84.png','FF0F0F10',24)+
+          p.icon(40+9,(h-66)//2,66,glyph,p.WHITE)+p.label(x,24,w-x-200,70,label,'p_body',p.WHITE,'left','<scroll>false</scroll>')+
+          p.label(x,92,w-x-200,56,sub,'p_foot',p.GREY,'left','<scroll>false</scroll>')+dot+
+          p.icon(w-74,(h-34)//2,34,'chevron-right.png',p.DIM)+'</control>')
+ root_list=('<control type="grouplist" id="9039"><left>%d</left><top>%d</top><width>%d</width><bottom>40</bottom><orientation>vertical</orientation><itemgap>0</itemgap>'
+            '<visible>%s</visible>'%(p.SIDE,list_top,w,root)+''.join(root_row(i,*r) for i,r in enumerate(root_rows))+'</control>')
+ lists=lists.replace('<control type="list" id="50">','<control type="list" id="50"><visible>![%s]</visible>'%root,1)+root_list
  title='$INFO[Container.FolderName]'
- body=(media_list(p,50,TOP+130,40,item)+
-       p.image(0,0,p.WIDTH,TOP+120,p.MEDIA+'white.png',p.BG)+
-       back_header(p,'')+
+ blank='String.Contains(Container.FolderPath,%E2%80%8B)'
+ none='Integer.IsEqual(Container(50).NumItems,0)'
+ field=('<control type="button" id="9030"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><label></label>'
+        '<texturefocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturefocus><texturenofocus border="62" colordiffuse="%s">%spill_124.png</texturenofocus>'
+        '<onclick>RunScript(service.kodi.ios.bootstrap,addon_search)</onclick><onup>9001</onup><ondown>50</ondown>'
+        '<visible>![%s]</visible></control>')%(p.SIDE,field_y,w,field_h,p.MEDIA,p.SURFACE,p.MEDIA,ADDON_SEARCH_PAGE)
+ field+=(p.icon(p.SIDE+36,field_y+(field_h-44)//2,44,'magnifying-glass.png',p.GREY,'<visible>![%s]</visible>'%ADDON_SEARCH_PAGE)+
+         p.label(p.SIDE+100,field_y,w-140,field_h,'Search add-ons','p_body',p.GREY,'left','<visible>![%s]</visible>'%ADDON_SEARCH_PAGE))
+ hint_y=list_top+field_room+160
+ empty=(p.label(p.SIDE,list_top+260,w,80,'Everything is up to date','p_h3',p.GREY,'center',
+                '<visible>%s + %s</visible>'%(ADDON_UPDATES_PAGE,none))+
+        p.label(p.SIDE,list_top+260,w,80,'Nothing here yet','p_h3',p.GREY,'center',
+                '<visible>![%s] + ![%s] + ![%s] + %s</visible>'%(root,ADDON_UPDATES_PAGE,ADDON_SEARCH_PAGE,none))+
+        # Search: nothing typed yet, then no match (the field itself is the phone's native one).
+        p.icon((p.WIDTH-104)//2,hint_y,104,'magnifying-glass.png',p.GREY,'<visible>%s + %s + %s</visible>'%(ADDON_SEARCH_PAGE,blank,none))+
+        p.label(p.SIDE,hint_y+130,w,80,'Search add-ons','p_h3',p.GREY,'center','<visible>%s + %s + %s</visible>'%(ADDON_SEARCH_PAGE,blank,none))+
+        p.label(p.SIDE+60,hint_y+210,w-120,120,'Type a name in the field above.','p_foot',p.GREY,'center',
+                '<wrapmultiline>true</wrapmultiline><visible>%s + %s + %s</visible>'%(ADDON_SEARCH_PAGE,blank,none))+
+        p.label(p.SIDE,hint_y+130,w,80,'No add-ons found','p_h3',p.GREY,'center','<visible>%s + ![%s] + %s</visible>'%(ADDON_SEARCH_PAGE,blank,none))+
+        p.label(p.SIDE+60,hint_y+210,w-120,120,'Try a shorter word or check the spelling.','p_foot',p.GREY,'center',
+                '<wrapmultiline>true</wrapmultiline><visible>%s + ![%s] + %s</visible>'%(ADDON_SEARCH_PAGE,blank,none)))
+ body=(lists+empty+
+       p.image(0,0,p.WIDTH,TOP-10,p.MEDIA+'white.png',p.BG)+
+       back_header(p,'','Action(Back)','9030')+field+
        p.label(260,36,p.WIDTH-520,108,'[B]Add-ons[/B]','p_h3',p.WHITE,'center','<visible>%s</visible>'%root)+
-       p.label(260,36,p.WIDTH-520,108,title,'p_h3',p.WHITE,'center','<visible>![%s]</visible>'%root)+
-       '<control type="grouplist" id="9010"><left>%d</left><top>%d</top><width>%d</width><height>96</height><orientation>horizontal</orientation>'
-       '<itemgap>16</itemgap><ondown>50</ondown><onup>9001</onup>'%(p.SIDE,TOP,w)+
-       pill_button(p,9011,0,0,250,'My Add-ons','Container.Update(addons://user/,replace)')+
-       pill_button(p,9012,0,0,300,'$LOCALIZE[24043]$INFO[System.AddonUpdateCount, (,)]','Container.Update(addons://outdated/,replace)',
-                   '<visible>%s</visible>'%UPDATES)+
-       pill_button(p,9013,0,0,260,'From Zip','InstallFromZip')+
-       pill_button(p,9014,0,0,200,'Search','Container.Update(addons://search/,replace)')+
-       '</control>')
+       p.label(260,36,p.WIDTH-520,108,title,'p_h3',p.WHITE,'center','<visible>![%s] + ![%s]</visible>'%(root,ADDON_SEARCH_PAGE))+
+       p.label(260,36,p.WIDTH-520,108,'[B]Search[/B]','p_h3',p.WHITE,'center','<visible>%s</visible>'%ADDON_SEARCH_PAGE))
  return page(p,original,body,'50')
+
+# --- File browser (Install from zip file, pick a folder) ----------------------------------------------------
+BROWSER_NAMES=[('Home folder','Kodi folder','Files you copied in'),
+               ('Inbox','Shared with Kodi','Sent with Share or AirDrop')]
+def file_browser(p,original):
+ """portrait/FileBrowser.xml (owner-approved docs/design/addon-pages-mockups.html frame 5): Kodi's file and folder
+ browser, used by Install from zip file, as a normal page. Kodi writes the heading into label 411 and the path into 412,
+ fills list 450 and shows or hides buttons 413 (select), 414 (cancel), 415 (new folder) and the switch 416; those stay
+ Kodi's ids. "Home folder" is the app's Documents folder (On My iPhone > Kodi in the Files app), so it is named that way."""
+ w=p.WIDTH-2*p.SIDE;x=40+84+34
+ def item(f):
+  names=''.join(p.label(x,ROW//2-58,w-x-200,60,t,'p_body',p.WHITE,'left','<visible>String.IsEqual(ListItem.Label,%s)</visible>'%k)+
+                p.label(x,ROW//2+2,w-x-200,52,sub,'p_foot',p.GREY,'left','<visible>String.IsEqual(ListItem.Label,%s)</visible>'%k)
+                for k,t,sub in BROWSER_NAMES)
+  mapped=' + '.join('![String.IsEqual(ListItem.Label,%s)]'%k for k,_,_ in BROWSER_NAMES)
+  scroll='<scroll>%s</scroll>'%('true' if f else 'false')
+  return (p.image(0,0,w,ROW,p.MEDIA+'white.png',p.SURFACE2 if f else p.SURFACE)+p.image(x,ROW-2,w-x,2,p.MEDIA+'white.png',p.SEP)+
+          p.surface(40,(ROW-84)//2,84,84,'tile84.png','FF0F0F10',24)+p.image(48,(ROW-68)//2,68,68,'$INFO[ListItem.Icon]',p.WHITE,'','>keep')+
+          names+p.label(x,0,w-x-200,ROW,'$INFO[ListItem.Label]','p_body',p.WHITE,'left','<visible>%s</visible>'%mapped+scroll)+
+          p.icon(w-74,(ROW-34)//2,34,'chevron-right.png',p.DIM,'<visible>ListItem.IsFolder</visible>'))
+ hidden=''.join('<control type="button" id="%d"><width>1</width><height>1</height><label></label><texturefocus /><texturenofocus /></control>'%i for i in (413,414,415))
+ bar_y=p.HEIGHT-420
+ pills=('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>128</height><visible>Control.IsVisible(413) + Control.IsEnabled(413)</visible>'%(p.SIDE,bar_y,w)+
+        p.pill_button(9413,0,0,w,128,'$LOCALIZE[31032]',[('','SendClick(413)')],'primary')+'</control>'+
+        '<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>128</height><visible>Control.IsVisible(415) + Control.IsEnabled(415) + !Control.IsVisible(413)</visible>'%(p.SIDE,bar_y,w)+
+        p.pill_button(9415,0,0,w,128,'$LOCALIZE[119]',[('','SendClick(415)')],'glass')+'</control>')
+ switch=('<control type="radiobutton" id="416"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><label>$LOCALIZE[31121]</label>'
+         '<font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>left</align><aligny>center</aligny><textoffsetx>40</textoffsetx>'
+         '<radioposx>%d</radioposx><radioposy>%d</radioposy><radiowidth>130</radiowidth><radioheight>58</radioheight>'
+         '<texturefocus border="26" colordiffuse="1FFFFFFF">%sround_s.png</texturefocus><texturenofocus />'
+         '<textureradioonfocus>%stoggle_on.png</textureradioonfocus><textureradioonnofocus>%stoggle_on.png</textureradioonnofocus>'
+         '<textureradioofffocus>%stoggle_off.png</textureradioofffocus><textureradiooffnofocus>%stoggle_off.png</textureradiooffnofocus>'
+         '<visible>false</visible></control>')%(
+         p.SIDE,bar_y-150,w,ROW,p.WHITE,p.WHITE,w-40-130,(ROW-58)//2,p.MEDIA,p.MEDIA,p.MEDIA,p.MEDIA,p.MEDIA)
+ heading=('<control type="label" id="411"><left>260</left><top>36</top><width>%d</width><height>108</height><font>p_h3</font><textcolor>%s</textcolor>'
+          '<align>center</align><aligny>center</aligny><scroll>false</scroll></control>')%(p.WIDTH-520,p.WHITE)
+ path=('<control type="label" id="412"><left>%d</left><top>%d</top><width>%d</width><height>52</height><font>p_cap</font><textcolor>%s</textcolor>'
+       '<align>left</align><aligny>center</aligny><scroll>false</scroll></control>')%(p.SIDE+20,TOP-10,w-40,p.GREY)
+ body=(media_list(p,450,TOP+60,440,item)+hidden+pills+switch+p.image(0,0,p.WIDTH,TOP+50,p.MEDIA+'white.png',p.BG)+
+       back_header(p,'','SendClick(414)','450')+heading+path)
+ return page(p,original,body,'450')
 
 # --- Event log -------------------------------------------------------------------------------------------
 def event_log(p,original):
@@ -195,21 +322,29 @@ def event_log(p,original):
           p.surface(40,(h-84)//2,84,84,'tile84.png','FF0F0F10',24)+p.image(52,(h-60)//2,60,60,'$INFO[ListItem.Icon]',p.WHITE,'','>keep')+
           p.label(x,22,w-x-230,60,'$INFO[ListItem.Label]','p_body',p.WHITE,'left','<scroll>%s</scroll>'%('true' if f else 'false'))+
           p.label(x,86,w-x-40,56,'$INFO[ListItem.Label2]','p_foot',p.GREY))
- def btn(id,x,width,label,kind='button',extra=''):
-  t='<control type="%s" id="%d"><width min="%d" max="700">auto</width><height>96</height><font>p_foot_b</font><textcolor>%s</textcolor>'%(kind,id,width,p.WHITE)
-  return (t+'<focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny><textoffsetx>36</textoffsetx>'
-          '<texturefocus border="48" colordiffuse="66636366">%spill_96.png</texturefocus><texturenofocus border="48" colordiffuse="%s">%spill_96.png</texturenofocus>'
-          '%s<ondown>50</ondown><onup>9001</onup></control>')%(p.WHITE,p.MEDIA,p.SURFACE,p.MEDIA,extra)
- x=0
- bar=('<control type="grouplist" id="9010"><left>%d</left><top>%d</top><width>%d</width><height>96</height><orientation>horizontal</orientation>'
-      '<itemgap>16</itemgap><scrolltime tween="cubic" easing="out">250</scrolltime>'%(p.SIDE,TOP,w)+
-      btn(21,x,180,'',extra='<label>$LOCALIZE[14119]</label><onright>22</onright>')+
-      btn(22,x,180,'','togglebutton','<label>$LOCALIZE[14121]</label><altlabel>$LOCALIZE[14121]</altlabel>'
-          '<alttexturefocus border="48" colordiffuse="%s">%spill_96.png</alttexturefocus><alttexturenofocus border="48" colordiffuse="%s">%spill_96.png</alttexturenofocus>'
-          '<onleft>21</onleft><onright>4</onright>'%(BLUE,p.MEDIA,BLUE,p.MEDIA))+
-      btn(4,x,180,'','togglebutton','<label>$LOCALIZE[584]</label><altlabel>$LOCALIZE[585]</altlabel><onleft>22</onleft><onright>20</onright>')+
-      btn(20,x,150,'','button','<label>[COLOR FFFF453A]$LOCALIZE[192][/COLOR]</label><onleft>4</onleft>')+'</control>')
- body=(media_list(p,50,TOP+130,40,item,170)+p.image(0,0,p.WIDTH,TOP+120,p.MEDIA+'white.png',p.BG)+back_header(p,'Event Log')+bar+
+ rh=112;M=p.MEDIA;card_top=TOP+20
+ # Owner-approved docs/design/addon-pages-mockups.html frame 7: the four pills (one clipped at the edge) become a card of
+ # three rows over the list (Kodi's buttons 21, 22 and 4 keep their ids and labels) and a red Clear in the header (20).
+ def rb(id,y,loc,kind='button',extra=''):
+  return ('<control type="%s" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><label>$LOCALIZE[%s]</label>'
+          '<altlabel>$LOCALIZE[%s]</altlabel><font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>left</align>'
+          '<aligny>center</aligny><textoffsetx>40</textoffsetx><texturefocus border="26" colordiffuse="33FFFFFF">%sround_s.png</texturefocus>'
+          '<texturenofocus />%s</control>')%(kind,id,y,w,rh,loc[0],loc[1],p.WHITE,p.WHITE,M,extra)
+ hair=lambda y:p.image(40,y,w-40,2,M+'white.png',p.SEP)
+ card=('<control type="group"><left>%d</left><top>%d</top>'%(p.SIDE,card_top)+p.surface(0,0,w,3*rh,'round_s.png',p.SURFACE,26)+hair(rh)+hair(2*rh)+
+       '<control type="group" id="9010">'+
+       rb(21,0,('14119','14119'),extra='<ondown>22</ondown><onup>9001</onup>')+
+       rb(22,rh,('14121','14121'),'togglebutton','<onup>21</onup><ondown>4</ondown>'+
+          '<alttexturefocus border="26" colordiffuse="33FFFFFF">%sround_s.png</alttexturefocus><alttexturenofocus />'%M)+
+       rb(4,2*rh,('584','585'),'togglebutton','<onup>22</onup><ondown>50</ondown>'+
+          '<alttexturefocus border="26" colordiffuse="33FFFFFF">%sround_s.png</alttexturefocus><alttexturenofocus />'%M)+
+       '</control>'+
+       '</control>')
+ clear=('<control type="button" id="20"><left>%d</left><top>36</top><width>240</width><height>108</height><label>$LOCALIZE[192]</label><font>p_btn</font>'
+        '<textcolor>%s</textcolor><focusedcolor>66FF453A</focusedcolor><align>right</align><aligny>center</aligny><texturefocus /><texturenofocus />'
+        '<onleft>9001</onleft><ondown>21</ondown></control>')%(p.WIDTH-p.SIDE-240,RED)
+ list_top=card_top+3*rh+40
+ body=(media_list(p,50,list_top,40,item,170)+p.image(0,0,p.WIDTH,TOP-10,p.MEDIA+'white.png',p.BG)+back_header(p,'Event Log','Action(Back)','21')+card+clear+
        '<control type="group"><top>%d</top><visible>Integer.IsEqual(Container(50).NumItems,0)</visible>'%(TOP+400)+
        p.label(p.SIDE,0,w,80,'No events','p_h3',p.GREY,'center')+'</control>')
  return page(p,original,body,'50')
@@ -358,6 +493,12 @@ def image_bg(p,texture):
          '<texture background="true" colordiffuse="B3FFFFFF">%s</texture></control>')%(p.WIDTH,p.HEIGHT,texture)
 
 # --- Play on TV (landscape, over video) -------------------------------------------------------------------
+def _addon_info():
+ """addon_info_page.py beside this file (loaded by path like airplay_flow)."""
+ import importlib.util,os
+ spec=importlib.util.spec_from_file_location('addon_info_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'addon_info_page.py'))
+ module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+
 def _airplay_flow():
  """airplay_flow.py beside this file (pages.py is also loaded by path, without resources/lib on sys.path)."""
  import importlib.util,os
@@ -1032,7 +1173,7 @@ def info_card():
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: info card (board 08) -->\n'
          '<window type="dialog" id="1193"><zorder>3</zorder><defaultcontrol always="true">9500</defaultcontrol><controls>%s</controls></window>\n')%body
 
-HANDMADE={SEARCHING,SEASON_QUALITY,SEASON_READY,SEASON_EPISODES,NOTIFY,VOLUME,'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',BUSY}
+HANDMADE={SEARCHING,SEASON_QUALITY,SEASON_READY,SEASON_EPISODES,NOTIFY,VOLUME,'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','DialogAddonInfo.xml','FileBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',BUSY}
 
 SLIDER='DialogSlider.xml';TRACK_MENU_OPEN='KodiIOS.TrackMenu'
 def slider_quiet(original):
@@ -1057,6 +1198,8 @@ def files(p,read):
       p.FOLDER+'/DialogTextViewer.xml':text_viewer(p,read('DialogTextViewer.xml')),
       p.FOLDER+'/DialogSettings.xml':settings_dialog(p,read('DialogSettings.xml')),
       p.FOLDER+'/AddonBrowser.xml':addon_browser(p,read('AddonBrowser.xml')),
+      p.FOLDER+'/DialogAddonInfo.xml':_addon_info().window(p,read('DialogAddonInfo.xml')),
+      p.FOLDER+'/FileBrowser.xml':file_browser(p,read('FileBrowser.xml')),
       p.FOLDER+'/EventLog.xml':event_log(p,read('EventLog.xml')),
       p.FOLDER+'/SettingsSystemInfo.xml':system_info(p,read('SettingsSystemInfo.xml')),
       p.FOLDER+'/FileManager.xml':file_manager(p,read('FileManager.xml')),

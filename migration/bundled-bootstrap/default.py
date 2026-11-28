@@ -7,7 +7,7 @@ this add-on. Without a page this is the recovery script, as the add-on's script 
 """
 import os,runpy,sys
 HERE=os.path.dirname(os.path.abspath(__file__))
-PAGES=('debrid_signin_page','export_logs','notifications','cast','airplay_settings','speed','accounts_page','profiles_page','favourites_page','favourites_manager','favourites_import_page','anticipated_bell','settings_search','addon_updates','navigation_menu','check_updates','download','library_scan','prepare_check','library_status','tool_pages','refresh_rows','customise_counts','customise_rows','sports','sports_live','sports_jet_run','next_episode','tracks','resume_uploads','section_page','skin_settings_page','upscale_test','upscale_settings','library_manager','library_repair_page','picture_page','copy_problems','quality_choice','sports_upcoming','sports_leagues','sports_edit','sports_game','sports_league','recover')
+PAGES=('addon_changelog','addon_search','addon_zip','debrid_signin_page','export_logs','notifications','cast','airplay_settings','speed','accounts_page','profiles_page','favourites_page','favourites_manager','favourites_import_page','anticipated_bell','settings_search','addon_updates','navigation_menu','check_updates','download','library_scan','prepare_check','library_status','tool_pages','refresh_rows','customise_counts','customise_rows','sports','sports_live','sports_jet_run','next_episode','tracks','resume_uploads','section_page','skin_settings_page','upscale_test','upscale_settings','library_manager','library_repair_page','picture_page','copy_problems','quality_choice','sports_upcoming','sports_leagues','sports_edit','sports_game','sports_league','recover')
 
 def target(argv):
  """(script path, its argv) for RunScript's arguments."""

@@ -1376,8 +1376,16 @@ def select_dialog(original):
  def card_h(n,head):return head+n*row_h
  full=card_h(SELECT_ROWS,head_art)+gap+cancel_h;top=HEIGHT-full-bottom
  heading=('<control type="image"><left>%d</left><top>36</top><width>420</width><height>236</height><texture diffuse="%sthumb_mask.png">$VAR[Portrait_Select_Art]</texture><aspectratio>scale</aspectratio><visible>%s</visible></control>'%((w-420)//2,MEDIA,titled)+
-  '<control type="group"><visible>%s</visible>%s</control>'%(titled,label(40,290,w-80,150,'$INFO[Control.GetLabel(1)]','p_pill',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
-  '<control type="group"><visible>!%s</visible>%s</control>'%(titled,label(40,24,w-80,130,'$INFO[Control.GetLabel(1)]','p_pill',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
+  # Kodi's "OK" (extra button, id 5) is visible for the install prompt ("The following additional add-ons will be installed"):
+  # it was a hidden control, so the prompt could not be confirmed and showed as a blank sheet with a stray "OK" (owner, build 766).
+  # It is a blue text button at the card's top right and the title narrows to leave it room.
+  '<control type="group"><visible>%s + !Control.IsVisible(5)</visible>%s</control>'%(titled,label(40,290,w-80,150,'$INFO[Control.GetLabel(1)]','p_pill',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
+  '<control type="group"><visible>%s + Control.IsVisible(5)</visible>%s</control>'%(titled,label(40,290,w-80,150,'$INFO[Control.GetLabel(1)]','p_pill',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
+  '<control type="group"><visible>!%s + !Control.IsVisible(5)</visible>%s</control>'%(titled,label(40,24,w-80,130,'$INFO[Control.GetLabel(1)]','p_pill',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
+  '<control type="group"><visible>!%s + Control.IsVisible(5)</visible>%s</control>'%(titled,label(250,24,w-500,130,'$INFO[Control.GetLabel(1)]','p_pill',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
+  ('<control type="button" id="5"><left>%d</left><top>24</top><width>230</width><height>130</height><label></label><font>p_btn</font>'
+   '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny><texturefocus /><texturenofocus />'
+   '<onup>3</onup><ondown>9050</ondown></control>')%(w-250,ACCENT,ACCENT)+
   '<control type="label" id="1"><visible>false</visible></control>')
  icon_row='!String.IsEmpty(ListItem.Icon) + !String.StartsWith(ListItem.Icon,Default) + String.IsEmpty(ListItem.Art(poster))'
  # Owner-approved pickers (docs/design/settings-pages-mockups.html boards 13-14): a choice may carry a second line
@@ -1394,8 +1402,11 @@ def select_dialog(original):
   label(150,0,w-260,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>%s + !%s</visible>'%(tile,two))+
   label(150,72,w-260,48,'$INFO[ListItem.Label2]','p_foot',GREY,'left','<scroll>false</scroll><visible>%s + %s</visible>'%(tile,two))+
   # two lines, no tile: left-aligned name over its detail
-  label(40,10,w-130,70,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>!%s + %s</visible>'%(tile,two))+
-  label(40,72,w-130,48,'$INFO[ListItem.Label2]','p_foot',GREY,'left','<scroll>false</scroll><visible>!%s + %s</visible>'%(tile,two))+
+  label(40,10,w-130,70,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>!%s + %s + ![%s]</visible>'%(tile,two,icon_row))+
+  label(40,72,w-130,48,'$INFO[ListItem.Label2]','p_foot',GREY,'left','<scroll>false</scroll><visible>!%s + %s + ![%s]</visible>'%(tile,two,icon_row))+
+  # ... and beside the add-on's own icon when it has one (Dependencies: the icon sat on top of the name and its versions)
+  label(140,10,w-230,70,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>!%s + %s + %s</visible>'%(tile,two,icon_row))+
+  label(140,72,w-230,48,'$INFO[ListItem.Label2]','p_foot',GREY,'left','<scroll>false</scroll><visible>!%s + %s + %s</visible>'%(tile,two,icon_row))+
   icon(w-90,(row_h-44)//2,44,'check.png',ACCENT,'<visible>ListItem.IsSelected</visible>'))
  lists=''.join(('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><onup>%d</onup><ondown>9050</ondown>'
   '<scrolltime tween="cubic">250</scrolltime><itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>%s</control>'
@@ -1418,7 +1429,7 @@ def select_dialog(original):
                for n in range(1,SELECT_ROWS) for head,c in ((head_art,titled),(head_plain,'!'+titled)))
  # A long list without art: the full card is shorter by the art's height, so it moves down to the bottom too.
  slides+='<animation effect="slide" end="0,%d" time="0" condition="%s + !%s">Conditional</animation>'%(head_art-head_plain,count(SELECT_ROWS-1,'IsGreater'),titled)
- hidden=''.join('<control type="button" id="%d"><visible>false</visible></control>'%i for i in (5,7,8))+'<control type="label" id="2"><visible>false</visible></control>'
+ hidden=''.join('<control type="button" id="%d"><visible>false</visible></control>'%i for i in (7,8))+'<control type="label" id="2"><visible>false</visible></control>'
  body='<left>%d</left><top>%d</top><width>%d</width><height>%d</height>%s%s%s%s%s'%(x,top,w,full,slides,cards,heading,lists,hidden)
  return centered_dialog(original,body,'3')
 

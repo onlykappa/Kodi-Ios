@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Add-on Pages Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* MOCKUP: browser rendering only. Not evidence of how Kodi draws it (APPLE-UI-POLICY §9).
+   Tokens are the portrait.py / pages.py tokens (policy §4.3). Inter is the approved font (§4.2). */
+:root{
+  --bg:#000;
+  --surface:#1c1c1e;      /* SURFACE  */
+  --surface2:#2c2c2e;     /* SURFACE2 */
+  --white:#fff;
+  --grey:rgba(235,235,245,.6);   /* GREY: secondary text */
+  --sep:rgba(235,235,245,.2);    /* SEP  */
+  --blue:#0a84ff;         /* fills */
+  --blue-text:#4fa8ff;    /* blue text and glyphs */
+  --green:#30d158;
+  --red:#ff453a;
+  --orange:#ff9f0a;
+  --tile:#0f0f10;
+  --radius:10px;          /* RADIUS 26 units */
+  --page:#0a0a0b;
+  --font:Inter,-apple-system,system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--page);color:var(--white);font-family:var(--font);-webkit-font-smoothing:antialiased}
+svg{display:block}
+
+.intro{max-width:1240px;margin:0 auto;padding:48px 16px 8px}
+.eyebrow{color:var(--grey);font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.intro h1{font-size:clamp(28px,5vw,42px);font-weight:800;letter-spacing:-.02em;margin:8px 0 12px}
+.intro p{color:#b4b4ba;font-size:16px;line-height:1.5;max-width:820px;margin-bottom:10px}
+.intro b{color:#fff}
+.grid{max-width:1400px;margin:0 auto;padding:24px 16px 64px;display:flex;flex-wrap:wrap;gap:56px 40px;justify-content:center}
+figure{display:flex;flex-direction:column;align-items:center;gap:16px;width:min(422px,100%)}
+figcaption{width:100%;max-width:402px}
+figcaption .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+figcaption h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+figcaption p{color:var(--grey);font-size:14px;line-height:1.45}
+
+/* ---- phone: 402 x 778 pt safe area like the iPhone 16 Pro portrait skin ---- */
+.phone{width:min(422px,100%);height:874px;border-radius:60px;padding:10px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.screen{position:relative;width:100%;height:100%;border-radius:50px;overflow:hidden;background:var(--bg)}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:120px;height:34px;background:#000;border-radius:20px;z-index:40}
+.status{position:absolute;top:0;left:0;right:0;height:56px;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:8px 32px 0 40px;font-weight:600;font-size:16px;background:#000}
+.home-ind{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#fff;z-index:40}
+.scroll{position:absolute;inset:0;overflow-y:auto;padding:56px 0 48px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+
+/* header: nav_button chevron (no circle, 150-unit area) + centred title */
+.nav{position:sticky;top:0;z-index:20;height:56px;background:#000;display:flex;align-items:center;justify-content:center}
+.nav .back{position:absolute;left:4px;top:0;width:56px;height:56px;display:grid;place-items:center}
+.nav .back svg{width:14px;height:24px}
+.nav .t{font-size:17px;font-weight:700;letter-spacing:-.01em}
+
+/* hero: tile + name + author + meta chips; wraps, never cut off */
+.hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:14px 24px 4px}
+.tile{width:96px;height:96px;border-radius:23px;background:var(--tile);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.14);display:grid;place-items:center;overflow:hidden}
+.tile .lt{font-weight:800;font-size:42px;letter-spacing:-.03em}
+.tile svg{width:46px;height:46px}
+.hero h1{font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.15;margin-top:16px;max-width:330px}
+.hero .by{color:var(--grey);font-size:15px;margin-top:6px;line-height:1.3}
+.status-chip{display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-size:13px;font-weight:600;padding:5px 11px;border-radius:99px;background:var(--surface)}
+.status-chip i{width:8px;height:8px;border-radius:50%;background:var(--green);display:block}
+.status-chip.off i{background:#8e8e93}
+.status-chip.upd i{background:var(--blue)}
+.status-chip.new i{background:transparent;box-shadow:inset 0 0 0 1.5px #8e8e93}
+
+/* actions: one primary (white capsule), secondary dark capsule, 50 pt high */
+.actions{display:flex;gap:10px;padding:20px 20px 6px}
+.btn{flex:1;height:50px;border-radius:25px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:17px;font-weight:600;background:var(--surface2);color:#fff;white-space:nowrap}
+.btn.primary{background:#fff;color:#000}
+.btn svg{width:19px;height:19px}
+
+/* grouped lists */
+.gap{height:28px}
+.sh{color:var(--grey);font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:0 36px 8px}
+.group{background:var(--surface);border-radius:var(--radius);margin:0 20px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;min-height:52px;padding:0 16px;position:relative}
+.row + .row::before{content:"";position:absolute;left:16px;right:0;top:0;height:.5px;background:var(--sep)}
+.row .lb{flex:1;font-size:17px;letter-spacing:-.015em;padding:13px 0;line-height:1.25}
+.row .lb small{display:block;color:var(--grey);font-size:13px;margin-top:2px;letter-spacing:0;line-height:1.3}
+.row .val{color:var(--grey);font-size:17px;text-align:right;max-width:58%;line-height:1.25;padding:13px 0}
+.row .chev{width:8px;height:14px;color:rgba(235,235,245,.3);flex:none}
+.ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;background:var(--tile);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.12);color:var(--c,#8e8e93)}
+.ic svg{width:18px;height:18px}
+.tg{width:51px;height:31px;border-radius:16px;background:#39393d;position:relative;flex:none}
+.tg::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25)}
+.tg.on{background:var(--green)}
+.tg.on::after{left:22px}
+.blue{color:var(--blue-text)}
+.red{color:var(--red)}
+
+/* description card: full text, whole-page scroll, never truncated */
+.desc{padding:14px 16px 16px;font-size:16px;line-height:1.5;color:rgba(255,255,255,.88)}
+.desc p + p{margin-top:12px}
+.desc.warn{display:flex;gap:12px;align-items:flex-start}
+.desc.warn svg{width:22px;height:22px;color:var(--orange);flex:none;margin-top:1px}
+
+/* sheet (Versions): dimmed page + SURFACE2 sheet with a visibly larger top radius, grabber, X close */
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:50}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:60;background:var(--surface2);border-radius:28px 28px 0 0;padding:8px 0 34px;box-shadow:0 -10px 40px rgba(0,0,0,.5)}
+.sheet .grab{width:36px;height:5px;border-radius:3px;background:rgba(235,235,245,.3);margin:0 auto 6px}
+.sheet .hd{display:flex;align-items:center;justify-content:space-between;padding:6px 20px 12px 20px}
+.sheet .hd h3{font-size:22px;font-weight:800;letter-spacing:-.02em}
+.sheet .x{width:44px;height:44px;margin:-6px -10px -6px 0;display:grid;place-items:center}
+.sheet .x i{width:30px;height:30px;border-radius:50%;background:rgba(235,235,245,.14);display:grid;place-items:center}
+.sheet .x svg{width:12px;height:12px}
+.sheet .group{background:var(--surface)}
+.sheet .note{color:var(--grey);font-size:13px;line-height:1.4;padding:10px 36px 0}
+.ver{font-weight:600}
+.pill{font-size:12px;font-weight:700;padding:3px 9px;border-radius:99px;background:rgba(10,132,255,.22);color:var(--blue-text)}
+.check{width:20px;height:20px;color:var(--blue-text)}
+.legend{max-width:1240px;margin:0 auto;padding:0 16px 56px}
+.legend h2{font-size:22px;font-weight:800;margin:28px 0 10px}
+.legend table{border-collapse:collapse;width:100%;font-size:14px}
+.legend th,.legend td{text-align:left;padding:9px 12px;border-bottom:1px solid #26262a;vertical-align:top;line-height:1.4}
+.legend th{color:var(--grey);font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.legend td:first-child{white-space:nowrap;color:#fff;font-weight:600}
+.legend td{color:#c8c8ce}
+.legend code{background:#1c1c1e;padding:1px 6px;border-radius:5px;font-size:13px}
+@media(max-width:700px){.legend{overflow-x:auto}}
+
+/* install flow */
+.nav .act{position:absolute;right:4px;top:0;width:56px;height:56px;display:grid;place-items:center;color:var(--blue-text)}
+.nav .act svg{width:22px;height:22px}
+.arow{display:flex;align-items:center;gap:14px;padding:12px 16px;min-height:76px;position:relative}
+.arow + .arow::before{content:"";position:absolute;left:82px;right:0;top:0;height:.5px;background:var(--sep)}
+.arow .tile{width:52px;height:52px;border-radius:13px;flex:none}
+.arow .tile .lt{font-size:22px}
+.arow .nm{flex:1;font-size:17px;font-weight:600;letter-spacing:-.015em;line-height:1.25}
+.arow .nm small{display:block;color:var(--grey);font-size:13px;font-weight:400;margin-top:2px;letter-spacing:0}
+.arow .st{font-size:13px;font-weight:600;color:var(--blue-text);white-space:nowrap}
+.arow .st.ok{color:var(--green)}
+.alert{position:absolute;left:51px;right:51px;top:50%;transform:translateY(-50%);z-index:60;background:var(--surface2);border-radius:26px;overflow:hidden;text-align:center}
+.alert .b{padding:24px 20px 20px}
+.alert h3{font-size:19px;font-weight:700;letter-spacing:-.01em;line-height:1.25}
+.alert p{color:var(--grey);font-size:14px;line-height:1.4;margin-top:6px}
+.alert .two{display:flex;border-top:.5px solid var(--sep)}
+.alert .two div{flex:1;height:56px;display:grid;place-items:center;font-size:17px;color:var(--blue-text)}
+.alert .two div + div{border-left:.5px solid var(--sep);font-weight:700}
+.bar{height:4px;border-radius:2px;background:rgba(255,255,255,.2);overflow:hidden;margin-top:12px}
+.bar i{display:block;height:100%;background:var(--blue);border-radius:2px}
+.card2{position:absolute;left:20px;right:20px;bottom:44px;z-index:60;background:var(--surface2);border-radius:22px;padding:14px 16px 16px;display:flex;flex-direction:column}
+.card2 .r{display:flex;align-items:center;gap:12px}
+.card2 .tile{width:44px;height:44px;border-radius:11px;flex:none}
+.card2 .tile .lt{font-size:19px}
+.card2 b{font-size:16px;font-weight:700;letter-spacing:-.01em;display:block}
+.card2 span.s{color:var(--grey);font-size:13px;display:block;margin-top:2px}
+
+.rail{position:absolute;right:3px;top:150px;bottom:90px;width:18px;display:flex;flex-direction:column;justify-content:space-between;align-items:center;z-index:25;font-size:11px;font-weight:700;color:var(--blue-text);padding:2px 0}
+.kb{position:absolute;left:0;right:0;bottom:0;height:300px;background:#1f1f21;border-radius:24px 24px 0 0;z-index:50;padding:10px 4px;display:flex;flex-direction:column;gap:9px}
+.kb .sg{display:flex;justify-content:space-around;color:#c8c8ce;font-size:16px;padding:2px 0 4px}
+.kb .rw{display:flex;gap:5px;justify-content:center}
+.kb .k{flex:1;max-width:34px;height:42px;border-radius:6px;background:#4a4a4d;display:grid;place-items:center;font-size:20px}
+.kb .k.w{max-width:none;flex:3;background:#4a4a4d}
+.kb .k.go{max-width:none;flex:2;background:var(--blue)}
+.kb .k.go svg{width:22px;height:22px}
+.field{display:flex;align-items:center;gap:10px;height:44px;margin:8px 20px 0;padding:0 14px;border-radius:12px;background:var(--surface2);color:var(--grey);font-size:17px}
+.field svg{width:18px;height:18px}
+.field b{color:#fff;font-weight:500}
+.ver2{display:flex;align-items:center;gap:8px;font-size:15px;flex-wrap:wrap}
+.ver2 s{color:var(--grey)}
+.lvl{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;background:var(--tile);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.12)}
+.lvl i{width:10px;height:10px;border-radius:50%;background:#8e8e93}
+.lvl.w i{background:var(--orange)}
+.lvl.e i{background:var(--red)}
+.empty{text-align:center;color:var(--grey);font-size:15px;line-height:1.4;padding:60px 40px}
+.badge{background:var(--red);color:#fff;font-size:13px;font-weight:700;min-width:22px;height:22px;border-radius:11px;display:grid;place-items:center;padding:0 7px}
+.btn.sm{height:44px;font-size:16px}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="tick" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="chev" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="back" viewBox="0 0 14 24"><path d="M12 2L3 12l9 10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="x" viewBox="0 0 12 12"><path d="M1 1l10 10M11 1L1 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="puzzle" viewBox="0 0 24 24"><path fill="currentColor" d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.7 2.7 0 0 1 0 5.4H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.7 2.7 0 0 1 5.4 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></symbol>
+    <symbol id="play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.5v13a1 1 0 0 0 1.5.9l10.5-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z"/></symbol>
+    <symbol id="gear" viewBox="0 0 24 24"><path fill="currentColor" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm8.4-2.6l1.6 1.2-2 3.5-1.9-.6a7 7 0 0 1-1.6.9l-.4 2.1h-4l-.4-2.1a7 7 0 0 1-1.6-.9l-1.9.6-2-3.5 1.6-1.2a7 7 0 0 1 0-1.8L3.6 9.9l2-3.5 1.9.6a7 7 0 0 1 1.6-.9l.4-2.1h4l.4 2.1c.6.2 1.1.5 1.6.9l1.9-.6 2 3.5-1.6 1.2a7 7 0 0 1 0 1.8z"/></symbol>
+    <symbol id="down" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"/></symbol>
+    <symbol id="branch" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M7 4v12m0 0a3 3 0 1 0 0 .01M7 8a3 3 0 1 0 0-.01m10 0a3 3 0 1 0 0-.01M17 11c0 4-10 2-10 5"/></symbol>
+    <symbol id="graph" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M6 8a2.5 2.5 0 1 0 0 .01M18 5a2.5 2.5 0 1 0 0 .01M18 19a2.5 2.5 0 1 0 0 .01M8.3 7l7.4-1.4M8 9.5l8 8"/></symbol>
+    <symbol id="clock" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4M12 7v5l3 2"/></symbol>
+    <symbol id="doc" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></symbol>
+    <symbol id="trash" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+    <symbol id="warn" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3l10 18H2zm-1 7v5h2v-5zm0 7v2h2v-2z"/></symbol>
+    <symbol id="refresh" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/></symbol>
+  
+    <symbol id="stack" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3C7.6 3 4 4.3 4 6v2c0 1.7 3.6 3 8 3s8-1.3 8-3V6c0-1.7-3.6-3-8-3zm-8 7v3c0 1.7 3.6 3 8 3s8-1.3 8-3v-3c0 1.7-3.6 3-8 3s-8-1.3-8-3zm0 5v3c0 1.7 3.6 3 8 3s8-1.3 8-3v-3c0 1.7-3.6 3-8 3s-8-1.3-8-3z"/></symbol>
+    <symbol id="zip" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l5 5v13H7zM14 3v5h5M11 11h2M11 14h2M11 17h2"/></symbol>
+    <symbol id="search" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></g></symbol>
+    <symbol id="folder" viewBox="0 0 24 24"><path fill="currentColor" d="M3 6.5A2.5 2.5 0 0 1 5.5 4H10l2 2.5h6.5A2.5 2.5 0 0 1 21 9v8.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></symbol>
+    <symbol id="globe" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></g></symbol>
+    <symbol id="tray" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 13l3-8h12l3 8v6H3zM3 13h5l1 2h6l1-2h5"/></symbol>
+    <symbol id="net" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="7" rx="2"/><rect x="4" y="14" width="16" height="7" rx="2"/><path d="M8 7h.01M8 18h.01"/></g></symbol>
+    <symbol id="bell" viewBox="0 0 24 24"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.4-2h-4.8A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5-6.7V3a2 2 0 0 0-4 0v1.3A7 7 0 0 0 5 11v5l-2 2v1h18v-1z"/></symbol>
+  </defs>
+</svg>
+
+<header class="intro">
+  <div class="eyebrow">MOCKUP · browser rendering, not Kodi · for approval</div>
+  <h1>Every add-on page</h1>
+  <p>Seven pages that surround the add-on page (see <b>addon-info-mockups.html</b>). They come from the screens you screenshotted and the tap logs: Add-ons, My add-ons, Available updates, Install from repository, Install from zip file, Search and Event log.
+  All of them use the same pattern as the other portrait pages: back chevron, grouped rows, one white button for the main action.</p>
+  <p>Add-on names, versions and counts are sample text. Tiles are letters or generic glyphs, because each add-on supplies its own icon at runtime.</p>
+</header>
+<main class="grid">
+
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll"><div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Add-ons</div></div>
+  <div class="gap-s" style="height:12px"></div>
+  <div class="group">
+    <div class="row"><span class="ic" style="--c:#8e8e93"><svg><use href="#puzzle"/></svg></span><div class="lb">My add-ons<small>38 installed</small></div><svg class="chev"><use href="#chev"/></svg></div>
+    <div class="row"><span class="ic" style="--c:#0a84ff"><svg><use href="#refresh"/></svg></span><div class="lb">Available updates<small>2 add-ons can update</small></div><span class="badge">2</span><svg class="chev"><use href="#chev"/></svg></div>
+  </div>
+  <div class="gap"></div><div class="sh">Get more</div>
+  <div class="group">
+    <div class="row"><span class="ic" style="--c:#30d158"><svg><use href="#stack"/></svg></span><div class="lb">Install from repository<small>Browse add-ons by category</small></div><svg class="chev"><use href="#chev"/></svg></div>
+    <div class="row"><span class="ic" style="--c:#ff9f0a"><svg><use href="#zip"/></svg></span><div class="lb">Install from zip file<small>Add-ons you downloaded yourself</small></div><svg class="chev"><use href="#chev"/></svg></div>
+    <div class="row"><span class="ic" style="--c:#64d2ff"><svg><use href="#search"/></svg></span><div class="lb">Search<small>Find an add-on by name</small></div><svg class="chev"><use href="#chev"/></svg></div>
+  </div>
+</div>
+    
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">1 · MOCKUP</div><h2>Add-ons (the front page)</h2><p>Today the same five choices appear twice: as pills and again as rows. Here they are one grouped list, split into "yours" and "get more". The update count sits on its row as a badge and the sub-lines say what each does. No pills, so nothing is clipped at the screen edge.</p></figcaption>
+</figure>
+
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll"><div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">My add-ons</div><div class="act"><svg><use href="#search"/></svg></div></div>
+  <div style="padding:4px 20px 8px"><div class="ver2"><span style="color:var(--grey);font-size:13px">38 add-ons · sorted by name</span></div></div>
+  <div class="group" style="margin-right:26px"><div class="arow"><div class="tile"><span class="lt">O</span></div><div class="nm">Otaku<small>5.3.4 · Enabled</small></div><span class="st "></span></div><div class="arow"><div class="tile"><span class="lt">O</span></div><div class="nm">Otaku - Global Context Menu<small>1.0.35 · Enabled</small></div><span class="st "></span></div><div class="arow"><div class="tile"><span class="lt">P</span></div><div class="nm">POV<small>6.11.03 · Enabled</small></div><span class="st "></span></div><div class="arow"><div class="tile"><span class="lt">P</span></div><div class="nm">Prism<small>4.0.2 · Disabled</small></div><span class="st "></span></div><div class="arow"><div class="tile"><span class="lt">S</span></div><div class="nm">Skin Variables<small>2.2.10 · Enabled</small></div><span class="st "></span></div><div class="arow"><div class="tile"><span class="lt">S</span></div><div class="nm">SNES Controller<small>1.0.46 · Enabled</small></div><span class="st "></span></div><div class="arow"><div class="tile"><span class="lt">S</span></div><div class="nm">Studio Icons - Coloured<small>0.0.24 · Enabled</small></div><span class="st "></span></div><div class="arow"><div class="tile"><span class="lt">T</span></div><div class="nm">Texture Maker<small>0.2.11 · Enabled</small></div><span class="st "></span></div><div class="arow"><div class="tile"><span class="lt">T</span></div><div class="nm">The Loop<small>8.4 · Enabled</small></div><span class="st "></span></div></div></div>
+  <div class="rail"><span>A</span><span>B</span><span>C</span><span>D</span><span>E</span><span>F</span><span>G</span><span>H</span><span>I</span><span>J</span><span>K</span><span>L</span><span>M</span><span>N</span><span>O</span><span>P</span><span>Q</span><span>R</span><span>S</span><span>T</span><span>U</span><span>V</span><span>W</span><span>X</span><span>Y</span><span>Z</span></div>
+    
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">2 · MOCKUP</div><h2>My add-ons</h2><p>The list you already have, with a scroll index along the right edge (drag a finger down it to jump to a letter) and names that wrap instead of ending in "…". Tapping a row opens the add-on page. Search is the header icon.</p></figcaption>
+</figure>
+
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll"><div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Available updates</div></div>
+  <div class="actions" style="padding-top:12px"><div class="btn primary"><svg><use href="#down"/></svg>Update all (2)</div></div>
+  <div class="gap"></div><div class="sh">Updates</div>
+  <div class="group"><div class="arow"><div class="tile"><span class="lt">C</span></div><div class="nm">Cloud Drive Common Module<small>1.5.18 → 1.5.20</small></div><span class="st ">Update</span></div><div class="arow"><div class="tile"><span class="lt">G</span></div><div class="nm">Google Drive<small>1.6.11 → 1.6.13</small></div><span class="st ">Update</span></div></div>
+  <div class="foot" style="color:var(--grey);font-size:13px;line-height:1.4;padding:8px 36px 0">Tap an add-on to read what changed before you update it.</div>
+</div>
+    
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">3 · MOCKUP</div><h2>Available updates</h2><p>One primary button, "Update all", instead of a row that looks like a file. Each add-on shows the version change. "Cloud Drive Common Module" is shown in full. With no updates the page says "Everything is up to date" instead of showing an empty list.</p></figcaption>
+</figure>
+
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll"><div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Install from repository</div></div>
+  <div class="gap" style="height:12px"></div>
+  <div class="sh">Repositories</div>
+  <div class="group"><div class="row"><span class="ic" style="--c:#30d158"><svg><use href="#stack"/></svg></span><div class="lb">Loop Repository<small>24 add-ons</small></div><svg class="chev"><use href="#chev"/></svg></div><div class="row"><span class="ic" style="--c:#30d158"><svg><use href="#stack"/></svg></span><div class="lb">Kodi Add-on repository<small>1,000+ add-ons</small></div><svg class="chev"><use href="#chev"/></svg></div><div class="row"><span class="ic" style="--c:#30d158"><svg><use href="#stack"/></svg></span><div class="lb">Umbrella repository<small>6 add-ons</small></div><svg class="chev"><use href="#chev"/></svg></div></div>
+  <div class="gap"></div><div class="sh">Loop Repository</div>
+  <div class="group"><div class="row"><span class="ic" style="--c:#ff453a"><svg><use href="#play"/></svg></span><div class="lb">Video add-ons<small>12</small></div><svg class="chev"><use href="#chev"/></svg></div><div class="row"><span class="ic" style="--c:#bf5af2"><svg><use href="#puzzle"/></svg></span><div class="lb">Program add-ons<small>4</small></div><svg class="chev"><use href="#chev"/></svg></div><div class="row"><span class="ic" style="--c:#ff9f0a"><svg><use href="#doc"/></svg></span><div class="lb">Look and feel<small>3</small></div><svg class="chev"><use href="#chev"/></svg></div><div class="row"><span class="ic" style="--c:#8e8e93"><svg><use href="#gear"/></svg></span><div class="lb">Services<small>5</small></div><svg class="chev"><use href="#chev"/></svg></div></div>
+</div>
+    
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">4 · MOCKUP</div><h2>Install from repository</h2><p>Step one: pick a repository. Step two: pick a category, shown here below the repository you tapped (on the real page the second list replaces the first). Step three is frame 6 of the other board: the add-on list with Install, Update and Installed on each row.</p></figcaption>
+</figure>
+
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll"><div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Install from zip file</div></div>
+  <div class="gap" style="height:12px"></div>
+  <div class="sh">Choose where the file is</div>
+  <div class="group">
+    <div class="row"><span class="ic" style="--c:#0a84ff"><svg><use href="#folder"/></svg></span><div class="lb">Files<small>Downloads, iCloud Drive and other apps</small></div><svg class="chev"><use href="#chev"/></svg></div>
+    <div class="row"><span class="ic" style="--c:#30d158"><svg><use href="#down"/></svg></span><div class="lb">Shared with Kodi<small>Zips you sent with Share or AirDrop</small></div><svg class="chev"><use href="#chev"/></svg></div>
+    <div class="row"><span class="ic" style="--c:#ff9f0a"><svg><use href="#tray"/></svg></span><div class="lb">Kodi folder<small>Files you copied in with the Files app</small></div><svg class="chev"><use href="#chev"/></svg></div>
+  </div>
+  <div class="gap"></div><div class="sh">Sources you added</div>
+  <div class="group"><div class="row"><span class="ic" style="--c:#64d2ff"><svg><use href="#globe"/></svg></span><div class="lb">umbrellaplug.github.io</div><svg class="chev"><use href="#chev"/></svg></div></div>
+  <div class="gap"></div>
+  <div class="group"><div class="row"><span class="ic" style="--c:#8e8e93"><svg><use href="#net"/></svg></span><div class="lb">Network and other sources<small>NFS, Windows network (SMB), Zeroconf</small></div><svg class="chev"><use href="#chev"/></svg></div></div>
+  <div class="foot" style="color:var(--grey);font-size:13px;line-height:1.4;padding:8px 36px 0">Only install add-ons from people you trust. You then pick the .zip file and Kodi installs it.</div>
+</div>
+    
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">5 · MOCKUP</div><h2>Install from zip file</h2><p>iPhone first. "Files" opens the iPhone Files picker, where Downloads, iCloud Drive and other apps live. Home folder is gone, and the network sources sit under one "advanced" row at the bottom. Sources you added yourself (a web address) only show when you have some. NOTE: Kodi can only read its own folders today, so "Files" needs a small native picker added to the app (decision needed). "Shared with Kodi" and "Kodi folder" work without it.</p></figcaption>
+</figure>
+
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll"><div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Search add-ons</div></div>
+  <div class="field"><svg><use href="#search"/></svg><b>jet</b></div>
+  <div class="gap"></div><div class="sh">Results</div>
+  <div class="group"><div class="arow"><div class="tile"><span class="lt">J</span></div><div class="nm">JetProxy<small>1.1.0 · Kodi Add-on repository</small></div><span class="st ok">Installed</span></div><div class="arow"><div class="tile"><span class="lt">J</span></div><div class="nm">JetExtractors<small>3.3.34 · Loop Repository</small></div><span class="st ">Install</span></div></div>
+</div>
+    <div class="kb"><div class="sg"><span>the</span><span>i</span><span>to</span></div><div class="rw"><div class="k">q</div><div class="k">w</div><div class="k">e</div><div class="k">r</div><div class="k">t</div><div class="k">y</div><div class="k">u</div><div class="k">i</div><div class="k">o</div><div class="k">p</div></div><div class="rw"><div class="k">a</div><div class="k">s</div><div class="k">d</div><div class="k">f</div><div class="k">g</div><div class="k">h</div><div class="k">j</div><div class="k">k</div><div class="k">l</div></div><div class="rw"><div class="k">z</div><div class="k">x</div><div class="k">c</div><div class="k">v</div><div class="k">b</div><div class="k">n</div><div class="k">m</div></div><div class="rw"><div class="k w">123</div><div class="k w" style="flex:5"></div><div class="k go"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg></div></div></div>
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">6 · MOCKUP</div><h2>Search</h2><p>Today the prompt "Enter search string" sits in grey on black, half hidden behind the keyboard, and the search then fails to load (the log shows an error for the add-on search every time). Here the field is a normal search field at the top with the keyboard's own check button, and the results appear under it as you search. This is the iPhone keyboard, which Kodi already uses.</p></figcaption>
+</figure>
+
+<figure>
+  <div class="phone"><div class="screen">
+    <div class="island"></div><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="scroll"><div class="nav"><div class="back"><svg><use href="#back"/></svg></div><div class="t">Event log</div></div>
+  <div class="gap" style="height:12px"></div>
+  <div class="group">
+    <div class="row"><div class="lb">Level</div><div class="val">Basic</div><svg class="chev"><use href="#chev"/></svg></div>
+    <div class="row"><div class="lb">Show higher levels</div><div class="tg on"></div></div>
+    <div class="row"><div class="lb">Newest first</div><div class="tg on"></div></div>
+  </div>
+  <div class="gap"></div><div class="sh">Events</div>
+  <div class="group"><div class="row"><span class="lvl"><i></i></span><div class="lb">Alarm clock<small>26 Nov 2026, 2:31 PM</small></div></div><div class="row"><span class="lvl"><i></i></span><div class="lb">The Loop installed<small>26 Nov 2026, 2:20 PM</small></div></div><div class="row"><span class="lvl"><i></i></span><div class="lb">Loop Guide installed<small>26 Nov 2026, 2:20 PM</small></div></div><div class="row"><span class="lvl w"><i></i></span><div class="lb">Source check failed<small>26 Nov 2026, 2:19 PM</small></div></div><div class="row"><span class="lvl"><i></i></span><div class="lb">JetExtractors installed<small>26 Nov 2026, 2:20 PM</small></div></div></div>
+  <div class="gap"></div>
+  <div class="group"><div class="row"><div class="lb red" style="text-align:center">Clear log</div></div></div>
+</div>
+    
+    <div class="home-ind"></div>
+  </div></div>
+  <figcaption><div class="n">7 · MOCKUP</div><h2>Event log</h2><p>The four pills (one cut off at the right edge, "Descending" with no background) become three settings rows. Each event keeps its level dot (grey, orange, red). Clear log is red and asks first.</p></figcaption>
+</figure>
+</main>
+<section class="legend">
+  <h2>Problems seen in your screenshots and logs, and what each frame does about it</h2>
+  <table>
+    <tr><th>Seen</th><th>Fix in the mockup</th></tr>
+    <tr><td>Pills and rows show the same choices twice (Add-ons page)</td><td>One grouped list (frame 1)</td></tr>
+    <tr><td>Pill row clipped at the right edge, "My Add-ons" cut at the left (several pages)</td><td>No pill rows. Choices are rows or header icons (frames 1 to 3, 7)</td></tr>
+    <tr><td>"Cloud Drive Common Mod…" cut off</td><td>Names wrap in full (frames 2, 3)</td></tr>
+    <tr><td>Install from zip is a small landscape dialog on a black screen, listing sources like Home folder that mean nothing on an iPhone</td><td>A normal page, led by the iPhone Files app, with the rest tucked away (frame 5)</td></tr>
+    <tr><td>"Enter search string" low-contrast and half behind the keyboard; <code>GetDirectory - Error getting addons://search/</code> in the logs</td><td>Real search field (frame 6). The load error is a separate bug to fix when this is built.</td></tr>
+    <tr><td>Event log pills clipped, "Descending" without a background</td><td>Settings rows (frame 7)</td></tr>
+    <tr><td>A rounded black shape covering the title on Available updates (screenshot 3)</td><td>Not explained by the logs. To check in the rig and on your phone.</td></tr>
+  </table>
+  <h2>Screens in the logs that already have a design</h2>
+  <p style="color:#c8c8ce;font-size:14px;line-height:1.5;max-width:900px">The add-on page, Versions sheet, install prompt and progress card are in <code>addon-info-mockups.html</code>. Add-on settings already use the portrait settings sheet. Kodi's busy spinner and confirm dialogs already use the approved alert card.</p>
+  <h2>Reused from the project</h2>
+  <p style="color:#c8c8ce;font-size:14px;line-height:1.5;max-width:900px">Same tokens and patterns as the first board: <code>BG</code>/<code>SURFACE</code>/<code>SURFACE2</code>/<code>GREY</code>/<code>SEP</code>, blue fill and <code>4FA8FF</code> text, Inter, <code>RADIUS</code>, capsule primary, <code>nav_button</code> chevron, <code>settings_page.py</code> grouped rows, toggles as in Settings. No new colour, size, radius or button variant.</p>
+</section>
+</body>
+</html>

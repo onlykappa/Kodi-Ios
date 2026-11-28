@@ -488,6 +488,22 @@ def run():
    except Exception as error:xbmc.log('Kodi iOS loop: check failed (%s)'%type(error).__name__,xbmc.LOGWARNING)
    if monitor.waitForAbort(900):return
  threading.Thread(target=loop_quiet_loop,daemon=True).start()
+ # The Loop's own notice window as a portrait sheet (owner, 2026-11-27; loop_notice.py): only the exact pinned file, checked every 20 s.
+ def loop_notice_loop():
+  import loop_notice
+  def folder():
+   if not xbmc.getCondVisibility('System.HasAddon(%s)'%loop_notice.ADDON):return ''
+   return xbmcvfs.translatePath(xbmcaddon.Addon(loop_notice.ADDON).getAddonInfo('path'))
+  loop_notice.watch(folder,monitor.waitForAbort,lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+ threading.Thread(target=loop_notice_loop,daemon=True).start()
+ # The Crew's version window as a portrait sheet (owner-approved board, crew_notice.py): only the exact pinned files, checked every 20 s.
+ def crew_notice_loop():
+  import crew_notice
+  def folder():
+   if not xbmc.getCondVisibility('System.HasAddon(%s)'%crew_notice.ADDON):return ''
+   return xbmcvfs.translatePath(xbmcaddon.Addon(crew_notice.ADDON).getAddonInfo('path'))
+  crew_notice.watch(folder,monitor.waitForAbort,lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
+ threading.Thread(target=crew_notice_loop,daemon=True).start()
  # Crew's client lacks the parseDOM name its own downloaded streamers call (build 616 log: "Streamer [generic] failed"): added once at start, for Movies and TV too.
  def crew_alias():
   try:
@@ -601,6 +617,10 @@ def run():
  import background_box
  threading.Thread(target=background_box.watch,args=(lambda:background_box.read_box(xbmc,xbmcgui),
   lambda text:notices.add(profile,'problem','Elementum Burst',text),monitor.waitForAbort),daemon=True).start()
+ # Add-on install progress for the add-on page (install_progress.py): Kodi's background box copied into Window(Home) properties.
+ import install_progress
+ threading.Thread(target=install_progress.watch,args=(lambda:install_progress.read(xbmc,xbmcgui),window.setProperty,window.clearProperty,
+  monitor.waitForAbort),daemon=True).start()
  # ISSUE-267: the add-ons the app patches stay its own copies (a repository update had hidden them; no copy ran).
  try:
   import pinned_addons

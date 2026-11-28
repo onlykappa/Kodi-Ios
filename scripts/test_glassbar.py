@@ -230,11 +230,11 @@ class NativeOwnerTests(unittest.TestCase):
     elif action.startswith('SetFocus('):self.assertIn('"SetFocus(" + std::to_string(4000 + 10000 * tapped) + ")"',block);self.assertIn(action,['SetFocus(%d)'%(4000+10000*i) for i in range(3)])
     else:self.assertIn('"%s"'%action,block)
     if condition:self.assertIn('info.EvaluateBool("%s", context)'%condition,block)
- def test_locks_pin_r6_and_verified_r28(self):
+ def test_locks_pin_r7_and_verified_r28(self):
   bar=json.loads((ROOT/'migration/glassbar-ios/source-lock.json').read_text())
-  self.assertEqual(bar['framework_release']['tag'],'kodi-glassbar-r6')
+  self.assertEqual(bar['framework_release']['tag'],'kodi-glassbar-r7')   # r7: the iPhone Files picker for Install from zip file (kodi_pick_zip / kodi_pick_take)
   self.assertRegex(bar['framework_release']['sha256'],r'^[0-9a-f]{64}$')
-  self.assertEqual(bar['previous']['tag'],'kodi-glassbar-r5')
+  self.assertEqual(bar['previous']['tag'],'kodi-glassbar-r6')
   self.assertNotIn('build_status',bar)
   exe=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
   self.assertEqual(exe['executable_release']['tag'],'kodi-ios-portrait-r36')   # r36: the seek slider drives the player labels, the buffer bar eases (ISSUE-462/464); r35 flick inertia on dialog pages
