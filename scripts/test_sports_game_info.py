@@ -182,20 +182,21 @@ class PageProperties(unittest.TestCase):
     def test_tabs_exist_only_when_there_is_a_table_and_the_tab_is_remembered(self):
         facts = gi.sample()
         props = self.props(facts)
-        self.assertEqual((props['has.tabs'], props['tab']), ('true', 'info'))
+        self.assertEqual((props['has.tabs'], props['tab']), ('true', 'stats'))
         self.assertEqual(self.facts.info_props(self.game, facts, 0, NOW, 0, 'standings')['tab'], 'standings')
-        self.assertEqual(self.facts.info_props(self.game, facts, 0, NOW, 0, 'nonsense')['tab'], 'info')
+        self.assertEqual(self.facts.info_props(self.game, facts, 0, NOW, 0, 'nonsense')['tab'], 'stats')
+        self.assertEqual(self.facts.info_props(self.game, facts, 0, NOW, 0, 'plays')['tab'], 'plays')
         facts['standings'] = None
         self.assertEqual(self.props(facts)['has.tabs'], '')   # a game with no table (golf, a fight) has no tabs
         self.assertEqual(self.props()['has.tabs'], '')
 
-    def test_the_page_carries_the_hero_the_action_capsule_and_the_tabs(self):
+    def test_the_page_has_a_fixed_score_header_three_tabs_and_the_stats_cards(self):
         import portrait
         text = self.page.page(portrait)
-        for needle in ('Window().Property(away.tint)', 'Remind me', 'Reminder on', '>Play<', 'Window().Property(tab)', 'Window().Property(has.tabs)',
-                       'Divisional', 'Wild Card', 'Recent form'):
+        for needle in ('Window().Property(strip.status)', 'Window().Property(strip.away)', 'Window().Property(tab)', 'Window().Property(has.tabs)', 'Stats', 'Play-By-Play', 'Standings',
+                       'Betting Odds', 'Team Stats', 'Window().Property(blk.0.title)', 'Window().Property(play.0.detail)', 'Divisional', 'Wild Card', 'Recent form', 'Loading the stats'):
             self.assertIn(needle, text)
-        for ident in (self.page.TAB_INFO, self.page.TAB_STANDINGS, self.page.AUTO, self.page.REMIND, self.page.REMIND_ON):
+        for ident in (self.page.TAB_INFO, self.page.TAB_PLAYS, self.page.TAB_STANDINGS, self.page.BACK, self.page.BAR_BASE, self.page.BAR_BASE + self.page.STAT_ROWS - 1):
             self.assertIn('id="%d"' % ident, text)
 
     def test_there_is_no_watch_on_row(self):

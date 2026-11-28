@@ -10,8 +10,13 @@ WINDOW = 'IOSSportsGameFacts.xml'
 BACK, LIST = 9001, 9300
 AUTO, REMIND, REMIND_ON = 9005, 9006, 9008
 STANDINGS_SWITCH, STANDINGS_SWITCH_BACK = 9009, 9010      # Divisional / Wild Card
-TAB_INFO, TAB_STANDINGS = 9012, 9013
+TAB_INFO, TAB_STANDINGS, TAB_PLAYS = 9012, 9013, 9014      # Stats (TAB_INFO's id), Standings, Play-By-Play
+TAB_ALT = 20                                              # the two-tab row (a game with no standings) has its own ids: id + 20
+BAR_BASE = 9100                                           # the team-stat bars (filled by the window's script: a progress control cannot read a property)
 ST_ROWS = 8
+STAT_ROWS, BLOCKS, BLOCK_ROWS, PLAYS = 10, 8, 5, 12      # sports_game_detail's slots
+HEAD_H = 300                                              # the fixed header: score strip and tabs; the list scrolls under it
+COLS = 5
 DOTS = 5
 PILL_W = 640
 PILL_X = (1080 - PILL_W) // 2
@@ -98,6 +103,127 @@ def _standings_tab(p):
     return out
 
 
+
+def _header(p):
+    """Fixed at the top while the list scrolls (the owner's example: the score and the tabs stay): back, the compact score, the three tabs."""
+    out = p.image(0, 0, 1080, HEAD_H, p.MEDIA + 'white.png', 'FF000000')
+    out += p.nav_button(BACK, 32, 5, 'chevron-left.png', 'noop')
+    team = 'String.IsEqual(Window().Property(strip.kind),teams)'
+    event = 'String.IsEqual(Window().Property(strip.kind),event)'
+    strip = ''
+    for side, x, sx, align in (('away', 170, 280, 'left'), ('home', 814, 640, 'right')):
+        strip += p.image(x, 22, 96, 96, u.P(side + '.crest'), extra='<visible>' + u.has(side + '.crest') + '</visible>', aspect='>keep', background=True)
+        strip += u.text(p, x, 22, 96, 96, u.P(side + '.code'), 'p_foot_b', align='center').replace('</control>', '<visible>' + u.neg(u.has(side + '.crest')) + '</visible></control>')
+        strip += u.text(p, sx, 12, 160, 116, u.P('strip.' + side), 'p_title', 'FFFFFFFF' if side == 'home' else p.GREY, align)
+    strip += u.text(p, 440, 24, 200, 54, u.P('strip.status'), 'p_foot_b', p.WHITE, 'center').replace('<textcolor>' + p.WHITE + '</textcolor>', '<textcolor>' + u.P('strip.tint') + '</textcolor>')
+    strip += u.text(p, 440, 76, 200, 46, u.P('strip.sub'), 'p_cap', p.GREY, 'center')
+    out += '<control type="group"><visible>%s</visible>%s</control>' % (team, strip)
+    ev = p.image(170, 22, 96, 96, u.P('away.crest'), extra='<visible>' + u.has('away.crest') + '</visible>', aspect='>keep', background=True)
+    ev += p.textbox(290, 14, 760, 112, u.P('away.name'), 'p_foot_b').replace('<autoscroll>', '<aligny>center</aligny><autoscroll>')
+    out += '<control type="group"><visible>%s</visible>%s</control>' % (event, ev)
+    def row(items, bump=0):
+        width = 972 // len(items)
+        seg = u.card(p, p.SIDE, 0, 972, 104)
+        for k, (ident, label, value) in enumerate(items):
+            x = p.SIDE + 6 + k * width
+            w = width - 12
+            seg += p.image(x, 6, w, 92, p.MEDIA + 'r27.png', p.WHITE, '<visible>String.IsEqual(Window().Property(tab),%s)</visible>' % value, border=27)
+            seg += u.tap(p, ident + bump, x, 6, w, 92, '', p.GREY)
+            seg += '<control type="group"><visible>String.IsEqual(Window().Property(tab),%s)</visible>%s</control>' % (value, u.text(p, x, 6, w, 92, label, 'p_foot_b', 'FF000000', 'center'))
+            seg += '<control type="group"><visible>!String.IsEqual(Window().Property(tab),%s)</visible>%s</control>' % (value, u.text(p, x, 6, w, 92, label, 'p_foot_b', p.GREY, 'center'))
+        return seg
+    three = ((TAB_INFO, 'Stats', 'stats'), (TAB_PLAYS, 'Play-By-Play', 'plays'), (TAB_STANDINGS, 'Standings', 'standings'))
+    out += '<control type="group"><top>164</top><visible>%s</visible>%s</control>' % (u.has('has.tabs'), row(three))
+    out += '<control type="group"><top>164</top><visible>%s</visible>%s</control>' % (u.neg(u.has('has.tabs')), row(three[:2], TAB_ALT))
+    return out
+
+
+def _message(p):
+    """While ESPN's answer is on its way, or has nothing: one plain line (the cards below draw only what exists)."""
+    out = u.group(p, 150, u.text(p, p.SIDE, 40, 972, 70, 'Loading the stats…', 'p_foot', p.GREY, 'center'), 'String.IsEqual(Window().Property(detail),loading)')
+    out += u.group(p, 150, u.text(p, p.SIDE, 40, 972, 70, 'ESPN has no stats for this game yet.', 'p_foot', p.GREY, 'center'), 'String.IsEqual(Window().Property(detail),none)')
+    return out
+
+
+def _odds(p):
+    h = 520
+    body = u.card(p, p.SIDE, 0, 972, h - 20)
+    body += u.text(p, p.SIDE, 18, 972, 70, 'Betting Odds', 'p_h3', p.WHITE, 'center')
+    for x, w, label in ((92, 150, 'Team'), (250, 250, 'Spread'), (500, 250, 'Total'), (750, 240, 'Moneyline')):
+        body += u.text(p, x, 96, w, 56, label, 'p_cap', p.GREY, 'left' if label == 'Team' else 'center')
+    for n in range(2):
+        key, y = 'odds.r%d.' % n, 160 + n * 130
+        if n:
+            body += p.image(92, y - 4, 896, 3, p.MEDIA + 'white.png', '1FEBEBF5')
+        body += u.text(p, 92, y, 150, 120, u.P(key + 'team'), 'p_foot_b')
+        body += u.text(p, 250, y + 6, 250, 60, u.P(key + 'spread'), 'p_foot_b', p.WHITE, 'center') + u.text(p, 250, y + 62, 250, 44, u.P(key + 'so'), 'p_cap', p.GREY, 'center')
+        body += u.text(p, 500, y + 6, 250, 60, u.P(key + 'total'), 'p_foot_b', p.WHITE, 'center') + u.text(p, 500, y + 62, 250, 44, u.P(key + 'to'), 'p_cap', p.GREY, 'center')
+        body += u.text(p, 750, y, 240, 120, u.P(key + 'money'), 'p_foot_b', p.WHITE, 'center')
+    body += u.text(p, 92, 420, 896, 50, 'Odds provided by ' + u.P('odds.provider'), 'p_cap', p.GREY)
+    return u.group(p, h, body, u.has('odds.r0.team'))
+
+
+def _team_stats(p):
+    out = u.group(p, 118, u.text(p, p.SIDE + 10, 30, 960, 70, 'Team Stats', 'p_foot_b', p.GREY), u.has('ts.0.label'))
+    for n in range(STAT_ROWS):
+        key, h = 'ts.%d.' % n, 150
+        b = u.row_back(p, key, 972, h)
+        b += u.text(p, 92, 10, 260, 70, u.P(key + 'away'), 'p_h3') + u.text(p, 728, 10, 260, 70, u.P(key + 'home'), 'p_h3', p.WHITE, 'right')
+        b += u.text(p, 330, 14, 420, 60, u.P(key + 'label'), 'p_cap', p.GREY, 'center')
+        b += u.id_bar(p, BAR_BASE + n, 92, 96, 896, 11, u.P(key + 'ac'), u.P(key + 'hc'))
+        out += u.group(p, h, b, u.has(key + 'label'))
+    return out
+
+
+def _blocks(p):
+    out = ''
+    cols = [(423 + 113 * i, 113) for i in range(COLS)]
+    for n in range(BLOCKS):
+        key = 'blk.%d.' % n
+        head = p.image(p.SIDE + 10, 40, 60, 60, u.P(key + 'logo'), extra='<visible>' + u.has(key + 'logo') + '</visible>', aspect='>keep', background=True)
+        head += u.text(p, p.SIDE + 84, 30, 800, 80, u.P(key + 'team'), 'p_foot_b')
+        out += u.group(p, 118, head, u.has(key + 'team'))
+        for rows in (3, 5):   # the window pads a block to 3 or 5 rows
+            h = 100 + 90 * rows + 30
+            b = u.card(p, p.SIDE, 0, 972, h - 20)
+            b += u.text(p, 92, 6, 330, 90, u.P(key + 'title'), 'p_cap', p.GREY)
+            for i, (x, w) in enumerate(cols):
+                b += u.text(p, x, 6, w, 90, u.P(key + 'h%d' % i), 'p_cap', p.GREY, 'right')
+            for r in range(rows):
+                y = 100 + 90 * r
+                if r:
+                    b += p.image(92, y, 896, 2, p.MEDIA + 'white.png', '14EBEBF5')
+                b += p.textbox(92, y + 4, 330, 84, u.P(key + 'r%d.name' % r), 'p_foot_b').replace('<autoscroll>', '<aligny>center</aligny><autoscroll>')
+                for i, (x, w) in enumerate(cols):
+                    b += u.text(p, x, y, w, 90, u.P(key + 'r%d.c%d' % (r, i)), 'p_foot', p.WHITE, 'right')
+            out += u.group(p, h, b, 'String.IsEqual(Window().Property(%srows),%d)' % (key, rows))
+    return out
+
+
+def _stats_tab(p):
+    return _message(p) + u.group(p, 40, '') + _info_tab(p) + _odds(p) + _team_stats(p) + u.group(p, 30, '') + _blocks(p)
+
+
+def _plays_tab(p):
+    """One card per drive (football) or play: a colour stripe, what happened, the plain description (wraps up to three lines), a SCORE mark."""
+    out = _message(p).replace('Loading the stats…', 'Loading the plays…').replace('no stats for this game yet', 'no plays for this game yet')
+    for n in range(PLAYS):
+        key = 'play.%d.' % n
+        for lines in (1, 2, 3):   # the window gives a play 1, 2 or 3 lines
+            h = 40 + 62 + 51 * lines + 36
+            b = u.card(p, p.SIDE, 0, 972, h - 16)
+            b += p.image(p.SIDE + 14, 22, 8, h - 60, p.MEDIA + 'white.png', u.P(key + 'color'), '<visible>' + u.has(key + 'color') + '</visible>')
+            b += u.text(p, 92 + 14, 18, 600, 62, u.P(key + 'title'), 'p_foot_b')
+            b += p.image(838, 24, 150, 52, p.MEDIA + 'r27.png', '3330D158', '<visible>String.IsEqual(Window().Property(%sscore),true)</visible>' % key, border=26)
+            b += u.text(p, 838, 24, 150, 52, 'SCORE', 'p_cap', p.GREEN, 'center').replace('</control>', '<visible>String.IsEqual(Window().Property(%sscore),true)</visible></control>' % key)
+            for x, w, vis in ((520, 300, 'String.IsEqual(Window().Property(%sscore),true)'), (620, 360, '!String.IsEqual(Window().Property(%sscore),true)')):   # beside the SCORE mark, not under it
+                b += u.text(p, x, 18, w, 62, u.P(key + 'tag'), 'p_cap', p.GREY, 'right').replace('</control>', '<visible>' + vis % key + '</visible></control>')
+            b += p.textbox(92 + 14, 80, 860, 51 * lines + 6, u.P(key + 'detail'), 'p_foot', p.GREY)
+            out += u.group(p, h, b, 'String.IsEqual(Window().Property(%sform),%d)' % (key, lines))
+    return out
+
+
+
 def _actions(p):
     """The same capsule as the game page: Play when there is a source, else Remind me / Reminder on (before the game starts)."""
     no_source = 'String.IsEqual(Window().Property(state),empty) + String.IsEmpty(Window().Property(game.live))'
@@ -110,18 +236,17 @@ def _actions(p):
 
 
 def page(p):
-    header = p.nav_button(BACK, 32, 5, 'chevron-left.png', 'noop')
-    content = u.group(p, 134, header) + hero.hero(p) + _actions(p)
-    tabs = u.group(p, 40, '', u.has('has.tabs')) + u.group(p, 160, _segment(p, [(TAB_INFO, 'Info', 'info'), (TAB_STANDINGS, 'Standings', 'standings')], 'tab'), u.has('has.tabs'))
-    content += tabs
-    info_on, standings_on = '!String.IsEqual(Window().Property(tab),standings)', 'String.IsEqual(Window().Property(tab),standings)'
-    content += _gate(u.group(p, 40, '') + _info_tab(p), info_on)
-    content += _gate(_standings_tab(p), standings_on)
+    """The Info window: a fixed header (score and the Stats / Play-By-Play / Standings tabs) over a list that scrolls."""
+    stats, plays, table = 'String.IsEqual(Window().Property(tab),stats)', 'String.IsEqual(Window().Property(tab),plays)', 'String.IsEqual(Window().Property(tab),standings)'
+    content = _gate(_stats_tab(p), stats)
+    content += _gate(_plays_tab(p), plays)
+    content += _gate(u.group(p, 30, '') + _standings_tab(p), table)
     content += u.group(p, 260, '')
     body = p.backdrop()
-    body += ('<control type="grouplist" id="%d"><top>0</top><width>1080</width><bottom>0</bottom>'
+    body += ('<control type="grouplist" id="%d"><top>%d</top><width>1080</width><bottom>0</bottom>'
              '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
-             '<scrolltime tween="cubic" easing="out">220</scrolltime>%s</control>') % (LIST, content)
+             '<scrolltime tween="cubic" easing="out">220</scrolltime>%s</control>') % (LIST, HEAD_H, content)
+    body += _header(p)
     body += p.tabbar('library')
     return '<?xml version="1.0" encoding="UTF-8"?>\n<window><defaultcontrol always="false">9001</defaultcontrol><controls>%s</controls></window>' % body
 
