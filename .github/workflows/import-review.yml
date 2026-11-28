@@ -350,6 +350,7 @@ jobs:
           python3 -B scripts/test_choose_source.py
           python3 -B scripts/test_onepace.py
           python3 -B scripts/test_onepace_show.py
+          python3 -B scripts/test_connection_speed.py
           python3 -B scripts/test_resume_now.py
           python3 -B scripts/test_slow_copy.py
           python3 -B scripts/test_signin_server.py
@@ -384,6 +385,7 @@ jobs:
           python3 -B scripts/test_choose_source.py
           python3 -B scripts/test_onepace.py
           python3 -B scripts/test_onepace_show.py
+          python3 -B scripts/test_connection_speed.py
       - name: Acquire public pinned sources and build review ZIP
         run: |
           python3 -B scripts/build_import_review.py --foundation-report reports/ios-foundation-addon-audit.json --output "$RUNNER_TEMP/kodi-import-review"

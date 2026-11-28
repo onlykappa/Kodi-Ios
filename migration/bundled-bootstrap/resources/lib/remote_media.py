@@ -340,6 +340,11 @@ class Foreground(drive_stream.DriveStream):
 
  def _trace(self,kind,index,began,size=0,error=''):
   now=time.monotonic()
+  if kind=='block' and size and not error:   # ISSUE-498: every fetched block is a throughput sample of the real path (connection_speed.py)
+   try:
+    import connection_speed
+    meter=self.__dict__.setdefault('speed_meter',connection_speed.Meter());meter.add(size,began,now);connection_speed.record(meter,now)
+   except Exception:pass
   self._log('Kodi iOS cache %s: index=%d at=+%.2fs took=%.2fs %s'%(kind,index,began-self.born,now-began,
             ('error=%s'%error) if error else 'bytes=%d'%size))
 

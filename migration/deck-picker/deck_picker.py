@@ -218,6 +218,7 @@ HEAVY_GB = 40.0
 # bitrate (size over the title's length) is above STREAM_MBPS are listed after the lighter ones (still offered, same quality group). RUNTIME[0] is the title's
 # length in seconds, set by umbrella_picker from Umbrella's own metadata; 0 (unknown) changes nothing.
 STREAM_MBPS = 10.0
+LIMIT = [0.0]   # ISSUE-498: the limit for this list from what the connection has delivered (connection_speed.allowed), set by umbrella_picker; 0 = STREAM_MBPS
 RUNTIME = [0.0]
 DISC_WORDS = (' M2TS ', ' BDMV ', ' ISO ', ' BD25 ', ' BD50 ', ' BD66 ', ' BD100 ', ' COMPLETE BLURAY ', ' COMPLETE UHD BLURAY ',
               ' COMPLETE BLU RAY ', ' UHD BD ', ' DISC ')
@@ -366,7 +367,8 @@ def pick(items, top_n=TOP_N):
     # hardware decoder on Apple devices), Dolby Vision without an HDR10 fallback (wrong colours on TVs without DV).
     # Downloads (Elementum) are prepared once on Drive, so those stay in Elementum's order there.
     if MODE[0] == u'stream':
-        good = [i for i in good if stream_mbps(i) <= STREAM_MBPS] + [i for i in good if stream_mbps(i) > STREAM_MBPS]   # ISSUE-497: lighter versions first
+        limit = LIMIT[0] or STREAM_MBPS
+        good = [i for i in good if stream_mbps(i) <= limit] + [i for i in good if stream_mbps(i) > limit]   # ISSUE-497/498: versions the connection carries first
         good = [i for i in good if not live_conversion(i)] + [i for i in good if live_conversion(i)]
     # ISSUE-492 (owner log 4e3d5e2c, build 710): after an episode is picked Umbrella lists the whole pack and unlocks its files one by one until it reaches the episode:
     # 3 files 2.2 s, a series pack of 92 files 27.3 s (Dragon Ball Z), against 3-4 s for a movie. A release that names this very season and episode opens fastest, so for a

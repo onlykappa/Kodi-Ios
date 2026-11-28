@@ -137,10 +137,16 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
  except Exception:pass
  deck=deck or load()
  share(meta)
+ close_circle()
  try:   # the title's length in seconds, so the version list can put the lighter streams first (deck_picker.stream_mbps)
   deck.RUNTIME[0]=float((meta or {}).get('duration') or 0)
  except Exception:pass
- close_circle()
+ try:   # ISSUE-498: how much this network has delivered to streams lately sets how heavy a version may be to come first (connection_speed.py)
+  import connection_speed,xbmc
+  speeds=connection_speed.open_speeds();estimate=speeds.estimate(connection_speed.current_key())
+  deck.LIMIT[0]=connection_speed.allowed(estimate)
+  xbmc.log(connection_speed.advice(estimate,deck.LIMIT[0]),xbmc.LOGINFO)
+ except Exception:pass
  title=(meta or {}).get('tvshowtitle') or (meta or {}).get('title') or ''
  labels=[label(item) for _,item in playable_items]
  # Umbrella is live playback (owner): versions AirPlay can send as they are come first.
